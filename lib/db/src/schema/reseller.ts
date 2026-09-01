@@ -20,6 +20,7 @@ export const resellersTable = pgTable("resellers", {
   usedGb: numeric("used_gb", { precision: 10, scale: 2 }).notNull(),
   isEnabled: smallint("is_enabled").notNull(),
   perGigPrice: integer("per_gig_price"),
+  customerPricePerGb: numeric("customer_price_per_gb", { precision: 14, scale: 2 }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" }),
 });
@@ -49,6 +50,7 @@ export const resellerServicesTable = pgTable("reseller_services", {
   falcoSubUrl: text("falco_sub_url"),
   expireAt: timestamp("expire_at", { mode: "date" }),
   status: text("status").notNull(),
+  disabledAt: timestamp("disabled_at", { mode: "date" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" }),
   lastUsedBytes: bigint("last_used_bytes", { mode: "number" }),

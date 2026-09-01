@@ -15,6 +15,8 @@ export interface Reseller {
   used_gb: number;
   /** @minimum 0 */
   per_gig_price: number;
+  /** @minimum 0 */
+  customer_price_per_gb: number;
   enabled: boolean;
   created_at: string;
 }

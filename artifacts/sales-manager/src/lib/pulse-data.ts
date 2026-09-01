@@ -1,6 +1,7 @@
 export type Sale = {
   id: string;
   customerName: string;
+  resellerName?: string;
   serviceName: string;
   panel: string;
   amount: number;

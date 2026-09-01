@@ -119,6 +119,7 @@ async function syncService(service: ServiceRow): Promise<void> {
      SET last_used_bytes = $1, last_total_bytes = $2, last_remaining_bytes = $3,
          last_expire_ts = $4, last_usage_updated_at = $5,
          status = CASE WHEN $6 THEN 'disabled' ELSE status END,
+          disabled_at = CASE WHEN $6 AND status <> 'disabled' THEN NOW() ELSE disabled_at END,
          admin_notes = CASE WHEN $7::text IS NOT NULL THEN COALESCE(admin_notes, '') || CASE WHEN COALESCE(admin_notes, '') = '' THEN '' ELSE ' · ' END || $7::text ELSE admin_notes END,
          updated_at = NOW()
      WHERE id = $8`,

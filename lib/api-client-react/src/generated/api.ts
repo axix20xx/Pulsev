@@ -33,6 +33,8 @@ import type {
   ListServicesParams,
   RenewServiceInput,
   Reseller,
+  ResellerCreditSale,
+  ResellerCreditSaleUpdate,
   ResellerUpdate,
   ResetServiceToken200,
   Sale,
@@ -684,6 +686,78 @@ export function useGetSalesSummary<TData = Awaited<ReturnType<typeof getSalesSum
 
 
 
+
+export const getUpdateResellerCreditSaleUrl = (id: number,) => {
+
+
+
+
+  return `/api/reseller-credit-sales/${id}`
+}
+
+/**
+ * @summary Update a reseller credit payment
+ */
+export const updateResellerCreditSale = async (id: number,
+    resellerCreditSaleUpdate: ResellerCreditSaleUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ResellerCreditSale> => {
+
+  return customFetch<ResellerCreditSale>(getUpdateResellerCreditSaleUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resellerCreditSaleUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateResellerCreditSaleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateResellerCreditSale>>, TError,{id: number;data: BodyType<ResellerCreditSaleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateResellerCreditSale>>, TError,{id: number;data: BodyType<ResellerCreditSaleUpdate>}, TContext> => {
+
+const mutationKey = ['updateResellerCreditSale'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateResellerCreditSale>>, {id: number;data: BodyType<ResellerCreditSaleUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateResellerCreditSale(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateResellerCreditSaleMutationResult = NonNullable<Awaited<ReturnType<typeof updateResellerCreditSale>>>
+    export type UpdateResellerCreditSaleMutationBody = BodyType<ResellerCreditSaleUpdate>
+    export type UpdateResellerCreditSaleMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a reseller credit payment
+ */
+export const useUpdateResellerCreditSale = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateResellerCreditSale>>, TError,{id: number;data: BodyType<ResellerCreditSaleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateResellerCreditSale>>,
+        TError,
+        {id: number;data: BodyType<ResellerCreditSaleUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateResellerCreditSaleMutationOptions(options));
+    }
 
 export const getUpdateSaleUrl = (id: number,) => {
 

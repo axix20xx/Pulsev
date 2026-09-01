@@ -15,6 +15,7 @@ export type AuthContext = {
   resellerId: number | null;
   displayName: string | null;
   title: string | null;
+  customerPricePerGb: number | null;
 };
 
 declare global {
@@ -124,6 +125,7 @@ export async function getAuthContext(req: Request): Promise<AuthContext | null> 
        session.reseller_id AS "resellerId",
        session.display_name AS "displayName",
        reseller.title,
+       reseller.customer_price_per_gb::float8 AS "customerPricePerGb",
        reseller.is_enabled AS enabled
      FROM web_sessions AS session
      LEFT JOIN resellers AS reseller ON reseller.id = session.reseller_id
@@ -139,6 +141,7 @@ export async function getAuthContext(req: Request): Promise<AuthContext | null> 
     resellerId: row.resellerId ? Number(row.resellerId) : null,
     displayName: row.displayName,
     title: row.title ?? null,
+    customerPricePerGb: row.customerPricePerGb === null || row.customerPricePerGb === undefined ? null : Number(row.customerPricePerGb),
   };
 }
 

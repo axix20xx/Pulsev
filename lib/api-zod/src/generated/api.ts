@@ -26,7 +26,8 @@ export const GetAuthSessionResponse = zod.object({
   "telegram_id": zod.number().nullish(),
   "display_name": zod.string().nullish(),
   "reseller_id": zod.number().nullish(),
-  "title": zod.string().nullish()
+  "title": zod.string().nullish(),
+  "customer_price_per_gb": zod.number().nullish()
 })
 
 
@@ -49,7 +50,8 @@ export const LoginWithTelegramResponse = zod.object({
   "telegram_id": zod.number().nullish(),
   "display_name": zod.string().nullish(),
   "reseller_id": zod.number().nullish(),
-  "title": zod.string().nullish()
+  "title": zod.string().nullish(),
+  "customer_price_per_gb": zod.number().nullish()
 })
 
 
@@ -70,7 +72,8 @@ export const LoginWithTelegramIdResponse = zod.object({
   "telegram_id": zod.number().nullish(),
   "display_name": zod.string().nullish(),
   "reseller_id": zod.number().nullish(),
-  "title": zod.string().nullish()
+  "title": zod.string().nullish(),
+  "customer_price_per_gb": zod.number().nullish()
 })
 
 
@@ -90,6 +93,13 @@ export const GetDashboardResponse = zod.object({
   "service_health": zod.number(),
   "visible_customers": zod.number(),
   "visible_resellers": zod.number(),
+  "month_sales_count": zod.number(),
+  "month_sold_gb": zod.number(),
+  "month_income": zod.number(),
+  "month_paid_income": zod.number(),
+  "month_unpaid_income": zod.number(),
+  "disabled_today": zod.number(),
+  "generated_at": zod.string(),
   "recent_activity": zod.array(zod.object({
   "id": zod.string(),
   "type": zod.string(),
@@ -121,6 +131,7 @@ export const ListSalesResponseItem = zod.object({
   "id": zod.number(),
   "customer_id": zod.number(),
   "customer_name": zod.string(),
+  "reseller_name": zod.string(),
   "service_id": zod.number(),
   "service_name": zod.string(),
   "panel": zod.string(),
@@ -164,7 +175,57 @@ export const GetSalesSummaryResponse = zod.object({
   "paid_profit": zod.number(),
   "unpaid_profit": zod.number(),
   "remaining_to_collect": zod.number(),
-  "cash_after_admin": zod.number()
+  "cash_after_admin": zod.number(),
+  "reseller_due": zod.number(),
+  "reseller_paid": zod.number(),
+  "reseller_remaining": zod.number(),
+  "reseller_due_gb": zod.number(),
+  "reseller_balances": zod.array(zod.object({
+  "reseller_tg_id": zod.number(),
+  "reseller_name": zod.string(),
+  "due_gb": zod.number(),
+  "due_amount": zod.number(),
+  "paid_amount": zod.number(),
+  "remaining_amount": zod.number()
+})),
+  "reseller_credit_sales": zod.array(zod.object({
+  "id": zod.number(),
+  "reseller_tg_id": zod.number(),
+  "reseller_name": zod.string(),
+  "gb_amount": zod.number(),
+  "unit_price": zod.number(),
+  "total_amount": zod.number(),
+  "paid": zod.boolean(),
+  "note": zod.string().nullable(),
+  "created_at": zod.string()
+}))
+})
+
+
+/**
+ * @summary Update a reseller credit payment
+ */
+
+
+
+export const UpdateResellerCreditSaleParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const UpdateResellerCreditSaleBody = zod.object({
+  "is_paid": zod.boolean()
+})
+
+export const UpdateResellerCreditSaleResponse = zod.object({
+  "id": zod.number(),
+  "reseller_tg_id": zod.number(),
+  "reseller_name": zod.string(),
+  "gb_amount": zod.number(),
+  "unit_price": zod.number(),
+  "total_amount": zod.number(),
+  "paid": zod.boolean(),
+  "note": zod.string().nullable(),
+  "created_at": zod.string()
 })
 
 
@@ -187,6 +248,7 @@ export const UpdateSaleResponse = zod.object({
   "id": zod.number(),
   "customer_id": zod.number(),
   "customer_name": zod.string(),
+  "reseller_name": zod.string(),
   "service_id": zod.number(),
   "service_name": zod.string(),
   "panel": zod.string(),
@@ -525,6 +587,7 @@ export const GetCustomerResponse = zod.object({
   "id": zod.number(),
   "customer_id": zod.number(),
   "customer_name": zod.string(),
+  "reseller_name": zod.string(),
   "service_id": zod.number(),
   "service_name": zod.string(),
   "panel": zod.string(),
@@ -541,6 +604,8 @@ export const GetCustomerResponse = zod.object({
  */
 export const listResellersResponsePerGigPriceMin = 0;
 
+export const listResellersResponseCustomerPricePerGbMin = 0;
+
 
 
 export const ListResellersResponseItem = zod.object({
@@ -550,6 +615,7 @@ export const ListResellersResponseItem = zod.object({
   "total_gb": zod.number(),
   "used_gb": zod.number(),
   "per_gig_price": zod.number().min(listResellersResponsePerGigPriceMin),
+  "customer_price_per_gb": zod.number().min(listResellersResponseCustomerPricePerGbMin),
   "enabled": zod.boolean(),
   "created_at": zod.string()
 })
@@ -568,14 +634,19 @@ export const UpdateResellerParams = zod.object({
 
 export const updateResellerBodyPerGigPriceMin = 0;
 
+export const updateResellerBodyCustomerPricePerGbMin = 0;
+
 
 
 export const UpdateResellerBody = zod.object({
   "enabled": zod.boolean(),
-  "per_gig_price": zod.number().min(updateResellerBodyPerGigPriceMin).optional()
+  "per_gig_price": zod.number().min(updateResellerBodyPerGigPriceMin).optional(),
+  "customer_price_per_gb": zod.number().min(updateResellerBodyCustomerPricePerGbMin).optional()
 })
 
 export const updateResellerResponsePerGigPriceMin = 0;
+
+export const updateResellerResponseCustomerPricePerGbMin = 0;
 
 
 
@@ -586,6 +657,7 @@ export const UpdateResellerResponse = zod.object({
   "total_gb": zod.number(),
   "used_gb": zod.number(),
   "per_gig_price": zod.number().min(updateResellerResponsePerGigPriceMin),
+  "customer_price_per_gb": zod.number().min(updateResellerResponseCustomerPricePerGbMin),
   "enabled": zod.boolean(),
   "created_at": zod.string()
 })

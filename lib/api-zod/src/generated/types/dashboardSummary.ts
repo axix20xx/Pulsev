@@ -14,5 +14,12 @@ export interface DashboardSummary {
   service_health: number;
   visible_customers: number;
   visible_resellers: number;
+  month_sales_count: number;
+  month_sold_gb: number;
+  month_income: number;
+  month_paid_income: number;
+  month_unpaid_income: number;
+  disabled_today: number;
+  generated_at: string;
   recent_activity: Activity[];
 }

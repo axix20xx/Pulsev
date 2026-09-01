@@ -10,6 +10,7 @@ export interface Sale {
   id: number;
   customer_id: number;
   customer_name: string;
+  reseller_name: string;
   service_id: number;
   service_name: string;
   panel: string;

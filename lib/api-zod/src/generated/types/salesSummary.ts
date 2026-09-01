@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ResellerBalance } from './resellerBalance';
+import type { ResellerCreditSale } from './resellerCreditSale';
 
 export interface SalesSummary {
   /** @pattern ^\d{4}-\d{2}-\d{2}$ */
@@ -25,4 +27,10 @@ export interface SalesSummary {
   unpaid_profit: number;
   remaining_to_collect: number;
   cash_after_admin: number;
+  reseller_due: number;
+  reseller_paid: number;
+  reseller_remaining: number;
+  reseller_due_gb: number;
+  reseller_balances: ResellerBalance[];
+  reseller_credit_sales: ResellerCreditSale[];
 }

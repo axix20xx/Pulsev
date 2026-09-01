@@ -6,3 +6,7 @@
 - [Persian date boundaries](persian-date-boundaries.md) — keep user-facing dates in Tehran’s Persian calendar and convert to ISO only at API boundaries.
 - [ISO date query schemas](iso-date-query-schemas.md) — use patterned strings for OpenAPI query dates; date formats generate runtime zod.date parsers that reject URL strings.
 - [Paid and unpaid profit](paid-profit-allocation.md) — allocate shared credit cost by paid-revenue share when splitting profit by collection status.
+- [Reseller price separation](reseller-price-separation.md) — reseller purchase cost and customer-facing sale price are independent per-gig settings.
+- [Service disable history](service-disable-history.md) — use an explicit Tehran-timestamped disable event for accurate daily activity and reason display.
+- [Super-admin cost policy](super-admin-cost-policy.md) — the master admin's internal cost basis is fixed at 2,500 toman per gig.
+- [Reseller payment ledger](reseller-payment-ledger.md) — reseller credit invoices are the source of due, paid, and remaining balances owed to the master admin.

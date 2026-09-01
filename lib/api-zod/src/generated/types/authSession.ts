@@ -18,4 +18,6 @@ export interface AuthSession {
   reseller_id?: number | null;
   /** @nullable */
   title?: string | null;
+  /** @nullable */
+  customer_price_per_gb?: number | null;
 }

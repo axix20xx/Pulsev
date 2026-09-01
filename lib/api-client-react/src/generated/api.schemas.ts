@@ -69,6 +69,8 @@ export interface AuthSession {
   reseller_id?: number | null;
   /** @nullable */
   title?: string | null;
+  /** @nullable */
+  customer_price_per_gb?: number | null;
 }
 
 export interface Activity {
@@ -86,7 +88,36 @@ export interface DashboardSummary {
   service_health: number;
   visible_customers: number;
   visible_resellers: number;
+  month_sales_count: number;
+  month_sold_gb: number;
+  month_income: number;
+  month_paid_income: number;
+  month_unpaid_income: number;
+  disabled_today: number;
+  generated_at: string;
   recent_activity: Activity[];
+}
+
+export interface ResellerBalance {
+  reseller_tg_id: number;
+  reseller_name: string;
+  due_gb: number;
+  due_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+}
+
+export interface ResellerCreditSale {
+  id: number;
+  reseller_tg_id: number;
+  reseller_name: string;
+  gb_amount: number;
+  unit_price: number;
+  total_amount: number;
+  paid: boolean;
+  /** @nullable */
+  note: string | null;
+  created_at: string;
 }
 
 export interface SalesSummary {
@@ -108,12 +139,23 @@ export interface SalesSummary {
   unpaid_profit: number;
   remaining_to_collect: number;
   cash_after_admin: number;
+  reseller_due: number;
+  reseller_paid: number;
+  reseller_remaining: number;
+  reseller_due_gb: number;
+  reseller_balances: ResellerBalance[];
+  reseller_credit_sales: ResellerCreditSale[];
+}
+
+export interface ResellerCreditSaleUpdate {
+  is_paid: boolean;
 }
 
 export interface Sale {
   id: number;
   customer_id: number;
   customer_name: string;
+  reseller_name: string;
   service_id: number;
   service_name: string;
   panel: string;
@@ -240,6 +282,8 @@ export interface Reseller {
   used_gb: number;
   /** @minimum 0 */
   per_gig_price: number;
+  /** @minimum 0 */
+  customer_price_per_gb: number;
   enabled: boolean;
   created_at: string;
 }
@@ -248,6 +292,8 @@ export interface ResellerUpdate {
   enabled: boolean;
   /** @minimum 0 */
   per_gig_price?: number;
+  /** @minimum 0 */
+  customer_price_per_gb?: number;
 }
 
 export type SearchParameter = string;

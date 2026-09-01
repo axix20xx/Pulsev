@@ -145,6 +145,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SalesSummary"
+  /reseller-credit-sales/{id}:
+    patch:
+      operationId: updateResellerCreditSale
+      tags: [sales]
+      summary: Update a reseller credit payment
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResellerCreditSaleUpdate"
+      responses:
+        "200":
+          description: Updated reseller credit sale
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResellerCreditSale"
   /sales/{id}:
     patch:
       operationId: updateSale
@@ -470,9 +490,11 @@ components:
           format: int32
         title:
           type: ["string", "null"]
+        customer_price_per_gb:
+          type: ["number", "null"]
     DashboardSummary:
       type: object
-      required: [revenue, active_services, renewals_due, service_health, visible_customers, visible_resellers, recent_activity]
+      required: [revenue, active_services, renewals_due, service_health, visible_customers, visible_resellers, month_sales_count, month_sold_gb, month_income, month_paid_income, month_unpaid_income, disabled_today, generated_at, recent_activity]
       properties:
         revenue:
           type: number
@@ -486,13 +508,27 @@ components:
           type: number
         visible_resellers:
           type: number
+        month_sales_count:
+          type: number
+        month_sold_gb:
+          type: number
+        month_income:
+          type: number
+        month_paid_income:
+          type: number
+        month_unpaid_income:
+          type: number
+        disabled_today:
+          type: number
+        generated_at:
+          type: string
         recent_activity:
           type: array
           items:
             $ref: "#/components/schemas/Activity"
     SalesSummary:
       type: object
-      required: [from, to, sold_gb, income, paid_income, unpaid_income, admin_cost, admin_due, admin_due_gb, outstanding_admin_due, outstanding_admin_due_gb, remaining_profit, paid_profit, unpaid_profit, remaining_to_collect, cash_after_admin]
+      required: [from, to, sold_gb, income, paid_income, unpaid_income, admin_cost, admin_due, admin_due_gb, outstanding_admin_due, outstanding_admin_due_gb, remaining_profit, paid_profit, unpaid_profit, remaining_to_collect, cash_after_admin, reseller_due, reseller_paid, reseller_remaining, reseller_due_gb, reseller_balances, reseller_credit_sales]
       properties:
         from:
           type: string
@@ -528,6 +564,68 @@ components:
           type: number
         cash_after_admin:
           type: number
+        reseller_due:
+          type: number
+        reseller_paid:
+          type: number
+        reseller_remaining:
+          type: number
+        reseller_due_gb:
+          type: number
+        reseller_balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResellerBalance"
+        reseller_credit_sales:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResellerCreditSale"
+    ResellerBalance:
+      type: object
+      required: [reseller_tg_id, reseller_name, due_gb, due_amount, paid_amount, remaining_amount]
+      properties:
+        reseller_tg_id:
+          type: number
+          format: int64
+        reseller_name:
+          type: string
+        due_gb:
+          type: number
+        due_amount:
+          type: number
+        paid_amount:
+          type: number
+        remaining_amount:
+          type: number
+    ResellerCreditSale:
+      type: object
+      required: [id, reseller_tg_id, reseller_name, gb_amount, unit_price, total_amount, paid, note, created_at]
+      properties:
+        id:
+          type: number
+        reseller_tg_id:
+          type: number
+          format: int64
+        reseller_name:
+          type: string
+        gb_amount:
+          type: number
+        unit_price:
+          type: number
+        total_amount:
+          type: number
+        paid:
+          type: boolean
+        note:
+          type: ["string", "null"]
+        created_at:
+          type: string
+    ResellerCreditSaleUpdate:
+      type: object
+      required: [is_paid]
+      properties:
+        is_paid:
+          type: boolean
     Activity:
       type: object
       required: [id, type, title, detail, created_at]
@@ -544,13 +642,15 @@ components:
           type: string
     Sale:
       type: object
-      required: [id, customer_id, customer_name, service_id, service_name, panel, amount, date, paid, status]
+      required: [id, customer_id, customer_name, reseller_name, service_id, service_name, panel, amount, date, paid, status]
       properties:
         id:
           type: number
         customer_id:
           type: number
         customer_name:
+          type: string
+        reseller_name:
           type: string
         service_id:
           type: number
@@ -704,7 +804,7 @@ components:
                 $ref: "#/components/schemas/Sale"
     Reseller:
       type: object
-      required: [id, telegram_id, title, total_gb, used_gb, per_gig_price, enabled, created_at]
+      required: [id, telegram_id, title, total_gb, used_gb, per_gig_price, customer_price_per_gb, enabled, created_at]
       properties:
         id:
           type: number
@@ -720,6 +820,9 @@ components:
         per_gig_price:
           type: number
           minimum: 0
+        customer_price_per_gb:
+          type: number
+          minimum: 0
         enabled:
           type: boolean
         created_at:
@@ -731,6 +834,9 @@ components:
         enabled:
           type: boolean
         per_gig_price:
+          type: number
+          minimum: 0
+        customer_price_per_gb:
           type: number
           minimum: 0
 
