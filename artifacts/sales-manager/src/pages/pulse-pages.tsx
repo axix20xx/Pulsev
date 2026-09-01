@@ -222,6 +222,29 @@ export function CustomerAwgDownloads() {
   return <section className="panel-card mt-5" data-testid="panel-awg-downloads"><div className="panel-heading"><div><p className="eyebrow">AmneziaWG</p><h2 className="section-title">دانلود کانفیگ امن</h2></div><Wifi size={18} className="text-muted-foreground" /></div><div className="list-stack">{awgServices.map((service) => <div className="panel-row" key={service.id}><div className="service-symbol"><Wifi size={15} /></div><div className="min-w-0 flex-1"><p className="font-bold">{service.plan}</p><p className="font-mono text-xs text-muted-foreground" dir="ltr">@{service.username}</p></div><a className="button button-primary" href={service.awgConfigUrl!} data-testid={`link-awg-${service.id}`}><ExternalLink size={14} /> دانلود AWG</a></div>)}</div></section>;
 }
 
+export function PublicSubscription() {
+  const [token, setToken] = useState(() => new URLSearchParams(window.location.search).get('t') || '');
+  const [data, setData] = useState<any>(null);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  useEffect(() => {
+    const nextToken = new URLSearchParams(window.location.search).get('t') || '';
+    setToken(nextToken);
+    if (!nextToken) { setState('error'); return; }
+    fetch(`/api/public/subscription/${encodeURIComponent(nextToken)}`).then(async (response) => {
+      if (!response.ok) throw new Error('این لینک اشتراک منقضی یا نامعتبر است.');
+      return response.json();
+    }).then((result) => { setData(result); setState('ready'); }).catch(() => setState('error'));
+  }, []);
+  const absoluteUrl = data ? new URL(data.subscription_url, window.location.origin).toString() : '';
+  const v2boxInstall = absoluteUrl ? `v2box://install-sub?url=${encodeURIComponent(absoluteUrl)}&name=${encodeURIComponent(data.plan || 'Pulse')}` : '#';
+  const expires = data?.expires_at ? new Date(data.expires_at) : null;
+  const remaining = expires ? Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 86400000)) : 0;
+  const ratio = data?.limit_gb ? Math.min(100, Math.round((Number(data.used_gb) / Number(data.limit_gb)) * 100)) : 0;
+  if (state === 'loading') return <div className="public-sub-page"><div className="public-sub-loader"><span className="pulse-mark large"><span /></span><p>در حال آماده‌سازی اشتراک...</p></div></div>;
+  if (state === 'error') return <div className="public-sub-page"><div className="public-sub-card public-sub-error"><div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="public-sub-icon"><ShieldCheck size={24} /></div><h1>لینک اشتراک در دسترس نیست</h1><p>ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="button button-primary">بازگشت</a></div></div>;
+  return <div className="public-sub-page" dir="rtl"><main className="public-sub-card"><header className="public-sub-header"><div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><span className="public-sub-secure"><ShieldCheck size={14} /> لینک امن</span></header><section className="public-sub-hero"><p className="eyebrow">اشتراک اینترنت</p><h1>{data.customer_name || 'اشتراک شما'}</h1><div className="public-sub-plan"><span className="public-sub-status"><span /> فعال</span><strong>{data.plan}</strong><span dir="ltr">@{data.username}</span></div></section><section className="public-sub-usage"><div className="public-sub-usage-head"><div><span>مصرف‌شده</span><strong>{data.used_gb} از {data.limit_gb} گیگ</strong></div><div className="public-sub-days"><span>باقی‌مانده</span><strong>{new Intl.NumberFormat('fa-IR').format(remaining)} روز</strong></div></div><div className="public-sub-progress"><span style={{ width: `${ratio}%` }} /></div><div className="public-sub-usage-foot"><span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</span><span>انقضا: {dateLabel(data.expires_at)}</span></div></section><section className="public-sub-actions"><a className="public-sub-primary-action" href={v2boxInstall}><Globe2 size={19} /><span><strong>افزودن به V2Box</strong><small>با یک لمس در اپلیکیشن باز می‌شود</small></span><ChevronLeft size={17} /></a><div className="public-sub-action-row"><button onClick={() => navigator.clipboard.writeText(absoluteUrl)}><Copy size={17} /><span>کپی لینک</span></button>{data.awg_ready && <a href={data.awg_url}><Wifi size={17} /><span>دانلود AWG</span></a>}</div></section><section className="public-sub-link"><p>لینک اشتراک شما</p><div dir="ltr">{absoluteUrl}</div></section><footer className="public-sub-footer"><ShieldCheck size={15} /><span>این صفحه فقط اطلاعات همین اشتراک را نمایش می‌دهد. رمز یا اطلاعات پنل در مرورگر ذخیره نمی‌شود.</span></footer></main></div>;
+}
+
 export function SettingsPage() {
   const { prefs, setPrefs, session, resellers, updateReseller } = usePulse(); const [draft, setDraft] = useState(prefs); const [saved, setSaved] = useState(false);
   const save = () => { setPrefs(draft); setSaved(true); setTimeout(() => setSaved(false), 2400); };

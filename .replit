@@ -25,4 +25,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-SUBSCRIPTION_BASE_URL = "https://nia.peppernopepper.com/sub.php"
+SUBSCRIPTION_BASE_URL = "/sub"

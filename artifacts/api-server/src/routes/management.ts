@@ -221,6 +221,73 @@ router.post("/auth/logout", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
+router.get("/public/subscription/:token", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).json({ error: "لینک اشتراک معتبر نیست" });
+    return;
+  }
+  const result = await pool.query(
+    `SELECT svc.id, svc.rain_username AS username, svc.label AS plan, svc.status, svc.expire_at AS expires_at,
+            svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.awg_client_id,
+            c.full_name AS customer_name, rst.token
+     FROM reseller_sub_tokens rst
+     JOIN reseller_services svc ON svc.id = rst.service_id
+     JOIN reseller_customers c ON c.id = svc.customer_id
+     WHERE rst.token = $1
+     LIMIT 1`,
+    [token],
+  );
+  const row = result.rows[0];
+  if (!row) {
+    res.status(404).json({ error: "لینک اشتراک پیدا نشد" });
+    return;
+  }
+  const usedGb = Number(row.last_used_bytes ?? 0) / (1024 ** 3);
+  res.json({
+    customer_name: row.customer_name,
+    username: row.username,
+    plan: row.plan,
+    status: row.status,
+    expires_at: row.expires_at,
+    used_gb: Number(usedGb.toFixed(2)),
+    limit_gb: Number(row.limit_gb ?? 0),
+    subscription_url: subscriptionUrl(token),
+    awg_ready: Boolean(row.awg_client_id),
+    awg_url: row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
+    provider_label: "V2Box",
+  });
+});
+
+router.get("/public/subscription/:token/awg", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  const result = await pool.query<{ awg_client_id: string | null; username: string }>(
+    `SELECT svc.awg_client_id, svc.rain_username AS username
+     FROM reseller_sub_tokens rst
+     JOIN reseller_services svc ON svc.id = rst.service_id
+     WHERE rst.token = $1
+     LIMIT 1`,
+    [token],
+  );
+  const row = result.rows[0];
+  if (!row?.awg_client_id) {
+    res.status(404).json({ error: "کانفیگ AmneziaWG برای این اشتراک آماده نیست" });
+    return;
+  }
+  try {
+    const configuration = await getAwgConfiguration(row.awg_client_id);
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${row.username}-amneziawg.conf"`);
+    res.send(configuration);
+  } catch (error) {
+    if (error instanceof AwgApiError) {
+      res.status(502).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
+});
+
 router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
   const result = await pool.query(
     `SELECT p.key, p.kind, p.api_base, p.is_enabled = 1 AS enabled,

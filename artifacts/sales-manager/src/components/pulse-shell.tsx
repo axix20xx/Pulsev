@@ -21,10 +21,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const name = session?.display_name || 'مدیر فروش';
   const isSignedOut = !sessionLoading && (authFallback || session?.authenticated === false || !session);
   useEffect(() => {
-    if (isSignedOut && location !== '/login') navigate('/login');
+    if (isSignedOut && location !== '/login' && !location.startsWith('/sub')) navigate('/login');
     if (session?.authenticated && location === '/login') navigate('/');
   }, [isSignedOut, location, navigate, session?.authenticated]);
-  if (location === '/login') return <div className="min-h-[100dvh] bg-background text-foreground">{children}</div>;
+  if (location === '/login' || location.startsWith('/sub')) return <div className="min-h-[100dvh] bg-background text-foreground">{children}</div>;
   if (sessionLoading || isSignedOut) return <div className="login-screen"><div className="login-card text-center"><div className="pulse-mark large mx-auto"><span /></div><p className="mt-5 font-bold">در حال بررسی دسترسی...</p></div></div>;
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
