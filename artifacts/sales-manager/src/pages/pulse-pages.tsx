@@ -169,13 +169,13 @@ function NoteModal({ service, onClose }: { service: Service; onClose: () => void
   return <Overlay title={`یادداشت · ${service.customerName}`} onClose={onClose}><div className="pt-5"><label className="field"><span>یادداشت داخلی</span><textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} placeholder="جزئیاتی برای پیگیری بعدی بنویسید." /></label><Button className="mt-5 w-full justify-center" onClick={() => { updateService({ ...service, note }); onClose(); }} testId={`button-save-note-${service.id}`}><Save size={15} /> ذخیره یادداشت</Button></div></Overlay>;
 }
 
-const usageLabel = (value: number) => new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(value);
+const usageLabel = (value: number) => value > 0 && value < 0.01 ? `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(value * 1024)} MB` : `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(value)} GB`;
 const usageDate = (value: string | null) => value ? dateLabel(value) : 'هنوز sync نشده';
 function ServiceUsageBreakdown({ service }: { service: Service }) {
   const hasPanelUsage = Boolean(service.panelUsages?.length);
-  const hasAwgUsage = Boolean(service.awgUsage);
+  const hasAwgUsage = Boolean(service.awgUsage || service.awgReady);
   if (!hasPanelUsage && !hasAwgUsage) return <div className="usage-breakdown empty"><Wifi size={14} /><span>مصرف تفکیکی هنوز از providerها دریافت نشده است.</span></div>;
-  return <div className="usage-breakdown"><div className="usage-breakdown-title"><span>مصرف تفکیکی اتصال‌ها</span><small>آخرین sync هر منبع جداست</small></div>{service.panelUsages?.map((usage) => <div className="usage-source" key={`${service.id}-${usage.panelKey}`}><div className="usage-source-icon"><Server size={13} /></div><div className="usage-source-name"><strong>{usage.panelKey}</strong><small>{usageDate(usage.lastUpdated)}</small></div><div className="usage-source-value"><strong>{usageLabel(usage.usedGb)} GB</strong><small>خام {usageLabel(usage.rawUsedGb)} · offset {usageLabel(usage.offsetGb)}</small></div></div>)}{service.awgUsage && <div className="usage-source awg"><div className="usage-source-icon"><Wifi size={13} /></div><div className="usage-source-name"><strong>AmneziaWG</strong><small>{usageDate(service.awgUsage.lastUpdated)}</small></div><div className="usage-source-value"><strong>{usageLabel(service.awgUsage.usedGb)} GB</strong><small>RX {usageLabel(service.awgUsage.rxGb)} · TX {usageLabel(service.awgUsage.txGb)}</small></div></div>}</div>;
+  return <div className="usage-breakdown"><div className="usage-breakdown-title"><span>مصرف تفکیکی اتصال‌ها</span><small>آخرین sync هر منبع جداست</small></div>{service.panelUsages?.map((usage) => <div className="usage-source" key={`${service.id}-${usage.panelKey}`}><div className="usage-source-icon"><Server size={13} /></div><div className="usage-source-name"><strong>{usage.panelKey}</strong><small>{usageDate(usage.lastUpdated)}</small></div><div className="usage-source-value"><strong>{usageLabel(usage.usedGb)}</strong><small>خام {usageLabel(usage.rawUsedGb)} · offset {usageLabel(usage.offsetGb)}</small></div></div>)}{service.awgUsage ? <div className="usage-source awg"><div className="usage-source-icon"><Wifi size={13} /></div><div className="usage-source-name"><strong>AmneziaWG</strong><small>{usageDate(service.awgUsage.lastUpdated)}</small></div><div className="usage-source-value"><strong>{usageLabel(service.awgUsage.usedGb)}</strong><small>RX {usageLabel(service.awgUsage.rxGb)} · TX {usageLabel(service.awgUsage.txGb)}</small></div></div> : service.awgReady && <div className="usage-source awg"><div className="usage-source-icon"><Wifi size={13} /></div><div className="usage-source-name"><strong>AmneziaWG</strong><small>در انتظار اولین sync</small></div><div className="usage-source-value"><strong>۰ GB</strong><small>آمار هنوز دریافت نشده</small></div></div>}</div>;
 }
 
 export function Services() {
@@ -197,7 +197,7 @@ export function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const { customers, services, sales, renewService, resetServiceToken, session } = usePulse();
   const numericId = Number((id || '').replace(/\D/g, ''));
-  const customerDetailQuery = useGetCustomer(numericId, { query: { enabled: session?.authenticated === true && Number.isFinite(numericId) && numericId > 0, queryKey: getGetCustomerQueryKey(numericId) } });
+  const customerDetailQuery = useGetCustomer(numericId, { query: { enabled: session?.authenticated === true && Number.isFinite(numericId) && numericId > 0, queryKey: [...getGetCustomerQueryKey(numericId), 'usage-v4'] } });
   const apiDetail = customerDetailQuery.data;
   const apiCustomer = apiDetail ? mapCustomer(apiDetail) : null;
   const customer = apiCustomer ?? customers.find((item) => item.id === id);

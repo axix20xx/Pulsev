@@ -1131,7 +1131,7 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
   ]);
   const usageResult = services.rows.length
     ? await pool.query(
-        `SELECT username, panel_key, total, offset_bytes, last_updated
+        `SELECT username, panel_key, upload, download, offset_bytes, last_updated
          FROM user_panel_usages
          WHERE username = ANY($1::text[])
          ORDER BY panel_key`,
@@ -1141,10 +1141,11 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
   const usageByUsername = new Map<string, any[]>();
   for (const usage of usageResult.rows) {
     const entries = usageByUsername.get(usage.username) ?? [];
+    const rawBytes = Number(usage.upload ?? 0) + Number(usage.download ?? 0);
     entries.push({
       panel_key: usage.panel_key,
-      used_gb: Math.max(0, Number(usage.total ?? 0) - Number(usage.offset_bytes ?? 0)) / 1073741824,
-      raw_used_gb: Number(usage.total ?? 0) / 1073741824,
+      used_gb: Math.max(0, rawBytes - Number(usage.offset_bytes ?? 0)) / 1073741824,
+      raw_used_gb: rawBytes / 1073741824,
       offset_gb: Number(usage.offset_bytes ?? 0) / 1073741824,
       last_updated: usage.last_updated?.toISOString?.() ?? usage.last_updated ?? null,
     });
