@@ -1,3 +1,4 @@
 - [Legacy SQL migration](legacy-sql-migration.md) — MariaDB dumps need comment stripping, MySQL DDL conversion, transactional import, and an idempotent completion marker.
 - [OpenAPI and Zod compatibility](openapi-zod-compatibility.md) — this workspace uses Zod 3, so generated response integer helpers must remain Zod 3-compatible.
 - [Panel availability policy](panel-availability-policy.md) — expose only credential-backed providers, and make every enabled provider available to every active seller.
+- [Public token subscription routes](public-subscription.md) — token links must bypass auth by path prefix and normalize legacy URLs to the current public route.

@@ -81,6 +81,16 @@ const panelSchemaReady = pool
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       PRIMARY KEY (reseller_tg_id, panel_key)
     );
+     CREATE TABLE IF NOT EXISTS reseller_credit_sales (
+       id BIGSERIAL PRIMARY KEY,
+       reseller_tg_id BIGINT NOT NULL,
+       gb_amount NUMERIC(10,2) NOT NULL CHECK (gb_amount > 0),
+       unit_price NUMERIC(14,2) NOT NULL CHECK (unit_price >= 0),
+       total_amount NUMERIC(16,2) NOT NULL CHECK (total_amount >= 0),
+       is_paid SMALLINT NOT NULL DEFAULT 0,
+       note TEXT,
+       created_at TIMESTAMP NOT NULL DEFAULT NOW()
+     );
     INSERT INTO panel_configs (key, kind, api_base, username_env, password_env, api_key_env)
     VALUES
       ('phonepanel', 'marzban', 'https://dash.phonepanel.ir', 'RAIN_PHONEPANEL_USER', 'RAIN_PHONEPANEL_PASS', NULL),
@@ -468,6 +478,64 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
       recent_activity: activity.rows,
     }),
   );
+});
+
+router.get("/reports", requireAuth, async (req, res): Promise<void> => {
+  if (req.auth?.role !== "master_admin") {
+    res.status(403).json({ error: "گزارش کامل فقط برای مدیر اصلی در دسترس است" });
+    return;
+  }
+  const validDate = (value: unknown) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const to = validDate(req.query.to) ? String(req.query.to) : new Date().toISOString().slice(0, 10);
+  const from = validDate(req.query.from) ? String(req.query.from) : new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  if (from > to) {
+    res.status(400).json({ error: "بازه تاریخ معتبر نیست" });
+    return;
+  }
+  const [sales, credits] = await Promise.all([
+    pool.query(
+      `SELECT s.id, s.reseller_tg_id, r.title AS reseller_title,
+              COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
+              COALESCE(svc.label, 'سرویس حذف‌شده') AS service_name,
+              s.gb_amount::float8 AS gb_amount,
+              COALESCE(s.custom_sell_price, s.gb_amount * COALESCE(r.per_gig_price, 0))::float8 AS amount,
+              COALESCE(s.is_paid, 0) = 1 AS paid, s.created_at::text AS created_at
+       FROM reseller_sales_log s
+       LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+       LEFT JOIN reseller_services svc ON svc.id = s.service_id
+       LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE s.created_at >= $1::date AND s.created_at < ($2::date + INTERVAL '1 day')
+       ORDER BY s.created_at DESC NULLS LAST, s.id DESC`,
+      [from, to],
+    ),
+    pool.query(
+      `SELECT cs.id, cs.reseller_tg_id, r.title AS reseller_title,
+              cs.gb_amount::float8 AS gb_amount, cs.unit_price::float8 AS unit_price,
+              cs.total_amount::float8 AS total_amount, COALESCE(cs.is_paid, 0) = 1 AS paid,
+              cs.note, cs.created_at::text AS created_at
+       FROM reseller_credit_sales cs
+       LEFT JOIN resellers r ON r.tg_id = cs.reseller_tg_id
+       WHERE cs.created_at >= $1::date AND cs.created_at < ($2::date + INTERVAL '1 day')
+       ORDER BY cs.created_at DESC, cs.id DESC`,
+      [from, to],
+    ),
+  ]);
+  const customerSales = sales.rows;
+  const resellerCredits = credits.rows;
+  res.json({
+    from,
+    to,
+    summary: {
+      customer_sales: customerSales.length,
+      customer_revenue: customerSales.reduce((sum, item) => sum + Number(item.amount ?? 0), 0),
+      reseller_credit_sales: resellerCredits.length,
+      reseller_revenue: resellerCredits.reduce((sum, item) => sum + Number(item.total_amount ?? 0), 0),
+      paid_customer_revenue: customerSales.filter((item) => item.paid).reduce((sum, item) => sum + Number(item.amount ?? 0), 0),
+      paid_reseller_revenue: resellerCredits.filter((item) => item.paid).reduce((sum, item) => sum + Number(item.total_amount ?? 0), 0),
+    },
+    customer_sales: customerSales,
+    reseller_credit_sales: resellerCredits,
+  });
 });
 
 router.get("/sales", requireAuth, async (req, res): Promise<void> => {
@@ -1068,7 +1136,8 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
 router.get("/resellers", requireMasterAdmin, async (_req, res): Promise<void> => {
   const result = await pool.query(
     `SELECT id, tg_id::float8 AS telegram_id, title, total_gb::float8 AS total_gb,
-       used_gb::float8 AS used_gb, is_enabled = 1 AS enabled, created_at::text AS created_at
+       used_gb::float8 AS used_gb, COALESCE(per_gig_price, 0)::float8 AS per_gig_price,
+       is_enabled = 1 AS enabled, created_at::text AS created_at
      FROM resellers
      ORDER BY created_at DESC, id DESC`,
   );
@@ -1082,19 +1151,64 @@ router.patch("/resellers/:id", requireMasterAdmin, async (req, res): Promise<voi
     res.status(400).json({ error: "اطلاعات فروشنده معتبر نیست" });
     return;
   }
+  const perGigPrice = req.body?.per_gig_price === undefined ? null : Number(req.body.per_gig_price);
+  if (perGigPrice !== null && (!Number.isFinite(perGigPrice) || perGigPrice < 0)) {
+    res.status(400).json({ error: "قیمت فروش هر گیگ معتبر نیست" });
+    return;
+  }
   const result = await pool.query(
     `UPDATE resellers
-     SET is_enabled = $1, updated_at = NOW()
-     WHERE id = $2
+     SET is_enabled = $1, per_gig_price = COALESCE($2, per_gig_price), updated_at = NOW()
+     WHERE id = $3
      RETURNING id, tg_id::float8 AS telegram_id, title, total_gb::float8 AS total_gb,
-       used_gb::float8 AS used_gb, is_enabled = 1 AS enabled, created_at::text AS created_at`,
-    [body.data.enabled ? 1 : 0, params.data.id],
+        used_gb::float8 AS used_gb, COALESCE(per_gig_price, 0)::float8 AS per_gig_price,
+        is_enabled = 1 AS enabled, created_at::text AS created_at`,
+    [body.data.enabled ? 1 : 0, perGigPrice, params.data.id],
   );
   if (!result.rows[0]) {
     res.status(404).json({ error: "فروشنده پیدا نشد" });
     return;
   }
   res.json(UpdateResellerResponse.parse(result.rows[0]));
+});
+
+router.post("/reseller-credit-sales", requireMasterAdmin, async (req, res): Promise<void> => {
+  const resellerId = Number(req.body?.reseller_id);
+  const gbAmount = Number(req.body?.gb_amount);
+  const unitPrice = Number(req.body?.unit_price);
+  const isPaid = req.body?.is_paid === true;
+  const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 500) : null;
+  if (!Number.isSafeInteger(resellerId) || resellerId <= 0 || !Number.isFinite(gbAmount) || gbAmount <= 0 || !Number.isFinite(unitPrice) || unitPrice < 0) {
+    res.status(400).json({ error: "فروش پایه به فروشنده معتبر نیست" });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const reseller = await client.query<{ tg_id: number }>("SELECT tg_id::float8 AS tg_id FROM resellers WHERE id = $1 FOR UPDATE", [resellerId]);
+    if (!reseller.rows[0]) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "فروشنده پیدا نشد" });
+      return;
+    }
+    const totalAmount = Number((gbAmount * unitPrice).toFixed(2));
+    await client.query("UPDATE resellers SET total_gb = total_gb + $1, updated_at = NOW() WHERE id = $2", [gbAmount, resellerId]);
+    const sale = await client.query(
+      `INSERT INTO reseller_credit_sales (reseller_tg_id, gb_amount, unit_price, total_amount, is_paid, note)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, reseller_tg_id::float8 AS reseller_tg_id, gb_amount::float8 AS gb_amount,
+                 unit_price::float8 AS unit_price, total_amount::float8 AS total_amount,
+                 is_paid = 1 AS paid, note, created_at::text AS created_at`,
+      [reseller.rows[0].tg_id, gbAmount, unitPrice, totalAmount, isPaid ? 1 : 0, note],
+    );
+    await client.query("COMMIT");
+    res.status(201).json(sale.rows[0]);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 });
 
 export default router;

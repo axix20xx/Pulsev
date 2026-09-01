@@ -1,4 +1,4 @@
-import { Bell, CircleHelp, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert } from 'lucide-react';
+import { BarChart3, Bell, CircleHelp, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLogout } from '@workspace/api-client-react';
@@ -10,6 +10,7 @@ const nav = [
   { href: '/sales', label: 'دفتر فروش', icon: ShoppingBag },
   { href: '/services', label: 'سرویس‌ها', icon: Package },
   { href: '/customers', label: 'مشتری‌ها', icon: Users },
+  { href: '/reports', label: 'گزارش‌ها', icon: BarChart3 },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {

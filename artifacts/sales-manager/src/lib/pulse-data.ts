@@ -83,5 +83,8 @@ export const activities: Activity[] = [
 
 export const statusLabel = (value: string) => ({ Active: 'فعال', Expiring: 'نزدیک به انقضا', Expired: 'منقضی', Disabled: 'غیرفعال', Paid: 'پرداخت‌شده', Pending: 'در انتظار', Completed: 'تکمیل‌شده', Refunded: 'برگشت‌خورده', Online: 'آنلاین', Degraded: 'با اختلال', Offline: 'قطع' }[value] ?? value);
 export const money = (amount: number) => `${new Intl.NumberFormat('fa-IR').format(Math.round(amount))} تومان`;
-export const dateLabel = (date: string | null | undefined) => date ? new Intl.DateTimeFormat('fa-IR', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(`${date.slice(0, 10)}T12:00:00`)) : 'ثبت نشده';
-export const daysUntil = (date: string) => Math.ceil((new Date(`${date.slice(0, 10)}T12:00:00`).getTime() - Date.now()) / 86400000);
+const tehranDate = (date: string | Date) => new Date(typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T12:00:00+03:30` : date);
+export const dateLabel = (date: string | null | undefined) => date ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran', month: 'long', day: 'numeric', year: 'numeric' }).format(tehranDate(date)) : 'ثبت نشده';
+export const dateTimeLabel = (date: string | null | undefined) => date ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran', dateStyle: 'medium', timeStyle: 'short' }).format(tehranDate(date)) : 'ثبت نشده';
+export const todayLabel = () => new Intl.DateTimeFormat('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran', dateStyle: 'full' }).format(new Date());
+export const daysUntil = (date: string) => Math.ceil((tehranDate(date).getTime() - Date.now()) / 86400000);

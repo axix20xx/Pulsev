@@ -595,7 +595,7 @@ components:
                 $ref: "#/components/schemas/Sale"
     Reseller:
       type: object
-      required: [id, telegram_id, title, total_gb, used_gb, enabled, created_at]
+      required: [id, telegram_id, title, total_gb, used_gb, per_gig_price, enabled, created_at]
       properties:
         id:
           type: number
@@ -608,6 +608,9 @@ components:
           type: number
         used_gb:
           type: number
+        per_gig_price:
+          type: number
+          minimum: 0
         enabled:
           type: boolean
         created_at:
@@ -618,4 +621,7 @@ components:
       properties:
         enabled:
           type: boolean
+        per_gig_price:
+          type: number
+          minimum: 0
 

@@ -196,12 +196,16 @@ export interface Reseller {
   title: string | null;
   total_gb: number;
   used_gb: number;
+  /** @minimum 0 */
+  per_gig_price: number;
   enabled: boolean;
   created_at: string;
 }
 
 export interface ResellerUpdate {
   enabled: boolean;
+  /** @minimum 0 */
+  per_gig_price?: number;
 }
 
 export type SearchParameter = string;

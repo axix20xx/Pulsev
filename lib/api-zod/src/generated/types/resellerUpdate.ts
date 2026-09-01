@@ -8,4 +8,6 @@
 
 export interface ResellerUpdate {
   enabled: boolean;
+  /** @minimum 0 */
+  per_gig_price?: number;
 }

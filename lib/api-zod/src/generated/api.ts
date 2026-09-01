@@ -424,12 +424,17 @@ export const GetCustomerResponse = zod.object({
 /**
  * @summary List resellers for the master admin
  */
+export const listResellersResponsePerGigPriceMin = 0;
+
+
+
 export const ListResellersResponseItem = zod.object({
   "id": zod.number(),
   "telegram_id": zod.number(),
   "title": zod.string().nullable(),
   "total_gb": zod.number(),
   "used_gb": zod.number(),
+  "per_gig_price": zod.number().min(listResellersResponsePerGigPriceMin),
   "enabled": zod.boolean(),
   "created_at": zod.string()
 })
@@ -446,9 +451,18 @@ export const UpdateResellerParams = zod.object({
   "id": zod.coerce.number().min(1)
 })
 
+export const updateResellerBodyPerGigPriceMin = 0;
+
+
+
 export const UpdateResellerBody = zod.object({
-  "enabled": zod.boolean()
+  "enabled": zod.boolean(),
+  "per_gig_price": zod.number().min(updateResellerBodyPerGigPriceMin).optional()
 })
+
+export const updateResellerResponsePerGigPriceMin = 0;
+
+
 
 export const UpdateResellerResponse = zod.object({
   "id": zod.number(),
@@ -456,6 +470,7 @@ export const UpdateResellerResponse = zod.object({
   "title": zod.string().nullable(),
   "total_gb": zod.number(),
   "used_gb": zod.number(),
+  "per_gig_price": zod.number().min(updateResellerResponsePerGigPriceMin),
   "enabled": zod.boolean(),
   "created_at": zod.string()
 })
