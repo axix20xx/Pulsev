@@ -3,3 +3,4 @@
 - [Panel availability policy](panel-availability-policy.md) — expose only credential-backed providers, and make every enabled provider available to every active seller.
 - [Public token subscription routes](public-subscription.md) — token links must bypass auth by path prefix and normalize legacy URLs to the current public route.
 - [Combined provider usage sync](combined-usage-sync.md) — aggregate effective V2Box and AmneziaWG usage with independent reset offsets before disabling services.
+- [Persian date boundaries](persian-date-boundaries.md) — keep user-facing dates in Tehran’s Persian calendar and convert to ISO only at API boundaries.

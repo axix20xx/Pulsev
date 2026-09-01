@@ -1,9 +1,9 @@
 import { BarChart3, Bell, CircleHelp, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLogout } from '@workspace/api-client-react';
 import { usePulse } from '@/pages/pulse-pages';
-import { statusLabel } from '@/lib/pulse-data';
+import { dateLabel, dateTimeLabel, daysUntil, statusLabel } from '@/lib/pulse-data';
 
 const nav = [
   { href: '/', label: 'داشبورد', icon: LayoutDashboard },
@@ -16,11 +16,43 @@ const nav = [
 export function Shell({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
   const [open, setOpen] = useState(false);
-  const { session, sessionLoading, authFallback } = usePulse();
+  const [topbarPanel, setTopbarPanel] = useState<'notifications' | 'help' | null>(null);
+  const { session, sessionLoading, authFallback, services, dashboard } = usePulse();
   const logout = useLogout();
   useEffect(() => setOpen(false), [location]);
+  useEffect(() => setTopbarPanel(null), [location]);
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setTopbarPanel(null); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, []);
   const name = session?.display_name || 'مدیر فروش';
   const isSignedOut = !sessionLoading && (authFallback || session?.authenticated === false || !session);
+  const notifications = useMemo(() => {
+    const serviceAlerts = services
+      .filter((service) => service.expiresAt && service.status !== 'Disabled' && (service.status === 'Expired' || daysUntil(service.expiresAt) <= 7))
+      .sort((a, b) => daysUntil(a.expiresAt) - daysUntil(b.expiresAt))
+      .map((service) => {
+        const remaining = daysUntil(service.expiresAt);
+        return {
+          id: `service-${service.id}`,
+          title: remaining < 0 ? 'سرویس منقضی شده است' : remaining === 0 ? 'سرویس امروز منقضی می‌شود' : 'زمان تمدید سرویس نزدیک است',
+          detail: `${service.customerName} · ${service.plan}`,
+          date: `انقضا: ${dateLabel(service.expiresAt)}`,
+          href: `/customers/${service.customerId || ''}`,
+          tone: remaining < 0 ? 'danger' : 'warning',
+        };
+      });
+    const activityAlerts = (Array.isArray(dashboard?.recent_activity) ? dashboard.recent_activity : []).slice(0, 5).map((item: any) => ({
+      id: `activity-${item.id}`,
+      title: item.title || 'فعالیت جدید',
+      detail: item.detail || 'فعالیت تازه در سامانه ثبت شده است.',
+      date: dateTimeLabel(item.created_at),
+      href: undefined,
+      tone: 'normal',
+    }));
+    return [...serviceAlerts, ...activityAlerts].slice(0, 8);
+  }, [dashboard?.recent_activity, services]);
   useEffect(() => {
     if (isSignedOut && location !== '/login' && !location.startsWith('/sub')) navigate('/login');
     if (session?.authenticated && location === '/login') navigate('/');
@@ -67,8 +99,10 @@ export function Shell({ children }: { children: ReactNode }) {
         <header className="topbar">
           <button className="icon-button md:hidden" onClick={() => setOpen(true)} aria-label="باز کردن منو" data-testid="button-open-nav"><Menu size={20} /></button>
           <div className="topbar-search"><span>جست‌وجوی سریع</span></div>
-          <div className="mr-auto flex items-center gap-2"><button className="icon-button" aria-label="راهنما" data-testid="button-help"><CircleHelp size={18} /></button><button className="icon-button relative" aria-label="اعلان‌ها" data-testid="button-notifications"><Bell size={18} /><span className="notification-dot" /></button></div>
+          <div className="topbar-actions mr-auto flex items-center gap-2"><button className={`icon-button ${topbarPanel === 'help' ? 'selected' : ''}`} onClick={() => setTopbarPanel((current) => current === 'help' ? null : 'help')} aria-label="راهنما" aria-expanded={topbarPanel === 'help'} data-testid="button-help"><CircleHelp size={18} /></button><button className={`icon-button relative ${topbarPanel === 'notifications' ? 'selected' : ''}`} onClick={() => setTopbarPanel((current) => current === 'notifications' ? null : 'notifications')} aria-label="اعلان‌ها" aria-expanded={topbarPanel === 'notifications'} data-testid="button-notifications"><Bell size={18} />{notifications.length > 0 && <span className="notification-dot" />}</button></div>
         </header>
+        {topbarPanel === 'notifications' && <section className="topbar-popover notification-panel" role="dialog" aria-label="اعلان‌های واقعی"><div className="popover-heading"><div><p className="eyebrow">مرکز اطلاع‌رسانی</p><h2>اعلان‌ها</h2></div><span className="soft-badge">{new Intl.NumberFormat('fa-IR').format(notifications.length)} مورد</span></div>{notifications.length ? <div className="notification-list">{notifications.map((item) => item.href ? <Link key={item.id} href={item.href} className={`notification-item ${item.tone}`} onClick={() => setTopbarPanel(null)}><span className="notification-icon"><Bell size={14} /></span><span className="notification-copy"><strong>{item.title}</strong><small>{item.detail}</small><em>{item.date}</em></span></Link> : <div key={item.id} className={`notification-item ${item.tone}`}><span className="notification-icon"><Bell size={14} /></span><span className="notification-copy"><strong>{item.title}</strong><small>{item.detail}</small><em>{item.date}</em></span></div>)}</div> : <div className="popover-empty"><Bell size={18} /><p>اعلان جدیدی وجود ندارد.</p><small>وقتی سرویس نزدیک انقضا شود یا فعالیتی ثبت شود، اینجا می‌بینید.</small></div>}</section>}
+        {topbarPanel === 'help' && <section className="topbar-popover help-panel" role="dialog" aria-label="راهنمای سامانه"><div className="popover-heading"><div><p className="eyebrow">راهنمای پالس</p><h2>چطور استفاده کنم؟</h2></div><CircleHelp size={20} className="text-muted-foreground" /></div><div className="help-list"><div><strong>ساخت سرویس</strong><span>از صفحه سرویس‌ها مشتری را با شماره موبایل پیدا کنید و سرویس را روی همه پنل‌های آماده بسازید.</span></div><div><strong>مصرف و AWG</strong><span>در پرونده مشتری، مصرف هر پنل و AmneziaWG با offset مستقل نمایش داده می‌شود.</span></div><div><strong>گزارش و چاپ</strong><span>در صفحه گزارش بازه شمسی را انتخاب کنید و روی «چاپ گزارش» بزنید.</span></div><div><strong>دسترسی</strong><span>هر فروشنده فقط مشتری‌ها و سرویس‌های خودش را می‌بیند؛ مدیر اصلی گزارش کامل دارد.</span></div></div><Link href="/settings" className="button button-secondary help-link" onClick={() => setTopbarPanel(null)}>رفتن به تنظیمات</Link></section>}
         <div className="page-wrap">
           {children}
         </div>

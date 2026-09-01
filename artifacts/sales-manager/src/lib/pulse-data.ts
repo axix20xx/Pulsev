@@ -90,3 +90,30 @@ export const dateLabel = (date: string | null | undefined) => date ? new Intl.Da
 export const dateTimeLabel = (date: string | null | undefined) => date ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran', dateStyle: 'medium', timeStyle: 'short' }).format(tehranDate(date)) : 'ثبت نشده';
 export const todayLabel = () => new Intl.DateTimeFormat('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran', dateStyle: 'full' }).format(new Date());
 export const daysUntil = (date: string) => Math.ceil((tehranDate(date).getTime() - Date.now()) / 86400000);
+
+const toLatinDigits = (value: string) => value.replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+const toPersianDigits = (value: string) => value.replace(/\d/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
+const dateParts = (date: Date, calendar = 'gregory') => new Intl.DateTimeFormat(`en-US-u-ca-${calendar}-nu-latn`, { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).reduce<Record<string, string>>((parts, part) => { if (part.type !== 'literal') parts[part.type] = part.value; return parts; }, {});
+export const isoToday = () => { const parts = dateParts(new Date()); return `${parts.year}-${parts.month}-${parts.day}`; };
+export const jalaliInputValue = (iso: string) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return ''; const parts = dateParts(tehranDate(iso), 'persian'); return toPersianDigits(`${parts.year}/${parts.month}/${parts.day}`); };
+
+function jalaliToGregorian(jy: number, jm: number, jd: number): string | null {
+  if (jy < 1200 || jy > 1600 || jm < 1 || jm > 12 || jd < 1 || jd > (jm <= 6 ? 31 : jm <= 11 ? 30 : 30)) return null;
+  const adjustedYear = jy + 1595;
+  let days = -355668 + 365 * adjustedYear + Math.floor(adjustedYear / 33) * 8 + Math.floor(((adjustedYear % 33) + 3) / 4) + jd + (jm < 7 ? (jm - 1) * 31 : (jm - 7) * 30 + 186);
+  let gy = 400 * Math.floor(days / 146097);
+  days %= 146097;
+  if (days > 36524) { gy += 100 * Math.floor(--days / 36524); days %= 36524; if (days >= 365) days++; }
+  gy += 4 * Math.floor(days / 1461);
+  days %= 1461;
+  if (days > 365) { gy += Math.floor((days - 1) / 365); days = (days - 1) % 365; }
+  const monthDays = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const leap = gy % 4 === 0 && (gy % 100 !== 0 || gy % 400 === 0);
+  if (leap) monthDays[2] = 29;
+  let gm = 1;
+  while (gm <= 12 && days >= monthDays[gm]) days -= monthDays[gm++];
+  if (gm > 12) return null;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${gy}-${pad(gm)}-${pad(days + 1)}`;
+}
+export const jalaliInputToIso = (value: string) => { const normalized = toLatinDigits(value).trim().replace(/[.-]/g, '/'); const match = normalized.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); return match ? jalaliToGregorian(Number(match[1]), Number(match[2]), Number(match[3])) : null; };
