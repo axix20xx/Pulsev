@@ -5,3 +5,4 @@
 - [Combined provider usage sync](combined-usage-sync.md) — aggregate effective V2Box and AmneziaWG usage with independent reset offsets before disabling services.
 - [Persian date boundaries](persian-date-boundaries.md) — keep user-facing dates in Tehran’s Persian calendar and convert to ISO only at API boundaries.
 - [ISO date query schemas](iso-date-query-schemas.md) — use patterned strings for OpenAPI query dates; date formats generate runtime zod.date parsers that reject URL strings.
+- [Paid and unpaid profit](paid-profit-allocation.md) — allocate shared credit cost by paid-revenue share when splitting profit by collection status.

@@ -14,11 +14,15 @@ export interface SalesSummary {
   sold_gb: number;
   income: number;
   paid_income: number;
+  unpaid_income: number;
   admin_cost: number;
   admin_due: number;
   admin_due_gb: number;
   outstanding_admin_due: number;
   outstanding_admin_due_gb: number;
   remaining_profit: number;
+  paid_profit: number;
+  unpaid_profit: number;
+  remaining_to_collect: number;
   cash_after_admin: number;
 }

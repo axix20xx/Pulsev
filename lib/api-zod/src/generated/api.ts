@@ -154,12 +154,16 @@ export const GetSalesSummaryResponse = zod.object({
   "sold_gb": zod.number(),
   "income": zod.number(),
   "paid_income": zod.number(),
+  "unpaid_income": zod.number(),
   "admin_cost": zod.number(),
   "admin_due": zod.number(),
   "admin_due_gb": zod.number(),
   "outstanding_admin_due": zod.number(),
   "outstanding_admin_due_gb": zod.number(),
   "remaining_profit": zod.number(),
+  "paid_profit": zod.number(),
+  "unpaid_profit": zod.number(),
+  "remaining_to_collect": zod.number(),
   "cash_after_admin": zod.number()
 })
 

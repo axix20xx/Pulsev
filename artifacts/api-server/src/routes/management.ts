@@ -545,19 +545,26 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
   const income = Number(salesRow.income ?? 0);
   const adminCost = Number(salesRow.admin_cost ?? 0);
   const soldGb = Number(salesRow.sold_gb ?? 0);
+  const paidIncome = Number(salesRow.paid_income ?? 0);
+  const unpaidIncome = Math.max(0, income - paidIncome);
+  const paidCost = income > 0 ? adminCost * Math.min(1, Math.max(0, paidIncome / income)) : 0;
   res.json({
     from: range.from,
     to: range.to,
     sold_gb: soldGb,
     income,
-    paid_income: Number(salesRow.paid_income ?? 0),
+    paid_income: paidIncome,
+    unpaid_income: unpaidIncome,
     admin_cost: adminCost,
     admin_due: adminCost,
     admin_due_gb: soldGb,
     outstanding_admin_due: adminDue,
     outstanding_admin_due_gb: adminDueGb,
     remaining_profit: income - adminCost,
-    cash_after_admin: Number(salesRow.paid_income ?? 0) - adminCost,
+    paid_profit: paidIncome - paidCost,
+    unpaid_profit: unpaidIncome - (adminCost - paidCost),
+    remaining_to_collect: unpaidIncome,
+    cash_after_admin: paidIncome - adminCost,
   });
 });
 

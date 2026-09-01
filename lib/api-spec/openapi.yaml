@@ -492,7 +492,7 @@ components:
             $ref: "#/components/schemas/Activity"
     SalesSummary:
       type: object
-      required: [from, to, sold_gb, income, paid_income, admin_cost, admin_due, admin_due_gb, outstanding_admin_due, outstanding_admin_due_gb, remaining_profit, cash_after_admin]
+      required: [from, to, sold_gb, income, paid_income, unpaid_income, admin_cost, admin_due, admin_due_gb, outstanding_admin_due, outstanding_admin_due_gb, remaining_profit, paid_profit, unpaid_profit, remaining_to_collect, cash_after_admin]
       properties:
         from:
           type: string
@@ -506,6 +506,8 @@ components:
           type: number
         paid_income:
           type: number
+        unpaid_income:
+          type: number
         admin_cost:
           type: number
         admin_due:
@@ -517,6 +519,12 @@ components:
         outstanding_admin_due_gb:
           type: number
         remaining_profit:
+          type: number
+        paid_profit:
+          type: number
+        unpaid_profit:
+          type: number
+        remaining_to_collect:
           type: number
         cash_after_admin:
           type: number

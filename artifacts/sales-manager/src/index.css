@@ -584,9 +584,22 @@ body { font-family: var(--app-font-sans); background: hsl(var(--background)); }
 .sales-custom-range { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 10px; margin-top: 14px; }
 .sales-custom-range .persian-date-field { min-width: 0; }
 .sales-custom-range .button { min-width: 105px; }
+.sales-payment-breakdown { margin-bottom: 14px; }
+.sales-payment-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+.sales-payment-grid > div { display: flex; flex-direction: column; gap: 5px; border: 1px solid hsl(var(--border)); border-radius: 11px; background: hsl(var(--background) / .6); padding: 12px; }
+.sales-payment-grid span { color: hsl(var(--muted-foreground)); font-size: 10px; }
+.sales-payment-grid strong { font: 800 17px var(--app-font-serif); }
+.smart-suggestion { display: flex; align-items: center; gap: 10px; margin: 18px 0 2px; border: 1px solid hsl(var(--primary) / .22); border-radius: 13px; background: linear-gradient(135deg, hsl(var(--primary) / .09), hsl(var(--card))); padding: 11px 12px; }
+.smart-suggestion-icon { display: grid; flex: 0 0 auto; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+.smart-suggestion > div:nth-child(2) { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.smart-suggestion span { color: hsl(var(--muted-foreground)); font-size: 10px; line-height: 1.7; }
+.smart-suggestion button { border: 0; border-radius: 8px; background: hsl(var(--primary) / .1); padding: 7px 10px; color: hsl(var(--primary)); font-size: 10px; font-weight: 800; white-space: nowrap; }
 @media (max-width: 767px) {
   .sales-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
   .sales-status-grid .metric-card { min-height: 122px; }
+  .sales-payment-grid { grid-template-columns: 1fr; }
+  .smart-suggestion { align-items: flex-start; }
+  .smart-suggestion button { margin-right: auto; }
   .sales-custom-range { grid-template-columns: 1fr; }
   .sales-custom-range .button { width: 100%; }
   .topbar-popover { top: 68px; right: 10px; left: 10px; width: auto; max-height: calc(100dvh - 84px); overflow-y: auto; overscroll-behavior: contain; padding: 14px; }
