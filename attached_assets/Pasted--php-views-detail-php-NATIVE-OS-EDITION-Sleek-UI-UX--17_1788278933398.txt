@@ -1,0 +1,974 @@
+<?php
+// views/detail.php — NATIVE OS EDITION (Sleek UI/UX)
+// =================================================================================
+// 1. AUTH & CONFIG (Preserved)
+// =================================================================================
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+if (!isset($_SESSION['tg_id'])) { die("Access Denied"); }
+
+global $pdo; 
+$id = (int)($_GET['id'] ?? 0);
+$rid = $_SESSION['tg_id'];
+$msg_alert = '';
+
+// =================================================================================
+// 2. HELPER FUNCTIONS
+// =================================================================================
+if(!function_exists('persianDate')) {
+    function persianDate($format, $timestamp) {
+        if(!$timestamp) return '∞';
+        $g_d = date('j', $timestamp); $g_m = date('n', $timestamp); $g_y = date('Y', $timestamp);
+        $d_4 = $g_y % 4; $g_a = array(0,0,31,59,90,120,151,181,212,243,273,304,334);
+        $doy_g = $g_a[$g_m] + $g_d; if($d_4 == 0 && $g_m > 2) $doy_g++;
+        $d_33 = (int)((($g_y - 16) % 132) * 0.0305); $a = ($d_33 == 3 || $d_33 < ($d_4 - 1) || $d_4 == 0) ? 286 : 287;
+        if($doy_g > 79) { $j_y = $g_y - 621; $doy_j = $doy_g - 79; } 
+        else { $j_y = $g_y - 622; $doy_j = $doy_g + $a; }
+        if($doy_j < 187) { $j_m = (int)(($doy_j - 1) / 31); $j_d = $doy_j - (31 * $j_m); $j_m++; } 
+        else { $j_m = (int)(($doy_j - 187) / 30); $j_d = $doy_j - 186 - ($j_m * 30); $j_m += 7; }
+        return $j_y . '/' . sprintf('%02d', $j_m) . '/' . sprintf('%02d', $j_d);
+    }
+}
+if(!function_exists('formatBytes')) {
+    function formatBytes($bytes) { 
+        if($bytes == 0) return '0 MB';
+        $i = floor(log($bytes, 1024));
+        return round($bytes / pow(1024, $i), 2) . ' ' . ['B','KB','MB','GB','TB'][$i];
+    }
+}
+
+// =================================================================================
+// 3. POST HANDLERS
+// =================================================================================
+
+// ---> NEW FEATURE: RESET SUBSCRIPTION TOKEN <---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_token'])) {
+    try {
+        $pdo->beginTransaction();
+        $stmtCheck = $pdo->prepare("SELECT rst.token FROM reseller_services rs LEFT JOIN reseller_sub_tokens rst ON rs.id = rst.service_id WHERE rs.id = ? AND rs.reseller_tg_id = ?");
+        $stmtCheck->execute([$id, $rid]);
+        $svcData = $stmtCheck->fetch();
+
+        if ($svcData && !empty($svcData['token'])) {
+            $oldToken = $svcData['token'];
+            // Generate a new 32-character secure token
+            $newToken = bin2hex(random_bytes(16));
+
+            // Update token in sub_tokens table
+            $stmtUpdateToken = $pdo->prepare("UPDATE reseller_sub_tokens SET token = ? WHERE service_id = ?");
+            $stmtUpdateToken->execute([$newToken, $id]);
+
+            // Update token in cache to prevent user from losing their usage stats temporarily
+            $stmtUpdateCache = $pdo->prepare("UPDATE user_stats_cache SET token = ? WHERE token = ?");
+            $stmtUpdateCache->execute([$newToken, $oldToken]);
+
+            $pdo->commit();
+            $msg_alert = "<div class='mac-alert success'><span class='icon'>check_circle</span><span>لینک اتصال تغییر یافت! لینک قبلی کاربر باطل شد.</span></div>";
+            echo "<script>setTimeout(()=>window.location.href='?page=detail&id=$id', 1500);</script>";
+        } else { 
+            throw new Exception("توکن قبلی یافت نشد."); 
+        }
+    } catch (Exception $e) { 
+        if($pdo->inTransaction()) $pdo->rollBack(); 
+        $msg_alert = "<div class='mac-alert error'><span class='icon'>error</span><span>خطا: " . $e->getMessage() . "</span></div>"; 
+    }
+}
+
+// ---> UPDATE DETAILS <---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_details'])) {
+    $newName = trim($_POST['edit_name']);
+    $newLabel = trim($_POST['edit_label']);
+    if(empty($newName) || empty($newLabel)) {
+        $msg_alert = "<div class='mac-alert error'><span class='icon'>error</span><span>نام و برچسب نمی‌توانند خالی باشند.</span></div>";
+    } else {
+        try {
+            $pdo->beginTransaction();
+            $stmtCheck = $pdo->prepare("SELECT customer_id FROM reseller_services WHERE id = ? AND reseller_tg_id = ?");
+            $stmtCheck->execute([$id, $rid]);
+            $validService = $stmtCheck->fetch();
+            if ($validService) {
+                if (!empty($validService['customer_id'])) {
+                    $stmtC = $pdo->prepare("UPDATE reseller_customers SET full_name = ? WHERE id = ?");
+                    $stmtC->execute([$newName, $validService['customer_id']]);
+                }
+                $stmtS = $pdo->prepare("UPDATE reseller_services SET label = ? WHERE id = ? AND reseller_tg_id = ?");
+                $stmtS->execute([$newLabel, $id, $rid]);
+                $pdo->commit();
+                $msg_alert = "<div class='mac-alert success'><span class='icon'>check_circle</span><span>اطلاعات کاربر با موفقیت ذخیره شد.</span></div>";
+                echo "<script>setTimeout(()=>window.location.href='?page=detail&id=$id', 1500);</script>";
+            } else { throw new Exception("دسترسی غیرمجاز سیستم"); }
+        } catch (Exception $e) { if($pdo->inTransaction()) $pdo->rollBack(); $msg_alert = "<div class='mac-alert error'><span class='icon'>error</span><span>خطای سیستم: " . $e->getMessage() . "</span></div>"; }
+    }
+}
+
+// ---> RENEW SERVICE <---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_service'])) {
+    $newGb = floatval($_POST['renew_gb']);
+    $newDays = intval($_POST['renew_days']);
+    $autoRenew = isset($_POST['auto_renew']) ? 1 : 0;
+    
+    if ($newGb <= 0 || $newDays <= 0) {
+        $msg_alert = "<div class='mac-alert error'><span class='icon'>error</span><span>مقادیر وارد شده نامعتبر است.</span></div>";
+    } else {
+        try {
+            $stmtRes = $pdo->prepare("SELECT total_gb, used_gb FROM resellers WHERE tg_id = ? LIMIT 1");
+            $stmtRes->execute([$rid]);
+            $reseller = $stmtRes->fetch();
+            $isUnlimited = ((float)$reseller['total_gb'] == 0);
+            $remGb = ($reseller['total_gb'] - $reseller['used_gb']);
+            
+            $stmtSvcCheck = $pdo->prepare("SELECT rain_username, status FROM reseller_services WHERE id = ? AND reseller_tg_id = ?");
+            $stmtSvcCheck->execute([$id, $rid]);
+            $targetSvc = $stmtSvcCheck->fetch();
+
+            if (!$targetSvc) { 
+                $msg_alert = "<div class='mac-alert error'><span class='icon'>error</span><span>سرویس یافت نشد.</span></div>"; 
+            } elseif (!$isUnlimited && $newGb > $remGb) { 
+                $msg_alert = "<div class='mac-alert error'><span class='icon'>error</span><span>اعتبار پنل شما کافی نیست!</span></div>"; 
+            } else {
+                $pdo->beginTransaction();
+                
+                // If the service is active and the user requested "Next Plan"
+                if ($targetSvc['status'] === 'active' && $autoRenew) {
+                    $stmtUpdate = $pdo->prepare("UPDATE reseller_services SET auto_renew = 1, next_plan_gb = ?, next_plan_days = ? WHERE id = ? AND reseller_tg_id = ?");
+                    $stmtUpdate->execute([$newGb, $newDays, $id, $rid]);
+                    
+                    // Deduct from reseller balance
+                    $stmtDeduct = $pdo->prepare("UPDATE resellers SET used_gb = used_gb + ? WHERE tg_id=?");
+                    $stmtDeduct->execute([$newGb, $rid]);
+                    
+                    // Add to sales log
+                    $stmtLog = $pdo->prepare("INSERT INTO reseller_sales_log (reseller_tg_id, service_id, action_type, gb_amount, days_amount) VALUES (?, ?, 'renew', ?, ?)");
+                    $stmtLog->execute([$rid, $id, $newGb, $newDays]);
+                    
+                    $pdo->commit();
+                    $msg_alert = "<div class='mac-alert success'><span class='icon'>check_circle</span><span>بسته جدید برای دوره بعدی رزرو شد و حجم از حساب شما کسر گردید.</span></div>";
+                    echo "<script>setTimeout(()=>window.location.href='?page=detail&id=$id', 1500);</script>";
+                } 
+                // Immediate Renewal
+                else {
+                    $newExpireTs = time() + ($newDays * 86400);
+                    $newExpireDate = date('Y-m-d H:i:s', $newExpireTs);
+                    $newTotalBytes = $newGb * 1024 * 1024 * 1024;
+                    
+                    // Clear next plan if we are doing an immediate manual renewal
+                    $stmtUpdate = $pdo->prepare("UPDATE reseller_services SET gb=?, days=?, expire_at=?, status='active', last_used_bytes=0, auto_renew=0, next_plan_gb=NULL, next_plan_days=NULL WHERE id=? AND reseller_tg_id=?");
+                    $stmtUpdate->execute([$newGb, $newDays, $newExpireDate, $id, $rid]);
+                    
+                    $stmtDeduct = $pdo->prepare("UPDATE resellers SET used_gb = used_gb + ? WHERE tg_id=?");
+                    $stmtDeduct->execute([$newGb, $rid]);
+                    
+                    // Sync Queue
+                    $payload = json_encode(['gb' => $newGb, 'days' => $newDays, 'expire_ts' => $newExpireTs, 'enable' => true]);
+                    $stmtQueue = $pdo->prepare("INSERT INTO reseller_sync_queue (service_id, username, action, payload, status) VALUES (?, ?, 'renew', ?, 'pending')");
+                    $stmtQueue->execute([$id, $targetSvc['rain_username'], $payload]);
+                    
+                    $stmtLog = $pdo->prepare("INSERT INTO reseller_sales_log (reseller_tg_id, service_id, action_type, gb_amount, days_amount) VALUES (?, ?, 'renew', ?, ?)");
+                    $stmtLog->execute([$rid, $id, $newGb, $newDays]);
+                    
+                    // Cache Reset
+                    $stmtToken = $pdo->prepare("SELECT token FROM reseller_sub_tokens WHERE service_id = ? LIMIT 1");
+                    $stmtToken->execute([$id]);
+                    $tokenRow = $stmtToken->fetch();
+                    if ($tokenRow) {
+                        $stmtCache = $pdo->prepare("UPDATE user_stats_cache SET used_bytes = 0, total_bytes = ?, expire_ts = ?, is_disabled = 0, last_updated = UNIX_TIMESTAMP() WHERE token = ?");
+                        $stmtCache->execute([$newTotalBytes, $newExpireTs, $tokenRow['token']]);
+                    }
+                    $pdo->commit();
+                    $msg_alert = "<div class='mac-alert success'><span class='icon'>check_circle</span><span>سرویس با موفقیت تمدید و به شبکه ارسال شد.</span></div>";
+                    echo "<script>setTimeout(()=>window.location.href='?page=detail&id=$id', 1500);</script>";
+                }
+            }
+        } catch (Exception $e) { if ($pdo->inTransaction()) $pdo->rollBack(); $msg_alert = "<div class='mac-alert error'><span class='icon'>error</span><span>خطا: " . $e->getMessage() . "</span></div>"; }
+    }
+}
+// ---> CREATE AMNEZIAWG CLIENT <---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_awg_client'])) {
+
+    try {
+
+        $stmt = $pdo->prepare("
+            SELECT awg_client_id
+            FROM reseller_services
+            WHERE id = ?
+            AND reseller_tg_id = ?
+        ");
+        $stmt->execute([$id, $rid]);
+
+        $current = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$current) {
+            throw new Exception('Service not found');
+        }
+
+        if (!empty($current['awg_client_id'])) {
+            throw new Exception('AWG client already exists');
+        }
+
+        $clientId = bin2hex(random_bytes(16));
+
+        $stmtCfg = $pdo->query("
+            SELECT awg_api_url, awg_api_token
+            FROM settings
+            LIMIT 1
+        ");
+
+        $cfg = $stmtCfg->fetch(PDO::FETCH_ASSOC);
+
+        $url =
+            rtrim($cfg['awg_api_url'], '/') .
+            '/api/clients';
+
+        $payload = json_encode([
+            'id' => $clientId
+        ]);
+
+        $ch = curl_init();
+
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $cfg['awg_api_token'],
+                'Content-Type: application/json'
+            ]
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        curl_close($ch);
+
+        if ($httpCode < 200 || $httpCode >= 300) {
+            throw new Exception(
+                'AWG API Error (' .
+                $httpCode .
+                '): ' .
+                $response
+            );
+        }
+
+        $stmtUpdate = $pdo->prepare("
+            UPDATE reseller_services
+            SET awg_client_id = ?
+            WHERE id = ?
+        ");
+
+        $stmtUpdate->execute([
+            $clientId,
+            $id
+        ]);
+
+        $msg_alert =
+            "<div class='mac-alert success'>
+                <span class='icon'>check_circle</span>
+                <span>کلاینت AmneziaWG ساخته شد.</span>
+            </div>";
+
+echo "<script>
+    let seconds = 80;
+
+    document.addEventListener('DOMContentLoaded', function() {
+
+        const btnText = document.getElementById('awgBtnText');
+        const btn = document.getElementById('awgCreateBtn');
+
+        if(btn){
+            btn.disabled = true;
+
+            const timer = setInterval(function(){
+
+                let m = Math.floor(seconds / 60);
+                let s = seconds % 60;
+
+                if(btnText){
+                    btnText.innerText =
+                        'در حال ساخت کانفیگ... ' +
+                        m + ':' + String(s).padStart(2,'0');
+                }
+
+                seconds--;
+
+                if(seconds < 0){
+                    clearInterval(timer);
+                    location.href='?page=detail&id={$id}';
+                }
+
+            },1000);
+        }
+
+    });
+</script>";
+
+    } catch (Exception $e) {
+
+        $msg_alert =
+            "<div class='mac-alert error'>
+                <span class='icon'>error</span>
+                <span>" .
+                htmlspecialchars($e->getMessage()) .
+                "</span>
+            </div>";
+    }
+}
+// =================================================================================
+// 4. FETCH DATA
+// =================================================================================
+$sqlService = "SELECT
+    rs.*,
+    rs.awg_client_id,
+    rst.token as sub_token
+FROM reseller_services rs
+LEFT JOIN reseller_sub_tokens rst ON rs.id = rst.service_id
+WHERE rs.id = ? AND rs.reseller_tg_id = ?";
+$stmt = $pdo->prepare($sqlService);
+$stmt->execute([$id, $rid]);
+$svc = $stmt->fetch();
+if (!$svc) die("<div class='flex flex-col items-center justify-center min-h-[50vh] text-center'><div class='w-24 h-24 bg-white rounded-[2rem] border border-black/5 shadow-ios flex items-center justify-center mb-6'><span class='icon text-[48px] text-[#FF2D55]'>error</span></div><h2 class='text-3xl font-black text-[#1C1C1E]'>سرویس یافت نشد</h2><a href='?page=services' class='mt-6 px-8 py-3.5 bg-[#007AFF] text-white font-bold rounded-2xl shadow-[0_8px_20px_rgba(0,122,255,0.3)]'>بازگشت به لیست</a></div>");
+
+// Fetch Reseller Pricing Data from DB
+$stmtReseller = $pdo->prepare("SELECT * FROM resellers WHERE tg_id = ? LIMIT 1");
+$stmtReseller->execute([$rid]);
+$resellerInfo = $stmtReseller->fetch();
+// Get the custom per gig price, default to 10000 if not set or zero
+$resellerPerGigPrice = (!empty($resellerInfo['per_gig_price']) && $resellerInfo['per_gig_price'] > 0) ? (int)$resellerInfo['per_gig_price'] : 10000;
+
+// Load Keys for Scanner - FIX PATH LOGIC
+$jsPanelKeys = [];
+// Check in current dir
+$apiPath = __DIR__ . '/rain_api(2).php';
+// Check in parent dir (if views folder is used)
+if (!file_exists($apiPath)) $apiPath = dirname(__DIR__) . '/rain_api(2).php';
+
+if (file_exists($apiPath)) {
+    include_once $apiPath;
+    if (function_exists('rain_panels')) {
+        foreach(rain_panels() as $p) { if(!empty($p['key'])) $jsPanelKeys[] = $p['key']; }
+    }
+}
+
+// Customer & Stats
+$customer = [];
+if (!empty($svc['customer_id'])) {
+    $stmtC = $pdo->prepare("SELECT * FROM reseller_customers WHERE id = ?");
+    $stmtC->execute([$svc['customer_id']]);
+    $customer = $stmtC->fetch();
+}
+$stats = [];
+if (!empty($svc['sub_token'])) {
+    $stmtS = $pdo->prepare("SELECT * FROM user_stats_cache WHERE CAST(token AS CHAR) = CAST(? AS CHAR) LIMIT 1");
+    $stmtS->execute([$svc['sub_token']]);
+    $stats = $stmtS->fetch();
+}
+
+// Calc Core
+$customerName  = !empty($customer['full_name']) ? htmlspecialchars($customer['full_name']) : 'بدون نام';
+$customerPhone = !empty($customer['phone']) ? htmlspecialchars($customer['phone']) : '---';
+$subToken = $svc['sub_token'] ?? '';
+$subLink = "https://vita.peppernopepper.com/sub.php?t=" . $subToken;
+$awgDownloadUrl = '';
+
+if (!empty($svc['awg_client_id'])) {
+
+    $awgDownloadUrl =
+        '/download_awg.php?id=' .
+        urlencode($svc['awg_client_id']);
+}
+$totalBytes = $svc['gb'] * 1024 * 1024 * 1024;
+$usedBytes  = !empty($stats['used_bytes']) ? $stats['used_bytes'] : ($svc['last_used_bytes'] ?? 0);
+$remBytes = max(0, $totalBytes - $usedBytes);
+$percent = ($totalBytes > 0) ? ($usedBytes / $totalBytes) * 100 : 0;
+if($percent > 100) $percent = 100;
+$expireTs = !empty($stats['expire_ts']) ? $stats['expire_ts'] : strtotime($svc['expire_at']);
+$daysLeft = ($expireTs > 0) ? ceil(($expireTs - time()) / 86400) : 0;
+
+// USER HISTORICAL USAGE CALCULATION
+$usedGbFloat = ($usedBytes > 0) ? ($usedBytes / (1024 * 1024 * 1024)) : 0;
+$originalDays = $svc['days'] > 0 ? (int)$svc['days'] : 30;
+$daysElapsed = max(1, $originalDays - max(0, $daysLeft)); // Days active in current period
+$dailyAvgGb = $usedGbFloat / $daysElapsed;
+// If the user has extremely low usage (e.g. new user), set a safe baseline of 1.5GB/day
+if ($dailyAvgGb < 0.5) {
+    $dailyAvgGb = 1.5;
+}
+
+$statusText = 'فعال'; $statusClass = 'active';
+if (($svc['status'] === 'disabled') || (!empty($stats['is_disabled']) && $stats['is_disabled'] == 1)) { $statusText = 'غیرفعال'; $statusClass = 'expired'; } 
+elseif ($daysLeft <= 0 || $usedBytes >= $totalBytes) { $statusText = 'منقضی شده'; $statusClass = 'expired'; }
+
+// Color Logic
+$gaugeColor = '#34C759'; // Green
+if ($percent > 75) $gaugeColor = '#FF9500'; // Orange
+if ($percent > 95) $gaugeColor = '#FF2D55'; // Pink/Red
+if ($statusClass == 'expired') $gaugeColor = '#8E8E93'; // Gray
+?>
+
+<style>
+    /* =========================================
+       NATIVE UI CSS RESET & SETUP
+       ========================================= */
+    .view-fade-in {
+        animation: smoothFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        padding-bottom: 120px; /* Dock space */
+    }
+    @keyframes smoothFade {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* iOS Progress Donut with Cutout Mask */
+    .ios-progress-ring {
+        position: relative; display: grid; place-items: center;
+    }
+    .ios-progress-ring::before {
+        content: ''; position: absolute; inset: 0; border-radius: 50%;
+        background: conic-gradient(var(--p-color) var(--p-pct), rgba(0,0,0,0.04) 0);
+        mask: radial-gradient(transparent 68%, black 69%);
+        -webkit-mask: radial-gradient(transparent 68%, black 69%);
+        transition: background 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .ios-progress-ring::after {
+        content: ''; position: absolute; inset: 0; border-radius: 50%;
+        box-shadow: inset 0 2px 10px rgba(0,0,0,0.05); pointer-events: none;
+    }
+
+    /* Scanner Terminal Styling */
+    .mac-terminal {
+        background: #1C1C1E; /* Native Dark Console */
+        border-radius: 20px; overflow: hidden;
+        display: flex; flex-direction: column;
+        box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+    }
+    .mac-terminal-header {
+        background: #2C2C2E; border-bottom: 1px solid rgba(255,255,255,0.1);
+        font-family: 'Menlo', monospace; color: #E5E5EA;
+    }
+    .mac-terminal-logs {
+        font-family: 'Menlo', monospace; font-size: 0.8rem; font-weight: 600;
+        scrollbar-width: none; color: #34C759;
+    }
+    .log-line { opacity: 0; animation: dashboardFadeIn 0.3s forwards; }
+
+    /* Inputs & Toggles */
+    .mac-input {
+        background: #F2F2F7; border: 1px solid transparent;
+        transition: all 0.3s;
+    }
+    .mac-input:focus {
+        background: #ffffff; border-color: #007AFF;
+        box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15); outline: none;
+    }
+    
+    .mac-btn { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .mac-btn:active { transform: scale(0.96); }
+
+    /* Alerts */
+    .mac-alert {
+        display: flex; align-items: center; gap: 12px;
+        padding: 16px 20px; border-radius: 20px;
+        font-weight: 700; font-size: 0.95rem; margin-bottom: 24px;
+        animation: dashboardFadeIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .mac-alert.success { background: rgba(52, 199, 89, 0.15); color: #34C759; }
+    .mac-alert.error { background: rgba(255, 45, 85, 0.15); color: #FF2D55; }
+
+    /* Animated Dot */
+    .mac-dot {
+        width: 10px; height: 10px; border-radius: 50%;
+        background: #FF2D55; transition: all 0.5s;
+    }
+    .mac-dot.online {
+        background: #34C759; box-shadow: 0 0 12px rgba(52, 199, 89, 0.8);
+        animation: pulseLive 2s infinite;
+    }
+    @keyframes pulseLive {
+        0% { box-shadow: 0 0 0 0 rgba(52,199,89, 0.4); }
+        70% { box-shadow: 0 0 0 6px rgba(52,199,89, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(52,199,89, 0); }
+    }
+
+    /* Custom Checkbox (iOS Switch) */
+    .apple-switch { position: relative; display: inline-block; width: 50px; height: 30px; }
+    .apple-switch input { opacity: 0; width: 0; height: 0; }
+    .apple-slider {
+        position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+        background-color: #E5E5EA; transition: .4s; border-radius: 34px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .apple-slider:before {
+        position: absolute; content: ""; height: 26px; width: 26px; left: 2px; bottom: 2px;
+        background-color: white; transition: .4s; border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .apple-switch input:checked + .apple-slider { background-color: #34C759; }
+    .apple-switch input:checked + .apple-slider:before { transform: translateX(20px); }
+    .apple-switch input:disabled + .apple-slider { opacity: 0.5; cursor: not-allowed; }
+
+    /* Toast */
+    .toast-msg {
+        position: fixed; top: 20px; left: 50%; transform: translate(-50%, -100px);
+        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s;
+        opacity: 0; z-index: 9999999; pointer-events: none;
+    }
+    .toast-msg.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+</style>
+
+<div class="view-fade-in w-full">
+    <?= $msg_alert ?>
+
+    <div id="copyToast" class="toast-msg bg-white/95 backdrop-blur-xl border border-black/5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] px-5 py-3 rounded-full flex items-center gap-2">
+        <span class="icon text-[#34C759] text-[22px]">check_circle</span>
+        <span class="font-bold text-[13px] text-[#1C1C1E]">لینک با موفقیت کپی شد</span>
+    </div>
+
+    <div class="flex justify-between items-start md:items-center mb-6 px-1">
+        <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-3">
+                <h1 class="text-3xl md:text-4xl font-black text-[#1C1C1E] tracking-tight"><?= $customerName ?></h1>
+                <div id="status-indicator" class="mac-dot"></div>
+            </div>
+            <div class="font-mono text-[13px] font-bold text-[#8E8E93] bg-black/5 px-3 py-1 rounded-lg w-max mt-1">@<?= $svc['rain_username'] ?></div>
+        </div>
+        
+        <a href="?page=services" class="w-12 h-12 bg-white border border-black/5 flex items-center justify-center rounded-full text-[#1C1C1E] shadow-sm hover:scale-105 transition-all duration-300">
+            <span class="icon text-[24px]">close</span>
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-4 xl:gap-6">
+        
+        <div class="flex flex-col gap-4">
+            
+            <div class="bg-white rounded-[2rem] p-6 lg:p-8 shadow-ios border border-black/5 relative overflow-hidden">
+                <div class="flex items-center gap-3 mb-6 relative z-10">
+                    <span class="icon text-[26px]" style="color: <?= $gaugeColor ?>;">data_usage</span>
+                    <h2 class="font-black text-[18px] text-[#1C1C1E]">وضعیت مصرف بسته</h2>
+                </div>
+                
+                <div class="flex flex-col items-center justify-center min-h-[240px] relative z-10">
+                    <div class="ios-progress-ring w-[200px] h-[200px] lg:w-[240px] lg:h-[240px]" style="--p-pct: <?= $percent ?>%; --p-color: <?= $gaugeColor ?>;">
+                        <div class="flex flex-col items-center text-center">
+                            <div class="text-5xl lg:text-6xl font-black tracking-tighter text-[#1C1C1E]" style="font-feature-settings: 'tnum';">
+                                <?= round($percent) ?><span class="text-2xl text-[#8E8E93] font-bold">%</span>
+                            </div>
+                            <div class="text-[13px] font-bold uppercase tracking-widest mt-1" style="color: <?= $gaugeColor ?>;"><?= $statusText ?></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center bg-[#F2F2F7] p-5 rounded-[1.5rem] mt-8 text-center relative z-10">
+                    <div class="flex-1">
+                        <div class="font-black text-[18px] text-[#1C1C1E]" style="font-feature-settings: 'tnum';"><?= formatBytes($usedBytes) ?></div>
+                        <div class="text-[12px] font-bold text-[#8E8E93] mt-1">مصرف شده</div>
+                    </div>
+                    <div class="w-px h-10 bg-black/5"></div>
+                    <div class="flex-1">
+                        <div class="font-black text-[18px] text-[#8E8E93]" style="font-feature-settings: 'tnum';"><?= $svc['gb'] ?> GB</div>
+                        <div class="text-[12px] font-bold text-[#8E8E93] mt-1">حجم کل</div>
+                    </div>
+                    <div class="w-px h-10 bg-black/5"></div>
+                    <div class="flex-1">
+                        <div class="font-black text-[18px]" style="color: <?= $daysLeft<3 ? '#FF2D55':'#007AFF' ?>; font-feature-settings: 'tnum';"><?= $daysLeft ?></div>
+                        <div class="text-[12px] font-bold text-[#8E8E93] mt-1">روز مانده</div>
+                    </div>
+                </div>
+            </div>
+
+            <?php if(!empty($svc['auto_renew']) && $svc['auto_renew'] == 1): ?>
+            <div class="bg-[#007AFF]/10 border border-[#007AFF]/20 rounded-[2rem] p-6 flex items-start gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-[#007AFF] shrink-0 shadow-sm">
+                    <span class="icon text-[28px]">schedule</span>
+                </div>
+                <div>
+                    <h3 class="font-black text-[16px] text-[#1C1C1E]">رزرو دوره بعدی (فعال)</h3>
+                    <p class="font-bold text-[14px] text-[#007AFF] mt-1">بسته رزرو شده: <?= $svc['next_plan_gb'] ?> گیگ - <?= $svc['next_plan_days'] ?> روز</p>
+                    <p class="font-semibold text-[12px] text-[#8E8E93] mt-2 leading-relaxed">این بسته به محض اتمام حجم یا زمان سرویس فعلی، به صورت کاملا خودکار بر روی سرور فعال خواهد شد.</p>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <div class="bg-white rounded-[2rem] p-6 shadow-ios border border-black/5">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="icon text-[26px] text-[#34C759]">radar</span>
+                    <h2 class="font-black text-[18px] text-[#1C1C1E]">مانیتورینگ زنده شبکه</h2>
+                </div>
+                
+                <div class="mac-terminal h-[220px]">
+                    <div class="mac-terminal-header px-4 py-3 flex justify-between items-center text-[11px] font-bold">
+                        <span>TARGET: <?= strtoupper($svc['rain_username']) ?></span>
+                        <span id="scan-status" class="text-[#007AFF]">INITIALIZING...</span>
+                    </div>
+                    <div class="mac-terminal-logs flex-1 p-4 flex flex-col gap-2 overflow-y-auto" id="terminal-logs" dir="ltr">
+                        </div>
+                </div>
+                
+                <div id="active-connection-card" class="mt-4 p-5 bg-[#34C759]/10 border border-[#34C759]/20 rounded-[1.5rem] hidden">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="text-[11px] font-black text-[#34C759] tracking-widest uppercase mb-1">سرور متصل فعلی</div>
+                            <div class="font-black text-[20px] text-[#1C1C1E] font-mono" id="conn-server">---</div>
+                        </div>
+                        <div class="text-left" dir="ltr">
+                            <div class="text-[11px] font-bold text-[#8E8E93] tracking-widest uppercase mb-1">LAST SEEN</div>
+                            <div class="font-black text-[16px] text-[#1C1C1E] font-mono" id="conn-time">---</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="flex flex-col gap-4">
+
+            <div class="bg-white rounded-[2rem] p-6 lg:p-8 shadow-ios border border-black/5 relative">
+                <div class="flex items-center gap-3 mb-6">
+                    <span class="icon text-[26px] text-[#FF9500]">battery_charging_full</span>
+                    <h2 class="font-black text-[18px] text-[#1C1C1E]">تمدید و شارژ هوشمند</h2>
+                </div>
+                
+                <form method="POST" id="renewForm" onsubmit="return confirm('آیا از تمدید یا رزرو این سرویس با مشخصات وارد شده اطمینان کامل دارید؟');" class="flex flex-col gap-5">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="relative">
+                            <label class="absolute -top-2.5 right-4 bg-white px-2 text-[11px] font-bold text-[#8E8E93] rounded">حجم جدید</label>
+                            <input type="number" step="0.1" name="renew_gb" id="renew_gb" class="mac-input w-full p-4 rounded-2xl text-center font-bold text-[18px] text-[#1C1C1E] font-mono" value="60">
+                        </div>
+                        <div class="relative">
+                            <label class="absolute -top-2.5 right-4 bg-white px-2 text-[11px] font-bold text-[#8E8E93] rounded">زمان (روز)</label>
+                            <input type="number" name="renew_days" id="renew_days" class="mac-input w-full p-4 rounded-2xl text-center font-bold text-[18px] text-[#1C1C1E] font-mono" value="30">
+                        </div>
+                    </div>
+                    
+                    <?php if ($statusClass === 'active' && empty($svc['auto_renew'])): ?>
+                    <div class="flex items-center justify-between bg-[#F2F2F7] p-4 rounded-2xl">
+                        <div>
+                            <div class="font-black text-[14px] text-[#1C1C1E]">رزرو برای دوره بعد (Next Plan)</div>
+                            <div class="font-semibold text-[11px] text-[#8E8E93] mt-0.5">اعمال خودکار پس از پایان سرویس فعلی</div>
+                        </div>
+                        <label class="apple-switch">
+                            <input type="checkbox" name="auto_renew" id="auto_renew_toggle">
+                            <span class="apple-slider"></span>
+                        </label>
+                    </div>
+                    <?php elseif (!empty($svc['auto_renew'])): ?>
+                    <div class="flex items-center justify-between bg-[#F2F2F7] p-4 rounded-2xl opacity-60 pointer-events-none">
+                        <div>
+                            <div class="font-black text-[14px] text-[#1C1C1E]">رزرو فعال است</div>
+                            <div class="font-semibold text-[11px] text-[#8E8E93] mt-0.5">برای تغییر، باید دستی تمدید کنید.</div>
+                        </div>
+                        <label class="apple-switch">
+                            <input type="checkbox" checked disabled>
+                            <span class="apple-slider"></span>
+                        </label>
+                    </div>
+                    <?php endif; ?>
+
+                    <div id="suggestion_box" class="hidden bg-[#007AFF]/5 border border-[#007AFF]/20 p-5 rounded-2xl">
+                        <div class="flex items-center gap-2 mb-4 pb-3 border-b border-[#007AFF]/10">
+                            <span class="icon text-[#007AFF] text-[22px]">psychology</span>
+                            <span class="font-black text-[14px] text-[#007AFF]">تحلیل هوش مصنوعی پنل</span>
+                        </div>
+
+                        <div class="flex flex-col gap-2 mb-4">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-[12px] text-[#8E8E93]">الگوی مصرف کاربر:</span>
+                                <span id="user_profile_text" class="text-left" dir="ltr">--</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-[12px] text-[#8E8E93]">بسته پیشنهادی (+۲۰٪):</span>
+                                <span id="suggest_gb_text" class="font-black text-[16px] text-[#007AFF] bg-[#007AFF]/10 px-3 py-1 rounded-lg font-mono">--</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-black/5 p-4 rounded-xl flex flex-col gap-2 shadow-sm">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-[12px] text-[#8E8E93]">خرید شما (خام):</span>
+                                <span id="raw_price_text" class="font-black text-[13px] text-[#FF9500]">--</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-[12px] text-[#8E8E93]">فروش به مشتری:</span>
+                                <span id="suggest_price_text" class="font-black text-[15px] text-[#34C759]">--</span>
+                            </div>
+                            <div class="flex justify-between items-center border-t border-dashed border-black/10 pt-3 mt-1">
+                                <span class="font-black text-[14px] text-[#1C1C1E]">سود خالص شما:</span>
+                                <span id="profit_text" class="font-black text-[18px] text-[#007AFF] tracking-tight">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" name="renew_service" id="renewBtn" class="mac-btn w-full py-4 bg-[#007AFF] text-white rounded-2xl font-black text-[16px] flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(0,122,255,0.3)]">
+                        <span class="icon text-[24px]">autorenew</span>
+                        <span>تایید و شارژ مجدد (فوری)</span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="bg-white rounded-[2rem] p-6 shadow-ios border border-black/5">
+                <div class="flex items-center gap-3 mb-6">
+                    <span class="icon text-[26px] text-[#AF52DE]">edit_document</span>
+                    <h2 class="font-black text-[18px] text-[#1C1C1E]">ویرایش مشخصات</h2>
+                </div>
+                <form method="POST" class="flex flex-col gap-4">
+                    <input type="text" class="mac-input w-full p-4 rounded-2xl text-[14px] font-bold text-[#8E8E93] bg-[#F2F2F7] cursor-not-allowed" value="<?= $customerPhone ?>" readonly placeholder="شماره موبایل" title="شماره موبایل ثابت است">
+                    <input type="text" name="edit_name" class="mac-input w-full p-4 rounded-2xl text-[14px] font-bold text-[#1C1C1E]" value="<?= $customerName ?>" placeholder="نام نمایشی کاربر">
+                    <input type="text" name="edit_label" class="mac-input w-full p-4 rounded-2xl text-[14px] font-bold text-[#1C1C1E]" value="<?= htmlspecialchars($svc['label']) ?>" placeholder="برچسب (مثال: همراه اول)">
+                    
+                    <button type="submit" name="update_details" class="mac-btn w-full py-4 bg-[#F2F2F7] hover:bg-[#E5E5EA] text-[#007AFF] font-black rounded-2xl text-[15px] mt-2">
+                        ذخیره تغییرات
+                    </button>
+                </form>
+            </div>
+
+            <div class="bg-white rounded-[2rem] p-6 shadow-ios border border-black/5 text-center flex flex-col items-center">
+                <div class="flex items-center gap-3 mb-6">
+                    <span class="icon text-[26px] text-[#1C1C1E]">qr_code_scanner</span>
+                    <h2 class="font-black text-[18px] text-[#1C1C1E]">لینک اتصال اختصاصی</h2>
+                </div>
+                
+                <div class="w-full bg-[#F2F2F7] rounded-2xl p-2 flex items-center mb-6">
+                    <button type="button" onclick="copyLink('<?= $subLink ?>')" class="w-12 h-12 bg-white text-[#007AFF] rounded-xl flex items-center justify-center transition-all active:scale-90 shrink-0 shadow-sm">
+                        <span class="icon text-[22px]">content_copy</span>
+                    </button>
+                    <input type="text" readonly value="<?= $subLink ?>" class="flex-1 bg-transparent border-none outline-none font-mono text-[12px] font-bold text-[#8E8E93] px-4 text-left" dir="ltr">
+                </div>
+
+                <div class="bg-white p-4 rounded-[1.5rem] border border-black/5 shadow-sm inline-block">
+                    <?php if(!empty($svc['sub_token'])): ?>
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=<?= urlencode($subLink) ?>" 
+                             class="w-[160px] h-[160px] rounded-xl" alt="QR Code">
+                    <?php endif; ?>
+                </div>
+<?php if(!empty($svc['awg_client_id'])): ?>
+
+<a href="<?= htmlspecialchars($awgDownloadUrl) ?>"
+   class="mac-btn w-full py-3 mb-3 bg-[#34C759]
+          text-white font-black rounded-xl
+          text-[14px]
+          flex items-center justify-center gap-2">
+
+    <span class="icon text-[20px]">download</span>
+    <span>دانلود فایل AmneziaWG</span>
+
+</a>
+
+<?php else: ?>
+
+<form method="POST" class="w-full mb-3" id="awgForm">
+
+    <button
+        type="submit"
+        name="create_awg_client"
+        id="awgCreateBtn"
+        class="mac-btn w-full py-3 bg-[#007AFF]
+               text-white font-black rounded-xl
+               text-[14px]
+               flex items-center justify-center gap-2">
+
+        <span class="icon text-[20px]">vpn_key</span>
+        <span id="awgBtnText">ساخت کلاینت AmneziaWG</span>
+
+    </button>
+
+</form>
+
+<?php endif; ?>
+
+
+                <form method="POST" onsubmit="return confirm('⚠️ آیا مطمئن هستید؟ با این کار لینک قبلی کاربر فوراً باطل شده و لینک جدیدی صادر می‌شود.');" class="w-full mt-4">
+                    <button type="submit" name="reset_token" class="mac-btn w-full py-3 bg-[#FF2D55]/10 text-[#FF2D55] font-black rounded-xl text-[14px] flex items-center justify-center gap-2 hover:bg-[#FF2D55]/20 transition-all">
+                        <span class="icon text-[20px]">link_off</span>
+                        <span>باطل کردن و تغییر لینک</span>
+                    </button>
+                </form>
+
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- ADVANCED SMART SUGGESTION BOX LOGIC ---
+    const renewDaysInput = document.getElementById('renew_days');
+    const suggestionBox = document.getElementById('suggestion_box');
+    const autoRenewToggle = document.getElementById('auto_renew_toggle');
+    const renewBtn = document.getElementById('renewBtn');
+    
+    const suggestGbText = document.getElementById('suggest_gb_text');
+    const userProfileText = document.getElementById('user_profile_text');
+    const rawPriceText = document.getElementById('raw_price_text');
+    const suggestPriceText = document.getElementById('suggest_price_text');
+    const profitText = document.getElementById('profit_text');
+    
+    // Injected variables
+    const userDailyAvg = <?= json_encode((float)round($dailyAvgGb, 2)) ?>;
+    const adminBaseSell = 6000; 
+    const adminMinSell = 6000; 
+    const perGigSellingPrice = <?= $resellerPerGigPrice ?>;
+
+    function calculateSuggestion() {
+        const days = parseInt(renewDaysInput.value) || 0;
+        
+        if (days > 0) {
+            suggestionBox.classList.remove('hidden');
+            
+            // Profile Detect
+            let profileName = ""; let profileColor = "";
+            if (userDailyAvg < 0.5) { profileName = "کم‌مصرف"; profileColor = "#34C759"; } 
+            else if (userDailyAvg < 1.5) { profileName = "معمولی"; profileColor = "#007AFF"; } 
+            else if (userDailyAvg < 3.0) { profileName = "پرمصرف"; profileColor = "#FF9500"; } 
+            else { profileName = "فوق پرمصرف"; profileColor = "#FF2D55"; }
+            
+            userProfileText.innerHTML = `<span style="color:${profileColor}; font-weight:800; font-size:13px;">${profileName}</span> <span style="color:#8E8E93; font-size:11px; font-family:monospace;">(${userDailyAvg} GB/day)</span>`;
+
+            // Calculate Suggestion
+            let pureUsage = days * userDailyAvg;
+            let predictedUsage = pureUsage * 1.20; 
+            let suggestedGb = Math.ceil(predictedUsage / 5) * 5; 
+            if (suggestedGb < 10) suggestedGb = 10; 
+            suggestGbText.innerText = suggestedGb + " GB";
+            
+            // Financials
+            let resDiscount = 0;
+            if (suggestedGb >= 80) { resDiscount = Math.floor((suggestedGb - 60) / 20) * 15; }
+            
+            let rawBuyPrice = suggestedGb * adminBaseSell;
+            let finalRawPrice = rawBuyPrice * (1 - (resDiscount / 100));
+            
+            let minAdminSellPrice = suggestedGb * adminMinSell;
+            if (finalRawPrice < minAdminSellPrice) { 
+                finalRawPrice = minAdminSellPrice; 
+                resDiscount = parseFloat((100 - ((finalRawPrice / rawBuyPrice) * 100)).toFixed(1)); 
+            }
+
+            let custDiscount = resDiscount; 
+            let baseSellPrice = suggestedGb * perGigSellingPrice;
+            let finalSellPrice = baseSellPrice * (1 - (custDiscount / 100));
+            let finalProfit = finalSellPrice - finalRawPrice;
+            
+            // Render
+            let rawBadge = resDiscount > 0 ? ` <span class="text-[10px] bg-[#FF2D55]/10 text-[#FF2D55] px-1.5 py-0.5 rounded ml-1 font-bold">-${resDiscount}٪</span>` : '';
+            let sellBadge = custDiscount > 0 ? ` <span class="text-[10px] bg-[#007AFF]/10 text-[#007AFF] px-1.5 py-0.5 rounded ml-1 font-bold">تخفیف -${custDiscount}٪</span>` : '';
+
+            rawPriceText.innerHTML = rawBadge + finalRawPrice.toLocaleString('en-US') + " تومان";
+            suggestPriceText.innerHTML = sellBadge + finalSellPrice.toLocaleString('en-US') + " تومان";
+            profitText.innerHTML = finalProfit.toLocaleString('en-US') + " تومان";
+
+        } else {
+            suggestionBox.classList.add('hidden');
+        }
+    }
+
+    renewDaysInput.addEventListener('input', calculateSuggestion);
+    
+    // Auto Renew Toggle logic
+    if (autoRenewToggle) {
+        autoRenewToggle.addEventListener('change', function() {
+            if(this.checked) {
+                renewBtn.innerHTML = '<span class="icon text-[24px]">schedule</span><span>ذخیره به عنوان رزرو دوره بعد</span>';
+                renewBtn.className = "mac-btn w-full py-4 bg-[#34C759] text-white rounded-2xl font-black text-[16px] flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(52,199,89,0.3)]";
+            } else {
+                renewBtn.innerHTML = '<span class="icon text-[24px]">autorenew</span><span>تایید و شارژ مجدد (فوری)</span>';
+                renewBtn.className = "mac-btn w-full py-4 bg-[#007AFF] text-white rounded-2xl font-black text-[16px] flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(0,122,255,0.3)]";
+            }
+        });
+    }
+    
+    document.addEventListener('DOMContentLoaded', calculateSuggestion);
+
+    // --- COPY FUNCTION ---
+    function copyLink(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const toast = document.getElementById('copyToast');
+            toast.classList.add('show');
+            if(navigator.vibrate) navigator.vibrate(20);
+            setTimeout(() => { toast.classList.remove('show'); }, 2000);
+        });
+    }
+
+    // --- LIVE SCANNER LOGIC (ANIMATED) ---
+    const allKeys = <?php echo json_encode($jsPanelKeys); ?>;
+    const targetUser = "<?= $svc['rain_username'] ?>";
+    const logsEl = document.getElementById('terminal-logs');
+    const scanStatus = document.getElementById('scan-status');
+    const activeCard = document.getElementById('active-connection-card');
+    const statusDot = document.getElementById('status-indicator');
+
+    async function startScan() {
+        let found = [];
+        
+        for (const key of allKeys) {
+            const row = document.createElement('div');
+            row.className = 'log-line text-[#007AFF]';
+            row.innerHTML = `> PING NODE: ${key.toUpperCase()}...`;
+            logsEl.prepend(row);
+
+            try {
+                const res = await fetch('check.php?key=' + key);
+                const data = await res.json();
+
+                if (data.status === 'online') {
+                    let userNow = data.list_now && data.list_now.find(u => (String(u.username) === String(targetUser) || String(u) === String(targetUser)));
+                    let userToday = data.list_today && data.list_today.find(u => (String(u.username) === String(targetUser) || String(u) === String(targetUser)));
+
+                    if (userNow || userToday) {
+                        const isLive = !!userNow;
+                        let ts = (userNow && userNow.timestamp) ? userNow.timestamp : ((userToday && userToday.timestamp) ? userToday.timestamp : 0);
+                        if(!ts) ts = Math.floor(Date.now() / 1000) - (isLive ? 0 : 3600);
+
+                        found.push({ panel: key.toUpperCase(), ts: ts, isLive: isLive });
+
+                        row.className = 'log-line text-[#34C759] drop-shadow-[0_0_8px_rgba(52,199,89,0.4)]';
+                        row.innerHTML = `> [SUCCESS] ${key.toUpperCase()} - ${isLive ? 'ACTIVE SESSION' : 'FOUND IN HISTORY'}`;
+                    } else {
+                        row.className = 'log-line text-[#8E8E93] opacity-70';
+                        row.innerHTML = `> NODE ${key.toUpperCase()}: NO DATA FOUND`;
+                    }
+                } else {
+                    row.className = 'log-line text-[#8E8E93] opacity-70';
+                    row.innerHTML = `> NODE ${key.toUpperCase()}: UNREACHABLE`;
+                }
+            } catch (e) {
+                row.className = 'log-line text-[#FF2D55] opacity-80';
+                row.innerHTML = `> ERROR: ${key.toUpperCase()} TIMEOUT`;
+            }
+
+            await new Promise(r => setTimeout(r, 100)); // Smooth visual delay
+        }
+
+        scanStatus.innerText = "SCAN COMPLETE";
+        scanStatus.style.color = "#34C759";
+
+        if(found.length > 0) {
+            found.sort((a,b) => b.ts - a.ts);
+            const winner = found[0];
+
+            activeCard.classList.remove('hidden');
+            activeCard.classList.add('animate-[slideFadeUp_0.5s_forwards]');
+            document.getElementById('conn-server').innerText = winner.panel;
+            
+            let now = Math.floor(Date.now() / 1000);
+            let diff = now - winner.ts;
+            let timeStr = "";
+            
+            if(winner.isLive && diff < 600) {
+                timeStr = "ONLINE NOW";
+                statusDot.classList.add('online');
+            } else {
+                if(diff < 60) timeStr = "JUST NOW";
+                else if(diff < 3600) timeStr = Math.floor(diff/60) + " MINS AGO";
+                else if(diff < 86400) timeStr = Math.floor(diff/3600) + " HOURS AGO";
+                else timeStr = Math.floor(diff/86400) + " DAYS AGO";
+            }
+            document.getElementById('conn-time').innerText = timeStr;
+        } else {
+            const row = document.createElement('div');
+            row.className = 'log-line text-[#8E8E93] opacity-70';
+            row.innerHTML = `> REPORT: USER OFFLINE`;
+            logsEl.prepend(row);
+        }
+    }
+
+    if(allKeys.length > 0) setTimeout(startScan, 500); // Start scan slightly after page load
+</script>

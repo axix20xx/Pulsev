@@ -1,0 +1,856 @@
+<?php
+// views/sales.php — NATIVE OS EDITION (Sleek UI/UX) + SMART PRICING + CUSTOM OVERRIDE
+// =================================================================================
+// 1. CONFIGURATION & SESSION & AJAX
+// =================================================================================
+if (session_status() === PHP_SESSION_NONE) session_start();
+if (!isset($_SESSION['tg_id'])) die("Access Denied");
+
+global $pdo;
+
+// --- AJAX HANDLER TO SAVE CUSTOM PRICE & PAID STATUS INSTANTLY ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_update_sale'])) {
+    header('Content-Type: application/json');
+    $sale_id = (int)($_POST['sale_id'] ?? 0);
+    $custom_price = $_POST['custom_price'] === '' ? null : (int)$_POST['custom_price'];
+    $is_paid = (int)($_POST['is_paid'] ?? 0);
+    
+    if ($sale_id > 0) {
+        $stmt = $pdo->prepare("UPDATE reseller_sales_log SET custom_sell_price = ?, is_paid = ? WHERE id = ? AND reseller_tg_id = ?");
+        $stmt->execute([$custom_price, $is_paid, $sale_id, $_SESSION['tg_id']]);
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false]);
+    }
+    exit;
+}
+// -----------------------------------------------------------------
+
+// Set PHP environment to Tehran
+date_default_timezone_set('Asia/Tehran');
+
+// =================================================================================
+// 2. HELPERS
+// =================================================================================
+
+function utcToTehranTimestamp($utcString) {
+    if (empty($utcString)) return time();
+    $dt = new DateTime($utcString, new DateTimeZone('UTC'));
+    $dt->setTimezone(new DateTimeZone('Asia/Tehran'));
+    return $dt->getTimestamp();
+}
+
+function stringToColor($str) {
+    $code = dechex(crc32($str));
+    $code = substr($code, 0, 6);
+    return '#' . $code;
+}
+
+function getInitials($name) {
+    $name = trim($name);
+    if (empty($name)) return '?';
+    $parts = explode(' ', $name);
+    if (count($parts) > 1) {
+        return mb_substr($parts[0], 0, 1) . mb_substr($parts[1], 0, 1);
+    }
+    return mb_substr($name, 0, 2);
+}
+
+// SMART PRICING FORMULA
+function calculateSmartPricing($gb, $resellerBasePrice, $adminBase, $adminMin) {
+    $reseller_discount_pct = 0;
+    
+    if ($gb >= 80) { 
+        $reseller_discount_tier = floor(($gb - 60) / 20);
+        $reseller_discount_pct = $reseller_discount_tier * 15;
+    }
+    
+    $raw_buy_price = $gb * $adminBase;
+    $reseller_buy_price = $raw_buy_price * (1 - ($reseller_discount_pct / 100));
+    
+    $min_admin_sell_price = $gb * $adminMin;
+    
+    if ($reseller_buy_price < $min_admin_sell_price) {
+        $reseller_buy_price = $min_admin_sell_price;
+        $reseller_discount_pct = round(100 - (($reseller_buy_price / $raw_buy_price) * 100), 1);
+    }
+
+    $customer_discount_pct = $reseller_discount_pct;
+    
+    $raw_sell_price = $gb * $resellerBasePrice;
+    $customer_sell_price = $raw_sell_price * (1 - ($customer_discount_pct / 100));
+    
+    $net_profit = $customer_sell_price - $reseller_buy_price;
+
+    return [
+        'buy_price' => $reseller_buy_price,
+        'res_discount' => $reseller_discount_pct,
+        'sell_price' => $customer_sell_price,
+        'cust_discount' => $customer_discount_pct,
+        'profit' => $net_profit
+    ];
+}
+
+// JDF Helper
+if (!function_exists('jdate')) {
+    function jdate($format, $timestamp = '', $none = '', $time_zone = 'Asia/Tehran', $tr_num = 'en') {
+        $T_sec = 0;
+        if ($time_zone != 'local') date_default_timezone_set(($time_zone === '') ? 'Asia/Tehran' : $time_zone);
+        $ts = $timestamp === '' ? time() : $timestamp;
+        $date = explode('_', date('H_i_j_n_O_P_s_w_Y', $ts));
+        list($j_y, $j_m, $j_d) = gregorian_to_jalali($date[8], $date[3], $date[2]);
+        $doy = ($j_m < 7) ? (($j_m - 1) * 31) + $j_d - 1 : (($j_m - 7) * 30) + $j_d + 185;
+        $kab = (((($j_y % 33) % 4) - 1) == ((int) (($j_y % 33) * 0.05))) ? 1 : 0;
+        $sl = strlen($format);
+        $out = '';
+        for ($i = 0; $i < $sl; $i++) {
+            $sub = substr($format, $i, 1);
+            if ($sub == '\\') { $out .= substr($format, ++$i, 1); continue; }
+            switch ($sub) {
+                case 'E': case 'R': case 'x': case 'X': $out .= $sub; break;
+                case 'B': case 'e': case 'g': case 'G': case 'h': case 'I': case 'T': case 'u': case 'Z': $out .= date($sub, $ts); break;
+                case 'a': $out .= ($date[0] < 12) ? 'ق.ظ' : 'ب.ظ'; break;
+                case 'A': $out .= ($date[0] < 12) ? 'قبل از ظهر' : 'بعد از ظهر'; break;
+                case 'b': $out .= (int) ($j_m / 3.1) + 1; break;
+                case 'c': $out .= $j_y . '/' . $j_m . '/' . $j_d . ' ،' . $date[0] . ':' . $date[1] . ':' . $date[6] . ' ' . $date[5]; break;
+                case 'C': $out .= (int) (($j_y + 99) / 100); break;
+                case 'd': $out .= ($j_d < 10) ? '0' . $j_d : $j_d; break;
+                case 'D': $out .= jdate_words(['kh' => $date[7]], ' '); break;
+                case 'f': $out .= jdate_words(['ff' => $j_m], ' '); break;
+                case 'F': $out .= jdate_words(['mm' => $j_m], ' '); break;
+                case 'H': $out .= date('H', $ts); break;
+                case 'i': $out .= date('i', $ts); break;
+                case 'j': $out .= $j_d; break;
+                case 'J': $out .= jdate_words(['rr' => $j_d], ' '); break;
+                case 'k': $out .= tr_num(100 - (int) ($doy / ($kab + 365) * 1000) / 10, $tr_num); break;
+                case 'K': $out .= tr_num((int) ($doy / ($kab + 365) * 1000) / 10, $tr_num); break;
+                case 'l': $out .= jdate_words(['rh' => $date[7]], ' '); break;
+                case 'L': $out .= $kab; break;
+                case 'm': $out .= ($j_m > 9) ? $j_m : '0' . $j_m; break;
+                case 'M': $out .= jdate_words(['km' => $j_m], ' '); break;
+                case 'n': $out .= $j_m; break;
+                case 'N': $out .= $date[7] + 1; break;
+                case 'o': $jdw = ($date[7] == 6) ? 0 : $date[7] + 1; $dny = 364 + $kab - $doy; $out .= ($jdw > ($doy + 3) and $doy < 3) ? $j_y - 1 : (((3 - $dny) > $jdw and $dny < 3) ? $j_y + 1 : $j_y); break;
+                case 'O': $out .= $date[4]; break;
+                case 'p': $out .= jdate_words(['mb' => $j_m], ' '); break;
+                case 'P': $out .= $date[5]; break;
+                case 'q': $out .= jdate_words(['sh' => $j_y], ' '); break;
+                case 'Q': $out .= $kab + 364 - $doy; break;
+                case 'r': $key = jdate_words(['rh' => $date[7], 'mm' => $j_m]); $out .= $date[0] . ':' . $date[1] . ':' . $date[6] . ' ' . $date[4] . ' ' . $key['rh'] . '، ' . $j_d . ' ' . $key['mm'] . ' ' . $j_y; break;
+                case 's': $out .= date('s', $ts); break;
+                case 'S': $out .= 'ام'; break;
+                case 't': $out .= ($j_m != 12) ? (31 - (int) ($j_m / 6.5)) : ($kab + 29); break;
+                case 'U': $out .= $ts; break;
+                case 'v': $out .= jdate_words(['ss' => ($j_y % 100)], ' '); break;
+                case 'V': $out .= jdate_words(['ss' => $j_y], ' '); break;
+                case 'w': $out .= ($date[7] == 6) ? 0 : $date[7] + 1; break;
+                case 'W': $avs = (($date[7] == 6) ? 0 : $date[7] + 1) - ($doy % 7); $num = (int) (($doy + $avs) / 7); if ($avs < 0) $num++; elseif ($avs > 0) $num--; $out .= ($num < 10) ? '0' . $num : $num; break;
+                case 'y': $out .= substr($j_y, 2, 2); break;
+                case 'Y': $out .= $j_y; break;
+                case 'z': $out .= $doy; break;
+                default: $out .= $sub;
+            }
+        }
+        return ($tr_num != 'en') ? tr_num($out, 'fa') : $out;
+    }
+    
+    function gregorian_to_jalali($gy, $gm, $gd, $mod = '') {
+        $g_d_m = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        $gy2 = ($gm > 2) ? ($gy + 1) : $gy;
+        $days = 355666 + (365 * $gy) + ((int) (($gy2 + 3) / 4)) - ((int) (($gy2 + 99) / 100)) + ((int) (($gy2 + 399) / 400)) + $gd + array_sum(array_slice($g_d_m, 0, $gm));
+        $jy = -1595 + (33 * ((int) ($days / 12053)));
+        $days %= 12053;
+        $jy += 4 * ((int) ($days / 1461));
+        $days %= 1461;
+        if ($days > 365) { $jy += (int) (($days - 1) / 365); $days = ($days - 1) % 365; }
+        if ($days < 186) { $jm = 1 + (int) ($days / 31); $jd = 1 + ($days % 31); } else { $jm = 7 + (int) (($days - 186) / 30); $jd = 1 + (($days - 186) % 30); }
+        return ($mod === '') ? [$jy, $jm, $jd] : $jy . $mod . $jm . $mod . $jd;
+    }
+    function jdate_words($array, $mod = '') { return ''; }
+    function tr_num($str, $mod = 'en', $mf = '٫') {
+        $num_a = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.'];
+        $key_a = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹', $mf];
+        return ($mod == 'fa') ? str_replace($num_a, $key_a, $str) : str_replace($key_a, $num_a, $str);
+    }
+}
+
+// =================================================================================
+// 3. CONTROLLER
+// =================================================================================
+$rid = $_SESSION['tg_id'];
+$range = $_GET['range'] ?? 'today';
+$customStart = $_GET['start'] ?? '';
+$customEnd   = $_GET['end']   ?? '';
+
+$startTehran = date('Y-m-d 00:00:00');
+$endTehran   = date('Y-m-d 23:59:59');
+$labelDate   = "امروز";
+
+switch ($range) {
+    case 'yesterday': 
+        $startTehran = date('Y-m-d 00:00:00', strtotime('-1 day')); 
+        $endTehran   = date('Y-m-d 23:59:59', strtotime('-1 day')); 
+        $labelDate   = "دیروز";
+        break;
+    case 'week': 
+        $startTehran = date('Y-m-d 00:00:00', strtotime('-7 days')); 
+        $labelDate   = "۷ روز گذشته";
+        break;
+    case 'month': 
+        $startTehran = date('Y-m-d 00:00:00', strtotime('-30 days')); 
+        $labelDate   = "۳۰ روز گذشته";
+        break;
+    case '3month': 
+        $startTehran = date('Y-m-d 00:00:00', strtotime('-90 days')); 
+        $labelDate   = "۹۰ روز گذشته";
+        break;
+    case 'custom': 
+        if (!empty($customStart) && !empty($customEnd)) { 
+            $startTehran = date('Y-m-d 00:00:00', strtotime($customStart)); 
+            $endTehran   = date('Y-m-d 23:59:59', strtotime($customEnd)); 
+            $tsStart = strtotime($customStart);
+            $tsEnd   = strtotime($customEnd);
+            $labelDate = jdate('Y/m/d', $tsStart) . " تا " . jdate('Y/m/d', $tsEnd);
+        } 
+        break;
+    case 'all': 
+        $startTehran = '2000-01-01 00:00:00'; 
+        $labelDate   = "کل ادوار";
+        break;
+}
+
+// Convert to UTC
+$dtStart = new DateTime($startTehran, new DateTimeZone('Asia/Tehran'));
+$dtStart->setTimezone(new DateTimeZone('UTC'));
+$sqlStart = $dtStart->format('Y-m-d H:i:s');
+
+$dtEnd = new DateTime($endTehran, new DateTimeZone('Asia/Tehran'));
+$dtEnd->setTimezone(new DateTimeZone('UTC'));
+$sqlEnd = $dtEnd->format('Y-m-d H:i:s');
+
+// FIXED SQL QUERY: Uses COALESCE to ensure data isn't dropped if service was deleted
+$sql = "SELECT log.*, 
+        COALESCE(rs.label, 'سرویس حذف شده') AS service_label, 
+        COALESCE(rc.full_name, 'کاربر ناشناس') AS customer_name 
+        FROM reseller_sales_log log 
+        LEFT JOIN reseller_services rs ON log.service_id = rs.id 
+        LEFT JOIN reseller_customers rc ON rs.customer_id = rc.id 
+        WHERE log.reseller_tg_id = ? AND log.created_at BETWEEN ? AND ? 
+        ORDER BY log.created_at DESC";
+
+try {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$rid, $sqlStart, $sqlEnd]);
+    $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch Reseller DB Sell Price
+    $stmtReseller = $pdo->prepare("SELECT per_gig_price FROM resellers WHERE tg_id = ? LIMIT 1");
+    $stmtReseller->execute([$rid]);
+    $resellerInfo = $stmtReseller->fetch();
+    $resellerPerGigPrice = (!empty($resellerInfo['per_gig_price']) && $resellerInfo['per_gig_price'] > 0) ? (int)$resellerInfo['per_gig_price'] : 10000;
+} catch (Exception $e) { 
+    $logs = []; 
+    $resellerPerGigPrice = 10000;
+}
+
+$totalGB = 0; 
+$totalSales = count($logs);
+$totalDays = 0;
+
+// Smart Pricing Trackers
+$totalBuyPrice = 0;
+$totalSellPrice = 0;
+$totalProfit = 0;
+
+$admin_min_sell_per_gb = 6000;
+$admin_base_sell_per_gb = 6000;
+
+// Add pricing logic to each row
+foreach ($logs as &$log) { 
+    $gb = (float)$log['gb_amount'];
+    $totalGB += $gb; 
+    $totalDays += (int)$log['days_amount'];
+    
+    // Calculate via Smart Formula
+    $pricing = calculateSmartPricing($gb, $resellerPerGigPrice, $admin_base_sell_per_gb, $admin_min_sell_per_gb);
+    
+    // Check if reseller set a custom override price
+    $actual_sell_price = ($log['custom_sell_price'] !== null && $log['custom_sell_price'] !== '') 
+                         ? (int)$log['custom_sell_price'] 
+                         : $pricing['sell_price'];
+                         
+    $actual_profit = $actual_sell_price - $pricing['buy_price'];
+
+    // Inject into row for rendering
+    $log['buy_price'] = $pricing['buy_price'];
+    $log['res_discount'] = $pricing['res_discount'];
+    $log['sell_price'] = $actual_sell_price;
+    $log['cust_discount'] = $pricing['cust_discount'];
+    $log['profit'] = $actual_profit;
+    $log['is_paid'] = $log['is_paid'] ?? 0;
+    
+    // Add to Totals
+    $totalBuyPrice += $log['buy_price'];
+    $totalSellPrice += $log['sell_price'];
+    $totalProfit += $log['profit'];
+}
+unset($log); // Break reference
+
+// *** PAGINATION LOGIC ***
+$chunkSize = 10;
+$chunks = array_chunk($logs, $chunkSize);
+if(empty($chunks)) $chunks = [[]]; 
+$totalPages = count($chunks);
+?>
+
+<style>
+    /* =========================================
+       NATIVE UI CSS RESET & SETUP
+       ========================================= */
+    .view-fade-in {
+        animation: smoothFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        padding-bottom: 120px; /* Dock space */
+    }
+    @keyframes smoothFade {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .tnum { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+    /* Desktop Table Details */
+    .pro-table th { border-bottom: 1px solid rgba(0,0,0,0.06); }
+    .pro-table td { border-bottom: 1px solid rgba(0,0,0,0.04); }
+    .pro-table tr:last-child td { border-bottom: none; }
+
+    /* Custom Input */
+    .mac-input-small {
+        background: #F2F2F7;
+        border: 2px solid transparent;
+        transition: all 0.3s;
+        font-family: 'Vazirmatn', monospace;
+    }
+    .mac-input-small:focus {
+        background: #ffffff;
+        border-color: #007AFF;
+        box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15);
+        outline: none;
+    }
+
+    /* Custom iOS-style Toggle Switch */
+    .apple-switch { position: relative; display: inline-block; width: 44px; height: 26px; }
+    .apple-switch input { opacity: 0; width: 0; height: 0; }
+    .apple-slider {
+        position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+        background-color: #E5E5EA; transition: .4s; border-radius: 34px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .apple-slider:before {
+        position: absolute; content: ""; height: 22px; width: 22px; left: 2px; bottom: 2px;
+        background-color: white; transition: .4s; border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .apple-switch input:checked + .apple-slider { background-color: #34C759; }
+    .apple-switch input:checked + .apple-slider:before { transform: translateX(18px); }
+
+    /* HIDDEN TEMPLATES FOR PDF GENERATION */
+    #print-template-container { display: none; }
+    #isolated-print-styles { display: none; }
+</style>
+
+<div class="view-fade-in w-full flex flex-col gap-6">
+
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
+        <div>
+            <h1 class="text-3xl font-black text-[#1C1C1E] tracking-tight">گزارش و حسابداری</h1>
+            <p class="text-[14px] font-semibold text-[#8E8E93] mt-1">لیست تراکنش‌ها و سود خالص نماینده</p>
+        </div>
+        
+        <button onclick="triggerSmartPrint()" class="w-full md:w-auto bg-[#007AFF] hover:bg-[#0066CC] text-white px-6 py-3.5 rounded-[1rem] font-black text-[15px] flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(0,122,255,0.3)] transition-all active:scale-[0.98]">
+            <span class="icon text-[24px]">print</span>
+            <span>چاپ فاکتور رسمی (PDF)</span>
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-5">
+        
+        <div class="bg-white rounded-[2rem] p-6 shadow-ios border border-black/5 flex items-center gap-5 transition-transform duration-300 hover:-translate-y-1">
+            <div class="w-14 h-14 rounded-[1.2rem] bg-[#007AFF]/10 text-[#007AFF] flex items-center justify-center shrink-0">
+                <span class="icon text-[30px]">data_usage</span>
+            </div>
+            <div>
+                <div class="flex items-baseline gap-1" dir="ltr">
+                    <span class="text-3xl font-black text-[#1C1C1E] tnum tracking-tighter"><?= number_format($totalSales) ?></span>
+                    <span class="text-[12px] font-bold text-[#8E8E93]">SALE</span>
+                </div>
+                <div class="text-[13px] font-bold text-[#8E8E93] mt-0.5"><?= $totalGB ?> گیگ / <?= $totalDays ?> روز</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-[2rem] p-6 shadow-ios border border-black/5 flex items-center gap-5 transition-transform duration-300 hover:-translate-y-1">
+            <div class="w-14 h-14 rounded-[1.2rem] bg-[#FF2D55]/10 text-[#FF2D55] flex items-center justify-center shrink-0">
+                <span class="icon text-[30px]">shopping_cart</span>
+            </div>
+            <div>
+                <div class="flex items-baseline gap-1" dir="ltr">
+                    <span class="text-2xl font-black text-[#1C1C1E] tnum tracking-tighter"><?= number_format($totalBuyPrice) ?></span>
+                </div>
+                <div class="text-[13px] font-bold text-[#8E8E93] mt-0.5">هزینه خرید (تومان)</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-[2rem] p-6 shadow-ios border border-black/5 flex items-center gap-5 transition-transform duration-300 hover:-translate-y-1">
+            <div class="w-14 h-14 rounded-[1.2rem] bg-[#FF9500]/10 text-[#FF9500] flex items-center justify-center shrink-0">
+                <span class="icon text-[30px]">payments</span>
+            </div>
+            <div>
+                <div class="flex items-baseline gap-1" dir="ltr">
+                    <span class="text-2xl font-black text-[#1C1C1E] tnum tracking-tighter"><?= number_format($totalSellPrice) ?></span>
+                </div>
+                <div class="text-[13px] font-bold text-[#8E8E93] mt-0.5">دریافتی مشتری (تومان)</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-[2rem] p-6 shadow-ios border border-black/5 flex items-center gap-5 transition-transform duration-300 hover:-translate-y-1 relative overflow-hidden">
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-[#34C759]/10 blur-2xl rounded-full pointer-events-none"></div>
+            <div class="w-14 h-14 rounded-[1.2rem] bg-[#34C759]/10 text-[#34C759] flex items-center justify-center shrink-0 relative z-10">
+                <span class="icon text-[30px]">trending_up</span>
+            </div>
+            <div class="relative z-10">
+                <div class="flex items-baseline gap-1" dir="ltr">
+                    <span class="text-2xl font-black text-[#34C759] tnum tracking-tighter"><?= number_format($totalProfit) ?></span>
+                </div>
+                <div class="text-[13px] font-bold text-[#1C1C1E] mt-0.5">سود خالص نماینده</div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="flex flex-col gap-4 px-1">
+        <div class="flex gap-2 overflow-x-auto w-full no-scrollbar pb-1">
+            <?php
+                $filters = [
+                    'today' => 'امروز', 'yesterday' => 'دیروز', 'week' => 'هفته',
+                    'month' => 'ماه', '3month' => '۳ ماه', 'all' => 'کل ادوار'
+                ];
+                foreach($filters as $k => $v):
+                    $isActive = $range === $k;
+            ?>
+            <a href="?page=sales&range=<?= $k ?>" class="px-5 py-2.5 rounded-[12px] font-bold text-[13px] whitespace-nowrap transition-all <?= $isActive ? 'bg-white shadow-sm text-[#1C1C1E]' : 'bg-[#F2F2F7] text-[#8E8E93] hover:text-[#1C1C1E]' ?>">
+                <?= $v ?>
+            </a>
+            <?php endforeach; ?>
+        </div>
+
+        <form method="GET" class="flex flex-wrap items-center gap-3 w-full bg-white p-2.5 rounded-2xl border border-black/5 shadow-sm">
+            <input type="hidden" name="page" value="sales">
+            <input type="hidden" name="range" value="custom">
+            
+            <input type="date" name="start" value="<?= $customStart ?: date('Y-m-d') ?>" class="bg-[#F2F2F7] border border-transparent focus:bg-white focus:border-[#007AFF] outline-none px-4 py-2.5 rounded-[12px] text-[13px] font-bold text-[#1C1C1E] flex-1 lg:flex-none transition-all">
+            <span class="text-[12px] font-bold text-[#8E8E93] px-1">تا</span>
+            <input type="date" name="end" value="<?= $customEnd ?: date('Y-m-d') ?>" class="bg-[#F2F2F7] border border-transparent focus:bg-white focus:border-[#007AFF] outline-none px-4 py-2.5 rounded-[12px] text-[13px] font-bold text-[#1C1C1E] flex-1 lg:flex-none transition-all">
+            
+            <button type="submit" class="w-[44px] h-[44px] bg-[#1C1C1E] text-white rounded-[12px] flex items-center justify-center shrink-0 active:scale-95 transition-transform shadow-md">
+                <span class="icon text-[22px]">search</span>
+            </button>
+        </form>
+    </div>
+
+    <?php if(empty($logs)): ?>
+        <div class="w-full bg-[#F2F2F7] rounded-[2rem] p-12 flex flex-col items-center justify-center text-center mt-4 border border-black/5 shadow-sm">
+            <div class="w-20 h-20 bg-white rounded-[1.5rem] flex items-center justify-center shadow-sm mb-4">
+                <span class="icon text-[42px] text-[#8E8E93]">receipt_long</span>
+            </div>
+            <h3 class="text-xl font-black text-[#1C1C1E]">تراکنشی یافت نشد</h3>
+            <p class="text-[14px] font-semibold text-[#8E8E93] mt-2">در بازه زمانی انتخاب شده فروشی ثبت نشده است.</p>
+        </div>
+    <?php else: ?>
+
+        <div class="hidden lg:block bg-white rounded-[2.5rem] p-4 shadow-ios border border-black/5 overflow-x-auto">
+            <table class="pro-table w-full text-right">
+                <thead>
+                    <tr>
+                        <th class="py-4 px-4 text-[#8E8E93] font-bold text-[13px]">#</th>
+                        <th class="py-4 px-4 text-[#8E8E93] font-bold text-[13px]">مشترک</th>
+                        <th class="py-4 px-4 text-[#8E8E93] font-bold text-[13px]">بسته تخصیصی</th>
+                        <th class="py-4 px-4 text-[#8E8E93] font-bold text-[13px]">خرید (ادمین)</th>
+                        <th class="py-4 px-4 text-[#8E8E93] font-bold text-[13px]">فروش به مشتری (تومان)</th>
+                        <th class="py-4 px-4 text-[#8E8E93] font-bold text-[13px]">تسویه</th>
+                        <th class="py-4 px-4 text-[#8E8E93] font-bold text-[13px]">سود خالص</th>
+                        <th class="py-4 px-4 text-[#8E8E93] font-bold text-[13px] text-left">تاریخ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($logs as $idx => $row): 
+                        $ts = utcToTehranTimestamp($row['created_at']);
+                        $avatarColor = stringToColor($row['customer_name'] ?? 'user');
+                    ?>
+                    <tr class="transition-colors hover:bg-black/5 group rounded-2xl">
+                        
+                        <td class="py-4 px-4 font-bold text-[13px] text-[#8E8E93] rounded-r-2xl tnum"><?= $idx + 1 ?></td>
+                        
+                        <td class="py-4 px-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-[12px] shadow-sm shrink-0" style="background:<?= $avatarColor ?>;">
+                                    <?= getInitials($row['customer_name']) ?>
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="font-black text-[14px] text-[#1C1C1E] block"><?= htmlspecialchars($row['customer_name']) ?></span>
+                                    <span class="font-semibold text-[11px] text-[#8E8E93] mt-0.5 block"><?= htmlspecialchars($row['service_label']) ?> • <?= $row['action_type'] === 'create' ? 'جدید' : 'تمدید' ?></span>
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <td class="py-4 px-4">
+                            <div class="bg-[#F2F2F7] px-3 py-1.5 rounded-lg w-max font-mono font-bold text-[13px] text-[#1C1C1E]" dir="ltr">
+                                <?= $row['gb_amount'] ?>GB / <?= $row['days_amount'] ?>D
+                            </div>
+                        </td>
+                        
+                        <td class="py-4 px-4">
+                            <div class="font-black text-[15px] text-[#FF2D55] tnum"><?= number_format($row['buy_price']) ?></div>
+                        </td>
+                        
+                        <td class="py-4 px-4">
+                            <input type="text" inputmode="numeric" id="price_desk_<?= $row['id'] ?>" 
+                                   value="<?= $row['sell_price'] ?>"
+                                   onchange="updateSaleData(<?= $row['id'] ?>, 'desk')"
+                                   class="price-format mac-input-small w-[110px] rounded-[10px] px-3 py-2 text-center font-black text-[#1C1C1E] text-[14px] tnum" placeholder="قیمت">
+                        </td>
+
+                        <td class="py-4 px-4">
+                            <label class="apple-switch align-middle">
+                                <input type="checkbox" id="paid_desk_<?= $row['id'] ?>" onchange="updateSaleData(<?= $row['id'] ?>, 'desk')" <?= $row['is_paid'] ? 'checked' : '' ?>>
+                                <span class="apple-slider"></span>
+                            </label>
+                        </td>
+                        
+                        <td class="py-4 px-4">
+                            <div class="font-black text-[16px] text-[#34C759] tnum tracking-tight"><?= number_format($row['profit']) ?></div>
+                        </td>
+                        
+                        <td class="py-4 px-4 text-left rounded-l-2xl">
+                            <div class="font-bold text-[13px] text-[#1C1C1E]" dir="ltr"><?= jdate('Y/m/d', $ts) ?></div>
+                            <div class="font-semibold text-[11px] text-[#8E8E93] mt-0.5" dir="ltr"><?= jdate('H:i', $ts) ?></div>
+                        </td>
+                        
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex flex-col gap-4 lg:hidden">
+            <?php foreach($logs as $idx => $row): 
+                $ts = utcToTehranTimestamp($row['created_at']);
+                $avatarColor = stringToColor($row['customer_name'] ?? 'user');
+            ?>
+            <div class="bg-white border border-black/5 rounded-[1.5rem] p-5 shadow-sm transition-transform active:scale-[0.99]">
+                
+                <div class="flex justify-between items-start border-b border-black/5 pb-4 mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-[14px] shadow-sm shrink-0" style="background:<?= $avatarColor ?>;">
+                            <?= getInitials($row['customer_name']) ?>
+                        </div>
+                        <div>
+                            <div class="font-black text-[15px] text-[#1C1C1E]"><?= htmlspecialchars($row['customer_name']) ?></div>
+                            <div class="font-semibold text-[11px] text-[#8E8E93] mt-0.5"><?= htmlspecialchars($row['service_label']) ?> • <?= $row['action_type'] === 'create' ? 'جدید' : 'تمدید' ?></div>
+                        </div>
+                    </div>
+                    <div class="bg-[#F2F2F7] px-2 py-1 rounded-md font-mono font-bold text-[12px] text-[#1C1C1E] shrink-0" dir="ltr">
+                        <?= $row['gb_amount'] ?>G/<?= $row['days_amount'] ?>D
+                    </div>
+                </div>
+                
+                <div class="flex justify-between items-center bg-[#F2F2F7] p-3.5 rounded-[1.2rem] mb-4">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-[#8E8E93] mb-1">خرید از ادمین</span>
+                        <span class="font-black text-[14px] text-[#FF2D55] tnum"><?= number_format($row['buy_price']) ?></span>
+                    </div>
+                    <div class="w-px h-8 bg-black/10"></div>
+                    <div class="flex flex-col items-end text-left">
+                        <span class="text-[10px] font-bold text-[#8E8E93] mb-1">فروش به مشتری</span>
+                        <input type="text" inputmode="numeric" id="price_mob_<?= $row['id'] ?>" value="<?= $row['sell_price'] ?>"
+                               onchange="updateSaleData(<?= $row['id'] ?>, 'mob')"
+                               class="price-format mac-input-small w-[90px] rounded-[8px] px-2 py-1 text-center font-black text-[#1C1C1E] text-[13px] tnum" placeholder="قیمت">
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center bg-[#F2F2F7] p-3.5 rounded-[1.2rem] mb-4">
+                    <span class="text-[12px] font-bold text-[#8E8E93]">وضعیت تسویه مشتری:</span>
+                    <label class="apple-switch align-middle">
+                        <input type="checkbox" id="paid_mob_<?= $row['id'] ?>" onchange="updateSaleData(<?= $row['id'] ?>, 'mob')" <?= $row['is_paid'] ? 'checked' : '' ?>>
+                        <span class="apple-slider"></span>
+                    </label>
+                </div>
+
+                <div class="flex justify-between items-center px-1">
+                    <div>
+                        <span class="text-[11px] font-bold text-[#8E8E93]">سود خالص:</span>
+                        <span class="font-black text-[16px] text-[#34C759] tnum mr-1"><?= number_format($row['profit']) ?></span>
+                    </div>
+                    <div class="text-left font-mono font-bold text-[11px] text-[#8E8E93]" dir="ltr">
+                        <?= jdate('Y/m/d H:i', $ts) ?>
+                    </div>
+                </div>
+
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+    <?php endif; ?>
+</div>
+
+<style id="isolated-print-styles">
+    @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800;900&display=swap');
+    
+    @page { size: letter portrait; margin: 0; }
+    
+    body, html { 
+        margin: 0; padding: 0; 
+        font-family: 'Vazirmatn', Tahoma, sans-serif; 
+        direction: rtl; background: #ffffff; 
+        -webkit-print-color-adjust: exact !important; 
+        print-color-adjust: exact !important; 
+    }
+
+    .print-page {
+        display: flex; flex-direction: column; 
+        width: 215.9mm; height: 275mm; padding: 12mm; box-sizing: border-box;
+        page-break-after: always; position: relative; overflow: hidden; 
+    }
+    .print-page:last-child { page-break-after: auto; }
+
+    .watermark {
+        position: absolute; top: 50%; left: 50%; 
+        transform: translate(-50%, -50%) rotate(-45deg);
+        font-size: 8rem; opacity: 0.03; font-weight: 900; color: #000; 
+        pointer-events: none; z-index: 0; white-space: nowrap;
+    }
+
+    .print-header { 
+        display: flex; justify-content: space-between; align-items: flex-start; 
+        border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px; z-index: 10; flex-shrink: 0;
+    }
+    .ph-title h1 { margin: 0; font-size: 18pt; font-weight: 900; color: #111; letter-spacing: -1px; }
+    .ph-title p { margin: 4px 0 0 0; font-size: 8pt; color: #666; letter-spacing: 2px; }
+    
+    .ph-meta table { border-collapse: collapse; text-align: right; }
+    .ph-meta td { padding: 4px 8px; font-size: 8.5pt; border: 1px solid #ddd; color: #111; font-weight:600;}
+    .ph-meta td:first-child { background: #f0f0f0; color: #444; font-weight: 800; }
+
+    .summary-grid { display: flex; gap: 8px; margin-bottom: 12px; z-index: 10; flex-shrink: 0; }
+    .s-box { flex: 1; border: 1px solid #ccc; border-radius: 6px; padding: 8px; text-align: center; background: #fafafa; }
+    .s-box.highlight { background: #fdf2f8; border-color: #fbcfe8; }
+    .s-box.green { background: #ecfdf5; border-color: #a7f3d0; }
+    .s-box span { display: block; font-size: 7.5pt; color: #555; font-weight: 800; margin-bottom: 4px; text-transform: uppercase; }
+    .s-box strong { display: block; font-size: 11pt; color: #000; font-weight: 900; }
+    .s-box.highlight strong { color: #be185d; }
+    .s-box.green strong { color: #047857; }
+
+    .table-wrapper { flex: 1; z-index: 10; position: relative; }
+    
+    .print-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; border: 1px solid #000; }
+    .print-table th { background: #111 !important; color: #fff !important; padding: 8px 4px; border: 1px solid #000; text-align: center; font-weight: bold; }
+    .print-table td { padding: 6px 4px; text-align: center; border: 1px solid #aaa; border-left: 1px solid #000; border-right: 1px solid #000; font-weight: 600; }
+    .print-table tbody tr:nth-child(even) td { background-color: #f9f9f9 !important; }
+    
+    .print-table tr.filler td { color: transparent; border-color: #eee; border-left: 1px solid #000; border-right: 1px solid #000; }
+    .print-table tbody tr:last-child td { border-bottom: 1px solid #000; }
+
+    .print-footer { 
+        margin-top: auto; padding-top: 10px; border-top: 2px solid #000; 
+        display: flex; justify-content: space-between; align-items: flex-end; 
+        z-index: 10; flex-shrink: 0; width: 100%; height: 20mm;
+    }
+    .pf-page { font-size: 8.5pt; font-weight: 700; color: #666; }
+    .pf-sign { font-size: 9pt; width: 150px; text-align: center; border-top: 1px dashed #000; padding-top: 5px; font-weight: 900; color:#111;}
+</style>
+
+<div id="print-template-container">
+    <?php 
+    foreach ($chunks as $pageIndex => $chunk): 
+        $pageNum = $pageIndex + 1;
+    ?>
+    <div class="print-page">
+        <div class="watermark">SYS-REPORT</div>
+        
+        <div class="print-header">
+            <div class="ph-title">
+                <h1>گزارش و حسابداری فروش</h1>
+                <p>OFFICIAL ACCOUNTING & SALES INVOICE</p>
+            </div>
+            <div class="ph-meta">
+                <table>
+                    <tr><td>تاریخ گزارش:</td><td style="direction:ltr;"><?= jdate('Y/m/d') ?></td></tr>
+                    <tr><td>دوره زمانی:</td><td><?= $labelDate ?></td></tr>
+                    <tr><td>شناسه نماینده:</td><td style="direction:ltr;">#<?= $rid ?></td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="summary-grid">
+            <div class="s-box"><span>تعداد سرویس</span><strong><?= number_format($totalSales) ?></strong></div>
+            <div class="s-box"><span>حجم کل (GB)</span><strong><?= $totalGB ?></strong></div>
+            <div class="s-box highlight"><span>خرید (ادمین)</span><strong><?= number_format($totalBuyPrice) ?></strong></div>
+            <div class="s-box"><span>فروش (مشتری)</span><strong><?= number_format($totalSellPrice) ?></strong></div>
+            <div class="s-box green"><span>سود خالص</span><strong><?= number_format($totalProfit) ?></strong></div>
+        </div>
+
+        <div class="table-wrapper">
+            <table class="print-table">
+                <thead>
+                    <tr>
+                        <th style="width:5%">ردیف</th>
+                        <th style="width:17%">نام مشترک</th>
+                        <th style="width:13%">بسته</th>
+                        <th style="width:13%">خرید (تومان)</th>
+                        <th style="width:13%">فروش (تومان)</th>
+                        <th style="width:14%">وضعیت پرداخت</th>
+                        <th style="width:15%">سود (تومان)</th>
+                        <th style="width:10%">تاریخ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php 
+                    foreach($chunk as $row): 
+                        $ts = utcToTehranTimestamp($row['created_at']);
+                    ?>
+                    <tr>
+                        <td><?= $row['id'] ?></td>
+                        <td><?= htmlspecialchars($row['customer_name']) ?></td>
+                        <td style="direction:ltr; font-family:monospace;"><?= $row['gb_amount'] ?>G / <?= $row['days_amount'] ?>D</td>
+                        
+                        <td style="color:#b91c1c; font-weight:800;">
+                            <?= number_format($row['buy_price']) ?>
+                        </td>
+                        
+                        <td style="font-weight:800;">
+                            <?= number_format($row['sell_price']) ?>
+                        </td>
+
+                        <td style="font-weight:900; color: <?= $row['is_paid'] ? '#047857' : '#b91c1c' ?>;">
+                            <?= $row['is_paid'] ? 'پرداخت شده' : 'بدهکار' ?>
+                        </td>
+
+                        <td style="color:#047857; font-weight:900; font-size:9.5pt;">
+                            <?= number_format($row['profit']) ?>
+                        </td>
+
+                        <td style="direction:ltr; font-size:7.5pt;"><?= jdate('Y/m/d H:i', $ts) ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    
+                    <?php 
+                    $remaining = $chunkSize - count($chunk);
+                    for($i=0; $i<$remaining; $i++): ?>
+                    <tr class="filler">
+                        <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+                    </tr>
+                    <?php endfor; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="print-footer">
+            <div class="pf-page">صفحه <?= $pageNum ?> از <?= $totalPages ?></div>
+            <div class="pf-sign">مهر و امضای تایید حسابداری</div>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<script>
+// --- CURRENCY FORMATTER FUNCTION ---
+function formatNumberWithCommas(value) {
+    if (!value) return '';
+    const numericValue = value.replace(/\D/g, ''); // strip all non-digits
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+// Run formatter on all inputs with class 'price-format' on page load and on keyup
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.price-format').forEach(input => {
+        // Init load
+        input.value = formatNumberWithCommas(input.value);
+
+        // While typing
+        input.addEventListener('input', function(e) {
+            let cursorPosition = this.selectionStart;
+            let originalLength = this.value.length;
+            
+            this.value = formatNumberWithCommas(this.value);
+            
+            let newLength = this.value.length;
+            cursorPosition = cursorPosition + (newLength - originalLength);
+            this.setSelectionRange(cursorPosition, cursorPosition);
+        });
+    });
+});
+
+// --- AJAX FUNCTION TO SAVE OVERRIDE PRICE & PAID TOGGLE ---
+function updateSaleData(saleId, context) {
+    let priceInputRaw = document.getElementById('price_' + context + '_' + saleId).value;
+    let priceInput = priceInputRaw.replace(/,/g, ''); // Strip commas before sending to DB
+    
+    let isPaid = document.getElementById('paid_' + context + '_' + saleId).checked ? 1 : 0;
+    
+    let formData = new FormData();
+    formData.append('ajax_update_sale', '1');
+    formData.append('sale_id', saleId);
+    formData.append('custom_price', priceInput);
+    formData.append('is_paid', isPaid);
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(data.success) {
+            console.log('Saved sale #' + saleId);
+            // Refresh to update the profit calculation in UI automatically
+            setTimeout(() => { window.location.reload(); }, 200);
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+// --- PRINT FUNCTION ---
+function triggerSmartPrint() {
+    const printContent = document.getElementById('print-template-container').innerHTML;
+    const printStyles = document.getElementById('isolated-print-styles').innerHTML;
+    
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+    
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+        <!DOCTYPE html>
+        <html lang="fa" dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <title>فاکتور فروش و حسابداری</title>
+            <style>${printStyles}</style>
+        </head>
+        <body>
+            ${printContent}
+        </body>
+        </html>
+    `);
+    doc.close();
+    
+    setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        setTimeout(() => { document.body.removeChild(iframe); }, 1000);
+    }, 500); 
+}
+</script>

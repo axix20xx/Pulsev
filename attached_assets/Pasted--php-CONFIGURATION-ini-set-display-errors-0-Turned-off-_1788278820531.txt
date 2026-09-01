@@ -1,0 +1,670 @@
+<?php
+// === CONFIGURATION ===
+ini_set('display_errors', 0); // Turned off for production
+error_reporting(E_ALL);
+
+require_once __DIR__ . '/config(4).php';
+require_once __DIR__ . '/rain_api(2).php';
+
+function awgRequest(PDO $pdo, string $method, string $endpoint, array $body = [])
+{
+    try {
+        // Cache settings statically so we only hit the DB once per process execution
+        static $cfg = null;
+        if ($cfg === null) {
+            $cfg = $pdo->query("
+                SELECT awg_api_url, awg_api_token
+                FROM settings
+                LIMIT 1
+            ")->fetch(PDO::FETCH_ASSOC);
+        }
+
+        if (!$cfg) {
+            return null;
+        }
+
+        $url = rtrim($cfg['awg_api_url'], '/');
+        $ch = curl_init();
+
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url . $endpoint,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_CONNECTTIMEOUT => 5, // Added connect timeout
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $cfg['awg_api_token'],
+                'Content-Type: application/json'
+            ]
+        ]);
+
+        switch ($method) {
+            case 'POST':
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+                break;
+            case 'PATCH':
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+                break;
+            case 'DELETE':
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+                break;
+        }
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode >= 300) {
+            return null;
+        }
+
+        return $response;
+
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+// === TELEGRAM CONFIGURATION ===
+// ! IMPORTANT: Rotated token required. Set this via environment variables or replace directly AFTER rotating in BotFather !
+$TG_BOT_TOKEN = getenv('TG_BOT_TOKEN') ?: 'PUT_NEW_ROTATED_TOKEN_HERE'; 
+$TG_MANAGER_ID = '6847348570'; 
+
+$MAX_EXECUTION_TIME = 300; 
+$SUCCESS_THRESHOLD  = 0.7; 
+$MAX_ATTEMPTS       = 50;  
+
+// === LOCK & INIT ===
+// Replaced unreliable filemtime/file_exists with atomic flock
+$lockHandle = fopen(__DIR__ . '/cron.lock', 'c');
+if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    exit("Cron already running.\n");
+}
+register_shutdown_function(function () use ($lockHandle) {
+    flock($lockHandle, LOCK_UN);
+    fclose($lockHandle);
+});
+
+ignore_user_abort(true);
+set_time_limit($MAX_EXECUTION_TIME);
+
+// === TELEGRAM HELPER FUNCTION ===
+function send_telegram_alert($message) {
+    global $TG_BOT_TOKEN, $TG_MANAGER_ID;
+    if (empty($TG_BOT_TOKEN) || empty($TG_MANAGER_ID)) return;
+
+    $url = "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage";
+    $post_data = [
+        'chat_id' => $TG_MANAGER_ID,
+        'text' => $message,
+        'parse_mode' => 'HTML', 
+        'disable_web_page_preview' => true
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3); // Added connect timeout
+    curl_exec($ch);
+    curl_close($ch);
+}
+
+// === ROBUST DB CONNECTION MANAGER ===
+$pdo = null;
+
+function get_db_connection($force_ping = false) {
+    global $pdo;
+    try {
+        if ($pdo) {
+            if ($force_ping) {
+                $pdo->query("SELECT 1"); 
+            }
+            return $pdo;
+        }
+    } catch (Throwable $e) {
+        $pdo = null; 
+    }
+
+    try {
+        if (!$pdo) {
+            $pdo = new PDO(DB_DSN, DB_USER, DB_PASS, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_TIMEOUT => 10,
+                PDO::ATTR_EMULATE_PREPARES => false, 
+            ]);
+        }
+        return $pdo;
+    } catch (Throwable $e) {
+        die("DB Error");
+    }
+}
+
+get_db_connection(true);
+
+// === 0. ENSURE OFFSET COLUMN EXISTS (SAFETY CHECK) ===
+// REMOVED: Schema modification inside worker loop. Run this manually in your SQL client ONCE.
+/*
+try {
+    get_db_connection(true)->exec("ALTER TABLE `user_panel_usages` ADD COLUMN `offset_bytes` BIGINT DEFAULT 0 AFTER `total`");
+} catch (Throwable $e) {}
+*/
+
+// === 1. RESET STUCK & FAILED JOBS ===
+// FIX: Increased threshold to 30 MINUTE so long-running jobs are not reset prematurely
+get_db_connection(true)->exec("UPDATE reseller_sync_queue SET status='pending', attempts=attempts+1 WHERE status='processing' AND updated_at < (NOW() - INTERVAL 30 MINUTE)");
+get_db_connection(true)->exec("UPDATE reseller_sync_queue SET status='pending', attempts=0 WHERE status='failed' AND updated_at < (NOW() - INTERVAL 1 MINUTE)");
+
+// === 1.5 CHECK FOR EARLY/SCHEDULED RENEWALS ===
+try {
+    $pdo_sched = get_db_connection(true);
+    $sched_stmt = $pdo_sched->query("
+        SELECT s.id as service_id, s.rain_username as username, 
+               s.next_plan_gb, s.next_plan_days, s.expire_at, 
+               s.gb, s.days,
+               COALESCE(c.used_bytes, s.last_used_bytes, 0) as used_bytes
+        FROM reseller_services s
+        LEFT JOIN reseller_sub_tokens t ON s.id = t.service_id
+LEFT JOIN user_stats_cache c ON t.token COLLATE utf8mb4_unicode_ci = c.token COLLATE utf8mb4_unicode_ci
+        WHERE s.auto_renew = 1
+    ");
+
+    $scheduled_users = $sched_stmt->fetchAll();
+    
+    foreach ($scheduled_users as $s_user) {
+        $used = (float)$s_user['used_bytes'];
+        $plan_gb = (float)$s_user['gb'];
+        
+        $total_plan_bytes = $plan_gb * 1073741824;
+        $usage_percent = ($total_plan_bytes > 0) ? ($used / $total_plan_bytes) : 0;
+        $near_limit = ($usage_percent >= 0.99);
+        
+        $expire_ts = strtotime($s_user['expire_at']);
+        $time_left = $expire_ts - time();
+        $near_expire = ($expire_ts > 0 && $time_left <= 86400);
+        
+        if ($near_limit || $near_expire) {
+            $next_gb = (float)$s_user['next_plan_gb'];
+            if ($next_gb <= 0) $next_gb = $plan_gb;
+            
+            $next_days = (int)$s_user['next_plan_days'];
+            if ($next_days <= 0) $next_days = (int)$s_user['days'];
+            
+            if ($next_gb > 0 && $next_days > 0) {
+                $payload = json_encode(['gb' => $next_gb, 'days' => $next_days, 'enable' => true]);
+                
+                $q_stmt = $pdo_sched->prepare("INSERT INTO reseller_sync_queue (service_id, username, action, payload, status, created_at, updated_at) VALUES (?, ?, 'renew', ?, 'pending', NOW(), NOW())");
+                $q_stmt->execute([$s_user['service_id'], $s_user['username'], $payload]);
+                
+                $u_stmt = $pdo_sched->prepare("UPDATE reseller_services SET auto_renew = 0, next_plan_gb = NULL, next_plan_days = NULL WHERE id = ?");
+                $u_stmt->execute([$s_user['service_id']]);
+
+                send_telegram_alert("♻️ <b>تمدید خودکار</b>\nکاربر <code>{$s_user['username']}</code> به دلیل پایان سرویس (یا حجم) بصورت خودکار تمدید شد.\nحجم جدید: {$next_gb}GB\nزمان جدید: {$next_days} روز");
+            }
+        }
+    }
+} catch (Throwable $e) {
+    error_log("Early Renew Logic Error: " . $e->getMessage());
+}
+
+// === 2. FETCH JOBS ===
+// FIX: Process 1 job at a time to prevent server and DB exhaustion. Uses FOR UPDATE to prevent race conditions.
+$new_jobs = get_db_connection(true)->query("SELECT * FROM reseller_sync_queue WHERE status='pending' ORDER BY id ASC LIMIT 1 FOR UPDATE")->fetchAll();
+$fix_jobs = get_db_connection(true)->query("SELECT * FROM reseller_sync_queue WHERE status='partial' ORDER BY updated_at ASC LIMIT 1 FOR UPDATE")->fetchAll();
+$jobs = array_merge($new_jobs, $fix_jobs);
+// Keep only 1 job overall just to be absolutely safe
+if (count($jobs) > 1) {
+    $jobs = array_slice($jobs, 0, 1);
+}
+
+if (!$jobs) {
+    exit;
+}
+
+$subBaseUrl = 'https://peppernopepper.com/reseller/sub.php';
+
+// === PROCESS LOOP ===
+foreach ($jobs as $job) {
+    $jobId = $job['id'];
+    
+    try {
+        $username     = $job['username'];
+        $serviceId    = $job['service_id'];
+        $awgClientId = null;
+
+        try {
+            $stmtAwg = get_db_connection(true)->prepare("
+                SELECT awg_client_id
+                FROM reseller_services
+                WHERE id = ?
+                LIMIT 1
+            ");
+            $stmtAwg->execute([$serviceId]);
+            $awgClientId = $stmtAwg->fetchColumn();
+        } catch (Throwable $e) {
+        }
+        
+        $attempts     = (int)$job['attempts'];
+        $start_status = $job['status']; 
+        
+        $payload = json_decode($job['payload'] ?? '{}', true);
+        if (!is_array($payload)) $payload = [];
+
+        // --- FETCH RESELLER INFO FOR ALERT ---
+        $resellerInfo = ['id' => 'Unknown', 'name' => 'Unknown'];
+        try {
+            $r_stmt = get_db_connection(true)->prepare("
+                SELECT r.tg_id as id, r.title as name 
+                FROM reseller_services rs 
+                JOIN resellers r ON rs.reseller_tg_id = r.tg_id 
+                WHERE rs.id = ? LIMIT 1
+            ");
+            $r_stmt->execute([$serviceId]);
+            $fetched = $r_stmt->fetch();
+            if ($fetched) $resellerInfo = $fetched;
+        } catch (Throwable $e) { }
+
+        $stmt = get_db_connection(true)->prepare("UPDATE reseller_sync_queue SET status='processing', updated_at=NOW() WHERE id=?");
+        $stmt->execute([$jobId]);
+
+        $prev_error_data = json_decode($job['last_error'] ?? '{}', true);
+        $done_panels_list = isset($prev_error_data['done']) && is_array($prev_error_data['done']) ? $prev_error_data['done'] : [];
+        $current_errors = []; 
+
+        if ($job['action'] === 'renew') {
+            
+            $gb   = isset($payload['gb']) && is_numeric($payload['gb']) ? (float)$payload['gb'] : 0;
+            $days = isset($payload['days']) && is_numeric($payload['days']) ? (int)$payload['days'] : 30;
+            if ($days <= 0) $days = 30;
+
+            $enable = true; 
+            if (isset($payload['enable'])) {
+                if ($payload['enable'] === false || $payload['enable'] === 'false' || $payload['enable'] === 0 || $payload['enable'] === '0') {
+                    $enable = false;
+                }
+            }
+
+            // === CLEAR CACHES ON RENEWAL ===
+            try {
+                $pdo_cache = get_db_connection(true);
+                $pdo_cache->prepare("DELETE FROM panel_usage_curr WHERE username = ?")->execute([$username]);
+                
+                $pdo_cache->prepare("DELETE FROM user_panel_usages WHERE username = ? AND panel_key != 'rootvpn'")->execute([$username]);
+                $pdo_cache->prepare("UPDATE user_panel_usages SET offset_bytes = upload + download WHERE username = ? AND panel_key = 'rootvpn'")->execute([$username]);
+                
+                $tok_stmt = $pdo_cache->prepare("SELECT token FROM reseller_sub_tokens WHERE service_id = ? LIMIT 1");
+                $tok_stmt->execute([$serviceId]);
+                if ($clear_tok = $tok_stmt->fetchColumn()) {
+                    $pdo_cache->prepare("DELETE FROM user_stats_cache WHERE token = ?")->execute([$clear_tok]);
+                }
+            } catch (Throwable $e) { }
+
+            $expireTs   = time() + $days * 86400;
+            $limitBytes = (int)round($gb * 1024 * 1024 * 1024);
+            $statusStr  = $enable ? 'active' : 'disabled';
+            $expireDateStr = date('Y-m-d H:i:s', $expireTs);
+
+            if (!empty($awgClientId)) {
+                try {
+                    $usageResponse = awgRequest(
+                        get_db_connection(true),
+                        'GET',
+                        '/api/clients/' . urlencode($awgClientId) . '/stats'
+                    );
+
+                    $currentUsage = 0;
+
+                    if ($usageResponse) {
+                        $usageJson = json_decode($usageResponse, true);
+                        $currentUsage = (int)($usageJson['rx_bytes'] ?? 0) + (int)($usageJson['tx_bytes'] ?? 0);
+                    }
+
+                    get_db_connection(true)
+                        ->prepare("
+                            UPDATE reseller_services
+                            SET
+                                awg_offset_bytes = ?,
+                                awg_total = 0,
+                                awg_rx = 0,
+                                awg_tx = 0
+                            WHERE id = ?
+                        ")
+                        ->execute([
+                            $currentUsage,
+                            $serviceId
+                        ]);
+
+                    $deleteResult = awgRequest(
+                        get_db_connection(true),
+                        'DELETE',
+                        '/api/clients/' . urlencode($awgClientId)
+                    );
+
+                    sleep(2);
+
+                    $createResult = awgRequest(
+                        get_db_connection(true),
+                        'POST',
+                        '/api/clients',
+                        [
+                            'id' => $awgClientId
+                        ]
+                    );
+
+                    if (!$createResult) {
+                        throw new Exception("AWG recreate failed for client: " . $awgClientId);
+                    }
+
+                } catch (Throwable $e) {}
+            }
+
+            try {
+                $pdo_update = get_db_connection(true);
+                $pdo_update->prepare("
+                    UPDATE reseller_services
+                    SET
+                        expire_at = ?,
+                        status = ?,
+                        last_used_bytes = 0,
+                        awg_total = 0,
+                        awg_rx = 0,
+                        awg_tx = 0,
+                        last_yaml_config = NULL,
+                        last_raw_config = NULL,
+                        last_singbox_config = NULL
+                    WHERE id = ?
+                ")->execute([
+                    $expireDateStr,
+                    $statusStr,
+                    $serviceId
+                ]);
+            } catch (Throwable $e) { }
+
+            $all_panels = rain_panels();
+            $total_panels = count($all_panels);
+            
+            $rain_done = false;
+            $rain_keys_all = []; 
+
+            foreach ($all_panels as $p) {
+                if (rain_panel_kind($p) === 'rain_admin') {
+                    $k = rain_panel_key($p);
+                    $rain_keys_all[] = $k;
+                    if (in_array($k, $done_panels_list)) {
+                        $rain_done = true;
+                    }
+                }
+            }
+
+            // === PANEL LOOP ===
+            foreach ($all_panels as $panel) {
+                $key  = rain_panel_key($panel);
+                $kind = rain_panel_kind($panel);
+
+                if (in_array($key, $done_panels_list)) continue;
+
+                $success_now = false;
+
+                try {
+                    try { 
+                        if ($key !== 'rootvpn') {
+                            panel_reset_user_usage($panel, $username); 
+                        }
+                    } catch (Throwable $e) {}
+
+                    if ($kind === 'rain_admin') {
+                        if ($rain_done) {
+                            $success_now = true; 
+                        } else {
+                            [$code, $raw] = rain_admin_create_or_update_user_all_services($panel, $username, $days, $gb);
+                            usleep(250000); 
+
+                            if ($code >= 200 && $code < 300) {
+                                if ($enable) {
+                                    rain_admin_enable_user($panel, $username);
+                                } else {
+                                    rain_admin_disable_user($panel, $username);
+                                }
+                                
+                                try { 
+                                    if ($key !== 'rootvpn') {
+                                        panel_reset_user_usage($panel, $username); 
+                                    }
+                                } catch (Throwable $e) {}
+
+                                $success_now = true;
+                                $rain_done = true; 
+                                foreach ($rain_keys_all as $rk) {
+                                    if (!in_array($rk, $done_panels_list)) $done_panels_list[] = $rk;
+                                }
+                            } else {
+                                $current_errors[] = "$key: Code $code";
+                            }
+                        }
+                    } else {
+                        if ($key === 'rootvpn') {
+                            [$curCode, $curRaw, $curUser] = panel_api_call($panel, 'GET', '/api/user/' . rawurlencode($username));
+                            $currentLimit = 0;
+                            if ($curCode === 200 && is_array($curUser)) {
+                                $currentLimit = $curUser['data_limit'] ?? 0;
+                            }
+                            $targetLimitBytes = $currentLimit + $limitBytes;
+                            [$code, $raw] = panel_upsert_user_full($panel, $username, $expireTs, $targetLimitBytes, $statusStr);
+                        } else {
+                            [$code, $raw] = panel_upsert_user_full($panel, $username, $expireTs, $limitBytes, $statusStr);
+                        }
+                        
+                        if ($code >= 200 && $code < 300) {
+                            $activation_verified = false;
+                            [$vCode, $vRaw, $vJson] = panel_api_call($panel, 'GET', '/api/user/' . rawurlencode($username));
+                            
+                            $actual_status = '';
+                            if ($vCode === 200 && is_array($vJson) && isset($vJson['status'])) {
+                                $actual_status = strtolower($vJson['status']);
+                            }
+
+                            if ($enable && $actual_status !== 'active') {
+                                panel_api_call($panel, 'PUT', '/api/user/' . rawurlencode($username), ['status' => 'active']);
+                                usleep(250000); 
+                                
+                                [$vCode2, $vRaw2, $vJson2] = panel_api_call($panel, 'GET', '/api/user/' . rawurlencode($username));
+                                if ($vCode2 === 200 && is_array($vJson2) && isset($vJson2['status'])) {
+                                    if (strtolower($vJson2['status']) === 'active') {
+                                        $activation_verified = true;
+                                    }
+                                }
+                            } else {
+                                $activation_verified = true;
+                            }
+
+                            if ($activation_verified) {
+                                try { 
+                                    if ($key !== 'rootvpn') {
+                                        panel_reset_user_usage($panel, $username); 
+                                    }
+                                } catch (Throwable $e) {}
+                                $success_now = true;
+                            } else {
+                                $current_errors[] = "$key: Marzban activation failed. Status stuck at '$actual_status'";
+                            }
+                        } else {
+                            $errText = is_string($raw) ? mb_substr(strip_tags($raw), 0, 80) : "Unknown error";
+                            $current_errors[] = "$key: Code $code - $errText";
+                        }
+                    }
+
+                    if ($success_now) {
+                        $done_panels_list[] = $key;
+                        $done_panels_list = array_values(array_unique($done_panels_list));
+                        $save_json = json_encode(['log' => "Processing...", 'done' => $done_panels_list]);
+                        $pdo_live = get_db_connection(true); 
+                        $save_stmt = $pdo_live->prepare("UPDATE reseller_sync_queue SET last_error=? WHERE id=?");
+                        $save_stmt->execute([$save_json, $jobId]);
+                    }
+
+                } catch (Throwable $e) {
+                    $current_errors[] = "$key: " . $e->getMessage();
+                }
+            } 
+
+            $unique_done = array_unique($done_panels_list);
+            $done_count = count($unique_done);
+            $percent    = ($total_panels > 0) ? ($done_count / $total_panels) : 0;
+            $configs_saved = false;
+
+            // === MULTIPLE SUB UPDATES TO VERIFY AND FIX CONFIGS ===
+            if ($done_count > 0) {
+                $pdo_live = get_db_connection(true); 
+                $t_stmt = $pdo_live->prepare("SELECT token FROM reseller_sub_tokens WHERE service_id=? LIMIT 1");
+                $t_stmt->execute([$serviceId]);
+                
+                if ($tok = $t_stmt->fetchColumn()) {
+                    // FIX: Reduced calls to sub.php to prevent worker chaining and timeouts
+                    $call_attempts = 1; 
+                    for ($i = 0; $i < $call_attempts; $i++) {
+                        $sub_ch = curl_init(); 
+                        
+                        $headers = [
+                            'Accept: application/json, text/plain, */*',
+                            'Connection: keep-alive',
+                        ];
+
+                        curl_setopt_array($sub_ch, [
+                            CURLOPT_URL => $subBaseUrl . '?t=' . $tok,
+                            CURLOPT_RETURNTRANSFER => true, 
+                            // FIX: Lowered timeout for this internal HTTP call
+                            CURLOPT_TIMEOUT => 30,
+                            CURLOPT_CONNECTTIMEOUT => 5,
+                            CURLOPT_HTTPHEADER => $headers,
+                            CURLOPT_USERAGENT => 'v2box'
+                        ]);
+                        
+                        $sub_exec = curl_exec($sub_ch);
+                        $http_code = curl_getinfo($sub_ch, CURLINFO_HTTP_CODE);
+                        curl_close($sub_ch);
+
+                        $verify_stmt = $pdo_live->prepare("SELECT last_raw_config, last_yaml_config, last_singbox_config FROM reseller_services WHERE id=?");
+                        $verify_stmt->execute([$serviceId]);
+                        $saved_configs = $verify_stmt->fetch();
+
+                        if (!empty($saved_configs['last_raw_config']) && !empty($saved_configs['last_yaml_config']) && !empty($saved_configs['last_singbox_config'])) {
+                            $pdo_live->prepare("UPDATE reseller_services SET last_config_update=NOW() WHERE id=?")->execute([$serviceId]);
+                            $configs_saved = true;
+                            break; 
+                        }
+                        
+                        if ($i < $call_attempts - 1) {
+                            sleep(5);
+                        }
+                    }
+
+                    if (!$configs_saved) {
+                        $current_errors[] = "sub.php: Failed to generate and save raw/yaml/singbox configs after {$call_attempts} attempts.";
+                    }
+                } else {
+                    $current_errors[] = "sub.php: No sub token found.";
+                }
+            }
+
+            // === DETERMINE NEW STATUS & FORCE DB SYNC ===
+            $final_log = json_encode([
+                'log'  => implode(' | ', $current_errors),
+                'done' => array_values($unique_done)
+            ]);
+
+            $new_status = 'failed'; 
+            $pdo_final = get_db_connection(true); 
+            $finalize = $pdo_final->prepare("UPDATE reseller_sync_queue SET status=?, last_error=?, attempts=attempts+? WHERE id=?");
+
+            if ($done_count == $total_panels && $configs_saved) {
+                $new_status = 'completed';
+                $finalize->execute(['completed', $final_log, 0, $jobId]);
+                $pdo_final->prepare("UPDATE reseller_services SET status=? WHERE id=?")->execute([$statusStr, $serviceId]);
+
+            } elseif ($done_count > 0) { 
+                $new_status = 'partial';
+                $finalize->execute(['partial', $final_log, 1, $jobId]);
+                $pdo_final->prepare("UPDATE reseller_services SET status=? WHERE id=?")->execute([$statusStr, $serviceId]);
+                
+            } else {
+                $new_status = 'failed';
+                $finalize->execute(['failed', $final_log, 1, $jobId]);
+            }
+
+            // === ANTI-SPAM LOGIC ===
+            $should_send_telegram = false;
+
+            if ($start_status === 'pending') {
+                $should_send_telegram = true;
+            } elseif ($new_status === 'completed' || $new_status === 'failed') {
+                $should_send_telegram = true;
+            }
+
+            if ($should_send_telegram) {
+                $safe_reseller_name = htmlspecialchars($resellerInfo['name'] ?? 'Unknown');
+                $safe_reseller_id   = htmlspecialchars($resellerInfo['id'] ?? 'Unknown');
+                $safe_username      = htmlspecialchars($username);
+
+                $msg_status = "";
+                $msg_icon = "";
+                $reseller_display = "";
+
+                if ($start_status === 'pending') {
+                    $msg_title = "گزارش فروش جدید"; 
+                } else {
+                    $msg_title = "گزارش وضعیت سرویس"; 
+                }
+
+                if ($new_status === 'completed') {
+                    $msg_icon = "✅";
+                    $msg_status = "تکمیل شد (Completed)";
+                    $reseller_display = "👤 <b>نماینده:</b> $safe_reseller_name (ID: <code>$safe_reseller_id</code>)";
+                } elseif ($new_status === 'partial') {
+                    $msg_icon = "⚠️";
+                    $msg_status = "ناقص (Partial Sync)";
+                    $reseller_display = "🆔 <b>کد نماینده:</b> <code>$safe_reseller_id</code>";
+                } else {
+                    $msg_icon = "❌";
+                    $msg_status = "ناموفق (Failed)";
+                    $reseller_display = "👤 <b>نماینده:</b> $safe_reseller_name";
+                }
+
+                $msg  = "<b>$msg_icon $msg_title</b>\n";
+                $msg .= "➖➖➖➖➖➖➖➖➖➖\n";
+                $msg .= $reseller_display . "\n";
+                $msg .= "👤 <b>کاربر:</b> <code>$safe_username</code>\n";
+                $msg .= "📊 <b>حجم:</b> " . $gb . " GB\n";
+                $msg .= "📅 <b>مدت:</b> " . $days . " روز\n";
+                $msg .= "📡 <b>وضعیت:</b> $msg_status\n";
+                $msg .= "📈 <b>پیشرفت:</b> " . round($percent * 100) . "% ($done_count/$total_panels)\n";
+
+                if (!empty($current_errors)) {
+                    $error_count = count($current_errors);
+                    $msg .= "\n🛑 <b>خطاها ($error_count):</b>\n";
+                    $shown_errors = array_slice($current_errors, 0, 3);
+                    foreach($shown_errors as $err) {
+                        $msg .= "▪️ <pre>" . htmlspecialchars($err) . "</pre>\n";
+                    }
+                }
+                $msg .= "➖➖➖➖➖➖➖➖➖➖\n";
+                $msg .= "🕒 " . date('Y-m-d H:i:s');
+
+                send_telegram_alert($msg);
+            } 
+        }
+    } catch (Throwable $e) {
+        send_telegram_alert("🔥 <b>CRITICAL ERROR</b>\nJob ID: $jobId\nError: " . htmlspecialchars($e->getMessage()));
+        
+        try {
+            $crash_pdo = get_db_connection(true); 
+            $crash_log = json_encode(['log' => "CRASH: " . $e->getMessage(), 'done' => $done_panels_list ?? []]);
+            $crash_stmt = $crash_pdo->prepare("UPDATE reseller_sync_queue SET status='failed', last_error=?, attempts=attempts+1 WHERE id=?");
+            $crash_stmt->execute([$crash_log, $jobId]);
+        } catch (Throwable $ex) { /* Ignore */ }
+    }
+}
+?>

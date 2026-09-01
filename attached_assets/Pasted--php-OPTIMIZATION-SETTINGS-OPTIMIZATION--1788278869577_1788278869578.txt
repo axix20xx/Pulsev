@@ -1,0 +1,2757 @@
+<?php
+// ---------------- OPTIMIZATION & SETTINGS ----------------
+// ---------------- OPTIMIZATION & SETTINGS ----------------
+error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING & ~E_DEPRECATED);
+ini_set('display_errors', 0);
+ini_set('memory_limit', '512M'); 
+ini_set('max_execution_time', 300); // Reduced from 300 (fail faster)
+
+// ---------------- DEBUG LOGGING ----------------
+
+// ---------------- DEBUG LOGGING ----------------
+define('DEBUG_SUB', true); // 🔴 set false to disable
+define('DEBUG_LOG_FILE', __DIR__ . '/sub_debug3.log');
+const IRAN_TUNNEL_EMOJI = '🛜'; // alternatives: 🚇 🔐 🧱
+function debug_log($msg, $data = null) {
+    if (!DEBUG_SUB) return;
+
+    $line = '[' . date('Y-m-d H:i:s') . '] ' . $msg;
+    if ($data !== null) {
+        $line .= ' | ' . json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+    file_put_contents(DEBUG_LOG_FILE, $line . PHP_EOL, FILE_APPEND);
+}
+// DISABLE BROWSER/CLIENT CACHING STRICTLY
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+header("Expires: 0");
+
+if (function_exists('ob_start')) ob_start();
+
+// ---------------- INCLUDES ----------------
+require_once __DIR__ . '/config(4).php';
+require_once __DIR__ . '/rain_api(2).php';
+
+// ---------------- CONSTANTS ----------------
+const EMERGENCY_FLAG_FILE = __DIR__ . '/emergency.flag'; 
+const EMERGENCY_JSON_FILE = __DIR__ . '/emergency2.json'; 
+const SELF_SUB_URL = 'https://peppernopepper.com/reseller/sub.php';
+const MAIN_PANEL_DOMAIN = 'https://www.speedur.org:2096'; 
+
+// --- CONFIG: DISABLED MESSAGE ---
+const DISABLED_MESSAGE_TEXT = 'حجم اشتراک شما به اتمام رسیده است. برای تمدید تماس بگیرید';
+
+// HIDE SERVERS: Add keywords, IPs, or partial names here to hide them from users
+function get_dynamic_hidden_servers($pdo) {
+    try {
+        $stmt = $pdo->query("SELECT keyword FROM hidden_servers");
+        return $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    } catch (Exception $e) {
+        // Fallback to basic safety defaults if table fails
+        return ['127.0.0.1', '0.0.0.0', '*'];
+    }
+}
+function detect_real_sni(array $ob): string {
+
+    // 1️⃣ explicit TLS server_name
+    if (!empty($ob['tls']['server_name'])) {
+        return is_array($ob['tls']['server_name'])
+            ? $ob['tls']['server_name'][0]
+            : $ob['tls']['server_name'];
+    }
+
+    // 2️⃣ WS Host header
+    if (!empty($ob['transport']['headers']['Host'])) {
+        return is_array($ob['transport']['headers']['Host'])
+            ? $ob['transport']['headers']['Host'][0]
+            : $ob['transport']['headers']['Host'];
+    }
+
+    // 3️⃣ XHTTP host
+    if (!empty($ob['transport']['host'])) {
+        return is_array($ob['transport']['host'])
+            ? $ob['transport']['host'][0]
+            : $ob['transport']['host'];
+    }
+
+    // 4️⃣ TCP HTTP host
+    if (!empty($ob['transport']['header']['request']['headers']['Host'])) {
+        return is_array($ob['transport']['header']['request']['headers']['Host'])
+            ? $ob['transport']['header']['request']['headers']['Host'][0]
+            : $ob['transport']['header']['request']['headers']['Host'];
+    }
+
+    // 🚫 DO NOT fallback to server
+    return '';
+}
+// --- HELPER: Fetch Headers for Stats ---
+// --- HELPER: Fetch Headers for Stats (Robust w/ GET Fallback) ---
+
+function fetch_stats_headers($url) {
+    // Basic validation
+    if (!filter_var($url, FILTER_VALIDATE_URL)) return null;
+
+    $mh = curl_multi_init();
+
+    // Common options for maximum compatibility
+    $commonOptions = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER         => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYHOST => 0,
+        CURLOPT_SSL_VERIFYPEER => 0,
+        CURLOPT_USERAGENT      => 'v2rayNG',
+        // INCREASED TIMEOUTS HERE
+        CURLOPT_CONNECTTIMEOUT => 4,   // Increased to 10s for slow handshakes
+        CURLOPT_TIMEOUT        => 15,   // Increased to 15s for total operation time
+    ];
+
+    // --- Request 1: HEAD (Lightweight) ---
+    $ch_head = curl_init($url);
+    curl_setopt_array($ch_head, $commonOptions);
+    curl_setopt($ch_head, CURLOPT_NOBODY, true);
+    curl_multi_add_handle($mh, $ch_head);
+
+    // --- Request 2: GET (Fallback with Range) ---
+    $ch_get = curl_init($url);
+    curl_setopt_array($ch_get, $commonOptions);
+    curl_setopt($ch_get, CURLOPT_NOBODY, false);
+    curl_setopt($ch_get, CURLOPT_RANGE, '0-10');
+    curl_multi_add_handle($mh, $ch_get);
+
+    $active = null;
+    $finalData = null;
+
+    // Start execution
+    do {
+        $status = curl_multi_exec($mh, $active);
+
+        // Check for completed requests
+        while ($info = curl_multi_info_read($mh)) {
+            $handle = $info['handle'];
+            $content = curl_multi_getcontent($handle);
+
+            // Check if this specific request succeeded and has the header
+            if ($content && stripos($content, 'Subscription-Userinfo') !== false) {
+                if (preg_match('/^Subscription-Userinfo:\s*(.*)$/im', $content, $matches)) {
+                    $data = [];
+                    $parts = explode(';', $matches[1]);
+                    foreach ($parts as $part) {
+                        $kv = explode('=', trim($part));
+                        if (count($kv) === 2) {
+                            $data[trim($kv[0])] = (float)trim($kv[1]);
+                        }
+                    }
+                    
+                    if (!empty($data)) {
+                        $finalData = $data;
+                        break 2;
+                    }
+                }
+            }
+            curl_multi_remove_handle($mh, $handle);
+        }
+
+        if ($active) {
+            if (curl_multi_select($mh) == -1) {
+                usleep(100000);
+            }
+        }
+
+    } while ($active && $status == CURLM_OK);
+
+    curl_multi_remove_handle($mh, $ch_head);
+    curl_multi_remove_handle($mh, $ch_get);
+    curl_multi_close($mh);
+
+    return $finalData;
+}
+
+
+
+// ---------------- HELPERS ----------------
+// ---------------- SERVER NAME REPLACEMENT ----------------
+// key   = original server (or part of it)
+// value = new server name you want users to see
+const SERVER_REPLACE_MAP = [
+    'o1.tun.persia.my'        => 'ir.kcafebash.online',
+    'o2.tun.persia.my'         => 'ir2.kcafebash.online',
+    'dl1.hosting-ip.ir'      => 'cdn2.kcafebash.online',
+    'REAL.CDNPROS.IR'               => 'cdn2.kcafebash.online',
+    'tun.sap-rehan.ir'                  => 'ir3.kcafebash.online',
+        'tu-de.nub-shop.ir'                  => '85.133.195.153',
+                'tun.fars-saprt.ir'                  => '185.136.135.131',
+      
+  
+        
+];
+function rewrite_avesta_sub_url(string $url): string {
+    return str_replace(
+        'https://accountlink.top',
+        'https://dashboard.accountlink.top',
+        $url
+    );
+}
+function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+function normalize_azadpanel_sub_url(string $sub, array $panel): ?string {
+    $sub = trim($sub);
+    if ($sub === '') return null;
+
+    // 1. If the URL is already absolute (starts with http/https), return it as is.
+    if (preg_match('/^https?:\/\//i', $sub)) {
+        return $sub;
+    }
+
+    // 2. It is a relative path (e.g., /sub/xyz...). We need to attach the panel's domain.
+    $apiUrl = $panel['api_base'] ?? $panel['api_url'] ?? '';
+    if ($apiUrl === '') return $sub; // Can't fix it without a base URL
+
+    // 3. Parse the API URL to extract just the Root Domain (Scheme + Host + Port)
+    // This removes paths like '/api/v1' which cause 404s when combined with '/sub/'
+    $parsed = parse_url($apiUrl);
+    if (!$parsed || !isset($parsed['host'])) {
+        // Fallback: If parsing fails, just prepend the full API URL
+        return rtrim($apiUrl, '/') . '/' . ltrim($sub, '/');
+    }
+
+    $scheme = $parsed['scheme'] ?? 'https';
+    $host   = $parsed['host'];
+    $port   = isset($parsed['port']) ? ':' . $parsed['port'] : '';
+    
+    $baseDomain = "$scheme://$host$port";
+
+    // 4. Return the clean URL: Domain + Sub Path
+    return $baseDomain . '/' . ltrim($sub, '/');
+}
+
+
+function emergency_enabled(): bool {
+  if (is_file(EMERGENCY_FLAG_FILE) && trim((string)@file_get_contents(EMERGENCY_FLAG_FILE)) === '1') return true;
+  return false;
+}
+function replace_server_name(string $server): string {
+    foreach (SERVER_REPLACE_MAP as $from => $to) {
+        if ($from !== '' && stripos($server, $from) !== false) {
+            return $to;
+        }
+    }
+    return $server;
+}
+
+
+function get_emergency_links(): array {
+    $links = [];
+    if (is_file(EMERGENCY_JSON_FILE)) {
+        $json = json_decode(@file_get_contents(EMERGENCY_JSON_FILE), true);
+        if (is_array($json)) {
+            foreach ($json as $link) {
+                if (is_string($link) && trim($link) !== '') $links[] = trim($link);
+            }
+        }
+    }
+    return $links;
+}
+function rename_node_for_user(array $node, int $index): array {
+    // Keep emoji, replace Iran 🇮🇷 with tunnel
+    $tag = $node['tag'] ?? '';
+
+    $tag = str_replace('🇮🇷', IRAN_TUNNEL_EMOJI, $tag);
+
+    // Replace with Server 1, Server 2 …
+    $node['tag'] = "Server $index $tag";
+
+    return $node;
+}
+
+function rename_node_simple(array $node, int $index, string $prefix = '', string $remainText = ''): array {
+    $emoji = '';
+    if (isset($node['tag'])) {
+        if (preg_match_all('/([\x{1F1E6}-\x{1F1FF}]{2})/u', $node['tag'], $matches)) {
+            foreach ($matches[0] as $flag) {
+                if ($flag === '🇮🇷') {
+                    $emoji = '🛜';
+                    break;
+                }
+                $emoji = $flag;
+            }
+        }
+    }
+
+    // Construct the new tag: Server 1 - SPE - 📊 15.5GB 🛜
+    $tagParts = ["Server $index"];
+    if ($prefix !== '') $tagParts[] = "- $prefix";
+    if ($remainText !== '') $tagParts[] = "- 📊 $remainText";
+    if ($emoji !== '') $tagParts[] = $emoji;
+    
+    $node['tag'] = trim(implode(' ', $tagParts));
+    return $node;
+}
+
+function is_clash_meta(): bool {
+    $ua = strtolower($_SERVER['HTTP_USER_AGENT'] ?? '');
+
+    return
+        strpos($ua, 'clashmeta') !== false ||
+        strpos($ua, 'clash meta') !== false ||
+        strpos($ua, 'clash plus') !== false ||
+        strpos($ua, 'mihomo') !== false ||
+        strpos($ua, 'clash.meta') !== false ||
+        strpos($ua, 'clash-meta') !== false;
+}
+function ua_lower(){ return strtolower((string)($_SERVER['HTTP_USER_AGENT'] ?? '')); }
+
+function is_singbox_client(): bool {
+  $ua = ua_lower();
+  return (strpos($ua, 'sing-box') !== false) || (strpos($ua, 'singbox') !== false) || (strpos($ua, 'sfa/') !== false) || (strpos($ua, 'sfi/') !== false) || (strpos($ua, 'sft/') !== false) || (strpos($ua, 'karing') !== false);
+}
+function format_user_server_name(string $originalName, int $index): string {
+    // Replace Iran flag with tunnel flag
+    $name = str_replace('🇮🇷', IRAN_TUNNEL_EMOJI, $originalName);
+
+    // Remove other noisy text but keep emojis
+    $name = trim($name);
+
+    // Force clean numbering
+    return "Server $index $name";
+}
+function singbox_node_to_clash(array $n): ?array {
+
+    if (empty($n['type']) || empty($n['server']) || empty($n['server_port'])) {
+        return null;
+    }
+
+    $p = [
+'name' => !empty($n['tag'])
+    ? $n['tag']
+    : ($n['server'] . ':' . $n['server_port']),
+        'server' => $n['server'],
+        'port'   => (int)$n['server_port'],
+        'udp'    => true,
+    ];
+
+    $tls = $n['tls'] ?? [];
+    $tlsEnabled = !empty($tls['enabled']);
+
+    // ---------- SAFE SNI DETECTION ----------
+    $servername='';
+
+    if (!empty($tls['server_name'])) {
+        $servername=is_array($tls['server_name'])?reset($tls['server_name']):$tls['server_name'];
+    }
+    elseif (!empty($n['sni'])) {
+        $servername=$n['sni'];
+    }
+    elseif (!empty($n['transport']['host'])) {
+        $servername=is_array($n['transport']['host'])?reset($n['transport']['host']):$n['transport']['host'];
+    }
+    elseif (!empty($n['transport']['headers']['Host'])) {
+        $servername=$n['transport']['headers']['Host'];
+    }
+
+    // ---------- HELPERS ----------
+    $normalizeAlpn=function($a){
+        if(empty($a)) return null;
+        if(is_array($a)) return array_values(array_filter($a));
+        return array_values(array_filter(array_map('trim',explode(',',$a))));
+    };
+
+    $normalizeHeaders=function($h){
+        if(!is_array($h)) return [];
+        $o=[];
+        foreach($h as $k=>$v){
+            if($v===''||$v===null) continue;
+            $o[$k]=is_array($v)?reset($v):$v;
+        }
+        return $o;
+    };
+
+    $ensureHost=function(&$headers,$servername){
+        if($servername!=='' && empty($headers['Host'])) $headers['Host']=$servername;
+    };
+
+    $applyTLS=function(&$p,$tls,$tlsEnabled,$servername,$normalizeAlpn){
+        $p['tls']=$tlsEnabled;
+
+        if($servername!=='') $p['servername']=$servername;
+
+        if(!empty($tls['utls']['fingerprint'])){
+            $p['client-fingerprint']=$tls['utls']['fingerprint'];
+        }
+
+        if(!empty($tls['insecure'])) $p['skip-cert-verify']=true;
+
+        $alpn=$normalizeAlpn($tls['alpn']??null);
+        if(!$alpn && $tlsEnabled) $alpn=['h2','http/1.1'];
+        if($alpn) $p['alpn']=$alpn;
+
+        // REALITY FULL SUPPORT
+        if(!empty($tls['reality']['enabled'])){
+            $p['reality-opts']=[
+                'public-key'=>$tls['reality']['public_key']??'',
+                'short-id'=>$tls['reality']['short_id']??'',
+            ];
+            if(!empty($tls['reality']['spider_x']))
+                $p['reality-opts']['spider-x']=$tls['reality']['spider_x'];
+        }
+    };
+
+    // ================= TYPES =================
+
+    switch(strtolower($n['type'])){
+
+        case 'vless':
+            $p['type']='vless';
+            $p['uuid']=$n['uuid']??'';
+            if(!empty($n['flow'])) $p['flow']=$n['flow'];
+            $applyTLS($p,$tls,$tlsEnabled,$servername,$normalizeAlpn);
+        break;
+
+        case 'vmess':
+            $p['type']='vmess';
+            $p['uuid']=$n['uuid']??'';
+            $p['alterId']=0;
+            $p['cipher']='auto';
+            $applyTLS($p,$tls,$tlsEnabled,$servername,$normalizeAlpn);
+        break;
+
+        case 'trojan':
+            $p['type']='trojan';
+            $p['password']=$n['password']??'';
+            $applyTLS($p,$tls,true,$servername,$normalizeAlpn);
+        break;
+
+        case 'shadowsocks':
+        case 'ss':
+            $p['type']='ss';
+            $p['cipher']=$n['method']??'aes-256-gcm';
+            $p['password']=$n['password']??'';
+        break;
+
+        // ---------- HYSTERIA2 ----------
+        case 'hysteria2':
+        case 'hy2':
+            $p['type']='hysteria2';
+            $p['password']=$n['password']??'';
+            if(!empty($n['up_mbps'])) $p['up']=$n['up_mbps'];
+            if(!empty($n['down_mbps'])) $p['down']=$n['down_mbps'];
+            if($servername!=='') $p['sni']=$servername;
+        break;
+
+        // ---------- TUIC ----------
+        case 'tuic':
+            $p['type']='tuic';
+            $p['uuid']=$n['uuid']??'';
+            $p['password']=$n['password']??'';
+            if(!empty($n['congestion_control'])) $p['congestion-controller']=$n['congestion_control'];
+            if($servername!=='') $p['sni']=$servername;
+        break;
+
+        // ---------- SOCKS ----------
+        case 'socks':
+            $p['type']='socks5';
+            if(!empty($n['username'])) $p['username']=$n['username'];
+            if(!empty($n['password'])) $p['password']=$n['password'];
+        break;
+
+        // ---------- HTTP PROXY ----------
+        case 'http':
+            $p['type']='http';
+            if(!empty($n['username'])) $p['username']=$n['username'];
+            if(!empty($n['password'])) $p['password']=$n['password'];
+        break;
+
+        default:
+            return null;
+    }
+
+    // ================= TRANSPORT =================
+
+    $transport=$n['transport']??[];
+    $type=strtolower($transport['type']??'tcp');
+
+    if($type==='ws'){
+        $p['network']='ws';
+        $headers=$normalizeHeaders($transport['headers']??[]);
+        if(!empty($transport['host'])){
+            $headers['Host']=is_array($transport['host'])?reset($transport['host']):$transport['host'];
+        }
+        $ensureHost($headers,$servername);
+        $p['ws-opts']=[
+            'path'=>$transport['path']??'/',
+            'headers'=>$headers,
+        ];
+    }
+
+    elseif($type==='grpc'){
+        $p['network']='grpc';
+        $p['grpc-opts']=[
+            'grpc-service-name'=>$transport['service_name']??'',
+        ];
+    }
+
+    elseif($type==='httpupgrade'){
+        $p['network']='httpupgrade';
+        $headers=$normalizeHeaders($transport['headers']??[]);
+        if(!empty($transport['host'])){
+            $headers['Host']=is_array($transport['host'])?reset($transport['host']):$transport['host'];
+        }
+        $ensureHost($headers,$servername);
+        $p['httpupgrade-opts']=[
+            'path'=>$transport['path']??'/',
+            'headers'=>$headers,
+        ];
+    }
+
+    elseif($type==='xhttp'){
+        $p['network']='xhttp';
+        $headers=$normalizeHeaders($transport['headers']??[]);
+        if(!empty($transport['host'])){
+            $headers['Host']=is_array($transport['host'])?reset($transport['host']):$transport['host'];
+        }
+        $ensureHost($headers,$servername);
+        $p['xhttp-opts']=[
+            'mode'=>$transport['mode']??'auto',
+            'path'=>$transport['path']??'/',
+            'headers'=>$headers,
+        ];
+        if(!empty($transport['extra'])) $p['xhttp-opts']['extra']=$transport['extra'];
+    }
+
+    elseif($type==='quic'){
+        $p['network']='quic';
+    }
+
+    elseif($type==='tcp'){
+        $p['network']='tcp';
+        if(($transport['header']['type']??'')==='http'){
+            $req=$transport['header']['request']??[];
+            $headers=$normalizeHeaders($req['headers']??[]);
+            $ensureHost($headers,$servername);
+            $p['network']='http';
+            $p['http-opts']=[
+                'method'=>'GET',
+                'path'=>$req['path']??['/'],
+                'headers'=>$headers,
+            ];
+        }
+    }
+
+    // ---------- FINAL CLEAN ----------
+    return array_filter($p,function($v){
+        if($v===null) return false;
+        if($v==='') return false;
+        if(is_array($v)&&empty($v)) return false;
+        return true;
+    });
+}
+function is_subscription_client(){
+  $accept = strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? ''));
+  $ua = ua_lower();
+  if (strpos($accept, 'text/html') !== false) return false; 
+  $clientUAs = ['streisand','clash','sing-box','singbox','shadowrocket','quantumult','stash','surge','nekobox','v2rayng','hiddify','clashx','loon','sagernet','v2box','v2ray','karing','foxray','fair'];
+  foreach($clientUAs as $k){
+    if($k !== '' && strpos($ua, $k) !== false) return true;
+  }
+  return true;
+}
+
+function looks_like_base64($s): bool {
+  $t = trim((string)$s);
+  if($t === '' || strlen($t) < 32) return false;
+  $t = preg_replace('/\s+/', '', $t);
+  if(!preg_match('~^[A-Za-z0-9+/=]+$~', $t)) return false;
+  $d = base64_decode($t, true);
+  return ($d !== false && $d !== '');
+}
+
+function maybe_decode_base64($body): string {
+  if(!looks_like_base64($body)) return $body;
+  $t = preg_replace('/\s+/', '', trim((string)$body));
+  $d = base64_decode($t, true);
+  return ($d !== false && $d !== '') ? $d : $body;
+}
+
+function body_looks_like_json($body): bool {
+  $t = preg_replace('/^\xEF\xBB\xBF/', '', (string)$body);
+  $t = ltrim($t);
+  return $t !== '' && ($t[0] === '{' || $t[0] === '[');
+}
+
+function b2h($b) { 
+    if($b===0) return '0 B';
+    $u=['B','KB','MB','GB','TB']; $i=0;
+    while($b>=1024 && $i<4){ $b/=1024; $i++; }
+    return round($b,2).' '.$u[$i];
+}
+
+// ---------------- PARSERS (TEXT -> ARRAY) ----------------
+
+function parse_query_map($q): array {
+  $out = [];
+  if($q === null || $q === '') return $out;
+  foreach(explode('&', $q) as $pair){
+    if($pair === '') continue;
+    $kv = explode('=', $pair, 2);
+    $k = urldecode($kv[0]);
+    $v = isset($kv[1]) ? urldecode($kv[1]) : '';
+    if($k !== '') $out[$k] = $v;
+  }
+  return $out;
+}
+function vless_link_to_singbox_outbound(string $line, string $defaultTag): ?array {
+  $p = @parse_url($line);
+  if(!$p || empty($p['scheme']) || strtolower($p['scheme']) !== 'vless') return null;
+  
+  $uuid = isset($p['user']) ? (string)$p['user'] : '';
+  $server = (string)($p['host'] ?? '');
+  $port = (int)($p['port'] ?? 0);
+  
+  if($server === '' || $port <= 0 || $uuid === '') return null;
+  
+  // Fix: Correctly decode the fragment (tag)
+  $tag = $defaultTag;
+  if(isset($p['fragment']) && $p['fragment'] !== ''){
+    $tag = urldecode($p['fragment']);
+  }
+  
+  $q = parse_query_map($p['query'] ?? '');
+  $ob = [
+    'type' => 'vless',
+    'tag' => $tag,
+    'server' => $server,
+    'server_port' => $port,
+    'uuid' => $uuid,
+  ];
+
+  if(!empty($q['flow'])) $ob['flow'] = (string)$q['flow'];
+
+  $t = strtolower((string)($q['type'] ?? $q['transport'] ?? 'tcp'));
+  
+  // --- Transport Parsing ---
+  if($t === 'ws'){
+    $tr = ['type'=>'ws'];
+    if(!empty($q['path'])) $tr['path'] = (string)$q['path'];
+    if(!empty($q['host'])) $tr['headers'] = ['Host'=>(string)$q['host']];
+    $ob['transport'] = $tr;
+  } 
+  elseif($t === 'grpc'){
+    $tr = ['type'=>'grpc'];
+    $sn = (string)($q['serviceName'] ?? $q['service_name'] ?? '');
+    if($sn !== '') $tr['service_name'] = $sn;
+    if(!empty($q['mode'])) $tr['mode'] = (string)$q['mode'];
+    $ob['transport'] = $tr;
+  } 
+  elseif($t === 'xhttp' || $t === 'httpupgrade'){
+    $tr = ['type' => $t]; 
+    if(!empty($q['path'])) $tr['path'] = (string)$q['path'];
+    if(!empty($q['host'])) $tr['host'] = [(string)$q['host']];
+    if(!empty($q['mode'])) $tr['mode'] = (string)$q['mode'];
+    if(!empty($q['extra'])) $tr['extra'] = (string)$q['extra'];
+    $ob['transport'] = $tr;
+  } 
+  else {
+    $tr = ['type'=>'tcp'];
+    $headerType = (string)($q['headerType'] ?? '');
+    if($headerType !== '' && $headerType !== 'none') {
+        $tr['header'] = ['type' => $headerType];
+        $req = [];
+        if(!empty($q['path'])) $req['path'] = [(string)$q['path']];
+        if(!empty($q['host'])) $req['headers'] = ['Host' => [(string)$q['host']]];
+        if(!empty($req)) $tr['header']['request'] = $req;
+    }
+    $ob['transport'] = $tr;
+  }
+
+  // --- Security / TLS Parsing ---
+  $security = strtolower((string)($q['security'] ?? ''));
+  $tlsEnabled = ($security === 'tls' || $security === 'reality');
+  
+  if($tlsEnabled){
+    $tls = ['enabled'=>true];
+    
+    // SNI priority: sni > serverName > servername
+    $sni = (string)($q['sni'] ?? $q['serverName'] ?? $q['servername'] ?? '');
+    if($sni !== '') $tls['server_name'] = $sni;
+    
+    $fp = (string)($q['fp'] ?? '');
+    if($fp !== '') $tls['utls'] = ['enabled'=>true, 'fingerprint'=>$fp];
+    
+    $alpn = (string)($q['alpn'] ?? '');
+    if ($alpn !== '') $tls['alpn'] = explode(',', $alpn);
+    
+    if($security === 'reality'){
+      $reality = ['enabled' => true];
+      $pbk = (string)($q['pbk'] ?? $q['publicKey'] ?? '');
+      $sid = (string)($q['sid'] ?? $q['shortId'] ?? '');
+      if($pbk !== '') $reality['public_key'] = $pbk;
+      if($sid !== '') $reality['short_id'] = $sid;
+      $tls['reality'] = $reality;
+    }
+    $ob['tls'] = $tls;
+  }
+  return $ob;
+}
+
+
+
+function vmess_link_to_singbox_outbound(string $line, string $defaultTag): ?array {
+  $raw = trim($line);
+  if(stripos($raw, 'vmess://') !== 0) return null;
+  $b64 = substr($raw, 8);
+  $json = base64_decode($b64, true);
+  if($json === false) return null;
+  $cfg = json_decode($json, true);
+  if(!is_array($cfg)) return null;
+  
+  $tag = (string)($cfg['ps'] ?? $defaultTag);
+  $server = (string)($cfg['add'] ?? '');
+  $port = (int)($cfg['port'] ?? 0);
+  $uuid = (string)($cfg['id'] ?? '');
+  if($server === '' || $port <= 0 || $uuid === '') return null;
+  
+  $ob = [
+    'type' => 'vmess',
+    'tag' => $tag,
+    'server' => $server,
+    'server_port' => $port,
+    'uuid' => $uuid,
+    'security' => 'auto',
+  ];
+
+  $net = strtolower((string)($cfg['net'] ?? 'tcp'));
+  
+  if($net === 'ws'){
+    $tr = ['type'=>'ws'];
+    if(!empty($cfg['path'])) $tr['path'] = (string)$cfg['path'];
+    if(!empty($cfg['host'])) $tr['headers'] = ['Host'=>(string)$cfg['host']];
+    $ob['transport'] = $tr;
+  } elseif($net === 'grpc'){
+    $tr = ['type'=>'grpc'];
+    if(!empty($cfg['path'])) $tr['service_name'] = (string)$cfg['path'];
+    $ob['transport'] = $tr;
+  } elseif($net === 'xhttp' || $net === 'httpupgrade') {
+    // --- XHTTP Support ---
+    $tr = ['type'=>'xhttp'];
+    if(!empty($cfg['path'])) $tr['path'] = (string)$cfg['path'];
+    if(!empty($cfg['host'])) $tr['host'] = [(string)$cfg['host']];
+    // ADDED: Support for XHTTP Mode and Extra
+    if(!empty($cfg['mode'])) $tr['mode'] = (string)$cfg['mode'];
+    if(!empty($cfg['extra'])) $tr['extra'] = (string)$cfg['extra'];
+    $ob['transport'] = $tr;
+  } elseif($net === 'tcp') {
+
+    $tr = ['type' => 'tcp'];
+    $headerType = strtolower((string)($cfg['type'] ?? ''));
+    if ($headerType === 'http') {
+        $tr['header'] = [
+            'type' => 'http',
+            'request' => [
+                'path' => [(!empty($cfg['path']) ? (string)$cfg['path'] : '/')],
+                'headers' => [
+                    'Host' => [(!empty($cfg['host']) ? (string)$cfg['host'] : $server)]
+                ]
+            ]
+        ];
+    }
+    $ob['transport'] = $tr;
+  }
+
+  $tlsFlag = strtolower((string)($cfg['tls'] ?? ''));
+  if($tlsFlag === 'tls'){
+    $tls = ['enabled'=>true];
+    if(!empty($cfg['sni'])) $tls['server_name'] = (string)$cfg['sni'];
+    $ob['tls'] = $tls;
+  }
+  return $ob;
+}
+
+
+// --- CONVERTER: XRAY/V2RAY JSON -> SINGBOX INTERNAL ---
+function xray_json_to_singbox($vObj, $tag) {
+    $protocol = strtolower($vObj['protocol'] ?? '');
+    $out = ['tag' => $tag];
+    
+    $settings = $vObj['settings'] ?? [];
+    $stream = $vObj['streamSettings'] ?? [];
+    
+    if (isset($settings['vnext']) && is_array($settings['vnext']) && isset($settings['vnext'][0])) {
+        $vn = $settings['vnext'][0];
+        $out['server'] = $vn['address'] ?? '';
+        $out['server_port'] = $vn['port'] ?? 0;
+        if (isset($vn['users']) && isset($vn['users'][0])) {
+            $u = $vn['users'][0];
+            $out['uuid'] = $u['id'] ?? $u['password'] ?? ''; 
+            if(isset($u['flow'])) $out['flow'] = $u['flow'];
+            if(isset($u['encryption'])) $out['security'] = $u['encryption'];
+        }
+    } elseif ($protocol === 'shadowsocks' && isset($settings['servers'][0])) {
+        $srv = $settings['servers'][0];
+        $out['server'] = $srv['address'] ?? '';
+        $out['server_port'] = $srv['port'] ?? 0;
+        $out['password'] = $srv['password'] ?? '';
+        $out['method'] = $srv['method'] ?? '';
+    } elseif (isset($settings['servers']) && isset($settings['servers'][0])) {
+        $srv = $settings['servers'][0];
+        $out['server'] = $srv['address'] ?? '';
+        $out['server_port'] = $srv['port'] ?? 0;
+        if(isset($srv['password'])) $out['password'] = $srv['password'];
+    } else {
+        return null;
+    }
+
+    if(empty($out['server'])) return null;
+
+    if ($protocol === 'vless') $out['type'] = 'vless';
+    elseif ($protocol === 'vmess') $out['type'] = 'vmess';
+    elseif ($protocol === 'trojan') { 
+        $out['type'] = 'trojan'; 
+        if(empty($out['password']) && !empty($out['uuid'])) $out['password'] = $out['uuid'];
+        unset($out['uuid']); 
+    }
+    elseif ($protocol === 'shadowsocks') $out['type'] = 'shadowsocks';
+    else return null;
+
+    $net = $stream['network'] ?? 'tcp';
+    $out['transport'] = ['type' => $net];
+    
+    if ($net === 'ws') {
+        $ws = $stream['wsSettings'] ?? [];
+        if(!empty($ws['path'])) $out['transport']['path'] = $ws['path'];
+        if(!empty($ws['headers']['Host'])) $out['transport']['headers'] = ['Host' => $ws['headers']['Host']];
+    }
+      // ADDED: Proper JSON extraction for XHTTP Settings
+    if ($net === 'xhttp' || $net === 'httpupgrade') {
+        $out['transport']['type'] = $net; // Preserve the exact protocol
+
+        $xhttp = $stream['xhttpSettings'] ?? $stream['httpupgradeSettings'] ?? [];
+        if(!empty($xhttp['path'])) $out['transport']['path'] = $xhttp['path'];
+        if(!empty($xhttp['host'])) $out['transport']['host'] = [$xhttp['host']];
+        if(!empty($xhttp['mode'])) $out['transport']['mode'] = $xhttp['mode'];
+        if(!empty($xhttp['extra'])) $out['transport']['extra'] = is_array($xhttp['extra']) ? json_encode($xhttp['extra']) : $xhttp['extra'];
+    }
+    if ($net === 'grpc') {
+
+        $grpc = $stream['grpcSettings'] ?? [];
+        if(!empty($grpc['serviceName'])) $out['transport']['service_name'] = $grpc['serviceName'];
+    }
+if ($net === 'tcp') {
+    $tcp = $stream['tcpSettings']['header'] ?? [];
+    if (!empty($tcp) && is_array($tcp)) {
+        $out['transport']['header'] = $tcp; // store raw header info
+    }
+}
+    $security = $stream['security'] ?? 'none';
+    if ($security === 'tls') {
+        $tls = $stream['tlsSettings'] ?? [];
+        $out['tls'] = ['enabled' => true];
+        if(!empty($tls['serverName'])) $out['tls']['server_name'] = $tls['serverName'];
+        if(!empty($tls['fingerprint'])) $out['tls']['utls'] = ['enabled'=>true, 'fingerprint'=>$tls['fingerprint']];
+        if(!empty($tls['alpn'])) $out['tls']['alpn'] = $tls['alpn'];
+    } elseif ($security === 'reality') {
+        $reality = $stream['realitySettings'] ?? [];
+        $out['tls'] = [
+            'enabled' => true,
+            'server_name' => $reality['serverName'] ?? '',
+            'reality' => [
+                'enabled' => true,
+                'public_key' => $reality['publicKey'] ?? '',
+                'short_id' => $reality['shortId'] ?? '',
+            ],
+            'utls' => ['enabled'=>true, 'fingerprint'=>$reality['fingerprint'] ?? 'chrome']
+        ];
+    }
+
+    return $out;
+}
+
+// ---------------- RECONSTRUCTOR (FIXED: ALPN SUPPORT) ----------------
+function reconstruct_link_from_json($ob) {
+    $type = $ob['type'] ?? '';
+    // Fix: Decode the tag first to avoid double encoding, then encode at the end
+    $tagName = urldecode($ob['tag'] ?? 'Proxy');
+    $tag = rawurlencode($tagName);
+    
+    // --- VLESS RECONSTRUCTION ---
+    if ($type === 'vless') {
+        $user = $ob['uuid'] ?? '';
+        $server = $ob['server'] ?? '';
+        $port = $ob['server_port'] ?? 443;
+        
+        // Standard VLESS parameters
+        $params = [
+            'encryption' => 'none', // MANDATORY for standard VLESS links
+        ];
+        
+        if (($ob['tls']['enabled'] ?? false)) {
+            $params['security'] = 'tls';
+       $sni = detect_real_sni($ob);
+if ($sni !== '') {
+    $params['sni'] = $sni;
+}
+            $params['fp'] = $ob['tls']['utls']['fingerprint'] ?? 'chrome';
+            
+            // Fix: Handle ALPN correctly
+            if (!empty($ob['tls']['alpn'])) {
+                $params['alpn'] = is_array($ob['tls']['alpn']) ? implode(',', $ob['tls']['alpn']) : $ob['tls']['alpn'];
+            }
+
+            if (($ob['tls']['reality']['enabled'] ?? false)) {
+                $params['security'] = 'reality';
+                $params['pbk'] = $ob['tls']['reality']['public_key'] ?? '';
+                $params['sid'] = $ob['tls']['reality']['short_id'] ?? '';
+            }
+        } else {
+             $params['security'] = 'none';
+        }
+        
+        $transport = $ob['transport']['type'] ?? 'tcp';
+        $params['type'] = $transport;
+
+        // Transport Specific Logic
+        if ($transport === 'http' || $transport === 'xhttp' || $transport === 'httpupgrade') {
+             $params['type'] = ($transport === 'http') ? 'tcp' : $transport; // V2RayNG uses tcp+headerType=http
+             $params['path'] = $ob['transport']['path'] ?? '/';
+
+             $h = $ob['transport']['host'] ?? [];
+             if(!empty($h)) $params['host'] = is_array($h) ? $h[0] : $h;
+             
+             if(!empty($ob['transport']['mode'])) $params['mode'] = $ob['transport']['mode'];
+             if(!empty($ob['transport']['extra'])) $params['extra'] = $ob['transport']['extra'];
+        }
+        elseif ($transport === 'ws') {
+            $params['path'] = $ob['transport']['path'] ?? '/';
+            // CRITICAL FIX: Do NOT fallback to SNI. Only set host if headers exist.
+            if(!empty($ob['transport']['headers']['Host'])) {
+                $params['host'] = $ob['transport']['headers']['Host'];
+            }
+        } 
+        elseif ($transport === 'grpc') {
+            $params['serviceName'] = $ob['transport']['service_name'] ?? '';
+            $params['mode'] = $ob['transport']['mode'] ?? 'gun';
+        }
+        elseif ($transport === 'tcp') {
+            if(!empty($ob['transport']['header'])) {
+                $params['headerType'] = $ob['transport']['header']['type'] ?? 'none';
+                $req = $ob['transport']['header']['request'] ?? [];
+                
+                // Fix Path
+                if (!empty($req['path'])) {
+                    $params['path'] = is_array($req['path']) ? $req['path'][0] : $req['path'];
+                }
+                
+                // Fix Host (Check uppercase Host and lowercase host)
+                $hostVal = $req['headers']['Host'] ?? $req['headers']['host'] ?? null;
+                if (!empty($hostVal)) {
+                    $params['host'] = is_array($hostVal) ? $hostVal[0] : $hostVal;
+                }
+            }
+        }
+
+        
+        if(!empty($ob['flow'])) $params['flow'] = $ob['flow'];
+        
+        // Remove empty parameters to keep link clean
+        $query = http_build_query(array_filter($params, function($v){ return $v !== ''; }));
+        return "vless://$user@$server:$port?$query#$tag";
+    }
+    
+    // --- VMESS RECONSTRUCTION ---
+    if ($type === 'vmess') {
+        $transport = $ob['transport']['type'] ?? 'tcp';
+        $v = [
+            "v"    => "2", 
+            "ps"   => $tagName, // VMess JSON uses raw string, not encoded
+            "add"  => $ob['server'],
+            "port" => (int)$ob['server_port'], 
+            "id"   => $ob['uuid'], 
+            "aid"  => (int)($ob['alter_id'] ?? 0),
+            "net"  => $transport, 
+            "type" => "none", 
+            "host" => "", 
+            "path" => "",
+            "tls"  => ($ob['tls']['enabled'] ?? false) ? "tls" : ""
+        ];
+        
+       $sni = detect_real_sni($ob);
+if ($sni !== '') {
+    $v['sni'] = $sni;
+}
+        if (!empty($ob['tls']['alpn'])) {
+             $v['alpn'] = is_array($ob['tls']['alpn']) ? implode(',', $ob['tls']['alpn']) : $ob['tls']['alpn'];
+        }
+        if (!empty($ob['tls']['utls']['fingerprint'])) $v['fp'] = $ob['tls']['utls']['fingerprint'];
+
+        if ($transport === 'ws') {
+            $v['path'] = $ob['transport']['path'] ?? '/';
+            if(!empty($ob['transport']['headers']['Host'])) {
+                 $v['host'] = $ob['transport']['headers']['Host'];
+            }
+        } 
+        elseif ($transport === 'grpc') {
+            $v['path'] = $ob['transport']['service_name'] ?? "";
+        }
+        elseif ($transport === 'xhttp' || $transport === 'httpupgrade') {
+            $v['path'] = $ob['transport']['path'] ?? '/';
+            if(!empty($ob['transport']['host'])) $v['host'] = is_array($ob['transport']['host']) ? $ob['transport']['host'][0] : $ob['transport']['host'];
+            if(!empty($ob['transport']['mode'])) $v['mode'] = $ob['transport']['mode'];
+            if(!empty($ob['transport']['extra'])) $v['extra'] = $ob['transport']['extra'];
+        }
+        elseif ($transport === 'tcp' && !empty($ob['transport']['header'])) {
+             $h = $ob['transport']['header'];
+             $v['type'] = $h['type'] ?? 'none';
+             if ($v['type'] === 'http' && !empty($h['request'])) {
+                 $v['path'] = $h['request']['path'][0] ?? "";
+                 $v['host'] = $h['request']['headers']['Host'][0] ?? "";
+             }
+        } 
+        return "vmess://" . base64_encode(json_encode($v));
+    }
+    return null; 
+}
+
+// ---------------- FETCHING LOGIC ----------------
+function clash_safe_name($s) {
+    // Remove non-ASCII except space and basic symbols
+    $s = preg_replace('/[^\x20-\x7E]/', '', $s);
+    $s = trim($s);
+    if ($s === '') $s = 'Node';
+    return $s;
+}
+function fetch_upstream_raw_multi(array $urls, bool $singboxUA=false): array {
+    $ua = $singboxUA ? 'sing-box/1.11.0' : 'v2rayNG/1.8.5'; 
+    $accept = $singboxUA ? 'Accept: application/json, text/plain;q=0.9, */*;q=0.8' : 'Accept: */*';
+
+    // LOG URLS
+    foreach ($urls as $url) {
+        debug_log("Fetching upstream URL", $url);
+    }
+
+    $mh = curl_multi_init();
+    $chs = [];
+
+    foreach ($urls as $url) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER         => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
+            CURLOPT_CONNECTTIMEOUT => 5, 
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_USERAGENT      => $ua,
+            CURLOPT_HTTPHEADER     => [$accept,'Cache-Control: no-cache','Pragma: no-cache'],
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_SSL_VERIFYPEER => 0,
+        ]);
+        curl_multi_add_handle($mh, $ch);
+        $chs[] = $ch;
+    }
+
+    $running = null;
+    do {
+        curl_multi_exec($mh, $running);
+        curl_multi_select($mh, 0.1);
+    } while ($running > 0);
+
+    $out = [];
+    foreach ($chs as $ch) {
+        $resp = curl_multi_getcontent($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $hs   = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+
+        if ($hs > 0) {
+            $hdrs = substr((string)$resp, 0, $hs);
+            $body = substr((string)$resp, $hs);
+        } else {
+            $body = (string)$resp;
+        }
+
+        // LOG RESPONSE STATUS
+        debug_log("Upstream response code", ['code'=>$code,'body_length'=>strlen($body)]);
+
+        $out[] = [
+            'ok' => ($code>=200 && $code<300),
+            'body' => $body,
+        ];
+
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+    }
+
+    curl_multi_close($mh);
+    return $out;
+}
+function yaml_escape_string($s) {
+    $s = str_replace('"', '\"', $s); // escape quotes
+    // Wrap with quotes
+    return '"' . $s . '"';
+}
+// --- GENERATE FAKE INFO NODE ---
+function generate_info_node($serviceName, $expire, $total, $used) {
+    $usedGb = round($used / 1073741824, 2);
+    $totalGb = round($total / 1073741824, 2);
+    $remainGb = max(0, $totalGb - $usedGb); // Ensure it doesn't drop below 0
+    
+    // Calculate remaining days instead of showing the date
+    if ($expire > 0) {
+        $daysLeft = ceil(($expire - time()) / 86400);
+        $daysLeft = max(0, $daysLeft); // Prevent negative days if already expired
+        $expireText = $daysLeft . " Days";
+    } else {
+        $expireText = "Unlimited";
+    }
+    
+    // Tag string WITHOUT Service Name, showing REMAINING GB and REMAINING DAYS
+    $tag = "📊 Rem: {$remainGb}GB | 📅 Exp: $expireText";
+    
+    // Construct fake VLESS
+    $uuid = "00000000-0000-0000-0000-000000000000";
+    $link = "vless://$uuid@127.0.0.1:1080?type=tcp&security=none&fp=chrome#" . rawurlencode($tag);
+    
+    return [
+        'link' => $link,
+        'node' => [
+            'type' => 'vless',
+            'tag' => $tag,
+            'server' => '127.0.0.1',
+            'server_port' => 1080,
+            'uuid' => $uuid,
+            'transport' => ['type' => 'tcp'],
+            'tls' => ['enabled' => false]
+        ]
+    ];
+}
+
+
+function generate_disabled_node() {
+    // USE CONSTANT MESSAGE
+    $msg = DISABLED_MESSAGE_TEXT;
+    $uuid = "00000000-0000-0000-0000-000000000000";
+    $link = "vless://$uuid@127.0.0.1:1080?type=tcp&security=none&fp=chrome#" . rawurlencode($msg);
+    
+    return [
+        'link' => $link,
+        'node' => [
+            'type' => 'vless',
+            'tag' => $msg,
+            'server' => '127.0.0.1',
+            'server_port' => 1080,
+            'uuid' => $uuid,
+            'transport' => ['type' => 'tcp'],
+            'tls' => ['enabled' => false]
+        ]
+    ];
+}
+$skipDbSave = false;
+function fetch_multi_subscription_and_output(array $upstreamUrls, string $token, string $pageTitle, $usageData, $isEnabled = true){
+  global $pdo, $svc; // <--- 1. GLOBAL ACCESS FOR DB
+
+  // --- 2. HELPERS MOVED TO TOP (So they are available for DB saving) ---
+  if (!function_exists('clash_safe_name_unique')) {
+      function clash_safe_name_unique(string $name, array &$used): string {
+          $safe = preg_replace('/[^\p{L}\p{N}\-]/u', '-', $name);
+          $safe = preg_replace('/-+/', '-', $safe);
+          $safe = trim($safe, '-');
+          $base = $safe ?: 'node';
+          $i = 1;
+          while (in_array($safe, $used, true)) {
+              $safe = $base . '-' . $i;
+              $i++;
+          }
+          $used[] = $safe;
+          return $safe;
+      }
+  }
+  if (!function_exists('yamlq')) {
+      function yamlq($s) {
+          $s = (string)$s;
+          $s = str_replace(["\r", "\n"], '', $s);
+          $s = str_replace('"', '\"', $s);
+          return '"' . $s . '"';
+      }
+  }
+  if (!function_exists('sanitize_server')) {
+      function sanitize_server($server) {
+          if (!$server || trim($server) === '*' || !filter_var($server, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {
+              return 'invalid.server.local';
+          }
+          return $server;
+      }
+  }
+
+  $singbox = is_singbox_client();
+  
+  $mergedNodes = [];
+  
+  if (!$isEnabled) {
+      // User Disabled: Show only the warning node
+      $fake = generate_disabled_node();
+      $mergedNodes[] = $fake['node'];
+  } else {
+      // User Enabled: Fetch Real Nodes
+      $cleanUrls = [];
+           foreach ($upstreamUrls as $pKey => $u) {
+          $u = trim($u);
+
+          
+          // --- FIX: Redirect proxygen sublink to new domain ---
+          if (strpos($u, 'sublink.click') !== false) {
+              $u = str_replace('https://sublink.click/sub/', 'https://home.prxpanel.top/sub/', $u);
+          }
+
+          $cleanUrls[$pKey] = rewrite_avesta_sub_url($u);
+      }
+      $upstreamUrls = array_unique(array_filter($cleanUrls));
+      
+      // Extract the exact config keys in perfect order
+      $panelKeysList = array_keys($upstreamUrls);
+
+      if(!$upstreamUrls){
+        http_response_code(502);
+        echo "NO UPSTREAM URLS";
+        exit;
+      }
+
+      $results = fetch_upstream_raw_multi(array_values($upstreamUrls), $singbox);
+
+   
+      $allowedTypes = ['vless', 'vmess', 'trojan', 'shadowsocks', 'tuic', 'hysteria2'];
+      // Map each URL to its 3-character panel prefix
+      $panelPrefixMap = [];
+      $pArr = defined('PANELS') ? PANELS : [];
+      foreach ($upstreamUrls as $idx => $u) {
+          $prefix = 'UNK'; // Unknown fallback
+          foreach ($pArr as $p) {
+              $apiBase = $p['api_base'] ?? $p['api_url'] ?? '';
+              $host = parse_url($apiBase, PHP_URL_HOST);
+              if ($host && strpos($u, $host) !== false) {
+                  $prefix = strtoupper(substr($p['key'], 0, 3)); // Grabs first 3 chars
+                  break;
+              }
+          }
+          $panelPrefixMap[$idx] = $prefix;
+      }
+
+
+
+
+
+      foreach ($results as $index => $r) {
+
+        if(!$r['ok']) continue;
+        $body = maybe_decode_base64((string)$r['body']);
+        if(preg_match('/^\s*</', $body) && stripos($body, '<html') !== false){
+          continue;
+        }
+
+        $foundNodes = [];
+
+        if(body_looks_like_json($body)){
+            $cfg = json_decode($body, true);
+            if(is_array($cfg) && isset($cfg[0]) && !isset($cfg['outbounds'])){
+                 $cfgObjects = $cfg;
+            } else {
+                 $cfgObjects = [$cfg];
+            }
+
+            foreach ($cfgObjects as $configObj) {
+                if(!is_array($configObj) || !isset($configObj['outbounds'])) continue;
+                foreach($configObj['outbounds'] as $ob){
+                    if(!is_array($ob)) continue;
+                    if(isset($ob['type']) && in_array($ob['type'], $allowedTypes)) {
+                        $foundNodes[] = $ob;
+                    } elseif(isset($ob['protocol'])) {
+                        $tag = isset($ob['tag']) ? $ob['tag'] : "Proxy-" . count($foundNodes);
+                        $converted = xray_json_to_singbox($ob, $tag);
+                        if($converted) $foundNodes[] = $converted;
+                    }
+                }
+            }
+        } else {
+            $lines = preg_split("~\r\n|\n|\r~", $body) ?: [];
+            $i=0;
+            foreach($lines as $ln){
+                $ln = trim($ln);
+                if(!$ln) continue;
+                $i++;
+                if(stripos($ln,'vless://')===0) {
+                    $ob = vless_link_to_singbox_outbound($ln, "Node $i");
+                    if($ob) $foundNodes[] = $ob;
+                } elseif(stripos($ln,'vmess://')===0) {
+                    $ob = vmess_link_to_singbox_outbound($ln, "Node $i");
+                    if($ob) $foundNodes[] = $ob;
+                }
+            }
+        }
+        // Grab the exact config key and take the first 3 letters
+        $exactKey = $panelKeysList[$index] ?? 'UNK';
+        $currentPrefix = strtoupper(substr($exactKey, 0, 3));
+
+        // --- CUSTOM PREFIX OVERRIDE ---
+        if ($currentPrefix === 'ZNO') {
+            $currentPrefix = 'Gemini Ai مخصوص';
+        }
+        // --- CUSTOM PREFIX OVERRIDE ---
+if ($currentPrefix === 'xxp') {
+    $currentPrefix = 'این کانکشن اظراری هست و ضریب مصرف ۱۰ برابر حساب می شود';
+}
+
+        foreach($foundNodes as $node) {
+            $node['_panel_prefix'] = $currentPrefix;
+            $mergedNodes[] = $node;
+        }
+
+
+      }
+
+
+// --- FILTER HIDDEN SERVERS ---
+$dynamicHidden = get_dynamic_hidden_servers($pdo); // Fetch from SQL
+$filteredNodes = [];
+
+foreach ($mergedNodes as $node) {
+    $shouldHide = false;
+    $checkString = strtolower(($node['server'] ?? '') . ' ' . ($node['tag'] ?? ''));
+
+    foreach ($dynamicHidden as $keyword) {
+        if ($keyword === '*') {
+            if (empty($node['server']) || $node['server'] === '127.0.0.1' || $node['server'] === 'invalid.server.local') {
+                $shouldHide = true;
+                break;
+            }
+            continue; 
+        }
+
+        if ($keyword !== '' && strpos($checkString, strtolower($keyword)) !== false) {
+            $shouldHide = true;
+            break;
+        }
+    }
+
+    if (!$shouldHide) {
+        $filteredNodes[] = $node;
+    }
+}
+$mergedNodes = $filteredNodes;
+
+// Calculate Remaining GB text
+$remainBytes = max(0, ($usageData['total'] ?? 0) - ($usageData['used'] ?? 0));
+$remainGB = ($usageData['total'] > 0) ? round($remainBytes / 1073741824, 2) . 'GB' : '∞';
+
+$serverIndex = 0;
+foreach ($mergedNodes as &$node) {
+    // Only process real servers (not localhost)
+    if (!empty($node['server']) && $node['server'] !== '127.0.0.1') {
+        $serverIndex++;
+        
+        // --- NEW LOGIC START ---
+        // Check if the config name contains "movie" (case-insensitive)
+        if (isset($node['tag']) && stripos($node['tag'], 'movie') !== false) {
+            // Rename to Persian text + Server Number
+            $node['tag'] = "فیلیمو‌ فیلمنت و نماوا رایگان $serverIndex";
+        } else {
+            // Otherwise, use the standard renaming function
+            $pfx = $node['_panel_prefix'] ?? 'UNK'; 
+            $node = rename_node_simple($node, $serverIndex, $pfx, $remainGB);
+        }
+        // --- NEW LOGIC END ---
+    }
+
+    // Existing Server Name Replacement Logic
+    if (!empty($node['server'])) {
+        $node['server'] = replace_server_name($node['server']);
+    }
+    if (!empty($node['tls']['server_name'])) {
+        $node['tls']['server_name'] = replace_server_name($node['tls']['server_name']);
+    }
+    if (!empty($node['transport']['headers']['Host'])) {
+        $node['transport']['headers']['Host'] =
+            replace_server_name($node['transport']['headers']['Host']);
+    }
+}
+unset($node); // Break the reference to avoid bugs later
+
+
+    
+    // --- PREPEND INFO NODE ---
+    $info = generate_info_node($pageTitle, $usageData['expire'], $usageData['total'], $usageData['used']);
+    array_unshift($mergedNodes, $info['node']);
+    // =======================
+// REAL NODE CHECK (IMPORTANT)
+// =======================
+$realNodes = array_filter($mergedNodes, function ($n) {
+    return !empty($n['server']) && $n['server'] !== '127.0.0.1';
+});
+
+// If NO real servers → do NOT save to DB
+if (count($realNodes) === 0) {
+    debug_log("NO VALID SERVERS – SKIP DB SAVE");
+
+    // Emergency fallback
+    $mergedNodes = [];
+
+    foreach (get_emergency_links() as $ln) {
+        $ob = vless_link_to_singbox_outbound($ln, 'Emergency');
+        if ($ob) $mergedNodes[] = $ob;
+    }
+
+    // If even emergency is empty → show disabled
+    if (!$mergedNodes) {
+        $mergedNodes[] = generate_disabled_node()['node'];
+    }
+
+  // IMPORTANT: do NOT save DB, but CONTINUE output
+$skipDbSave = true;
+}
+  }
+// SAFETY: Only save when real servers exist
+if ($skipDbSave) {
+    debug_log("DB SAVE SKIPPED (emergency / no real nodes)");
+} elseif (!isset($realNodes) || count($realNodes) === 0) {
+    debug_log("DB SAVE BLOCKED – realNodes empty");
+} elseif (isset($pdo, $svc['id'])) {
+    // ✅ DB SAVE WILL HAPPEN BELOW
+}
+// =========================================================
+// === 3. DATABASE SAVE LOGIC (FIXED: ALPN, XHTTP, RULES) ===
+// =========================================================
+
+// =========================================================
+// === 3. DATABASE SAVE LOGIC (GEOSITE & AI FIX)         ===
+// =========================================================
+if (isset($pdo) && isset($svc['id'])) {
+    $dbLinks = [];
+    foreach($mergedNodes as $node) {
+        $l = reconstruct_link_from_json($node);
+        if($l) $dbLinks[] = $l;
+    }
+    $dbRaw = base64_encode(implode("\n", $dbLinks));
+    $dbSingbox = json_encode(['outbounds' => array_merge([['type'=>'direct','tag'=>'direct']], $mergedNodes)], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+
+    $dbYaml = "";
+    $dbUsedNames = [];
+
+    // --- GLOBAL SETTINGS ---
+    $dbYaml .= "port: 7890\n";
+    $dbYaml .= "socks-port: 7891\n";
+    $dbYaml .= "allow-lan: false\n";
+    $dbYaml .= "mode: rule\n";
+    $dbYaml .= "log-level: silent\n";
+    $dbYaml .= "external-controller: 127.0.0.1:9090\n";
+    
+    // --- SPEED OPTIMIZATIONS ---
+    $dbYaml .= "keep-alive-interval: 1800\n"; 
+    $dbYaml .= "tcp-concurrent: true\n";      
+    $dbYaml .= "unified-delay: true\n";       
+    $dbYaml .= "find-process-mode: off\n";
+
+    $dbYaml .= "geodata-mode: true\n";
+    $dbYaml .= "geosite-matcher: strs\n"; // Ensure string matching for GEOSITE
+
+    // --- REMEMBER FASTEST NODE ---
+    $dbYaml .= "profile:\n";
+    $dbYaml .= "  store-selected: true\n";
+    $dbYaml .= "  store-fake-ip: true\n\n";
+
+    // --- SNIFFER (CRITICAL FOR ROUTING) ---
+    $dbYaml .= "sniffer:\n";
+    $dbYaml .= "  enable: true\n";
+    $dbYaml .= "  force-dns-mapping: true\n";
+    $dbYaml .= "  parse-pure-ip: true\n";
+    $dbYaml .= "  override-destination: true\n";
+    $dbYaml .= "  sniff:\n";
+    $dbYaml .= "    TLS:\n      ports: [443]\n";
+    $dbYaml .= "    HTTP:\n      ports: [80, 8080-8880]\n\n";
+
+    // --- DNS (STRICT REMOTE RESOLUTION) ---
+    $dbYaml .= "dns:\n";
+    $dbYaml .= "  enable: true\n";
+    $dbYaml .= "  listen: :1053\n";
+    $dbYaml .= "  ipv6: false\n";
+    $dbYaml .= "  enhanced-mode: fake-ip\n";
+    $dbYaml .= "  fake-ip-range: 198.18.0.1/16\n";
+    $dbYaml .= "  respect-rules: true\n";  
+    $dbYaml .= "  prefer-h3: true\n";
+    $dbYaml .= "  default-nameserver:\n    - 8.8.8.8\n    - 1.1.1.1\n";
+    $dbYaml .= "  nameserver:\n    - https://8.8.8.8/dns-query\n    - https://1.1.1.1/dns-query\n";
+    
+    // POLICY: Force Google & AI to Remote DNS (No Leaks)
+    $dbYaml .= "  nameserver-policy:\n";
+    $dbYaml .= "    \"geosite:google\": https://1.1.1.1/dns-query\n";
+    $dbYaml .= "    \"geosite:openai\": https://1.1.1.1/dns-query\n";
+    $dbYaml .= "    \"+.google.com\": https://1.1.1.1/dns-query\n";
+    $dbYaml .= "    \"+.googleapis.com\": https://1.1.1.1/dns-query\n\n";
+
+    $dbYaml .= "proxies:\n";
+
+    $realProxyNames = [];
+    $infoNodeName = null;
+    $serverIndex = 0;
+
+    foreach ($mergedNodes as $n) {
+        $p = singbox_node_to_clash($n);
+        if (!$p) continue;
+
+        if ($n['server'] === '127.0.0.1') {
+             $pName = clash_safe_name_unique($p['name'], $dbUsedNames);
+             $infoNodeName = $pName;
+        } else {
+             $serverIndex++;
+             $pName = clash_safe_name_unique($p['name'], $dbUsedNames);
+             $realProxyNames[] = $pName;
+        }
+        $pServer = sanitize_server($p['server'] ?? '');
+
+        $dbYaml .= "  - name: " . yamlq($pName) . "\n";
+        $dbYaml .= "    type: " . $p['type'] . "\n";
+        $dbYaml .= "    server: " . yamlq($pServer) . "\n";
+        $dbYaml .= "    port: " . (int)($p['port'] ?? 0) . "\n";
+        $dbYaml .= "    udp: true\n";
+
+        if (in_array($p['type'], ['vless', 'vmess'])) {
+            if (!empty($p['uuid'])) $dbYaml .= "    uuid: " . $p['uuid'] . "\n";
+            if ($p['type'] === 'vmess') {
+                $dbYaml .= "    cipher: auto\n";
+                $dbYaml .= "    alterId: " . ($p['alterId'] ?? 0) . "\n";
+            }
+        }
+if ($p['type'] === 'trojan' && !empty($p['password'])) {
+    $dbYaml .= "    password: " . yamlq($p['password']) . "\n";
+}
+
+if ($p['type'] === 'ss') {
+    if (empty($p['cipher']) || empty($p['password'])) {
+        debug_log("SKIP INVALID SS PROXY", $p);
+        continue;
+    }
+
+    $dbYaml .= "    cipher: " . yamlq($p['cipher']) . "\n";
+    $dbYaml .= "    password: " . yamlq($p['password']) . "\n";
+}
+        if (!empty($p['tls'])) $dbYaml .= "    tls: true\n";
+        if (!empty($p['servername'])) $dbYaml .= "    servername: " . yamlq($p['servername']) . "\n";
+        if (!empty($p['flow'])) $dbYaml .= "    flow: " . yamlq($p['flow']) . "\n";
+        if (!empty($p['client-fingerprint'])) $dbYaml .= "    client-fingerprint: " . yamlq($p['client-fingerprint']) . "\n";
+        
+        if (!empty($p['alpn']) && is_array($p['alpn'])) {
+            $dbYaml .= "    alpn:\n";
+            foreach ($p['alpn'] as $a) $dbYaml .= "      - " . yamlq(trim($a)) . "\n";
+        }
+        
+        $dbYaml .= "    network: " . ($p['network'] ?? 'tcp') . "\n";
+
+        if (!empty($p['ws-opts'])) {
+             $dbYaml .= "    ws-opts:\n";
+             $dbYaml .= "      path: " . yamlq($p['ws-opts']['path'] ?? '/') . "\n";
+             if(!empty($p['ws-opts']['headers'])) {
+                 $dbYaml .= "      headers:\n";
+                 foreach($p['ws-opts']['headers'] as $k=>$v) $dbYaml .= "        $k: " . yamlq(is_array($v)?$v[0]:$v) . "\n";
+             }
+        }
+        if (!empty($p['grpc-opts'])) {
+            $dbYaml .= "    grpc-opts:\n";
+            $dbYaml .= "      grpc-service-name: " . yamlq($p['grpc-opts']['grpc-service-name'] ?? '') . "\n";
+        }
+        if (!empty($p['reality-opts'])) {
+            $dbYaml .= "    reality-opts:\n";
+            $dbYaml .= "      public-key: " . yamlq($p['reality-opts']['public-key']) . "\n";
+            if (!empty($p['reality-opts']['short-id'])) $dbYaml .= "      short-id: " . yamlq($p['reality-opts']['short-id']) . "\n";
+        }
+
+        if (!empty($p['xhttp-opts'])) {
+            $dbYaml .= "    xhttp-opts:\n";
+            if (!empty($p['xhttp-opts']['mode'])) $dbYaml .= "      mode: " . yamlq($p['xhttp-opts']['mode']) . "\n";
+            $dbYaml .= "      path: " . yamlq($p['xhttp-opts']['path'] ?? '/') . "\n";
+            if (!empty($p['xhttp-opts']['headers'])) {
+                $dbYaml .= "      headers:\n";
+                foreach ($p['xhttp-opts']['headers'] as $hk => $hv) {
+                    $val = is_array($hv) ? $hv[0] : $hv;
+                    $dbYaml .= "        $hk: " . yamlq($val) . "\n";
+                }
+            }
+            if (!empty($p['xhttp-opts']['extra'])) {
+                 $extraRaw = is_string($p['xhttp-opts']['extra']) ? $p['xhttp-opts']['extra'] : json_encode($p['xhttp-opts']['extra'], JSON_UNESCAPED_SLASHES);
+                 $dbYaml .= "      extra: '" . str_replace("'", "''", $extraRaw) . "'\n";
+            }
+        }
+        
+        if (!empty($p['httpupgrade-opts'])) {
+            $dbYaml .= "    httpupgrade-opts:\n";
+            $dbYaml .= "      path: " . yamlq($p['httpupgrade-opts']['path'] ?? '/') . "\n";
+            if (!empty($p['httpupgrade-opts']['headers'])) {
+                $dbYaml .= "      headers:\n";
+                foreach ($p['httpupgrade-opts']['headers'] as $hk => $hv) {
+                    $val = is_array($hv) ? $hv[0] : $hv;
+                    $dbYaml .= "        $hk: " . yamlq($val) . "\n";
+                }
+            }
+        }
+    }
+
+    $dbYaml .= "\nproxy-groups:\n";
+
+    // 1. Load Balance
+    $lbName = clash_safe_name_unique("⚖️ Load Balance", $dbUsedNames);
+    $dbYaml .= "  - name: " . yamlq($lbName) . "\n";
+    $dbYaml .= "    type: load-balance\n";
+    $dbYaml .= "    strategy: consistent-hashing\n";
+    $dbYaml .= "    url: https://www.gstatic.com/generate_204\n";
+    $dbYaml .= "    interval: 300\n";
+    $dbYaml .= "    proxies:\n";
+    foreach ($realProxyNames as $name) $dbYaml .= "      - " . yamlq($name) . "\n";
+
+    // 2. Hyper Fast (URL-Test)
+    $fastName = clash_safe_name_unique("⚡ Hyper Fast", $dbUsedNames);
+    $dbYaml .= "  - name: " . yamlq($fastName) . "\n";
+    $dbYaml .= "    type: url-test\n";
+    $dbYaml .= "    url: https://www.gstatic.com/generate_204\n";
+    $dbYaml .= "    interval: 150\n";
+    $dbYaml .= "    tolerance: 50\n";
+    $dbYaml .= "    proxies:\n";
+    foreach ($realProxyNames as $name) $dbYaml .= "      - " . yamlq($name) . "\n";
+
+    // 3. Main Selector
+    $mainName = clash_safe_name_unique("🚀 Internet", $dbUsedNames);
+    $dbYaml .= "  - name: " . yamlq($mainName) . "\n";
+    $dbYaml .= "    type: select\n";
+    $dbYaml .= "    proxies:\n";
+    $dbYaml .= "      - " . yamlq($fastName) . "\n";
+    $dbYaml .= "      - " . yamlq($lbName) . "\n"; 
+    if ($infoNodeName) $dbYaml .= "      - " . yamlq($infoNodeName) . "\n";
+    foreach ($realProxyNames as $name) $dbYaml .= "      - " . yamlq($name) . "\n";
+
+    // --- RULES (GEOSITE BASED) ---
+    $dbYaml .= "\nrules:\n";
+    $dbYaml .= "  - DOMAIN-SUFFIX,nia.peppernopepper.com,DIRECT\n"; 
+    
+    // 1. Force AI & Google Services to Proxy (Using GEOSITE is Safer)
+    $dbYaml .= "  - GEOSITE,openai,". $fastName ."\n"; 
+    $dbYaml .= "  - GEOSITE,google,". $fastName ."\n"; 
+    $dbYaml .= "  - GEOSITE,geolocation-!cn,". $fastName ."\n"; // Critical for location checks
+    
+    // 2. Backup Domain Rules (Just in case geosite is missing)
+    $dbYaml .= "  - DOMAIN-SUFFIX,bard.google.com,". $fastName ."\n"; 
+    $dbYaml .= "  - DOMAIN-SUFFIX,gemini.google.com,". $fastName ."\n"; 
+    $dbYaml .= "  - DOMAIN-SUFFIX,ai.google.com,". $fastName ."\n"; 
+
+    // 3. Direct Rules
+    $dbYaml .= "  - GEOIP,IR,DIRECT\n";
+    $dbYaml .= "  - DOMAIN-SUFFIX,ir,DIRECT\n";
+    $dbYaml .= "  - DOMAIN-SUFFIX,googleapis.cn,". $fastName ."\n"; // Often leaks location
+    $dbYaml .= "  - MATCH," . $mainName . "\n"; 
+
+    if (isset($realNodes) && count($realNodes) > 0) {
+        try {
+            $upStmt = $pdo->prepare("UPDATE reseller_services SET last_yaml_config=?, last_raw_config=?, last_singbox_config=?, last_config_update=NOW() WHERE id=?");
+            $upStmt->execute([$dbYaml, $dbRaw, $dbSingbox, $svc['id']]);
+        } catch (Exception $e) { debug_log("DB error", $e->getMessage()); }
+    }
+}
+
+
+
+  // =========================================================
+  // === END DATABASE SAVE LOGIC ===
+  // =========================================================
+
+  header('Connection: close');
+
+  // === OUTPUT: CLASH META ===
+  // === OUTPUT: CLASH META ===
+// === OUTPUT: CLASH META ===
+// === OUTPUT: CLASH META ===
+// === OUTPUT: CLASH META ===
+if (is_clash_meta()) {
+    header('Content-Type: text/yaml; charset=UTF-8');
+
+    echo "port: 7890\n";
+    echo "socks-port: 7891\n";
+    echo "allow-lan: false\n";
+    echo "mode: rule\n";
+    echo "log-level: silent\n";
+    echo "external-controller: 127.0.0.1:9090\n";
+    
+    // --- SPEED OPTIMIZATIONS ---
+    echo "keep-alive-interval: 1800\n"; 
+    echo "tcp-concurrent: true\n";      
+    echo "unified-delay: true\n";       
+    echo "find-process-mode: off\n";
+
+    
+    // --- NEW: SNIFFER FOR INSTANT ROUTING ---
+    echo "sniffer:\n";
+    echo "  enable: true\n";
+    echo "  force-dns-mapping: true\n";
+    echo "  parse-pure-ip: true\n";
+    echo "  override-destination: true\n";
+    echo "  sniff:\n";
+    echo "    TLS:\n      ports: [443]\n";
+    echo "    HTTP:\n      ports: [80, 8080-8880]\n\n";
+
+    echo "dns:\n";
+    echo "  enable: true\n";
+    echo "  listen: :1053\n";
+    echo "  ipv6: false\n";             // CRITICAL: Disable IPv6
+    echo "  enhanced-mode: fake-ip\n";
+    echo "  fake-ip-range: 198.18.0.1/16\n";
+    echo "  respect-rules: true\n";     
+    echo "  default-nameserver:\n    - 8.8.8.8\n    - 1.1.1.1\n";
+    echo "  nameserver:\n    - https://8.8.8.8/dns-query\n    - https://1.1.1.1/dns-query\n\n";
+
+    // --- PROXY GENERATION ---
+    $proxies = [];
+    $used_names = [];
+    foreach ($mergedNodes as $n) {
+        $p = singbox_node_to_clash($n);
+        if ($p) {
+            $p['name'] = clash_safe_name_unique($p['name'], $used_names);
+            $p['server'] = sanitize_server($p['server'] ?? '');
+            if ($p['type'] === 'vmess' && !isset($p['alterId'])) $p['alterId'] = 0;
+            $proxies[] = $p;
+        }
+    }
+
+    if (!$proxies) { echo "proxies: []\n"; exit; }
+
+    echo "proxies:\n";
+    foreach ($proxies as $p) {
+        echo "  - name: " . yamlq($p['name']) . "\n";
+        echo "    type: " . $p['type'] . "\n";
+        echo "    server: " . yamlq($p['server']) . "\n";
+        echo "    port: " . (int)($p['port'] ?? 0) . "\n";
+        echo "    udp: true\n";
+
+        if (in_array($p['type'], ['vless', 'vmess'])) {
+            echo "    uuid: " . ($p['uuid'] ?? '') . "\n";
+            if ($p['type'] === 'vmess') { echo "    cipher: auto\n    alterId: " . ($p['alterId'] ?? 0) . "\n"; }
+        }
+      if ($p['type'] === 'trojan') {
+    echo "    password: " . yamlq($p['password'] ?? '') . "\n";
+}
+
+if ($p['type'] === 'ss') {
+    if (empty($p['cipher']) || empty($p['password'])) {
+        continue;
+    }
+
+    echo "    cipher: " . yamlq($p['cipher']) . "\n";
+    echo "    password: " . yamlq($p['password']) . "\n";
+}
+        if (!empty($p['tls'])) echo "    tls: true\n";
+        if (!empty($p['servername'])) echo "    servername: " . yamlq($p['servername']) . "\n";
+        if (!empty($p['flow'])) echo "    flow: " . yamlq($p['flow']) . "\n";
+        if (!empty($p['client-fingerprint'])) echo "    client-fingerprint: " . yamlq($p['client-fingerprint']) . "\n";
+        echo "    network: " . ($p['network'] ?? 'tcp') . "\n";
+
+        // WS
+        if (!empty($p['ws-opts'])) {
+            echo "    ws-opts:\n      path: " . yamlq($p['ws-opts']['path'] ?? '/') . "\n";
+            if (!empty($p['ws-opts']['headers'])) {
+                echo "      headers:\n";
+                foreach ($p['ws-opts']['headers'] as $hk => $hv) echo "        $hk: " . yamlq(is_array($hv)?$hv[0]:$hv) . "\n";
+            }
+        }
+        
+        // GRPC
+        if (!empty($p['grpc-opts'])) echo "    grpc-opts:\n      grpc-service-name: " . yamlq($p['grpc-opts']['grpc-service-name']) . "\n";
+                // TCP HTTP HEADER (Fix for missing params)
+        if (!empty($p['header'])) {
+            echo "    header:\n";
+            echo "      type: " . yamlq($p['header']['type']) . "\n";
+            if (!empty($p['header']['request'])) {
+                echo "      request:\n";
+                if (!empty($p['header']['request']['path'])) {
+                    echo "        path:\n";
+                    foreach($p['header']['request']['path'] as $ph) echo "          - " . yamlq($ph) . "\n";
+                }
+                if (!empty($p['header']['request']['headers'])) {
+                    echo "        headers:\n";
+                    foreach ($p['header']['request']['headers'] as $hk => $hv) {
+                        $val = is_array($hv) ? $hv[0] : $hv;
+                        echo "          $hk: " . yamlq($val) . "\n"; // Outputs Host, etc.
+                    }
+                }
+            }
+        }
+
+        // REALITY
+        if (!empty($p['reality-opts'])) {
+            echo "    reality-opts:\n      public-key: " . yamlq($p['reality-opts']['public-key']) . "\n";
+            if (!empty($p['reality-opts']['short-id'])) echo "      short-id: " . yamlq($p['reality-opts']['short-id']) . "\n";
+        }
+
+        // XHTTP
+        if (!empty($p['xhttp-opts'])) {
+            echo "    xhttp-opts:\n";
+            if (!empty($p['xhttp-opts']['mode'])) echo "      mode: " . yamlq($p['xhttp-opts']['mode']) . "\n";
+            echo "      path: " . yamlq($p['xhttp-opts']['path'] ?? '/') . "\n";
+            if (!empty($p['xhttp-opts']['headers'])) {
+                echo "      headers:\n";
+                foreach ($p['xhttp-opts']['headers'] as $hk => $hv) echo "        $hk: " . yamlq(is_array($hv)?$hv[0]:$hv) . "\n";
+            }
+            if (!empty($p['xhttp-opts']['extra'])) {
+                 $extraRaw = is_string($p['xhttp-opts']['extra']) ? $p['xhttp-opts']['extra'] : json_encode($p['xhttp-opts']['extra'], JSON_UNESCAPED_SLASHES);
+                 echo "      extra: '" . str_replace("'", "''", $extraRaw) . "'\n";
+            }
+        }
+        // HTTPUpgrade
+        if (!empty($p['httpupgrade-opts'])) {
+            echo "    httpupgrade-opts:\n";
+            echo "      path: " . yamlq($p['httpupgrade-opts']['path'] ?? '/') . "\n";
+            if (!empty($p['httpupgrade-opts']['headers'])) {
+                echo "      headers:\n";
+                foreach ($p['httpupgrade-opts']['headers'] as $hk => $hv) echo "        $hk: " . yamlq(is_array($hv)?$hv[0]:$hv) . "\n";
+            }
+        }
+    }
+
+    echo "\nproxy-groups:\n";
+    $realProxyNames = [];
+    $infoNodeName = null;
+    foreach ($proxies as $p) {
+        if (strpos($p['server'], '127.0.0.1') !== false) { $infoNodeName = $p['name']; } 
+        else { $realProxyNames[] = $p['name']; }
+    }
+
+    // --- 1. Load Balance (Stable) ---
+    $lbName = clash_safe_name_unique("⚖️ Load Balance", $used_names);
+    echo "  - name: " . yamlq($lbName) . "\n";
+    echo "    type: load-balance\n";
+    echo "    strategy: consistent-hashing\n";
+    echo "    url: https://www.gstatic.com/generate_204\n";
+    echo "    interval: 300\n";
+    echo "    proxies:\n";
+    foreach ($realProxyNames as $name) echo "      - " . yamlq($name) . "\n";
+
+    // --- 2. Hyper Fast (URL-Test with Tolerance) ---
+    $fastName = clash_safe_name_unique("⚡ Hyper Fast", $used_names);
+    echo "  - name: " . yamlq($fastName) . "\n";
+    echo "    type: url-test\n";
+    echo "    url: https://www.gstatic.com/generate_204\n";
+    echo "    interval: 150\n";  
+    echo "    tolerance: 50\n";  
+    echo "    proxies:\n";
+    foreach ($realProxyNames as $name) echo "      - " . yamlq($name) . "\n";
+
+    // --- 3. Main Selector ---
+    $mainName = clash_safe_name_unique("🚀 Internet", $used_names);
+    echo "  - name: " . yamlq($mainName) . "\n";
+    echo "    type: select\n";
+    echo "    proxies:\n";
+    echo "      - " . yamlq($fastName) . "\n"; // Default to Hyper Fast
+    echo "      - " . yamlq($lbName) . "\n"; 
+    if ($infoNodeName) echo "      - " . yamlq($infoNodeName) . "\n";
+    foreach ($realProxyNames as $name) echo "      - " . yamlq($name) . "\n";
+
+    // --- RULES ---
+    echo "\nrules:\n";
+    echo "  - DOMAIN-SUFFIX,nia.peppernopepper.com,DIRECT\n"; // Your specific rule
+    echo "  - GEOIP,IR,DIRECT\n";
+    echo "  - DOMAIN-SUFFIX,ir,DIRECT\n";
+    echo "  - DOMAIN-SUFFIX,googleapis.com,". $fastName ."\n"; 
+    echo "  - DOMAIN-SUFFIX,gstatic.com,". $fastName ."\n";     
+    echo "  - MATCH," . $mainName . "\n"; 
+
+    exit;
+}
+
+
+
+
+
+  // === OUTPUT: SINGBOX (JSON) ===
+  if($singbox){
+    header('Content-Type: application/json; charset=UTF-8');
+    
+    $uniq = [];
+    foreach($mergedNodes as $ob){
+      $key = ($ob['type'] ?? '').'|'.($ob['server'] ?? '').'|'.($ob['server_port'] ?? '').'|'.($ob['uuid'] ?? '');
+      $uniq[$key] = $ob;
+    }
+    $mergedNodes = array_values($uniq);
+    
+    if(!$mergedNodes){ echo "{}"; exit; }
+    
+    $nodeTags = [];
+    foreach($mergedNodes as $ob){
+      if(!empty($ob['tag'])) $nodeTags[] = (string)$ob['tag'];
+    }
+    $nodeTags = array_values(array_unique($nodeTags));
+    $bestTag = 'Best Latency';
+    
+    $profile = [
+      'log' => ['level'=>'warn'],
+      'dns' => [
+        'strategy' => 'prefer_ipv4',
+        'servers' => [
+          ['tag'=>'dns-remote','address'=>'1.1.1.1','detour'=>'proxy'],
+          ['tag'=>'dns-local','address'=>'local','detour'=>'direct'],
+        ],
+        'rules' => [['outbound'=>'any','server'=>'dns-local']],
+        'final' => 'dns-remote',
+      ],
+      'inbounds' => [[
+        'type'=>'tun','tag'=>'tun-in','interface_name'=>'utun233',
+        'address'=>['172.19.0.1/30'],
+        'auto_route'=>true,'strict_route'=>false,'sniff'=>true,
+        'route_exclude_address'=>['::/0','fe80::/10','fc00::/7','192.168.0.0/16','10.0.0.0/8','169.254.0.0/16','172.16.0.0/12'],
+      ]],
+      'outbounds' => array_merge(
+        [
+          ['type'=>'direct','tag'=>'direct'],
+          ['type'=>'selector','tag'=>'proxy','default'=>$bestTag,'outbounds'=>array_merge([$bestTag], $nodeTags),'interrupt_exist_connections'=>true],
+          ['type'=>'urltest','tag'=>$bestTag,'outbounds'=>$nodeTags],
+        ],
+        $mergedNodes
+      ),
+      'route' => [
+        'auto_detect_interface'=>true,
+        'rules'=>[['protocol'=>'dns','action'=>'hijack-dns']],
+        'final'=>'proxy',
+      ],
+    ];
+    
+    echo json_encode($profile, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    if (function_exists('fastcgi_finish_request')) { ob_end_flush(); fastcgi_finish_request(); }
+    return;
+  }
+
+  // === OUTPUT: STANDARD (BASE64 TEXT) ===
+  header('Content-Type: text/plain; charset=UTF-8');
+  
+  $finalLinks = [];
+  foreach($mergedNodes as $node) {
+      $link = reconstruct_link_from_json($node);
+      if($link) $finalLinks[] = $link;
+  }
+
+  if(!$finalLinks){
+    echo "EMPTY";
+    exit;
+  }
+
+  $emergencyLinks = [];
+  if (emergency_enabled()) {
+      $emergencyLinks = get_emergency_links();
+  }
+
+  // If enabled, do standard order. If disabled, we only have one link anyway.
+  $bodyArray = [];
+  
+  if ($isEnabled) {
+      $infoLink = array_shift($finalLinks); 
+      if ($infoLink) $bodyArray[] = $infoLink;
+      if (!empty($emergencyLinks)) $bodyArray = array_merge($bodyArray, $emergencyLinks);
+      $bodyArray = array_merge($bodyArray, $finalLinks);
+  } else {
+      $bodyArray = $finalLinks; // Just the warning link
+  }
+  
+  $body = implode("\n", $bodyArray) . "\n";
+  
+  echo base64_encode($body);
+  
+  if (function_exists('fastcgi_finish_request')) {
+      ob_end_flush();
+      fastcgi_finish_request();
+  }
+}
+
+
+// ---------------- MAIN LOGIC ----------------
+
+try {
+  $pdo = new PDO(DB_DSN, DB_USER, DB_PASS, [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+} catch(Exception $e){
+  http_response_code(500);
+  echo "DB ERROR";
+  exit;
+}
+
+$token = trim((string)($_GET['t'] ?? ''));
+if($token==='' || !preg_match('/^[a-f0-9]{32}$/i',$token)){
+  http_response_code(400);
+  echo "BAD TOKEN";
+  exit;
+}
+
+$st=$pdo->prepare("SELECT s.* FROM reseller_sub_tokens t JOIN reseller_services s ON s.id=t.service_id WHERE t.token=? LIMIT 1");
+$st->execute([$token]);
+$svc=$st->fetch(PDO::FETCH_ASSOC);
+
+if(!$svc){
+  http_response_code(404);
+  echo "NOT FOUND";
+  exit;
+}
+
+$rainUsername = trim((string)($svc['rain_username'] ?? ''));
+$serviceName = trim((string)($svc['title'] ?? $svc['name'] ?? 'اشتراک شما'));
+
+// ---------------- USER USAGE DATA FROM DB (user_stats_cache) ----------------
+$stats = null;
+$logStats = null;
+
+// 1. Try to fetch from user_stats_cache (Real-time Panel Stats)
+try {
+    $stmt = $pdo->prepare("SELECT * FROM user_stats_cache WHERE username = ? LIMIT 1");
+    $stmt->execute([$rainUsername]);
+    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Table missing or error -> ignore
+}
+
+// 2. Try to fetch from reseller_usage_log (Database Logs - has Explicit Remaining)
+try {
+    $stmt = $pdo->prepare("SELECT * FROM reseller_usage_log WHERE username = ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$rainUsername]);
+    $logStats = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Table missing or error -> ignore
+}
+
+$upload = 0;
+$download = 0;
+$total = 0;
+$expire = 0;
+$fixedRemaining = null;
+
+// Determine stats source priority (Usage Only)
+if ($stats) {
+    // Primary: user_stats_cache
+    $upload   = (float)($stats['upload'] ?? $stats['u'] ?? 0);
+    $download = (float)($stats['download'] ?? $stats['d'] ?? 0);
+    $total    = (float)($stats['total'] ?? $stats['transfer_enable'] ?? 0);
+    $used     = $upload + $download;
+    
+    if (isset($stats['remaining'])) {
+        $fixedRemaining = (float)$stats['remaining'];
+    }
+} 
+elseif ($logStats) {
+    // Secondary: reseller_usage_log
+    $total = (float)($logStats['total_bytes'] ?? 0);
+    $used  = (float)($logStats['used_bytes'] ?? 0);
+    
+    if (isset($logStats['remaining_bytes'])) {
+        $fixedRemaining = (float)$logStats['remaining_bytes'];
+    }
+} 
+else {
+    // Fallback: reseller_services cache
+    $total  = (float)($svc['last_total_bytes'] ?? 0);
+    $used   = (float)($svc['last_used_bytes'] ?? 0);
+    
+    if ($total <= 0 && isset($svc['gb'])) {
+        $total = $svc['gb'] * 1024 * 1024 * 1024;
+    }
+    
+    if (isset($svc['last_remaining_bytes'])) {
+        $fixedRemaining = (float)$svc['last_remaining_bytes'];
+    }
+}
+
+// --- NEW STRICT EXPIRATION CHECK FROM reseller_services ---
+// Pulls expire_at from the DB and converts it to a usable Unix timestamp
+$expire = !empty($svc['expire_at']) ? strtotime($svc['expire_at']) : 0;
+
+
+// Calculate remaining bytes logic
+if ($fixedRemaining !== null) {
+    // If we have an explicit remaining value from DB, use it
+    $remainBytes = $fixedRemaining;
+    // Sanity check: if total is 0 (unlimited), remain shouldn't be hardcapped unless explicit
+    if ($total <= 0) $remainBytes = 999999999999; 
+} else {
+    // Standard calculation: total - used
+    $remainBytes = ($total > 0) ? max(0, $total - $used) : 0;
+}
+
+// --- CHECK IF DISABLED ---
+$isEnabled = true;
+// Check Service Status (if column exists)
+if (isset($svc['is_enabled']) && (int)$svc['is_enabled'] === 0) $isEnabled = false;
+if (isset($svc['enable']) && (int)$svc['enable'] === 0) $isEnabled = false;
+if (isset($svc['status']) && strtolower($svc['status']) === 'disabled') $isEnabled = false;
+
+// Check Stats Status (if user_stats_cache has status column)
+if ($stats && isset($stats['enable']) && (int)$stats['enable'] === 0) $isEnabled = false;
+
+$usageData = [
+    'total' => $total,
+    'used' => $used,
+    'expire' => $expire
+];
+// --- Determine Upstream URLs ---
+$urls = [];
+
+// 1. Fetch disabled panels list from SQL
+$disabledKeys = [];
+try {
+    $stmt = $pdo->query("SELECT panel_key FROM upstream_panel_status WHERE is_active = 0");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $disabledKeys[] = $row['panel_key'];
+    }
+} catch (Exception $e) {
+    // Table might not exist yet
+}
+
+// 2. Loop through ALL panels to trigger DB Stats Update
+// We use a temporary array so we can fetch everything first
+// =========================================================
+// ===     START ROBUST MULTI-PANEL USAGE TRACKING       ===
+// =========================================================
+// =========================================================
+// ===     START ROBUST MULTI-PANEL USAGE TRACKING       ===
+// =========================================================
+
+// =========================================================
+// ===     START ROBUST MULTI-PANEL USAGE TRACKING       ===
+// =========================================================
+
+// =========================================================
+// ===     START ROBUST MULTI-PANEL USAGE TRACKING       ===
+// ===     (FIXED: PARALLEL PROCESSING)                  ===
+// =========================================================
+
+// =========================================================
+// ===     START ROBUST MULTI-PANEL USAGE TRACKING       ===
+// ===     (FIXED: PARALLEL HEAD + GET RACE)             ===
+// =========================================================
+
+// =========================================================
+// ===     START ROBUST MULTI-PANEL USAGE TRACKING       ===
+// =========================================================
+
+// 1. INIT TABLE
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `user_panel_usages` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `username` VARCHAR(64) NOT NULL,
+        `panel_key` VARCHAR(64) NOT NULL,
+        `upload` BIGINT DEFAULT 0,
+        `download` BIGINT DEFAULT 0,
+        `total` BIGINT DEFAULT 0,
+        `offset_bytes` BIGINT DEFAULT 0, 
+        `last_updated` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY `unique_user_panel` (`username`, `panel_key`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+    
+    // Silently add the column to your existing table if it's missing
+    @$pdo->exec("ALTER TABLE `user_panel_usages` ADD COLUMN `offset_bytes` BIGINT DEFAULT 0 AFTER `total`");
+} catch (Exception $e) {}
+
+
+// 2. PREPARE MULTI-CURL (PARALLEL FETCHING)
+$collectedUrls = [];
+$panelList = [];
+
+// --- DEBUG: LOG CRITICAL VARIABLES ---
+if (defined('DEBUG_SUB') && DEBUG_SUB) {
+    debug_log("DEBUG START: Checking environment");
+    debug_log("Rain Username", $rainUsername);
+}
+
+if (function_exists('rain_panels')) {
+    $panelList = rain_panels();
+} elseif (defined('PANELS')) {
+    $panelList = PANELS;
+}
+
+// --- DEBUG: LOG PANEL COUNT ---
+if (empty($panelList)) {
+    debug_log("CRITICAL ERROR: Panel list is EMPTY. Check rain_api(2).php or PANELS constant.");
+} else {
+    debug_log("DEBUG: Panel Count", count($panelList));
+}
+
+$mh_stats = curl_multi_init();
+$stats_handles = []; 
+$anyPanelFailed = false;
+
+// Common Options
+$commonOptions = [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HEADER         => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_SSL_VERIFYHOST => 0,
+    CURLOPT_SSL_VERIFYPEER => 0,
+    CURLOPT_USERAGENT      => 'v2rayNG',
+    CURLOPT_CONNECTTIMEOUT => 4,    // Fast connect
+    CURLOPT_TIMEOUT        => 6,    // Total max wait
+];
+
+// A. Create Handles (2 per panel: HEAD & GET)
+foreach ($panelList as $panel) {
+    $panelKey = $panel['key'] ?? $panel['id'] ?? md5($panel['api_base'] ?? $panel['api_url'] ?? 'unknown');
+
+    // Generate Subscription URL
+    $sub = rain_get_subscription_url_any_panel($panel, $rainUsername);
+    
+    // --- FIX: Force phonepanel.ir to use dash.phonepanel.ir ---
+
+
+    // --- DEBUG: CHECK GENERATION ---
+    if (!$sub) { 
+        debug_log("WARNING: Could not generate sub URL for panel", $panelKey);
+        $anyPanelFailed = true; 
+        continue; 
+    }
+
+    // Check if hidden
+    $pKey = $panel['key'] ?? '';
+    $isHidden = ($pKey !== '' && isset($disabledKeys) && in_array($pKey, $disabledKeys));
+
+    // Normalize
+    $sub = normalize_azadpanel_sub_url($sub, $panel);
+    if (!$sub) { 
+        debug_log("WARNING: URL Normalization failed for panel", $panelKey);
+        $anyPanelFailed = true; 
+        continue; 
+    }
+
+    // --- CRITICAL: ADD TO LIST IF NOT HIDDEN ---
+      // --- CRITICAL: ADD TO LIST IF NOT HIDDEN ---
+    if (!$isHidden) {
+        $collectedUrls[$panelKey] = $sub; // Attach the exact config key!
+    } else {
+
+        debug_log("INFO: Panel hidden by config", $panelKey);
+    }
+
+    // --- 1. HEAD Request ---
+    $ch_head = curl_init($sub);
+    curl_setopt_array($ch_head, $commonOptions);
+    curl_setopt($ch_head, CURLOPT_NOBODY, true);
+    curl_multi_add_handle($mh_stats, $ch_head);
+
+    // --- 2. GET Request (Range 0-10) ---
+    $ch_get = curl_init($sub);
+    curl_setopt_array($ch_get, $commonOptions);
+    curl_setopt($ch_get, CURLOPT_NOBODY, false);
+    curl_setopt($ch_get, CURLOPT_RANGE, '0-10');
+    curl_multi_add_handle($mh_stats, $ch_get);
+
+    // Store handles
+    $stats_handles[$panelKey]['head'] = $ch_head;
+    $stats_handles[$panelKey]['get']  = $ch_get;
+    $stats_handles[$panelKey]['url']  = $sub;
+}
+
+// B. Execute All Simultaneously
+$running = null;
+do {
+    $status = curl_multi_exec($mh_stats, $running);
+    curl_multi_select($mh_stats, 0.05);
+} while ($running > 0 && $status == CURLM_OK);
+
+// C. Process Results
+foreach ($stats_handles as $pKey => $handles) {
+    $nodeStats = null;
+    
+    // Helper to extract stats
+    $parseContent = function($content) {
+        if ($content && stripos($content, 'Subscription-Userinfo') !== false) {
+            if (preg_match('/Subscription-Userinfo:\s*(.*)/i', $content, $matches)) {
+                $data = [];
+                foreach (explode(';', $matches[1]) as $part) {
+                    $kv = explode('=', trim($part));
+                    if (count($kv) === 2) $data[trim($kv[0])] = (float)trim($kv[1]);
+                }
+                return $data;
+            }
+        }
+        return null;
+    };
+
+    // Check HEAD result first
+    $ch_head = $handles['head'];
+    $contentHead = curl_multi_getcontent($ch_head);
+    $nodeStats = $parseContent($contentHead);
+
+    // If HEAD failed, check GET result
+    if (!$nodeStats) {
+        $ch_get = $handles['get'];
+        $contentGet = curl_multi_getcontent($ch_get);
+        $nodeStats = $parseContent($contentGet);
+    }
+
+    // Cleanup handles
+    curl_multi_remove_handle($mh_stats, $handles['head']);
+    curl_multi_remove_handle($mh_stats, $handles['get']);
+    curl_close($handles['head']);
+    curl_close($handles['get']);
+
+    if ($nodeStats) {
+        // SUCCESS: Update DB
+        try {
+            $stmt = $pdo->prepare("
+                INSERT INTO user_panel_usages 
+                (username, panel_key, upload, download, total) 
+                VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE 
+                upload = VALUES(upload), 
+                download = VALUES(download), 
+                total = VALUES(total),
+                last_updated = NOW()
+            ");
+            $stmt->execute([
+                $rainUsername,
+                $pKey,
+                (float)($nodeStats['upload'] ?? 0),
+                (float)($nodeStats['download'] ?? 0),
+                (float)($nodeStats['total'] ?? 0)
+            ]);
+        } catch (Exception $e) {}
+    } else {
+        // FAIL (Both requests failed)
+        $anyPanelFailed = true;
+        if (defined('DEBUG_SUB') && DEBUG_SUB) debug_log("Panel DOWN or No Stats: $pKey");
+    }
+}
+curl_multi_close($mh_stats);
+
+// 3. FILTER ENABLED/DISABLED FOR OUTPUT
+if ($isEnabled) {
+    $urls = $collectedUrls;
+} else {
+    $urls = [];
+}
+
+// --- DEBUG: LOG FINAL URL COUNT ---
+debug_log("DEBUG: Final collected URLs count", count($urls));
+
+// 4. AGGREGATE & SAFETY CHECK
+try {
+    // A. Calculate NEW Sum (With Offset Support)
+    $sumStmt = $pdo->prepare("
+        SELECT 
+            SUM(upload) as total_up, 
+            SUM(download) as total_down, 
+            SUM(offset_bytes) as total_offset,
+            MAX(total) as max_total 
+        FROM user_panel_usages 
+        WHERE username = ?
+    ");
+    $sumStmt->execute([$rainUsername]);
+    $aggStats = $sumStmt->fetch(PDO::FETCH_ASSOC);
+
+    $rawUsed = ($aggStats) ? ((float)$aggStats['total_up'] + (float)$aggStats['total_down']) : 0;
+    $totalOffset = ($aggStats) ? (float)$aggStats['total_offset'] : 0;
+    
+    // Subtract the old historical data from the calculation!
+$newUsed = max(0, $rawUsed - $totalOffset);
+
+// Add AWG usage
+$awgUsed = (float)($svc['awg_total'] ?? 0);
+
+$newUsed += $awgUsed; 
+    $newTotal = ($aggStats) ? (float)$aggStats['max_total'] : 0;
+
+    // B. Get OLD Sum
+    $oldUsed = 0;
+    if ($stats) {
+        $oldUsed = (float)($stats['upload'] ?? 0) + (float)($stats['download'] ?? 0);
+    } elseif ($svc) {
+        $oldUsed = (float)($svc['last_used_bytes'] ?? 0);
+    }
+
+    // C. SAFETY LOGIC
+    $shouldUpdateCache = true;
+    
+    // If a panel failed AND the new usage is oddly lower than before (and zero), suspect data loss
+    if ($anyPanelFailed && $newUsed < $oldUsed && $newUsed == 0) {
+        $shouldUpdateCache = false;
+        $used = $oldUsed; 
+    } else {
+        if ($newUsed > 0) $used = $newUsed;
+    }
+
+    // 🔥 FIX: FORCE TOTAL AND EXPIRE DIRECTLY FROM RESELLER_SERVICES
+    $total = (float)($svc['gb'] ?? 0) * 1073741824; // 1024^3
+    $expire = !empty($svc['expire_at']) ? strtotime($svc['expire_at']) : 0;
+
+
+    // D. UPDATE MAIN CACHE
+    if ($shouldUpdateCache && ($used > 0 || $total > 0)) {
+        try {
+            // Added expire_ts=? to force the cache to mirror your reseller_services expiration date
+            $fixCache = $pdo->prepare("UPDATE user_stats_cache SET used_bytes=?, total_bytes=?, expire_ts=?, last_updated=? WHERE token=?");
+            $fixCache->execute([$used, $total, $expire, time(), $token]);
+        } catch (Exception $e) {}
+    }
+
+
+    // Update Display Variables
+    $remainBytes = ($total > 0) ? max(0, $total - $used) : 999999999999;
+    $percent = ($total > 0) ? min(100, round(($used/$total)*100)) : 0;
+    $usedHuman = b2h($used);
+    $totalHuman = ($total > 0) ? b2h($total) : '∞';
+    $remainHuman = ($total > 0) ? b2h($remainBytes) : '∞';
+    
+    $usageData = [
+        'total' => $total,
+        'used' => $used,
+        'expire' => $expire
+    ];
+
+} catch (Exception $e) {
+    debug_log("Aggregation Error", $e->getMessage());
+}
+
+
+
+debug_log('RAW upstream URLs', $urls);
+// --- NORMALIZE & FIX URLS ---
+$normUrls = [];
+foreach($urls as $pKey => $u){
+    $u = trim($u);
+    if(!$u) continue;
+    
+    // FIX BROKEN MAIN PANEL DOMAINS
+    if (strpos($u, 'https:///sub/') === 0) {
+        $u = str_replace('https:///', MAIN_PANEL_DOMAIN . '/', $u);
+    } 
+    elseif (strpos($u, '/sub/') === 0) {
+         $u = MAIN_PANEL_DOMAIN . $u;
+    }
+    
+    if (strpos($u, 'http') !== 0) {
+        $u = 'https://' . $u;
+    }
+    
+    $normUrls[$pKey] = $u; // Keep the key!
+}
+$normUrls = array_unique($normUrls); // array_values removed to protect the key
+
+
+if($isEnabled && !$normUrls){
+  http_response_code(502);
+  echo "NO UPSTREAM URLS FOUND";
+  exit;
+}
+
+$publicSubUrl = SELF_SUB_URL . '?t=' . rawurlencode($token);
+
+// ---------------- APP / SUBSCRIPTION RESPONSE ----------------
+if (is_subscription_client()) {
+  // FIX: Use BASE64 for Title as requested
+  header("Profile-Title: " . base64_encode($serviceName));
+  // Content-Disposition uses rawurlencode for safety
+  header("Content-Disposition: attachment; filename=\"" . rawurlencode($serviceName) . "\"");
+  // UserInfo: explicit remaining bytes included
+  header("Subscription-Userinfo: upload=$upload; download=$download; total=$total; expire=$expire; remaining=$remainBytes");
+  header("Profile-Update-Interval: 3600");
+  
+  fetch_multi_subscription_and_output($normUrls, $token, $serviceName, $usageData, $isEnabled);
+  exit;
+}
+
+// ---------------- BROWSER UI (PREMIUM APP FEEL) ----------------
+$percent = ($total > 0) ? min(100, round(($used/$total)*100)) : 0;
+$usedHuman = b2h($used);
+$totalHuman = ($total > 0) ? b2h($total) : '∞';
+$remainHuman = ($total > 0) ? b2h($remainBytes) : '∞';
+$expireText = ($expire > 0) ? date('Y/m/d', $expire) : 'نامحدود';
+
+$statusClass = $isEnabled ? 'status-active' : 'status-disabled';
+$statusText  = $isEnabled ? 'فعال' : 'غیرفعال';
+
+$v2boxInstallSub = "v2box://install-sub?url=".rawurlencode($publicSubUrl)."&name=".rawurlencode($serviceName);
+$singboxImport   = "sing-box://import-remote-profile?url=".rawurlencode($publicSubUrl)."#".rawurlencode($serviceName);
+$qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" . rawurlencode($publicSubUrl);
+
+header('Content-Type: text/html; charset=UTF-8');
+?>
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title><?php echo h($serviceName); ?></title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700;900&display=swap');
+    
+    :root {
+        --primary: #3B82F6;
+        --primary-gradient: linear-gradient(135deg, #3B82F6, #2563EB);
+        --bg-color: #F8FAFC;
+        --card-bg: #FFFFFF;
+        --text-main: #0F172A;
+        --text-sub: #64748B;
+        --border: #E2E8F0;
+        --radius: 24px;
+        --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+        --danger: #EF4444;
+        --success: #10B981;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+        margin: 0;
+        font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg-color);
+        color: var(--text-main);
+        padding: 24px;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow-x: hidden;
+    }
+
+    .container {
+        width: 100%;
+        max-width: 440px;
+        margin: 0 auto;
+        position: relative;
+        z-index: 2;
+    }
+
+    .card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 32px 24px;
+        box-shadow: var(--shadow);
+        margin-bottom: 24px;
+        text-align: center;
+        transition: transform 0.2s ease;
+    }
+    
+    .card:hover { transform: translateY(-2px); }
+
+    .header-icon {
+        width: 80px;
+        height: 80px;
+        background: var(--primary-gradient);
+        color: white;
+        border-radius: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px auto;
+        font-size: 32px;
+        box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+    }
+
+    h1 { 
+        margin: 0 0 10px 0; 
+        font-size: 1.6rem; 
+        font-weight: 800; 
+        letter-spacing: -0.5px;
+    }
+    
+    .status-badge { 
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px; 
+        border-radius: 99px; 
+        font-size: 0.85rem; 
+        font-weight: 700;
+        margin-bottom: 28px;
+    }
+    .status-active { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+    .status-disabled { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+    /* Progress Bar */
+    .usage-card {
+        background: #F1F5F9;
+        border-radius: 20px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+    .progress-track {
+        height: 16px;
+        background: #E2E8F0;
+        border-radius: 99px;
+        overflow: hidden;
+        margin-bottom: 14px;
+        position: relative;
+    }
+    .progress-fill {
+        height: 100%;
+        background: var(--primary-gradient);
+        border-radius: 99px;
+        width: <?php echo $percent; ?>%;
+        transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    }
+    .usage-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.95rem;
+        color: var(--text-sub);
+        font-weight: 600;
+    }
+    .usage-meta strong { color: var(--text-main); font-weight: 800; }
+
+    /* Stats Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    .stat-box {
+        background: #F1F5F9;
+        padding: 16px;
+        border-radius: 20px;
+        text-align: center;
+    }
+    .stat-label { font-size: 0.85rem; color: var(--text-sub); margin-bottom: 6px; display: block; font-weight: 500; }
+    .stat-val { font-size: 1.15rem; font-weight: 800; color: var(--text-main); }
+
+    /* Actions */
+    .btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        padding: 18px;
+        background: #F1F5F9;
+        color: var(--text-main);
+        text-decoration: none;
+        border-radius: 20px;
+        font-weight: 700;
+        margin-bottom: 14px;
+        border: none;
+        font-family: inherit;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn:active { transform: scale(0.96); }
+    .btn-primary {
+        background: var(--primary-gradient);
+        color: white;
+        box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.3);
+    }
+    
+    .copy-box {
+        background: #F8FAFC;
+        border: 2px dashed #CBD5E1;
+        padding: 14px;
+        border-radius: 16px;
+        font-family: monospace;
+        color: var(--text-sub);
+        font-size: 0.9rem;
+        word-break: break-all;
+        margin-top: 24px;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+    .copy-box:hover { border-color: var(--primary); color: var(--primary); }
+
+    .qr-img {
+        width: 100%;
+        max-width: 180px;
+        border-radius: 24px;
+        margin-top: 10px;
+        background: white;
+        padding: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+    }
+    
+    svg { width: 22px; height: 22px; }
+    
+    /* Disabled Overlay Effect */
+    <?php if(!$isEnabled): ?>
+    .usage-card, .stats-grid { opacity: 0.6; pointer-events: none; }
+    <?php endif; ?>
+  </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header-icon">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            </div>
+            <h1><?php echo h($serviceName); ?></h1>
+            <div class="status-badge <?php echo $statusClass; ?>">
+                <div class="status-dot"></div>
+                <?php echo $statusText; ?>
+            </div>
+
+            <div class="usage-card">
+                <div class="progress-track">
+                    <div class="progress-fill"></div>
+                </div>
+                <div class="usage-meta">
+                    <span><?php echo $percent; ?>% مصرف</span>
+                    <strong><?php echo h($usedHuman); ?> / <?php echo h($totalHuman); ?></strong>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <span class="stat-label">باقی‌مانده</span>
+                    <span class="stat-val"><?php echo h($remainHuman); ?></span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">انقضا</span>
+                    <span class="stat-val"><?php echo h($expireText); ?></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <?php if($isEnabled): ?>
+                <a href="<?php echo h($v2boxInstallSub); ?>" class="btn btn-primary">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    افزودن به V2Box
+                </a>
+                <a href="<?php echo h($singboxImport); ?>" class="btn">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                    افزودن به Sing-box
+                </a>
+            <?php else: ?>
+                <div class="btn" style="background: rgba(239, 68, 68, 0.1); color: var(--danger);">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    سرویس غیرفعال است
+                </div>
+            <?php endif; ?>
+            
+            <button class="btn" onclick="copyLink()">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                کپی لینک اشتراک
+            </button>
+            
+            <div class="copy-box" id="linkBox" onclick="copyLink()"><?php echo h($publicSubUrl); ?></div>
+            
+            <div style="text-align:center; margin-top:20px;">
+                <img src="<?php echo h($qrUrl); ?>" class="qr-img" alt="QR Code">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyLink() {
+            const text = document.getElementById('linkBox').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('button.btn');
+                const original = btn.innerHTML;
+                btn.innerHTML = 'کپی شد!';
+                btn.style.background = '#D1FAE5';
+                btn.style.color = '#065F46';
+                setTimeout(() => {
+                    btn.innerHTML = original;
+                    btn.style.background = '#F1F5F9';
+                    btn.style.color = '#0F172A';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
+<?php
+if (function_exists('fastcgi_finish_request')) {
+    ob_end_flush();
+    fastcgi_finish_request();
+}
+?>

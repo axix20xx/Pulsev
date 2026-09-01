@@ -1,0 +1,573 @@
+<?php
+// views/services.php — NATIVE PRO OS EDITION (Sleek UI/UX & Bug-Free Modals)
+// =================================================================================
+// 0. INITIALIZATION
+// =================================================================================
+if (session_status() === PHP_SESSION_NONE) session_start();
+if (!isset($_SESSION['tg_id'])) { die("Access Denied"); }
+
+$rid = $_SESSION['tg_id'];
+
+// --- Helper Functions ---
+if(!function_exists('formatBytes')) {
+    function formatBytes($bytes) { 
+        if($bytes == 0) return '0 MB';
+        $i = floor(log($bytes, 1024));
+        return round($bytes / pow(1024, $i), 2) . ' ' . ['B','KB','MB','GB','TB'][$i];
+    }
+}
+if(!function_exists('tsToJalali')) {
+    function tsToJalali($timestamp) {
+        if(!$timestamp || $timestamp <= 0) return 'نامحدود';
+        
+        $g_d=date('j',$timestamp); $g_m=date('n',$timestamp); $g_y=date('Y',$timestamp);
+        $d_4=$g_y%4; $g_a=array(0,0,31,59,90,120,151,181,212,243,273,304,334);
+        $doy_g=$g_a[$g_m]+$g_d; if($d_4==0 && $g_m>2)$doy_g++;
+        $d_33=(int)((($g_y-16)%132)*.0305); $a=($d_33==3 || $d_33<($d_4-1) || $d_4==0)?286:287;
+        $b=(($d_33==1 || $d_33==2) && ($d_33==$d_4 || $d_4==1))?19:20;
+        if($doy_g>79){$j_y=$g_y-621; $doy_j=$doy_g-79;}else{$j_y=$g_y-622; $doy_j=$doy_g+$a;}
+        if($doy_j<187){$j_m=(int)(($doy_j-1)/31); $j_d=$doy_j-(31*$j_m); $j_m++;}else{$j_m=(int)(($doy_j-187)/30); $j_d=$doy_j-186-($j_m*30); $j_m+=7;}
+        return $j_y.'/'.sprintf('%02d',$j_m).'/'.sprintf('%02d',$j_d);
+    }
+}
+if(!function_exists('relativeTime')) {
+    function relativeTime($ts) {
+        if(!$ts || $ts <= 0) return 'نامحدود';
+        $diff = $ts - time();
+        $absDiff = abs($diff);
+        $units = [31536000 => 'سال', 2592000 => 'ماه', 604800 => 'هفته', 86400 => 'روز', 3600 => 'ساعت', 60 => 'دقیقه'];
+        foreach ($units as $val => $str) {
+            if ($absDiff >= $val) {
+                $count = floor($absDiff / $val);
+                $suffix = ($diff > 0) ? 'مانده' : 'پیش';
+                return "$count $str $suffix";
+            }
+        }
+        return ($diff > 0) ? 'همین الان' : 'منقضی شده';
+    }
+}
+
+// --- Handle Note Saving (POST) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_note') {
+    $sid = $_POST['service_id'];
+    $note = $_POST['note_content'];
+    $stmt = $pdo->prepare("UPDATE reseller_services SET admin_notes = ? WHERE id = ? AND reseller_tg_id = ?");
+    $stmt->execute([$note, $sid, $rid]);
+    header("Location: ?page=services"); exit;
+}
+
+// =================================================================================
+// 1. DATA FILTERING & QUERY
+// =================================================================================
+
+$mode = $_GET['mode'] ?? 'all'; 
+$filter = 'all';
+$sort = 'newest';
+$gb = 'all';
+
+switch ($mode) {
+    case 'active': $filter = 'active'; break;
+    case 'expired': $filter = 'expired'; break;
+    case 'usage': $sort = 'usage'; break;
+    default:
+        if (strpos($mode, 'gb_') === 0) {
+            $gb = (int)str_replace('gb_', '', $mode);
+        }
+        break;
+}
+
+// Pagination
+$limit = 20;
+$page = isset($_GET['p']) ? max(1, (int)$_GET['p']) : 1;
+$offset = ($page - 1) * $limit;
+
+// Query Construction
+$where = ["rs.reseller_tg_id = ?"];
+$params = [$rid];
+
+// Search Logic
+$search = $_GET['q'] ?? '';
+if($search) {
+    $where[] = "(rs.label LIKE ? OR rc.full_name LIKE ? OR rc.phone LIKE ? OR rs.rain_username LIKE ? OR rs.admin_notes LIKE ?)";
+    $val = "%$search%";
+    $params[] = $val; $params[] = $val; $params[] = $val; $params[] = $val; $params[] = $val;
+}
+
+if ($filter === 'active') $where[] = "rs.status = 'active'";
+if ($filter === 'expired') $where[] = "rs.status != 'active'";
+if ($gb !== 'all') {
+    $where[] = "rs.gb = ?";
+    $params[] = $gb;
+}
+
+$whereSql = " WHERE " . implode(" AND ", $where);
+
+// Sorting
+$orderSql = " ORDER BY rs.id DESC"; 
+if ($sort === 'usage') $orderSql = " ORDER BY final_used_bytes DESC";
+
+// --- DB Operations ---
+// 1. Get GB Tags
+$gbStmt = $pdo->prepare("SELECT DISTINCT gb FROM reseller_services WHERE reseller_tg_id = ? ORDER BY gb ASC");
+$gbStmt->execute([$rid]);
+$availableGbs = $gbStmt->fetchAll(PDO::FETCH_COLUMN);
+
+// 2. Count
+$countStmt = $pdo->prepare("SELECT COUNT(*) FROM reseller_services rs LEFT JOIN reseller_customers rc ON rs.customer_id = rc.id $whereSql");
+$countStmt->execute($params);
+$totalRows = $countStmt->fetchColumn();
+$totalPages = ceil($totalRows / $limit);
+
+// 3. Fetch Data
+$sql = "SELECT 
+            rs.*, 
+            rc.full_name, 
+            rc.phone,
+            rs.rain_username,
+            rst.token as sub_token,
+            COALESCE(usc.used_bytes, rs.last_used_bytes, 0) AS final_used_bytes,
+            CASE 
+                WHEN usc.expire_ts IS NOT NULL AND usc.expire_ts > 0 THEN usc.expire_ts
+                ELSE UNIX_TIMESTAMP(rs.expire_at)
+            END AS final_expire_ts,
+            DATEDIFF(NOW(), rs.created_at) as days_active
+        FROM reseller_services rs
+        LEFT JOIN reseller_customers rc ON rs.customer_id = rc.id
+        LEFT JOIN reseller_sub_tokens rst ON rs.id = rst.service_id
+        LEFT JOIN user_stats_cache usc ON rst.token COLLATE utf8mb4_unicode_ci = usc.token
+        $whereSql
+        $orderSql
+        LIMIT $limit OFFSET $offset";
+
+try {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $services = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $services = [];
+}
+?>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+    /* =========================================
+       NATIVE UI CSS RESET & SETUP
+       ========================================= */
+    .view-fade-in {
+        animation: smoothFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        padding-bottom: 120px; /* Dock space */
+    }
+    @keyframes smoothFade {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .tnum { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+
+    /* Ring Chart (Apple Fitness Style) */
+    .ring-chart {
+        position: relative; border-radius: 50%; display: grid; place-items: center;
+        background-color: rgba(0,0,0,0.05);
+    }
+    .ring-chart::before {
+        content: ''; position: absolute; inset: 4.5px; background: #ffffff;
+        border-radius: 50%; z-index: 1;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .ring-chart-val { position: relative; z-index: 2; font-weight: 800; }
+
+    /* Desktop Table Details */
+    .pro-table th { border-bottom: 1px solid rgba(0,0,0,0.06); }
+    .pro-table td { border-bottom: 1px solid rgba(0,0,0,0.04); }
+    .pro-table tr:last-child td { border-bottom: none; }
+
+    /* =========================================
+       BULLETPROOF MODAL ARCHITECTURE
+       ========================================= */
+    .mac-modal-overlay {
+        position: fixed; inset: 0; z-index: 9999999;
+        background: rgba(0,0,0,0.4); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+        opacity: 0; visibility: hidden; transition: all 0.3s ease;
+        display: flex; flex-direction: column; justify-content: flex-end;
+        overscroll-behavior: none; /* Stops iOS from scrolling background */
+    }
+    .mac-modal-overlay.active {
+        opacity: 1; visibility: visible;
+    }
+    .mac-modal-sheet {
+        background: #ffffff; width: 100%; border-radius: 28px 28px 0 0;
+        transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+        max-height: 90vh; display: flex; flex-direction: column;
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+        box-shadow: 0 -10px 40px rgba(0,0,0,0.1);
+    }
+    @media (min-width: 1024px) {
+        .mac-modal-overlay { justify-content: center; align-items: center; }
+        .mac-modal-sheet { max-width: 440px; border-radius: 24px; padding-bottom: 0; transform: scale(0.95) translateY(20px); }
+    }
+    .mac-modal-overlay.active .mac-modal-sheet {
+        transform: translateY(0) scale(1);
+    }
+    .mac-modal-body {
+        overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 20px;
+    }
+
+    /* Toast */
+    .toast-msg {
+        position: fixed; top: 20px; left: 50%; transform: translate(-50%, -100px);
+        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s;
+        opacity: 0; z-index: 9999999; pointer-events: none;
+    }
+    .toast-msg.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+</style>
+
+<div class="view-fade-in w-full flex flex-col gap-6">
+
+    <div id="copyToast" class="toast-msg bg-white/95 backdrop-blur-xl border border-black/5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] px-5 py-3 rounded-full flex items-center gap-2">
+        <span class="icon text-[#34C759] text-[22px]">check_circle</span>
+        <span class="font-bold text-[13px] text-[#1D1D1F]">لینک با موفقیت کپی شد</span>
+    </div>
+
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 px-1">
+        <div>
+            <h1 class="text-3xl font-black text-[#1D1D1F] tracking-tight">مدیریت سرورها</h1>
+            <p class="text-[14px] font-semibold text-[#86868B] mt-1">مدیریت کاربران و وضعیت اتصالات</p>
+        </div>
+
+        <form method="GET" class="w-full lg:w-[320px] relative">
+            <input type="hidden" name="page" value="services">
+            <input type="hidden" name="mode" value="<?= $mode ?>">
+            <span class="icon absolute right-4 top-1/2 -translate-y-1/2 text-[#86868B] text-[22px]">search</span>
+            <input type="text" name="q" value="<?= htmlspecialchars($search) ?>" placeholder="جستجوی کاربر یا یوزرنیم..." class="w-full bg-white border border-black/10 focus:border-[#007AFF] focus:ring-4 focus:ring-[#007AFF]/10 text-[#1D1D1F] text-[14px] font-bold rounded-full py-3.5 pr-12 pl-4 outline-none transition-all shadow-sm">
+        </form>
+    </div>
+
+    <div class="flex flex-col gap-4 px-1">
+        
+        <div class="bg-black/5 p-1 rounded-2xl flex items-center w-full lg:w-max">
+            <?php
+            $segments = [
+                ['id' => 'all', 'label' => 'همه سرویس‌ها'],
+                ['id' => 'active', 'label' => 'فقط فعال'],
+                ['id' => 'expired', 'label' => 'منقضی شده']
+            ];
+            foreach($segments as $seg):
+                $isActive = $mode === $seg['id'];
+            ?>
+            <button type="button" onclick="setMode('<?= $seg['id'] ?>')" class="flex-1 lg:px-8 py-2.5 rounded-[12px] font-bold text-[13px] transition-all <?= $isActive ? 'bg-white shadow-sm text-[#1D1D1F]' : 'text-[#86868B] hover:text-[#1D1D1F]' ?>">
+                <?= $seg['label'] ?>
+            </button>
+            <?php endforeach; ?>
+        </div>
+
+        <?php if(!empty($availableGbs)): ?>
+        <div class="flex flex-wrap gap-2">
+            <?php foreach($availableGbs as $gVal): 
+                $isActive = $mode === 'gb_'.$gVal;
+            ?>
+            <button type="button" onclick="setMode('gb_<?= $gVal ?>')" class="px-4 py-1.5 rounded-full font-bold text-[12px] transition-all border <?= $isActive ? 'bg-[#AF52DE] border-[#AF52DE] text-white shadow-md' : 'bg-white border-black/10 text-[#86868B] hover:bg-black/5 hover:text-[#1D1D1F]' ?>">
+                <?= $gVal ?> گیگ
+            </button>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
+    </div>
+
+    <?php if(empty($services)): ?>
+        <div class="w-full bg-white rounded-[2rem] p-12 flex flex-col items-center justify-center text-center shadow-sm border border-black/5 mt-4">
+            <div class="w-20 h-20 bg-black/5 rounded-[1.5rem] flex items-center justify-center mb-4">
+                <span class="icon text-[42px] text-[#86868B]">folder_off</span>
+            </div>
+            <h3 class="text-xl font-black text-[#1D1D1F]">سرویسی یافت نشد</h3>
+            <p class="text-[14px] font-semibold text-[#86868B] mt-2">با فیلترهای انتخاب شده هیچ موردی پیدا نشد.</p>
+        </div>
+    <?php else: ?>
+
+        <div class="hidden lg:block bg-white rounded-[2rem] p-4 shadow-sm border border-black/5 overflow-x-auto">
+            <table class="pro-table w-full text-right">
+                <thead>
+                    <tr>
+                        <th class="py-4 px-4 text-[#86868B] font-bold text-[13px]">کاربر / شناسه</th>
+                        <th class="py-4 px-4 text-[#86868B] font-bold text-[13px]">وضعیت</th>
+                        <th class="py-4 px-4 text-[#86868B] font-bold text-[13px]">مصرف ترافیک</th>
+                        <th class="py-4 px-4 text-[#86868B] font-bold text-[13px]">تاریخ انقضا</th>
+                        <th class="py-4 px-4 text-[#86868B] font-bold text-[13px] text-center">ابزارها</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($services as $row): 
+                        $total = $row['gb'] * 1024*1024*1024;
+                        $used = $row['final_used_bytes'];
+                        $pct = ($total > 0) ? min(100, ($used/$total)*100) : 0;
+                        $isExp = ($row['final_expire_ts'] < time() && $row['final_expire_ts'] > 0);
+                        $isActive = ($row['status'] == 'active' && !$isExp);
+                        $link = "https://nia.peppernopepper.com/sub.php?t=" . $row['sub_token'];
+
+                        $barColor = '#007AFF'; 
+                        if($pct > 80) $barColor = '#FF9500'; 
+                        if($pct > 95 || $isExp) $barColor = '#FF2D55'; 
+                        
+                        $wNum = preg_replace('/[^0-9]/', '', $row['phone']); 
+                        if(substr($wNum, 0, 1) === '0') { $wNum = substr($wNum, 1); }
+                        if(substr($wNum, 0, 2) !== '98') { $wNum = '98' . $wNum; }
+                        $waMsg = $isActive ? "سلام {$row['full_name']}، سرویس شما تا 3 روز دیگر منقضی می‌شود." : "سلام، سرویس شما منقضی شده است.";
+                        if($isActive && ($row['final_expire_ts'] - time() > 259200)) $waMsg = "سلام، لینک اتصال شما:\n$link";
+                        $waLink = "https://wa.me/{$wNum}?text=" . urlencode($waMsg);
+
+                        $isHeavyUser = ($used / max(1, $row['days_active']) > (5 * 1073741824));
+                    ?>
+                    <tr class="transition-colors hover:bg-black/5 cursor-pointer group" onclick="window.location.href='?page=detail&id=<?= $row['id'] ?>'">
+                        
+                        <td class="py-4 px-4">
+                            <div class="font-black text-[15px] text-[#1D1D1F] group-hover:text-[#007AFF] transition-colors"><?= htmlspecialchars($row['full_name'] ?: 'بدون نام') ?></div>
+                            <div class="font-semibold text-[12px] text-[#86868B] mt-0.5"><?= $row['rain_username'] ?: $row['phone'] ?></div>
+                            <?php if($row['admin_notes']): ?>
+                                <div class="mt-1 flex items-center gap-1 text-[11px] font-bold text-[#FF9500] bg-[#FF9500]/10 px-2 py-0.5 rounded w-max">
+                                    <span class="icon text-[14px]">edit_note</span>
+                                    <span><?= mb_substr($row['admin_notes'],0,20) ?>...</span>
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                        
+                        <td class="py-4 px-4">
+                            <?php if($isActive): ?>
+                                <div class="inline-flex items-center gap-1.5 bg-[#34C759]/10 text-[#34C759] px-3 py-1 rounded-full font-bold text-[12px]">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse"></div> فعال
+                                </div>
+                            <?php else: ?>
+                                <div class="inline-flex items-center gap-1.5 bg-[#FF2D55]/10 text-[#FF2D55] px-3 py-1 rounded-full font-bold text-[12px]">
+                                    <span class="icon text-[14px]">cancel</span> منقضی
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                        
+                        <td class="py-4 px-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-24 h-2 rounded-full bg-black/5 overflow-hidden">
+                                    <div class="h-full rounded-full" style="width:<?= $pct ?>%; background:<?= $barColor ?>;"></div>
+                                </div>
+                                <span class="font-bold text-[13px] tnum" style="color:<?= $barColor ?>;"><?= round($pct) ?>%</span>
+                                <?php if($isHeavyUser): ?><span class="text-[14px]">🔥</span><?php endif; ?>
+                            </div>
+                        </td>
+                        
+                        <td class="py-4 px-4">
+                            <div class="font-bold text-[14px] text-[#1D1D1F]"><?= tsToJalali($row['final_expire_ts']) ?></div>
+                            <div class="font-semibold text-[11px] text-[#86868B] mt-0.5"><?= relativeTime($row['final_expire_ts']) ?></div>
+                        </td>
+                        
+                        <td class="py-4 px-4 text-center">
+                            <div class="flex justify-center items-center gap-2">
+                                <button type="button" onclick="event.stopPropagation(); openAppModal('qrModal', '<?= $link ?>')" class="w-9 h-9 rounded-xl bg-black/5 hover:bg-black/10 text-[#1D1D1F] flex items-center justify-center transition-all active:scale-95">
+                                    <span class="icon text-[20px]">qr_code</span>
+                                </button>
+                                <button type="button" onclick="event.stopPropagation(); window.open('<?= $waLink ?>','_blank')" class="w-9 h-9 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] flex items-center justify-center transition-all active:scale-95">
+                                    <span class="icon text-[20px]">chat</span>
+                                </button>
+                                <button type="button" onclick="event.stopPropagation(); openAppModal('noteModal', {id: <?= $row['id'] ?>, txt: '<?= htmlspecialchars($row['admin_notes'] ?? '') ?>'})" class="w-9 h-9 rounded-xl bg-[#FF9500]/10 hover:bg-[#FF9500]/20 text-[#FF9500] flex items-center justify-center transition-all active:scale-95">
+                                    <span class="icon text-[20px]">edit_note</span>
+                                </button>
+                                <button type="button" onclick="event.stopPropagation(); copyTxt('<?= $link ?>')" class="w-9 h-9 rounded-xl bg-[#007AFF]/10 hover:bg-[#007AFF]/20 text-[#007AFF] flex items-center justify-center transition-all active:scale-95">
+                                    <span class="icon text-[20px]">content_copy</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex flex-col gap-4 lg:hidden pb-4">
+            <?php foreach($services as $row): 
+                $total = $row['gb'] * 1024*1024*1024;
+                $used = $row['final_used_bytes'];
+                $pct = ($total > 0) ? min(100, ($used/$total)*100) : 0;
+                $isExp = ($row['final_expire_ts'] < time() && $row['final_expire_ts'] > 0);
+                $isActive = ($row['status'] == 'active' && !$isExp);
+                $link = "https://nia.peppernopepper.com/sub.php?t=" . $row['sub_token'];
+                
+                $barColor = '#007AFF'; 
+                if($pct > 80) $barColor = '#FF9500'; 
+                if($pct > 95 || $isExp) $barColor = '#FF2D55'; 
+                
+                $wNum = preg_replace('/[^0-9]/', '', $row['phone']); 
+                if(substr($wNum, 0, 1) === '0') { $wNum = substr($wNum, 1); }
+                if(substr($wNum, 0, 2) !== '98') { $wNum = '98' . $wNum; }
+                $waMsg = $isActive ? "سلام {$row['full_name']}، سرویس شما تا 3 روز دیگر منقضی می‌شود." : "سلام، سرویس شما منقضی شده است.";
+                if($isActive && ($row['final_expire_ts'] - time() > 259200)) $waMsg = "سلام، لینک اتصال شما:\n$link";
+                $waLink = "https://wa.me/{$wNum}?text=" . urlencode($waMsg);
+
+                $isHeavyUser = ($used / max(1, $row['days_active']) > (5 * 1073741824));
+            ?>
+            <div class="bg-white border border-black/5 rounded-[1.5rem] p-4 shadow-[0_4px_15px_rgba(0,0,0,0.03)] flex flex-col gap-4 relative overflow-hidden transition-transform active:scale-[0.98]" onclick="window.location.href='?page=detail&id=<?= $row['id'] ?>'">
+                
+                <div class="absolute top-0 right-0 w-1.5 h-full" style="background-color: <?= $isActive ? '#34C759' : '#FF2D55' ?>;"></div>
+
+                <div class="flex items-center gap-3">
+                    <div class="w-[50px] h-[50px] ring-chart shrink-0" style="background: conic-gradient(<?= $barColor ?> <?= $pct ?>%, rgba(0,0,0,0.05) 0);">
+                        <span class="ring-chart-val text-[11px] tnum" style="color:<?= $barColor ?>;"><?= round($pct) ?>%</span>
+                    </div>
+
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-start">
+                            <h3 class="font-black text-[15px] text-[#1D1D1F] truncate"><?= htmlspecialchars($row['full_name'] ?: 'بدون نام') ?></h3>
+                            <span class="font-mono text-[10px] text-[#86868B] bg-black/5 px-1.5 py-0.5 rounded tnum">#<?= $row['id'] ?></span>
+                        </div>
+                        <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span class="bg-[#007AFF]/10 text-[#007AFF] px-1.5 py-0.5 rounded text-[10px] font-bold"><?= htmlspecialchars($row['label'] ?: 'عمومی') ?></span>
+                            <span class="text-[11px] font-bold text-[#86868B] tnum"><?= formatBytes($used) ?> / <?= $row['gb'] ?> GB</span>
+                            <?php if($isHeavyUser): ?><span class="text-[12px]">🔥</span><?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if($row['admin_notes']): ?>
+                <div class="bg-[#FF9500]/5 border border-[#FF9500]/10 text-[#FF9500] rounded-xl p-2.5 text-[11px] font-bold flex items-start gap-1.5">
+                    <span class="icon text-[16px] shrink-0">edit_note</span>
+                    <span><?= htmlspecialchars($row['admin_notes']) ?></span>
+                </div>
+                <?php endif; ?>
+
+                <div class="flex items-center justify-between pt-3 border-t border-black/5">
+                    <div class="flex flex-col">
+                         <span class="font-black text-[13px] text-[#1D1D1F]"><?= tsToJalali($row['final_expire_ts']) ?></span>
+                         <span class="font-semibold text-[10px] text-[#86868B] mt-0.5"><?= relativeTime($row['final_expire_ts']) ?></span>
+                    </div>
+                    
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" onclick="event.stopPropagation(); openAppModal('qrModal', '<?= $link ?>')" class="w-9 h-9 rounded-[10px] bg-black/5 text-[#1D1D1F] flex items-center justify-center active:scale-95 transition-transform">
+                            <span class="icon text-[20px]">qr_code</span>
+                        </button>
+                        <button type="button" onclick="event.stopPropagation(); window.open('<?= $waLink ?>','_blank')" class="w-9 h-9 rounded-[10px] bg-[#25D366]/10 text-[#25D366] flex items-center justify-center active:scale-95 transition-transform">
+                            <span class="icon text-[20px]">chat</span>
+                        </button>
+                        <button type="button" onclick="event.stopPropagation(); openAppModal('noteModal', {id: <?= $row['id'] ?>, txt: '<?= htmlspecialchars($row['admin_notes'] ?? '') ?>'})" class="w-9 h-9 rounded-[10px] bg-[#FF9500]/10 text-[#FF9500] flex items-center justify-center active:scale-95 transition-transform">
+                            <span class="icon text-[20px]">edit_note</span>
+                        </button>
+                        <button type="button" onclick="event.stopPropagation(); copyTxt('<?= $link ?>')" class="w-9 h-9 rounded-[10px] bg-[#007AFF]/10 text-[#007AFF] flex items-center justify-center active:scale-95 transition-transform">
+                            <span class="icon text-[20px]">content_copy</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+        <?php if($totalPages > 1): ?>
+        <div class="flex flex-wrap justify-center gap-2 mt-4 pb-4">
+            <?php for($i = max(1, $page-2); $i <= min($totalPages, $page+2); $i++): 
+                $isActive = ($i == $page);
+            ?>
+                <a href="?page=services&mode=<?= $mode ?>&p=<?= $i ?>&q=<?= urlencode($search) ?>" class="w-10 h-10 flex items-center justify-center rounded-[12px] font-black text-[14px] transition-all <?= $isActive ? 'bg-[#007AFF] text-white shadow-md' : 'bg-white border border-black/10 text-[#86868B] hover:text-[#1D1D1F]' ?>">
+                    <?= $i ?>
+                </a>
+            <?php endfor; ?>
+        </div>
+        <?php endif; ?>
+
+    <?php endif; ?>
+</div>
+
+<div id="qrModal" class="mac-modal-overlay" onclick="closeAppModal('qrModal')">
+    <div class="mac-modal-sheet" onclick="event.stopPropagation()">
+        
+        <div class="flex items-center justify-between p-5 border-b border-black/5">
+            <h3 class="font-black text-[18px] text-[#1D1D1F]">اسکن بارکد</h3>
+            <button type="button" onclick="closeAppModal('qrModal')" class="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center text-[#1D1D1F]">
+                <span class="icon text-[20px]">close</span>
+            </button>
+        </div>
+        
+        <div class="mac-modal-body flex flex-col items-center justify-center pb-8">
+            <div class="bg-white p-4 rounded-3xl shadow-sm border border-black/5 mb-4 inline-block">
+                <div id="qrPlace"></div>
+            </div>
+            <p class="text-[13px] font-bold text-[#86868B] text-center max-w-[280px]">دوربین گوشی را باز کنید و اسکن کنید.</p>
+        </div>
+
+    </div>
+</div>
+
+<div id="noteModal" class="mac-modal-overlay" onclick="closeAppModal('noteModal')">
+    <div class="mac-modal-sheet" onclick="event.stopPropagation()">
+        
+        <div class="flex items-center justify-between p-5 border-b border-black/5">
+            <div>
+                <h3 class="font-black text-[18px] text-[#1D1D1F]">یادداشت اختصاصی</h3>
+                <p class="font-bold text-[11px] text-[#86868B]">فقط شما می‌بینید</p>
+            </div>
+            <button type="button" onclick="closeAppModal('noteModal')" class="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center text-[#1D1D1F]">
+                <span class="icon text-[20px]">close</span>
+            </button>
+        </div>
+
+        <div class="mac-modal-body">
+            <form method="POST" class="flex flex-col gap-4">
+                <input type="hidden" name="action" value="save_note">
+                <input type="hidden" name="service_id" id="noteId">
+                <textarea name="note_content" id="noteText" rows="4" class="w-full bg-[#F2F2F7] rounded-[1rem] p-4 text-[14px] font-bold text-[#1D1D1F] outline-none focus:bg-white focus:ring-2 focus:ring-[#FF9500] transition-all resize-none border border-transparent focus:border-[#FF9500]" placeholder="یادداشت خود را اینجا بنویسید..."></textarea>
+                
+                <button type="submit" class="w-full py-3.5 bg-[#FF9500] text-white font-black rounded-[1rem] transition-transform active:scale-[0.98]">
+                    ذخیره یادداشت
+                </button>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- 1. SOLVE THE CSS TRANSFORM TRAP ---
+    // Instantly move modals out of the main wrapper and directly into the body.
+    (function relocateModals() {
+        const qr = document.getElementById('qrModal');
+        const note = document.getElementById('noteModal');
+        if (qr && qr.parentNode !== document.body) document.body.appendChild(qr);
+        if (note && note.parentNode !== document.body) document.body.appendChild(note);
+    })();
+
+    // --- 2. ROUTING ---
+    function setMode(mode) { window.location.href = '?page=services&mode=' + mode; }
+    
+    // --- 3. SAFE SCROLL LOCK ---
+    function lockAppScroll() { document.body.style.overflow = 'hidden'; }
+    function unlockAppScroll() { document.body.style.overflow = ''; }
+
+    // --- 4. MODAL CONTROLS ---
+    function openAppModal(id, payload = null) {
+        lockAppScroll();
+        const modal = document.getElementById(id);
+        
+        if (id === 'qrModal' && payload) {
+            const box = document.getElementById('qrPlace');
+            box.innerHTML = '';
+            new QRCode(box, { 
+                text: payload, width: 200, height: 200,
+                colorDark : "#1D1D1F", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L
+            });
+        } else if (id === 'noteModal' && payload) {
+            document.getElementById('noteId').value = payload.id;
+            document.getElementById('noteText').value = payload.txt;
+        }
+
+        modal.classList.add('active');
+    }
+
+    function closeAppModal(id) {
+        document.getElementById(id).classList.remove('active');
+        unlockAppScroll();
+    }
+
+    // --- 5. TOAST COPY ---
+    function copyTxt(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            if(navigator.vibrate) navigator.vibrate(20);
+            const toast = document.getElementById('copyToast');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        });
+    }
+</script>

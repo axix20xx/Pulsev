@@ -1,0 +1,1102 @@
+<?php
+/**
+ * rain_api.php — MIXED PANELS (Marzban + Rain Admin + Falcon V1)
+ */
+
+// Load your config file
+require_once __DIR__ . '/config(4).php'; 
+
+if (!defined('RAIN_TOKEN_FILE')) {
+  define('RAIN_TOKEN_FILE', __DIR__ . '/rain_admin_token.json');
+}
+
+/* ===========================================================
+   PANELS & LIMITS
+=========================================================== */
+
+if (!defined('RAIN_ADMIN_USER_LIMIT')) {
+    define('RAIN_ADMIN_USER_LIMIT', 350);
+}
+function falcon_create_config_with_comment(
+    array $panel,
+    float $gb,
+    int $days,
+    string $comment
+): array {
+    $info = falcon_fetch_panel_info($panel);
+
+    $payload = [
+        'panel_id'         => $info['panel_id'],
+        'traffic_limit_gb' => $gb,
+        'expires_days'     => $days,
+        'status'           => 'active',
+        'comment'          => $comment, // ✅ CUSTOM COMMENT
+        'service_ids'      => $info['service_ids'],
+    ];
+
+    return panel_api_call($panel, 'POST', '/api/v1/configs', $payload);
+}
+function rain_admin_is_capacity_error(int $code, $raw, $json): bool {
+  if (in_array($code, [409, 429])) return true;
+
+  $msg = '';
+  if (is_array($json) && isset($json['detail'])) $msg = $json['detail'];
+  elseif (is_string($raw)) $msg = $raw;
+
+  $msg = strtolower($msg);
+  return (
+    str_contains($msg, 'limit') ||
+    str_contains($msg, 'capacity') ||
+    str_contains($msg, 'maximum') ||
+    str_contains($msg, 'quota')
+  );
+}
+
+function rain_panels(): array {
+  if (defined('PANELS')) {
+    $p = constant('PANELS');
+    if (is_array($p) && $p) return $p;
+  }
+  return [];
+}
+/**
+ * Delete user on ALL panels (mixed)
+ * Marzban: DELETE /api/user/{username}
+ * Rain:    DELETE /api/users/{username}
+ */
+function rain_multi_delete_user_mixed(string $username): array {
+    $results = [];
+    $ok = 0;
+    
+    // Safety check
+    $username = trim($username);
+    if ($username === '') return ['ok' => false, 'results' => $results];
+
+    $u = rawurlencode($username);
+
+    foreach (rain_panels() as $panel) {
+        $kind = rain_panel_kind($panel);
+
+        if ($kind === 'rain_admin') {
+            // p.rain / p.rain2 panels
+            [$code, $raw, $json] = panel_api_call($panel, 'DELETE', "/api/users/{$u}");
+        } else {
+            // Marzban / Marzneshin panels
+            [$code, $raw, $json] = panel_api_call($panel, 'DELETE', "/api/user/{$u}");
+        }
+
+        if ($code >= 200 && $code < 300) $ok++;
+        $results[] = ['key' => rain_panel_key($panel), 'kind' => $kind, 'code' => $code];
+    }
+
+    return ['ok' => ($ok > 0), 'results' => $results];
+}
+
+function rain_primary_panel(): array {
+  $p = rain_panels();
+  return $p[0];
+}
+
+function rain_panel_key(array $panel): string {
+  $k = (string)($panel['key'] ?? '');
+  if ($k !== '') return $k;
+  $base = (string)($panel['api_base'] ?? '');
+  return $base !== '' ? md5($base) : 'panel';
+}
+
+function rain_panel_kind(array $panel): string {
+  $k = strtolower(trim((string)($panel['kind'] ?? '')));
+  if ($k === 'rain_admin') return 'rain_admin';
+  if ($k === 'falcon') return 'falcon'; // ✅ Added Falcon support
+  return 'marzban';
+}
+
+function rain_panel_token_cache_key(array $panel): string {
+  return 'RAIN_TOKEN_CACHE_' . rain_panel_key($panel);
+}
+
+function rain_panel_token_file(array $panel): string {
+  if (!empty($panel['token_file'])) return (string)$panel['token_file'];
+  return __DIR__ . '/rain_token_' . rain_panel_key($panel) . '.json';
+}
+
+/* ===========================================================
+   TOKEN
+=========================================================== */
+
+function panel_clear_token_cache(array $panel): void {
+  $k = rain_panel_token_cache_key($panel);
+  $GLOBALS[$k] = null;
+
+  $file = rain_panel_token_file($panel);
+  if ($file && file_exists($file)) @unlink($file);
+}
+
+function panel_get_token(array $panel, bool $forceRefresh=false): ?string {
+  // 🔥 FALCON LOGIC: Use API Key from config directly
+  if (rain_panel_kind($panel) === 'falcon') {
+      return $panel['api_key'] ?? '';
+  }
+
+  $k = rain_panel_token_cache_key($panel);
+
+  if (!$forceRefresh && !empty($GLOBALS[$k])) return (string)$GLOBALS[$k];
+
+  $file = rain_panel_token_file($panel);
+  if (!$forceRefresh && $file && file_exists($file)) {
+    $raw = @file_get_contents($file);
+    if ($raw !== false) {
+      $j = json_decode($raw, true);
+      if (is_array($j) && !empty($j['access_token'])) {
+        $GLOBALS[$k] = (string)$j['access_token'];
+        return (string)$GLOBALS[$k];
+      }
+    }
+  }
+
+  $base = rtrim((string)($panel['api_base'] ?? ''), '/');
+  if ($base === '') return null;
+
+  $adminUser = (string)($panel['admin_user'] ?? '');
+  $adminPass = (string)($panel['admin_pass'] ?? '');
+  if ($adminUser === '' || $adminPass === '') return null;
+
+  $kind = rain_panel_kind($panel);
+
+  $tokenPaths = ($kind === 'rain_admin')
+    ? ['/api/admins/token','/api/admin/token','/api/admin/token/','/api/admins/token/']
+    : ['/api/admin/token','/api/admin/token/'];
+  
+  foreach($tokenPaths as $tokenPath){
+    $post = http_build_query([
+      'grant_type' => 'password',
+      'username'   => $adminUser,
+      'password'   => $adminPass,
+    ]);
+
+    $ch = curl_init($base . $tokenPath);
+    curl_setopt_array($ch, [
+      CURLOPT_POST           => 1,
+      CURLOPT_RETURNTRANSFER => 1,
+      CURLOPT_POSTFIELDS     => $post,
+      CURLOPT_HTTPHEADER     => [
+        'Content-Type: application/x-www-form-urlencoded',
+        'Accept: application/json',
+      ],
+      CURLOPT_CONNECTTIMEOUT => 3,  
+      CURLOPT_TIMEOUT        => 10, 
+      CURLOPT_SSL_VERIFYPEER => false,
+      CURLOPT_SSL_VERIFYHOST => false,
+    ]);
+    $res  = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if (($res === false || $code !== 200) && $kind === 'rain_admin') {
+      $ch = curl_init($base . $tokenPath);
+      curl_setopt_array($ch, [
+        CURLOPT_POST           => 1,
+        CURLOPT_RETURNTRANSFER => 1,
+        CURLOPT_POSTFIELDS     => json_encode([
+          'username' => $adminUser,
+          'password' => $adminPass,
+        ], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),
+        CURLOPT_HTTPHEADER     => [
+          'Content-Type: application/json',
+          'Accept: application/json',
+        ],
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+      ]);
+      $res2  = curl_exec($ch);
+      $code2 = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      curl_close($ch);
+
+      if($res2 !== false && $code2 === 200){
+        $res = $res2; $code = $code2;
+      }
+    }
+
+    if ($res === false || $code !== 200) continue;
+
+    $json = json_decode($res, true);
+    if (!is_array($json)) continue;
+
+    $tok = (string)($json['access_token'] ?? $json['token'] ?? $json['bearer'] ?? '');
+    if ($tok === '') continue;
+
+    $GLOBALS[$k] = $tok;
+    if ($file) @file_put_contents($file, json_encode($json, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    return $tok;
+  }
+
+  return null;
+}
+
+/* ===========================================================
+   FALCON SPECIFIC HELPERS
+=========================================================== */
+
+function falcon_fetch_panel_info(array $panel): array {
+    // 1. Get List of Panels
+    // Note: panel_api_call handles fetching the key from panel_get_token
+    [$code, $raw, $json] = panel_api_call($panel, 'GET', '/api/v1/panels');
+    
+    // Default fallback
+    $targetPanelId = 1;
+    $serviceIds = [];
+
+    if ($code === 200 && is_array($json)) {
+        // Handle array of panels
+        $panelsList = $json['data'] ?? $json;
+        if (!is_array($panelsList)) $panelsList = [];
+        
+        // Pick the first available panel (as requested)
+        if (isset($panelsList[0])) {
+            $first = $panelsList[0];
+            $targetPanelId = $first['id'] ?? 1;
+            
+            // Extract Services (Inbounds/Proxies)
+            if (isset($first['services']) && is_array($first['services'])) {
+                foreach ($first['services'] as $svc) {
+                    if (isset($svc['id'])) {
+                        $serviceIds[] = (int)$svc['id'];
+                    }
+                }
+            }
+        }
+    }
+
+    return [
+        'panel_id' => $targetPanelId,
+        'service_ids' => $serviceIds
+    ];
+}
+
+function falcon_create_config(array $panel, float $gb, int $days): array {
+    // 1. Auto-discover Panel ID and Services
+    $info = falcon_fetch_panel_info($panel);
+    
+    // 2. Prepare Payload
+    $payload = [
+        'panel_id'         => $info['panel_id'],
+        'traffic_limit_gb' => $gb,
+        'expires_days'     => $days,
+        'status'           => 'active',
+        'comment'          => 'auto-created ' . date('Y-m-d'),
+        'service_ids'      => $info['service_ids']
+    ];
+
+    // 3. Send Creation Request
+    // Note: Falcon generates the username/key, we don't send one.
+    [$code, $raw, $json] = panel_api_call($panel, 'POST', '/api/v1/configs', $payload); 
+
+    return [$code, $raw, $json];
+}
+
+/* ===========================================================
+   RAIN ADMIN HELPERS
+=========================================================== */
+
+function rain_admin_get_all_service_ids(array $panel): array {
+  [$code,$raw,$json] = panel_api_call($panel, 'GET', '/api/services', null);
+  if ($code !== 200) {
+    [$code,$raw,$json] = panel_api_call($panel, 'GET', '/api/services/', null);
+  }
+  if ($code !== 200) return [];
+
+  $items = null;
+
+  if (is_array($json)) {
+    if (isset($json['items']) && is_array($json['items'])) $items = $json['items'];
+    elseif (isset($json['data']) && is_array($json['data'])) $items = $json['data'];
+    elseif (isset($json['results']) && is_array($json['results'])) $items = $json['results'];
+    elseif (isset($json['services']) && is_array($json['services'])) $items = $json['services'];
+    elseif (array_keys($json) === range(0, count($json)-1)) $items = $json; 
+  }
+
+  if (!is_array($items)) return [];
+
+  $ids = [];
+  foreach ($items as $it) {
+    if (is_array($it) && isset($it['id'])) {
+      $id = (int)$it['id'];
+      if ($id > 0) $ids[] = $id;
+    }
+  }
+  $ids = array_values(array_unique($ids));
+  return $ids;
+}
+
+function rain_admin_create_or_update_user_all_services(array $panel, string $username, int $days, float $gb): array {
+  if (!rain_admin_username_ok($username)) {
+    return [422, 'invalid username', ['detail'=>'Invalid username']];
+  }
+
+  $serviceIds = rain_admin_get_all_service_ids($panel);
+
+  $payloadBase = [
+    'username' => $username,
+    'expire_strategy' => 'fixed_date',
+    'expire_date' => rain_admin_iso_in_days($days),
+    'expire_at' => rain_admin_iso_in_days($days),
+    'data_limit' => rain_admin_gb_to_bytes($gb),
+    'data_limit_bytes' => rain_admin_gb_to_bytes($gb),
+    'data_limit_reset_strategy' => 'no_reset',
+    'note' => 'provisioned ' . gmdate('c'),
+  ];
+
+  $tryPayloads = [];
+  if ($serviceIds) {
+    $p = $payloadBase;
+    $p['service_ids'] = $serviceIds;
+    $tryPayloads[] = $p;
+  }
+  $tryPayloads[] = $payloadBase; 
+
+  $putPaths  = [
+    '/api/users/' . rawurlencode($username),
+    '/api/users/' . rawurlencode($username) . '/',
+    '/api/user/'  . rawurlencode($username),
+    '/api/user/'  . rawurlencode($username) . '/',
+  ];
+  $postPaths = ['/api/users','/api/users/','/api/user','/api/user/'];
+
+  foreach($tryPayloads as $payload){
+    foreach($putPaths as $p){
+      [$code,$raw,$json] = panel_api_call($panel, 'PUT', $p, $payload);
+      if ($code >= 200 && $code < 300) return [$code,$raw,$json];
+
+      if ($code === 405 || $code === 404) {
+        [$code2,$raw2,$json2] = panel_api_call($panel, 'PATCH', $p, $payload);
+        if ($code2 >= 200 && $code2 < 300) return [$code2,$raw2,$json2];
+      }
+    }
+    foreach($postPaths as $p){
+      [$code,$raw,$json] = panel_api_call($panel, 'POST', $p, $payload);
+      if ($code >= 200 && $code < 300) return [$code,$raw,$json];
+    }
+  }
+
+  return [$code ?? 0, $raw ?? '', $json ?? null];
+}
+
+/* legacy wrappers */
+function rain_clear_token_cache(): void { panel_clear_token_cache(rain_primary_panel()); }
+function rain_get_token(bool $forceRefresh=false): ?string { return panel_get_token(rain_primary_panel(), $forceRefresh); }
+
+/* ===========================================================
+   HTTP (UPDATED WITH SHORTER TIMEOUT)
+=========================================================== */
+
+function panel_api_call_raw(array $panel, string $method, string $path, string $token, $body=null): array {
+  $base = rtrim((string)($panel['api_base'] ?? ''), '/');
+  if ($base === '') return [0, null, null];
+
+  // Remove potential double slash
+  $url = $base . $path;
+  
+  $ch  = curl_init($url);
+
+  $headers = [
+    "Authorization: Bearer {$token}",
+    "Accept: application/json",
+  ];
+
+  if ($body !== null) $headers[] = "Content-Type: application/json";
+
+  curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST  => strtoupper($method),
+    CURLOPT_RETURNTRANSFER => 1,
+    CURLOPT_HTTPHEADER     => $headers,
+    CURLOPT_CONNECTTIMEOUT => 3,  // Connection timeout (3s)
+    CURLOPT_TIMEOUT        => 10, // Total timeout (10s)
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => false,
+  ]);
+
+  if ($body !== null) {
+    $jsonBody = json_encode($body, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonBody);
+  }
+
+  $res  = curl_exec($ch);
+  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+
+  $json = null;
+  if ($res !== false && $res !== '') {
+    $tmp = json_decode($res, true);
+    if (json_last_error() === JSON_ERROR_NONE) $json = $tmp;
+  }
+
+  return [$code, $res, $json];
+}
+
+function panel_api_call(array $panel, string $method, string $path, $body=null): array {
+  $tok = panel_get_token($panel, false);
+  
+  // Falcon might not use a token if key is empty (rare), but usually it returns key.
+  if (!$tok && empty($panel['api_key'])) return [0, null, null];
+
+  [$code,$raw,$json] = panel_api_call_raw($panel, $method, $path, $tok, $body);
+
+  if ($code === 401 || $code === 403) {
+    panel_clear_token_cache($panel);
+    $tok2 = panel_get_token($panel, true);
+    if (!$tok2) return [$code,$raw,$json];
+    [$code,$raw,$json] = panel_api_call_raw($panel, $method, $path, $tok2, $body);
+  }
+
+  return [$code,$raw,$json];
+}
+
+/* legacy wrappers */
+function rain_api_call_raw(string $method, string $path, string $token, $body=null): array {
+  return panel_api_call_raw(rain_primary_panel(), $method, $path, $token, $body);
+}
+function rain_api_call(string $method, string $path, ?string $token=null, $body=null): array {
+  if ($token) return rain_api_call_raw($method, $path, $token, $body);
+  return panel_api_call(rain_primary_panel(), $method, $path, $body);
+}
+
+/* ===========================================================
+   COMMON HELPERS
+=========================================================== */
+
+function rain_user_payload($u): array {
+  if (is_array($u) && isset($u['data']) && is_array($u['data'])) return $u['data'];
+  return is_array($u) ? $u : [];
+}
+
+function rain_extract_subscription_url($userJson): ?string {
+  if (!is_array($userJson)) return null;
+  if (!empty($userJson['subscription_url'])) return (string)$userJson['subscription_url'];
+  if (isset($userJson['data']) && is_array($userJson['data']) && !empty($userJson['data']['subscription_url'])) {
+    return (string)$userJson['data']['subscription_url'];
+  }
+  return null;
+}
+
+function rain_normalize_status(string $status): string {
+  $s = strtolower(trim($status));
+  if ($s === 'hold' || $s === 'onhold' || $s === 'on-hold' || $s === 'on_hold') return 'on_hold';
+  if ($s === 'disable' || $s === 'disabled') return 'disabled';
+  return 'active';
+}
+
+/* ===========================================================
+   MARZBAN-STYLE (kind=marzban)
+=========================================================== */
+
+function panel_fetch_inbound_tags(array $panel, string $token): array {
+  [$code, $raw, $json] = panel_api_call_raw($panel, 'GET', '/api/inbounds', $token, null);
+  if ($code !== 200 || !is_array($json)) return [];
+
+  // 🔥 FIX FOR FIBRPANEL / PASARGAD / FLAT LIST DETECTION
+  if (isset($json[0]) && is_string($json[0])) {
+      $flatTags = $json;
+      return [
+          'vless'       => $flatTags,
+          'vmess'       => $flatTags,
+          'trojan'      => $flatTags,
+          'shadowsocks' => $flatTags
+      ];
+  }
+
+  // STANDARD MARZBAN FORMAT
+  $result = [];
+  foreach ($json as $proto => $items) {
+    if (!is_array($items)) continue;
+    $p = strtolower(trim((string)$proto));
+    if ($p === '') continue;
+
+    foreach ($items as $row) {
+      if (!is_array($row) || !isset($row['tag'])) continue;
+      $tag = trim((string)$row['tag']);
+      if ($tag === '') continue;
+      $result[$p][] = $tag;
+    }
+    if (!empty($result[$p])) $result[$p] = array_values(array_unique($result[$p]));
+  }
+  return $result;
+}
+
+function rain_build_proxies_from_inbounds(array $allInb): array {
+  $proxies = [];
+  foreach (array_keys($allInb) as $proto) {
+    $proto = strtolower(trim((string)$proto));
+    if ($proto === '') continue;
+    $proxies[$proto] = (object)[];
+  }
+  
+  // If still empty (no inbounds found), default to vless to avoid bot crash
+  if (empty($proxies)) $proxies = ["vless" => (object)[]];
+  
+  return $proxies;
+}
+
+function rain_admin_get_user(array $panel, string $username): array {
+  $u = rawurlencode($username);
+  $paths = [
+    "/api/users/{$u}",
+    "/api/users/{$u}/",
+    "/api/user/{$u}",
+    "/api/user/{$u}/",
+  ];
+
+  foreach ($paths as $p) {
+    [$code,$raw,$json] = panel_api_call($panel, 'GET', $p, null);
+    if ($code === 200 && is_array($json)) return [$code,$raw,$json];
+  }
+  return [$code ?? 0, $raw ?? '', $json ?? null];
+}
+
+function rain_get_subscription_url_any_panel(array $panel, string $username): ?string {
+  $kind = rain_panel_kind($panel);
+
+  if ($kind === 'rain_admin') {
+    [$code,$raw,$u] = rain_admin_get_user($panel, $username);
+    if ($code === 200 && is_array($u)) return rain_extract_subscription_url($u);
+    return null;
+  }
+
+  // marzban style
+  [$code,$raw,$u] = panel_api_call($panel, 'GET', '/api/user/' . rawurlencode($username), null);
+  if ($code === 200 && is_array($u)) return rain_extract_subscription_url($u);
+  return null;
+}
+function rain_parse_disabled_protocol_key($jsonOrRaw): ?string {
+  $detail = null;
+  if (is_array($jsonOrRaw) && isset($jsonOrRaw['detail'])) $detail = (string)$jsonOrRaw['detail'];
+  elseif (is_string($jsonOrRaw)) {
+    $j = json_decode($jsonOrRaw, true);
+    if (is_array($j) && isset($j['detail'])) $detail = (string)$j['detail'];
+    else $detail = $jsonOrRaw;
+  }
+  if (!$detail) return null;
+
+  if (preg_match('/Protocol\s+ProxyTypes\.([A-Za-z0-9_]+)\s+is\s+disabled/i', $detail, $m)) {
+    return strtolower($m[1]);
+  }
+  return null;
+}
+
+function panel_upsert_user_full(array $panel, string $username, int $expireTs, int $data_limit_bytes, ?string $status=null): array {
+  $tok = panel_get_token($panel, false);
+  if (!$tok) return [0, null, null];
+
+  $status = $status !== null ? rain_normalize_status($status) : null;
+
+  // 1. Fetch Inbounds (Includes FibrPanel fix for flat lists)
+$allInb = panel_fetch_inbound_tags($panel, $tok);
+
+/* ===== ULTRA SAFE INBOUND FILTER ===== */
+
+$filtered = [];
+
+foreach ($allInb as $proto => $tags) {
+
+    if (!is_array($tags)) continue;
+
+    foreach ($tags as $tag) {
+
+        $tag = trim((string)$tag);
+        if ($tag === '') continue;
+
+        /* REMOVE GRPC (most common 422 cause) */
+        if (stripos($tag,'grpc') !== false) continue;
+
+        /* REMOVE disabled / temp / ghost */
+        if (stripos($tag,'disabled') !== false) continue;
+        if (stripos($tag,'test') !== false) continue;
+        if (stripos($tag,'old') !== false) continue;
+
+        $filtered[$proto][] = $tag;
+    }
+}
+
+/* fallback if everything removed */
+
+if (!$filtered) {
+
+    foreach ($allInb as $proto=>$tags){
+        if(!empty($tags)){
+            $filtered[$proto]=[$tags[0]];
+            break;
+        }
+    }
+
+    /* ultimate fallback */
+
+    if(!$filtered){
+        $filtered = ["vless"=>["default"]];
+    }
+}
+
+$allInb = $filtered;
+
+/* rebuild proxies AFTER filtering */
+
+$proxies  = rain_build_proxies_from_inbounds($allInb);
+$excluded = array_fill_keys(array_keys($allInb), []);
+
+  // 3. Check if user exists (to preserve current Groups)
+  [$gCode,$gRaw,$gJson] = panel_api_call($panel, 'GET', '/api/user/' . rawurlencode($username), null);
+  
+  $groupIds = [];
+if (($panel['key'] ?? '') === 'phonepanel') {
+    $groupIds = [1];
+}
+if (($panel['key'] ?? '') === 'speedur') {
+    $groupIds = [1];
+}
+  // IF user exists, keep their existing groups
+  if ($gCode === 200 && is_array($gJson) && !empty($gJson['group_ids'])) {
+      $groupIds = $gJson['group_ids'];
+  } 
+  // ELSE IF panel is specifically 'fibrpanel', fetch the default group from API (Critical for FibrPanel activation)
+  elseif (isset($panel['key']) && $panel['key'] === 'fibrpanel') {
+      [$grpCode, $grpRaw, $grpJson] = panel_api_call_raw($panel, 'GET', '/api/groups', $tok, null);
+      if ($grpCode === 200 && is_array($grpJson)) {
+          $list = $grpJson['groups'] ?? $grpJson;
+          if (is_array($list) && count($list) > 0) {
+              $first = $list[0];
+              if (isset($first['id'])) {
+                  $groupIds[] = $first['id'];
+              }
+          }
+      }
+  }
+
+  $body = [
+    "username"          => $username,
+    "expire"            => $expireTs,
+    "data_limit"        => $data_limit_bytes,
+    "proxies"           => $proxies,
+    "inbounds"          => $allInb,
+    "excluded_inbounds" => $excluded,
+    // 🔥 FIBRPANEL / PASARGAD FIX: Use 'proxy_settings' alias
+    "proxy_settings"    => $proxies,
+  ];
+
+  if (!empty($groupIds)) {
+      $body['group_ids'] = $groupIds;
+  }
+  
+  if ($status !== null) $body['status'] = $status;
+
+  $maxRetries = 3;
+  $attempts = 0;
+
+  do {
+      $attempts++;
+
+      if ($gCode === 200) {
+        [$code,$raw,$json] = panel_api_call($panel, 'PUT', '/api/user/' . rawurlencode($username), $body);
+      } elseif ($gCode === 404) {
+        [$code,$raw,$json] = panel_api_call($panel, 'POST', '/api/user', $body);
+      } else {
+        return [$gCode,$gRaw,$gJson];
+      }
+
+      // Handle 400 Disabled Protocol Error
+      if ($code === 400) {
+        $disabled = rain_parse_disabled_protocol_key($json ?? $raw);
+        if ($disabled && isset($body['proxies'][$disabled])) {
+          unset($body['proxies'][$disabled]);
+          if (isset($body['proxy_settings'][$disabled])) unset($body['proxy_settings'][$disabled]);
+          
+          if (empty($body['proxies'])) {
+              $body['proxies'] = ["vless" => (object)[]];
+              $body['proxy_settings'] = ["vless" => (object)[]];
+          }
+          continue; // Retry the API call
+        }
+      }
+
+      // 🛑 FIX: Handle 422 Ghost Inbound Error
+      if ($code === 422) {
+          $detail = $json['detail'] ?? null;
+          $errMsg = '';
+          
+          if (is_array($detail) && isset($detail['inbounds'])) {
+              $errMsg = is_string($detail['inbounds']) ? $detail['inbounds'] : json_encode($detail['inbounds']);
+          } elseif (is_string($detail)) {
+              $errMsg = $detail;
+          }
+
+          // Extract the exact broken inbound name from the error string
+          if ($errMsg && preg_match('/Inbound\s+(.*?)\s+doesn[\'’]t exist/i', $errMsg, $m)) {
+              $badInbound = trim($m[1]);
+              
+              // Scrub the broken inbound from our payload lists
+              foreach ($body['inbounds'] as $proto => $tags) {
+                  $body['inbounds'][$proto] = array_values(array_filter($tags, function($t) use ($badInbound) {
+                      return $t !== $badInbound;
+                  }));
+              }
+              
+              // Clean up empty arrays to avoid new errors
+              $body['inbounds'] = array_filter($body['inbounds']);
+              if (empty($body['inbounds'])) {
+                  $body['inbounds'] = ["vless" => ["default"]];
+              }
+              continue; // Retry the API call without the bad inbound
+          }
+      }
+
+      // If successful or an unhandled error occurs, break out of the loop
+      break;
+
+  } while ($attempts < $maxRetries);
+
+  return [$code,$raw,$json];
+}
+
+
+/* legacy single-panel signature your bot uses */
+function rain_upsert_user_full(string $username, int $expireTs, int $data_limit_bytes, string $token): array {
+  $panel = rain_primary_panel();
+  if ($token) return rain_api_call('PUT', '/api/user/' . rawurlencode($username), $token, [
+    'username'=>$username,'expire'=>$expireTs,'data_limit'=>$data_limit_bytes
+  ]);
+  return panel_upsert_user_full($panel, $username, $expireTs, $data_limit_bytes, null);
+}
+
+/* ===========================================================
+   RAIN ADMIN (kind=rain_admin) — p.rain.rest
+=========================================================== */
+
+function rain_admin_username_ok(string $u): bool {
+  return (bool)preg_match('/^[a-z0-9_]{3,32}$/', $u);
+}
+function rain_admin_iso_in_days(int $days): string {
+  $ts = time() + max(0,$days)*86400;
+  return gmdate('Y-m-d\TH:i:s\Z', $ts);
+}
+function rain_admin_gb_to_bytes(float $gb): int {
+  if ($gb <= 0) return 0;
+  return (int)round($gb * 1024 * 1024 * 1024);
+}
+
+function rain_admin_disable_user(array $panel, string $username): array {
+  $username = trim($username);
+  if ($username === '') return [0, null, null];
+
+  [$code, $raw, $json] = panel_api_call(
+    $panel,
+    'POST',
+    '/api/users/' . rawurlencode($username) . '/disable',
+    null
+  );
+
+  return [$code, $raw, $json];
+}
+
+// 🔥 ADDED: Enable helper
+function rain_admin_enable_user(array $panel, string $username): array {
+  $username = trim($username);
+  if ($username === '') return [0, null, null];
+
+  [$code, $raw, $json] = panel_api_call(
+    $panel,
+    'POST',
+    '/api/users/' . rawurlencode($username) . '/enable',
+    null
+  );
+
+  return [$code, $raw, $json];
+}
+
+// 🔥 ADDED: Reset Usage helper (Supports Marzban & Marzneshin)
+function panel_disable_user(array $panel, string $username): array {
+
+    $u = rawurlencode($username);
+
+    /*
+     * First fetch user
+     */
+
+    [$code,$raw,$user] =
+        panel_api_call(
+            $panel,
+            'GET',
+            "/api/user/{$u}"
+        );
+
+    if ($code !== 200 || !is_array($user)) {
+        return [$code,$raw,$user];
+    }
+
+    /*
+     * Change status only
+     */
+
+$payload = [
+    'username'   => $user['username'] ?? $username,
+    'status'     => 'disabled',
+    'expire'     => $user['expire'] ?? 0,
+    'data_limit' => $user['data_limit'] ?? 0,
+    'proxies'    => $user['proxies'] ?? [],
+    'inbounds'   => $user['inbounds'] ?? [],
+];
+
+return panel_api_call(
+    $panel,
+    'PUT',
+    "/api/user/{$u}",
+    $payload
+);
+}
+function panel_reset_user_usage(array $panel, string $username): array {
+  $u = rawurlencode($username);
+  
+  // 1. Try standard Marzban/Marzneshin reset endpoint
+  $paths = [
+      "/api/user/{$u}/reset",   // Marzban / Marzneshin singular
+      "/api/users/{$u}/reset",  // Marzneshin plural (sometimes)
+  ];
+  
+  foreach ($paths as $p) {
+      [$code, $raw, $json] = panel_api_call($panel, 'POST', $p, []);
+      if ($code >= 200 && $code < 300) return [$code, $raw, $json];
+  }
+  
+  return [404, "Reset endpoint not found", null];
+}
+
+/* ===========================================================
+   MIXED WRAPPERS (use these in your bot)
+=========================================================== */
+
+/**
+ * Create/Update user on ALL panels:
+ * - marzban => upsert + enable all inbounds
+ * - rain_admin => attach ALL services
+ * - falcon => auto-fetch panel/services, create, return generated username
+ */
+function rain_multi_provision_user_mixed(string $username, int $days, float $gb, bool $activate=true): array {
+  $results = [];
+  $ok = 0;
+  $generatedUsername = null; // Used for Falcon
+
+  $expireTs = time() + max(0,$days)*86400;
+  $bytes = (int)round(max(0,$gb) * 1024 * 1024 * 1024);
+
+  foreach (rain_panels() as $panel) {
+    $kind = rain_panel_kind($panel);
+
+    // ================= FALCON =================
+    if ($kind === 'falcon') {
+        // Falcon ignores the input username usually and generates its own (UUID key)
+        [$code, $raw, $json] = falcon_create_config($panel, $gb, $days);
+        
+        if ($code >= 200 && $code < 300) {
+            $ok++;
+            // Try to capture the generated key from response
+            if (is_array($json)) {
+                $generatedUsername = $json['key'] ?? $json['username'] ?? $json['data']['key'] ?? $json['data']['username'] ?? null;
+            }
+        }
+        $results[] = ['key'=>rain_panel_key($panel), 'kind'=>$kind, 'code'=>$code, 'generated_user'=>$generatedUsername];
+    } 
+    // ================= RAIN ADMIN =================
+    elseif ($kind === 'rain_admin') {
+      
+      // 1. Check if user exists (Health Check)
+      [$checkCode, $checkRaw, $checkJson] = panel_api_call($panel, 'GET', '/api/users/' . rawurlencode($username), null);
+
+      // 🔥 CRITICAL: If panel is dead/timeout (0) or error (500+), SKIP immediately.
+      if ($checkCode === 0 || $checkCode >= 500) {
+           $results[] = ['key'=>rain_panel_key($panel), 'code'=>$checkCode, 'status'=>'skipped_dead_panel'];
+           continue;
+      }
+      
+      $userExists = ($checkCode === 200);
+      
+      if (!$userExists) {
+        // Use custom limit from Config file if set, otherwise use global default (350)
+        $limit = isset($panel['user_limit']) ? (int)$panel['user_limit'] : RAIN_ADMIN_USER_LIMIT;
+        
+        // 2. Check Count (Health Check 2)
+        [$cntCode, $cntRaw, $cntJson] = panel_api_call($panel, 'GET', '/api/users?limit=1&page=1', null);
+        
+        // 🔥 CRITICAL: If we can't get count, the panel is broken. SKIP.
+        if ($cntCode !== 200) {
+             $results[] = ['key'=>rain_panel_key($panel), 'code'=>$cntCode, 'status'=>'skipped_count_fail'];
+             continue;
+        }
+
+        $currentCount = 0;
+        if (is_array($cntJson)) {
+            if (isset($cntJson['total'])) $currentCount = (int)$cntJson['total'];
+            elseif (isset($cntJson['count'])) $currentCount = (int)$cntJson['count'];
+            elseif (isset($cntJson['items']) && is_array($cntJson['items'])) $currentCount = count($cntJson['items']);
+        }
+
+        if ($currentCount >= $limit) {
+          // Panel is FULL, skip to next Rain Admin panel
+          $results[] = ['key'=>rain_panel_key($panel), 'kind'=>$kind, 'code'=>429, 'skip'=>'manual_limit_reached_' . $limit];
+          continue; 
+        }
+      }
+      
+      // 3. Create User
+      [$code,$raw,$json] =
+        rain_admin_create_or_update_user_all_services($panel, $username, $days, $gb);
+
+      // ✅ SUCCESS → stop trying other Rain APIs
+      if ($code >= 200 && $code < 300) {
+        $ok++;
+        $results[] = ['key'=>rain_panel_key($panel), 'kind'=>$kind, 'code'=>$code];
+        break;
+      }
+
+      // ❌ FAILURE (Capacity, Server Error, Timeout, etc.)
+      $results[] = ['key'=>rain_panel_key($panel), 'kind'=>$kind, 'code'=>$code, 'status'=>'failed_moving_next'];
+      continue;
+
+    } 
+    // ================= MARZBAN / MARZNESHIN =================
+    else {
+      // marzban-style panels (No Limit Check)
+      // 🔥 Ensure Auto-Activation is passed down
+      $statusStr = $activate ? 'active' : null;
+      
+      [$code,$raw,$json] =
+        panel_upsert_user_full($panel, $username, $expireTs, $bytes, $statusStr);
+
+      if ($code >= 200 && $code < 300) $ok++;
+      $results[] = ['key'=>rain_panel_key($panel), 'kind'=>$kind, 'code'=>$code];
+    }
+  }
+
+  // Return the auto-generated username if Falcon was used
+  return ['ok'=>($ok>0), 'results'=>$results, 'generated_username' => $generatedUsername];
+}
+
+/**
+ * Disable on ALL panels (mixed)
+ */
+function rain_multi_disable_user_mixed(string $username): array {
+  $results = [];
+  $ok = 0;
+
+  foreach (rain_panels() as $panel) {
+    $kind = rain_panel_kind($panel);
+
+    if ($kind === 'rain_admin') {
+      [$code,$raw,$json] = rain_admin_disable_user($panel, $username);
+    } else {
+
+    [$code,$raw,$json] =
+        panel_disable_user(
+            $panel,
+            $username
+        );
+}
+
+    if ($code >= 200 && $code < 300) $ok++;
+    $results[] = ['key'=>rain_panel_key($panel), 'kind'=>$kind, 'code'=>$code];
+  }
+
+  return ['ok'=>($ok>0), 'results'=>$results];
+}
+
+/* ===========================================================
+   BOT COMPATIBILITY LAYERS (ADDED)
+=========================================================== */
+
+// 🔥 ADDED: Required by bot.php for validation
+function rain_get_user(string $username, ?string $token=null): array {
+  $panel = rain_primary_panel();
+  $kind = rain_panel_kind($panel);
+
+  if ($kind === 'rain_admin') {
+    return rain_admin_get_user($panel, $username);
+  }
+  
+  return panel_api_call($panel, 'GET', '/api/user/' . rawurlencode($username), null);
+}
+
+// 🔥 ADDED: Fixed "Renew" logic (Reset + Update).
+// 🔥 UPDATED: Renew logic with special handling for 'rootvpn'
+function rain_append_quota_days(string $username, float $gb, int $days, ?string $token=null): array {
+  
+  $lastCode = 0;
+  $lastRaw = "";
+  $lastJson = [];
+  $anySuccess = false;
+
+  // 1. Loop through ALL panels
+  foreach (rain_panels() as $panel) {
+    $kind = rain_panel_kind($panel);
+    $key  = rain_panel_key($panel); // Get unique key
+
+    // ======================================================
+    // 🚩 SPECIAL CASE: ROOTVPN (Append GB, Don't Reset Usage)
+    // ======================================================
+    if ($key === 'rootvpn') {
+        
+        // 1. Fetch current user info to find existing limit
+        [$curCode, $curRaw, $curUser] = panel_api_call($panel, 'GET', '/api/user/' . rawurlencode($username));
+
+        $currentLimit = 0;
+        // If user exists, get their current total limit
+        if ($curCode === 200 && is_array($curUser)) {
+            $currentLimit = $curUser['data_limit'] ?? 0;
+        }
+
+        // 2. Calculate details
+        $bytesToAdd = (int)round($gb * 1024 * 1024 * 1024);
+        $newTotalLimit = $currentLimit + $bytesToAdd; // APPEND logic
+        $expireTs = time() + ($days * 86400); // Reset Date relative to NOW
+
+        // 3. Update User (WITHOUT resetting usage)
+        // We send the new accumulated limit. Marzban keeps 'used_traffic' as is.
+        [$c, $r, $j] = panel_upsert_user_full($panel, $username, $expireTs, $newTotalLimit, 'active');
+    } 
+    
+    // ======================================================
+    // 🟢 STANDARD CASE: Reset Usage & Set Fixed Limit
+    // ======================================================
+    else {
+        // Calculate Absolute Values
+        $expireTs = time() + ($days * 86400);
+        $limitBytes = (int)round($gb * 1024 * 1024 * 1024);
+
+        // 1. Reset Usage to 0
+        panel_reset_user_usage($panel, $username);
+        
+        // 2. Apply New Plan
+        if ($kind === 'rain_admin') {
+            [$c, $r, $j] = rain_admin_create_or_update_user_all_services($panel, $username, $days, $gb);
+            if ($c >= 200 && $c < 300) rain_admin_enable_user($panel, $username);
+        } else {
+            [$c, $r, $j] = panel_upsert_user_full($panel, $username, $expireTs, $limitBytes, 'active');
+        }
+    }
+
+    // ======================================================
+    // 🏁 RESULT TRACKING
+    // ======================================================
+    
+    // Only overwrite lastCode if this panel SUCCEEDED.
+    if ($c >= 200 && $c < 300) {
+        $lastCode = $c;
+        $lastRaw = $r;
+        $lastJson = $j;
+        $anySuccess = true;
+    } elseif (!$anySuccess) {
+        $lastCode = $c;
+        $lastRaw = $r;
+        $lastJson = $j;
+    }
+  }
+
+  return [$lastCode, $lastRaw, $lastJson];
+}
+

@@ -1,0 +1,978 @@
+<?php
+/**
+ * views/add.php — PREMIUM RESPONSIVE WIZARD (Mobile First + iMac Ready)
+ * Features: 4-Step Wizard, Locked Inputs for Existing Users, Live Sync Visualizer
+ */
+
+// =================================================================================
+// 1. HELPER FUNCTIONS & CONFIG
+// =================================================================================
+
+// ---> SYSTEM LOCK TOGGLE <---
+// تغییر به false برای باز شدن مجدد فروش اکانت جدید
+$LOCK_NEW_ACCOUNTS = false; 
+
+if (!function_exists('toEn')) {
+    function toEn($str) {
+        $p = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+        $e = ['0','1','2','3','4','5','6','7','8','9'];
+        return str_replace($p, $e, (string)$str);
+    }
+}
+function awgRequest(PDO $pdo, string $method, string $endpoint, array $body = [])
+{
+    $cfg = $pdo->query("
+        SELECT awg_api_url, awg_api_token
+        FROM settings
+        LIMIT 1
+    ")->fetch(PDO::FETCH_ASSOC);
+
+    if (!$cfg) {
+        throw new Exception("AWG settings missing");
+    }
+
+    $url = rtrim($cfg['awg_api_url'], '/');
+
+    $ch = curl_init();
+
+    curl_setopt($ch, CURLOPT_URL, $url . $endpoint);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer '.$cfg['awg_api_token'],
+        'Content-Type: application/json'
+    ]);
+
+    switch($method)
+    {
+        case 'POST':
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+            break;
+
+        case 'PATCH':
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+            break;
+
+        case 'DELETE':
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+            break;
+
+        case 'GET':
+            break;
+    }
+
+   $response = curl_exec($ch);
+
+if (curl_errno($ch)) {
+    throw new Exception(curl_error($ch));
+}
+
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+curl_close($ch);
+
+if ($httpCode >= 300) {
+    throw new Exception(
+        "AWG API Error ({$httpCode}): {$response}"
+    );
+}
+
+return $response;
+}
+
+// =================================================================================
+// 2. API HANDLER (AJAX REQUESTS)
+// =================================================================================
+if (isset($_GET['api_action'])) {
+
+while (ob_get_level()) {
+    ob_end_clean();
+}
+if ($_GET['api_action'] !== 'download_awg') {
+    header('Content-Type: application/json; charset=utf-8');
+}
+try {
+    if (!isset($pdo)) {
+        if (file_exists(__DIR__ . '/../includes/db.php')) {
+            require_once __DIR__ . '/../includes/db.php';
+        } else {
+            throw new Exception("DB Connection Error");
+        }
+    }
+    $rid = $_SESSION['tg_id'] ?? 0;
+    if ($rid == 0) {
+        throw new Exception("Unauthorized Access");
+    }
+    // =====================================================
+    // ACTION: check_user
+    // =====================================================
+    if ($_GET['api_action'] === 'check_user') {
+        global $LOCK_NEW_ACCOUNTS;
+        if ($LOCK_NEW_ACCOUNTS) {
+            throw new Exception(
+                "سیستم قفل است: فروش اکانت جدید مسدود می‌باشد."
+            );
+        }
+        $phone = toEn(trim($_POST['phone'] ?? ''));
+        if (empty($phone)) {
+            throw new Exception("شماره موبایل الزامی است");
+        }
+        $stmt = $pdo->prepare(
+            "SELECT * FROM reseller_customers
+             WHERE phone = ?
+             LIMIT 1"
+        );
+        $stmt->execute([$phone]);
+        $customer = $stmt->fetch(PDO::FETCH_ASSOC);
+        echo json_encode([
+            'success'  => true,
+            'exists'   => !!$customer,
+            'customer' => $customer
+        ]);
+        exit;
+    }
+    // =====================================================
+    // ACTION: create_service
+    // =====================================================
+    if ($_GET['api_action'] === 'create_service') {
+        global $LOCK_NEW_ACCOUNTS;
+        if ($LOCK_NEW_ACCOUNTS) {
+            throw new Exception(
+                "سیستم قفل است: امکان ایجاد سرویس جدید وجود ندارد."
+            );
+        }
+        $phone       = toEn(trim($_POST['phone'] ?? ''));
+        $name        = trim($_POST['name'] ?? '');
+        $customLabel = trim($_POST['custom_label'] ?? '');
+        $gb          = (float)($_POST['gb'] ?? 0);
+        $days        = (int)($_POST['days'] ?? 0);
+        if (empty($phone) || empty($name)) {
+            throw new Exception("نام و شماره الزامی است");
+        }
+        $pdo->beginTransaction();
+        $stmtC = $pdo->prepare(
+            "SELECT id
+             FROM reseller_customers
+             WHERE phone = ?
+             LIMIT 1"
+        );
+        $stmtC->execute([$phone]);
+        $cid = $stmtC->fetchColumn();
+        if (!$cid) {
+            $pdo->prepare(
+                "INSERT INTO reseller_customers
+                (phone, full_name)
+                VALUES (?, ?)"
+            )->execute([$phone, $name]);
+            $cid = $pdo->lastInsertId();
+        } else {
+            $pdo->prepare(
+                "UPDATE reseller_customers
+                 SET full_name = ?
+                 WHERE id = ?"
+            )->execute([$name, $cid]);
+        }
+        $label = !empty($customLabel)
+            ? $customLabel
+            : substr($name, 0, 10) . '_' . rand(100, 999);
+        $rainUser = "u{$cid}_" . bin2hex(random_bytes(3));
+        $token    = bin2hex(random_bytes(16));
+        $subLink  = "https://vita.peppernopepper.com/sub.php?t={$token}";
+        $expireAt = date(
+            'Y-m-d H:i:s',
+            time() + ($days * 86400)
+        );
+        $stmtSvc = $pdo->prepare(
+            "INSERT INTO reseller_services
+            (
+                reseller_tg_id,
+                customer_id,
+                gb,
+                days,
+                label,
+                rain_username,
+                subscription_url,
+                expire_at,
+                status
+            )
+            VALUES
+            (
+                ?, ?, ?, ?, ?, ?, ?, ?, 'active'
+            )"
+        );
+        $stmtSvc->execute([
+            $rid,
+            $cid,
+            $gb,
+            $days,
+            $label,
+            $rainUser,
+            $subLink,
+            $expireAt
+        ]);
+        
+$svcId = $pdo->lastInsertId();
+
+$awgClientId = null;
+
+try {
+
+    $awgClientId = sprintf(
+        '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+        mt_rand(0, 0xffff),
+        mt_rand(0, 0xffff),
+        mt_rand(0, 0xffff),
+        mt_rand(0, 0x0fff) | 0x4000,
+        mt_rand(0, 0x3fff) | 0x8000,
+        mt_rand(0, 0xffff),
+        mt_rand(0, 0xffff),
+        mt_rand(0, 0xffff)
+    );
+
+    awgRequest(
+        $pdo,
+        'POST',
+        '/api/clients',
+        [
+            'id' => $awgClientId
+        ]
+    );
+
+} catch (Exception $e) {
+
+    // AWG offline
+    $awgClientId = null;
+
+}
+
+$pdo->prepare(
+    "UPDATE reseller_services
+     SET awg_client_id = ?
+     WHERE id = ?"
+)->execute([
+    $awgClientId,
+    $svcId
+]);
+        $pdo->prepare(
+            "INSERT INTO reseller_sub_tokens
+            (token, service_id)
+            VALUES (?, ?)"
+        )->execute([
+            $token,
+            $svcId
+        ]);
+        $pdo->prepare(
+            "UPDATE resellers
+             SET used_gb = used_gb + ?
+             WHERE tg_id = ?"
+        )->execute([
+            $gb,
+            $rid
+        ]);
+        $payload = json_encode([
+            'gb'        => $gb,
+            'days'      => $days,
+            'expire_ts' => strtotime($expireAt),
+            'enable'    => true
+        ]);
+        $pdo->prepare(
+            "INSERT INTO reseller_sync_queue
+            (
+                service_id,
+                username,
+                action,
+                payload,
+                status
+            )
+            VALUES
+            (
+                ?, ?, 'renew', ?, 'pending'
+            )"
+        )->execute([
+            $svcId,
+            $rainUser,
+            $payload
+        ]);
+        $jobId = $pdo->lastInsertId();
+        $pdo->prepare(
+            "INSERT INTO reseller_sales_log
+            (
+                reseller_tg_id,
+                service_id,
+                action_type,
+                gb_amount,
+                days_amount
+            )
+            VALUES
+            (
+                ?, ?, 'create', ?, ?
+            )"
+        )->execute([
+            $rid,
+            $svcId,
+            $gb,
+            $days
+        ]);
+        $pdo->commit();
+        echo json_encode([
+            'success'    => true,
+            'job_id'     => $jobId,
+            'sub_link'   => $subLink,
+            'service_id' => $svcId
+        ]);
+        exit;
+    }
+    // =====================================================
+    // ACTION: check_sync
+    // =====================================================
+    if ($_GET['api_action'] === 'check_sync') {
+        $jobId = (int)($_POST['job_id'] ?? 0);
+        $stmt = $pdo->prepare(
+            "SELECT status,last_error
+             FROM reseller_sync_queue
+             WHERE id = ?
+             LIMIT 1"
+        );
+        $stmt->execute([$jobId]);
+        $job = $stmt->fetch(PDO::FETCH_ASSOC);
+        $logs = json_decode(
+            $job['last_error'] ?? '{}',
+            true
+        );
+        $doneCount = 0;
+        if (
+            isset($logs['done']) &&
+            is_array($logs['done'])
+        ) {
+            $doneCount = count($logs['done']);
+        }
+        echo json_encode([
+            'success'    => true,
+            'status'     => $job['status'] ?? 'pending',
+            'done_count' => $doneCount
+        ]);
+        exit;
+    }
+    // =====================================================
+    // ACTION: download_awg
+    // =====================================================
+    if ($_GET['api_action'] === 'download_awg') {
+        $serviceId = (int)($_GET['service_id'] ?? 0);
+        $stmt = $pdo->prepare(
+            "SELECT awg_client_id
+             FROM reseller_services
+             WHERE id = ?
+             AND reseller_tg_id = ?"
+        );
+        $stmt->execute([
+            $serviceId,
+            $rid
+        ]);
+        $clientId = $stmt->fetchColumn();
+        if (!$clientId) {
+            throw new Exception(
+                "AWG Client Not Found"
+            );
+        }
+        $conf = awgRequest(
+            $pdo,
+            'GET',
+            '/api/clients/' .
+            urlencode($clientId) .
+            '/configuration'
+        );
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: text/plain');
+        header(
+            'Content-Disposition: attachment; filename="' .
+            $clientId .
+            '.conf"'
+        );
+        echo $conf;
+        exit;
+    }
+    // =====================================================
+    // ACTION: trigger_cron
+    // =====================================================
+    if ($_GET['api_action'] === 'trigger_cron') {
+        echo json_encode([
+            'success' => true
+        ]);
+        exit;
+    }
+    throw new Exception('Unknown API Action');
+} catch (Exception $e) {
+
+    if (
+        isset($pdo) &&
+        $pdo instanceof PDO &&
+        $pdo->inTransaction()
+    ) {
+        $pdo->rollBack();
+    }
+
+    if (
+        isset($_GET['api_action']) &&
+        $_GET['api_action'] === 'download_awg'
+    ) {
+
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'ERROR: ' . $e->getMessage();
+
+    } else {
+
+        echo json_encode([
+            'success' => false,
+            'message' => $e->getMessage()
+        ]);
+
+    }
+
+    exit;
+}
+
+}
+
+?>
+
+<style>
+    /* =========================================
+       RESPONSIVE WIZARD STYLES
+       ========================================= */
+
+    /* Container & Layout */
+    .wizard-stage {
+        display: flex; justify-content: center; padding-top: 10px; padding-bottom: 120px;
+        min-height: 80vh; width: 100%;
+        animation: fadeUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    .ios-wizard-card {
+        width: 100%; max-width: 460px;
+        background: rgba(255, 255, 255, 0.65);
+        backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 32px; padding: 32px 24px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.05);
+        display: flex; flex-direction: column; position: relative;
+        overflow: hidden; transition: all 0.4s ease;
+    }
+
+    /* Progress Dots */
+    .wiz-steps { display: flex; gap: 8px; margin-bottom: 30px; justify-content: center; }
+    .wiz-dot { height: 6px; width: 30px; background: rgba(0,0,0,0.06); border-radius: 10px; transition: 0.4s ease; }
+    .wiz-dot.active { background: #007AFF; width: 50px; box-shadow: 0 2px 10px rgba(0,122,255,0.3); }
+    .wiz-dot.done { background: #34C759; }
+
+    /* Screen Transitions */
+    .wiz-screen { display: none; animation: slideUpFade 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+    .wiz-screen.active { display: block; }
+    
+    @keyframes slideUpFade {
+        from { opacity: 0; transform: translateY(20px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Typography */
+    .wiz-h2 { font-size: 1.6rem; font-weight: 800; color: #1D1D1F; margin: 0 0 6px 0; text-align: center; letter-spacing: -0.5px; }
+    .wiz-p { font-size: 0.9rem; color: #86868B; margin: 0 0 28px 0; text-align: center; font-weight: 600; }
+
+    /* Floating Inputs */
+    .wiz-input-group { position: relative; margin-bottom: 18px; }
+    .wiz-input {
+        width: 100%; padding: 20px 16px 10px 16px;
+        background: rgba(0,0,0,0.03); border: 2px solid transparent; border-radius: 16px;
+        font-family: inherit; font-size: 1rem; font-weight: 700; color: #1D1D1F;
+        text-align: center; transition: all 0.3s ease; outline: none;
+        direction: ltr; /* Keeps numbers/English logical */
+    }
+    .wiz-input:focus { background: #fff; border-color: rgba(0,122,255,0.3); box-shadow: 0 4px 15px rgba(0,122,255,0.1); }
+    
+    /* Read-only / Locked State */
+    .wiz-input:read-only {
+        background: rgba(52, 199, 89, 0.05); border-color: rgba(52, 199, 89, 0.2);
+        color: #34C759; cursor: not-allowed;
+    }
+    .wiz-input:disabled {
+        background: rgba(0,0,0,0.06); color: #A1A1A6; cursor: not-allowed;
+    }
+    
+    .wiz-label {
+        position: absolute; top: 8px; right: 0; left: 0; text-align: center;
+        font-size: 0.75rem; font-weight: 700; color: #86868B;
+        pointer-events: none; transition: 0.2s; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .wiz-input:focus + .wiz-label { color: #007AFF; }
+
+    /* Action Buttons */
+    .wiz-btn-main {
+        width: 100%; padding: 16px; border-radius: 16px; border: none;
+        background: #007AFF; color: white; font-family: 'Vazirmatn', sans-serif;
+        font-size: 1.05rem; font-weight: 800; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 10px;
+        box-shadow: 0 8px 24px rgba(0, 122, 255, 0.25);
+        transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); margin-top: 10px;
+    }
+    .wiz-btn-main:active { transform: scale(0.96); box-shadow: 0 4px 10px rgba(0, 122, 255, 0.2); }
+    .wiz-btn-main:disabled { background: #A1A1A6; box-shadow: none; cursor: not-allowed; transform: none; }
+    
+    .wiz-btn-sec { 
+        background: rgba(0,0,0,0.04); color: #007AFF; border: none; 
+        width: 100%; padding: 16px; border-radius: 16px; font-weight: 800; font-size: 1.05rem; 
+        cursor: pointer; transition: 0.2s ease; font-family: 'Vazirmatn', sans-serif;
+    }
+    .wiz-btn-sec:active { background: rgba(0,0,0,0.08); transform: scale(0.96); }
+
+    /* Badge */
+    .ios-badge {
+        text-align: center; background: rgba(52, 199, 89, 0.1); color: #34C759; 
+        padding: 8px; border-radius: 12px; margin-bottom: 20px; font-weight: 700; font-size: 0.85rem; 
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+
+    /* Live Monitor Ring */
+    .monitor-ring-wrapper {
+        position: relative; width: 160px; height: 160px; margin: 0 auto 30px;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .monitor-ring-svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+    .monitor-circle-bg { fill: none; stroke: rgba(0,0,0,0.05); stroke-width: 10; }
+    .monitor-circle-fg { 
+        fill: none; stroke: #007AFF; stroke-width: 10; stroke-linecap: round;
+        stroke-dasharray: 440; stroke-dashoffset: 440; transition: stroke-dashoffset 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .monitor-data { position: absolute; text-align: center; }
+    .mon-val { font-size: 2.8rem; font-weight: 800; color: #1D1D1F; line-height: 1; font-family: monospace; letter-spacing: -1px; }
+    .mon-lbl { font-size: 0.8rem; color: #86868B; font-weight: 700; margin-top: 2px; }
+    
+    /* Light Console Log */
+    .ios-console {
+        background: #F2F2F7; border-radius: 18px; padding: 14px;
+        height: 120px; overflow-y: auto; text-align: left; direction: ltr;
+        font-family: 'Courier New', monospace; font-size: 0.8rem; font-weight: 600;
+        border: 1px solid rgba(0,0,0,0.05); color: #1D1D1F;
+        box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
+    }
+    .log-item { margin-bottom: 6px; display: flex; align-items: center; gap: 6px; opacity: 0; animation: fadeUp 0.3s forwards; }
+    .log-item.ok { color: #34C759; }
+    .log-item.proc { color: #007AFF; }
+    
+    /* Success View */
+    .success-icon {
+        width: 100px; height: 100px; background: #34C759; color: white;
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 20px; box-shadow: 0 10px 30px rgba(52, 199, 89, 0.3);
+        animation: successPop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes successPop { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+    
+    .copy-result-box {
+        background: rgba(0, 122, 255, 0.05); border: 2px dashed rgba(0, 122, 255, 0.3); border-radius: 18px;
+        padding: 14px; margin: 20px 0; font-family: monospace; font-size: 0.9rem; font-weight: 700;
+        color: #007AFF; word-break: break-all; text-align: center;
+        cursor: pointer; transition: 0.2s ease; position: relative;
+    }
+    .copy-result-box:active { transform: scale(0.96); background: rgba(0, 122, 255, 0.1); }
+    
+    .qr-container {
+        background: white; padding: 12px; border-radius: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+        display: inline-block; margin-bottom: 10px; border: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    /* =========================================
+       MEDIA QUERIES (DESKTOP & iMAC)
+       ========================================= */
+
+    @media (min-width: 1024px) {
+        .wizard-stage { padding-top: 40px; }
+        .ios-wizard-card { max-width: 550px; padding: 40px; border-radius: 40px; }
+        .wiz-h2 { font-size: 2rem; }
+        .wiz-p { font-size: 1.1rem; }
+        .wiz-input { padding: 22px 20px 12px 20px; font-size: 1.2rem; }
+        .wiz-btn-main { padding: 20px; font-size: 1.2rem; border-radius: 20px; }
+        .wiz-btn-sec { padding: 20px; font-size: 1.2rem; border-radius: 20px; }
+        .monitor-ring-wrapper { width: 200px; height: 200px; }
+        .mon-val { font-size: 3.5rem; }
+        .ios-console { height: 160px; font-size: 0.9rem; }
+    }
+
+    @media (min-width: 1600px) {
+        .ios-wizard-card { max-width: 650px; padding: 50px; border-radius: 48px; }
+        .wiz-h2 { font-size: 2.5rem; }
+        .wiz-input { padding: 26px 24px 14px 24px; font-size: 1.4rem; border-radius: 24px; }
+        .wiz-label { font-size: 0.9rem; top: 12px; }
+        .success-icon { width: 140px; height: 140px; font-size: 1.5rem; }
+        .copy-result-box { padding: 20px; font-size: 1.1rem; border-radius: 24px; }
+    }
+</style>
+
+<div class="wizard-stage">
+    <div class="ios-wizard-card">
+        
+        <div class="wiz-steps">
+            <div id="dot-1" class="wiz-dot active"></div>
+            <div id="dot-2" class="wiz-dot"></div>
+            <div id="dot-3" class="wiz-dot"></div>
+            <div id="dot-4" class="wiz-dot"></div>
+        </div>
+
+        <div id="step-1" class="wiz-screen active">
+            <h2 class="wiz-h2">شروع فروش</h2>
+            <p class="wiz-p">شماره موبایل مشتری را جهت تایید وارد کنید</p>
+
+            <?php if($LOCK_NEW_ACCOUNTS): ?>
+            <div class="ios-badge" style="background: rgba(255, 45, 85, 0.1); color: #FF2D55; margin-bottom: 24px;">
+                <span class="material-symbols-rounded">lock</span>
+                فروش اکانت جدید توسط مدیریت قفل شده است
+            </div>
+            <?php endif; ?>
+            
+            <form onsubmit="verifyUser(event)">
+                <div class="wiz-input-group">
+                    <input type="tel" id="inp-phone" class="wiz-input" placeholder="09xxxxxxxxx" required autocomplete="off" dir="ltr" <?= $LOCK_NEW_ACCOUNTS ? 'disabled' : '' ?>>
+                    <label class="wiz-label">شماره موبایل</label>
+                </div>
+                <button type="submit" class="wiz-btn-main" id="btn-check" <?= $LOCK_NEW_ACCOUNTS ? 'disabled' : '' ?>>
+                    <?php if($LOCK_NEW_ACCOUNTS): ?>
+                        سیستم قفل است
+                    <?php else: ?>
+                        تایید و ادامه
+                        <span class="material-symbols-rounded" style="transform: scaleX(-1);">arrow_right_alt</span>
+                    <?php endif; ?>
+                </button>
+            </form>
+        </div>
+
+        <div id="step-2" class="wiz-screen">
+            <h2 class="wiz-h2">تنظیمات سرویس</h2>
+            <p class="wiz-p">مشخصات بسته و نام مشتری را تعیین کنید</p>
+            
+            <div id="badge-exist" class="ios-badge" style="display:none;">
+                <span class="material-symbols-rounded">verified_user</span> کاربر در سیستم موجود است
+            </div>
+
+            <form onsubmit="submitOrder(event)">
+                <div class="wiz-input-group">
+                    <input type="text" id="inp-name" class="wiz-input" placeholder="مثلاً: Ali_Reza" required dir="ltr">
+                    <label class="wiz-label">نام نمایشی (انگلیسی)</label>
+                </div>
+
+                <div class="wiz-input-group">
+                    <input type="text" id="inp-label" class="wiz-input" placeholder="برچسب دلخواه (اختیاری)" dir="rtl">
+                    <label class="wiz-label">برچسب کانفیگ (نمایش در برنامه‌ها)</label>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                    <div class="wiz-input-group">
+                        <input type="number" id="inp-gb" class="wiz-input" value="30" required dir="ltr">
+                        <label class="wiz-label">حجم (GB)</label>
+                    </div>
+                    <div class="wiz-input-group">
+                        <input type="number" id="inp-days" class="wiz-input" value="30" required dir="ltr">
+                        <label class="wiz-label">مدت (روز)</label>
+                    </div>
+                </div>
+                
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+
+   
+<div style="display:flex;gap:10px;margin-top:10px;">
+
+    <button
+        type="button"
+        onclick="switchStep(1)"
+        class="wiz-btn-sec"
+        style="width:30%;">
+        بازگشت
+    </button>
+
+    <button
+        type="submit"
+        class="wiz-btn-main"
+        id="btn-create">
+        ایجاد سرویس
+    </button>
+
+</div> </div>
+            </form>
+        </div>
+
+        <div id="step-3" class="wiz-screen">
+            <h2 class="wiz-h2">همگام‌سازی زنده</h2>
+            <p class="wiz-p">در حال ارسال اطلاعات به ماهواره‌ها...</p>
+            
+            <div class="monitor-ring-wrapper">
+                <svg class="monitor-ring-svg" viewBox="0 0 160 160">
+                    <circle class="monitor-circle-bg" cx="80" cy="80" r="70"></circle>
+                    <circle id="sync-ring" class="monitor-circle-fg" cx="80" cy="80" r="70"></circle>
+                </svg>
+                <div class="monitor-data">
+                    <div class="mon-val" id="sync-timer">0</div>
+                    <div class="mon-lbl">ثانیه</div>
+                </div>
+            </div>
+            
+            <div class="ios-console" id="sync-log">
+                <div class="log-item proc">
+                    <span class="material-symbols-rounded" style="font-size:16px;">settings_b_roll</span> Initializing Sync Protocol...
+                </div>
+            </div>
+        </div>
+
+        <div id="step-4" class="wiz-screen" style="text-align: center;">
+            <div class="success-icon">
+                <span class="material-symbols-rounded" style="font-size:56px;">check</span>
+            </div>
+            <h2 class="wiz-h2">سرویس آماده است!</h2>
+            <p class="wiz-p" style="color:#34C759;">تخصیص با موفقیت به اتمام رسید</p>
+            
+            <div class="qr-container">
+                <img id="res-qr" src="" width="150" height="150" style="display:block; border-radius: 12px;" alt="QR Code">
+            </div>
+            
+            <div class="copy-result-box" id="res-link" onclick="copyLink()">در حال تولید لینک...</div>
+             <button
+        type="button"
+        onclick="downloadAwgConfig()"
+        class="wiz-btn-main">
+        دانلود فایل AmneziaWG
+    </button>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button onclick="switchStep(1); resetWizard();" class="wiz-btn-sec">فروش جدید</button>
+                <a href="?page=services" class="wiz-btn-main" style="margin-top: 0; text-decoration: none;">لیست سرویس‌ها</a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- GLOBAL VARS ---
+    const SERVER_COUNT = 4; // Total servers to sync
+    let currentServiceId = null;
+    let activePhone = '';
+    let syncInterval = null;
+    let timerInterval = null;
+    let startTs = 0;
+
+    // --- API WRAPPER ---
+async function api(action,payload={}){
+
+    const fd=new FormData();
+
+    for(const k in payload)
+        fd.append(k,payload[k]);
+
+    const r=await fetch(`?page=add&api_action=${action}`,{
+        method:"POST",
+        body:fd
+    });
+
+    const text=await r.text();
+
+    console.log("STATUS",r.status);
+    console.log("RAW RESPONSE",text);
+
+    try{
+        return JSON.parse(text);
+    }catch(e){
+        alert(text);
+        throw e;
+    }
+}
+
+    // --- NAVIGATION ---
+    function switchStep(num) {
+        document.querySelectorAll('.wiz-screen').forEach(el => el.classList.remove('active'));
+        document.getElementById(`step-${num}`).classList.add('active');
+        
+        // Update Dots
+        for(let i=1; i<=4; i++) {
+            const dot = document.getElementById(`dot-${i}`);
+            dot.className = 'wiz-dot';
+            if(i <= num) dot.classList.add('active');
+            if(i < num) dot.classList.add('done');
+        }
+    }
+
+    // --- STEP 1: VERIFY ---
+    async function verifyUser(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btn-check');
+        const phone = document.getElementById('inp-phone').value;
+        
+        const originalBtnText = btn.innerHTML;
+        btn.innerHTML = '<span class="material-symbols-rounded spin">sync</span> درحال بررسی...';
+        btn.disabled = true;
+        
+        const res = await api('check_user', { phone });
+        
+        if(res.success) {
+            activePhone = phone;
+            const badge = document.getElementById('badge-exist');
+            const nameField = document.getElementById('inp-name');
+            const labelField = document.getElementById('inp-label');
+            
+            if(res.exists) {
+                // User Found: Lock Name
+                badge.style.display = 'flex';
+                nameField.value = res.customer.full_name;
+                nameField.readOnly = true;
+                setTimeout(() => labelField.focus(), 300);
+            } else {
+                // New User: Unlock Name
+                badge.style.display = 'none';
+                nameField.value = '';
+                nameField.readOnly = false;
+                setTimeout(() => nameField.focus(), 300);
+            }
+            switchStep(2);
+        } else {
+            alert(res.message || 'خطا در بررسی کاربر');
+        }
+        btn.innerHTML = originalBtnText;
+        btn.disabled = false;
+    }
+
+    // --- STEP 2: SUBMIT ---
+    async function submitOrder(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btn-create');
+        const originalBtnText = btn.innerHTML;
+        btn.innerHTML = '<span class="material-symbols-rounded spin">sync</span> درحال انجام...'; 
+        btn.disabled = true;
+        
+        const res = await api('create_service', {
+            phone: activePhone,
+            name: document.getElementById('inp-name').value,
+            custom_label: document.getElementById('inp-label').value,
+            gb: document.getElementById('inp-gb').value,
+            days: document.getElementById('inp-days').value
+        });
+
+        if(res.success) {
+            currentServiceId = res.service_id;
+            // Setup Final Screen
+            document.getElementById('res-link').innerText = res.sub_link;
+            document.getElementById('res-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(res.sub_link)}`;
+            
+            // Start Monitor
+            startSyncMonitor(res.job_id);
+        } else {
+            alert(res.message);
+            btn.innerHTML = originalBtnText; 
+            btn.disabled = false;
+        }
+    }
+
+    // --- STEP 3: LIVE MONITOR ---
+    function startSyncMonitor(jobId) {
+        switchStep(3);
+        
+        // Trigger Cron
+        api('trigger_cron');
+        
+        const ring = document.getElementById('sync-ring');
+        const timer = document.getElementById('sync-timer');
+        const log = document.getElementById('sync-log');
+        const circumference = 440; // 2 * pi * 70
+        
+        ring.style.strokeDashoffset = circumference;
+        startTs = Date.now();
+        
+        // Timer Logic
+        timerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - startTs) / 1000);
+            timer.innerText = elapsed;
+        }, 1000);
+
+        // Polling Logic
+        syncInterval = setInterval(async () => {
+            const res = await api('check_sync', { job_id: jobId });
+            
+            if(res.success) {
+                const done = res.done_count || 0;
+                
+                // Update Logs
+                log.innerHTML = `<div class="log-item proc"><span class="material-symbols-rounded">settings_b_roll</span> Processing Configuration...</div>`;
+                for(let i=0; i<done; i++) {
+                    log.innerHTML += `<div class="log-item ok"><span class="material-symbols-rounded">check_circle</span> Node #${i+1} Synced Successfully</div>`;
+                }
+                
+                log.scrollTop = log.scrollHeight;
+                
+                // Update Ring
+                const percent = Math.min(100, (done / SERVER_COUNT) * 100);
+                const offset = circumference - (percent / 100) * circumference;
+                ring.style.strokeDashoffset = offset;
+
+                // Done?
+                if(res.status === 'completed' || (percent >= 100 && done >= 1)) {
+                    clearInterval(syncInterval);
+                    clearInterval(timerInterval);
+                    ring.style.strokeDashoffset = 0;
+                    
+                    log.innerHTML += `<div class="log-item ok" style="font-weight:bold; margin-top:8px;"><span class="material-symbols-rounded">done_all</span> All Nodes Verified.</div>`;
+                    log.scrollTop = log.scrollHeight;
+                    
+                    setTimeout(() => switchStep(4), 1000);
+                }
+            }
+        }, 2000);
+    }
+
+    // --- UTILS ---
+    function copyLink() {
+        const box = document.getElementById('res-link');
+        const txt = box.innerText;
+        if(txt.includes('کپی شد')) return;
+        
+        navigator.clipboard.writeText(txt).then(() => {
+            box.innerHTML = "<span class='material-symbols-rounded' style='vertical-align:middle;'>check</span> کپی شد!";
+            box.style.borderColor = "#34C759";
+            box.style.color = "#34C759";
+            box.style.background = "rgba(52, 199, 89, 0.1)";
+            
+            if(navigator.vibrate) navigator.vibrate(50);
+            
+            setTimeout(() => {
+                box.innerText = txt;
+                box.style.borderColor = "rgba(0, 122, 255, 0.3)";
+                box.style.color = "#007AFF";
+                box.style.background = "rgba(0, 122, 255, 0.05)";
+            }, 2000);
+        });
+    }
+function downloadAwgConfig()
+{
+    if(!currentServiceId)
+    {
+        alert('Service ID Missing');
+        return;
+    }
+
+    window.location =
+        '?page=add&api_action=download_awg&service_id='
+        + currentServiceId;
+}
+    function resetWizard() {
+        document.getElementById('inp-phone').value = '';
+        document.getElementById('inp-name').value = '';
+        document.getElementById('inp-label').value = '';
+        document.getElementById('inp-name').readOnly = false;
+        
+        const btn = document.getElementById('btn-create');
+        btn.innerHTML = '<span class="material-symbols-rounded">rocket_launch</span> ایجاد سرویس';
+        btn.disabled = false;
+        
+        document.getElementById('sync-timer').innerText = '0';
+        document.getElementById('sync-log').innerHTML = `<div class="log-item proc"><span class="material-symbols-rounded">settings_b_roll</span> Initializing Sync Protocol...</div>`;
+    }
+</script>
