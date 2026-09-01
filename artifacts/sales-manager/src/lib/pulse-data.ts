@@ -24,6 +24,8 @@ export type Service = {
   subscriptionUrl?: string | null;
   awgReady?: boolean;
   awgConfigUrl?: string | null;
+  panelUsages?: { panelKey: string; usedGb: number; rawUsedGb: number; offsetGb: number; lastUpdated: string | null }[];
+  awgUsage?: { rxGb: number; txGb: number; rawTotalGb: number; usedGb: number; offsetGb: number; lastUpdated: string | null } | null;
 };
 
 export type Customer = {

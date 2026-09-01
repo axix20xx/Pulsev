@@ -23,7 +23,7 @@ async function config(): Promise<AwgConfig | null> {
   );
   const row = result.rows[0];
   if (!row?.awg_api_url || !row.awg_api_token) return null;
-  const apiUrl = /^https?:\/\//i.test(row.awg_api_url) ? row.awg_api_url : `https://${row.awg_api_url}`;
+  const apiUrl = /^https?:\/\//i.test(row.awg_api_url) ? row.awg_api_url : `http://${row.awg_api_url}`;
   return {
     apiUrl: apiUrl.replace(/\/+$/, ""),
     apiToken: row.awg_api_token,

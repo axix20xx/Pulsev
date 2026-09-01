@@ -95,7 +95,7 @@ async function syncService(service: ServiceRow): Promise<void> {
   }
 
   const combinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
-  const limitBytes = Math.max(0, Number(service.gb ?? 0) * BYTES_PER_GB);
+  const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB));
   const expired = Boolean(service.expire_at && new Date(service.expire_at).getTime() <= Date.now());
   const quotaReached = limitBytes > 0 && combinedBytes >= limitBytes;
   const shouldDisable = expired || quotaReached;
@@ -134,14 +134,21 @@ async function syncService(service: ServiceRow): Promise<void> {
     ],
   );
   if (service.token) {
-    await pool.query(
-      `INSERT INTO user_stats_cache (token, used_bytes, total_bytes, expire_ts, is_disabled, last_updated)
-       VALUES ($1, $2, $3, $4, $5, EXTRACT(EPOCH FROM NOW())::int)
-       ON CONFLICT (token) DO UPDATE SET used_bytes = EXCLUDED.used_bytes,
-         total_bytes = EXCLUDED.total_bytes, expire_ts = EXCLUDED.expire_ts,
-         is_disabled = EXCLUDED.is_disabled, last_updated = EXCLUDED.last_updated`,
-      [service.token, combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0],
+    const cacheValues = [combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0, service.token];
+    const updatedCache = await pool.query(
+      `UPDATE user_stats_cache
+       SET used_bytes = $1, total_bytes = $2, expire_ts = $3, is_disabled = $4,
+           last_updated = EXTRACT(EPOCH FROM NOW())::int
+       WHERE token = $5`,
+      cacheValues,
     );
+    if (!updatedCache.rowCount) {
+      await pool.query(
+        `INSERT INTO user_stats_cache (token, used_bytes, total_bytes, expire_ts, is_disabled, last_updated)
+         VALUES ($1, $2, $3, $4, $5, EXTRACT(EPOCH FROM NOW())::int)`,
+        [service.token, combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0],
+      );
+    }
   }
 }
 

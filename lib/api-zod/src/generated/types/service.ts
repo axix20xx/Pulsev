@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AwgUsage } from './awgUsage';
+import type { PanelUsage } from './panelUsage';
 import type { ServiceStatus } from './serviceStatus';
 
 export interface Service {
@@ -26,4 +28,6 @@ export interface Service {
   awg_ready?: boolean;
   /** @nullable */
   awg_config_url?: string | null;
+  panel_usages?: PanelUsage[];
+  awg_usage?: AwgUsage | null;
 }

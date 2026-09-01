@@ -2,3 +2,4 @@
 - [OpenAPI and Zod compatibility](openapi-zod-compatibility.md) — this workspace uses Zod 3, so generated response integer helpers must remain Zod 3-compatible.
 - [Panel availability policy](panel-availability-policy.md) — expose only credential-backed providers, and make every enabled provider available to every active seller.
 - [Public token subscription routes](public-subscription.md) — token links must bypass auth by path prefix and normalize legacy URLs to the current public route.
+- [Combined provider usage sync](combined-usage-sync.md) — aggregate effective V2Box and AmneziaWG usage with independent reset offsets before disabling services.

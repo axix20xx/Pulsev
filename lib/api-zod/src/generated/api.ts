@@ -184,7 +184,22 @@ export const ListServicesResponseItem = zod.object({
   "note": zod.string().nullable(),
   "subscription_url": zod.string().nullable(),
   "awg_ready": zod.boolean().optional(),
-  "awg_config_url": zod.string().nullish()
+  "awg_config_url": zod.string().nullish(),
+  "panel_usages": zod.array(zod.object({
+  "panel_key": zod.string(),
+  "used_gb": zod.number(),
+  "raw_used_gb": zod.number(),
+  "offset_gb": zod.number(),
+  "last_updated": zod.string().nullable()
+})).optional(),
+  "awg_usage": zod.object({
+  "rx_gb": zod.number(),
+  "tx_gb": zod.number(),
+  "raw_total_gb": zod.number(),
+  "used_gb": zod.number(),
+  "offset_gb": zod.number(),
+  "last_updated": zod.string().nullable()
+}).nullish()
 })
 export const ListServicesResponse = zod.array(ListServicesResponseItem)
 
@@ -229,7 +244,22 @@ export const CreateServiceResponse = zod.object({
   "note": zod.string().nullable(),
   "subscription_url": zod.string().nullable(),
   "awg_ready": zod.boolean().optional(),
-  "awg_config_url": zod.string().nullish()
+  "awg_config_url": zod.string().nullish(),
+  "panel_usages": zod.array(zod.object({
+  "panel_key": zod.string(),
+  "used_gb": zod.number(),
+  "raw_used_gb": zod.number(),
+  "offset_gb": zod.number(),
+  "last_updated": zod.string().nullable()
+})).optional(),
+  "awg_usage": zod.object({
+  "rx_gb": zod.number(),
+  "tx_gb": zod.number(),
+  "raw_total_gb": zod.number(),
+  "used_gb": zod.number(),
+  "offset_gb": zod.number(),
+  "last_updated": zod.string().nullable()
+}).nullish()
 }),
   "sale_id": zod.number(),
   "sync_status": zod.enum(['completed', 'partial'])
@@ -265,7 +295,22 @@ export const UpdateServiceResponse = zod.object({
   "note": zod.string().nullable(),
   "subscription_url": zod.string().nullable(),
   "awg_ready": zod.boolean().optional(),
-  "awg_config_url": zod.string().nullish()
+  "awg_config_url": zod.string().nullish(),
+  "panel_usages": zod.array(zod.object({
+  "panel_key": zod.string(),
+  "used_gb": zod.number(),
+  "raw_used_gb": zod.number(),
+  "offset_gb": zod.number(),
+  "last_updated": zod.string().nullable()
+})).optional(),
+  "awg_usage": zod.object({
+  "rx_gb": zod.number(),
+  "tx_gb": zod.number(),
+  "raw_total_gb": zod.number(),
+  "used_gb": zod.number(),
+  "offset_gb": zod.number(),
+  "last_updated": zod.string().nullable()
+}).nullish()
 })
 
 
@@ -303,7 +348,22 @@ export const RenewServiceResponse = zod.object({
   "note": zod.string().nullable(),
   "subscription_url": zod.string().nullable(),
   "awg_ready": zod.boolean().optional(),
-  "awg_config_url": zod.string().nullish()
+  "awg_config_url": zod.string().nullish(),
+  "panel_usages": zod.array(zod.object({
+  "panel_key": zod.string(),
+  "used_gb": zod.number(),
+  "raw_used_gb": zod.number(),
+  "offset_gb": zod.number(),
+  "last_updated": zod.string().nullable()
+})).optional(),
+  "awg_usage": zod.object({
+  "rx_gb": zod.number(),
+  "tx_gb": zod.number(),
+  "raw_total_gb": zod.number(),
+  "used_gb": zod.number(),
+  "offset_gb": zod.number(),
+  "last_updated": zod.string().nullable()
+}).nullish()
 })
 
 
@@ -404,7 +464,22 @@ export const GetCustomerResponse = zod.object({
   "note": zod.string().nullable(),
   "subscription_url": zod.string().nullable(),
   "awg_ready": zod.boolean().optional(),
-  "awg_config_url": zod.string().nullish()
+  "awg_config_url": zod.string().nullish(),
+  "panel_usages": zod.array(zod.object({
+  "panel_key": zod.string(),
+  "used_gb": zod.number(),
+  "raw_used_gb": zod.number(),
+  "offset_gb": zod.number(),
+  "last_updated": zod.string().nullable()
+})).optional(),
+  "awg_usage": zod.object({
+  "rx_gb": zod.number(),
+  "tx_gb": zod.number(),
+  "raw_total_gb": zod.number(),
+  "used_gb": zod.number(),
+  "offset_gb": zod.number(),
+  "last_updated": zod.string().nullable()
+}).nullish()
 })),
   "sales": zod.array(zod.object({
   "id": zod.number(),

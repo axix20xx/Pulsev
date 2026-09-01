@@ -535,6 +535,44 @@ components:
           type: boolean
         awg_config_url:
           type: ["string", "null"]
+        panel_usages:
+          type: array
+          items:
+            $ref: "#/components/schemas/PanelUsage"
+        awg_usage:
+          allOf:
+            - $ref: "#/components/schemas/AwgUsage"
+          nullable: true
+    PanelUsage:
+      type: object
+      required: [panel_key, used_gb, raw_used_gb, offset_gb, last_updated]
+      properties:
+        panel_key:
+          type: string
+        used_gb:
+          type: number
+        raw_used_gb:
+          type: number
+        offset_gb:
+          type: number
+        last_updated:
+          type: ["string", "null"]
+    AwgUsage:
+      type: object
+      required: [rx_gb, tx_gb, raw_total_gb, used_gb, offset_gb, last_updated]
+      properties:
+        rx_gb:
+          type: number
+        tx_gb:
+          type: number
+        raw_total_gb:
+          type: number
+        used_gb:
+          type: number
+        offset_gb:
+          type: number
+        last_updated:
+          type: ["string", "null"]
     CreateServiceResult:
       type: object
       required: [service, sale_id, sync_status]

@@ -117,6 +117,25 @@ export const ServiceStatus = {
   disabled: 'disabled',
 } as const;
 
+export interface PanelUsage {
+  panel_key: string;
+  used_gb: number;
+  raw_used_gb: number;
+  offset_gb: number;
+  /** @nullable */
+  last_updated: string | null;
+}
+
+export interface AwgUsage {
+  rx_gb: number;
+  tx_gb: number;
+  raw_total_gb: number;
+  used_gb: number;
+  offset_gb: number;
+  /** @nullable */
+  last_updated: string | null;
+}
+
 export interface Service {
   id: number;
   customer_id: number;
@@ -136,6 +155,8 @@ export interface Service {
   awg_ready?: boolean;
   /** @nullable */
   awg_config_url?: string | null;
+  panel_usages?: PanelUsage[];
+  awg_usage?: AwgUsage | null;
 }
 
 export type CreateServiceResultSyncStatus = typeof CreateServiceResultSyncStatus[keyof typeof CreateServiceResultSyncStatus];

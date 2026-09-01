@@ -91,10 +91,11 @@ const panelSchemaReady = pool
        note TEXT,
        created_at TIMESTAMP NOT NULL DEFAULT NOW()
      );
-    INSERT INTO panel_configs (key, kind, api_base, username_env, password_env, api_key_env)
+     INSERT INTO panel_configs (key, kind, api_base, username_env, password_env, api_key_env)
     VALUES
-      ('phonepanel', 'marzban', 'https://dash.phonepanel.ir', 'RAIN_PHONEPANEL_USER', 'RAIN_PHONEPANEL_PASS', NULL),
-      ('speedur', 'rain_admin', 'https://www.speedur.org:2096', 'RAIN_SPEEDUR_USER', 'RAIN_SPEEDUR_PASS', NULL),
+       ('phonepanel', 'rain_admin', 'https://videobazi.com', 'RAIN_PHONEPANEL_USER', 'RAIN_PHONEPANEL_PASS', NULL),
+       ('speedur', 'rain_admin', 'https://www.speedur.org:2096', 'RAIN_SPEEDUR_USER', 'RAIN_SPEEDUR_PASS', NULL),
+       ('xxpanel', 'marzban', 'https://panel.jetservices.ir:2096', 'RAIN_XXPANEL_USER', 'RAIN_XXPANEL_PASS', NULL),
       ('falcon', 'falcon', 'https://falco.all-engines.com/api/v1', NULL, NULL, 'FALCO_API_KEY')
     ON CONFLICT (key) DO UPDATE SET kind = EXCLUDED.kind, api_base = EXCLUDED.api_base, updated_at = NOW()
   `)
@@ -801,9 +802,10 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
         svc.rain_username AS username, svc.label AS plan, 'پنل اصلی' AS panel,
         svc.status, svc.expire_at::date::text AS expires_at,
         (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
-        svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
+          svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
         svc.awg_client_id IS NOT NULL AS awg_ready,
-        CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url
+           CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url,
+           svc.awg_rx, svc.awg_tx, svc.awg_total, svc.awg_offset_bytes, svc.last_usage_updated_at
        FROM reseller_services svc
        JOIN reseller_customers c ON c.id = svc.customer_id
        WHERE svc.id = $1`,
@@ -1124,10 +1126,47 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
       [parsed.data.id],
     ),
   ]);
+  const usageResult = services.rows.length
+    ? await pool.query(
+        `SELECT username, panel_key, total, offset_bytes, last_updated
+         FROM user_panel_usages
+         WHERE username = ANY($1::text[])
+         ORDER BY panel_key`,
+        [services.rows.map((service: any) => service.username)],
+      )
+    : { rows: [] };
+  const usageByUsername = new Map<string, any[]>();
+  for (const usage of usageResult.rows) {
+    const entries = usageByUsername.get(usage.username) ?? [];
+    entries.push({
+      panel_key: usage.panel_key,
+      used_gb: Math.max(0, Number(usage.total ?? 0) - Number(usage.offset_bytes ?? 0)) / 1073741824,
+      raw_used_gb: Number(usage.total ?? 0) / 1073741824,
+      offset_gb: Number(usage.offset_bytes ?? 0) / 1073741824,
+      last_updated: usage.last_updated?.toISOString?.() ?? usage.last_updated ?? null,
+    });
+    usageByUsername.set(usage.username, entries);
+  }
+  const detailedServices = services.rows.map((service: any) => ({
+    ...service,
+    panel_usages: usageByUsername.get(service.username) ?? [],
+    awg_usage: service.awg_client_id
+      ? {
+          rx_gb: Number(service.awg_rx ?? 0) / 1073741824,
+          tx_gb: Number(service.awg_tx ?? 0) / 1073741824,
+          raw_total_gb: Number(service.awg_total ?? 0) / 1073741824,
+          used_gb: Math.max(0, Number(service.awg_total ?? 0) - Number(service.awg_offset_bytes ?? 0)) / 1073741824,
+          offset_gb: Number(service.awg_offset_bytes ?? 0) / 1073741824,
+          last_updated: service.last_usage_updated_at
+            ? new Date(Number(service.last_usage_updated_at) * 1000).toISOString()
+            : null,
+        }
+      : null,
+  }));
   res.json(
     GetCustomerResponse.parse({
       ...customer.rows[0],
-      services: services.rows,
+      services: detailedServices,
       sales: sales.rows,
     }),
   );

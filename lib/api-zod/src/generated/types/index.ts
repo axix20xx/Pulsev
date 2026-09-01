@@ -9,6 +9,7 @@
 export * from './activity';
 export * from './authSession';
 export * from './authSessionRole';
+export * from './awgUsage';
 export * from './createServiceInput';
 export * from './createServiceResult';
 export * from './createServiceResultSyncStatus';
@@ -20,6 +21,7 @@ export * from './limitParameter';
 export * from './listCustomersParams';
 export * from './listSalesParams';
 export * from './listServicesParams';
+export * from './panelUsage';
 export * from './renewServiceInput';
 export * from './reseller';
 export * from './resellerUpdate';
