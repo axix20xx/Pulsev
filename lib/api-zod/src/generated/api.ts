@@ -54,6 +54,27 @@ export const LoginWithTelegramResponse = zod.object({
 
 
 /**
+ * Transitional login for internal use before the Telegram widget is enabled.
+ * @summary Temporary sign in with an allowlisted Telegram numeric ID
+ */
+
+
+
+export const LoginWithTelegramIdBody = zod.object({
+  "telegram_id": zod.number().min(1)
+})
+
+export const LoginWithTelegramIdResponse = zod.object({
+  "authenticated": zod.boolean(),
+  "role": zod.enum(['signed_out', 'master_admin', 'reseller']),
+  "telegram_id": zod.number().nullish(),
+  "display_name": zod.string().nullish(),
+  "reseller_id": zod.number().nullish(),
+  "title": zod.string().nullish()
+})
+
+
+/**
  * @summary End the current session
  */
 export const LogoutResponse = zod.void()
@@ -160,9 +181,59 @@ export const ListServicesResponseItem = zod.object({
   "expires_at": zod.string().nullable(),
   "used_gb": zod.number(),
   "limit_gb": zod.number(),
-  "note": zod.string().nullable()
+  "note": zod.string().nullable(),
+  "subscription_url": zod.string().nullable(),
+  "awg_ready": zod.boolean().optional(),
+  "awg_config_url": zod.string().nullish()
 })
 export const ListServicesResponse = zod.array(ListServicesResponseItem)
+
+
+/**
+ * @summary Provision a service on Rain and save it to PostgreSQL
+ */
+
+export const createServiceBodyPhoneMin = 3;
+
+export const createServiceBodyLabelMax = 64;
+
+export const createServiceBodyGbExclusiveMin = 0;
+
+
+export const createServiceBodySellPriceMin = 0;
+
+export const createServiceBodyIsPaidDefault = true;
+
+export const CreateServiceBody = zod.object({
+  "customer_name": zod.string().min(1),
+  "phone": zod.string().min(createServiceBodyPhoneMin),
+  "label": zod.string().min(1).max(createServiceBodyLabelMax),
+  "gb": zod.number().gt(createServiceBodyGbExclusiveMin),
+  "days": zod.number().min(1),
+  "sell_price": zod.number().min(createServiceBodySellPriceMin).nullish(),
+  "is_paid": zod.boolean().default(createServiceBodyIsPaidDefault)
+})
+
+export const CreateServiceResponse = zod.object({
+  "service": zod.object({
+  "id": zod.number(),
+  "customer_id": zod.number(),
+  "customer_name": zod.string(),
+  "username": zod.string(),
+  "plan": zod.string(),
+  "panel": zod.string(),
+  "status": zod.enum(['active', 'expired', 'disabled']),
+  "expires_at": zod.string().nullable(),
+  "used_gb": zod.number(),
+  "limit_gb": zod.number(),
+  "note": zod.string().nullable(),
+  "subscription_url": zod.string().nullable(),
+  "awg_ready": zod.boolean().optional(),
+  "awg_config_url": zod.string().nullish()
+}),
+  "sale_id": zod.number(),
+  "sync_status": zod.enum(['completed', 'partial'])
+})
 
 
 /**
@@ -191,7 +262,10 @@ export const UpdateServiceResponse = zod.object({
   "expires_at": zod.string().nullable(),
   "used_gb": zod.number(),
   "limit_gb": zod.number(),
-  "note": zod.string().nullable()
+  "note": zod.string().nullable(),
+  "subscription_url": zod.string().nullable(),
+  "awg_ready": zod.boolean().optional(),
+  "awg_config_url": zod.string().nullish()
 })
 
 
@@ -226,8 +300,52 @@ export const RenewServiceResponse = zod.object({
   "expires_at": zod.string().nullable(),
   "used_gb": zod.number(),
   "limit_gb": zod.number(),
-  "note": zod.string().nullable()
+  "note": zod.string().nullable(),
+  "subscription_url": zod.string().nullable(),
+  "awg_ready": zod.boolean().optional(),
+  "awg_config_url": zod.string().nullish()
 })
+
+
+/**
+ * @summary Revoke and replace a subscription token
+ */
+
+
+
+export const ResetServiceTokenParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const ResetServiceTokenResponse = zod.object({
+  "subscription_url": zod.string()
+})
+
+
+/**
+ * @summary Create an AmneziaWG client for a visible service
+ */
+
+
+
+export const CreateServiceAwgParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const CreateServiceAwgResponse = zod.void()
+
+
+/**
+ * @summary Download an AmneziaWG configuration
+ */
+
+
+
+export const DownloadServiceAwgParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const DownloadServiceAwgResponse = zod.string()
 
 
 /**
@@ -283,7 +401,10 @@ export const GetCustomerResponse = zod.object({
   "expires_at": zod.string().nullable(),
   "used_gb": zod.number(),
   "limit_gb": zod.number(),
-  "note": zod.string().nullable()
+  "note": zod.string().nullable(),
+  "subscription_url": zod.string().nullable(),
+  "awg_ready": zod.boolean().optional(),
+  "awg_config_url": zod.string().nullish()
 })),
   "sales": zod.array(zod.object({
   "id": zod.number(),

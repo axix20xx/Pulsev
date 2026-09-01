@@ -21,4 +21,9 @@ export interface Service {
   limit_gb: number;
   /** @nullable */
   note: string | null;
+  /** @nullable */
+  subscription_url: string | null;
+  awg_ready?: boolean;
+  /** @nullable */
+  awg_config_url?: string | null;
 }

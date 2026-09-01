@@ -70,6 +70,27 @@ paths:
           description: Invalid Telegram login
         "503":
           description: Telegram authentication is not configured
+  /auth/telegram-id:
+    post:
+      operationId: loginWithTelegramId
+      tags: [auth]
+      summary: Temporary sign in with an allowlisted Telegram numeric ID
+      description: Transitional login for internal use before the Telegram widget is enabled.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramIdLoginInput"
+      responses:
+        "200":
+          description: Authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "403":
+          description: Telegram ID is not allowlisted
   /auth/logout:
     post:
       operationId: logout
@@ -144,6 +165,27 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Service"
+    post:
+      operationId: createService
+      tags: [services]
+      summary: Provision a service on Rain and save it to PostgreSQL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateServiceInput"
+      responses:
+        "201":
+          description: Provisioned service and sale
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateServiceResult"
+        "400":
+          description: Invalid service input
+        "502":
+          description: Rain panel rejected the service
   /services/{id}:
     patch:
       operationId: updateService
@@ -184,6 +226,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Service"
+  /services/{id}/reset-token:
+    post:
+      operationId: resetServiceToken
+      tags: [services]
+      summary: Revoke and replace a subscription token
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: New subscription link
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [subscription_url]
+                properties:
+                  subscription_url:
+                    type: string
+  /services/{id}/awg:
+    post:
+      operationId: createServiceAwg
+      tags: [services]
+      summary: Create an AmneziaWG client for a visible service
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "201":
+          description: AmneziaWG client created
+  /services/{id}/awg/config:
+    get:
+      operationId: downloadServiceAwg
+      tags: [services]
+      summary: Download an AmneziaWG configuration
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: WireGuard configuration file
+          content:
+            text/plain:
+              schema:
+                type: string
   /customers:
     get:
       operationId: listCustomers
@@ -300,6 +384,40 @@ components:
           type: number
         hash:
           type: string
+    TelegramIdLoginInput:
+      type: object
+      required: [telegram_id]
+      properties:
+        telegram_id:
+          type: number
+          format: int64
+          minimum: 1
+    CreateServiceInput:
+      type: object
+      required: [customer_name, phone, label, gb, days]
+      properties:
+        customer_name:
+          type: string
+          minLength: 1
+        phone:
+          type: string
+          minLength: 3
+        label:
+          type: string
+          minLength: 1
+          maxLength: 64
+        gb:
+          type: number
+          exclusiveMinimum: 0
+        days:
+          type: number
+          minimum: 1
+        sell_price:
+          type: ["number", "null"]
+          minimum: 0
+        is_paid:
+          type: boolean
+          default: true
     AuthSession:
       type: object
       required: [authenticated, role]
@@ -386,7 +504,7 @@ components:
           type: boolean
     Service:
       type: object
-      required: [id, customer_id, customer_name, username, plan, panel, status, expires_at, used_gb, limit_gb, note]
+      required: [id, customer_id, customer_name, username, plan, panel, status, expires_at, used_gb, limit_gb, note, subscription_url]
       properties:
         id:
           type: number
@@ -411,6 +529,23 @@ components:
           type: number
         note:
           type: ["string", "null"]
+        subscription_url:
+          type: ["string", "null"]
+        awg_ready:
+          type: boolean
+        awg_config_url:
+          type: ["string", "null"]
+    CreateServiceResult:
+      type: object
+      required: [service, sale_id, sync_status]
+      properties:
+        service:
+          $ref: "#/components/schemas/Service"
+        sale_id:
+          type: number
+        sync_status:
+          type: string
+          enum: [completed, partial]
     ServiceUpdate:
       type: object
       properties:

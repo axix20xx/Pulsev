@@ -37,6 +37,26 @@ export function telegramAuthConfigured(): boolean {
   return Boolean(process.env.TELEGRAM_BOT_TOKEN);
 }
 
+export async function resolveTelegramIdAccess(
+  telegramId: number,
+): Promise<Pick<AuthContext, "role" | "resellerId" | "title"> | null> {
+  if (!Number.isSafeInteger(telegramId) || telegramId <= 0) return null;
+  if (telegramId === MASTER_ADMIN_TELEGRAM_ID) {
+    return { role: "master_admin", resellerId: null, title: "مدیر اصلی" };
+  }
+  const result = await pool.query<{ id: number; title: string | null }>(
+    `SELECT id, title
+     FROM resellers
+     WHERE tg_id = $1 AND is_enabled = 1
+     LIMIT 1`,
+    [telegramId],
+  );
+  const reseller = result.rows[0];
+  return reseller
+    ? { role: "reseller", resellerId: Number(reseller.id), title: reseller.title }
+    : null;
+}
+
 export function verifyTelegramLogin(
   payload: Record<string, unknown>,
 ): boolean {

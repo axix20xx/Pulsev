@@ -1,0 +1,422 @@
+import { randomBytes } from "node:crypto";
+import { pool } from "@workspace/db";
+
+type Panel = {
+  key?: string;
+  kind?: string;
+  api_base: string;
+  admin_user?: string;
+  admin_pass?: string;
+  api_key?: string;
+};
+
+type StoredPanel = Panel & {
+  username_env?: string | null;
+  password_env?: string | null;
+  api_key_env?: string | null;
+};
+
+type PanelResult = {
+  key: string;
+  kind: string;
+  status: number;
+};
+
+export class RainApiError extends Error {
+  readonly results: PanelResult[];
+
+  constructor(message: string, results: PanelResult[] = []) {
+    super(message);
+    this.name = "RainApiError";
+    this.results = results;
+  }
+}
+
+const tokenCache = new Map<string, string>();
+
+function panelKey(panel: Panel): string {
+  return panel.key?.trim() || panel.api_base;
+}
+
+function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" {
+  const kind = panel.kind?.trim().toLowerCase();
+  if (kind === "rain_admin") return "rain_admin";
+  if (kind === "falcon") return "falcon";
+  return "marzban";
+}
+
+function envValue(name?: string | null): string | undefined {
+  return name ? process.env[name]?.trim() || undefined : undefined;
+}
+
+async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
+  const raw = process.env.RAIN_PANELS_JSON?.trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((panel): panel is Panel => Boolean(panel && typeof panel === "object"))
+          .map((panel) => ({
+            ...panel,
+            api_base: String(panel.api_base ?? "").replace(/\/+$/, ""),
+          }))
+          .filter((panel) => panel.api_base);
+      }
+    } catch {
+      throw new RainApiError("RAIN_PANELS_JSON is not valid JSON");
+    }
+  }
+
+  try {
+    const result = await pool.query<StoredPanel>(
+      `SELECT p.key, p.kind, p.api_base, p.username_env, p.password_env, p.api_key_env
+       FROM panel_configs p
+       WHERE p.is_enabled = 1
+       ORDER BY p.key`,
+      [],
+    );
+    if (result.rows.length) {
+      return result.rows.map((panel) => ({
+        key: panel.key,
+        kind: panel.kind,
+        api_base: panel.api_base.replace(/\/+$/, ""),
+        admin_user: envValue(panel.username_env),
+        admin_pass: envValue(panel.password_env),
+        api_key: envValue(panel.api_key_env),
+      })).filter((panel) => {
+        const kind = panelKind(panel);
+        return kind === "falcon"
+          ? Boolean(panel.api_key)
+          : Boolean(panel.admin_user && panel.admin_pass);
+      });
+    }
+  } catch {
+    // The route initializes the panel-management schema; retain the legacy env fallback at startup.
+  }
+
+  const base = process.env.RAIN_API_BASE_URL?.trim().replace(/\/+$/, "");
+  if (!base) return [];
+  return [
+    {
+      key: process.env.RAIN_API_KEY_NAME || "primary",
+      kind: process.env.RAIN_API_KIND || "marzban",
+      api_base: base,
+      admin_user: process.env.RAIN_API_USERNAME,
+      admin_pass: process.env.RAIN_API_PASSWORD,
+      api_key: process.env.RAIN_API_KEY,
+    },
+  ];
+}
+
+export async function rainConfigured(ownerId?: number, role?: string): Promise<boolean> {
+  return (await panels(ownerId, role)).some((panel) => {
+    const kind = panelKind(panel);
+    return Boolean(
+      panel.api_base &&
+        (kind === "falcon"
+          ? panel.api_key
+          : panel.admin_user && panel.admin_pass),
+    );
+  });
+}
+
+export function subscriptionUrl(token: string): string {
+  const base =
+    process.env.SUBSCRIPTION_BASE_URL?.trim() ||
+    "https://peppernopepper.com/reseller/sub.php";
+  const separator = base.includes("?") ? "&" : "?";
+  return `${base}${separator}t=${encodeURIComponent(token)}`;
+}
+
+function bytesForGb(gb: number): number {
+  return Math.round(Math.max(0, gb) * 1024 * 1024 * 1024);
+}
+
+function isoInDays(days: number): string {
+  return new Date(Date.now() + Math.max(0, days) * 86_400_000).toISOString();
+}
+
+async function request(
+  panel: Panel,
+  method: string,
+  path: string,
+  token: string,
+  body?: unknown,
+): Promise<{ status: number; json: any; text: string }> {
+  const response = await fetch(`${panel.api_base}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const text = await response.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  return { status: response.status, json, text };
+}
+
+async function tokenFor(panel: Panel, forceRefresh = false): Promise<string> {
+  const key = panelKey(panel);
+  if (!forceRefresh && tokenCache.has(key)) return tokenCache.get(key)!;
+  const kind = panelKind(panel);
+  if (kind === "falcon") {
+    if (!panel.api_key) throw new RainApiError(`Panel ${key} has no API key`);
+    return panel.api_key;
+  }
+
+  const paths =
+    kind === "rain_admin"
+      ? ["/api/admins/token", "/api/admin/token", "/api/admin/token/"]
+      : ["/api/admin/token", "/api/admin/token/"];
+  for (const path of paths) {
+    try {
+      const response = await fetch(`${panel.api_base}${path}`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          grant_type: "password",
+          username: panel.admin_user ?? "",
+          password: panel.admin_pass ?? "",
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const text = await response.text();
+      const json = text ? JSON.parse(text) : null;
+      const token = json?.access_token ?? json?.token ?? json?.bearer;
+      if (response.ok && typeof token === "string" && token) {
+        tokenCache.set(key, token);
+        return token;
+      }
+    } catch {
+      // Try the next known token endpoint without exposing credentials.
+    }
+  }
+  throw new RainApiError(`Could not authenticate with panel ${key}`);
+}
+
+async function panelRequest(
+  panel: Panel,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<{ status: number; json: any; text: string }> {
+  let token = await tokenFor(panel);
+  let response = await request(panel, method, path, token, body);
+  if (response.status === 401 || response.status === 403) {
+    tokenCache.delete(panelKey(panel));
+    token = await tokenFor(panel, true);
+    response = await request(panel, method, path, token, body);
+  }
+  return response;
+}
+
+function safeError(response: { status: number; json: any; text: string }): string {
+  const detail =
+    typeof response.json?.detail === "string"
+      ? response.json.detail
+      : typeof response.json?.message === "string"
+        ? response.json.message
+        : "";
+  return detail ? `HTTP ${response.status}: ${detail.slice(0, 160)}` : `HTTP ${response.status}`;
+}
+
+async function rainAdminServiceIds(panel: Panel): Promise<number[]> {
+  const response = await panelRequest(panel, "GET", "/api/services");
+  if (!response || ![200, 201].includes(response.status)) return [];
+  const list =
+    response.json?.items ??
+    response.json?.data ??
+    response.json?.results ??
+    response.json?.services ??
+    response.json;
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item) => Number(item?.id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+}
+
+async function marzbanInbounds(panel: Panel): Promise<Record<string, string[]>> {
+  const response = await panelRequest(panel, "GET", "/api/inbounds");
+  if (response.status !== 200 || !response.json || typeof response.json !== "object") {
+    return { vless: [] };
+  }
+  if (Array.isArray(response.json) && response.json.every((item) => typeof item === "string")) {
+    return {
+      vless: response.json,
+      vmess: response.json,
+      trojan: response.json,
+      shadowsocks: response.json,
+    };
+  }
+  const result: Record<string, string[]> = {};
+  for (const [protocol, items] of Object.entries(response.json)) {
+    if (!Array.isArray(items)) continue;
+    const tags = items
+      .map((item: any) => String(item?.tag ?? "").trim())
+      .filter(Boolean)
+      .filter((tag) => !/grpc|disabled|test|old/i.test(tag));
+    if (tags.length) result[protocol.toLowerCase()] = [...new Set(tags)];
+  }
+  if (!Object.keys(result).length) result.vless = [];
+  return result;
+}
+
+async function provisionRainAdmin(
+  panel: Panel,
+  username: string,
+  gb: number,
+  days: number,
+): Promise<number> {
+  const ids = await rainAdminServiceIds(panel);
+  const body = {
+    username,
+    expire_strategy: "fixed_date",
+    expire_date: isoInDays(days),
+    expire_at: isoInDays(days),
+    data_limit: bytesForGb(gb),
+    data_limit_bytes: bytesForGb(gb),
+    data_limit_reset_strategy: "no_reset",
+    note: `Pulse provisioned ${new Date().toISOString()}`,
+    ...(ids.length ? { service_ids: ids } : {}),
+  };
+  const encoded = encodeURIComponent(username);
+  const candidates: Array<[string, string]> = [
+    ["PUT", `/api/users/${encoded}`],
+    ["PATCH", `/api/users/${encoded}`],
+    ["POST", "/api/users"],
+    ["PUT", `/api/user/${encoded}`],
+    ["POST", "/api/user"],
+  ];
+  let last = { status: 0, json: null, text: "" };
+  for (const [method, path] of candidates) {
+    last = await panelRequest(panel, method, path, body);
+    if (last.status >= 200 && last.status < 300) return last.status;
+    if (![404, 405, 422].includes(last.status)) break;
+  }
+  throw new RainApiError(`Rain panel ${panelKey(panel)} rejected the user: ${safeError(last)}`);
+}
+
+async function provisionMarzban(
+  panel: Panel,
+  username: string,
+  gb: number,
+  days: number,
+): Promise<number> {
+  const encoded = encodeURIComponent(username);
+  const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  const inbounds = await marzbanInbounds(panel);
+  const protocols = Object.keys(inbounds);
+  const proxies = Object.fromEntries(protocols.map((protocol) => [protocol, {}]));
+  const excluded = Object.fromEntries(protocols.map((protocol) => [protocol, []]));
+  const body = {
+    username,
+    expire: Math.floor((Date.now() + Math.max(0, days) * 86_400_000) / 1000),
+    data_limit: bytesForGb(gb),
+    status: "active",
+    proxies,
+    inbounds,
+    excluded_inbounds: excluded,
+    proxy_settings: proxies,
+    ...(existing.status === 200 && existing.json?.group_ids
+      ? { group_ids: existing.json.group_ids }
+      : panel.key === "phonepanel" || panel.key === "speedur"
+        ? { group_ids: [1] }
+        : {}),
+  };
+  const response =
+    existing.status === 200
+      ? await panelRequest(panel, "PUT", `/api/user/${encoded}`, body)
+      : await panelRequest(panel, "POST", "/api/user", body);
+  if (response.status >= 200 && response.status < 300) return response.status;
+  throw new RainApiError(
+    `Marzban panel ${panelKey(panel)} rejected the user: ${safeError(response)}`,
+  );
+}
+
+async function provisionFalcon(
+  panel: Panel,
+  gb: number,
+  days: number,
+  label: string,
+): Promise<number> {
+  const info = await panelRequest(panel, "GET", "/api/v1/panels");
+  const first = info.json?.data?.[0] ?? info.json?.[0] ?? {};
+  const serviceIds = Array.isArray(first.services)
+    ? first.services.map((service: any) => Number(service?.id)).filter(Boolean)
+    : [];
+  const response = await panelRequest(panel, "POST", "/api/v1/configs", {
+    panel_id: first.id ?? 1,
+    traffic_limit_gb: gb,
+    expires_days: days,
+    status: "active",
+    comment: label,
+    service_ids: serviceIds,
+  });
+  if (response.status >= 200 && response.status < 300) return response.status;
+  throw new RainApiError(
+    `Falcon panel ${panelKey(panel)} rejected the user: ${safeError(response)}`,
+  );
+}
+
+export async function provisionUser(
+  username: string,
+  gb: number,
+  days: number,
+  label: string,
+  ownerId?: number,
+  role?: string,
+): Promise<{ ok: boolean; results: PanelResult[] }> {
+  const configuredPanels = await panels(ownerId, role);
+  const hasCredentials = configuredPanels.some((panel) => {
+    const kind = panelKind(panel);
+    return Boolean(kind === "falcon" ? panel.api_key : panel.admin_user && panel.admin_pass);
+  });
+  if (!configuredPanels.length || !hasCredentials) {
+    throw new RainApiError(
+      "Rain API is not configured. Set RAIN_PANELS_JSON or the RAIN_API_* environment variables.",
+    );
+  }
+  const results: PanelResult[] = [];
+  for (const panel of configuredPanels) {
+    const kind = panelKind(panel);
+    try {
+      const status =
+        kind === "rain_admin"
+          ? await provisionRainAdmin(panel, username, gb, days)
+          : kind === "falcon"
+            ? await provisionFalcon(panel, gb, days, label)
+            : await provisionMarzban(panel, username, gb, days);
+      results.push({ key: panelKey(panel), kind, status });
+    } catch (error) {
+      results.push({
+        key: panelKey(panel),
+        kind,
+        status: error instanceof RainApiError ? 502 : 500,
+      });
+    }
+  }
+  if (!results.length || !results.some((result) => result.status >= 200 && result.status < 300)) {
+    throw new RainApiError("No configured Rain panel accepted the service.", results);
+  }
+  return { ok: true, results };
+}
+
+export function createServiceUsername(customerId: number): string {
+  return `u${customerId}_${randomBytes(3).toString("hex")}`;
+}
+
+export function createSubscriptionToken(): string {
+  return randomBytes(16).toString("hex");
+}

@@ -21,6 +21,8 @@ import type {
 
 import type {
   AuthSession,
+  CreateServiceInput,
+  CreateServiceResult,
   Customer,
   CustomerDetail,
   DashboardSummary,
@@ -31,10 +33,12 @@ import type {
   RenewServiceInput,
   Reseller,
   ResellerUpdate,
+  ResetServiceToken200,
   Sale,
   SaleUpdate,
   Service,
   ServiceUpdate,
+  TelegramIdLoginInput,
   TelegramLoginInput
 } from './api.schemas';
 
@@ -289,6 +293,78 @@ export const useLoginWithTelegram = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getLoginWithTelegramMutationOptions(options));
+    }
+
+export const getLoginWithTelegramIdUrl = () => {
+
+
+
+
+  return `/api/auth/telegram-id`
+}
+
+/**
+ * Transitional login for internal use before the Telegram widget is enabled.
+ * @summary Temporary sign in with an allowlisted Telegram numeric ID
+ */
+export const loginWithTelegramId = async (telegramIdLoginInput: TelegramIdLoginInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
+
+  return customFetch<AuthSession>(getLoginWithTelegramIdUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(telegramIdLoginInput)
+  }
+);}
+
+
+
+
+
+export const getLoginWithTelegramIdMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loginWithTelegramId>>, TError,{data: BodyType<TelegramIdLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof loginWithTelegramId>>, TError,{data: BodyType<TelegramIdLoginInput>}, TContext> => {
+
+const mutationKey = ['loginWithTelegramId'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof loginWithTelegramId>>, {data: BodyType<TelegramIdLoginInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  loginWithTelegramId(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LoginWithTelegramIdMutationResult = NonNullable<Awaited<ReturnType<typeof loginWithTelegramId>>>
+    export type LoginWithTelegramIdMutationBody = BodyType<TelegramIdLoginInput>
+    export type LoginWithTelegramIdMutationError = ErrorType<void>
+
+    /**
+ * @summary Temporary sign in with an allowlisted Telegram numeric ID
+ */
+export const useLoginWithTelegramId = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loginWithTelegramId>>, TError,{data: BodyType<TelegramIdLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof loginWithTelegramId>>,
+        TError,
+        {data: BodyType<TelegramIdLoginInput>},
+        TContext
+      > => {
+      return useMutation(getLoginWithTelegramIdMutationOptions(options));
     }
 
 export const getLogoutUrl = () => {
@@ -679,6 +755,77 @@ export function useListServices<TData = Awaited<ReturnType<typeof listServices>>
 
 
 
+export const getCreateServiceUrl = () => {
+
+
+
+
+  return `/api/services`
+}
+
+/**
+ * @summary Provision a service on Rain and save it to PostgreSQL
+ */
+export const createService = async (createServiceInput: CreateServiceInput, options?: Parameters<typeof customFetch>[1]): Promise<CreateServiceResult> => {
+
+  return customFetch<CreateServiceResult>(getCreateServiceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createServiceInput)
+  }
+);}
+
+
+
+
+
+export const getCreateServiceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createService>>, TError,{data: BodyType<CreateServiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createService>>, TError,{data: BodyType<CreateServiceInput>}, TContext> => {
+
+const mutationKey = ['createService'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createService>>, {data: BodyType<CreateServiceInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createService(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateServiceMutationResult = NonNullable<Awaited<ReturnType<typeof createService>>>
+    export type CreateServiceMutationBody = BodyType<CreateServiceInput>
+    export type CreateServiceMutationError = ErrorType<void>
+
+    /**
+ * @summary Provision a service on Rain and save it to PostgreSQL
+ */
+export const useCreateService = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createService>>, TError,{data: BodyType<CreateServiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createService>>,
+        TError,
+        {data: BodyType<CreateServiceInput>},
+        TContext
+      > => {
+      return useMutation(getCreateServiceMutationOptions(options));
+    }
+
 export const getUpdateServiceUrl = (id: number,) => {
 
 
@@ -822,6 +969,225 @@ export const useRenewService = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRenewServiceMutationOptions(options));
     }
+
+export const getResetServiceTokenUrl = (id: number,) => {
+
+
+
+
+  return `/api/services/${id}/reset-token`
+}
+
+/**
+ * @summary Revoke and replace a subscription token
+ */
+export const resetServiceToken = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ResetServiceToken200> => {
+
+  return customFetch<ResetServiceToken200>(getResetServiceTokenUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResetServiceTokenMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetServiceToken>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetServiceToken>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['resetServiceToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetServiceToken>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  resetServiceToken(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetServiceTokenMutationResult = NonNullable<Awaited<ReturnType<typeof resetServiceToken>>>
+
+    export type ResetServiceTokenMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Revoke and replace a subscription token
+ */
+export const useResetServiceToken = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetServiceToken>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetServiceToken>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getResetServiceTokenMutationOptions(options));
+    }
+
+export const getCreateServiceAwgUrl = (id: number,) => {
+
+
+
+
+  return `/api/services/${id}/awg`
+}
+
+/**
+ * @summary Create an AmneziaWG client for a visible service
+ */
+export const createServiceAwg = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getCreateServiceAwgUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateServiceAwgMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createServiceAwg>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createServiceAwg>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['createServiceAwg'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createServiceAwg>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  createServiceAwg(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateServiceAwgMutationResult = NonNullable<Awaited<ReturnType<typeof createServiceAwg>>>
+
+    export type CreateServiceAwgMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create an AmneziaWG client for a visible service
+ */
+export const useCreateServiceAwg = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createServiceAwg>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createServiceAwg>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCreateServiceAwgMutationOptions(options));
+    }
+
+export const getDownloadServiceAwgUrl = (id: number,) => {
+
+
+
+
+  return `/api/services/${id}/awg/config`
+}
+
+/**
+ * @summary Download an AmneziaWG configuration
+ */
+export const downloadServiceAwg = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getDownloadServiceAwgUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadServiceAwgQueryKey = (id: number,) => {
+    return [
+    `/api/services/${id}/awg/config`
+    ] as const;
+    }
+
+
+export const getDownloadServiceAwgQueryOptions = <TData = Awaited<ReturnType<typeof downloadServiceAwg>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadServiceAwg>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadServiceAwgQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadServiceAwg>>> = ({ signal }) => downloadServiceAwg(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadServiceAwg>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadServiceAwgQueryResult = NonNullable<Awaited<ReturnType<typeof downloadServiceAwg>>>
+export type DownloadServiceAwgQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Download an AmneziaWG configuration
+ */
+
+export function useDownloadServiceAwg<TData = Awaited<ReturnType<typeof downloadServiceAwg>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadServiceAwg>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadServiceAwgQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListCustomersUrl = (params?: ListCustomersParams,) => {
   const normalizedParams = new URLSearchParams();

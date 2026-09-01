@@ -13,6 +13,11 @@ import {
   ListServicesResponse,
   LoginWithTelegramBody,
   LoginWithTelegramResponse,
+  LoginWithTelegramIdBody,
+  LoginWithTelegramIdResponse,
+  CreateServiceBody,
+  CreateServiceResponse,
+  ResetServiceTokenResponse,
   RenewServiceBody,
   RenewServiceParams,
   RenewServiceResponse,
@@ -37,12 +42,64 @@ import {
   setSessionCookie,
   telegramAuthConfigured,
   verifyTelegramLogin,
-  MASTER_ADMIN_TELEGRAM_ID,
+  resolveTelegramIdAccess,
   sessionHash,
 } from "../lib/auth";
+import {
+  createServiceUsername,
+  createSubscriptionToken,
+  provisionUser,
+  RainApiError,
+  subscriptionUrl,
+} from "../lib/rain";
+import {
+  AwgApiError,
+  createAwgClient,
+  getAwgConfiguration,
+  recreateAwgClient,
+} from "../lib/amneziawg";
 
 const router: IRouter = Router();
 router.use(attachAuth);
+
+const panelSchemaReady = pool
+  .query(`
+    CREATE TABLE IF NOT EXISTS panel_configs (
+      key TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      api_base TEXT NOT NULL,
+      username_env TEXT,
+      password_env TEXT,
+      api_key_env TEXT,
+      is_enabled SMALLINT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS reseller_panel_assignments (
+      reseller_tg_id BIGINT NOT NULL,
+      panel_key TEXT NOT NULL REFERENCES panel_configs(key) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (reseller_tg_id, panel_key)
+    );
+    INSERT INTO panel_configs (key, kind, api_base, username_env, password_env, api_key_env)
+    VALUES
+      ('phonepanel', 'marzban', 'https://dash.phonepanel.ir', 'RAIN_PHONEPANEL_USER', 'RAIN_PHONEPANEL_PASS', NULL),
+      ('speedur', 'rain_admin', 'https://www.speedur.org:2096', 'RAIN_SPEEDUR_USER', 'RAIN_SPEEDUR_PASS', NULL),
+      ('falcon', 'falcon', 'https://falco.all-engines.com/api/v1', NULL, NULL, 'FALCO_API_KEY')
+    ON CONFLICT (key) DO UPDATE SET kind = EXCLUDED.kind, api_base = EXCLUDED.api_base, updated_at = NOW()
+  `)
+  .catch((error) => {
+    console.error("Panel management schema initialization failed", error);
+    throw error;
+  });
+router.use(async (_req, _res, next) => {
+  try {
+    await panelSchemaReady;
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 const sessionResponse = (context: Awaited<ReturnType<typeof getAuthContext>>) =>
   GetAuthSessionResponse.parse(
@@ -89,28 +146,12 @@ router.post("/auth/telegram", async (req, res): Promise<void> => {
   }
 
   const telegramId = Number(parsed.data.id);
-  let role: "master_admin" | "reseller";
-  let resellerId: number | null = null;
-  let title: string | null = null;
-  if (telegramId === MASTER_ADMIN_TELEGRAM_ID) {
-    role = "master_admin";
-    title = "مدیر اصلی";
-  } else {
-    const reseller = await pool.query<{ id: number; title: string | null }>(
-      `SELECT id, title
-       FROM resellers
-       WHERE tg_id = $1 AND is_enabled = 1
-       LIMIT 1`,
-      [telegramId],
-    );
-    if (!reseller.rows[0]) {
-      res.status(403).json({ error: "این حساب تلگرام دسترسی فروشنده ندارد" });
-      return;
-    }
-    role = "reseller";
-    resellerId = Number(reseller.rows[0].id);
-    title = reseller.rows[0].title;
+  const access = await resolveTelegramIdAccess(telegramId);
+  if (!access) {
+    res.status(403).json({ error: "این حساب تلگرام دسترسی فروشنده ندارد" });
+    return;
   }
+  const { role, resellerId, title } = access;
 
   const displayName =
     [parsed.data.first_name, parsed.data.last_name].filter(Boolean).join(" ") ||
@@ -136,6 +177,39 @@ router.post("/auth/telegram", async (req, res): Promise<void> => {
   );
 });
 
+router.post("/auth/telegram-id", async (req, res): Promise<void> => {
+  const parsed = LoginWithTelegramIdBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "شناسه تلگرام معتبر نیست" });
+    return;
+  }
+  const telegramId = Number(parsed.data.telegram_id);
+  const access = await resolveTelegramIdAccess(telegramId);
+  if (!access) {
+    res.status(403).json({ error: "این شناسه تلگرام در سامانه دسترسی ندارد" });
+    return;
+  }
+  const displayName = access.role === "master_admin" ? "مدیر اصلی" : `فروشنده ${telegramId}`;
+  const sessionId = await createWebSession({
+    telegramId,
+    role: access.role,
+    resellerId: access.resellerId,
+    displayName,
+    title: access.title,
+  });
+  setSessionCookie(res, sessionId);
+  res.json(
+    LoginWithTelegramIdResponse.parse({
+      authenticated: true,
+      role: access.role,
+      telegram_id: telegramId,
+      display_name: displayName,
+      reseller_id: access.resellerId,
+      title: access.title,
+    }),
+  );
+});
+
 router.post("/auth/logout", async (req, res): Promise<void> => {
   const rawId = req.cookies?.pulse_session;
   if (typeof rawId === "string" && rawId) {
@@ -145,6 +219,123 @@ router.post("/auth/logout", async (req, res): Promise<void> => {
   }
   clearSessionCookie(res);
   res.sendStatus(204);
+});
+
+router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
+  const result = await pool.query(
+    `SELECT p.key, p.kind, p.api_base, p.is_enabled = 1 AS enabled,
+            p.username_env, p.password_env, p.api_key_env,
+            COALESCE(array_agg(a.reseller_tg_id) FILTER (WHERE a.reseller_tg_id IS NOT NULL), '{}') AS assigned_reseller_ids
+     FROM panel_configs p
+     LEFT JOIN reseller_panel_assignments a ON a.panel_key = p.key
+     GROUP BY p.key
+     ORDER BY p.key`,
+  );
+  const configured = result.rows.map((panel) => ({
+    ...panel,
+    has_data: panel.kind === "falcon"
+      ? Boolean(panel.api_key_env && process.env[panel.api_key_env])
+      : Boolean(
+          panel.username_env &&
+            panel.password_env &&
+            process.env[panel.username_env] &&
+            process.env[panel.password_env],
+        ),
+  }));
+  res.json(configured.map((panel) => ({ ...panel, available_to_all_resellers: true })));
+});
+
+router.get("/providers/available", requireAuth, async (_req, res): Promise<void> => {
+  await panelSchemaReady;
+  const result = await pool.query(
+    `SELECT key, kind, username_env, password_env, api_key_env
+     FROM panel_configs
+     WHERE is_enabled = 1
+     ORDER BY key`,
+  );
+  const configured = result.rows.filter((panel) =>
+    panel.kind === "falcon"
+      ? Boolean(panel.api_key_env && process.env[panel.api_key_env])
+      : Boolean(
+          panel.username_env &&
+            panel.password_env &&
+            process.env[panel.username_env] &&
+            process.env[panel.password_env],
+        ),
+  );
+  res.json(configured.map(({ key, kind }) => ({ key, kind })));
+});
+
+router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void> => {
+  const key = String(req.params.key ?? "").trim();
+  const body = req.body ?? {};
+  if (
+    !/^[a-z0-9_-]{2,64}$/.test(key) ||
+    (body.enabled !== undefined && typeof body.enabled !== "boolean") ||
+    (body.api_base !== undefined && typeof body.api_base !== "string") ||
+    (body.kind !== undefined && !["marzban", "rain_admin", "falcon"].includes(body.kind)) ||
+    (body.username_env !== undefined && typeof body.username_env !== "string") ||
+    (body.password_env !== undefined && typeof body.password_env !== "string") ||
+    (body.api_key_env !== undefined && typeof body.api_key_env !== "string")
+  ) {
+    res.status(400).json({ error: "تنظیمات پنل معتبر نیست" });
+    return;
+  }
+  const result = await pool.query(
+    `UPDATE panel_configs SET
+       is_enabled = COALESCE($1, is_enabled),
+       kind = COALESCE(NULLIF($2, ''), kind),
+       api_base = COALESCE(NULLIF($3, ''), api_base),
+       username_env = COALESCE(NULLIF($4, ''), username_env),
+       password_env = COALESCE(NULLIF($5, ''), password_env),
+       api_key_env = COALESCE(NULLIF($6, ''), api_key_env),
+       updated_at = NOW()
+     WHERE key = $7
+     RETURNING key, kind, api_base, is_enabled = 1 AS enabled,
+       username_env, password_env, api_key_env`,
+    [
+      body.enabled === undefined ? null : body.enabled ? 1 : 0,
+      body.kind ?? null,
+      body.api_base ?? null,
+      body.username_env ?? null,
+      body.password_env ?? null,
+      body.api_key_env ?? null,
+      key,
+    ],
+  );
+  if (!result.rows[0]) {
+    res.status(404).json({ error: "پنل پیدا نشد" });
+    return;
+  }
+  res.json(result.rows[0]);
+});
+
+router.post("/panels/:key/assignments", requireMasterAdmin, async (req, res): Promise<void> => {
+  const key = String(req.params.key ?? "").trim();
+  const telegramId = Number(req.body?.reseller_tg_id);
+  if (!/^[a-z0-9_-]{2,64}$/.test(key) || !Number.isSafeInteger(telegramId) || telegramId <= 0 || typeof req.body?.assigned !== "boolean") {
+    res.status(400).json({ error: "اختصاص پنل معتبر نیست" });
+    return;
+  }
+  const panel = await pool.query("SELECT 1 FROM panel_configs WHERE key = $1", [key]);
+  const reseller = await pool.query("SELECT 1 FROM resellers WHERE tg_id = $1", [telegramId]);
+  if (!panel.rows[0] || !reseller.rows[0]) {
+    res.status(404).json({ error: "پنل یا فروشنده پیدا نشد" });
+    return;
+  }
+  if (req.body.assigned) {
+    await pool.query(
+      `INSERT INTO reseller_panel_assignments (reseller_tg_id, panel_key)
+       VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [telegramId, key],
+    );
+  } else {
+    await pool.query(
+      "DELETE FROM reseller_panel_assignments WHERE reseller_tg_id = $1 AND panel_key = $2",
+      [telegramId, key],
+    );
+  }
+  res.json({ panel_key: key, reseller_tg_id: telegramId, assigned: req.body.assigned });
 });
 
 router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
@@ -327,7 +518,10 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
        svc.expire_at::date::text AS expires_at,
        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
        svc.gb::float8 AS limit_gb,
-       svc.admin_notes AS note
+       svc.admin_notes AS note,
+       svc.subscription_url,
+       svc.awg_client_id IS NOT NULL AS awg_ready,
+       CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url
      FROM reseller_services svc
      LEFT JOIN reseller_customers c ON c.id = svc.customer_id
      WHERE ${conditions.join(" AND ")}
@@ -336,6 +530,161 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
     params,
   );
   res.json(ListServicesResponse.parse(result.rows));
+});
+
+router.post("/services", requireAuth, async (req, res): Promise<void> => {
+  const body = CreateServiceBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: "مشخصات مشتری و بسته معتبر نیست" });
+    return;
+  }
+  const ownerId = Number(req.auth?.telegramId);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('pulse_create_service'))");
+    const currentReseller = await client.query<{ total_gb: number; used_gb: number; per_gig_price: number }>(
+      `SELECT total_gb::float8, used_gb::float8, COALESCE(per_gig_price, 0)::float8 AS per_gig_price
+       FROM resellers WHERE tg_id = $1 AND is_enabled = 1 LIMIT 1`,
+      [ownerId],
+    );
+    if (req.auth?.role === "reseller") {
+      const reseller = currentReseller.rows[0];
+      if (!reseller) {
+        res.status(403).json({ error: "فروشنده فعال پیدا نشد" });
+        await client.query("ROLLBACK");
+        return;
+      }
+      const unlimited = Number(reseller.total_gb) === 0;
+      if (!unlimited && Number(reseller.total_gb) - Number(reseller.used_gb) < body.data.gb) {
+        res.status(409).json({ error: "اعتبار حجم فروشنده کافی نیست" });
+        await client.query("ROLLBACK");
+        return;
+      }
+    }
+
+    const customer = await client.query<{ id: number }>(
+      req.auth?.role === "master_admin"
+        ? `SELECT id FROM reseller_customers WHERE phone = $1 ORDER BY id LIMIT 1`
+        : `SELECT id FROM reseller_customers
+           WHERE phone = $1 AND (reseller_tg_id = $2 OR reseller_tg_id IS NULL)
+           ORDER BY id LIMIT 1`,
+      req.auth?.role === "master_admin" ? [body.data.phone] : [body.data.phone, ownerId],
+    );
+    let customerId = customer.rows[0]?.id;
+    if (!customerId) {
+      const next = await client.query<{ id: number }>(
+        "SELECT COALESCE(MAX(id), 0) + 1 AS id FROM reseller_customers",
+      );
+      customerId = Number(next.rows[0].id);
+      await client.query(
+        `INSERT INTO reseller_customers (id, phone, full_name, reseller_tg_id, created_at)
+         VALUES ($1, $2, $3, $4, NOW())`,
+        [customerId, body.data.phone, body.data.customer_name, ownerId],
+      );
+    } else {
+      await client.query(
+        `UPDATE reseller_customers
+         SET full_name = $1, reseller_tg_id = COALESCE(reseller_tg_id, $2)
+         WHERE id = $3`,
+        [body.data.customer_name, ownerId, customerId],
+      );
+    }
+
+    const serviceNext = await client.query<{ id: number }>(
+      "SELECT COALESCE(MAX(id), 0) + 1 AS id FROM reseller_services",
+    );
+    const serviceId = Number(serviceNext.rows[0].id);
+    const username = createServiceUsername(customerId);
+    const token = createSubscriptionToken();
+    const expiresAt = new Date(Date.now() + body.data.days * 86_400_000);
+    const subLink = subscriptionUrl(token);
+
+    // Provision first, while the SQL transaction is open; a failed panel call rolls everything back.
+    try {
+      await provisionUser(username, body.data.gb, body.data.days, body.data.label, ownerId, req.auth?.role);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      if (error instanceof RainApiError) {
+        res.status(502).json({ error: error.message, panel_results: error.results });
+        return;
+      }
+      throw error;
+    }
+    const awg = await createAwgClient();
+
+    await client.query(
+      `INSERT INTO reseller_services
+       (id, reseller_tg_id, customer_id, gb, days, label, rain_username,
+        subscription_url, expire_at, status, created_at, updated_at, last_used_bytes, awg_client_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', NOW(), NOW(), 0, $10)`,
+      [serviceId, ownerId, customerId, body.data.gb, body.data.days, body.data.label, username, subLink, expiresAt, awg.clientId],
+    );
+    await client.query(
+      `INSERT INTO reseller_sub_tokens (token, service_id, created_at)
+       VALUES ($1, $2, NOW())`,
+      [token, serviceId],
+    );
+    const saleNext = await client.query<{ id: number }>(
+      "SELECT COALESCE(MAX(id), 0) + 1 AS id FROM reseller_sales_log",
+    );
+    const saleId = Number(saleNext.rows[0].id);
+    const sellPrice =
+      body.data.sell_price ??
+      body.data.gb * Number(currentReseller.rows[0]?.per_gig_price ?? 0);
+    await client.query(
+      `INSERT INTO reseller_sales_log
+       (id, reseller_tg_id, service_id, action_type, gb_amount, days_amount, created_at, custom_sell_price, is_paid)
+       VALUES ($1, $2, $3, 'create', $4, $5, NOW(), $6, $7)`,
+      [saleId, ownerId, serviceId, body.data.gb, body.data.days, sellPrice, body.data.is_paid ? 1 : 0],
+    );
+    const queueNext = await client.query<{ id: number }>(
+      "SELECT COALESCE(MAX(id), 0) + 1 AS id FROM reseller_sync_queue",
+    );
+    await client.query(
+      `INSERT INTO reseller_sync_queue
+       (id, service_id, username, action, payload, status, attempts, last_error, created_at, updated_at)
+       VALUES ($1, $2, $3, 'create', $4, $5, 1, $6, NOW(), NOW())`,
+      [
+        Number(queueNext.rows[0].id),
+        serviceId,
+        username,
+        JSON.stringify({ gb: body.data.gb, days: body.data.days, enable: true, awg: true }),
+        awg.clientId ? "completed" : "partial",
+        awg.error,
+      ],
+    );
+    if (req.auth?.role === "reseller") {
+      await client.query(
+        "UPDATE resellers SET used_gb = used_gb + $1, updated_at = NOW() WHERE tg_id = $2",
+        [body.data.gb, ownerId],
+      );
+    }
+    await client.query("COMMIT");
+    const fresh = await pool.query(
+      `SELECT svc.id, svc.customer_id, c.full_name AS customer_name,
+        svc.rain_username AS username, svc.label AS plan, 'پنل اصلی' AS panel,
+        svc.status, svc.expire_at::date::text AS expires_at,
+        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
+        svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
+        svc.awg_client_id IS NOT NULL AS awg_ready,
+        CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url
+       FROM reseller_services svc
+       JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE svc.id = $1`,
+      [serviceId],
+    );
+    res.status(201).json(CreateServiceResponse.parse({ service: fresh.rows[0], sale_id: saleId, sync_status: awg.clientId ? "completed" : "partial" }));
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // The connection may already have rolled back.
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 });
 
 router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
@@ -374,7 +723,9 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
        COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel, svc.status,
        svc.expire_at::date::text AS expires_at,
        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
-       svc.gb::float8 AS limit_gb, svc.admin_notes AS note
+       svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
+       svc.awg_client_id IS NOT NULL AS awg_ready,
+       CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url
      FROM reseller_services svc
      LEFT JOIN reseller_customers c ON c.id = svc.customer_id
      WHERE svc.id = $1`,
@@ -392,15 +743,36 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   }
   const owner = ownership("svc", req);
   const days = body.data.days ?? 30;
-  const values: unknown[] = [days, params.data.id];
-  const gbSql = body.data.gb === undefined ? "" : ", gb = $3";
-  if (body.data.gb !== undefined) values.push(body.data.gb);
+  const existing = await pool.query<{ username: string; gb: number; label: string; awg_client_id: string | null }>(
+    `SELECT rain_username AS username, gb::float8 AS gb, label, awg_client_id
+     FROM reseller_services svc
+     WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+    [params.data.id, ...owner.params],
+  );
+  const current = existing.rows[0];
+  if (!current) {
+    res.status(404).json({ error: "سرویس پیدا نشد" });
+    return;
+  }
+  const gb = body.data.gb ?? Number(current.gb);
+  try {
+    await provisionUser(current.username, gb, days, current.label, Number(req.auth?.telegramId), req.auth?.role);
+    if (current.awg_client_id) await recreateAwgClient(current.awg_client_id);
+  } catch (error) {
+    if (error instanceof RainApiError) {
+      res.status(502).json({ error: error.message, panel_results: error.results });
+      return;
+    }
+    throw error;
+  }
+  const values: unknown[] = [days, gb, params.data.id];
   const result = await pool.query(
     `UPDATE reseller_services svc
      SET status = 'active',
          expire_at = GREATEST(COALESCE(expire_at, NOW()), NOW()) + make_interval(days => $1::int),
-         updated_at = NOW()${gbSql}
-     WHERE svc.id = $2 AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
+          gb = $2,
+          updated_at = NOW()
+      WHERE svc.id = $3 AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
      RETURNING svc.id`,
     [...values, ...owner.params],
   );
@@ -414,13 +786,120 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
        COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel, svc.status,
        svc.expire_at::date::text AS expires_at,
        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
-       svc.gb::float8 AS limit_gb, svc.admin_notes AS note
+       svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
+       svc.awg_client_id IS NOT NULL AS awg_ready,
+       CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url
      FROM reseller_services svc
      LEFT JOIN reseller_customers c ON c.id = svc.customer_id
      WHERE svc.id = $1`,
     [params.data.id],
   );
   res.json(RenewServiceResponse.parse(fresh.rows[0]));
+});
+
+router.post("/services/:id/awg", requireAuth, async (req, res): Promise<void> => {
+  const params = UpdateServiceParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "شناسه سرویس معتبر نیست" });
+    return;
+  }
+  const owner = ownership("svc", req);
+  const current = await pool.query<{ awg_client_id: string | null }>(
+    `SELECT svc.awg_client_id FROM reseller_services svc
+     WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+    [params.data.id, ...owner.params],
+  );
+  if (!current.rows[0]) {
+    res.status(404).json({ error: "سرویس پیدا نشد" });
+    return;
+  }
+  if (current.rows[0].awg_client_id) {
+    res.json({ awg_ready: true, awg_config_url: `/api/services/${params.data.id}/awg/config` });
+    return;
+  }
+  const awg = await createAwgClient();
+  if (!awg.clientId) {
+    res.status(502).json({ error: awg.error ?? "ساخت AmneziaWG انجام نشد" });
+    return;
+  }
+  await pool.query(
+    "UPDATE reseller_services SET awg_client_id = $1, updated_at = NOW() WHERE id = $2",
+    [awg.clientId, params.data.id],
+  );
+  res.status(201).json({ awg_ready: true, awg_config_url: `/api/services/${params.data.id}/awg/config` });
+});
+
+router.get("/services/:id/awg/config", requireAuth, async (req, res): Promise<void> => {
+  const params = UpdateServiceParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "شناسه سرویس معتبر نیست" });
+    return;
+  }
+  const owner = ownership("svc", req);
+  const current = await pool.query<{ awg_client_id: string | null }>(
+    `SELECT svc.awg_client_id FROM reseller_services svc
+     WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+    [params.data.id, ...owner.params],
+  );
+  if (!current.rows[0]?.awg_client_id) {
+    res.status(404).json({ error: "کلاینت AmneziaWG پیدا نشد" });
+    return;
+  }
+  try {
+    const configuration = await getAwgConfiguration(current.rows[0].awg_client_id);
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${current.rows[0].awg_client_id}.conf"`,
+    );
+    res.send(configuration);
+  } catch (error) {
+    if (error instanceof AwgApiError) {
+      res.status(502).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
+});
+
+router.post("/services/:id/reset-token", requireAuth, async (req, res): Promise<void> => {
+  const params = UpdateServiceParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "شناسه سرویس معتبر نیست" });
+    return;
+  }
+  const owner = ownership("svc", req);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const current = await client.query<{ token: string }>(
+      `SELECT rst.token
+       FROM reseller_services svc
+       JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
+       WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+      [params.data.id, ...owner.params],
+    );
+    if (!current.rows[0]) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "سرویس یا لینک اشتراک پیدا نشد" });
+      return;
+    }
+    const token = createSubscriptionToken();
+    await client.query("UPDATE user_stats_cache SET token = $1 WHERE token = $2", [token, current.rows[0].token]);
+    await client.query("UPDATE reseller_sub_tokens SET token = $1 WHERE service_id = $2", [token, params.data.id]);
+    await client.query("UPDATE reseller_services SET subscription_url = $1, updated_at = NOW() WHERE id = $2", [subscriptionUrl(token), params.data.id]);
+    await client.query("COMMIT");
+    res.json(ResetServiceTokenResponse.parse({ subscription_url: subscriptionUrl(token) }));
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // The transaction may already be closed.
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 });
 
 router.get("/customers", requireAuth, async (req, res): Promise<void> => {
@@ -484,7 +963,9 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
          COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel, svc.status,
          svc.expire_at::date::text AS expires_at,
          (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
-         svc.gb::float8 AS limit_gb, svc.admin_notes AS note
+          svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
+          svc.awg_client_id IS NOT NULL AS awg_ready,
+          CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url
        FROM reseller_services svc
        JOIN reseller_customers c ON c.id = svc.customer_id
        WHERE svc.customer_id = $1

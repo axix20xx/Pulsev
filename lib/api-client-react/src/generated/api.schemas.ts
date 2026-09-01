@@ -22,6 +22,33 @@ export interface TelegramLoginInput {
   hash: string;
 }
 
+export interface TelegramIdLoginInput {
+  /** @minimum 1 */
+  telegram_id: number;
+}
+
+export interface CreateServiceInput {
+  /** @minLength 1 */
+  customer_name: string;
+  /** @minLength 3 */
+  phone: string;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  label: string;
+  /** @exclusiveMinimum 0 */
+  gb: number;
+  /** @minimum 1 */
+  days: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  sell_price?: number | null;
+  is_paid?: boolean;
+}
+
 export type AuthSessionRole = typeof AuthSessionRole[keyof typeof AuthSessionRole];
 
 
@@ -104,6 +131,25 @@ export interface Service {
   limit_gb: number;
   /** @nullable */
   note: string | null;
+  /** @nullable */
+  subscription_url: string | null;
+  awg_ready?: boolean;
+  /** @nullable */
+  awg_config_url?: string | null;
+}
+
+export type CreateServiceResultSyncStatus = typeof CreateServiceResultSyncStatus[keyof typeof CreateServiceResultSyncStatus];
+
+
+export const CreateServiceResultSyncStatus = {
+  completed: 'completed',
+  partial: 'partial',
+} as const;
+
+export interface CreateServiceResult {
+  service: Service;
+  sale_id: number;
+  sync_status: CreateServiceResultSyncStatus;
 }
 
 export type ServiceUpdateStatus = typeof ServiceUpdateStatus[keyof typeof ServiceUpdateStatus];
@@ -178,6 +224,10 @@ search?: SearchParameter;
  * @maximum 200
  */
 limit?: LimitParameter;
+};
+
+export type ResetServiceToken200 = {
+  subscription_url: string;
 };
 
 export type ListCustomersParams = {

@@ -21,6 +21,9 @@ export type Service = {
   usedGb: number;
   limitGb: number;
   note: string;
+  subscriptionUrl?: string | null;
+  awgReady?: boolean;
+  awgConfigUrl?: string | null;
 };
 
 export type Customer = {

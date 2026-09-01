@@ -13,13 +13,19 @@ const nav = [
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [open, setOpen] = useState(false);
-  const { session, authFallback } = usePulse();
+  const { session, sessionLoading, authFallback } = usePulse();
   const logout = useLogout();
   useEffect(() => setOpen(false), [location]);
   const name = session?.display_name || 'مدیر فروش';
-  const isSignedOut = authFallback || session?.authenticated === false;
+  const isSignedOut = !sessionLoading && (authFallback || session?.authenticated === false || !session);
+  useEffect(() => {
+    if (isSignedOut && location !== '/login') navigate('/login');
+    if (session?.authenticated && location === '/login') navigate('/');
+  }, [isSignedOut, location, navigate, session?.authenticated]);
+  if (location === '/login') return <div className="min-h-[100dvh] bg-background text-foreground">{children}</div>;
+  if (sessionLoading || isSignedOut) return <div className="login-screen"><div className="login-card text-center"><div className="pulse-mark large mx-auto"><span /></div><p className="mt-5 font-bold">در حال بررسی دسترسی...</p></div></div>;
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
       <aside className={`pulse-sidebar ${open ? 'is-open' : ''}`}>
@@ -45,8 +51,8 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
         <div className="sidebar-bottom">
           <div className="connection-card">
-            <div className="flex items-center gap-2"><span className={`status-dot ${isSignedOut ? '' : 'online'}`} /><span className="text-xs font-semibold">{isSignedOut ? 'حالت نمایشی فعال است' : 'همه سامانه‌ها سالم‌اند'}</span></div>
-            <p className="mt-2 text-[11px] text-muted-foreground">{isSignedOut ? 'اتصال تلگرام هنوز راه‌اندازی نشده' : '۳ پنل · بررسی همین لحظه'}</p>
+            <div className="flex items-center gap-2"><span className="status-dot online" /><span className="text-xs font-semibold">داده‌های SQL متصل است</span></div>
+            <p className="mt-2 text-[11px] text-muted-foreground">نشست فعال · دسترسی کنترل‌شده</p>
           </div>
           <div className="flex items-center gap-3 border-t border-border/70 pt-4">
             <div className="avatar avatar-teal">{name.slice(0, 2)}</div>
@@ -63,7 +69,6 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="mr-auto flex items-center gap-2"><button className="icon-button" aria-label="راهنما" data-testid="button-help"><CircleHelp size={18} /></button><button className="icon-button relative" aria-label="اعلان‌ها" data-testid="button-notifications"><Bell size={18} /><span className="notification-dot" /></button></div>
         </header>
         <div className="page-wrap">
-           {isSignedOut && <div className="setup-banner" data-testid="banner-telegram-setup"><ShieldAlert size={17} /><div><strong>ورود تلگرام هنوز تنظیم نشده است</strong><p className="mt-1">برای اتصال واقعی، مدیر سامانه باید توکن ربات را روی سرور تنظیم کند. اطلاعات حساس هرگز در مرورگر نگهداری نمی‌شود؛ فعلاً داده‌های نمایشی برای بررسی رابط در دسترس است.</p><Link href="/login" className="text-link mt-2" data-testid="link-telegram-setup">رفتن به صفحه ورود</Link></div></div>}
           {children}
         </div>
       </main>
