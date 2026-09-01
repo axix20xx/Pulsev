@@ -105,6 +105,7 @@ export interface ResellerBalance {
   due_amount: number;
   paid_amount: number;
   remaining_amount: number;
+  profit_amount: number;
 }
 
 export interface ResellerCreditSale {
@@ -114,10 +115,23 @@ export interface ResellerCreditSale {
   gb_amount: number;
   unit_price: number;
   total_amount: number;
+  profit_amount: number;
   paid: boolean;
   /** @nullable */
   note: string | null;
   created_at: string;
+}
+
+export interface ResellerSalesSummary {
+  reseller_tg_id: number;
+  reseller_name: string;
+  sale_count: number;
+  sold_gb: number;
+  customer_revenue: number;
+  amount_to_admin: number;
+  master_profit: number;
+  paid_customer_revenue: number;
+  remaining_customer_revenue: number;
 }
 
 export interface SalesSummary {
@@ -143,8 +157,10 @@ export interface SalesSummary {
   reseller_paid: number;
   reseller_remaining: number;
   reseller_due_gb: number;
+  reseller_profit: number;
   reseller_balances: ResellerBalance[];
   reseller_credit_sales: ResellerCreditSale[];
+  reseller_sales: ResellerSalesSummary[];
 }
 
 export interface ResellerCreditSaleUpdate {

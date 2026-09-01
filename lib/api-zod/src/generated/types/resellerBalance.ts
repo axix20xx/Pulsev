@@ -13,4 +13,5 @@ export interface ResellerBalance {
   due_amount: number;
   paid_amount: number;
   remaining_amount: number;
+  profit_amount: number;
 }

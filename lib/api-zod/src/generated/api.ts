@@ -180,13 +180,15 @@ export const GetSalesSummaryResponse = zod.object({
   "reseller_paid": zod.number(),
   "reseller_remaining": zod.number(),
   "reseller_due_gb": zod.number(),
+  "reseller_profit": zod.number(),
   "reseller_balances": zod.array(zod.object({
   "reseller_tg_id": zod.number(),
   "reseller_name": zod.string(),
   "due_gb": zod.number(),
   "due_amount": zod.number(),
   "paid_amount": zod.number(),
-  "remaining_amount": zod.number()
+  "remaining_amount": zod.number(),
+  "profit_amount": zod.number()
 })),
   "reseller_credit_sales": zod.array(zod.object({
   "id": zod.number(),
@@ -195,9 +197,21 @@ export const GetSalesSummaryResponse = zod.object({
   "gb_amount": zod.number(),
   "unit_price": zod.number(),
   "total_amount": zod.number(),
+  "profit_amount": zod.number(),
   "paid": zod.boolean(),
   "note": zod.string().nullable(),
   "created_at": zod.string()
+})),
+  "reseller_sales": zod.array(zod.object({
+  "reseller_tg_id": zod.number(),
+  "reseller_name": zod.string(),
+  "sale_count": zod.number(),
+  "sold_gb": zod.number(),
+  "customer_revenue": zod.number(),
+  "amount_to_admin": zod.number(),
+  "master_profit": zod.number(),
+  "paid_customer_revenue": zod.number(),
+  "remaining_customer_revenue": zod.number()
 }))
 })
 
@@ -223,6 +237,7 @@ export const UpdateResellerCreditSaleResponse = zod.object({
   "gb_amount": zod.number(),
   "unit_price": zod.number(),
   "total_amount": zod.number(),
+  "profit_amount": zod.number(),
   "paid": zod.boolean(),
   "note": zod.string().nullable(),
   "created_at": zod.string()

@@ -636,7 +636,14 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
   const creditToParam = dueParams.length + 2;
   const creditDateCondition = `cs.created_at >= $${creditFromParam}::date AND cs.created_at < ($${creditToParam}::date + INTERVAL '1 day')`;
   const creditParams = [...dueParams, range.from, range.to];
-  const [sales, credits, creditDetails, resellerBalances] = await Promise.all([
+  const resellerSalesDateFromParam = owner.params.length + 1;
+  const resellerSalesDateToParam = owner.params.length + 2;
+  const resellerSalesDateCondition = `s.created_at >= $${resellerSalesDateFromParam}::date AND s.created_at < ($${resellerSalesDateToParam}::date + INTERVAL '1 day')`;
+  const resellerSalesOwner = req.auth?.role === "master_admin"
+    ? `${owner.sql} AND s.reseller_tg_id <> ${MASTER_ADMIN_TELEGRAM_ID}`
+    : owner.sql;
+  const resellerSalesParams = [...owner.params, range.from, range.to];
+  const [sales, credits, creditDetails, resellerBalances, resellerSales] = await Promise.all([
     pool.query(
       `SELECT
          COALESCE(SUM(s.gb_amount), 0)::float8 AS sold_gb,
@@ -656,6 +663,7 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
           COALESCE(SUM(cs.total_amount) FILTER (WHERE COALESCE(cs.is_paid, 0) = 1), 0)::float8 AS reseller_paid,
           COALESCE(SUM(cs.total_amount) FILTER (WHERE COALESCE(cs.is_paid, 0) = 0), 0)::float8 AS reseller_remaining,
           COALESCE(SUM(cs.gb_amount), 0)::float8 AS reseller_due_gb,
+          COALESCE(SUM(cs.total_amount - cs.gb_amount * ${MASTER_ADMIN_COST_PER_GB}), 0)::float8 AS reseller_profit,
           COALESCE(SUM(cs.gb_amount) FILTER (WHERE COALESCE(cs.is_paid, 0) = 0), 0)::float8 AS admin_due_gb
        FROM reseller_credit_sales cs
         WHERE ${dueCondition} AND ${creditDateCondition}`,
@@ -665,7 +673,9 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
       `SELECT cs.id, cs.reseller_tg_id::float8 AS reseller_tg_id,
               COALESCE(NULLIF(r.title, ''), 'فروشنده ' || cs.reseller_tg_id::text) AS reseller_name,
               cs.gb_amount::float8 AS gb_amount, cs.unit_price::float8 AS unit_price,
-              cs.total_amount::float8 AS total_amount, COALESCE(cs.is_paid, 0) = 1 AS paid,
+              cs.total_amount::float8 AS total_amount,
+              (cs.total_amount - cs.gb_amount * ${MASTER_ADMIN_COST_PER_GB})::float8 AS profit_amount,
+              COALESCE(cs.is_paid, 0) = 1 AS paid,
               cs.note, cs.created_at::text AS created_at
        FROM reseller_credit_sales cs
        LEFT JOIN resellers r ON r.tg_id = cs.reseller_tg_id
@@ -679,7 +689,8 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
               COALESCE(SUM(cs.gb_amount), 0)::float8 AS due_gb,
               COALESCE(SUM(cs.total_amount), 0)::float8 AS due_amount,
               COALESCE(SUM(cs.total_amount) FILTER (WHERE COALESCE(cs.is_paid, 0) = 1), 0)::float8 AS paid_amount,
-              COALESCE(SUM(cs.total_amount) FILTER (WHERE COALESCE(cs.is_paid, 0) = 0), 0)::float8 AS remaining_amount
+              COALESCE(SUM(cs.total_amount) FILTER (WHERE COALESCE(cs.is_paid, 0) = 0), 0)::float8 AS remaining_amount,
+              COALESCE(SUM(cs.total_amount - cs.gb_amount * ${MASTER_ADMIN_COST_PER_GB}), 0)::float8 AS profit_amount
        FROM reseller_credit_sales cs
        LEFT JOIN resellers r ON r.tg_id = cs.reseller_tg_id
        WHERE ${dueCondition} AND ${creditDateCondition}
@@ -687,12 +698,30 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
        ORDER BY remaining_amount DESC, reseller_name`,
       creditParams,
     ),
+    pool.query(
+      `SELECT s.reseller_tg_id::float8 AS reseller_tg_id,
+              COALESCE(NULLIF(r.title, ''), 'فروشنده ' || s.reseller_tg_id::text) AS reseller_name,
+              COUNT(*)::int AS sale_count,
+              COALESCE(SUM(s.gb_amount), 0)::float8 AS sold_gb,
+              COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})), 0)::float8 AS customer_revenue,
+              COALESCE(SUM(s.gb_amount * ${resellerCostPerGbSql()}), 0)::float8 AS amount_to_admin,
+              COALESCE(SUM(s.gb_amount * (${resellerCostPerGbSql()} - ${MASTER_ADMIN_COST_PER_GB})), 0)::float8 AS master_profit,
+              COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS paid_customer_revenue,
+              COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS remaining_customer_revenue
+       FROM reseller_sales_log s
+       LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+       WHERE ${resellerSalesOwner} AND ${resellerSalesDateCondition}
+       GROUP BY s.reseller_tg_id, r.title
+       ORDER BY amount_to_admin DESC, reseller_name`,
+      resellerSalesParams,
+    ),
   ]);
   const salesRow = sales.rows[0] ?? {};
   const resellerDue = Number(credits.rows[0]?.reseller_due ?? 0);
   const resellerPaid = Number(credits.rows[0]?.reseller_paid ?? 0);
   const resellerRemaining = Number(credits.rows[0]?.reseller_remaining ?? 0);
   const resellerDueGb = Number(credits.rows[0]?.reseller_due_gb ?? 0);
+  const resellerProfit = Number(credits.rows[0]?.reseller_profit ?? 0);
   const outstandingAdminDue = Number(credits.rows[0]?.reseller_remaining ?? 0);
   const outstandingAdminDueGb = Number(credits.rows[0]?.admin_due_gb ?? 0);
   const income = Number(salesRow.income ?? 0);
@@ -722,8 +751,10 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
     reseller_paid: resellerPaid,
     reseller_remaining: resellerRemaining,
     reseller_due_gb: resellerDueGb,
+    reseller_profit: resellerProfit,
     reseller_balances: resellerBalances.rows,
     reseller_credit_sales: creditDetails.rows,
+    reseller_sales: resellerSales.rows,
   });
 });
 

@@ -7,6 +7,7 @@
  */
 import type { ResellerBalance } from './resellerBalance';
 import type { ResellerCreditSale } from './resellerCreditSale';
+import type { ResellerSalesSummary } from './resellerSalesSummary';
 
 export interface SalesSummary {
   /** @pattern ^\d{4}-\d{2}-\d{2}$ */
@@ -31,6 +32,8 @@ export interface SalesSummary {
   reseller_paid: number;
   reseller_remaining: number;
   reseller_due_gb: number;
+  reseller_profit: number;
   reseller_balances: ResellerBalance[];
   reseller_credit_sales: ResellerCreditSale[];
+  reseller_sales: ResellerSalesSummary[];
 }

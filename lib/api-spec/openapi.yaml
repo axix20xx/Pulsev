@@ -528,7 +528,7 @@ components:
             $ref: "#/components/schemas/Activity"
     SalesSummary:
       type: object
-      required: [from, to, sold_gb, income, paid_income, unpaid_income, admin_cost, admin_due, admin_due_gb, outstanding_admin_due, outstanding_admin_due_gb, remaining_profit, paid_profit, unpaid_profit, remaining_to_collect, cash_after_admin, reseller_due, reseller_paid, reseller_remaining, reseller_due_gb, reseller_balances, reseller_credit_sales]
+      required: [from, to, sold_gb, income, paid_income, unpaid_income, admin_cost, admin_due, admin_due_gb, outstanding_admin_due, outstanding_admin_due_gb, remaining_profit, paid_profit, unpaid_profit, remaining_to_collect, cash_after_admin, reseller_due, reseller_paid, reseller_remaining, reseller_due_gb, reseller_profit, reseller_balances, reseller_credit_sales, reseller_sales]
       properties:
         from:
           type: string
@@ -572,6 +572,8 @@ components:
           type: number
         reseller_due_gb:
           type: number
+        reseller_profit:
+          type: number
         reseller_balances:
           type: array
           items:
@@ -580,9 +582,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ResellerCreditSale"
+        reseller_sales:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResellerSalesSummary"
     ResellerBalance:
       type: object
-      required: [reseller_tg_id, reseller_name, due_gb, due_amount, paid_amount, remaining_amount]
+      required: [reseller_tg_id, reseller_name, due_gb, due_amount, paid_amount, remaining_amount, profit_amount]
       properties:
         reseller_tg_id:
           type: number
@@ -597,9 +603,11 @@ components:
           type: number
         remaining_amount:
           type: number
+        profit_amount:
+          type: number
     ResellerCreditSale:
       type: object
-      required: [id, reseller_tg_id, reseller_name, gb_amount, unit_price, total_amount, paid, note, created_at]
+      required: [id, reseller_tg_id, reseller_name, gb_amount, unit_price, total_amount, profit_amount, paid, note, created_at]
       properties:
         id:
           type: number
@@ -614,6 +622,8 @@ components:
           type: number
         total_amount:
           type: number
+        profit_amount:
+          type: number
         paid:
           type: boolean
         note:
@@ -626,6 +636,29 @@ components:
       properties:
         is_paid:
           type: boolean
+    ResellerSalesSummary:
+      type: object
+      required: [reseller_tg_id, reseller_name, sale_count, sold_gb, customer_revenue, amount_to_admin, master_profit, paid_customer_revenue, remaining_customer_revenue]
+      properties:
+        reseller_tg_id:
+          type: number
+          format: int64
+        reseller_name:
+          type: string
+        sale_count:
+          type: number
+        sold_gb:
+          type: number
+        customer_revenue:
+          type: number
+        amount_to_admin:
+          type: number
+        master_profit:
+          type: number
+        paid_customer_revenue:
+          type: number
+        remaining_customer_revenue:
+          type: number
     Activity:
       type: object
       required: [id, type, title, detail, created_at]

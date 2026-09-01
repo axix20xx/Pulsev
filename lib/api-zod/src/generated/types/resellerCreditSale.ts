@@ -13,6 +13,7 @@ export interface ResellerCreditSale {
   gb_amount: number;
   unit_price: number;
   total_amount: number;
+  profit_amount: number;
   paid: boolean;
   /** @nullable */
   note: string | null;

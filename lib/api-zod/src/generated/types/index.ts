@@ -29,6 +29,7 @@ export * from './reseller';
 export * from './resellerBalance';
 export * from './resellerCreditSale';
 export * from './resellerCreditSaleUpdate';
+export * from './resellerSalesSummary';
 export * from './resellerUpdate';
 export * from './resetServiceToken200';
 export * from './sale';
