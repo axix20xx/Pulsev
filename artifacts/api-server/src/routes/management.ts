@@ -659,7 +659,8 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
        svc.admin_notes AS note,
        svc.subscription_url,
        svc.awg_client_id IS NOT NULL AS awg_ready,
-       CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url
+           CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url,
+           svc.awg_client_id, svc.awg_rx, svc.awg_tx, svc.awg_total, svc.awg_offset_bytes, svc.last_usage_updated_at
      FROM reseller_services svc
      LEFT JOIN reseller_customers c ON c.id = svc.customer_id
      WHERE ${conditions.join(" AND ")}
