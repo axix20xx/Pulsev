@@ -1,0 +1,2 @@
+- [Legacy SQL migration](legacy-sql-migration.md) — MariaDB dumps need comment stripping, MySQL DDL conversion, transactional import, and an idempotent completion marker.
+- [OpenAPI and Zod compatibility](openapi-zod-compatibility.md) — this workspace uses Zod 3, so generated response integer helpers must remain Zod 3-compatible.

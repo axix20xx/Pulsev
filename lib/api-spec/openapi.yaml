@@ -10,6 +10,18 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Telegram authentication and sessions
+  - name: dashboard
+    description: Workspace summaries
+  - name: sales
+    description: Sales ledger operations
+  - name: services
+    description: Subscription service operations
+  - name: customers
+    description: Customer operations
+  - name: resellers
+    description: Master-admin reseller operations
 paths:
   /healthz:
     get:
@@ -24,7 +36,243 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/session:
+    get:
+      operationId: getAuthSession
+      tags: [auth]
+      summary: Get the current authenticated session
+      responses:
+        "200":
+          description: Current session or signed-out state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+  /auth/telegram:
+    post:
+      operationId: loginWithTelegram
+      tags: [auth]
+      summary: Sign in with a Telegram Login Widget payload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramLoginInput"
+      responses:
+        "200":
+          description: Authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          description: Invalid Telegram login
+        "503":
+          description: Telegram authentication is not configured
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: End the current session
+      responses:
+        "204":
+          description: Session ended
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get role-aware dashboard data
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /sales:
+    get:
+      operationId: listSales
+      tags: [sales]
+      summary: List sales visible to the current user
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Visible sales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sale"
+  /sales/{id}:
+    patch:
+      operationId: updateSale
+      tags: [sales]
+      summary: Update payment and price fields on a sale
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaleUpdate"
+      responses:
+        "200":
+          description: Updated sale
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+  /services:
+    get:
+      operationId: listServices
+      tags: [services]
+      summary: List services visible to the current user
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Visible services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+  /services/{id}:
+    patch:
+      operationId: updateService
+      tags: [services]
+      summary: Update service state and note
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceUpdate"
+      responses:
+        "200":
+          description: Updated service
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+  /services/{id}/renew:
+    post:
+      operationId: renewService
+      tags: [services]
+      summary: Renew a visible service
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenewServiceInput"
+      responses:
+        "200":
+          description: Renewed service
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List customers visible to the current user
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Visible customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+  /customers/{id}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get a customer and their visible history
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Customer details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDetail"
+  /resellers:
+    get:
+      operationId: listResellers
+      tags: [resellers]
+      summary: List resellers for the master admin
+      responses:
+        "200":
+          description: Resellers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reseller"
+  /resellers/{id}:
+    patch:
+      operationId: updateReseller
+      tags: [resellers]
+      summary: Enable or disable a reseller
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResellerUpdate"
+      responses:
+        "200":
+          description: Updated reseller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reseller"
 components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: number
+        minimum: 1
+    Search:
+      name: search
+      in: query
+      required: false
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: number
+        minimum: 1
+        maximum: 200
+        default: 100
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +281,206 @@ components:
           type: string
       required:
         - status
+    TelegramLoginInput:
+      type: object
+      required: [id, auth_date, hash]
+      properties:
+        id:
+          type: number
+          format: int64
+        first_name:
+          type: string
+        last_name:
+          type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+        photo_url:
+          type: ["string", "null"]
+        auth_date:
+          type: number
+        hash:
+          type: string
+    AuthSession:
+      type: object
+      required: [authenticated, role]
+      properties:
+        authenticated:
+          type: boolean
+        role:
+          type: string
+          enum: [signed_out, master_admin, reseller]
+        telegram_id:
+          type: ["number", "null"]
+          format: int64
+        display_name:
+          type: ["string", "null"]
+        reseller_id:
+          type: ["number", "null"]
+          format: int32
+        title:
+          type: ["string", "null"]
+    DashboardSummary:
+      type: object
+      required: [revenue, active_services, renewals_due, service_health, visible_customers, visible_resellers, recent_activity]
+      properties:
+        revenue:
+          type: number
+        active_services:
+          type: number
+        renewals_due:
+          type: number
+        service_health:
+          type: number
+        visible_customers:
+          type: number
+        visible_resellers:
+          type: number
+        recent_activity:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+    Activity:
+      type: object
+      required: [id, type, title, detail, created_at]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        detail:
+          type: string
+        created_at:
+          type: string
+    Sale:
+      type: object
+      required: [id, customer_id, customer_name, service_id, service_name, panel, amount, date, paid, status]
+      properties:
+        id:
+          type: number
+        customer_id:
+          type: number
+        customer_name:
+          type: string
+        service_id:
+          type: number
+        service_name:
+          type: string
+        panel:
+          type: string
+        amount:
+          type: number
+        date:
+          type: string
+        paid:
+          type: boolean
+        status:
+          type: string
+    SaleUpdate:
+      type: object
+      properties:
+        custom_sell_price:
+          type: ["number", "null"]
+        is_paid:
+          type: boolean
+    Service:
+      type: object
+      required: [id, customer_id, customer_name, username, plan, panel, status, expires_at, used_gb, limit_gb, note]
+      properties:
+        id:
+          type: number
+        customer_id:
+          type: number
+        customer_name:
+          type: string
+        username:
+          type: string
+        plan:
+          type: string
+        panel:
+          type: string
+        status:
+          type: string
+          enum: [active, expired, disabled]
+        expires_at:
+          type: ["string", "null"]
+        used_gb:
+          type: number
+        limit_gb:
+          type: number
+        note:
+          type: ["string", "null"]
+    ServiceUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, expired, disabled]
+        admin_notes:
+          type: ["string", "null"]
+    RenewServiceInput:
+      type: object
+      properties:
+        days:
+          type: number
+          minimum: 1
+        gb:
+          type: number
+          minimum: 0
+    Customer:
+      type: object
+      required: [id, name, phone, active_services, total_spend, last_purchase]
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        phone:
+          type: string
+        active_services:
+          type: number
+        total_spend:
+          type: number
+        last_purchase:
+          type: ["string", "null"]
+    CustomerDetail:
+      allOf:
+        - $ref: "#/components/schemas/Customer"
+        - type: object
+          required: [services, sales]
+          properties:
+            services:
+              type: array
+              items:
+                $ref: "#/components/schemas/Service"
+            sales:
+              type: array
+              items:
+                $ref: "#/components/schemas/Sale"
+    Reseller:
+      type: object
+      required: [id, telegram_id, title, total_gb, used_gb, enabled, created_at]
+      properties:
+        id:
+          type: number
+        telegram_id:
+          type: number
+          format: int64
+        title:
+          type: ["string", "null"]
+        total_gb:
+          type: number
+        used_gb:
+          type: number
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+    ResellerUpdate:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
 
