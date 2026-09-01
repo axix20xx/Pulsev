@@ -97,7 +97,9 @@ const panelSchemaReady = pool
        ('speedur', 'rain_admin', 'https://www.speedur.org:2096', 'RAIN_SPEEDUR_USER', 'RAIN_SPEEDUR_PASS', NULL),
        ('xxpanel', 'marzban', 'https://panel.jetservices.ir:2096', 'RAIN_XXPANEL_USER', 'RAIN_XXPANEL_PASS', NULL),
       ('falcon', 'falcon', 'https://falco.all-engines.com/api/v1', NULL, NULL, 'FALCO_API_KEY')
-    ON CONFLICT (key) DO UPDATE SET kind = EXCLUDED.kind, api_base = EXCLUDED.api_base, updated_at = NOW()
+     ON CONFLICT (key) DO UPDATE SET kind = EXCLUDED.kind, api_base = EXCLUDED.api_base,
+       username_env = EXCLUDED.username_env, password_env = EXCLUDED.password_env,
+       api_key_env = EXCLUDED.api_key_env, updated_at = NOW()
   `)
   .catch((error) => {
     console.error("Panel management schema initialization failed", error);
