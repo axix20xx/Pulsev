@@ -232,6 +232,122 @@ function safeError(response: { status: number; json: any; text: string }): strin
   return detail ? `HTTP ${response.status}: ${detail.slice(0, 160)}` : `HTTP ${response.status}`;
 }
 
+export type PanelUsage = {
+  panelKey: string;
+  usedBytes: number;
+  totalBytes: number | null;
+  expiresAt: string | null;
+};
+
+function nestedPayload(json: any): any {
+  return json?.data ?? json?.user ?? json?.config ?? json;
+}
+
+function numericValue(payload: any, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = Number(payload?.[key]);
+    if (Number.isFinite(value) && value >= 0) return value;
+  }
+  return null;
+}
+
+function bytesValue(payload: any, byteKeys: string[], gbKeys: string[] = []): number | null {
+  const bytes = numericValue(payload, byteKeys);
+  if (bytes !== null) return Math.round(bytes);
+  const gb = numericValue(payload, gbKeys);
+  return gb === null ? null : Math.round(gb * 1024 ** 3);
+}
+
+function expiryValue(payload: any): string | null {
+  const value = payload?.expire_at ?? payload?.expire_date ?? payload?.expire ?? payload?.expires_at ?? payload?.expires;
+  if (value === undefined || value === null || value === "") return null;
+  const date = typeof value === "number"
+    ? new Date(value > 10_000_000_000 ? value : value * 1000)
+    : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+export async function readPanelUsages(
+  username: string,
+  falcoConfigId: number | null,
+  ownerId?: number,
+  role?: string,
+): Promise<PanelUsage[]> {
+  const result: PanelUsage[] = [];
+  const safePanelRequest = async (panel: Panel, method: string, path: string): Promise<{ status: number; json: any; text: string } | null> => {
+    try {
+      return await panelRequest(panel, method, path);
+    } catch {
+      return null;
+    }
+  };
+  for (const panel of await panels(ownerId, role)) {
+    const kind = panelKind(panel);
+    let response: { status: number; json: any; text: string } | null = null;
+    if (kind === "falcon") {
+      response = await safePanelRequest(
+        panel,
+        "GET",
+        falcoConfigId ? `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}` : `/api/v1/configs?username=${encodeURIComponent(username)}`,
+      );
+      if (response?.status === 200 && !falcoConfigId && Array.isArray(response.json?.data)) {
+        const match = response.json.data.find((item: any) => String(item?.username ?? item?.name ?? "") === username);
+        response = match ? { ...response, json: match } : response;
+      }
+    } else {
+      const encoded = encodeURIComponent(username);
+      for (const path of kind === "rain_admin" ? [`/api/users/${encoded}`, `/api/user/${encoded}`] : [`/api/user/${encoded}`]) {
+        response = await safePanelRequest(panel, "GET", path);
+        if (response?.status === 200) break;
+        if (!response || ![404, 405].includes(response.status)) break;
+      }
+    }
+    if (!response || response.status < 200 || response.status >= 300) continue;
+    const payload = nestedPayload(response.json);
+    const usedBytes = bytesValue(payload, ["data_limit_used", "used_bytes", "usage_bytes", "total_used", "used"], ["used_gb", "usage_gb", "data_used_gb"]);
+    if (usedBytes === null) continue;
+    result.push({
+      panelKey: panelKey(panel),
+      usedBytes,
+      totalBytes: bytesValue(payload, ["data_limit", "data_limit_bytes", "total_bytes", "quota_bytes"], ["data_limit_gb", "limit_gb", "quota_gb"]),
+      expiresAt: expiryValue(payload),
+    });
+  }
+  return result;
+}
+
+export async function disablePanelUser(
+  username: string,
+  falcoConfigId: number | null,
+  ownerId?: number,
+  role?: string,
+): Promise<{ attempted: number; disabled: number }> {
+  let attempted = 0;
+  let disabled = 0;
+  for (const panel of await panels(ownerId, role)) {
+    attempted += 1;
+    const kind = panelKind(panel);
+    const encoded = encodeURIComponent(username);
+    const candidates: Array<[string, string, unknown]> = kind === "falcon"
+      ? (falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [])
+      : kind === "rain_admin"
+        ? [["PATCH", `/api/users/${encoded}`, { status: "disabled" }], ["PUT", `/api/users/${encoded}`, { status: "disabled" }]]
+        : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
+    let success = false;
+    for (const [method, path, body] of candidates) {
+      try {
+        const response = await panelRequest(panel, method, path, body);
+        if (response.status >= 200 && response.status < 300) { success = true; break; }
+        if (![404, 405, 422].includes(response.status)) break;
+      } catch {
+        break;
+      }
+    }
+    if (success) disabled += 1;
+  }
+  return { attempted, disabled };
+}
+
 async function rainAdminServiceIds(panel: Panel): Promise<number[]> {
   const response = await panelRequest(panel, "GET", "/api/services");
   if (!response || ![200, 201].includes(response.status)) return [];

@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import cookieParser from "cookie-parser";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { startUsageSyncWorker } from "./lib/usage-sync";
 
 const app: Express = express();
 
@@ -32,5 +33,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+startUsageSyncWorker();
 
 export default app;

@@ -23,8 +23,9 @@ async function config(): Promise<AwgConfig | null> {
   );
   const row = result.rows[0];
   if (!row?.awg_api_url || !row.awg_api_token) return null;
+  const apiUrl = /^https?:\/\//i.test(row.awg_api_url) ? row.awg_api_url : `https://${row.awg_api_url}`;
   return {
-    apiUrl: row.awg_api_url.replace(/\/+$/, ""),
+    apiUrl: apiUrl.replace(/\/+$/, ""),
     apiToken: row.awg_api_token,
   };
 }
@@ -98,6 +99,31 @@ export async function getAwgConfiguration(clientId: string): Promise<string> {
   }
   if (!response.text.trim()) throw new AwgApiError("AmneziaWG returned an empty configuration.");
   return response.text;
+}
+
+export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; txBytes: number }> {
+  const response = await request("GET", `/api/clients/${encodeURIComponent(clientId)}/stats`);
+  if (!response.configured) throw new AwgApiError("AmneziaWG API is not configured.");
+  if (response.status < 200 || response.status >= 300) {
+    throw new AwgApiError(`AmneziaWG returned HTTP ${response.status}`);
+  }
+  let payload: any = {};
+  try { payload = JSON.parse(response.text); } catch { /* The endpoint must return JSON for usage sync. */ }
+  const rxBytes = Number(payload?.rx_bytes ?? payload?.rx ?? payload?.received ?? 0);
+  const txBytes = Number(payload?.tx_bytes ?? payload?.tx ?? payload?.sent ?? 0);
+  if (!Number.isFinite(rxBytes) || !Number.isFinite(txBytes)) {
+    throw new AwgApiError("AmneziaWG returned invalid usage statistics.");
+  }
+  return { rxBytes: Math.max(0, Math.round(rxBytes)), txBytes: Math.max(0, Math.round(txBytes)) };
+}
+
+export async function disableAwgClient(clientId: string): Promise<boolean> {
+  try {
+    const response = await request("DELETE", `/api/clients/${encodeURIComponent(clientId)}`);
+    return response.status >= 200 && response.status < 300 || response.status === 404;
+  } catch {
+    return false;
+  }
 }
 
 export async function recreateAwgClient(clientId: string): Promise<void> {

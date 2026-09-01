@@ -1,0 +1,295 @@
+<?php
+
+require_once __DIR__.'/config(4).php';
+
+$pdo = new PDO(
+    DB_DSN,
+    DB_USER,
+    DB_PASS,
+    [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+    ]
+);
+
+$cfg = $pdo->query("
+    SELECT awg_api_url, awg_api_token
+    FROM settings
+    LIMIT 1
+")->fetch(PDO::FETCH_ASSOC);
+
+if (!$cfg) {
+    exit;
+}
+
+$baseUrl = rtrim($cfg['awg_api_url'], '/');
+$token   = $cfg['awg_api_token'];
+
+$stmt = $pdo->query("
+SELECT
+    s.id,
+    s.gb,
+    s.status,
+    s.last_used_bytes,
+    s.rain_username,
+    s.awg_client_id,
+    s.awg_offset_bytes,
+    s.awg_total
+FROM reseller_services s
+    WHERE s.awg_client_id IS NOT NULL
+      AND s.awg_client_id <> ''
+");
+
+$services = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+foreach ($services as $service) {
+
+    $clientId = $service['awg_client_id'];
+$tokenStmt = $pdo->prepare("
+    SELECT token
+    FROM reseller_sub_tokens
+    WHERE service_id = ?
+    LIMIT 1
+");
+
+$tokenStmt->execute([
+    $service['id']
+]);
+
+$subToken = $tokenStmt->fetchColumn();
+    $ch = curl_init();
+
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $baseUrl .
+            '/api/clients/' .
+            urlencode($clientId) .
+            '/stats',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $token
+        ]
+    ]);
+
+    $response = curl_exec($ch);
+
+    if (curl_errno($ch)) {
+        curl_close($ch);
+        continue;
+    }
+
+    $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    curl_close($ch);
+
+    if ($http !== 200) {
+        continue;
+    }
+
+    $json = json_decode($response, true);
+
+    if (!is_array($json)) {
+        continue;
+    }
+
+    $rx = (int)($json['rx_bytes'] ?? 0);
+    $tx = (int)($json['tx_bytes'] ?? 0);
+
+    $totalUsage = $rx + $tx;
+
+    $offset = (int)$service['awg_offset_bytes'];
+
+   $awgUsage = max(
+    0,
+    $totalUsage - $offset
+);
+$oldAwgUsage =
+    (int)$service['awg_total'];
+
+if (
+    $oldAwgUsage > 0
+    &&
+    $awgUsage < ($oldAwgUsage * 0.5)
+) {
+
+    echo "Renewal/reset detected for {$clientId}\n";
+
+    $pdo->prepare("
+        UPDATE reseller_services
+        SET awg_offset_bytes = ?
+        WHERE id = ?
+    ")->execute([
+        $totalUsage,
+        $service['id']
+    ]);
+
+    $awgUsage = 0;
+}
+/*
+last_used_bytes currently contains
+the total usage calculated by your
+main panel logic.
+
+Remove AWG from it and rebuild.
+*/
+
+$vlessUsage = 0;
+
+if (!empty($service['rain_username'])) {
+
+    $usageStmt = $pdo->prepare("
+        SELECT
+            SUM(upload) AS total_up,
+            SUM(download) AS total_down,
+            SUM(offset_bytes) AS total_offset
+        FROM user_panel_usages
+        WHERE username = ?
+    ");
+
+    $usageStmt->execute([
+        $service['rain_username']
+    ]);
+
+    $usage = $usageStmt->fetch(PDO::FETCH_ASSOC);
+
+    $rawUsed =
+        (int)($usage['total_up'] ?? 0)
+        +
+        (int)($usage['total_down'] ?? 0);
+
+    $offsetUsed =
+        (int)($usage['total_offset'] ?? 0);
+
+    $vlessUsage =
+        max(
+            0,
+            $rawUsed - $offsetUsed
+        );
+}
+
+$combinedUsage =
+    $vlessUsage + $awgUsage;
+
+
+$limitGb = (float)$service['gb'];
+
+$isExpired = false;
+
+if ($limitGb > 0) {
+
+    $planBytes =
+        $limitGb
+        * 1024
+        * 1024
+        * 1024;
+
+    $isExpired =
+        $combinedUsage >= $planBytes;
+}
+$update = $pdo->prepare("
+    UPDATE reseller_services
+    SET
+        last_used_bytes = ?,
+        awg_rx = ?,
+        awg_tx = ?,
+        awg_total = ?
+    WHERE id = ?
+");
+
+$update->execute([
+    $combinedUsage,
+    $rx,
+    $tx,
+    $awgUsage,
+    $service['id']
+]);
+
+
+if ($subToken) {
+
+    $cacheUpdate = $pdo->prepare("
+        UPDATE user_stats_cache
+        SET
+            used_bytes = ?,
+            last_updated = UNIX_TIMESTAMP()
+        WHERE token = ?
+    ");
+
+    $cacheUpdate->execute([
+        $combinedUsage,
+        $subToken
+    ]);
+}
+echo "\n------------------\n";
+echo "User: {$clientId}\n";
+echo "Status: {$service['status']}\n";
+echo "Limit GB: {$service['gb']}\n";
+echo "Usage GB: " . round($combinedUsage / 1073741824, 2) . "\n";
+echo "Expired: " . ($isExpired ? 'YES' : 'NO') . "\n";
+echo "Will Disable: " . (
+    ($isExpired && $service['status'] !== 'disabled')
+        ? 'YES'
+        : 'NO'
+) . "\n";
+if ($isExpired) {
+
+    echo "ENTERING DELETE BLOCK\n";
+
+    $ch2 = curl_init();
+
+    curl_setopt_array($ch2, [
+        CURLOPT_URL =>
+            $baseUrl .
+            '/api/clients/' .
+            urlencode($clientId),
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $token
+        ]
+    ]);
+
+    $response = curl_exec($ch2);
+
+    $error = curl_error($ch2);
+
+    $httpCode = curl_getinfo(
+        $ch2,
+        CURLINFO_HTTP_CODE
+    );
+
+    curl_close($ch2);
+
+    echo "\n";
+    echo "DELETE HTTP: $httpCode\n";
+    echo "DELETE Response: $response\n";
+
+    if ($error) {
+        echo "Curl Error: $error\n";
+    }
+
+    if (
+        $httpCode === 200 ||
+        $httpCode === 204
+    ) {
+
+        $pdo->prepare("
+            UPDATE reseller_services
+            SET status='disabled'
+            WHERE id=?
+        ")->execute([
+            $service['id']
+        ]);
+
+        echo "Client deleted successfully\n";
+
+    } else {
+
+        echo "DELETE FAILED\n";
+
+    }
+}
+    
+}
+
+echo "done\n";
