@@ -119,6 +119,8 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Search"
         - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
       responses:
         "200":
           description: Visible sales
@@ -128,6 +130,21 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Sale"
+  /sales-summary:
+    get:
+      operationId: getSalesSummary
+      tags: [sales]
+      summary: Get date-filtered sales and reseller financial summary
+      parameters:
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+      responses:
+        "200":
+          description: Sales summary for the requested date range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesSummary"
   /sales/{id}:
     patch:
       operationId: updateSale
@@ -357,6 +374,22 @@ components:
         minimum: 1
         maximum: 200
         default: 100
+    FromDate:
+      name: from
+      in: query
+      required: false
+      description: Start date in ISO Gregorian format; the UI displays this as a Persian date.
+      schema:
+        type: string
+        pattern: '^\d{4}-\d{2}-\d{2}$'
+    ToDate:
+      name: to
+      in: query
+      required: false
+      description: End date in ISO Gregorian format; the UI displays this as a Persian date.
+      schema:
+        type: string
+        pattern: '^\d{4}-\d{2}-\d{2}$'
   schemas:
     HealthStatus:
       type: object
@@ -457,6 +490,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Activity"
+    SalesSummary:
+      type: object
+      required: [from, to, sold_gb, income, paid_income, admin_cost, admin_due, admin_due_gb, outstanding_admin_due, outstanding_admin_due_gb, remaining_profit, cash_after_admin]
+      properties:
+        from:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        to:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        sold_gb:
+          type: number
+        income:
+          type: number
+        paid_income:
+          type: number
+        admin_cost:
+          type: number
+        admin_due:
+          type: number
+        admin_due_gb:
+          type: number
+        outstanding_admin_due:
+          type: number
+        outstanding_admin_due_gb:
+          type: number
+        remaining_profit:
+          type: number
+        cash_after_admin:
+          type: number
     Activity:
       type: object
       required: [id, type, title, detail, created_at]

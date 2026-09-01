@@ -106,11 +106,15 @@ export const GetDashboardResponse = zod.object({
 export const listSalesQueryLimitDefault = 100;
 export const listSalesQueryLimitMax = 200;
 
+export const listSalesQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listSalesQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
 
 
 export const ListSalesQueryParams = zod.object({
   "search": zod.coerce.string().optional(),
-  "limit": zod.coerce.number().min(1).max(listSalesQueryLimitMax).default(listSalesQueryLimitDefault)
+  "limit": zod.coerce.number().min(1).max(listSalesQueryLimitMax).default(listSalesQueryLimitDefault),
+  "from": zod.coerce.string().regex(listSalesQueryFromRegExp).optional().describe('Start date in ISO Gregorian format; the UI displays this as a Persian date.'),
+  "to": zod.coerce.string().regex(listSalesQueryToRegExp).optional().describe('End date in ISO Gregorian format; the UI displays this as a Persian date.')
 })
 
 export const ListSalesResponseItem = zod.object({
@@ -126,6 +130,38 @@ export const ListSalesResponseItem = zod.object({
   "status": zod.string()
 })
 export const ListSalesResponse = zod.array(ListSalesResponseItem)
+
+
+/**
+ * @summary Get date-filtered sales and reseller financial summary
+ */
+export const getSalesSummaryQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getSalesSummaryQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetSalesSummaryQueryParams = zod.object({
+  "from": zod.coerce.string().regex(getSalesSummaryQueryFromRegExp).optional().describe('Start date in ISO Gregorian format; the UI displays this as a Persian date.'),
+  "to": zod.coerce.string().regex(getSalesSummaryQueryToRegExp).optional().describe('End date in ISO Gregorian format; the UI displays this as a Persian date.')
+})
+
+export const getSalesSummaryResponseFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getSalesSummaryResponseToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetSalesSummaryResponse = zod.object({
+  "from": zod.string().regex(getSalesSummaryResponseFromRegExp),
+  "to": zod.string().regex(getSalesSummaryResponseToRegExp),
+  "sold_gb": zod.number(),
+  "income": zod.number(),
+  "paid_income": zod.number(),
+  "admin_cost": zod.number(),
+  "admin_due": zod.number(),
+  "admin_due_gb": zod.number(),
+  "outstanding_admin_due": zod.number(),
+  "outstanding_admin_due_gb": zod.number(),
+  "remaining_profit": zod.number(),
+  "cash_after_admin": zod.number()
+})
 
 
 /**

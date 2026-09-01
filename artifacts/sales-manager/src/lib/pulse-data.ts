@@ -95,6 +95,7 @@ const toLatinDigits = (value: string) => value.replace(/[۰-۹]/g, (digit) => St
 const toPersianDigits = (value: string) => value.replace(/\d/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
 const dateParts = (date: Date, calendar = 'gregory') => new Intl.DateTimeFormat(`en-US-u-ca-${calendar}-nu-latn`, { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).reduce<Record<string, string>>((parts, part) => { if (part.type !== 'literal') parts[part.type] = part.value; return parts; }, {});
 export const isoToday = () => { const parts = dateParts(new Date()); return `${parts.year}-${parts.month}-${parts.day}`; };
+export const isoDaysFromToday = (offset: number) => { const parts = dateParts(new Date(Date.now() + offset * 86400000)); return `${parts.year}-${parts.month}-${parts.day}`; };
 export const jalaliInputValue = (iso: string) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return ''; const parts = dateParts(tehranDate(iso), 'persian'); return toPersianDigits(`${parts.year}/${parts.month}/${parts.day}`); };
 
 function jalaliToGregorian(jy: number, jm: number, jd: number): string | null {
@@ -117,3 +118,4 @@ function jalaliToGregorian(jy: number, jm: number, jd: number): string | null {
   return `${gy}-${pad(gm)}-${pad(days + 1)}`;
 }
 export const jalaliInputToIso = (value: string) => { const normalized = toLatinDigits(value).trim().replace(/[.-]/g, '/'); const match = normalized.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); return match ? jalaliToGregorian(Number(match[1]), Number(match[2]), Number(match[3])) : null; };
+export const isoStartOfPersianMonth = () => { const parts = dateParts(new Date(), 'persian'); return jalaliToGregorian(Number(parts.year), Number(parts.month), 1) ?? isoToday(); };

@@ -26,6 +26,7 @@ import type {
   Customer,
   CustomerDetail,
   DashboardSummary,
+  GetSalesSummaryParams,
   HealthStatus,
   ListCustomersParams,
   ListSalesParams,
@@ -36,6 +37,7 @@ import type {
   ResetServiceToken200,
   Sale,
   SaleUpdate,
+  SalesSummary,
   Service,
   ServiceUpdate,
   TelegramIdLoginInput,
@@ -587,6 +589,90 @@ export function useListSales<TData = Awaited<ReturnType<typeof listSales>>, TErr
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListSalesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSalesSummaryUrl = (params?: GetSalesSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/sales-summary?${stringifiedParams}` : `/api/sales-summary`
+}
+
+/**
+ * @summary Get date-filtered sales and reseller financial summary
+ */
+export const getSalesSummary = async (params?: GetSalesSummaryParams, options?: Parameters<typeof customFetch>[1]): Promise<SalesSummary> => {
+
+  return customFetch<SalesSummary>(getGetSalesSummaryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSalesSummaryQueryKey = (params?: GetSalesSummaryParams,) => {
+    return [
+    `/api/sales-summary`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSalesSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getSalesSummary>>, TError = ErrorType<unknown>>(params?: GetSalesSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSalesSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSalesSummaryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSalesSummary>>> = ({ signal }) => getSalesSummary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSalesSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSalesSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getSalesSummary>>>
+export type GetSalesSummaryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get date-filtered sales and reseller financial summary
+ */
+
+export function useGetSalesSummary<TData = Awaited<ReturnType<typeof getSalesSummary>>, TError = ErrorType<unknown>>(
+ params?: GetSalesSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSalesSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSalesSummaryQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

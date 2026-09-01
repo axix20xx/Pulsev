@@ -89,6 +89,23 @@ export interface DashboardSummary {
   recent_activity: Activity[];
 }
 
+export interface SalesSummary {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  from: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  to: string;
+  sold_gb: number;
+  income: number;
+  paid_income: number;
+  admin_cost: number;
+  admin_due: number;
+  admin_due_gb: number;
+  outstanding_admin_due: number;
+  outstanding_admin_due_gb: number;
+  remaining_profit: number;
+  cash_after_admin: number;
+}
+
 export interface Sale {
   id: number;
   customer_id: number;
@@ -233,6 +250,16 @@ export type SearchParameter = string;
 
 export type LimitParameter = number;
 
+/**
+ * Start date in ISO Gregorian format; the UI displays this as a Persian date.
+ */
+export type FromDateParameter = string;
+
+/**
+ * End date in ISO Gregorian format; the UI displays this as a Persian date.
+ */
+export type ToDateParameter = string;
+
 export type ListSalesParams = {
 search?: SearchParameter;
 /**
@@ -240,6 +267,29 @@ search?: SearchParameter;
  * @maximum 200
  */
 limit?: LimitParameter;
+/**
+ * Start date in ISO Gregorian format; the UI displays this as a Persian date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from?: FromDateParameter;
+/**
+ * End date in ISO Gregorian format; the UI displays this as a Persian date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to?: ToDateParameter;
+};
+
+export type GetSalesSummaryParams = {
+/**
+ * Start date in ISO Gregorian format; the UI displays this as a Persian date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from?: FromDateParameter;
+/**
+ * End date in ISO Gregorian format; the UI displays this as a Persian date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to?: ToDateParameter;
 };
 
 export type ListServicesParams = {

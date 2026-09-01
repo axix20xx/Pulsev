@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import {
   GetAuthSessionResponse,
   GetCustomerParams,
@@ -135,7 +135,31 @@ const sessionResponse = (context: Awaited<ReturnType<typeof getAuthContext>>) =>
         },
   );
 
-const ownership = (alias: string, req: Express.Request) =>
+const validIsoDate = (value: unknown): value is string =>
+  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+const tehranIsoDate = (date: Date) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tehran",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date).reduce<Record<string, string>>((result, part) => {
+    if (part.type !== "literal") result[part.type] = part.value;
+    return result;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+};
+const requestedDateRange = (req: Request, fallbackDays: number | null) => {
+  const to = validIsoDate(req.query.to) ? String(req.query.to) : fallbackDays === null ? null : tehranIsoDate(new Date());
+  const from = validIsoDate(req.query.from)
+    ? String(req.query.from)
+    : fallbackDays === null || !to
+      ? null
+      : tehranIsoDate(new Date(Date.now() - fallbackDays * 86400000));
+  return { from, to };
+};
+
+const ownership = (alias: string, req: Request) =>
   req.auth?.role === "master_admin"
     ? { sql: "TRUE", params: [] as unknown[] }
     : {
@@ -483,6 +507,60 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   );
 });
 
+router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
+  const range = requestedDateRange(req, 0);
+  if (!range.from || !range.to || range.from > range.to) {
+    res.status(400).json({ error: "بازه تاریخ معتبر نیست" });
+    return;
+  }
+  const owner = ownership("s", req);
+  const dueCondition = req.auth?.role === "master_admin" ? "TRUE" : "cs.reseller_tg_id = $1";
+  const dueParams = req.auth?.role === "master_admin" ? [] : [req.auth?.telegramId];
+  const [sales, credits] = await Promise.all([
+    pool.query(
+      `SELECT
+         COALESCE(SUM(s.gb_amount), 0)::float8 AS sold_gb,
+         COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * COALESCE(r.per_gig_price, 0))), 0)::float8 AS income,
+         COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN COALESCE(s.custom_sell_price, s.gb_amount * COALESCE(r.per_gig_price, 0)) ELSE 0 END), 0)::float8 AS paid_income,
+         COALESCE(SUM(s.gb_amount * COALESCE(r.per_gig_price, 0)), 0)::float8 AS admin_cost
+       FROM reseller_sales_log s
+       LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+       WHERE ${owner.sql}
+         AND s.created_at >= $${owner.params.length + 1}::date
+         AND s.created_at < ($${owner.params.length + 2}::date + INTERVAL '1 day')`,
+      [...owner.params, range.from, range.to],
+    ),
+    pool.query(
+      `SELECT
+         COALESCE(SUM(cs.total_amount) FILTER (WHERE COALESCE(cs.is_paid, 0) = 0), 0)::float8 AS admin_due,
+         COALESCE(SUM(cs.gb_amount) FILTER (WHERE COALESCE(cs.is_paid, 0) = 0), 0)::float8 AS admin_due_gb
+       FROM reseller_credit_sales cs
+       WHERE ${dueCondition}`,
+      dueParams,
+    ),
+  ]);
+  const salesRow = sales.rows[0] ?? {};
+  const adminDue = Number(credits.rows[0]?.admin_due ?? 0);
+  const adminDueGb = Number(credits.rows[0]?.admin_due_gb ?? 0);
+  const income = Number(salesRow.income ?? 0);
+  const adminCost = Number(salesRow.admin_cost ?? 0);
+  const soldGb = Number(salesRow.sold_gb ?? 0);
+  res.json({
+    from: range.from,
+    to: range.to,
+    sold_gb: soldGb,
+    income,
+    paid_income: Number(salesRow.paid_income ?? 0),
+    admin_cost: adminCost,
+    admin_due: adminCost,
+    admin_due_gb: soldGb,
+    outstanding_admin_due: adminDue,
+    outstanding_admin_due_gb: adminDueGb,
+    remaining_profit: income - adminCost,
+    cash_after_admin: Number(salesRow.paid_income ?? 0) - adminCost,
+  });
+});
+
 router.get("/reports", requireAuth, async (req, res): Promise<void> => {
   if (req.auth?.role !== "master_admin") {
     res.status(403).json({ error: "گزارش کامل فقط برای مدیر اصلی در دسترس است" });
@@ -551,6 +629,17 @@ router.get("/sales", requireAuth, async (req, res): Promise<void> => {
     conditions.push(
       `(c.full_name ILIKE $${params.length} OR svc.label ILIKE $${params.length} OR CAST(s.id AS TEXT) ILIKE $${params.length})`,
     );
+  }
+  const range = requestedDateRange(req, null);
+  if (range.from && range.to) {
+    if (range.from > range.to) {
+      res.status(400).json({ error: "بازه تاریخ معتبر نیست" });
+      return;
+    }
+    params.push(range.from);
+    conditions.push(`s.created_at >= $${params.length}::date`);
+    params.push(range.to);
+    conditions.push(`s.created_at < ($${params.length}::date + INTERVAL '1 day')`);
   }
   params.push(parsed.limit);
   const result = await pool.query(

@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect, createContext, useContext, type ReactNode, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowUpLeft, CalendarDays, Check, ChevronLeft, Copy, CreditCard, ExternalLink, Filter, Globe2, KeyRound, MoreHorizontal, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, TrendingUp, UserPlus, UserRound, Wifi, X } from 'lucide-react';
+import { ArrowUpLeft, CalendarDays, Check, ChevronLeft, Copy, CreditCard, ExternalLink, Filter, Globe2, KeyRound, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, TrendingUp, UserPlus, UserRound, Wifi, X } from 'lucide-react';
 import { Link, useLocation, useParams } from 'wouter';
 import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useListResellers, useUpdateReseller, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey } from '@workspace/api-client-react';
-import { Customer, Service, Sale, activities, dateLabel, daysUntil, initialCustomers, initialSales, initialServices, isoToday, jalaliInputToIso, jalaliInputValue, money, panels, todayLabel } from '@/lib/pulse-data';
+import { Customer, Service, Sale, activities, dateLabel, daysUntil, initialCustomers, initialSales, initialServices, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, money, panels, todayLabel } from '@/lib/pulse-data';
 import { Avatar, PageHeader, StatusPill } from '@/components/pulse-shell';
 
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
@@ -122,12 +122,69 @@ export function Overview() {
   </>;
 }
 
+type SalesPeriod = 'today' | 'week' | 'month' | 'custom';
+const salesPeriodRange = (period: Exclude<SalesPeriod, 'custom'>) => {
+  const to = isoToday();
+  if (period === 'today') return { from: to, to };
+  if (period === 'week') return { from: isoDaysFromToday(-6), to };
+  return { from: isoStartOfPersianMonth(), to };
+};
+const numberFa = (value: number, maximumFractionDigits = 2) => new Intl.NumberFormat('fa-IR', { maximumFractionDigits }).format(Number(value || 0));
+
 export function Sales() {
-  const { sales, updateSale } = usePulse(); const [search, setSearch] = useState(''); const [filter, setFilter] = useState('All');
-  const filtered = sales.filter((sale) => (filter === 'All' || (filter === 'Paid' ? sale.paid : !sale.paid)) && `${sale.customerName} ${sale.serviceName} ${sale.id}`.toLowerCase().includes(search.toLowerCase()));
-  return <><PageHeader eyebrow="دفتر مالی" title="دفتر فروش" description="نمایش روشن همه فروش‌ها، پرداخت‌ها و قیمت‌های ثبت‌شده." />
-    <div className="toolbar"><div className="search-field"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="جست‌وجوی مشتری، سرویس یا شناسه" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></div><div className="filter-tabs">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}{value === 'All' && <span>{new Intl.NumberFormat('fa-IR').format(sales.length)}</span>}</button>)}</div><Button variant="secondary" onClick={() => window.print()} className="mr-auto hidden sm:flex" testId="button-print-sales"><Printer size={15} /> چاپ دفتر</Button></div>
-    <section className="table-card"><div className="table-scroll"><table><thead><tr><th>فروش</th><th>سرویس / پنل</th><th>تاریخ</th><th>وضعیت</th><th className="text-right">مبلغ</th><th /></tr></thead><tbody>{filtered.map((sale) => <tr key={sale.id} data-testid={`row-sale-${sale.id}`}><td><div className="flex items-center gap-3"><Avatar name={sale.customerName} /><div><p className="font-bold">{sale.customerName}</p><p className="font-mono text-[10px] text-muted-foreground">{sale.id}</p></div></div></td><td><p className="font-semibold">{sale.serviceName}</p><p className="text-xs text-muted-foreground">{sale.panel}</p></td><td className="text-sm text-muted-foreground">{dateLabel(sale.date)}</td><td><button onClick={() => updateSale({ ...sale, paid: !sale.paid, status: sale.paid ? 'Pending' : 'Completed' })} data-testid={`button-toggle-paid-${sale.id}`}><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></button></td><td className="text-right font-display text-sm font-bold">{money(sale.amount)}</td><td><button className="icon-button" aria-label={`ویرایش ${sale.id}`} onClick={() => updateSale({ ...sale, amount: sale.amount + 10000 })} data-testid={`button-edit-sale-${sale.id}`}><Pencil size={14} /></button></td></tr>)}</tbody></table></div>{!filtered.length && <EmptyState title="فروشی پیدا نشد" detail="عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." />}</section><p className="mt-3 text-xs text-muted-foreground">نمایش {new Intl.NumberFormat('fa-IR').format(filtered.length)} مورد از {new Intl.NumberFormat('fa-IR').format(sales.length)} فروش · با انتخاب وضعیت، پرداخت را تغییر دهید</p></>;
+  const { updateSale, session } = usePulse();
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('All');
+  const [period, setPeriod] = useState<SalesPeriod>('today');
+  const [from, setFrom] = useState(() => isoToday());
+  const [to, setTo] = useState(() => isoToday());
+  const [draftFrom, setDraftFrom] = useState(() => isoToday());
+  const [draftTo, setDraftTo] = useState(() => isoToday());
+  const [periodSales, setPeriodSales] = useState<Sale[]>([]);
+  const [summary, setSummary] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const isReseller = session?.role === 'reseller';
+  const rangeLabel = period === 'today' ? 'امروز' : period === 'week' ? '۷ روز اخیر' : period === 'month' ? 'این ماه' : 'بازه انتخاب‌شده';
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    Promise.all([
+      fetch(`/api/sales?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&limit=200`, { credentials: 'include' }),
+      fetch(`/api/sales-summary?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { credentials: 'include' }),
+    ]).then(async ([salesResponse, summaryResponse]) => {
+      if (!salesResponse.ok || !summaryResponse.ok) throw new Error('دریافت گزارش فروش ناموفق بود.');
+      return Promise.all([salesResponse.json(), summaryResponse.json()]);
+    }).then(([salesResult, summaryResult]) => {
+      if (!active) return;
+      setPeriodSales(Array.isArray(salesResult) ? salesResult.map(mapSale) : []);
+      setSummary(summaryResult);
+    }).catch((cause) => {
+      if (active) { setPeriodSales([]); setSummary(null); setError(cause instanceof Error ? cause.message : 'دریافت گزارش فروش ناموفق بود.'); }
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [from, to]);
+  const selectPeriod = (next: SalesPeriod) => {
+    setPeriod(next);
+    if (next !== 'custom') {
+      const range = salesPeriodRange(next);
+      setFrom(range.from); setTo(range.to); setDraftFrom(range.from); setDraftTo(range.to);
+    } else {
+      setDraftFrom(from); setDraftTo(to);
+    }
+  };
+  const applyCustomRange = () => {
+    if (!draftFrom || !draftTo || draftFrom > draftTo) { setError('بازه تاریخ شمسی معتبر نیست.'); return; }
+    setError(''); setFrom(draftFrom); setTo(draftTo);
+  };
+  const visibleSales = periodSales;
+  const filtered = visibleSales.filter((sale) => (filter === 'All' || (filter === 'Paid' ? sale.paid : !sale.paid)) && `${sale.customerName} ${sale.serviceName} ${sale.id}`.toLowerCase().includes(search.toLowerCase()));
+  return <><PageHeader eyebrow="دفتر مالی" title="دفتر فروش" description="نمایش فروش‌ها، درآمد، اعتبار خریداری‌شده و سود باقی‌مانده بر اساس تاریخ شمسی." action={<Button variant="secondary" onClick={() => window.print()} testId="button-print-sales"><Printer size={15} /> چاپ دفتر</Button>} />
+    <section className="sales-status-grid">{summary && <><Metric label="حجم فروخته‌شده" value={`${numberFa(summary.sold_gb)} گیگ`} detail={rangeLabel} icon={Package} accent="amber" /><Metric label="درآمد فروش" value={money(summary.income)} detail={`${rangeLabel} · ${numberFa(summary.paid_income, 0)} تومان وصول‌شده`} icon={TrendingUp} /><Metric label={isReseller ? 'قابل پرداخت به مدیر' : 'هزینه اعتبار' } value={money(summary.admin_due)} detail={`${numberFa(summary.admin_due_gb)} گیگ × نرخ خرید${summary.outstanding_admin_due ? ` · معوق: ${money(summary.outstanding_admin_due)}` : ''}`} icon={CreditCard} accent="coral" /><Metric label="سود باقی‌مانده" value={money(summary.remaining_profit)} detail="درآمد فروش − هزینه اعتبار" icon={ShieldCheck} accent="sage" /></>}</section>
+    <section className="sales-period-panel report-filter panel-card"><div className="sales-period-heading"><div><p className="eyebrow">بازه زمانی</p><h2 className="section-title">{dateLabel(from)} تا {dateLabel(to)}</h2></div><span className="soft-badge">{rangeLabel}</span></div><div className="period-tabs">{([['today', 'امروز'], ['week', '۷ روز اخیر'], ['month', 'این ماه'], ['custom', 'بازه دلخواه']] as [SalesPeriod, string][]).map(([value, label]) => <button key={value} className={period === value ? 'selected' : ''} onClick={() => selectPeriod(value)} data-testid={`button-sales-period-${value}`}>{label}</button>)}</div>{period === 'custom' && <div className="sales-custom-range"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button onClick={applyCustomRange} disabled={loading}>اعمال بازه</Button></div>}</section>
+    <div className="toolbar"><div className="search-field"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="جست‌وجوی مشتری، سرویس یا شناسه" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></div><div className="filter-tabs">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}{value === 'All' && <span>{numberFa(visibleSales.length, 0)}</span>}</button>)}</div><Button variant="secondary" onClick={() => window.print()} className="mr-auto hidden sm:flex" testId="button-print-sales-inline"><Printer size={15} /> چاپ دفتر</Button></div>
+    {error && <div className="login-error mb-4">{error}</div>}<section className="table-card"><div className="table-scroll"><table><thead><tr><th>فروش</th><th>سرویس / پنل</th><th>تاریخ</th><th>وضعیت</th><th className="text-right">مبلغ</th><th /></tr></thead><tbody>{filtered.map((sale) => <tr key={sale.id} data-testid={`row-sale-${sale.id}`}><td><div className="flex items-center gap-3"><Avatar name={sale.customerName} /><div><p className="font-bold">{sale.customerName}</p><p className="font-mono text-[10px] text-muted-foreground">{sale.id}</p></div></div></td><td><p className="font-semibold">{sale.serviceName}</p><p className="text-xs text-muted-foreground">{sale.panel}</p></td><td className="text-sm text-muted-foreground">{dateLabel(sale.date)}</td><td><button onClick={() => updateSale({ ...sale, paid: !sale.paid, status: sale.paid ? 'Pending' : 'Completed' })} data-testid={`button-toggle-paid-${sale.id}`}><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></button></td><td className="text-right font-display text-sm font-bold">{money(sale.amount)}</td><td><button className="icon-button" aria-label={`ویرایش ${sale.id}`} onClick={() => updateSale({ ...sale, amount: sale.amount + 10000 })} data-testid={`button-edit-sale-${sale.id}`}><Pencil size={14} /></button></td></tr>)}</tbody></table></div>{!loading && !filtered.length && <EmptyState title="فروشی پیدا نشد" detail="بازه زمانی، عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." />}</section><p className="mt-3 text-xs text-muted-foreground">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · بازه بر اساس تقویم شمسی تهران</p></>;
 }
 
 function ServiceModal({ onClose }: { onClose: () => void }) {
@@ -282,7 +339,7 @@ function LegacySettingsPage() {
 }
 
 function AdminPricing({ resellers }: { resellers: PulseContextValue['resellers'] }) {
-  return <section className="panel-card admin-pricing-card"><div className="settings-heading"><div className="settings-symbol amber"><CreditCard size={17} /></div><div><p className="eyebrow">مدیریت مالی</p><h2 className="section-title">قیمت فروش و اعتبار پایه</h2><p className="text-sm text-muted-foreground">قیمت هر گیگ فروش به مشتری را مشخص کنید و اعتبار پایه را از طرف مدیر به فروشنده بفروشید.</p></div></div><div className="list-stack admin-reseller-list">{resellers.map((reseller) => <ResellerAdminRow key={reseller.id} reseller={reseller} />)}</div><AdminCreditSale resellers={resellers} /></section>;
+  return <section className="panel-card admin-pricing-card"><div className="settings-heading"><div className="settings-symbol amber"><CreditCard size={17} /></div><div><p className="eyebrow">مدیریت مالی</p><h2 className="section-title">قیمت فروش گیگ به فروشنده</h2><p className="text-sm text-muted-foreground">قیمت خرید هر گیگ از مدیر برای هر فروشنده را مشخص کنید؛ همین مبلغ برای محاسبه هزینه اعتبار و سود استفاده می‌شود.</p></div></div><div className="list-stack admin-reseller-list">{resellers.map((reseller) => <ResellerAdminRow key={reseller.id} reseller={reseller} />)}</div><AdminCreditSale resellers={resellers} /></section>;
 }
 
 function ResellerAdminRow({ reseller }: { reseller: PulseContextValue['resellers'][number] }) {
@@ -293,13 +350,15 @@ function ResellerAdminRow({ reseller }: { reseller: PulseContextValue['resellers
     setSaving(true); setMessage('');
     try { const response = await fetch(`/api/resellers/${reseller.id}`, { method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: reseller.enabled, per_gig_price: value }) }); if (!response.ok) throw new Error(); await queryClient.invalidateQueries({ queryKey: getListResellersQueryKey() }); setMessage('ذخیره شد'); } catch { setMessage('ذخیره قیمت ناموفق بود'); } finally { setSaving(false); }
   };
-  return <div className="reseller-admin-row"><div className="avatar avatar-sage">ف</div><div className="min-w-0 flex-1"><p className="text-sm font-bold">{reseller.title || `فروشنده ${reseller.id}`}</p><p className="text-xs text-muted-foreground">{new Intl.NumberFormat('fa-IR').format(reseller.used_gb)} از {new Intl.NumberFormat('fa-IR').format(reseller.total_gb)} گیگ اعتبار</p></div><label className="price-inline"><span>قیمت هر گیگ</span><input type="number" min="0" value={price} onChange={(event) => setPrice(event.target.value)} /><small>تومان</small></label><Button variant="secondary" className="compact-button" onClick={savePrice} disabled={saving}>{saving ? '...' : 'ذخیره'}</Button>{message && <em>{message}</em>}</div>;
+  return <div className="reseller-admin-row"><div className="avatar avatar-sage">ف</div><div className="min-w-0 flex-1"><p className="text-sm font-bold">{reseller.title || `فروشنده ${reseller.id}`}</p><p className="text-xs text-muted-foreground">{new Intl.NumberFormat('fa-IR').format(reseller.used_gb)} از {new Intl.NumberFormat('fa-IR').format(reseller.total_gb)} گیگ اعتبار</p></div><label className="price-inline"><span>قیمت خرید هر گیگ از مدیر</span><input type="number" min="0" value={price} onChange={(event) => setPrice(event.target.value)} /><small>تومان</small></label><Button variant="secondary" className="compact-button" onClick={savePrice} disabled={saving}>{saving ? '...' : 'ذخیره'}</Button>{message && <em>{message}</em>}</div>;
 }
 
 function AdminCreditSale({ resellers }: { resellers: PulseContextValue['resellers'] }) {
-  const [resellerId, setResellerId] = useState(String(resellers[0]?.id ?? '')); const [gb, setGb] = useState('100'); const [unitPrice, setUnitPrice] = useState('0'); const [paid, setPaid] = useState(false); const [message, setMessage] = useState('');
-  const submit = async (event: FormEvent) => { event.preventDefault(); setMessage(''); const response = await fetch('/api/reseller-credit-sales', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reseller_id: Number(resellerId), gb_amount: Number(gb), unit_price: Number(unitPrice), is_paid: paid }) }); setMessage(response.ok ? 'اعتبار به موجودی فروشنده اضافه شد.' : 'ثبت فروش پایه ناموفق بود.'); };
-  return <div className="admin-credit-sale"><div><p className="eyebrow">فروش پایه به فروشنده</p><h3 className="font-bold">افزایش اعتبار حجمی</h3></div><form onSubmit={submit} className="admin-credit-fields"><label className="field"><span>فروشنده</span><select value={resellerId} onChange={(event) => setResellerId(event.target.value)}>{resellers.map((item) => <option value={item.id} key={item.id}>{item.title || `فروشنده ${item.id}`}</option>)}</select></label><Field label="حجم (گیگ)" value={gb} onChange={setGb} type="number" /><Field label="قیمت پایه هر گیگ" value={unitPrice} onChange={setUnitPrice} type="number" /><label className="check-field"><input type="checkbox" checked={paid} onChange={(event) => setPaid(event.target.checked)} /> پرداخت‌شده</label><Button type="submit"><Plus size={14} /> ثبت فروش پایه</Button></form>{message && <p className="text-xs text-muted-foreground">{message}</p>}</div>;
+  const queryClient = useQueryClient();
+  const [resellerId, setResellerId] = useState(String(resellers[0]?.id ?? '')); const [gb, setGb] = useState('100'); const [unitPrice, setUnitPrice] = useState(String(resellers[0]?.per_gig_price ?? 0)); const [paid, setPaid] = useState(false); const [message, setMessage] = useState('');
+  const selectReseller = (value: string) => { setResellerId(value); const selected = resellers.find((item) => String(item.id) === value); setUnitPrice(String(selected?.per_gig_price ?? 0)); };
+  const submit = async (event: FormEvent) => { event.preventDefault(); setMessage(''); const response = await fetch('/api/reseller-credit-sales', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reseller_id: Number(resellerId), gb_amount: Number(gb), unit_price: Number(unitPrice), is_paid: paid }) }); if (response.ok) { setMessage('اعتبار به موجودی فروشنده اضافه شد.'); await queryClient.invalidateQueries({ queryKey: getListResellersQueryKey() }); } else setMessage('ثبت فروش پایه ناموفق بود.'); };
+  return <div className="admin-credit-sale"><div><p className="eyebrow">فروش گیگ به فروشنده</p><h3 className="font-bold">افزایش اعتبار حجمی</h3></div><form onSubmit={submit} className="admin-credit-fields"><label className="field"><span>فروشنده</span><select value={resellerId} onChange={(event) => selectReseller(event.target.value)}>{resellers.map((item) => <option value={item.id} key={item.id}>{item.title || `فروشنده ${item.id}`}</option>)}</select></label><Field label="حجم (گیگ)" value={gb} onChange={setGb} type="number" /><Field label="قیمت خرید هر گیگ" value={unitPrice} onChange={setUnitPrice} type="number" /><label className="check-field"><input type="checkbox" checked={paid} onChange={(event) => setPaid(event.target.checked)} /> پرداخت‌شده به مدیر</label><Button type="submit"><Plus size={14} /> ثبت فروش به فروشنده</Button></form>{message && <p className="text-xs text-muted-foreground">{message}</p>}</div>;
 }
 
 export function Reports() {

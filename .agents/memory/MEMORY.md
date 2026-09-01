@@ -4,3 +4,4 @@
 - [Public token subscription routes](public-subscription.md) — token links must bypass auth by path prefix and normalize legacy URLs to the current public route.
 - [Combined provider usage sync](combined-usage-sync.md) — aggregate effective V2Box and AmneziaWG usage with independent reset offsets before disabling services.
 - [Persian date boundaries](persian-date-boundaries.md) — keep user-facing dates in Tehran’s Persian calendar and convert to ISO only at API boundaries.
+- [ISO date query schemas](iso-date-query-schemas.md) — use patterned strings for OpenAPI query dates; date formats generate runtime zod.date parsers that reject URL strings.
