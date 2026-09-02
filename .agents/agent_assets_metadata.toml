@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "aBPrVVE7ZqdKFP20eVrON"
+uri = "file://exports/pulse-hostinger.zip"
+type = "unspecified"
+title = "Pulse Hostinger Deployment ZIP"
+description = "بستهٔ آمادهٔ استقرار برای Hostinger شامل frontend build‌شده، API build‌شده، launcher یکپارچه، فایل .env.example و راهنمای فارسی. مقدار واقعی Secretها داخل بسته قرار ندارد."
+logical_id = "f0f3bc07-6d71-4fa1-ac54-fe7f8c27fd3d"
+content_hash = "sha256:e3453bca3e118d34e2a6057b1558e3dd410b171dfd0fb2f09f190f9d66c2acc6"
+size = 785645
+mtime_ms = 1788338252223
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f0f3bc07-6d71-4fa1-ac54-fe7f8c27fd3d/dd7a32db-4444-410a-bba2-b31e052cb74d"
+storage_version_token = "1788338263845367"
+content_type = "application/octet-stream"
