@@ -7,6 +7,7 @@
  */
 
 export * from './activity';
+export * from './adminSale';
 export * from './authSession';
 export * from './authSessionRole';
 export * from './awgUsage';
@@ -21,6 +22,7 @@ export * from './fromDateParameter';
 export * from './getSalesSummaryParams';
 export * from './healthStatus';
 export * from './limitParameter';
+export * from './listAdminSalesParams';
 export * from './listCustomersParams';
 export * from './listSalesParams';
 export * from './listServicesParams';
@@ -30,6 +32,7 @@ export * from './reseller';
 export * from './resellerBalance';
 export * from './resellerCreditSale';
 export * from './resellerCreditSaleUpdate';
+export * from './resellerIdParameter';
 export * from './resellerSalesSummary';
 export * from './resellerSettlementBalance';
 export * from './resellerSettlementPayment';
@@ -40,6 +43,7 @@ export * from './sale';
 export * from './salesSummary';
 export * from './saleUpdate';
 export * from './searchParameter';
+export * from './searchWorkspaceParams';
 export * from './service';
 export * from './serviceStatus';
 export * from './serviceUpdate';
@@ -47,3 +51,5 @@ export * from './serviceUpdateStatus';
 export * from './telegramIdLoginInput';
 export * from './telegramLoginInput';
 export * from './toDateParameter';
+export * from './workspaceSearchResult';
+export * from './workspaceSearchResultKind';

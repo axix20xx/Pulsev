@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect, createContext, useContext, type ReactNode, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowUpLeft, CalendarDays, Check, ChevronLeft, Copy, CreditCard, Download, ExternalLink, Filter, Globe2, KeyRound, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, TrendingUp, UserPlus, UserRound, Wifi, X } from 'lucide-react';
+import { ArrowUpLeft, CalendarDays, Check, ChevronLeft, Copy, CreditCard, Download, ExternalLink, Filter, Globe2, KeyRound, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Link, useLocation, useParams } from 'wouter';
-import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useListResellers, useUpdateReseller, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey } from '@workspace/api-client-react';
+import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, type AdminSale } from '@workspace/api-client-react';
 import { Customer, Service, Sale, activities, dateLabel, daysUntil, initialCustomers, initialSales, initialServices, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, money, panels, todayLabel } from '@/lib/pulse-data';
 import { Avatar, PageHeader, StatusPill } from '@/components/pulse-shell';
 
@@ -440,6 +440,97 @@ export function Sales() {
     <section className="sales-period-panel report-filter panel-card"><div className="sales-period-heading"><div><p className="eyebrow">بازه زمانی</p><h2 className="section-title">{dateLabel(from)} تا {dateLabel(to)}</h2></div><span className="soft-badge">{rangeLabel}</span></div><div className="period-tabs">{([['today', 'امروز'], ['yesterday', 'دیروز'], ['week', '۷ روز اخیر'], ['month', 'این ماه'], ['custom', 'بازه دلخواه']] as [SalesPeriod, string][]).map(([value, label]) => <button key={value} className={period === value ? 'selected' : ''} onClick={() => selectPeriod(value)} data-testid={`button-sales-period-${value}`}>{label}</button>)}</div>{period === 'custom' && <div className="sales-custom-range"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button onClick={applyCustomRange} disabled={loading}>اعمال بازه</Button></div>}</section>
      {!isMasterAdmin && <><div className="toolbar"><div className="search-field"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="جست‌وجوی مشتری، سرویس یا شناسه" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></div><div className="filter-tabs">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}{value === 'All' && <span>{numberFa(visibleSales.length, 0)}</span>}</button>)}</div></div>{error && <div className="login-error mb-4">{error}</div>}<section className="table-card"><div className="table-scroll"><table><thead><tr><th>فروش</th><th>سرویس / پنل</th><th>تاریخ</th><th>وضعیت</th><th className="text-right">مبلغ</th><th /></tr></thead><tbody>{filtered.map((sale) => <tr key={sale.id} data-testid={`row-sale-${sale.id}`}><td><div className="flex items-center gap-3"><Avatar name={sale.customerName} /><div><p className="font-bold">{sale.customerName}</p><p className="font-mono text-[10px] text-muted-foreground">{sale.id}</p></div></div></td><td><p className="font-semibold">{sale.serviceName}</p><p className="text-xs text-muted-foreground">{sale.panel}</p></td><td className="text-sm text-muted-foreground">{dateLabel(sale.date)}</td><td><button onClick={() => togglePaid(sale)} data-testid={`button-toggle-paid-${sale.id}`}><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></button></td><td className="text-right font-display text-sm font-bold">{money(sale.amount)}</td><td><button className="icon-button" aria-label={sale.paid ? `برگرداندن پرداخت ${sale.id}` : `علامت‌گذاری پرداخت ${sale.id}`} onClick={() => togglePaid(sale)} data-testid={`button-edit-sale-${sale.id}`}>{sale.paid ? <RefreshCw size={14} /> : <Check size={14} />}</button></td></tr>)}</tbody></table></div>{!loading && !filtered.length && <EmptyState title="فروشی پیدا نشد" detail="بازه زمانی، عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." />}</section><p className="mt-3 text-xs text-muted-foreground">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · بازه بر اساس تقویم شمسی تهران</p></>}
      {isMasterAdmin && error && <div className="login-error mt-4">{error}</div>}</>;
+}
+
+export function AdminSales() {
+  const { session, resellers } = usePulse();
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [resellerId, setResellerId] = useState('');
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const queryParams = useMemo(() => ({
+    search: search.trim() || undefined,
+    reseller_id: resellerId ? Number(resellerId) : undefined,
+    limit: 200,
+  }), [resellerId, search]);
+  const salesQuery = useListAdminSales(queryParams, {
+    query: {
+      queryKey: getListAdminSalesQueryKey(queryParams),
+      enabled: session?.role === 'master_admin',
+      staleTime: 15_000,
+    },
+  });
+  const deleteSale = useDeleteAdminSale();
+  const rows: AdminSale[] = Array.isArray(salesQuery.data) ? salesQuery.data : [];
+  const totalAmount = rows.reduce((sum, sale) => sum + Number(sale.amount ?? 0), 0);
+  const totalGb = rows.reduce((sum, sale) => sum + Number(sale.gb_amount ?? 0), 0);
+  const subscriptionHref = (raw: string | null) => {
+    if (!raw) return null;
+    try {
+      const parsed = new URL(raw, window.location.origin);
+      const token = parsed.searchParams.get('t') || parsed.pathname.match(/\/api\/public\/subscription\/([A-Za-z0-9_-]+)\/feed/)?.[1];
+      return token ? `${window.location.origin}/sub?t=${encodeURIComponent(token)}` : parsed.toString();
+    } catch {
+      return raw;
+    }
+  };
+  const copySubscription = async (sale: AdminSale) => {
+    const url = subscriptionHref(sale.subscription_url);
+    if (!url) return;
+    await navigator.clipboard.writeText(url);
+    setCopiedId(sale.id);
+    window.setTimeout(() => setCopiedId((current) => current === sale.id ? null : current), 1400);
+  };
+  const removeSale = (sale: AdminSale) => {
+    if (!window.confirm(`فروش ${sale.id} از دفتر فروش حذف شود؟ فقط لاگ فروش حذف می‌شود و مشتری و سرویس باقی می‌مانند.`)) return;
+    deleteSale.mutate({ id: sale.id }, {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/admin/sales'] }),
+    });
+  };
+  if (session?.role !== 'master_admin') {
+    return <><PageHeader eyebrow="دسترسی محدود" title="فروش مشتریان فروشندگان" description="این صفحه فقط برای مدیر اصلی قابل مشاهده است." /><EmptyState title="دسترسی ندارید" detail="گزارش ریز فروشندگان فقط در حساب مدیر اصلی فعال است." /></>;
+  }
+  return <div className="admin-sales-page">
+    <PageHeader
+      eyebrow="مدیریت مدیر اصلی"
+      title="فروش مشتریان فروشندگان"
+      description="ریز فروش‌های مشتریان را به تفکیک فروشنده بررسی کنید. در این صفحه فقط امکان حذف لاگ فروش وجود دارد."
+      action={<Button variant="secondary" onClick={() => window.print()} testId="button-print-admin-sales"><Printer size={15} /> چاپ گزارش</Button>}
+    />
+    <section className="admin-sales-metrics">
+      <Metric label="تعداد فروش" value={numberFa(rows.length, 0)} detail="نتیجه‌های قابل مشاهده" icon={ShoppingBag} accent="amber" />
+      <Metric label="حجم فروش" value={`${numberFa(totalGb)} گیگ`} detail="جمع حجم سرویس‌های فروخته‌شده" icon={Package} />
+      <Metric label="مبلغ فروش" value={money(totalAmount)} detail="بر اساس قیمت ثبت‌شده در لاگ" icon={CreditCard} accent="sage" />
+    </section>
+    <section className="admin-sales-filters panel-card">
+      <div className="admin-sales-filter-title"><div className="settings-symbol"><Filter size={16} /></div><div><p className="section-title">فیلتر فروش‌ها</p><p className="text-xs text-muted-foreground">نام مشتری، موبایل، نام کاربری، سرویس یا شناسه فروش را جست‌وجو کنید.</p></div></div>
+      <div className="admin-sales-filter-fields">
+        <div className="search-field wide"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="جست‌وجوی مشتری، موبایل، سرویس یا شناسه" aria-label="جست‌وجوی فروش‌های مدیر اصلی" data-testid="input-admin-sales-search" /></div>
+        <select value={resellerId} onChange={(event) => setResellerId(event.target.value)} aria-label="فیلتر بر اساس فروشنده" data-testid="select-admin-sales-reseller">
+          <option value="">همه فروشندگان</option>
+          {resellers.filter((reseller) => reseller.telegram_id > 0).map((reseller) => <option value={reseller.telegram_id} key={reseller.telegram_id}>{reseller.title || `فروشنده ${reseller.telegram_id}`}</option>)}
+        </select>
+        {(search || resellerId) && <Button variant="quiet" onClick={() => { setSearch(''); setResellerId(''); }} testId="button-clear-admin-sales-filters">پاک کردن</Button>}
+      </div>
+    </section>
+    {salesQuery.isError && <div className="login-error mt-4">دریافت فروش‌های مدیر اصلی ناموفق بود.</div>}
+    <section className="table-card admin-sales-table">
+      <div className="panel-heading"><div><p className="eyebrow">دفتر ریز فروش</p><h2 className="section-title">{salesQuery.isFetching ? 'در حال دریافت...' : `${numberFa(rows.length, 0)} فروش ثبت شده`}</h2></div><span className="soft-badge">حذف فقط لاگ فروش</span></div>
+      <div className="table-scroll"><table><thead><tr><th>فروشنده</th><th>مشتری</th><th>سرویس</th><th>حجم</th><th>مبلغ</th><th>تاریخ تهران</th><th>وضعیت</th><th /></tr></thead><tbody>
+        {rows.map((sale) => <tr key={sale.id} data-testid={`row-admin-sale-${sale.id}`}>
+          <td><strong>{sale.reseller_name}</strong><small className="admin-sales-subline">TG {sale.reseller_tg_id}</small></td>
+          <td><Link href={`/customers/${sale.customer_id}`} className="admin-sales-customer"><strong>{sale.customer_name}</strong><small>{sale.customer_phone || 'شماره ثبت نشده'}</small></Link></td>
+          <td><strong>{sale.service_name}</strong><small className="admin-sales-subline">{sale.username || `سرویس ${sale.service_id}`}</small></td>
+          <td>{numberFa(sale.gb_amount)} گیگ</td>
+          <td className="font-display font-bold">{money(sale.amount)}</td>
+          <td className="text-sm text-muted-foreground">{dateLabel(sale.date)}</td>
+          <td><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></td>
+          <td><div className="admin-sales-actions">{sale.subscription_url && <button type="button" className="icon-button" title="کپی لینک اشتراک" aria-label={`کپی لینک اشتراک فروش ${sale.id}`} onClick={() => copySubscription(sale)}>{copiedId === sale.id ? <Check size={14} /> : <Copy size={14} />}</button>}<button type="button" className="icon-button danger" title="حذف لاگ فروش" aria-label={`حذف لاگ فروش ${sale.id}`} onClick={() => removeSale(sale)} disabled={deleteSale.isPending}>{deleteSale.isPending && deleteSale.variables?.id === sale.id ? <RefreshCw size={14} className="spin" /> : <Trash2 size={14} />}</button></div></td>
+        </tr>)}
+      </tbody></table></div>
+      {!salesQuery.isFetching && !rows.length && <EmptyState title="فروشی پیدا نشد" detail="فروشنده یا عبارت جست‌وجوی دیگری را امتحان کنید." />}
+    </section>
+  </div>;
 }
 
 function ServiceModal({ onClose }: { onClose: () => void }) {

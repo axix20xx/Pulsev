@@ -159,6 +159,83 @@ export const ListSalesResponse = zod.array(ListSalesResponseItem)
 
 
 /**
+ * @summary List all customer sales for the master admin
+ */
+export const listAdminSalesQueryLimitDefault = 100;
+export const listAdminSalesQueryLimitMax = 200;
+
+export const listAdminSalesQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listAdminSalesQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+
+export const ListAdminSalesQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().min(1).max(listAdminSalesQueryLimitMax).default(listAdminSalesQueryLimitDefault),
+  "from": zod.coerce.string().regex(listAdminSalesQueryFromRegExp).optional().describe('Start date in ISO Gregorian format; the UI displays this as a Persian date.'),
+  "to": zod.coerce.string().regex(listAdminSalesQueryToRegExp).optional().describe('End date in ISO Gregorian format; the UI displays this as a Persian date.'),
+  "reseller_id": zod.coerce.number().min(1).optional()
+})
+
+export const ListAdminSalesResponseItem = zod.object({
+  "id": zod.number(),
+  "reseller_tg_id": zod.number(),
+  "reseller_name": zod.string(),
+  "customer_id": zod.number(),
+  "customer_name": zod.string(),
+  "customer_phone": zod.string(),
+  "service_id": zod.number(),
+  "service_name": zod.string(),
+  "username": zod.string(),
+  "subscription_url": zod.string().nullable(),
+  "gb_amount": zod.number(),
+  "amount": zod.number(),
+  "date": zod.string(),
+  "paid": zod.boolean(),
+  "status": zod.string()
+})
+export const ListAdminSalesResponse = zod.array(ListAdminSalesResponseItem)
+
+
+/**
+ * @summary Delete one customer sales-log row
+ */
+
+
+
+export const DeleteAdminSaleParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const DeleteAdminSaleResponse = zod.void()
+
+
+/**
+ * @summary Search visible customers, services, sales, and subscription links
+ */
+export const searchWorkspaceQueryLimitDefault = 100;
+export const searchWorkspaceQueryLimitMax = 200;
+
+
+
+export const SearchWorkspaceQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().min(1).max(searchWorkspaceQueryLimitMax).default(searchWorkspaceQueryLimitDefault)
+})
+
+export const SearchWorkspaceResponseItem = zod.object({
+  "kind": zod.enum(['customer', 'service', 'sale']),
+  "id": zod.number(),
+  "title": zod.string(),
+  "subtitle": zod.string(),
+  "href": zod.string(),
+  "subscription_url": zod.string().nullable(),
+  "status": zod.string().nullable()
+})
+export const SearchWorkspaceResponse = zod.array(SearchWorkspaceResponseItem)
+
+
+/**
  * @summary Get date-filtered sales and reseller financial summary
  */
 export const getSalesSummaryQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');

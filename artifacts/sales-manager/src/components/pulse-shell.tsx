@@ -1,9 +1,23 @@
 import { BarChart3, Bell, CircleHelp, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useLogout } from '@workspace/api-client-react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { Copy, Search } from 'lucide-react';
+import { getSearchWorkspaceQueryKey, useLogout, useSearchWorkspace, type WorkspaceSearchResult } from '@workspace/api-client-react';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateLabel, dateTimeLabel, daysUntil, statusLabel } from '@/lib/pulse-data';
+
+const subscriptionPageHref = (raw: string | null | undefined): string | null => {
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw, window.location.origin);
+    const token =
+      parsed.searchParams.get('t') ||
+      parsed.pathname.match(/\/api\/public\/subscription\/([A-Za-z0-9_-]+)\/feed/)?.[1];
+    return token ? `/sub?t=${encodeURIComponent(token)}` : parsed.toString();
+  } catch {
+    return raw;
+  }
+};
 
 const nav = [
   { href: '/', label: 'داشبورد', icon: LayoutDashboard },
@@ -17,17 +31,74 @@ export function Shell({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
   const [open, setOpen] = useState(false);
   const [topbarPanel, setTopbarPanel] = useState<'notifications' | 'help' | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [copiedSearchId, setCopiedSearchId] = useState<number | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
   const { session, sessionLoading, authFallback, services, dashboard } = usePulse();
   const logout = useLogout();
+  const searchQuery = useSearchWorkspace(
+    { search: debouncedSearch, limit: 12 },
+    { query: { queryKey: getSearchWorkspaceQueryKey({ search: debouncedSearch, limit: 12 }), enabled: Boolean(session?.authenticated && debouncedSearch.length >= 2), staleTime: 30_000 } },
+  );
   useEffect(() => setOpen(false), [location]);
   useEffect(() => setTopbarPanel(null), [location]);
   useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setTopbarPanel(null); };
+    const timer = window.setTimeout(() => setDebouncedSearch(searchText.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [searchText]);
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setTopbarPanel(null);
+        setSearchFocused(false);
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        setSearchFocused(true);
+      }
+    };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, []);
+  useEffect(() => {
+    const closeSearch = (event: globalThis.MouseEvent) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(event.target as Node)) setSearchFocused(false);
+    };
+    document.addEventListener('mousedown', closeSearch);
+    return () => document.removeEventListener('mousedown', closeSearch);
+  }, []);
+  useEffect(() => {
+    if (!location || location === '/login' || location.startsWith('/sub')) return;
+    setSearchText('');
+    setDebouncedSearch('');
+    setSearchFocused(false);
+  }, [location]);
   const name = session?.display_name || 'مدیر فروش';
   const isSignedOut = !sessionLoading && (authFallback || session?.authenticated === false || !session);
+  const visibleNav = session?.role === 'master_admin'
+    ? [...nav, { href: '/admin-sales', label: 'فروش مشتریان فروشندگان', icon: ShieldAlert }]
+    : nav;
+  const searchResults = Array.isArray(searchQuery.data) ? searchQuery.data : [];
+  const searchOpen = searchFocused && searchText.trim().length >= 2;
+  const copySearchSubscription = async (event: ReactMouseEvent, item: WorkspaceSearchResult) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const url = subscriptionPageHref(item.subscription_url);
+    if (!url) return;
+    await navigator.clipboard.writeText(new URL(url, window.location.origin).toString());
+    setCopiedSearchId(item.id);
+    window.setTimeout(() => setCopiedSearchId((current) => current === item.id ? null : current), 1400);
+  };
+  const openSearchResult = (item: WorkspaceSearchResult) => {
+    setSearchText('');
+    setDebouncedSearch('');
+    setSearchFocused(false);
+    navigate(item.href);
+  };
   const notifications = useMemo(() => {
     const serviceAlerts = services
       .filter((service) => service.expiresAt && service.status !== 'Disabled' && (service.status === 'Expired' || daysUntil(service.expiresAt) <= 7))
@@ -72,7 +143,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="px-4 pt-11">
           <p className="eyebrow px-3 pb-3">فضای کاری</p>
           <nav className="space-y-1">
-            {nav.map(({ href, label, icon: Icon }) => (
+            {visibleNav.map(({ href, label, icon: Icon }) => (
               <Link key={href} href={href} className={`side-link ${location === href ? 'active' : ''}`} data-testid={`link-nav-${href === '/' ? 'dashboard' : href.slice(1)}`}>
                 <Icon size={17} strokeWidth={1.8} /><span>{label}</span>
                 {label === 'دفتر فروش' && <span className="side-count">۷</span>}
@@ -98,7 +169,36 @@ export function Shell({ children }: { children: ReactNode }) {
       <main className="min-h-[100dvh] md:pr-[238px]">
         <header className="topbar">
           <button className="icon-button md:hidden" onClick={() => setOpen(true)} aria-label="باز کردن منو" data-testid="button-open-nav"><Menu size={20} /></button>
-          <div className="topbar-search"><span>جست‌وجوی سریع</span></div>
+          <div className="topbar-search-wrap" ref={searchWrapRef}>
+            <Search size={16} aria-hidden="true" />
+            <input
+              ref={searchInputRef}
+              type="search"
+              value={searchText}
+              onChange={(event) => { setSearchText(event.target.value); setSearchFocused(true); }}
+              onFocus={() => setSearchFocused(true)}
+              placeholder="جست‌وجوی نام، موبایل، سرویس یا لینک اشتراک"
+              aria-label="جست‌وجوی سراسری"
+              data-testid="input-global-search"
+            />
+            {searchText && <button type="button" className="global-search-clear" onClick={() => { setSearchText(''); setDebouncedSearch(''); searchInputRef.current?.focus(); }} aria-label="پاک کردن جست‌وجو"><X size={13} /></button>}
+            <kbd>⌘ K</kbd>
+            {searchOpen && <div className="global-search-results" role="listbox" aria-label="نتایج جست‌وجوی سراسری">
+              {searchQuery.isFetching && <div className="global-search-state"><Search size={15} className="spin" /> در حال جست‌وجو...</div>}
+              {!searchQuery.isFetching && searchResults.length === 0 && <div className="global-search-state">نتیجه‌ای برای «{searchText.trim()}» پیدا نشد.</div>}
+              {!searchQuery.isFetching && searchResults.map((item) => <div className="global-search-result" key={`${item.kind}-${item.id}`} role="option" aria-selected="false" onMouseDown={(event) => event.preventDefault()}>
+                <button type="button" className="global-search-result-main" onClick={() => openSearchResult(item)}>
+                  <span className={`global-search-kind ${item.kind}`}><Search size={13} /></span>
+                  <span className="global-search-copy"><strong>{item.title}</strong><small>{item.subtitle}</small></span>
+                  {item.status && <span className="global-search-status">{item.status === 'completed' ? 'پرداخت‌شده' : item.status === 'pending' ? 'در انتظار' : statusLabel(item.status)}</span>}
+                </button>
+                {item.subscription_url && <button type="button" className="global-search-link" onClick={(event) => copySearchSubscription(event, item)} title="کپی لینک اشتراک">
+                  <Copy size={13} /> {copiedSearchId === item.id ? 'کپی شد' : 'لینک اشتراک'}
+                </button>}
+              </div>)}
+              {!searchQuery.isFetching && searchResults.length > 0 && <p className="global-search-hint">برای باز کردن نتیجه کلیک کنید · جست‌وجو در همه داده‌های قابل مشاهده</p>}
+            </div>}
+          </div>
           <div className="topbar-actions mr-auto flex items-center gap-2"><button className={`icon-button ${topbarPanel === 'help' ? 'selected' : ''}`} onClick={() => setTopbarPanel((current) => current === 'help' ? null : 'help')} aria-label="راهنما" aria-expanded={topbarPanel === 'help'} data-testid="button-help"><CircleHelp size={18} /></button><button className={`icon-button relative ${topbarPanel === 'notifications' ? 'selected' : ''}`} onClick={() => setTopbarPanel((current) => current === 'notifications' ? null : 'notifications')} aria-label="اعلان‌ها" aria-expanded={topbarPanel === 'notifications'} data-testid="button-notifications"><Bell size={18} />{notifications.length > 0 && <span className="notification-dot" />}</button></div>
         </header>
         {topbarPanel === 'notifications' && <section className="topbar-popover notification-panel" role="dialog" aria-label="اعلان‌های واقعی"><div className="popover-heading"><div><p className="eyebrow">مرکز اطلاع‌رسانی</p><h2>اعلان‌ها</h2></div><span className="soft-badge">{new Intl.NumberFormat('fa-IR').format(notifications.length)} مورد</span></div>{notifications.length ? <div className="notification-list">{notifications.map((item) => item.href ? <Link key={item.id} href={item.href} className={`notification-item ${item.tone}`} onClick={() => setTopbarPanel(null)}><span className="notification-icon"><Bell size={14} /></span><span className="notification-copy"><strong>{item.title}</strong><small>{item.detail}</small><em>{item.date}</em></span></Link> : <div key={item.id} className={`notification-item ${item.tone}`}><span className="notification-icon"><Bell size={14} /></span><span className="notification-copy"><strong>{item.title}</strong><small>{item.detail}</small><em>{item.date}</em></span></div>)}</div> : <div className="popover-empty"><Bell size={18} /><p>اعلان جدیدی وجود ندارد.</p><small>وقتی سرویس نزدیک انقضا شود یا فعالیتی ثبت شود، اینجا می‌بینید.</small></div>}</section>}

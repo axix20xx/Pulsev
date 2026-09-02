@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminSale,
   AuthSession,
   CreateServiceInput,
   CreateServiceResult,
@@ -28,6 +29,7 @@ import type {
   DashboardSummary,
   GetSalesSummaryParams,
   HealthStatus,
+  ListAdminSalesParams,
   ListCustomersParams,
   ListSalesParams,
   ListServicesParams,
@@ -42,10 +44,12 @@ import type {
   Sale,
   SaleUpdate,
   SalesSummary,
+  SearchWorkspaceParams,
   Service,
   ServiceUpdate,
   TelegramIdLoginInput,
-  TelegramLoginInput
+  TelegramLoginInput,
+  WorkspaceSearchResult
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -593,6 +597,245 @@ export function useListSales<TData = Awaited<ReturnType<typeof listSales>>, TErr
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListSalesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAdminSalesUrl = (params?: ListAdminSalesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/sales?${stringifiedParams}` : `/api/admin/sales`
+}
+
+/**
+ * @summary List all customer sales for the master admin
+ */
+export const listAdminSales = async (params?: ListAdminSalesParams, options?: Parameters<typeof customFetch>[1]): Promise<AdminSale[]> => {
+
+  return customFetch<AdminSale[]>(getListAdminSalesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminSalesQueryKey = (params?: ListAdminSalesParams,) => {
+    return [
+    `/api/admin/sales`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAdminSalesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminSales>>, TError = ErrorType<void>>(params?: ListAdminSalesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminSales>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminSalesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminSales>>> = ({ signal }) => listAdminSales(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminSales>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminSalesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminSales>>>
+export type ListAdminSalesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List all customer sales for the master admin
+ */
+
+export function useListAdminSales<TData = Awaited<ReturnType<typeof listAdminSales>>, TError = ErrorType<void>>(
+ params?: ListAdminSalesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminSales>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminSalesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteAdminSaleUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/sales/${id}`
+}
+
+/**
+ * @summary Delete one customer sales-log row
+ */
+export const deleteAdminSale = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteAdminSaleUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminSaleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminSale>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminSale>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteAdminSale'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminSale>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAdminSale(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminSaleMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminSale>>>
+
+    export type DeleteAdminSaleMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete one customer sales-log row
+ */
+export const useDeleteAdminSale = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminSale>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminSale>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminSaleMutationOptions(options));
+    }
+
+export const getSearchWorkspaceUrl = (params?: SearchWorkspaceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/search?${stringifiedParams}` : `/api/search`
+}
+
+/**
+ * @summary Search visible customers, services, sales, and subscription links
+ */
+export const searchWorkspace = async (params?: SearchWorkspaceParams, options?: Parameters<typeof customFetch>[1]): Promise<WorkspaceSearchResult[]> => {
+
+  return customFetch<WorkspaceSearchResult[]>(getSearchWorkspaceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchWorkspaceQueryKey = (params?: SearchWorkspaceParams,) => {
+    return [
+    `/api/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchWorkspaceQueryOptions = <TData = Awaited<ReturnType<typeof searchWorkspace>>, TError = ErrorType<unknown>>(params?: SearchWorkspaceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchWorkspace>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchWorkspaceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchWorkspace>>> = ({ signal }) => searchWorkspace(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchWorkspace>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchWorkspaceQueryResult = NonNullable<Awaited<ReturnType<typeof searchWorkspace>>>
+export type SearchWorkspaceQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Search visible customers, services, sales, and subscription links
+ */
+
+export function useSearchWorkspace<TData = Awaited<ReturnType<typeof searchWorkspace>>, TError = ErrorType<unknown>>(
+ params?: SearchWorkspaceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchWorkspace>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchWorkspaceQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

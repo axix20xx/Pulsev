@@ -9,8 +9,13 @@ import {
   ListResellersResponse,
   ListSalesQueryParams,
   ListSalesResponse,
+  ListAdminSalesQueryParams,
+  ListAdminSalesResponse,
+  DeleteAdminSaleParams,
   ListServicesQueryParams,
   ListServicesResponse,
+  SearchWorkspaceQueryParams,
+  SearchWorkspaceResponse,
   LoginWithTelegramBody,
   LoginWithTelegramResponse,
   LoginWithTelegramIdBody,
@@ -1091,6 +1096,88 @@ router.get("/sales", requireAuth, async (req, res): Promise<void> => {
   res.json(ListSalesResponse.parse(result.rows));
 });
 
+router.get("/admin/sales", requireMasterAdmin, async (req, res): Promise<void> => {
+  const parsed = ListAdminSalesQueryParams.parse(req.query);
+  const params: unknown[] = [];
+  const conditions: string[] = [];
+  if (parsed.reseller_id !== undefined) {
+    params.push(parsed.reseller_id);
+    conditions.push(`s.reseller_tg_id = $${params.length}`);
+  }
+  if (parsed.search?.trim()) {
+    const search = parsed.search.trim();
+    const normalizedPhone = search
+      .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+      .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+      .replace(/\D/g, "");
+    params.push(`%${search}%`);
+    const searchIndex = params.length;
+    params.push(normalizedPhone ? `%${normalizedPhone}%` : "__no_phone_match__");
+    const phoneIndex = params.length;
+    conditions.push(`(
+      c.full_name ILIKE $${searchIndex}
+      OR c.phone ILIKE $${searchIndex}
+      OR regexp_replace(translate(COALESCE(c.phone, ''), '۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'), '[^0-9]', '', 'g') ILIKE $${phoneIndex}
+      OR svc.rain_username ILIKE $${searchIndex}
+      OR svc.label ILIKE $${searchIndex}
+      OR svc.subscription_url ILIKE $${searchIndex}
+      OR s.id::text ILIKE $${searchIndex}
+      OR s.reseller_tg_id::text ILIKE $${searchIndex}
+      OR r.title ILIKE $${searchIndex}
+    )`);
+  }
+  if (parsed.from) {
+    params.push(parsed.from);
+    conditions.push(`(s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $${params.length}::date`);
+  }
+  if (parsed.to) {
+    params.push(parsed.to);
+    conditions.push(`(s.created_at AT TIME ZONE 'Asia/Tehran')::date <= $${params.length}::date`);
+  }
+  params.push(parsed.limit);
+  const result = await pool.query(
+    `SELECT
+       s.id::float8 AS id,
+       s.reseller_tg_id::float8 AS reseller_tg_id,
+       COALESCE(NULLIF(r.title, ''), 'فروشنده ' || s.reseller_tg_id::text) AS reseller_name,
+       COALESCE(svc.customer_id, 0)::float8 AS customer_id,
+       COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
+       COALESCE(c.phone, '') AS customer_phone,
+       s.service_id::float8 AS service_id,
+       COALESCE(svc.label, 'سرویس حذف‌شده') AS service_name,
+       COALESCE(svc.rain_username, '') AS username,
+       svc.subscription_url,
+       COALESCE(s.gb_amount, 0)::float8 AS gb_amount,
+       COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})::float8 AS amount,
+       (COALESCE(s.created_at, NOW()) AT TIME ZONE 'Asia/Tehran')::date::text AS date,
+       COALESCE(s.is_paid, 0) = 1 AS paid,
+       CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN 'completed' ELSE 'pending' END AS status
+     FROM reseller_sales_log s
+     LEFT JOIN reseller_services svc ON svc.id = s.service_id
+     LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+     LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+     ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
+     ORDER BY s.created_at DESC NULLS LAST, s.id DESC
+     LIMIT $${params.length}`,
+    params,
+  );
+  res.json(ListAdminSalesResponse.parse(result.rows));
+});
+
+router.delete("/admin/sales/:id", requireMasterAdmin, async (req, res): Promise<void> => {
+  const parsed = DeleteAdminSaleParams.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: "شناسه فروش معتبر نیست" });
+    return;
+  }
+  const result = await pool.query("DELETE FROM reseller_sales_log WHERE id = $1 RETURNING id", [parsed.data.id]);
+  if (!result.rowCount) {
+    res.status(404).json({ error: "رکورد فروش پیدا نشد" });
+    return;
+  }
+  res.status(204).end();
+});
+
 router.patch("/sales/:id", requireAuth, async (req, res): Promise<void> => {
   const params = UpdateSaleParams.safeParse(req.params);
   const body = UpdateSaleBody.safeParse(req.body);
@@ -1145,6 +1232,104 @@ router.patch("/sales/:id", requireAuth, async (req, res): Promise<void> => {
     [params.data.id],
   );
   res.json(UpdateSaleResponse.parse(fresh.rows[0]));
+});
+
+router.get("/search", requireAuth, async (req, res): Promise<void> => {
+  const parsed = SearchWorkspaceQueryParams.parse(req.query);
+  const search = String(parsed.search ?? "").trim();
+  if (!search) {
+    res.json([]);
+    return;
+  }
+
+  const normalizeDigits = (value: string) =>
+    value
+      .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+      .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+      .replace(/\D/g, "");
+  const phoneSearch = normalizeDigits(search);
+  const phonePattern = phoneSearch ? `%${phoneSearch}%` : "__no_phone_match__";
+  const isMasterAdmin = req.auth?.role === "master_admin";
+  const customerOwner = isMasterAdmin ? "TRUE" : "c.reseller_tg_id = $4";
+  const serviceOwner = isMasterAdmin ? "TRUE" : "svc.reseller_tg_id = $4";
+  const saleOwner = isMasterAdmin ? "TRUE" : "s.reseller_tg_id = $4";
+  const result = await pool.query(
+    `WITH matches AS (
+       SELECT
+         'customer'::text AS kind,
+         c.id::float8 AS id,
+         c.full_name AS title,
+         c.phone AS subtitle,
+         '/customers/' || c.id::text AS href,
+         NULL::text AS subscription_url,
+         NULL::text AS status,
+         1 AS kind_order
+       FROM reseller_customers c
+       WHERE ${customerOwner}
+         AND (
+           c.full_name ILIKE $1
+           OR regexp_replace(translate(COALESCE(c.phone, ''), '۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'), '[^0-9]', '', 'g') ILIKE $2
+           OR c.phone ILIKE $1
+         )
+
+       UNION ALL
+
+       SELECT
+         'service'::text AS kind,
+         svc.id::float8 AS id,
+         COALESCE(svc.label, 'سرویس') AS title,
+         CONCAT_WS(' · ', c.full_name, c.phone, svc.rain_username) AS subtitle,
+         CASE WHEN c.id IS NULL THEN '/services' ELSE '/customers/' || c.id::text END AS href,
+         svc.subscription_url,
+         svc.status,
+         2 AS kind_order
+       FROM reseller_services svc
+       LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE ${serviceOwner}
+         AND (
+           c.full_name ILIKE $1
+           OR regexp_replace(translate(COALESCE(c.phone, ''), '۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'), '[^0-9]', '', 'g') ILIKE $2
+           OR c.phone ILIKE $1
+           OR svc.rain_username ILIKE $1
+           OR svc.label ILIKE $1
+           OR svc.admin_notes ILIKE $1
+           OR svc.subscription_url ILIKE $1
+           OR svc.id::text ILIKE $1
+         )
+
+       UNION ALL
+
+       SELECT
+         'sale'::text AS kind,
+         s.id::float8 AS id,
+         'فروش #' || s.id::text AS title,
+         CONCAT_WS(' · ', c.full_name, c.phone, svc.label) AS subtitle,
+         '/sales' AS href,
+         svc.subscription_url,
+         CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN 'completed' ELSE 'pending' END AS status,
+         3 AS kind_order
+       FROM reseller_sales_log s
+       LEFT JOIN reseller_services svc ON svc.id = s.service_id
+       LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE ${saleOwner}
+         AND (
+           c.full_name ILIKE $1
+           OR regexp_replace(translate(COALESCE(c.phone, ''), '۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'), '[^0-9]', '', 'g') ILIKE $2
+           OR c.phone ILIKE $1
+           OR svc.label ILIKE $1
+           OR svc.subscription_url ILIKE $1
+           OR s.id::text ILIKE $1
+         )
+     )
+     SELECT kind, id, title, COALESCE(subtitle, '') AS subtitle, href, subscription_url, status
+     FROM matches
+     ORDER BY kind_order, id DESC
+     LIMIT $3`,
+    isMasterAdmin
+      ? [`%${search}%`, phonePattern, parsed.limit]
+      : [`%${search}%`, phonePattern, parsed.limit, Number(req.auth?.telegramId ?? 0)],
+  );
+  res.json(SearchWorkspaceResponse.parse(result.rows));
 });
 
 router.patch("/reseller-credit-sales/:id", requireMasterAdmin, async (req, res): Promise<void> => {

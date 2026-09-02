@@ -232,10 +232,50 @@ export interface Sale {
   status: string;
 }
 
+export interface AdminSale {
+  id: number;
+  reseller_tg_id: number;
+  reseller_name: string;
+  customer_id: number;
+  customer_name: string;
+  customer_phone: string;
+  service_id: number;
+  service_name: string;
+  username: string;
+  /** @nullable */
+  subscription_url: string | null;
+  gb_amount: number;
+  amount: number;
+  date: string;
+  paid: boolean;
+  status: string;
+}
+
 export interface SaleUpdate {
   /** @nullable */
   custom_sell_price?: number | null;
   is_paid?: boolean;
+}
+
+export type WorkspaceSearchResultKind = typeof WorkspaceSearchResultKind[keyof typeof WorkspaceSearchResultKind];
+
+
+export const WorkspaceSearchResultKind = {
+  customer: 'customer',
+  service: 'service',
+  sale: 'sale',
+} as const;
+
+export interface WorkspaceSearchResult {
+  kind: WorkspaceSearchResultKind;
+  id: number;
+  title: string;
+  subtitle: string;
+  href: string;
+  /** @nullable */
+  subscription_url: string | null;
+  /** @nullable */
+  status: string | null;
 }
 
 export type ServiceStatus = typeof ServiceStatus[keyof typeof ServiceStatus];
@@ -377,6 +417,8 @@ export type FromDateParameter = string;
  */
 export type ToDateParameter = string;
 
+export type ResellerIdParameter = number;
+
 export type ListSalesParams = {
 search?: SearchParameter;
 /**
@@ -394,6 +436,38 @@ from?: FromDateParameter;
  * @pattern ^\d{4}-\d{2}-\d{2}$
  */
 to?: ToDateParameter;
+};
+
+export type ListAdminSalesParams = {
+search?: SearchParameter;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: LimitParameter;
+/**
+ * Start date in ISO Gregorian format; the UI displays this as a Persian date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from?: FromDateParameter;
+/**
+ * End date in ISO Gregorian format; the UI displays this as a Persian date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to?: ToDateParameter;
+/**
+ * @minimum 1
+ */
+reseller_id?: ResellerIdParameter;
+};
+
+export type SearchWorkspaceParams = {
+search?: SearchParameter;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: LimitParameter;
 };
 
 export type GetSalesSummaryParams = {

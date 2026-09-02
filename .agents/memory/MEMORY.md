@@ -10,3 +10,5 @@
 - [Service disable history](service-disable-history.md) — use an explicit Tehran-timestamped disable event for accurate daily activity and reason display.
 - [Super-admin cost policy](super-admin-cost-policy.md) — the master admin's internal cost basis is fixed at 2,500 toman per gig.
 - [Reseller payment ledger](reseller-payment-ledger.md) — reseller credit invoices are the source of due, paid, and remaining balances owed to the master admin.
+- [Universal reseller search](universal-reseller-search.md) — global search must be server-side, normalize Persian/Arabic phone digits, include subscription links, and enforce ownership in every result source.
+- [Master-admin sales ledger](master-admin-sales-ledger.md) — detailed reseller/customer sales belong on a separate master-admin page; deletion must affect only the sales log.
