@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bell, CircleHelp, CreditCard, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert, Check } from 'lucide-react';
+import { Activity, BarChart3, Bell, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert, Check } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { Copy, Search } from 'lucide-react';
@@ -28,6 +28,7 @@ const nav = [
 ];
 const monitoringNav = { href: '/monitoring', label: 'مانیتورینگ', icon: Activity };
 const posNav = { href: '/pos', label: 'پایانه فروش', icon: CreditCard };
+const operationsNav = { href: '/operations', label: 'مرکز عملیات', icon: Gauge };
 
 export function Shell({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
@@ -157,6 +158,7 @@ export function Shell({ children }: { children: ReactNode }) {
            <p className="eyebrow px-3 pb-3 pt-9">مدیریت</p>
            <Link href={posNav.href} className={`side-link ${location === posNav.href ? 'active' : ''}`} data-testid="link-nav-pos"><posNav.icon size={17} strokeWidth={1.8} /><span>{posNav.label}</span></Link>
           <Link href={monitoringNav.href} className={`side-link ${location === monitoringNav.href ? 'active' : ''}`} data-testid="link-nav-monitoring"><Activity size={17} strokeWidth={1.8} /><span>{monitoringNav.label}</span></Link>
+           <Link href={operationsNav.href} className={`side-link ${location === operationsNav.href ? 'active' : ''}`} data-testid="link-nav-operations"><Gauge size={17} strokeWidth={1.8} /><span>{operationsNav.label}</span></Link>
           <Link href="/settings" className={`side-link ${location === '/settings' ? 'active' : ''}`} data-testid="link-nav-settings"><Settings size={17} strokeWidth={1.8} /><span>تنظیمات</span></Link>
         </div>
         <div className="sidebar-bottom">

@@ -12,6 +12,7 @@ import {
 } from 'wouter';
 import { Shell } from '@/components/pulse-shell';
  import { AdminSales, CustomerDetail, Customers, LoginPage, Monitoring, Overview, PointOfSale, PublicSubscription, PulseProvider, Reports, Sales, Services, SettingsPage } from '@/pages/pulse-pages';
+ import { OperationsCenter } from '@/pages/operations-center';
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ function Router() {
             <Route path="/customers/:id" component={CustomerDetail} />
             <Route path="/reports" component={Reports} />
              <Route path="/monitoring" component={Monitoring} />
+             <Route path="/operations" component={OperationsCenter} />
             <Route path="/settings" component={SettingsPage} />
             <Route component={NotFound} />
           </Switch>

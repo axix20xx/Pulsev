@@ -92,6 +92,34 @@ export const managementReady = pool
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
+     CREATE TABLE IF NOT EXISTS reseller_customer_tags (
+       customer_id BIGINT NOT NULL,
+       reseller_tg_id BIGINT NOT NULL,
+       tag TEXT NOT NULL,
+       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+       PRIMARY KEY (customer_id, reseller_tg_id, tag)
+     );
+     CREATE TABLE IF NOT EXISTS reseller_customer_notes (
+       id BIGSERIAL PRIMARY KEY,
+       customer_id BIGINT NOT NULL,
+       reseller_tg_id BIGINT NOT NULL,
+       note TEXT NOT NULL,
+       created_at TIMESTAMP NOT NULL DEFAULT NOW()
+     );
+     CREATE TABLE IF NOT EXISTS reseller_audit_log (
+       id BIGSERIAL PRIMARY KEY,
+       actor_tg_id BIGINT NOT NULL,
+       actor_role TEXT NOT NULL,
+       action TEXT NOT NULL,
+       entity_type TEXT NOT NULL,
+       entity_id TEXT NOT NULL,
+       detail TEXT,
+       created_at TIMESTAMP NOT NULL DEFAULT NOW()
+     );
+     CREATE INDEX IF NOT EXISTS reseller_customer_notes_lookup
+       ON reseller_customer_notes (customer_id, reseller_tg_id, created_at DESC);
+     CREATE INDEX IF NOT EXISTS reseller_audit_log_created_idx
+       ON reseller_audit_log (created_at DESC);
      ALTER TABLE resellers
        ADD COLUMN IF NOT EXISTS customer_price_per_gb NUMERIC(14,2);
      UPDATE resellers
@@ -2429,6 +2457,261 @@ router.post("/reseller-credit-sales", requireMasterAdmin, async (req, res): Prom
   } finally {
     client.release();
   }
+});
+
+const recordAudit = async (
+  req: Request,
+  action: string,
+  entityType: string,
+  entityId: string | number,
+  detail: unknown = null,
+) => {
+  if (!req.auth) return;
+  await pool.query(
+    `INSERT INTO reseller_audit_log
+       (actor_tg_id, actor_role, action, entity_type, entity_id, detail)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [req.auth.telegramId, req.auth.role, action, entityType, String(entityId),
+      detail === null ? null : JSON.stringify(detail)],
+  );
+};
+
+const customerId = (req: Request) => {
+  const id = Number(req.params.id);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+};
+const customerAccess = (req: Request, id: number) =>
+  req.auth?.role === "master_admin"
+    ? { sql: "c.id = $1", params: [id] }
+    : { sql: "c.id = $1 AND c.reseller_tg_id = $2", params: [id, req.auth?.telegramId] };
+
+router.get("/customers/:id/crm", requireAuth, async (req, res): Promise<void> => {
+  await managementReady;
+  const id = customerId(req);
+  if (id === null) {
+    res.status(400).json({ error: "شناسه مشتری معتبر نیست" });
+    return;
+  }
+  const access = customerAccess(req, id);
+  const customer = await pool.query(`SELECT c.id FROM reseller_customers c WHERE ${access.sql}`, access.params);
+  if (!customer.rows[0]) {
+    res.status(404).json({ error: "مشتری پیدا نشد" });
+    return;
+  }
+  const owner = req.auth?.role === "master_admin" ? "" : " AND reseller_tg_id = $2";
+  const ownerParam = req.auth?.role === "master_admin" ? [id] : [id, req.auth?.telegramId];
+  const [tags, notes, events, audit] = await Promise.all([
+    pool.query(`SELECT tag FROM reseller_customer_tags WHERE customer_id = $1${owner} ORDER BY tag`, ownerParam),
+    pool.query(`SELECT id, note, created_at::text AS created_at FROM reseller_customer_notes WHERE customer_id = $1${owner} ORDER BY created_at DESC`, ownerParam),
+    pool.query(
+      `SELECT s.id, 'sale' AS type, 'فروش ثبت شد' AS title,
+          CONCAT(COALESCE(s.gb_amount, 0), ' گیگابایت') AS detail, s.created_at::text AS created_at
+       FROM reseller_sales_log s JOIN reseller_services svc ON svc.id = s.service_id
+       WHERE svc.customer_id = $1${req.auth?.role === "master_admin" ? "" : " AND s.reseller_tg_id = $2"}
+       UNION ALL
+       SELECT svc.id, 'service' AS type, 'سرویس ایجاد شد' AS title,
+          COALESCE(svc.label, '') AS detail, svc.created_at::text AS created_at
+       FROM reseller_services svc
+       WHERE svc.customer_id = $1${req.auth?.role === "master_admin" ? "" : " AND svc.reseller_tg_id = $2"}
+       ORDER BY created_at DESC LIMIT 100`,
+      ownerParam,
+    ),
+    pool.query(
+      `SELECT id, action AS type, action AS title, detail, created_at::text AS created_at
+       FROM reseller_audit_log
+       WHERE entity_type = 'customer' AND entity_id = $1${req.auth?.role === "master_admin" ? "" : " AND actor_tg_id = $2"}
+       ORDER BY created_at DESC LIMIT 100`,
+      ownerParam,
+    ),
+  ]);
+  const timeline = [...events.rows, ...audit.rows]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 100);
+  res.json({ tags: tags.rows.map((r) => r.tag), notes: notes.rows, timeline });
+});
+
+router.post("/customers/:id/tags", requireAuth, async (req, res): Promise<void> => {
+  await managementReady;
+  const id = customerId(req);
+  const tag = typeof req.body?.tag === "string" ? req.body.tag.trim() : "";
+  if (id === null || !tag || tag.length > 32) {
+    res.status(400).json({ error: "برچسب معتبر نیست" });
+    return;
+  }
+  const access = customerAccess(req, id);
+  if (!(await pool.query(`SELECT 1 FROM reseller_customers c WHERE ${access.sql}`, access.params)).rows[0]) {
+    res.status(404).json({ error: "مشتری پیدا نشد" });
+    return;
+  }
+  await pool.query(
+    `INSERT INTO reseller_customer_tags (customer_id, reseller_tg_id, tag)
+     VALUES ($1, $2, $3) ON CONFLICT (customer_id, reseller_tg_id, tag) DO NOTHING`,
+    [id, req.auth!.role === "master_admin" ? (await pool.query("SELECT reseller_tg_id FROM reseller_customers WHERE id = $1", [id])).rows[0]?.reseller_tg_id ?? req.auth!.telegramId : req.auth!.telegramId, tag],
+  );
+  await recordAudit(req, "tag_added", "customer", id, { tag });
+  res.status(201).json({ tag });
+});
+
+router.delete("/customers/:id/tags/:tag", requireAuth, async (req, res): Promise<void> => {
+  await managementReady;
+  const id = customerId(req);
+  const tag = String(req.params.tag ?? "").trim();
+  if (id === null || !tag || tag.length > 32) {
+    res.status(400).json({ error: "برچسب معتبر نیست" });
+    return;
+  }
+  const access = customerAccess(req, id);
+  if (!(await pool.query(`SELECT 1 FROM reseller_customers c WHERE ${access.sql}`, access.params)).rows[0]) {
+    res.status(404).json({ error: "مشتری پیدا نشد" });
+    return;
+  }
+  const result = await pool.query(
+    `DELETE FROM reseller_customer_tags WHERE customer_id = $1 AND tag = $2
+     ${req.auth?.role === "master_admin" ? "" : "AND reseller_tg_id = $3"} RETURNING tag`,
+    req.auth?.role === "master_admin" ? [id, tag] : [id, tag, req.auth?.telegramId],
+  );
+  if (!result.rows[0]) {
+    res.status(404).json({ error: "برچسب پیدا نشد" });
+    return;
+  }
+  await recordAudit(req, "tag_removed", "customer", id, { tag });
+  res.json({ tag });
+});
+
+router.post("/customers/:id/notes", requireAuth, async (req, res): Promise<void> => {
+  await managementReady;
+  const id = customerId(req);
+  const note = typeof req.body?.note === "string" ? req.body.note.trim() : "";
+  if (id === null || !note || note.length > 1000) {
+    res.status(400).json({ error: "یادداشت معتبر نیست" });
+    return;
+  }
+  const access = customerAccess(req, id);
+  if (!(await pool.query(`SELECT 1 FROM reseller_customers c WHERE ${access.sql}`, access.params)).rows[0]) {
+    res.status(404).json({ error: "مشتری پیدا نشد" });
+    return;
+  }
+  const owner = req.auth?.role === "master_admin"
+    ? (await pool.query("SELECT reseller_tg_id FROM reseller_customers WHERE id = $1", [id])).rows[0]?.reseller_tg_id ?? req.auth.telegramId
+    : req.auth!.telegramId;
+  const result = await pool.query(
+    `INSERT INTO reseller_customer_notes (customer_id, reseller_tg_id, note)
+     VALUES ($1, $2, $3) RETURNING id, note, created_at::text AS created_at`,
+    [id, owner, note],
+  );
+  await recordAudit(req, "note_added", "customer", id, { note });
+  res.status(201).json(result.rows[0]);
+});
+
+router.get("/admin/audit", requireMasterAdmin, async (req, res): Promise<void> => {
+  await managementReady;
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 100));
+  const result = await pool.query(
+    `SELECT id, actor_tg_id, actor_role, action, entity_type, entity_id, detail, created_at::text AS created_at
+     FROM reseller_audit_log ORDER BY created_at DESC LIMIT $1`, [limit],
+  );
+  res.json(result.rows);
+});
+
+router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
+  await managementReady;
+  const master = req.auth!.role === "master_admin";
+  const owner = master ? "TRUE" : "svc.reseller_tg_id = $1";
+  const params = master ? [] : [req.auth!.telegramId];
+  const monthStart = persianMonthStartIso(new Date());
+  const [summary, candidates, lowVolume, topCustomers, activity] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*) FILTER (WHERE ${owner} AND svc.status='active')::int AS active_services,
+       COUNT(*) FILTER (WHERE ${owner} AND svc.status <> 'disabled' AND svc.expire_at <= NOW()+INTERVAL '14 days')::int AS expiring_soon,
+       COUNT(*) FILTER (WHERE ${owner} AND svc.status='active' AND COALESCE(svc.last_used_bytes,0) < GREATEST(COALESCE(svc.gb,0)*1073741824*0.1, 1))::int AS low_volume,
+       COALESCE(SUM(CASE WHEN ${owner} AND (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $${params.length+1} THEN COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()}) ELSE 0 END),0)::float8 AS month_income,
+       COALESCE(SUM(CASE WHEN ${owner} AND (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $${params.length+1} THEN COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()})-s.gb_amount*${resellerCostPerGbSql()} ELSE 0 END),0)::float8 AS month_profit,
+       COALESCE(SUM(CASE WHEN ${owner} THEN s.gb_amount ELSE 0 END),0)::float8 AS sold_gb,
+       COALESCE(SUM(CASE WHEN ${owner} THEN GREATEST(COALESCE(svc.last_remaining_bytes, svc.gb*1073741824-COALESCE(svc.last_used_bytes,0)),0)/1073741824.0 ELSE 0 END),0)::float8 AS balance_gb
+       FROM reseller_services svc LEFT JOIN reseller_sales_log s ON s.service_id=svc.id
+       LEFT JOIN resellers r ON r.tg_id=s.reseller_tg_id`, [...params, monthStart]),
+    pool.query(`SELECT svc.id, svc.customer_id, c.full_name AS customer_name, c.phone, svc.label AS plan, svc.expire_at::text AS expires_at,
+       GREATEST(COALESCE(svc.last_remaining_bytes, svc.gb*1073741824-COALESCE(svc.last_used_bytes,0)),0)/1073741824.0 AS remaining_gb,
+       COALESCE(s.gb_amount,0)::float8 AS last_gb, COALESCE(s.days_amount,svc.days)::int AS last_days
+       FROM reseller_services svc JOIN reseller_customers c ON c.id=svc.customer_id LEFT JOIN LATERAL
+       (SELECT * FROM reseller_sales_log x WHERE x.service_id=svc.id ORDER BY x.created_at DESC LIMIT 1) s ON TRUE
+       WHERE ${owner} AND svc.status <> 'disabled' AND svc.expire_at <= NOW()+INTERVAL '14 days' ORDER BY svc.expire_at LIMIT 100`, params),
+    pool.query(`SELECT svc.id, svc.customer_id, c.full_name AS customer_name, svc.label AS plan,
+       COALESCE(svc.last_used_bytes,0)/1073741824.0 AS used_gb, svc.gb::float8 AS limit_gb
+       FROM reseller_services svc JOIN reseller_customers c ON c.id=svc.customer_id
+       WHERE ${owner} AND svc.status='active' AND COALESCE(svc.last_used_bytes,0) < GREATEST(COALESCE(svc.gb,0)*1073741824*0.1,1)
+       ORDER BY svc.last_used_bytes NULLS FIRST LIMIT 100`, params),
+     pool.query(`SELECT c.id, c.full_name AS customer_name, c.phone, COUNT(s.id)::int AS sales_count,
+       COALESCE(SUM(COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()})),0)::float8 AS income
+        FROM reseller_customers c JOIN reseller_services svc ON svc.customer_id=c.id JOIN resellers r ON r.tg_id=svc.reseller_tg_id LEFT JOIN reseller_sales_log s ON s.service_id=svc.id
+       WHERE ${master ? "TRUE" : "svc.reseller_tg_id=$1"} GROUP BY c.id,c.full_name,c.phone ORDER BY income DESC LIMIT 10`, params),
+    pool.query(`SELECT id, 'sale' AS type, 'فروش' AS title, service_id::text AS detail, created_at::text AS created_at
+       FROM reseller_sales_log WHERE ${master ? "TRUE" : "reseller_tg_id=$1"} ORDER BY created_at DESC LIMIT 20`, params),
+  ]);
+  if (!master) {
+    const s = summary.rows[0] ?? {};
+    const elapsedDays = Math.max(1, Math.ceil((Date.now() - new Date(`${monthStart}T00:00:00+03:30`).getTime()) / 86400000));
+    const soldGb = Number(s.sold_gb ?? 0);
+    const balanceGb = Number(s.balance_gb ?? 0);
+    const balanceDays = soldGb > 0 ? Math.max(0, Math.round(balanceGb / (soldGb / elapsedDays))) : 0;
+    res.json({
+      role: "reseller",
+      summary: { ...s, balance_days: balanceDays },
+      credit_forecast: {
+        remaining_gb: balanceGb,
+        days_remaining: balanceDays,
+        note: soldGb > 0 ? "برآورد بر اساس میانگین فروش از ابتدای ماه محاسبه شده است." : "برای برآورد پوشش، هنوز فروش کافی ثبت نشده است.",
+      },
+      renewal_candidates: candidates.rows,
+      low_volume_services: lowVolume.rows,
+      top_customers: topCustomers.rows,
+      recent_activity: activity.rows,
+    });
+    return;
+  }
+  const [resellers, providers, finance, resellerHealth] = await Promise.all([
+    pool.query(`SELECT COUNT(*)::int AS resellers, COUNT(svc.id) FILTER (WHERE svc.status='active')::int AS active_services,
+      (SELECT COUNT(*)::int FROM service_provision_jobs WHERE status='failed') AS failed_jobs
+      FROM resellers r LEFT JOIN reseller_services svc ON svc.reseller_tg_id=r.tg_id`),
+    pool.query(`SELECT p.key,p.kind,p.is_enabled=1 AS enabled,
+      (CASE WHEN p.kind='falcon' THEN COALESCE(p.api_key_secret,p.api_key_env) IS NOT NULL ELSE COALESCE(p.username_secret,p.username_env) IS NOT NULL AND COALESCE(p.password_secret,p.password_env) IS NOT NULL END) AS credential_ready,
+      COUNT(DISTINCT a.reseller_tg_id)::int AS assigned_resellers, COUNT(DISTINCT svc.id) FILTER (WHERE svc.status='active')::int AS active_services,
+      COUNT(DISTINCT j.id) FILTER (WHERE j.status='failed')::int AS failed_jobs FROM panel_configs p LEFT JOIN reseller_panel_assignments a ON a.panel_key=p.key LEFT JOIN reseller_services svc ON svc.reseller_tg_id=a.reseller_tg_id LEFT JOIN service_provision_jobs j ON j.owner_tg_id=a.reseller_tg_id GROUP BY p.key`),
+    pool.query(`SELECT COALESCE(SUM(CASE WHEN (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $1 THEN COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()}) ELSE 0 END),0)::float8 AS month_income,
+       COALESCE(SUM(CASE WHEN COALESCE(s.is_paid,0)=1 AND (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $1 THEN COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()}) ELSE 0 END),0)::float8 AS paid_income,
+       COALESCE(SUM(CASE WHEN COALESCE(s.is_paid,0)=0 AND (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $1 THEN COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()}) ELSE 0 END),0)::float8 AS unpaid_income,
+      COALESCE(SUM(CASE WHEN (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $1 THEN COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()})-s.gb_amount*${resellerCostPerGbSql()} ELSE 0 END),0)::float8 AS month_profit,
+      COALESCE((SELECT SUM(total_amount) FROM reseller_credit_sales WHERE (created_at AT TIME ZONE 'Asia/Tehran')::date >= $1),0)::float8 AS credit_sales,
+      COALESCE((SELECT SUM(amount) FROM reseller_settlement_payments WHERE payment_date >= $1::date),0)::float8 AS settlement_paid
+      FROM reseller_sales_log s LEFT JOIN resellers r ON r.tg_id=s.reseller_tg_id`, [monthStart]),
+    pool.query(`SELECT r.tg_id AS telegram_id, r.title, r.is_enabled=1 AS enabled,
+      COUNT(DISTINCT svc.id) FILTER (WHERE svc.status='active')::int AS active_services,
+      COUNT(s.id) FILTER (WHERE (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $1)::int AS month_sales,
+      COALESCE(SUM(CASE WHEN (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $1 THEN COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()}) ELSE 0 END),0)::float8 AS month_income,
+      COALESCE(SUM(CASE WHEN (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $1 AND COALESCE(s.is_paid,0)=0 THEN COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()}) ELSE 0 END),0)::float8 AS unpaid_amount,
+      r.total_gb::float8-r.used_gb::float8 AS balance_gb,
+      0::float8 AS renewal_rate, 0::int AS failed_jobs
+      FROM resellers r LEFT JOIN reseller_services svc ON svc.reseller_tg_id=r.tg_id
+      LEFT JOIN reseller_sales_log s ON s.reseller_tg_id=r.tg_id
+      GROUP BY r.tg_id,r.title,r.is_enabled,r.total_gb,r.used_gb`, [monthStart]),
+  ]);
+  const providerHealth = providers.rows.map((provider) => {
+    const key = String(provider.key ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    const falcon = String(provider.kind ?? "").toLowerCase() === "falcon";
+    const envReady = falcon
+      ? Boolean(process.env[`RAIN_${key}_KEY`] || process.env.RAIN_API_KEY)
+      : Boolean((process.env[`RAIN_${key}_USER`] || process.env.RAIN_API_USERNAME) &&
+          (process.env[`RAIN_${key}_PASS`] || process.env.RAIN_API_PASSWORD));
+    const credentialReady = Boolean(provider.credential_ready || envReady);
+    return {
+      ...provider,
+      credential_ready: credentialReady,
+      status: provider.enabled === false ? "disabled" : !credentialReady ? "missing_credentials" : Number(provider.failed_jobs ?? 0) > 0 ? "degraded" : "healthy",
+    };
+  });
+  const resellerSummary = resellers.rows[0] ?? {};
+  const financeSummary = finance.rows[0] ?? {};
+  res.json({ role: "master_admin", summary: { ...resellerSummary, month_income: financeSummary.month_income ?? 0, month_profit: financeSummary.month_profit ?? 0, unpaid_amount: financeSummary.unpaid_income ?? 0 }, provider_health: providerHealth, reseller_health: resellerHealth.rows, finance: { ...financeSummary, month_profit: financeSummary.month_profit ?? 0 }, recent_activity: activity.rows });
 });
 
 export default router;
