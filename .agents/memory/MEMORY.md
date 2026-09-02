@@ -12,9 +12,11 @@
 - [Reseller payment ledger](reseller-payment-ledger.md) — reseller credit invoices are the source of due, paid, and remaining balances owed to the master admin.
 - [Universal reseller search](universal-reseller-search.md) — global search must be server-side, normalize Persian/Arabic phone digits, include subscription links, and enforce ownership in every result source.
 - [Master-admin sales ledger](master-admin-sales-ledger.md) — detailed reseller/customer sales belong on a separate master-admin page; deletion must affect only the sales log.
+- [Audit entity identifiers](audit-entity-identifiers.md) — audit log entity IDs are text and must be compared with an explicit text cast from numeric route IDs.
 - [Service wizard presets](service-wizard-presets.md) — quick GB/day choices are UI shortcuts only; preserve the numeric create-service payload and live Tehran expiry display.
 - [iOS wizard safe area](ios-wizard-safe-area.md) — full-screen wizard footers need dynamic viewport sizing, internal content scroll, and bottom safe-area padding.
 - [Renewal service artifacts](renewal-service-artifacts.md) — post-renew QR and AWG actions must use the freshly returned service, not the stale pre-renewal object.
 - [Provider provisioning diagnostics](provider-provisioning-diagnostics.md) — strict all-provider provisioning must return safe per-provider failure details instead of only a generic 502.
 - [Async partial provisioning](async-partial-provisioning.md) — usable services may be saved after one Provider succeeds; failed Providers and AWG retry through monitored jobs.
 - [Seller notification center](seller-notification-center.md) — notifications are owner-scoped and in-app; AWG readiness must not use usage-sync-mutated timestamps.
+- [Mobile operational surfaces](mobile-operational-surfaces.md) — fixed bottom navigation needs safe-area space, and dense operational tables should become readable record cards on phone widths.

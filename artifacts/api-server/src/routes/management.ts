@@ -2245,7 +2245,16 @@ router.get("/customers", requireAuth, async (req, res): Promise<void> => {
       `(c.full_name ILIKE $${params.length} OR c.phone ILIKE $${params.length})`,
     );
   }
-  params.push(parsed.limit);
+  const status = req.query.status === "active" || req.query.status === "inactive" ? req.query.status : null;
+  if (status === "active") {
+    conditions.push("EXISTS (SELECT 1 FROM reseller_services active_svc WHERE active_svc.customer_id = c.id AND active_svc.status = 'active')");
+  } else if (status === "inactive") {
+    conditions.push("NOT EXISTS (SELECT 1 FROM reseller_services active_svc WHERE active_svc.customer_id = c.id AND active_svc.status = 'active')");
+  }
+  const requestedOffset = Number(req.query.offset);
+  const offset = Number.isSafeInteger(requestedOffset) ? Math.max(0, requestedOffset) : 0;
+  const countParams = [...params];
+  const dataParams = [...params, parsed.limit, offset];
   const result = await pool.query(
     `SELECT c.id, c.full_name AS name, c.phone,
        COUNT(DISTINCT svc.id) FILTER (WHERE svc.status = 'active')::int AS active_services,
@@ -2258,9 +2267,20 @@ router.get("/customers", requireAuth, async (req, res): Promise<void> => {
      WHERE ${conditions.join(" AND ")}
      GROUP BY c.id, c.full_name, c.phone
      ORDER BY MAX(s.created_at) DESC NULLS LAST, c.id DESC
-     LIMIT $${params.length}`,
-    params,
+     LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+    dataParams,
   );
+  const countResult = await pool.query(
+    `SELECT COUNT(*)::int AS total
+     FROM reseller_customers c
+     WHERE ${conditions.join(" AND ")}`,
+    countParams,
+  );
+  const total = Number(countResult.rows[0]?.total ?? 0);
+  res.setHeader("X-Total-Count", String(total));
+  res.setHeader("X-Page-Size", String(parsed.limit));
+  res.setHeader("X-Offset", String(offset));
+  res.setHeader("X-Total-Pages", String(Math.max(1, Math.ceil(total / parsed.limit))));
   res.json(ListCustomersResponse.parse(result.rows));
 });
 
@@ -2500,34 +2520,50 @@ router.get("/customers/:id/crm", requireAuth, async (req, res): Promise<void> =>
   }
   const owner = req.auth?.role === "master_admin" ? "" : " AND reseller_tg_id = $2";
   const ownerParam = req.auth?.role === "master_admin" ? [id] : [id, req.auth?.telegramId];
-  const [tags, notes, events, audit] = await Promise.all([
+  const requestedPage = Number(req.query.page);
+  const requestedPageSize = Number(req.query.page_size);
+  const pageSize = Number.isSafeInteger(requestedPageSize) ? Math.min(30, Math.max(1, requestedPageSize)) : 8;
+  const page = Number.isSafeInteger(requestedPage) ? Math.max(1, requestedPage) : 1;
+  const offset = (page - 1) * pageSize;
+  const limitPlaceholder = `$${ownerParam.length + 1}`;
+  const offsetPlaceholder = `$${ownerParam.length + 2}`;
+  const timelineParams = [...ownerParam, pageSize, offset];
+  const timelineSource = `
+    SELECT s.id, 'sale' AS type, 'فروش ثبت شد' AS title,
+      CONCAT(COALESCE(s.gb_amount, 0), ' گیگابایت') AS detail, s.created_at::text AS created_at
+    FROM reseller_sales_log s JOIN reseller_services svc ON svc.id = s.service_id
+    WHERE svc.customer_id = $1${req.auth?.role === "master_admin" ? "" : " AND s.reseller_tg_id = $2"}
+    UNION ALL
+    SELECT svc.id, 'service' AS type, 'سرویس ایجاد شد' AS title,
+      COALESCE(svc.label, '') AS detail, svc.created_at::text AS created_at
+    FROM reseller_services svc
+    WHERE svc.customer_id = $1${req.auth?.role === "master_admin" ? "" : " AND svc.reseller_tg_id = $2"}
+    UNION ALL
+    SELECT id, action AS type, action AS title, detail, created_at::text AS created_at
+    FROM reseller_audit_log
+    WHERE entity_type = 'customer' AND entity_id = $1::text${req.auth?.role === "master_admin" ? "" : " AND actor_tg_id = $2"}
+  `;
+  const [tags, notes, timeline, timelineCount] = await Promise.all([
     pool.query(`SELECT tag FROM reseller_customer_tags WHERE customer_id = $1${owner} ORDER BY tag`, ownerParam),
     pool.query(`SELECT id, note, created_at::text AS created_at FROM reseller_customer_notes WHERE customer_id = $1${owner} ORDER BY created_at DESC`, ownerParam),
-    pool.query(
-      `SELECT s.id, 'sale' AS type, 'فروش ثبت شد' AS title,
-          CONCAT(COALESCE(s.gb_amount, 0), ' گیگابایت') AS detail, s.created_at::text AS created_at
-       FROM reseller_sales_log s JOIN reseller_services svc ON svc.id = s.service_id
-       WHERE svc.customer_id = $1${req.auth?.role === "master_admin" ? "" : " AND s.reseller_tg_id = $2"}
-       UNION ALL
-       SELECT svc.id, 'service' AS type, 'سرویس ایجاد شد' AS title,
-          COALESCE(svc.label, '') AS detail, svc.created_at::text AS created_at
-       FROM reseller_services svc
-       WHERE svc.customer_id = $1${req.auth?.role === "master_admin" ? "" : " AND svc.reseller_tg_id = $2"}
-       ORDER BY created_at DESC LIMIT 100`,
-      ownerParam,
-    ),
-    pool.query(
-      `SELECT id, action AS type, action AS title, detail, created_at::text AS created_at
-       FROM reseller_audit_log
-       WHERE entity_type = 'customer' AND entity_id = $1${req.auth?.role === "master_admin" ? "" : " AND actor_tg_id = $2"}
-       ORDER BY created_at DESC LIMIT 100`,
-      ownerParam,
-    ),
+    pool.query(`SELECT * FROM (${timelineSource}) timeline ORDER BY created_at DESC, id DESC LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`, timelineParams),
+    pool.query(`SELECT COUNT(*)::int AS total FROM (${timelineSource}) timeline`, ownerParam),
   ]);
-  const timeline = [...events.rows, ...audit.rows]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 100);
-  res.json({ tags: tags.rows.map((r) => r.tag), notes: notes.rows, timeline });
+  const total = Number(timelineCount.rows[0]?.total ?? 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  res.json({
+    tags: tags.rows.map((r) => r.tag),
+    notes: notes.rows,
+    timeline: timeline.rows,
+    timeline_pagination: {
+      page,
+      page_size: pageSize,
+      total,
+      total_pages: totalPages,
+      has_next: page < totalPages,
+      has_previous: page > 1,
+    },
+  });
 });
 
 router.post("/customers/:id/tags", requireAuth, async (req, res): Promise<void> => {
