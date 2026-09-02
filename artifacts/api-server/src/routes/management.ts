@@ -49,6 +49,7 @@ import {
 import {
   createServiceUsername,
   createSubscriptionToken,
+  disablePanelUser,
   provisionUser,
   RainApiError,
   legacySubscriptionUrl,
@@ -57,6 +58,7 @@ import {
 import {
   AwgApiError,
   createAwgClient,
+  disableAwgClient,
   getAwgConfiguration,
   recreateAwgClient,
 } from "../lib/amneziawg";
@@ -1351,10 +1353,34 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
     const expiresAt = new Date(Date.now() + body.data.days * 86_400_000);
     const subLink = subscriptionUrl(token);
 
-    // Provision first, while the SQL transaction is open; a failed panel call rolls everything back.
+    // Provision every enabled provider before recording the service.
     try {
-      await provisionUser(username, body.data.gb, body.data.days, body.data.label, ownerId, req.auth?.role);
+      const provisioning = await provisionUser(
+        username,
+        body.data.gb,
+        body.data.days,
+        body.data.label,
+        ownerId,
+        req.auth?.role,
+      );
+      const failedProviders = provisioning.results.some(
+        (result) => result.status < 200 || result.status >= 300,
+      );
+      if (failedProviders) {
+        await disablePanelUser(username, null, ownerId, req.auth?.role);
+        await client.query("ROLLBACK");
+        res.status(502).json({
+          error: "همه providerهای سرویس ساخته نشدند؛ سرویس ناقص ثبت نشد",
+          panel_results: provisioning.results,
+        });
+        return;
+      }
     } catch (error) {
+      try {
+        await disablePanelUser(username, null, ownerId, req.auth?.role);
+      } catch {
+        // Remote cleanup is best effort when provisioning fails.
+      }
       await client.query("ROLLBACK");
       if (error instanceof RainApiError) {
         res.status(502).json({ error: error.message, panel_results: error.results });
@@ -1363,13 +1389,30 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
       throw error;
     }
     const awg = await createAwgClient();
+    if (!awg.clientId) {
+      try {
+        await disablePanelUser(
+          username,
+          null,
+          ownerId,
+          req.auth?.role,
+        );
+      } catch {
+        // The database transaction still rolls back; remote cleanup is best effort.
+      }
+      await client.query("ROLLBACK");
+      res.status(502).json({
+        error: awg.error ?? "ساخت AmneziaWG انجام نشد؛ سرویس ناقص ثبت نشد",
+      });
+      return;
+    }
 
     await client.query(
       `INSERT INTO reseller_services
        (id, reseller_tg_id, customer_id, gb, days, label, rain_username,
         subscription_url, expire_at, status, created_at, updated_at, last_used_bytes, awg_client_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', NOW(), NOW(), 0, $10)`,
-      [serviceId, ownerId, customerId, body.data.gb, body.data.days, body.data.label, username, subLink, expiresAt, awg.clientId],
+       [serviceId, ownerId, customerId, body.data.gb, body.data.days, body.data.label, username, subLink, expiresAt, awg.clientId],
     );
     await client.query(
       `INSERT INTO reseller_sub_tokens (token, service_id, created_at)
@@ -1456,6 +1499,48 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
   const owner = ownership("svc", req);
   const values: unknown[] = [];
   const updates: string[] = ["updated_at = NOW()"];
+  let remoteWarning: string | null = null;
+  if (body.data.status === "disabled") {
+    const current = await pool.query<{
+      rain_username: string;
+      falco_config_id: number | null;
+      awg_client_id: string | null;
+    }>(
+      `SELECT svc.rain_username, svc.falco_config_id, svc.awg_client_id
+       FROM reseller_services svc
+       WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+      [params.data.id, ...owner.params],
+    );
+    const service = current.rows[0];
+    if (!service) {
+      res.status(404).json({ error: "سرویس پیدا نشد" });
+      return;
+    }
+    let panelResult = { attempted: 0, disabled: 0 };
+    let awgDisabled = true;
+    try {
+      panelResult = await disablePanelUser(
+        service.rain_username,
+        service.falco_config_id,
+        Number(req.auth?.telegramId),
+        req.auth?.role,
+      );
+    } catch {
+      remoteWarning = "غیرفعال‌سازی providerها کامل نشد";
+    }
+    if (service.awg_client_id) {
+      awgDisabled = await disableAwgClient(service.awg_client_id);
+    }
+    const providersDisabled =
+      panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+    if (!providersDisabled || !awgDisabled) {
+      remoteWarning = "غیرفعال‌سازی همه providerها و AWG کامل نشد";
+    }
+    if (remoteWarning) {
+      res.status(502).json({ error: remoteWarning });
+      return;
+    }
+  }
   if (body.data.status !== undefined) {
     values.push(body.data.status);
     updates.push(`status = $${values.length}`);
@@ -1463,6 +1548,10 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
     if (body.data.status === "disabled") {
       updates.push("admin_notes = CASE WHEN NULLIF(admin_notes, '') IS NULL THEN 'غیرفعال‌سازی دستی' ELSE admin_notes END");
     }
+  }
+  if (remoteWarning) {
+    values.push(remoteWarning);
+    updates.push(`admin_notes = CASE WHEN NULLIF(admin_notes, '') IS NULL THEN $${values.length} ELSE admin_notes || ' · ' || $${values.length} END`);
   }
   if (body.data.admin_notes !== undefined) {
     values.push(body.data.admin_notes);

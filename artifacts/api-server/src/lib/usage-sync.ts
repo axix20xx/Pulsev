@@ -109,17 +109,20 @@ async function syncService(service: ServiceRow): Promise<void> {
       "reseller",
     );
     const awgDisabled = service.awg_client_id ? await disableAwgClient(service.awg_client_id) : true;
-    remoteDisabled = panelResult.attempted === 0 || panelResult.disabled > 0 || awgDisabled;
+    const providersDisabled =
+      panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+    remoteDisabled = providersDisabled && awgDisabled;
   }
 
+  const disableComplete = shouldDisable && remoteDisabled;
   const remainingBytes = limitBytes > 0 ? Math.max(0, limitBytes - combinedBytes) : 0;
   const reason = quotaReached ? "سقف حجم مصرفی تکمیل شد" : expired ? "تاریخ انقضا رسید" : null;
   await pool.query(
     `UPDATE reseller_services
      SET last_used_bytes = $1, last_total_bytes = $2, last_remaining_bytes = $3,
          last_expire_ts = $4, last_usage_updated_at = $5,
-         status = CASE WHEN $6 THEN 'disabled' ELSE status END,
-          disabled_at = CASE WHEN $6 AND status <> 'disabled' THEN NOW() ELSE disabled_at END,
+       status = CASE WHEN $6 THEN 'disabled' ELSE status END,
+           disabled_at = CASE WHEN $6 AND status <> 'disabled' THEN NOW() ELSE disabled_at END,
          admin_notes = CASE WHEN $7::text IS NOT NULL THEN COALESCE(admin_notes, '') || CASE WHEN COALESCE(admin_notes, '') = '' THEN '' ELSE ' · ' END || $7::text ELSE admin_notes END,
          updated_at = NOW()
      WHERE id = $8`,
@@ -129,13 +132,13 @@ async function syncService(service: ServiceRow): Promise<void> {
       remainingBytes,
       epochSeconds(service.expire_at),
       Math.floor(Date.now() / 1000),
-      shouldDisable,
+       disableComplete,
       shouldDisable && !remoteDisabled ? `${reason}؛ غیرفعال‌سازی provider در تلاش بعدی انجام می‌شود` : reason,
       service.id,
     ],
   );
   if (service.token) {
-    const cacheValues = [combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0, service.token];
+      const cacheValues = [combinedBytes, limitBytes, epochSeconds(service.expire_at), disableComplete ? 1 : 0, service.token];
     const updatedCache = await pool.query(
       `UPDATE user_stats_cache
        SET used_bytes = $1, total_bytes = $2, expire_ts = $3, is_disabled = $4,
@@ -147,7 +150,7 @@ async function syncService(service: ServiceRow): Promise<void> {
       await pool.query(
         `INSERT INTO user_stats_cache (token, used_bytes, total_bytes, expire_ts, is_disabled, last_updated)
          VALUES ($1, $2, $3, $4, $5, EXTRACT(EPOCH FROM NOW())::int)`,
-        [service.token, combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0],
+         [service.token, combinedBytes, limitBytes, epochSeconds(service.expire_at), disableComplete ? 1 : 0],
       );
     }
   }

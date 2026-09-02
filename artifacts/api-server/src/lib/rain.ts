@@ -343,6 +343,7 @@ export async function disablePanelUser(
       try {
         const response = await panelRequest(panel, method, path, body);
         if (response.status >= 200 && response.status < 300) { success = true; break; }
+        if (response.status === 404) { success = true; break; }
         if (![404, 405, 422].includes(response.status)) break;
       } catch {
         break;
