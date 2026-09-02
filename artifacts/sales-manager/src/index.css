@@ -597,6 +597,33 @@ body { font-family: var(--app-font-sans); background: hsl(var(--background)); }
   .ops-table .ops-row-actions { flex-wrap: wrap; justify-content: flex-start; }
   .ops-table .ops-row-actions .button { flex: 0 1 auto; }
 }
+
+@media (max-width: 767px) {
+  .report-page, .ops-page { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+  .report-page .page-description, .ops-page .page-description { max-width: 100%; font-size: 12px; line-height: 1.8; }
+  .ops-page .page-header { gap: 14px; margin-bottom: 22px; }
+  .ops-page .ops-card { padding: 18px; border-radius: 15px; }
+  .ops-page .ops-card-title { font-size: 18px; }
+  .ops-page .ops-card-copy { font-size: 11px; line-height: 1.8; }
+  .ops-page .ops-kicker { font-size: 10px; }
+  .ops-page .ops-summary-strip { gap: 8px; margin-bottom: 16px; }
+  .ops-page .ops-summary-item { padding: 13px; }
+  .ops-page .ops-summary-item span { font-size: 11px; }
+  .ops-page .ops-summary-item strong { margin-top: 7px; font-size: 18px; }
+  .ops-page .ops-provider { gap: 12px; padding: 12px; }
+  .ops-page .ops-provider-copy strong { font-size: 12px; }
+  .ops-page .ops-provider-copy span { font-size: 10px; }
+  .ops-page .ops-status { padding: 6px 8px; font-size: 10px; }
+  .ops-page .ops-forecast-item, .ops-page .ops-finance-item { padding: 13px; }
+  .ops-page .ops-forecast-item span, .ops-page .ops-finance-item span { font-size: 11px; }
+  .ops-page .ops-forecast-item strong, .ops-page .ops-finance-item strong { font-size: 18px; }
+  .ops-page .ops-table td { font-size: 12px; }
+  .ops-page .ops-table td small { font-size: 10px; }
+  .ops-page .ops-state { min-height: 190px; padding: 24px 18px; }
+  .ops-page .ops-state strong { font-size: 14px; }
+  .ops-page .ops-state p { font-size: 11px; }
+  .report-table td::before { font-size: 10px; }
+}
 .panel-assignments { grid-column: 1 / -1; }
 .provider-card { display: grid; grid-template-columns: minmax(180px, .45fr) 1fr; gap: 18px; border-top: 1px solid hsl(var(--border)); padding: 16px 0; }
 .provider-card p { margin-top: 4px; color: hsl(var(--muted-foreground)); font: 10px var(--app-font-mono); overflow-wrap: anywhere; }
