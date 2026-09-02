@@ -14,3 +14,4 @@
 - [Master-admin sales ledger](master-admin-sales-ledger.md) — detailed reseller/customer sales belong on a separate master-admin page; deletion must affect only the sales log.
 - [Service wizard presets](service-wizard-presets.md) — quick GB/day choices are UI shortcuts only; preserve the numeric create-service payload and live Tehran expiry display.
 - [iOS wizard safe area](ios-wizard-safe-area.md) — full-screen wizard footers need dynamic viewport sizing, internal content scroll, and bottom safe-area padding.
+- [Renewal service artifacts](renewal-service-artifacts.md) — post-renew QR and AWG actions must use the freshly returned service, not the stale pre-renewal object.
