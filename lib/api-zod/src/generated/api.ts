@@ -86,6 +86,9 @@ export const LogoutResponse = zod.void()
 /**
  * @summary Get role-aware dashboard data
  */
+export const getDashboardResponseMonthDailyItemDayRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
 export const GetDashboardResponse = zod.object({
   "revenue": zod.number(),
   "active_services": zod.number(),
@@ -98,6 +101,18 @@ export const GetDashboardResponse = zod.object({
   "month_income": zod.number(),
   "month_paid_income": zod.number(),
   "month_unpaid_income": zod.number(),
+  "month_profit": zod.number(),
+  "month_daily": zod.array(zod.object({
+  "day": zod.string().regex(getDashboardResponseMonthDailyItemDayRegExp),
+  "sales_count": zod.number(),
+  "sold_gb": zod.number(),
+  "income": zod.number(),
+  "paid_income": zod.number(),
+  "unpaid_income": zod.number(),
+  "profit": zod.number(),
+  "paid_profit": zod.number(),
+  "unpaid_profit": zod.number()
+})),
   "disabled_today": zod.number(),
   "generated_at": zod.string(),
   "recent_activity": zod.array(zod.object({
@@ -212,6 +227,28 @@ export const GetSalesSummaryResponse = zod.object({
   "master_profit": zod.number(),
   "paid_customer_revenue": zod.number(),
   "remaining_customer_revenue": zod.number()
+})),
+  "reseller_settlements": zod.array(zod.object({
+  "reseller_tg_id": zod.number(),
+  "reseller_name": zod.string(),
+  "current_sold_gb": zod.number(),
+  "current_due": zod.number(),
+  "current_profit": zod.number(),
+  "previous_balance": zod.number(),
+  "period_paid": zod.number(),
+  "remaining_amount": zod.number(),
+  "payment_status": zod.string(),
+  "overdue": zod.boolean()
+})),
+  "reseller_payment_history": zod.array(zod.object({
+  "id": zod.number(),
+  "reseller_tg_id": zod.number(),
+  "reseller_name": zod.string(),
+  "amount": zod.number(),
+  "payment_date": zod.string(),
+  "note": zod.string().nullable(),
+  "recorded_by_tg_id": zod.number(),
+  "created_at": zod.string()
 }))
 })
 
@@ -240,6 +277,31 @@ export const UpdateResellerCreditSaleResponse = zod.object({
   "profit_amount": zod.number(),
   "paid": zod.boolean(),
   "note": zod.string().nullable(),
+  "created_at": zod.string()
+})
+
+
+/**
+ * @summary Record a reseller settlement payment
+ */
+export const createResellerSettlementPaymentBodyPaymentDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const CreateResellerSettlementPaymentBody = zod.object({
+  "reseller_tg_id": zod.number(),
+  "amount": zod.number(),
+  "payment_date": zod.string().regex(createResellerSettlementPaymentBodyPaymentDateRegExp).optional(),
+  "note": zod.string().nullish()
+})
+
+export const CreateResellerSettlementPaymentResponse = zod.object({
+  "id": zod.number(),
+  "reseller_tg_id": zod.number(),
+  "reseller_name": zod.string(),
+  "amount": zod.number(),
+  "payment_date": zod.string(),
+  "note": zod.string().nullable(),
+  "recorded_by_tg_id": zod.number(),
   "created_at": zod.string()
 })
 

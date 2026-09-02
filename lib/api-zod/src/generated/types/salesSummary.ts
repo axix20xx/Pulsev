@@ -8,6 +8,8 @@
 import type { ResellerBalance } from './resellerBalance';
 import type { ResellerCreditSale } from './resellerCreditSale';
 import type { ResellerSalesSummary } from './resellerSalesSummary';
+import type { ResellerSettlementBalance } from './resellerSettlementBalance';
+import type { ResellerSettlementPayment } from './resellerSettlementPayment';
 
 export interface SalesSummary {
   /** @pattern ^\d{4}-\d{2}-\d{2}$ */
@@ -36,4 +38,6 @@ export interface SalesSummary {
   reseller_balances: ResellerBalance[];
   reseller_credit_sales: ResellerCreditSale[];
   reseller_sales: ResellerSalesSummary[];
+  reseller_settlements: ResellerSettlementBalance[];
+  reseller_payment_history: ResellerSettlementPayment[];
 }

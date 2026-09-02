@@ -84,7 +84,7 @@ export const activities: Activity[] = [
   { id: 'a4', type: 'sale', title: 'پرداخت دریافت شد', detail: 'نوید مرادی · یادداشت', time: 'دیروز' },
 ];
 
-export const statusLabel = (value: string) => ({ Active: 'فعال', Expiring: 'نزدیک به انقضا', Expired: 'منقضی', Disabled: 'غیرفعال', Paid: 'پرداخت‌شده', Pending: 'در انتظار', Completed: 'تکمیل‌شده', Refunded: 'برگشت‌خورده', Online: 'آنلاین', Degraded: 'با اختلال', Offline: 'قطع' }[value] ?? value);
+export const statusLabel = (value: string) => ({ Active: 'فعال', Expiring: 'نزدیک به انقضا', Expired: 'منقضی', Disabled: 'غیرفعال', Paid: 'پرداخت‌شده', Pending: 'در انتظار', Completed: 'تکمیل‌شده', Refunded: 'برگشت‌خورده', Online: 'آنلاین', Degraded: 'با اختلال', Offline: 'قطع', paid: 'پرداخت‌شده', partial: 'پرداخت ناقص', overdue: 'معوق', unpaid: 'پرداخت‌نشده', no_sales: 'بدون فروش' }[value] ?? value);
 export const money = (amount: number) => `${new Intl.NumberFormat('fa-IR').format(Math.round(amount))} تومان`;
 const tehranDate = (date: string | Date) => new Date(typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T12:00:00+03:30` : date);
 export const dateLabel = (date: string | null | undefined) => date ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran', month: 'long', day: 'numeric', year: 'numeric' }).format(tehranDate(date)) : 'ثبت نشده';

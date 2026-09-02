@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Activity } from './activity';
+import type { DashboardDay } from './dashboardDay';
 
 export interface DashboardSummary {
   revenue: number;
@@ -19,6 +20,8 @@ export interface DashboardSummary {
   month_income: number;
   month_paid_income: number;
   month_unpaid_income: number;
+  month_profit: number;
+  month_daily: DashboardDay[];
   disabled_today: number;
   generated_at: string;
   recent_activity: Activity[];

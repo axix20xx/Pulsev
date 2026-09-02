@@ -165,6 +165,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResellerCreditSale"
+  /reseller-settlement-payments:
+    post:
+      operationId: createResellerSettlementPayment
+      tags: [sales]
+      summary: Record a reseller settlement payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResellerSettlementPaymentCreate"
+      responses:
+        "201":
+          description: Recorded reseller settlement payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResellerSettlementPayment"
   /sales/{id}:
     patch:
       operationId: updateSale
@@ -492,9 +510,32 @@ components:
           type: ["string", "null"]
         customer_price_per_gb:
           type: ["number", "null"]
+    DashboardDay:
+      type: object
+      required: [day, sales_count, sold_gb, income, paid_income, unpaid_income, profit, paid_profit, unpaid_profit]
+      properties:
+        day:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        sales_count:
+          type: number
+        sold_gb:
+          type: number
+        income:
+          type: number
+        paid_income:
+          type: number
+        unpaid_income:
+          type: number
+        profit:
+          type: number
+        paid_profit:
+          type: number
+        unpaid_profit:
+          type: number
     DashboardSummary:
       type: object
-      required: [revenue, active_services, renewals_due, service_health, visible_customers, visible_resellers, month_sales_count, month_sold_gb, month_income, month_paid_income, month_unpaid_income, disabled_today, generated_at, recent_activity]
+      required: [revenue, active_services, renewals_due, service_health, visible_customers, visible_resellers, month_sales_count, month_sold_gb, month_income, month_paid_income, month_unpaid_income, month_profit, month_daily, disabled_today, generated_at, recent_activity]
       properties:
         revenue:
           type: number
@@ -518,6 +559,12 @@ components:
           type: number
         month_unpaid_income:
           type: number
+        month_profit:
+          type: number
+        month_daily:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardDay"
         disabled_today:
           type: number
         generated_at:
@@ -528,7 +575,7 @@ components:
             $ref: "#/components/schemas/Activity"
     SalesSummary:
       type: object
-      required: [from, to, sold_gb, income, paid_income, unpaid_income, admin_cost, admin_due, admin_due_gb, outstanding_admin_due, outstanding_admin_due_gb, remaining_profit, paid_profit, unpaid_profit, remaining_to_collect, cash_after_admin, reseller_due, reseller_paid, reseller_remaining, reseller_due_gb, reseller_profit, reseller_balances, reseller_credit_sales, reseller_sales]
+      required: [from, to, sold_gb, income, paid_income, unpaid_income, admin_cost, admin_due, admin_due_gb, outstanding_admin_due, outstanding_admin_due_gb, remaining_profit, paid_profit, unpaid_profit, remaining_to_collect, cash_after_admin, reseller_due, reseller_paid, reseller_remaining, reseller_due_gb, reseller_profit, reseller_balances, reseller_credit_sales, reseller_sales, reseller_settlements, reseller_payment_history]
       properties:
         from:
           type: string
@@ -586,6 +633,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ResellerSalesSummary"
+        reseller_settlements:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResellerSettlementBalance"
+        reseller_payment_history:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResellerSettlementPayment"
     ResellerBalance:
       type: object
       required: [reseller_tg_id, reseller_name, due_gb, due_amount, paid_amount, remaining_amount, profit_amount]
@@ -659,6 +714,67 @@ components:
           type: number
         remaining_customer_revenue:
           type: number
+    ResellerSettlementBalance:
+      type: object
+      required: [reseller_tg_id, reseller_name, current_sold_gb, current_due, current_profit, previous_balance, period_paid, remaining_amount, payment_status, overdue]
+      properties:
+        reseller_tg_id:
+          type: number
+          format: int64
+        reseller_name:
+          type: string
+        current_sold_gb:
+          type: number
+        current_due:
+          type: number
+        current_profit:
+          type: number
+        previous_balance:
+          type: number
+        period_paid:
+          type: number
+        remaining_amount:
+          type: number
+        payment_status:
+          type: string
+        overdue:
+          type: boolean
+    ResellerSettlementPaymentCreate:
+      type: object
+      required: [reseller_tg_id, amount]
+      properties:
+        reseller_tg_id:
+          type: number
+          format: int64
+        amount:
+          type: number
+        payment_date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        note:
+          type: ["string", "null"]
+    ResellerSettlementPayment:
+      type: object
+      required: [id, reseller_tg_id, reseller_name, amount, payment_date, note, recorded_by_tg_id, created_at]
+      properties:
+        id:
+          type: number
+        reseller_tg_id:
+          type: number
+          format: int64
+        reseller_name:
+          type: string
+        amount:
+          type: number
+        payment_date:
+          type: string
+        note:
+          type: ["string", "null"]
+        recorded_by_tg_id:
+          type: number
+          format: int64
+        created_at:
+          type: string
     Activity:
       type: object
       required: [id, type, title, detail, created_at]

@@ -73,6 +73,19 @@ export interface AuthSession {
   customer_price_per_gb?: number | null;
 }
 
+export interface DashboardDay {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  day: string;
+  sales_count: number;
+  sold_gb: number;
+  income: number;
+  paid_income: number;
+  unpaid_income: number;
+  profit: number;
+  paid_profit: number;
+  unpaid_profit: number;
+}
+
 export interface Activity {
   id: string;
   type: string;
@@ -93,6 +106,8 @@ export interface DashboardSummary {
   month_income: number;
   month_paid_income: number;
   month_unpaid_income: number;
+  month_profit: number;
+  month_daily: DashboardDay[];
   disabled_today: number;
   generated_at: string;
   recent_activity: Activity[];
@@ -134,6 +149,31 @@ export interface ResellerSalesSummary {
   remaining_customer_revenue: number;
 }
 
+export interface ResellerSettlementBalance {
+  reseller_tg_id: number;
+  reseller_name: string;
+  current_sold_gb: number;
+  current_due: number;
+  current_profit: number;
+  previous_balance: number;
+  period_paid: number;
+  remaining_amount: number;
+  payment_status: string;
+  overdue: boolean;
+}
+
+export interface ResellerSettlementPayment {
+  id: number;
+  reseller_tg_id: number;
+  reseller_name: string;
+  amount: number;
+  payment_date: string;
+  /** @nullable */
+  note: string | null;
+  recorded_by_tg_id: number;
+  created_at: string;
+}
+
 export interface SalesSummary {
   /** @pattern ^\d{4}-\d{2}-\d{2}$ */
   from: string;
@@ -161,10 +201,21 @@ export interface SalesSummary {
   reseller_balances: ResellerBalance[];
   reseller_credit_sales: ResellerCreditSale[];
   reseller_sales: ResellerSalesSummary[];
+  reseller_settlements: ResellerSettlementBalance[];
+  reseller_payment_history: ResellerSettlementPayment[];
 }
 
 export interface ResellerCreditSaleUpdate {
   is_paid: boolean;
+}
+
+export interface ResellerSettlementPaymentCreate {
+  reseller_tg_id: number;
+  amount: number;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  payment_date?: string;
+  /** @nullable */
+  note?: string | null;
 }
 
 export interface Sale {

@@ -106,6 +106,17 @@ const panelSchemaReady = pool
        note TEXT,
        created_at TIMESTAMP NOT NULL DEFAULT NOW()
      );
+      CREATE TABLE IF NOT EXISTS reseller_settlement_payments (
+        id BIGSERIAL PRIMARY KEY,
+        reseller_tg_id BIGINT NOT NULL,
+        amount NUMERIC(16,2) NOT NULL CHECK (amount > 0),
+        payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        note TEXT,
+        recorded_by_tg_id BIGINT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS reseller_settlement_payments_reseller_date_idx
+        ON reseller_settlement_payments (reseller_tg_id, payment_date);
      INSERT INTO panel_configs (key, kind, api_base, username_env, password_env, api_key_env)
     VALUES
        ('phonepanel', 'rain_admin', 'https://videobazi.com', 'RAIN_PHONEPANEL_USER', 'RAIN_PHONEPANEL_PASS', NULL),
@@ -506,7 +517,7 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   const customerOwner = ownership("c", req);
   const today = tehranIsoDate(new Date());
   const monthStart = persianMonthStartIso(new Date());
-  const [revenue, activeServices, renewals, customers, resellers, monthSales, disabledToday, activity] =
+  const [revenue, activeServices, renewals, customers, resellers, monthSales, monthDaily, disabledToday, activity] =
     await Promise.all([
       pool.query<{ value: number }>(
         `SELECT COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})), 0)::float8 AS value
@@ -538,18 +549,61 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
           ? "SELECT COUNT(*)::int AS value FROM resellers"
           : "SELECT 0::int AS value",
       ),
-      pool.query<{ sales_count: number; sold_gb: number; income: number; paid_income: number; unpaid_income: number }>(
+      pool.query<{ sales_count: number; sold_gb: number; income: number; paid_income: number; unpaid_income: number; profit: number }>(
         `SELECT
            COUNT(*)::int AS sales_count,
            COALESCE(SUM(s.gb_amount), 0)::float8 AS sold_gb,
            COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})), 0)::float8 AS income,
            COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS paid_income,
-           COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS unpaid_income
+           COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS unpaid_income,
+           COALESCE(SUM(
+             COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) -
+             s.gb_amount * ${req.auth?.role === "master_admin" ? MASTER_ADMIN_COST_PER_GB : resellerCostPerGbSql()}
+           ), 0)::float8 AS profit
          FROM reseller_sales_log s
          LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
          WHERE ${owner.sql}
-           AND s.created_at >= $${owner.params.length + 1}::date
-           AND s.created_at < ($${owner.params.length + 2}::date + INTERVAL '1 day')`,
+            AND (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $${owner.params.length + 1}::date
+            AND (s.created_at AT TIME ZONE 'Asia/Tehran')::date <= $${owner.params.length + 2}::date`,
+        [...owner.params, monthStart, today],
+      ),
+      pool.query<{
+        day: string;
+        sales_count: number;
+        sold_gb: number;
+        income: number;
+        paid_income: number;
+        unpaid_income: number;
+        profit: number;
+        paid_profit: number;
+        unpaid_profit: number;
+      }>(
+        `SELECT
+           (s.created_at AT TIME ZONE 'Asia/Tehran')::date::text AS day,
+           COUNT(*)::int AS sales_count,
+           COALESCE(SUM(s.gb_amount), 0)::float8 AS sold_gb,
+           COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})), 0)::float8 AS income,
+           COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS paid_income,
+           COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS unpaid_income,
+           COALESCE(SUM(
+             COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) -
+             s.gb_amount * ${req.auth?.role === "master_admin" ? MASTER_ADMIN_COST_PER_GB : resellerCostPerGbSql()}
+           ), 0)::float8 AS profit,
+           COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN
+             COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) -
+             s.gb_amount * ${req.auth?.role === "master_admin" ? MASTER_ADMIN_COST_PER_GB : resellerCostPerGbSql()}
+             ELSE 0 END), 0)::float8 AS paid_profit,
+           COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN
+             COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) -
+             s.gb_amount * ${req.auth?.role === "master_admin" ? MASTER_ADMIN_COST_PER_GB : resellerCostPerGbSql()}
+             ELSE 0 END), 0)::float8 AS unpaid_profit
+         FROM reseller_sales_log s
+         LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+         WHERE ${owner.sql}
+           AND (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $${owner.params.length + 1}::date
+           AND (s.created_at AT TIME ZONE 'Asia/Tehran')::date <= $${owner.params.length + 2}::date
+         GROUP BY (s.created_at AT TIME ZONE 'Asia/Tehran')::date
+         ORDER BY day`,
         [...owner.params, monthStart, today],
       ),
       pool.query<{ value: number }>(
@@ -616,6 +670,18 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
        month_income: Number(monthSales.rows[0]?.income ?? 0),
        month_paid_income: Number(monthSales.rows[0]?.paid_income ?? 0),
        month_unpaid_income: Number(monthSales.rows[0]?.unpaid_income ?? 0),
+        month_profit: Number(monthSales.rows[0]?.profit ?? 0),
+        month_daily: monthDaily.rows.map((row) => ({
+          day: row.day,
+          sales_count: Number(row.sales_count ?? 0),
+          sold_gb: Number(row.sold_gb ?? 0),
+          income: Number(row.income ?? 0),
+          paid_income: Number(row.paid_income ?? 0),
+          unpaid_income: Number(row.unpaid_income ?? 0),
+          profit: Number(row.profit ?? 0),
+          paid_profit: Number(row.paid_profit ?? 0),
+          unpaid_profit: Number(row.unpaid_profit ?? 0),
+        })),
        disabled_today: Number(disabledToday.rows[0]?.value ?? 0),
        generated_at: new Date().toISOString(),
       recent_activity: activity.rows,
@@ -643,7 +709,15 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
     ? `${owner.sql} AND s.reseller_tg_id <> ${MASTER_ADMIN_TELEGRAM_ID}`
     : owner.sql;
   const resellerSalesParams = [...owner.params, range.from, range.to];
-  const [sales, credits, creditDetails, resellerBalances, resellerSales] = await Promise.all([
+  const settlementScope = req.auth?.role === "master_admin"
+    ? `r.tg_id <> ${MASTER_ADMIN_TELEGRAM_ID}`
+    : `r.tg_id = $1`;
+  const settlementFromParam = req.auth?.role === "master_admin" ? 1 : 2;
+  const settlementToParam = req.auth?.role === "master_admin" ? 2 : 3;
+  const settlementParams = req.auth?.role === "master_admin"
+    ? [range.from, range.to]
+    : [req.auth?.telegramId, range.from, range.to];
+  const [sales, credits, creditDetails, resellerBalances, resellerSales, resellerSettlements, resellerPaymentHistory] = await Promise.all([
     pool.query(
       `SELECT
          COALESCE(SUM(s.gb_amount), 0)::float8 AS sold_gb,
@@ -715,6 +789,58 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
        ORDER BY amount_to_admin DESC, reseller_name`,
       resellerSalesParams,
     ),
+    pool.query(
+      `SELECT r.tg_id::float8 AS reseller_tg_id,
+              COALESCE(NULLIF(r.title, ''), 'فروشنده ' || r.tg_id::text) AS reseller_name,
+              COALESCE(sa.current_sold_gb, 0)::float8 AS current_sold_gb,
+              COALESCE(sa.current_due, 0)::float8 AS current_due,
+              COALESCE(sa.current_profit, 0)::float8 AS current_profit,
+              GREATEST(0, COALESCE(sa.previous_due, 0) - COALESCE(pa.previous_paid, 0))::float8 AS previous_balance,
+              COALESCE(pa.period_paid, 0)::float8 AS period_paid,
+              GREATEST(
+                0,
+                GREATEST(0, COALESCE(sa.previous_due, 0) - COALESCE(pa.previous_paid, 0))
+                  + COALESCE(sa.current_due, 0) - COALESCE(pa.period_paid, 0)
+              )::float8 AS remaining_amount
+       FROM resellers r
+       LEFT JOIN (
+         SELECT s.reseller_tg_id,
+                SUM(CASE WHEN s.created_at >= $${settlementFromParam}::date AND s.created_at < ($${settlementToParam}::date + INTERVAL '1 day') THEN s.gb_amount ELSE 0 END) AS current_sold_gb,
+                SUM(CASE WHEN s.created_at >= $${settlementFromParam}::date AND s.created_at < ($${settlementToParam}::date + INTERVAL '1 day') THEN s.gb_amount * ${resellerCostPerGbSql("sr")} ELSE 0 END) AS current_due,
+                SUM(CASE WHEN s.created_at >= $${settlementFromParam}::date AND s.created_at < ($${settlementToParam}::date + INTERVAL '1 day') THEN s.gb_amount * (${resellerCostPerGbSql("sr")} - ${MASTER_ADMIN_COST_PER_GB}) ELSE 0 END) AS current_profit,
+                SUM(CASE WHEN s.created_at < $${settlementFromParam}::date THEN s.gb_amount * ${resellerCostPerGbSql("sr")} ELSE 0 END) AS previous_due
+         FROM reseller_sales_log s
+         LEFT JOIN resellers sr ON sr.tg_id = s.reseller_tg_id
+         WHERE s.created_at < ($${settlementToParam}::date + INTERVAL '1 day')
+           AND s.reseller_tg_id <> ${MASTER_ADMIN_TELEGRAM_ID}
+         GROUP BY s.reseller_tg_id
+       ) sa ON sa.reseller_tg_id = r.tg_id
+       LEFT JOIN (
+         SELECT p.reseller_tg_id,
+                SUM(CASE WHEN p.payment_date < $${settlementFromParam}::date THEN p.amount ELSE 0 END) AS previous_paid,
+                SUM(CASE WHEN p.payment_date >= $${settlementFromParam}::date AND p.payment_date < ($${settlementToParam}::date + INTERVAL '1 day') THEN p.amount ELSE 0 END) AS period_paid
+         FROM reseller_settlement_payments p
+         WHERE p.payment_date < ($${settlementToParam}::date + INTERVAL '1 day')
+         GROUP BY p.reseller_tg_id
+       ) pa ON pa.reseller_tg_id = r.tg_id
+       WHERE ${settlementScope}
+       ORDER BY remaining_amount DESC, current_due DESC, reseller_name`,
+      settlementParams,
+    ),
+    pool.query(
+      `SELECT p.id, p.reseller_tg_id::float8 AS reseller_tg_id,
+              COALESCE(NULLIF(r.title, ''), 'فروشنده ' || p.reseller_tg_id::text) AS reseller_name,
+              p.amount::float8 AS amount, p.payment_date::text AS payment_date,
+              p.note, p.recorded_by_tg_id::float8 AS recorded_by_tg_id,
+              p.created_at::text AS created_at
+       FROM reseller_settlement_payments p
+       LEFT JOIN resellers r ON r.tg_id = p.reseller_tg_id
+       WHERE p.payment_date >= $${settlementFromParam}::date
+         AND p.payment_date < ($${settlementToParam}::date + INTERVAL '1 day')
+         AND ${settlementScope.replaceAll("r.", "r.")}
+       ORDER BY p.payment_date DESC, p.id DESC`,
+      settlementParams,
+    ),
   ]);
   const salesRow = sales.rows[0] ?? {};
   const resellerDue = Number(credits.rows[0]?.reseller_due ?? 0);
@@ -730,6 +856,18 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
   const paidIncome = Number(salesRow.paid_income ?? 0);
   const unpaidIncome = Math.max(0, income - paidIncome);
   const paidCost = income > 0 ? adminCost * Math.min(1, Math.max(0, paidIncome / income)) : 0;
+  const settlementRows = resellerSettlements.rows.map((row: any) => {
+    const currentDue = Number(row.current_due ?? 0);
+    const previousBalance = Number(row.previous_balance ?? 0);
+    const periodPaid = Number(row.period_paid ?? 0);
+    const remainingAmount = Number(row.remaining_amount ?? 0);
+    const paymentStatus = remainingAmount <= 0
+      ? currentDue > 0 ? "paid" : "no_sales"
+      : previousBalance > 0
+        ? "overdue"
+        : periodPaid > 0 ? "partial" : "unpaid";
+    return { ...row, payment_status: paymentStatus, overdue: previousBalance > 0 };
+  });
   res.json({
     from: range.from,
     to: range.to,
@@ -755,6 +893,8 @@ router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {
     reseller_balances: resellerBalances.rows,
     reseller_credit_sales: creditDetails.rows,
     reseller_sales: resellerSales.rows,
+    reseller_settlements: settlementRows,
+    reseller_payment_history: resellerPaymentHistory.rows,
   });
 });
 
@@ -834,9 +974,9 @@ router.get("/sales", requireAuth, async (req, res): Promise<void> => {
       return;
     }
     params.push(range.from);
-    conditions.push(`s.created_at >= $${params.length}::date`);
+    conditions.push(`(s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $${params.length}::date`);
     params.push(range.to);
-    conditions.push(`s.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+    conditions.push(`(s.created_at AT TIME ZONE 'Asia/Tehran')::date <= $${params.length}::date`);
   }
   params.push(parsed.limit);
   const result = await pool.query(
@@ -849,7 +989,7 @@ router.get("/sales", requireAuth, async (req, res): Promise<void> => {
        COALESCE(svc.label, 'سرویس حذف‌شده') AS service_name,
        COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel,
        COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})::float8 AS amount,
-       COALESCE(s.created_at, NOW())::date::text AS date,
+        (COALESCE(s.created_at, NOW()) AT TIME ZONE 'Asia/Tehran')::date::text AS date,
        COALESCE(s.is_paid, 0) = 1 AS paid,
        CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN 'completed' ELSE 'pending' END AS status
      FROM reseller_sales_log s
@@ -944,6 +1084,78 @@ router.patch("/reseller-credit-sales/:id", requireMasterAdmin, async (req, res):
     return;
   }
   res.json(result.rows[0]);
+});
+
+router.post("/reseller-settlement-payments", requireMasterAdmin, async (req, res): Promise<void> => {
+  const resellerTgId = Number(req.body?.reseller_tg_id);
+  const amount = Number(req.body?.amount);
+  const paymentDate = req.body?.payment_date === undefined ? tehranIsoDate(new Date()) : String(req.body.payment_date);
+  const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 500) : null;
+  if (!Number.isSafeInteger(resellerTgId) || resellerTgId <= 0 || !Number.isFinite(amount) || amount <= 0 || !validIsoDate(paymentDate)) {
+    res.status(400).json({ error: "اطلاعات پرداخت reseller معتبر نیست" });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const reseller = await client.query(
+      "SELECT tg_id::float8 AS tg_id FROM resellers WHERE tg_id = $1 FOR UPDATE",
+      [resellerTgId],
+    );
+    if (!reseller.rows[0]) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "فروشنده پیدا نشد" });
+      return;
+    }
+    const dueResult = await client.query(
+      `SELECT COALESCE(SUM(s.gb_amount * ${resellerCostPerGbSql("r")}), 0)::float8 AS due
+       FROM reseller_sales_log s
+       LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+       WHERE s.reseller_tg_id = $1
+         AND s.created_at < ($2::date + INTERVAL '1 day')`,
+      [resellerTgId, paymentDate],
+    );
+    const paidResult = await client.query(
+      `SELECT COALESCE(SUM(amount), 0)::float8 AS paid
+       FROM reseller_settlement_payments
+       WHERE reseller_tg_id = $1 AND payment_date <= $2::date`,
+      [resellerTgId, paymentDate],
+    );
+    const outstanding = Math.max(0, Number(dueResult.rows[0]?.due ?? 0) - Number(paidResult.rows[0]?.paid ?? 0));
+    if (amount > outstanding + 0.01) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: `مبلغ پرداخت از مانده بدهی بیشتر است. مانده فعلی: ${Math.round(outstanding).toLocaleString("fa-IR")} تومان` });
+      return;
+    }
+    const result = await client.query(
+      `INSERT INTO reseller_settlement_payments
+         (reseller_tg_id, amount, payment_date, note, recorded_by_tg_id)
+       VALUES ($1, $2, $3::date, $4, $5)
+       RETURNING id, reseller_tg_id::float8 AS reseller_tg_id, amount::float8 AS amount,
+                 payment_date::text AS payment_date, note,
+                 recorded_by_tg_id::float8 AS recorded_by_tg_id,
+                 created_at::text AS created_at`,
+      [resellerTgId, Number(amount.toFixed(2)), paymentDate, note, req.auth?.telegramId],
+    );
+    await client.query("COMMIT");
+    const response = await client.query(
+      `SELECT p.id, p.reseller_tg_id::float8 AS reseller_tg_id,
+              COALESCE(NULLIF(r.title, ''), 'فروشنده ' || p.reseller_tg_id::text) AS reseller_name,
+              p.amount::float8 AS amount, p.payment_date::text AS payment_date,
+              p.note, p.recorded_by_tg_id::float8 AS recorded_by_tg_id,
+              p.created_at::text AS created_at
+       FROM reseller_settlement_payments p
+       LEFT JOIN resellers r ON r.tg_id = p.reseller_tg_id
+       WHERE p.id = $1`,
+      [result.rows[0].id],
+    );
+    res.status(201).json(response.rows[0]);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 });
 
 router.get("/services", requireAuth, async (req, res): Promise<void> => {

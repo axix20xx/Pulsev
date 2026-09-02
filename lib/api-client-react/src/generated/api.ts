@@ -35,6 +35,8 @@ import type {
   Reseller,
   ResellerCreditSale,
   ResellerCreditSaleUpdate,
+  ResellerSettlementPayment,
+  ResellerSettlementPaymentCreate,
   ResellerUpdate,
   ResetServiceToken200,
   Sale,
@@ -757,6 +759,77 @@ export const useUpdateResellerCreditSale = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateResellerCreditSaleMutationOptions(options));
+    }
+
+export const getCreateResellerSettlementPaymentUrl = () => {
+
+
+
+
+  return `/api/reseller-settlement-payments`
+}
+
+/**
+ * @summary Record a reseller settlement payment
+ */
+export const createResellerSettlementPayment = async (resellerSettlementPaymentCreate: ResellerSettlementPaymentCreate, options?: Parameters<typeof customFetch>[1]): Promise<ResellerSettlementPayment> => {
+
+  return customFetch<ResellerSettlementPayment>(getCreateResellerSettlementPaymentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resellerSettlementPaymentCreate)
+  }
+);}
+
+
+
+
+
+export const getCreateResellerSettlementPaymentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createResellerSettlementPayment>>, TError,{data: BodyType<ResellerSettlementPaymentCreate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createResellerSettlementPayment>>, TError,{data: BodyType<ResellerSettlementPaymentCreate>}, TContext> => {
+
+const mutationKey = ['createResellerSettlementPayment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createResellerSettlementPayment>>, {data: BodyType<ResellerSettlementPaymentCreate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createResellerSettlementPayment(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateResellerSettlementPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof createResellerSettlementPayment>>>
+    export type CreateResellerSettlementPaymentMutationBody = BodyType<ResellerSettlementPaymentCreate>
+    export type CreateResellerSettlementPaymentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Record a reseller settlement payment
+ */
+export const useCreateResellerSettlementPayment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createResellerSettlementPayment>>, TError,{data: BodyType<ResellerSettlementPaymentCreate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createResellerSettlementPayment>>,
+        TError,
+        {data: BodyType<ResellerSettlementPaymentCreate>},
+        TContext
+      > => {
+      return useMutation(getCreateResellerSettlementPaymentMutationOptions(options));
     }
 
 export const getUpdateSaleUrl = (id: number,) => {
