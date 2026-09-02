@@ -4,6 +4,7 @@ import { Link } from 'wouter';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateLabel, dateTimeLabel, money } from '@/lib/pulse-data';
 import { PageHeader } from '@/components/pulse-shell';
+import { PulseNetworkAccent } from '@/components/pulse-network-accent';
 
 type JsonRecord = Record<string, any>;
 type Template = { id: string; title: string; body: string };
@@ -238,7 +239,7 @@ function AdminView({ command, audit, auditError, onExport }: { command: JsonReco
   return <div className="ops-column"><SummaryStrip summary={summary} admin /><div className="ops-admin-grid"><ProviderControlTower providers={providers} /><FinanceReconciliation finance={finance} /></div><ResellerHealth rows={health} /><AuditLog entries={audit} error={auditError} /><div className="ops-toolbar"><button className="button button-secondary" type="button" onClick={onExport} disabled={!health.length}><Download size={14} /> خروجی CSV سلامت فروشنده‌ها</button></div></div>;
 }
 
-export function OperationsCenter() {
+function OperationsCenterContent() {
   const { session, sessionLoading } = usePulse();
   const [commandData, setCommandData] = useState<unknown>(null);
   const [auditData, setAuditData] = useState<unknown[]>([]);
@@ -298,4 +299,8 @@ export function OperationsCenter() {
     <PageHeader eyebrow="مرکز عملیات" title="اتاق کنترل فروش" description={`تصمیم‌های مهم، در یک نمای زنده · نقش: ${roleLabel}`} action={<div className="ops-toolbar"><button className="button button-secondary" type="button" onClick={refresh} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> به‌روزرسانی</button>{!loading && Boolean(commandData) && <span className="ops-header-meta"><i className="ops-live-dot" /> اتصال زنده</span>}</div>} />
     {loading || sessionLoading ? <StateCard kind="loading" /> : error ? <StateCard kind="error" onRetry={refresh} /> : !commandData ? <StateCard kind="empty" /> : <>{isAdmin ? <AdminView command={command} audit={auditData as JsonRecord[]} auditError={auditError} onExport={handleAdminExport} /> : <ResellerView command={command} onExport={handleResellerExport} />}</>}
   </div>;
+}
+
+export function OperationsCenter() {
+  return <div className="pulse-surface pulse-surface-operations ops-route-frame" dir="rtl"><PulseNetworkAccent className="surface-network" /><OperationsCenterContent /></div>;
 }

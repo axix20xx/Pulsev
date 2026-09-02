@@ -4,6 +4,7 @@ import { Link } from 'wouter';
 import { PageHeader } from '@/components/pulse-shell';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateLabel, money } from '@/lib/pulse-data';
+import { PulseNetworkAccent } from '@/components/pulse-network-accent';
 
 type JsonRecord = Record<string, any>;
 type SavedView = { id: string; label: string; href: string };
@@ -118,7 +119,7 @@ function SavedViewsCard({ views, onChange }: { views: SavedView[]; onChange: (vi
   return <SmartCard kicker="workspace شخصی" title="نماهای ذخیره‌شده" detail="فیلترها و مسیرهای پرتکرار را برای استفادهٔ بعدی نگه دارید."><div className="smart-saved-list">{views.map((view) => <Link href={view.href} key={view.id} className="smart-saved-row"><span><Layers3 size={14} /><strong>{view.label}</strong></span><ChevronLeft size={14} /></Link>)}{!views.length && <div className="smart-empty"><Sparkles size={18} /><span>هنوز نمایی ذخیره نشده است.</span></div>}</div><div className="smart-save-form"><input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="مثلاً تمدیدهای این هفته" aria-label="نام نمای ذخیره‌شده" /><select value={href} onChange={(event) => setHref(event.target.value)} aria-label="مسیر نمای ذخیره‌شده"><option value="/operations">مرکز عملیات</option><option value="/customers">مشتری‌ها</option><option value="/services">سرویس‌ها</option><option value="/sales">دفتر فروش</option><option value="/monitoring">خطاهای ساخت</option></select><button className="button button-secondary" type="button" onClick={add} disabled={!label.trim()}><Check size={14} /> ذخیره</button></div></SmartCard>;
 }
 
-export function SmartCenter() {
+function SmartCenterContent() {
   const { session } = usePulse();
   const [data, setData] = useState<InsightsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -154,4 +155,8 @@ export function SmartCenter() {
     </>}
     {!loading && !data && !error && <div className="smart-empty-page"><CircleHelp size={22} /><strong>داده‌ای برای نمایش وجود ندارد.</strong></div>}
   </div>;
+}
+
+export function SmartCenter() {
+  return <div className="pulse-surface pulse-surface-insights smart-route-frame" dir="rtl"><PulseNetworkAccent className="surface-network" /><SmartCenterContent /></div>;
 }

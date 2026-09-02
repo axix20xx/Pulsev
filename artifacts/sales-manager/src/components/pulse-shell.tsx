@@ -227,7 +227,7 @@ export function Shell({ children }: { children: ReactNode }) {
 }
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description?: string; action?: ReactNode }) {
-  return <div className="page-header"><PulseNetworkAccent compact className="page-header-network" /><div className="page-header-copy"><p className="eyebrow">{eyebrow}</p><h1 className="page-title">{title}</h1>{description && <p className="page-description">{description}</p>}</div>{action}</div>;
+  return <div className="page-header"><div className="page-heading-copy"><p className="eyebrow">{eyebrow}</p><h1 className="page-title">{title}</h1>{description && <p className="page-description">{description}</p>}<div className="page-header-rule" aria-hidden="true"><span /><span /><span /></div></div>{action && <div className="page-header-actions">{action}</div>}</div>;
 }
 
 export function StatusPill({ value }: { value: string }) {

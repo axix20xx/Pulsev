@@ -6,6 +6,7 @@ import { Link, useLocation, useParams } from 'wouter';
 import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, type AdminSale } from '@workspace/api-client-react';
 import { Customer, Service, Sale, activities, dateLabel, dateTimeLabel, daysUntil, initialCustomers, initialSales, initialServices, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, money, panels, todayLabel } from '@/lib/pulse-data';
 import { Avatar, PageHeader, StatusPill } from '@/components/pulse-shell';
+import { PulseNetworkAccent } from '@/components/pulse-network-accent';
 
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
 type PulseContextValue = {
@@ -127,7 +128,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
 }
 export const usePulse = () => { const value = useContext(PulseContext); if (!value) throw new Error('PulseProvider missing'); return value; };
 
-export function LoginPage() {
+function LoginPageContent() {
   const { session } = usePulse();
   const login = useLoginWithTelegramId();
   const queryClient = useQueryClient();
@@ -143,10 +144,16 @@ export function LoginPage() {
   };
   return <div className="login-screen"><div className="login-card"><div className="login-orb"><div className="pulse-mark large"><span /></div></div><p className="eyebrow mt-6 text-center">مرکز عملیات پالس</p><h1 className="page-title mt-2 text-center">ورود با شناسه تلگرام</h1><p className="page-description mt-3 text-center">شناسه عددی تلگرام مدیر یا فروشنده را وارد کنید. اطلاعات شما مستقیماً از دیتابیس SQL بارگذاری می‌شود.</p>{session?.authenticated ? <Link href="/" className="button button-primary mt-7 w-full justify-center">ورود به داشبورد</Link> : <form onSubmit={submit} className="login-action mt-7"><label className="field"><span>Telegram ID</span><div className="login-id-field"><KeyRound size={18} /><input inputMode="numeric" dir="ltr" autoFocus value={telegramId} onChange={(event) => setTelegramId(event.target.value)} data-testid="input-telegram-id" /></div></label><button className="button button-primary mt-4 w-full justify-center" disabled={login.isPending || !telegramId.trim()} data-testid="button-login-id">{login.isPending ? <><RefreshCw size={16} className="spin" /> در حال بررسی...</> : <>ورود به پنل <ChevronLeft size={16} /></>}</button>{login.isError && <div className="login-error mt-4">این شناسه در فهرست مدیر یا فروشنده‌های فعال نیست.</div>}</form>}<div className="login-security mt-6"><ShieldCheck size={16} /><span>دسترسی هر فروشنده در سرور به اطلاعات خودش محدود شده است.</span></div></div></div>;
 }
+export function LoginPage() {
+  return <SurfaceFrame name="login" signal><LoginPageContent /></SurfaceFrame>;
+}
 
 const Button = ({ children, onClick, variant = 'primary', type = 'button', className = '', disabled = false, testId }: { children: ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'quiet' | 'danger'; type?: 'button' | 'submit'; className?: string; disabled?: boolean; testId?: string }) => <button type={type} onClick={() => { if (testId?.startsWith('button-renew-service-')) window.dispatchEvent(new CustomEvent('pulse-renew', { detail: testId.replace('button-renew-service-', '') })); else onClick?.(); }} disabled={disabled} className={`button button-${variant} ${className}`} data-testid={testId}>{children}</button>;
 const Metric = ({ label, value, detail, trend, icon: Icon, accent = '' }: { label: string; value: string; detail: string; trend?: string; icon: typeof TrendingUp; accent?: string }) => <div className="metric-card"><div className={`metric-icon ${accent}`}><Icon size={17} /></div><p className="metric-label">{label}</p><div className="mt-2 flex items-end justify-between gap-2"><strong className="metric-value" data-testid={`text-metric-${label}`}>{value}</strong>{trend && <span className="trend-up"><ArrowUpLeft size={13} />{trend}</span>}</div><p className="metric-detail">{detail}</p></div>;
 const EmptyState = ({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) => <div className="empty-state"><div className="empty-symbol"><Sparkles size={19} /></div><p className="font-bold">{title}</p><p className="mt-1 max-w-xs text-sm text-muted-foreground">{detail}</p>{action && <div className="mt-4">{action}</div>}</div>;
+function SurfaceFrame({ name, children, signal = false }: { name: string; children: ReactNode; signal?: boolean }) {
+  return <div className={`pulse-surface pulse-surface-${name}`}>{signal && <PulseNetworkAccent className="surface-network" />}{children}</div>;
+}
 const Overlay = ({ title, onClose, children, fullScreen = false }: { title: string; onClose: () => void; children: ReactNode; fullScreen?: boolean }) => <div className={`modal-backdrop ${fullScreen ? 'wizard-backdrop' : ''}`}><div className={`modal-card ${fullScreen ? 'modal-card-full' : ''}`}><div className="flex items-start justify-between border-b border-border pb-4"><div><p className="eyebrow">فضای کاری پالس</p><h2 className="mt-1 font-display text-xl font-extrabold">{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="بستن پنجره" data-testid="button-close-dialog"><X size={18} /></button></div>{children}</div></div>;
 const Field = ({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string | number; onChange: (value: string) => void; placeholder?: string; type?: string }) => <label className="field"><span>{label}</span><input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /></label>;
 const PersianDateField = ({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) => {
@@ -188,7 +195,7 @@ const dashboardMonthDays = (daily: DashboardDay[] | undefined) => {
 };
 const dashboardDayLabel = (day: string) => new Intl.DateTimeFormat('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran', month: 'short', day: 'numeric' }).format(new Date(`${day}T12:00:00+03:30`));
 
-export function Overview() {
+function OverviewContent() {
   const { sales, services, customers, session, dashboard } = usePulse();
   const due = services.filter((service) => daysUntil(service.expiresAt) <= 14 && service.status !== 'Disabled');
   const total = Number(dashboard?.revenue ?? sales.reduce((sum, sale) => sum + sale.amount, 0));
@@ -237,6 +244,10 @@ export function Overview() {
   </>;
 }
 
+export function Overview() {
+  return <SurfaceFrame name="overview" signal><OverviewContent /></SurfaceFrame>;
+}
+
 type SalesPeriod = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 const salesPeriodRange = (period: Exclude<SalesPeriod, 'custom'>) => {
   const to = isoToday();
@@ -247,7 +258,7 @@ const salesPeriodRange = (period: Exclude<SalesPeriod, 'custom'>) => {
 };
 const numberFa = (value: number, maximumFractionDigits = 2) => new Intl.NumberFormat('fa-IR', { maximumFractionDigits }).format(Number(value || 0));
 
-export function Sales() {
+function SalesContent() {
   const { updateSale, session } = usePulse();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('All');
@@ -451,7 +462,11 @@ export function Sales() {
      {isMasterAdmin && error && <div className="login-error mt-4">{error}</div>}</>;
 }
 
-export function PointOfSale() {
+export function Sales() {
+  return <SurfaceFrame name="sales"><SalesContent /></SurfaceFrame>;
+}
+
+function PointOfSaleContent() {
   const { customers, session, createService } = usePulse();
   const [form, setForm] = useState({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', isPaid: true });
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -525,11 +540,15 @@ export function PointOfSale() {
   </div>;
 }
 
+export function PointOfSale() {
+  return <SurfaceFrame name="pos"><PointOfSaleContent /></SurfaceFrame>;
+}
+
 function ReceiptIcon() {
   return <ShoppingBag size={18} />;
 }
 
-export function AdminSales() {
+function AdminSalesContent() {
   const { session, resellers } = usePulse();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -618,6 +637,10 @@ export function AdminSales() {
       {!salesQuery.isFetching && !rows.length && <EmptyState title="فروشی پیدا نشد" detail="فروشنده یا عبارت جست‌وجوی دیگری را امتحان کنید." />}
     </section>
   </div>;
+}
+
+export function AdminSales() {
+  return <SurfaceFrame name="admin-sales"><AdminSalesContent /></SurfaceFrame>;
 }
 
 function ServiceModal({ onClose }: { onClose: () => void }) {
@@ -797,7 +820,7 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
   return <div className="usage-breakdown"><div className="usage-breakdown-title"><span>مصرف تفکیکی اتصال‌ها</span><small>آخرین همگام‌سازی هر منبع جداست</small></div>{service.panelUsages?.map((usage) => <div className="usage-source" key={`${service.id}-${usage.panelKey}`}><div className="usage-source-icon"><Server size={13} /></div><div className="usage-source-name"><strong>{usage.panelKey}</strong><small>{usageDate(usage.lastUpdated)}</small></div><div className="usage-source-value"><strong>{usageLabel(usage.usedGb)}</strong><small>عدد خام: {usageLabel(usage.rawUsedGb)} · پایه مصرف: {usageLabel(usage.offsetGb)}</small></div></div>)}{service.awgUsage ? <div className="usage-source awg"><div className="usage-source-icon"><Wifi size={13} /></div><div className="usage-source-name"><strong>AmneziaWG</strong><small>{usageDate(service.awgUsage.lastUpdated)}</small></div><div className="usage-source-value"><strong>{usageLabel(service.awgUsage.usedGb)}</strong><small>دریافت: {usageLabel(service.awgUsage.rxGb)} · ارسال: {usageLabel(service.awgUsage.txGb)}</small></div></div> : service.awgReady && <div className="usage-source awg"><div className="usage-source-icon"><Wifi size={13} /></div><div className="usage-source-name"><strong>AmneziaWG</strong><small>در انتظار اولین همگام‌سازی</small></div><div className="usage-source-value"><strong>۰ گیگابایت</strong><small>آمار هنوز دریافت نشده است</small></div></div>}</div>;
 }
 
-export function Services() {
+function ServicesContent() {
   const { services, updateService, renewService } = usePulse(); const [search, setSearch] = useState(''); const [status, setStatus] = useState('All'); const [modal, setModal] = useState(false); const [noteService, setNoteService] = useState<Service | null>(null);
   const filtered = services.filter((service) => (status === 'All' || service.status === status) && `${service.customerName} ${service.username} ${service.plan}`.toLowerCase().includes(search.toLowerCase()));
   const toggle = (service: Service) => updateService({ ...service, status: service.status === 'Disabled' ? 'Active' : 'Disabled' });
@@ -829,7 +852,11 @@ const monitoringStatus = (status: MonitoringJob['status']) => ({
   completed: 'انجام شد',
 }[status]);
 
-export function Monitoring() {
+export function Services() {
+  return <SurfaceFrame name="services"><ServicesContent /></SurfaceFrame>;
+}
+
+function MonitoringContent() {
   const [data, setData] = useState<{ summary: { pending: number; running: number; completed: number; total: number }; jobs: MonitoringJob[] }>({ summary: { pending: 0, running: 0, completed: 0, total: 0 }, jobs: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -865,7 +892,11 @@ export function Monitoring() {
   </>;
 }
 
-export function Customers() {
+export function Monitoring() {
+  return <SurfaceFrame name="monitoring" signal><MonitoringContent /></SurfaceFrame>;
+}
+
+function CustomersContent() {
   const { customers, session } = usePulse();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<CustomerTab>('active');
@@ -944,13 +975,17 @@ export function Customers() {
   return <><PageHeader eyebrow="ارتباط با مشتری" title="مشتری‌ها" description={`${numberFormat.format(visibleTotal)} مشتری در بخش ${tab === 'active' ? 'فعال' : 'غیرفعال'} نمایش داده می‌شود.`} action={<div className="directory-stat"><UserRound size={15} /> {numberFormat.format(visibleTotal)} {tab === 'active' ? 'حساب فعال' : 'مشتری غیرفعال'}</div>} /><div className="customer-toolbar"><div className="search-field wide"><Search size={16} /><input placeholder="جست‌وجوی نام، ایمیل یا شماره" value={search} onChange={(event) => updateSearch(event.target.value)} data-testid="input-search-customers" /><span className={`customer-search-state ${loading ? 'is-loading' : ''}`}>{loading ? 'در حال جست‌وجو' : 'جست‌وجوی زنده'}</span></div><Button variant="secondary" onClick={clearSearch} disabled={!search} testId="button-clear-customer-search">پاک کردن جست‌وجو</Button></div><div className="customer-tabs" role="tablist" aria-label="فیلتر وضعیت مشتری"><button type="button" role="tab" aria-selected={tab === 'active'} className={tab === 'active' ? 'selected' : ''} onClick={() => selectTab('active')} data-testid="button-customers-active">فعال</button><button type="button" role="tab" aria-selected={tab === 'inactive'} className={tab === 'inactive' ? 'selected' : ''} onClick={() => selectTab('inactive')} data-testid="button-customers-inactive">غیرفعال</button></div>{error && <div className="login-error mb-4">{error}</div>}{loading && !visibleCustomers.length ? <div className="customer-list-state"><RefreshCw size={18} className="spin" /><span>در حال دریافت مشتری‌ها...</span></div> : <section className="customer-list">{visibleCustomers.map((customer, index) => <Link href={`/customers/${customer.id}`} className="customer-row" key={customer.id} data-testid={`row-customer-${customer.id}`}><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><div className="min-w-0 flex-1"><p className="font-bold">{customer.name}</p><p className="text-xs text-muted-foreground">{customer.email} · {customer.phone}</p></div><div className="customer-col"><span className="text-xs text-muted-foreground">سرویس فعال</span><strong>{numberFormat.format(customer.activeServices)}</strong></div><div className="customer-col hidden sm:flex"><span className="text-xs text-muted-foreground">مجموع خرید</span><strong>{money(customer.totalSpend)}</strong></div><div className="customer-col hidden md:flex"><span className="text-xs text-muted-foreground">آخرین خرید</span><strong>{dateLabel(customer.lastPurchase)}</strong></div><ChevronLeft size={17} className="ml-2 text-muted-foreground" /></Link>)}</section>}{!loading && !visibleCustomers.length && <EmptyState title={tab === 'active' ? 'مشتری فعال پیدا نشد' : 'مشتری غیرفعالی پیدا نشد'} detail={search ? 'عبارت جست‌وجو یا تب وضعیت را تغییر دهید.' : 'با ثبت سرویس فعال، مشتری در این بخش نمایش داده می‌شود.'} />}{totalPages > 1 && <nav className="customer-pagination" aria-label="صفحه‌بندی مشتری‌ها"><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0 || loading} data-testid="button-customers-previous"><ChevronRight size={15} /> قبلی</button><span>صفحه {numberFormat.format(page + 1)} از {numberFormat.format(totalPages)}</span><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))} disabled={page >= totalPages - 1 || loading} data-testid="button-customers-next">بعدی <ChevronLeft size={15} /></button></nav>}</>;
 }
 
+export function Customers() {
+  return <SurfaceFrame name="customers"><CustomersContent /></SurfaceFrame>;
+}
+
 function CustomerServiceControls({ services, tab, search, onTabChange, onSearchChange }: { services: Service[]; tab: CustomerServiceTab; search: string; onTabChange: (tab: CustomerServiceTab) => void; onSearchChange: (value: string) => void }) {
   const activeCount = services.filter((service) => service.status === 'Active' || service.status === 'Expiring').length;
   const inactiveCount = services.length - activeCount;
   return <div className="customer-service-controls"><div className="customer-service-search search-field"><Search size={15} /><input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="جست‌وجوی سرویس، نام کاربری یا پنل" aria-label="جست‌وجوی سرویس‌های مشتری" data-testid="input-search-customer-services" />{search && <button type="button" onClick={() => onSearchChange('')} aria-label="پاک کردن جست‌وجوی سرویس"><X size={13} /></button>}</div><div className="customer-service-tabs" role="tablist" aria-label="فیلتر سرویس‌های مشتری"><button type="button" role="tab" aria-selected={tab === 'active'} className={tab === 'active' ? 'selected' : ''} onClick={() => onTabChange('active')} data-testid="button-customer-services-active">فعال <span>{new Intl.NumberFormat('fa-IR').format(activeCount)}</span></button><button type="button" role="tab" aria-selected={tab === 'inactive'} className={tab === 'inactive' ? 'selected' : ''} onClick={() => onTabChange('inactive')} data-testid="button-customer-services-inactive">غیرفعال <span>{new Intl.NumberFormat('fa-IR').format(inactiveCount)}</span></button></div></div>;
 }
 
-export function CustomerDetail() {
+function CustomerDetailContent() {
   const { id } = useParams<{ id: string }>();
   const { customers, services, sales, renewService, resetServiceToken, session } = usePulse();
   const numericId = Number((id || '').replace(/\D/g, ''));
@@ -1085,7 +1120,11 @@ export function CustomerDetail() {
     return <><Link href="/customers" className="back-link" data-testid="link-back-customers"><ChevronLeft size={15} /> مشتری‌ها</Link><div className="detail-hero"><div className="flex items-center gap-4"><Avatar name={customer.name} color="teal" /><div><p className="eyebrow">پرونده مشتری و V2Box</p><h1 className="page-title">{customer.name}</h1><p className="page-description">{customer.phone} · اطلاعات واقعی SQL</p></div></div></div>{notice && <div className="notice"><Check size={15} /> {notice}<button onClick={() => setNotice('')} aria-label="بستن پیام"><X size={14} /></button></div>}<div className="detail-metrics"><div><span>مجموع خرید</span><strong>{money(customer.totalSpend)}</strong></div><div><span>سرویس فعال</span><strong>{new Intl.NumberFormat('fa-IR').format(customer.activeServices)}</strong></div><div><span>آخرین خرید</span><strong>{dateLabel(customer.lastPurchase)}</strong></div></div><section className="panel-card crm-card"><div className="panel-heading"><div><p className="eyebrow">CRM سبک و سریع</p><h2 className="section-title">یادداشت، برچسب و timeline</h2><p className="text-xs text-muted-foreground">اطلاعات این پرونده فقط در محدوده دسترسی شما ذخیره و نمایش داده می‌شود.</p></div><History size={18} className="text-muted-foreground" /></div>{crmLoading ? <div className="crm-state">در حال دریافت پرونده...</div> : crmError ? <div className="crm-state crm-state-error">{crmError}</div> : <div className="crm-layout"><div><form className="crm-form" onSubmit={addCrmTag}><label htmlFor="crm-tag">برچسب جدید</label><div className="crm-inline"><input id="crm-tag" value={crmTag} onChange={(event) => setCrmTag(event.target.value)} maxLength={32} placeholder="مثلاً مشتری وفادار" /><button className="button button-secondary" type="submit" disabled={working === 'crm-tag' || !crmTag.trim()}><Tag size={14} /> افزودن</button></div></form><div className="crm-tags">{(crm?.tags ?? []).map((tag) => <span className="crm-tag" key={tag}>{tag}<button type="button" onClick={() => void removeCrmTag(tag)} disabled={working === `crm-remove-${tag}`} aria-label={`حذف برچسب ${tag}`}><X size={12} /></button></span>)}{!(crm?.tags ?? []).length && <span className="crm-muted">هنوز برچسبی ثبت نشده است.</span>}</div><form className="crm-form crm-note-form" onSubmit={addCrmNote}><label htmlFor="crm-note">یادداشت داخلی</label><textarea id="crm-note" value={crmNote} onChange={(event) => setCrmNote(event.target.value)} maxLength={1000} placeholder="نکته‌ای برای تمدید بعدی یا پیگیری مشتری..." /><button className="button button-primary" type="submit" disabled={working === 'crm-note' || !crmNote.trim()}><Plus size={14} /> ثبت یادداشت</button></form></div><div className="crm-timeline"><div className="crm-subheading"><strong>timeline مشتری</strong><span>{new Intl.NumberFormat('fa-IR').format(crmPagination?.total ?? crm?.timeline?.length ?? 0)} رویداد</span></div>{(crm?.timeline ?? []).map((event, index) => <div className="crm-event" key={`${event.type}-${event.id}-${index}`}><span className="crm-event-dot" /><div><strong>{event.title}</strong><p>{event.detail}</p><time>{dateTimeLabel(event.created_at)}</time></div></div>)}{!(crm?.timeline ?? []).length && <div className="crm-muted">هنوز رویدادی برای این مشتری ثبت نشده است.</div>}{crmPagination && crmPagination.total_pages > 1 && <div className="crm-pagination"><button className="button button-quiet" type="button" onClick={() => void changeCrmPage(crmPagination.page - 1)} disabled={!crmPagination.has_previous || crmPageLoading}>قبلی</button><span>صفحه {new Intl.NumberFormat('fa-IR').format(crmPagination.page)} از {new Intl.NumberFormat('fa-IR').format(crmPagination.total_pages)}</span><button className="button button-quiet" type="button" onClick={() => void changeCrmPage(crmPagination.page + 1)} disabled={!crmPagination.has_next || crmPageLoading}>بعدی</button></div>}</div></div>}</section><div className="detail-grid mt-5"><section className="panel-card"><div className="panel-heading"><div><p className="eyebrow">دسترسی</p><h2 className="section-title">اشتراک‌ها و V2Box</h2></div><Link href="/services" className="button button-quiet"><Plus size={14} /> سرویس جدید</Link></div><div className="service-detail-list">{customerServices.map((service) => { const ratio = service.limitGb ? Math.min(100, Math.round(service.usedGb / service.limitGb * 100)) : 0; const publicUrl = service.publicSubscriptionUrl ?? service.subscriptionUrl; return <article className="subscription-card" key={service.id}><div className="subscription-head"><div><p className="font-bold">{service.plan}</p><p className="font-mono text-xs text-muted-foreground" dir="ltr">@{service.username}</p></div><StatusPill value={service.status} /></div><div className="usage-summary"><div className="usage-ring" style={{ '--usage': `${ratio * 3.6}deg` } as any}><span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪</span></div><div className="usage-copy"><strong>{service.usedGb} از {service.limitGb} گیگ</strong><p>انقضا: {dateLabel(service.expiresAt)}</p><p>{Math.max(0, daysUntil(service.expiresAt))} روز باقی‌مانده</p></div></div><ServiceUsageBreakdown service={service} />{service.subscriptionUrl ? <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl || service.subscriptionUrl} /><div className="subscription-share-copy"><strong>لینک جدید اشتراک</strong><span>این لینک دامنه‌دار صفحهٔ اشتراک جدید است؛ برای import مستقیم از دکمهٔ V2Box استفاده کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => navigator.clipboard.writeText(publicUrl || service.subscriptionUrl || '')}><Copy size={14} /> کپی لینک جدید</button><a className="button button-primary" href={v2boxUrl(service)} target="_blank" rel="noreferrer"><ExternalLink size={14} /> V2Box</a>{service.awgReady && service.awgConfigUrl ? <a className="button button-secondary" href={service.awgConfigUrl} download data-testid={`link-awg-${service.id}`}><Download size={14} /> دانلود AWG</a> : <button className="button button-secondary" disabled title="کانفیگ AWG هنوز آماده نشده است"><Wifi size={14} /> AWG در انتظار</button>}<button className="button button-ghost" disabled={working === service.id} onClick={() => resetToken(service)}><RefreshCw size={14} className={working === service.id ? 'spin' : ''} /> توکن جدید</button><button className="button button-quiet" disabled={working === service.id} onClick={() => renew(service)}><Plus size={14} /> تمدید ۳۰ روزه</button></div></> : <div className="notice mt-3"><ShieldCheck size={15} /> لینک اشتراک این سرویس قدیمی ثبت نشده است.</div>}</article>; })}</div>{!customerServices.length && <EmptyState title="اشتراکی ثبت نشده" detail="اولین سرویس واقعی این مشتری را از صفحه سرویس‌ها بسازید." />}</section><section className="panel-card"><div className="panel-heading"><div><p className="eyebrow">تراکنش‌ها</p><h2 className="section-title">سابقه فروش</h2></div><CreditCard size={18} className="text-muted-foreground" /></div><div className="list-stack">{customerSales.map((sale) => <div className="history-row" key={sale.id}><div><p className="font-semibold">{sale.serviceName}</p><p className="text-xs text-muted-foreground">{dateLabel(sale.date)} · {sale.id}</p></div><div className="text-right"><p className="font-display font-bold">{money(sale.amount)}</p><span className={sale.paid ? 'paid-text' : 'pending-text'}>{sale.paid ? 'پرداخت‌شده' : 'در انتظار'}</span></div></div>)}</div>{!customerSales.length && <EmptyState title="سابقه‌ای وجود ندارد" detail="فروش‌های این مشتری در اینجا نمایش داده می‌شود." />}</section></div></>;
 }
 
-export function PublicSubscription() {
+export function CustomerDetail() {
+  return <SurfaceFrame name="customer-detail"><CustomerDetailContent /></SurfaceFrame>;
+}
+
+function PublicSubscriptionContent() {
   const [token, setToken] = useState(() => new URLSearchParams(window.location.search).get('t') || '');
   const [data, setData] = useState<any>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -1134,9 +1173,17 @@ export function PublicSubscription() {
   return <div className="public-sub-page" dir="rtl"><main className="public-sub-card"><header className="public-sub-header"><div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><span className="public-sub-secure"><ShieldCheck size={14} /> لینک امن</span></header><section className="public-sub-hero"><p className="eyebrow">مرکز کنترل اشتراک</p><h1>{data.customer_name || 'اشتراک شما'}</h1><div className="public-sub-plan"><span className={`public-sub-status ${statusTone}`}><span /> {statusLabel}</span><strong>{data.plan}</strong><span dir="ltr">@{data.username}</span></div></section><section className={`public-sub-status-card ${statusTone}`}><div><span className="public-sub-status-kicker">{expired ? 'برای ادامه، تمدید لازم است' : expiring ? 'زمان تمدید نزدیک است' : 'همه‌چیز آمادهٔ اتصال است'}</span><strong>{expired ? 'این اشتراک دیگر فعال نیست' : expiring ? `${new Intl.NumberFormat('fa-IR').format(remaining)} روز تا پایان اعتبار` : 'اشتراک شما فعال و قابل استفاده است'}</strong></div><span className="public-sub-status-icon">{expired ? '!' : expiring ? '!' : '✓'}</span></section><section className="public-sub-usage"><div className="public-sub-usage-head"><div><span>مصرف‌شده</span><strong>{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(Number(data.used_gb))} از {new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(Number(data.limit_gb))} گیگ</strong></div><div className="public-sub-days"><span>حجم باقی‌مانده</span><strong>{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(remainingGb)} گیگ</strong></div></div><div className="public-sub-progress"><span style={{ width: `${ratio}%` }} /></div><div className="public-sub-usage-foot"><span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</span><span>انقضا: {dateLabel(data.expires_at)}</span></div></section><section className="public-sub-actions"><a className="public-sub-primary-action" href={v2boxInstall}><Globe2 size={19} /><span><strong>افزودن به V2Box</strong><small>با یک لمس در اپلیکیشن باز می‌شود</small></span><ChevronLeft size={17} /></a><div className="public-sub-action-row"><button type="button" onClick={() => void copyPageLink()}><Copy size={17} /><span>{copied ? 'لینک صفحه کپی شد' : 'کپی لینک صفحه'}</span></button>{data.awg_ready && <a href={data.awg_url}><Wifi size={17} /><span>دانلود AWG</span></a>}<button type="button" onClick={() => void sharePage()}><ArrowUpLeft size={17} /><span>{shared ? 'اشتراک‌گذاری شد' : 'اشتراک‌گذاری'}</span></button></div></section><section className="public-sub-link"><p>لینک صفحهٔ اشتراک</p><div dir="ltr">{pageUrl}</div><small>برای مشاهدهٔ وضعیت و QR استفاده کنید؛ برای افزودن به کلاینت، از دکمهٔ اتصال سریع پایین صفحه استفاده کنید.</small></section><section className="public-sub-qr"><SubscriptionQr url={pageUrl} /></section><section className="public-sub-install"><div className="public-sub-install-heading"><span className="eyebrow">نصب در سه قدم</span><strong>سریع‌ترین راه اتصال</strong></div><div className="public-sub-steps"><div><b>۱</b><span>کلاینت را انتخاب کنید</span></div><div><b>۲</b><span>افزودن یا کپی لینک</span></div><div><b>۳</b><span>اتصال را روشن کنید</span></div></div></section><SubscriptionClientActions url={feedUrl} name={data.plan || 'Pulse'} /><footer className="public-sub-footer"><ShieldCheck size={15} /><span>این صفحه فقط اطلاعات همین اشتراک را نمایش می‌دهد. رمز یا اطلاعات پنل در مرورگر ذخیره نمی‌شود.</span></footer></main></div>;
 }
 
-export function SettingsPage() {
+export function PublicSubscription() {
+  return <div className="public-sub-route"><PulseNetworkAccent className="public-route-network" /><PublicSubscriptionContent /></div>;
+}
+
+function SettingsPageContent() {
   const { session, resellers } = usePulse();
   return <><LegacySettingsPage />{session?.role === 'master_admin' && <AdminPricing resellers={resellers} />}</>;
+}
+
+export function SettingsPage() {
+  return <SurfaceFrame name="settings"><SettingsPageContent /></SurfaceFrame>;
 }
 
 function LegacySettingsPage() {
@@ -1168,7 +1215,7 @@ function AdminCreditSale({ resellers }: { resellers: PulseContextValue['reseller
   return <div className="admin-credit-sale"><div><p className="eyebrow">فروش گیگ به فروشنده</p><h3 className="font-bold">افزایش اعتبار حجمی</h3></div><form onSubmit={submit} className="admin-credit-fields"><label className="field"><span>فروشنده</span><select value={resellerId} onChange={(event) => selectReseller(event.target.value)}>{resellers.map((item) => <option value={item.id} key={item.id}>{item.title || `فروشنده ${item.id}`}</option>)}</select></label><Field label="حجم (گیگ)" value={gb} onChange={setGb} type="number" /><Field label="قیمت خرید هر گیگ" value={unitPrice} onChange={setUnitPrice} type="number" /><label className="check-field"><input type="checkbox" checked={paid} onChange={(event) => setPaid(event.target.checked)} /> پرداخت‌شده به مدیر</label><Button type="submit"><Plus size={14} /> ثبت فروش به فروشنده</Button></form>{message && <p className="text-xs text-muted-foreground">{message}</p>}</div>;
 }
 
-export function Reports() {
+function ReportsContent() {
   const [from, setFrom] = useState(() => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
   const [to, setTo] = useState(() => isoToday());
   const [report, setReport] = useState<any>(null);
@@ -1209,6 +1256,10 @@ export function Reports() {
     })),
   ] : [];
   return <div className="report-page"><PageHeader eyebrow="مرکز گزارش" title="گزارش کامل فروش" description="گزارش مدیر اصلی با تفکیک مبلغ کامل مشتری و مبلغی که هر فروشنده به مدیر اصلی می‌پردازد، بر اساس تاریخ شمسی تهران." action={<Button variant="secondary" onClick={() => window.print()} testId="button-print-report"><Printer size={15} /> چاپ گزارش</Button>} /><form className="report-filter panel-card" onSubmit={loadReport}><div className="report-date-field"><PersianDateField label="از تاریخ شمسی" value={from} onChange={setFrom} /></div><div className="report-date-field"><PersianDateField label="تا تاریخ شمسی" value={to} onChange={setTo} /></div><Button type="submit" disabled={loading}>{loading ? 'در حال دریافت...' : 'نمایش گزارش'}</Button></form>{error && <div className="login-error mt-4">{error}</div>}{summary && <><div className="metrics-grid report-metrics"><Metric label="مبلغ کامل فروش مشتری" value={money(summary.customer_revenue)} detail={`${new Intl.NumberFormat('fa-IR').format(summary.customer_sales)} تراکنش`} icon={TrendingUp} /><Metric label="قابل پرداخت فروشنده به مدیر" value={money(summary.customer_amount_to_admin)} detail="بدهی عمده از فروش مشتری" icon={CreditCard} /><Metric label="سود مدیر از فروش مشتری" value={money(summary.customer_admin_profit)} detail="مبلغ کامل منهای سهم مدیر" icon={ShieldCheck} /><Metric label="دریافتی کامل مشتری" value={money(summary.paid_customer_revenue)} detail="فقط پرداخت‌های ثبت‌شده" icon={Check} /></div><section className="table-card mt-4"><div className="panel-heading p-5"><div><p className="eyebrow">بازه گزارش</p><h2 className="section-title">{dateLabel(report.from)} تا {dateLabel(report.to)}</h2></div><span className="soft-badge">نمایش فقط برای مدیر اصلی</span></div><div className="table-scroll report-table-scroll"><table className="report-table"><thead><tr><th>نوع</th><th>فروشنده / مشتری</th><th>حجم</th><th>مبلغ کامل مشتری</th><th>پرداخت فروشنده به مدیر</th><th>سود مدیر</th><th>تاریخ تهران</th></tr></thead><tbody>{reportRows.map((item: any, index: number) => <tr key={`${item.kind}-${item.id}-${index}`}><td data-label="نوع">{item.kind}</td><td data-label="فروشنده / مشتری">{item.person}</td><td data-label="حجم">{item.gb_amount} گیگ</td><td data-label="مبلغ کامل مشتری">{item.fullAmount === null ? '—' : money(Number(item.fullAmount))}</td><td data-label="پرداخت فروشنده به مدیر">{money(Number(item.amountToAdmin))}</td><td data-label="سود مدیر">{item.profit === null ? '—' : money(Number(item.profit))}</td><td data-label="تاریخ تهران">{dateLabel(item.created_at)}</td></tr>)}</tbody></table></div></section></>}</div>;
+}
+
+export function Reports() {
+  return <SurfaceFrame name="reports"><ReportsContent /></SurfaceFrame>;
 }
 
 function PanelAssignments({ resellers: _resellers }: { resellers: PulseContextValue['resellers'] }) {
