@@ -23,6 +23,7 @@ export type Service = {
   limitGb: number;
   note: string;
   subscriptionUrl?: string | null;
+  publicSubscriptionUrl?: string | null;
   awgReady?: boolean;
   awgConfigUrl?: string | null;
   panelUsages?: { panelKey: string; usedGb: number; rawUsedGb: number; offsetGb: number; lastUpdated: string | null }[];

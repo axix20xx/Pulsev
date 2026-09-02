@@ -3,11 +3,11 @@ name: Public token subscription routes
 description: Rules for keeping token-based subscription links public and compatible with legacy URLs.
 ---
 
-Token-based subscription pages must bypass authenticated-shell redirects using a path-prefix check, because the router location includes the query string. Normalize legacy stored subscription URLs to the current public route in the client while preserving the token.
+Token-based subscription pages must bypass authenticated-shell redirects using a path-prefix check, because the router location includes the query string. The UI should derive a new domain-prefixed `/sub?t=` page URL from any stored token while preserving the original feed URL separately for direct client imports.
 
 **Why:** A strict equality check for the route missed `/sub?t=...` and sent valid customers to the login screen.
 
-**How to apply:** Keep public subscription data and AWG delivery behind token-specific server routes, never expose provider credentials, use the app's current `/sub?t=` path for new links, and generate QR codes locally from that same public URL rather than sending tokens to a third-party QR service.
+**How to apply:** Keep public subscription data and AWG delivery behind token-specific server routes, never expose provider credentials, use the app's current `/sub?t=` path for new display/QR links, and retain the feed URL for V2Box and client deep links.
 
 Client deep links should use documented schemes where available (V2Box, Clash/Karing, Hiddify, Stash, V2RayNG, Quantumult X, Loon, and Surge); keep clipboard import as the fallback for clients without a stable official import scheme such as Streisand.
 
