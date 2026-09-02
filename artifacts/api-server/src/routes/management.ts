@@ -128,6 +128,22 @@ export const managementReady = pool
        ON service_provision_jobs (status, next_attempt_at);
      CREATE INDEX IF NOT EXISTS service_provision_jobs_service_idx
        ON service_provision_jobs (service_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS reseller_notifications (
+        id BIGSERIAL PRIMARY KEY,
+        reseller_tg_id BIGINT NOT NULL,
+        event_key TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        title TEXT NOT NULL,
+        detail TEXT NOT NULL,
+        href TEXT,
+        tone TEXT NOT NULL DEFAULT 'normal',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        read_at TIMESTAMP
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS reseller_notifications_event_idx
+        ON reseller_notifications (reseller_tg_id, event_key);
+      CREATE INDEX IF NOT EXISTS reseller_notifications_inbox_idx
+        ON reseller_notifications (reseller_tg_id, read_at, created_at DESC);
      CREATE TABLE IF NOT EXISTS reseller_credit_sales (
        id BIGSERIAL PRIMARY KEY,
        reseller_tg_id BIGINT NOT NULL,
@@ -810,6 +826,159 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
       recent_activity: activity.rows,
     }),
   );
+});
+
+router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
+  if (req.auth?.role !== "reseller") {
+    res.json([]);
+    return;
+  }
+  const resellerId = Number(req.auth.telegramId);
+  await pool.query(
+    `WITH candidates AS (
+       SELECT
+         svc.reseller_tg_id,
+         'expiry:' || svc.id::text || ':' || (svc.expire_at AT TIME ZONE 'Asia/Tehran')::date::text AS event_key,
+         'expiry' AS kind,
+         'سرویس فردا منقضی می‌شود' AS title,
+         c.full_name || ' · ' || svc.label || ' · انقضا: ' ||
+           to_char(svc.expire_at AT TIME ZONE 'Asia/Tehran', 'YYYY-MM-DD') AS detail,
+         '/customers/' || c.id::text AS href,
+         'warning' AS tone
+       FROM reseller_services svc
+       JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE svc.reseller_tg_id = $1
+         AND svc.status <> 'disabled'
+         AND svc.expire_at IS NOT NULL
+         AND (svc.expire_at AT TIME ZONE 'Asia/Tehran')::date =
+             ((NOW() AT TIME ZONE 'Asia/Tehran')::date + 1)
+
+       UNION ALL
+
+       SELECT
+         svc.reseller_tg_id,
+         'quota:' || svc.id::text AS event_key,
+         'quota' AS kind,
+         'حجم سرویس تمام شده است' AS title,
+         c.full_name || ' · ' || svc.label || ' · نیازمند تمدید یا افزایش حجم' AS detail,
+         '/customers/' || c.id::text AS href,
+         'danger' AS tone
+       FROM reseller_services svc
+       JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE svc.reseller_tg_id = $1
+         AND svc.status = 'active'
+         AND COALESCE(svc.last_remaining_bytes,
+           GREATEST(0, svc.gb * 1073741824 - COALESCE(svc.last_used_bytes, 0))) <= 0
+
+       UNION ALL
+
+       SELECT
+         job.owner_tg_id AS reseller_tg_id,
+         'provider:' || job.id::text AS event_key,
+         'provider' AS kind,
+         CASE WHEN job.action = 'awg' THEN 'مشکل در آماده‌سازی AWG' ELSE 'Provider نیازمند بررسی است' END AS title,
+         COALESCE(c.full_name, 'سرویس ' || job.service_id::text) || ' · ' ||
+           COALESCE(NULLIF(array_to_string(ARRAY(SELECT jsonb_array_elements_text(job.provider_keys)), '، '), ''), 'اتصال سرویس') ||
+           CASE WHEN job.last_error IS NULL THEN '' ELSE ' · ' || left(job.last_error, 180) END AS detail,
+         CASE WHEN c.id IS NULL THEN '/monitoring' ELSE '/customers/' || c.id::text END AS href,
+         'danger' AS tone
+       FROM service_provision_jobs job
+       LEFT JOIN reseller_services svc ON svc.id = job.service_id
+       LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE job.owner_tg_id = $1
+         AND job.status IN ('pending', 'running', 'retrying')
+         AND job.last_error IS NOT NULL
+
+       UNION ALL
+
+       SELECT
+         svc.reseller_tg_id,
+         'awg-ready:' || svc.id::text || ':' || svc.awg_client_id::text AS event_key,
+         'awg' AS kind,
+         'AmneziaWG آماده است' AS title,
+         c.full_name || ' · ' || svc.label || ' · فایل اتصال قابل دانلود است' AS detail,
+         '/customers/' || c.id::text AS href,
+         'normal' AS tone
+       FROM reseller_services svc
+       JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE svc.reseller_tg_id = $1
+         AND svc.awg_client_id IS NOT NULL
+         AND svc.created_at >= NOW() - INTERVAL '3 days'
+
+       UNION ALL
+
+       SELECT
+         r.tg_id AS reseller_tg_id,
+         'balance:' || r.tg_id::text || ':' ||
+           to_char(NOW() AT TIME ZONE 'Asia/Tehran', 'YYYY-MM') AS event_key,
+         'balance' AS kind,
+         'موجودی حجم فروشنده کم است' AS title,
+         'حجم باقی‌مانده: ' ||
+           round(GREATEST(0, r.total_gb - r.used_gb), 2)::text || ' گیگابایت' AS detail,
+         '/sales' AS href,
+         'warning' AS tone
+       FROM resellers r
+       WHERE r.tg_id = $1
+         AND r.is_enabled = 1
+         AND r.total_gb > 0
+         AND r.total_gb - r.used_gb <= GREATEST(10, r.total_gb * 0.1)
+
+       UNION ALL
+
+       SELECT
+         cs.reseller_tg_id,
+         'invoice:' || cs.id::text AS event_key,
+         'invoice' AS kind,
+         'فاکتور پرداخت‌نشده دارید' AS title,
+         'فاکتور خرید ' || cs.gb_amount::text || ' گیگابایت · مبلغ: ' ||
+           to_char(cs.total_amount, 'FM999G999G999G990') || ' تومان' AS detail,
+         '/sales' AS href,
+         'warning' AS tone
+       FROM reseller_credit_sales cs
+       WHERE cs.reseller_tg_id = $1
+         AND COALESCE(cs.is_paid, 0) = 0
+     )
+     INSERT INTO reseller_notifications
+       (reseller_tg_id, event_key, kind, title, detail, href, tone, created_at)
+     SELECT reseller_tg_id, event_key, kind, title, detail, href, tone, NOW()
+     FROM candidates
+     ON CONFLICT (reseller_tg_id, event_key) DO NOTHING`,
+    [resellerId],
+  );
+  const result = await pool.query(
+    `SELECT id::float8 AS id, kind, title, detail, href, tone,
+            created_at::text AS created_at, read_at IS NOT NULL AS read
+     FROM reseller_notifications
+     WHERE reseller_tg_id = $1
+       AND (kind <> 'awg' OR event_key LIKE 'awg-ready:%')
+     ORDER BY read_at IS NOT NULL ASC, created_at DESC, id DESC
+     LIMIT 40`,
+    [resellerId],
+  );
+  res.json(result.rows);
+});
+
+router.post("/notifications/read-all", requireAuth, async (req, res): Promise<void> => {
+  if (req.auth?.role === "reseller") {
+    await pool.query(
+      "UPDATE reseller_notifications SET read_at = COALESCE(read_at, NOW()) WHERE reseller_tg_id = $1",
+      [Number(req.auth.telegramId)],
+    );
+  }
+  res.status(204).end();
+});
+
+router.post("/notifications/:id/read", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (req.auth?.role !== "reseller" || !Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "اعلان معتبر نیست" });
+    return;
+  }
+  await pool.query(
+    "UPDATE reseller_notifications SET read_at = COALESCE(read_at, NOW()) WHERE id = $1 AND reseller_tg_id = $2",
+    [id, Number(req.auth.telegramId)],
+  );
+  res.status(204).end();
 });
 
 router.get("/sales-summary", requireAuth, async (req, res): Promise<void> => {

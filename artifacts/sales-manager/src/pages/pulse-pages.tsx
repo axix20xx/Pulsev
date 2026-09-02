@@ -133,7 +133,7 @@ export function LoginPage() {
     await queryClient.invalidateQueries({ queryKey: getGetAuthSessionQueryKey() });
     navigate('/');
   };
-  return <div className="login-screen"><div className="login-card"><div className="login-orb"><div className="pulse-mark large"><span /></div></div><p className="eyebrow mt-6 text-center">مرکز عملیات پالس</p><h1 className="page-title mt-2 text-center">ورود با شناسه تلگرام</h1><p className="page-description mt-3 text-center">شناسه عددی تلگرام مدیر یا فروشنده را وارد کنید. اطلاعات شما مستقیماً از دیتابیس SQL بارگذاری می‌شود.</p>{session?.authenticated ? <Link href="/" className="button button-primary mt-7 w-full justify-center">ورود به داشبورد</Link> : <form onSubmit={submit} className="login-action mt-7"><label className="field"><span>Telegram ID</span><div className="login-id-field"><KeyRound size={18} /><input inputMode="numeric" dir="ltr" autoFocus value={telegramId} onChange={(event) => setTelegramId(event.target.value)} placeholder="مثال: 1026368027" data-testid="input-telegram-id" /></div></label><button className="button button-primary mt-4 w-full justify-center" disabled={login.isPending || !telegramId.trim()} data-testid="button-login-id">{login.isPending ? <><RefreshCw size={16} className="spin" /> در حال بررسی...</> : <>ورود به پنل <ChevronLeft size={16} /></>}</button>{login.isError && <div className="login-error mt-4">این شناسه در فهرست مدیر یا فروشنده‌های فعال نیست.</div>}</form>}<div className="login-security mt-6"><ShieldCheck size={16} /><span>دسترسی هر فروشنده در سرور به اطلاعات خودش محدود شده است.</span></div></div></div>;
+  return <div className="login-screen"><div className="login-card"><div className="login-orb"><div className="pulse-mark large"><span /></div></div><p className="eyebrow mt-6 text-center">مرکز عملیات پالس</p><h1 className="page-title mt-2 text-center">ورود با شناسه تلگرام</h1><p className="page-description mt-3 text-center">شناسه عددی تلگرام مدیر یا فروشنده را وارد کنید. اطلاعات شما مستقیماً از دیتابیس SQL بارگذاری می‌شود.</p>{session?.authenticated ? <Link href="/" className="button button-primary mt-7 w-full justify-center">ورود به داشبورد</Link> : <form onSubmit={submit} className="login-action mt-7"><label className="field"><span>Telegram ID</span><div className="login-id-field"><KeyRound size={18} /><input inputMode="numeric" dir="ltr" autoFocus value={telegramId} onChange={(event) => setTelegramId(event.target.value)} data-testid="input-telegram-id" /></div></label><button className="button button-primary mt-4 w-full justify-center" disabled={login.isPending || !telegramId.trim()} data-testid="button-login-id">{login.isPending ? <><RefreshCw size={16} className="spin" /> در حال بررسی...</> : <>ورود به پنل <ChevronLeft size={16} /></>}</button>{login.isError && <div className="login-error mt-4">این شناسه در فهرست مدیر یا فروشنده‌های فعال نیست.</div>}</form>}<div className="login-security mt-6"><ShieldCheck size={16} /><span>دسترسی هر فروشنده در سرور به اطلاعات خودش محدود شده است.</span></div></div></div>;
 }
 
 const Button = ({ children, onClick, variant = 'primary', type = 'button', className = '', disabled = false, testId }: { children: ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'quiet' | 'danger'; type?: 'button' | 'submit'; className?: string; disabled?: boolean; testId?: string }) => <button type={type} onClick={() => { if (testId?.startsWith('button-renew-service-')) window.dispatchEvent(new CustomEvent('pulse-renew', { detail: testId.replace('button-renew-service-', '') })); else onClick?.(); }} disabled={disabled} className={`button button-${variant} ${className}`} data-testid={testId}>{children}</button>;
@@ -440,6 +440,84 @@ export function Sales() {
     <section className="sales-period-panel report-filter panel-card"><div className="sales-period-heading"><div><p className="eyebrow">بازه زمانی</p><h2 className="section-title">{dateLabel(from)} تا {dateLabel(to)}</h2></div><span className="soft-badge">{rangeLabel}</span></div><div className="period-tabs">{([['today', 'امروز'], ['yesterday', 'دیروز'], ['week', '۷ روز اخیر'], ['month', 'این ماه'], ['custom', 'بازه دلخواه']] as [SalesPeriod, string][]).map(([value, label]) => <button key={value} className={period === value ? 'selected' : ''} onClick={() => selectPeriod(value)} data-testid={`button-sales-period-${value}`}>{label}</button>)}</div>{period === 'custom' && <div className="sales-custom-range"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button onClick={applyCustomRange} disabled={loading}>اعمال بازه</Button></div>}</section>
      {!isMasterAdmin && <><div className="toolbar"><div className="search-field"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="جست‌وجوی مشتری، سرویس یا شناسه" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></div><div className="filter-tabs">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}{value === 'All' && <span>{numberFa(visibleSales.length, 0)}</span>}</button>)}</div></div>{error && <div className="login-error mb-4">{error}</div>}<section className="table-card"><div className="table-scroll"><table><thead><tr><th>فروش</th><th>سرویس / پنل</th><th>تاریخ</th><th>وضعیت</th><th className="text-right">مبلغ</th><th /></tr></thead><tbody>{filtered.map((sale) => <tr key={sale.id} data-testid={`row-sale-${sale.id}`}><td><div className="flex items-center gap-3"><Avatar name={sale.customerName} /><div><p className="font-bold">{sale.customerName}</p><p className="font-mono text-[10px] text-muted-foreground">{sale.id}</p></div></div></td><td><p className="font-semibold">{sale.serviceName}</p><p className="text-xs text-muted-foreground">{sale.panel}</p></td><td className="text-sm text-muted-foreground">{dateLabel(sale.date)}</td><td><button onClick={() => togglePaid(sale)} data-testid={`button-toggle-paid-${sale.id}`}><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></button></td><td className="text-right font-display text-sm font-bold">{money(sale.amount)}</td><td><button className="icon-button" aria-label={sale.paid ? `برگرداندن پرداخت ${sale.id}` : `علامت‌گذاری پرداخت ${sale.id}`} onClick={() => togglePaid(sale)} data-testid={`button-edit-sale-${sale.id}`}>{sale.paid ? <RefreshCw size={14} /> : <Check size={14} />}</button></td></tr>)}</tbody></table></div>{!loading && !filtered.length && <EmptyState title="فروشی پیدا نشد" detail="بازه زمانی، عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." />}</section><p className="mt-3 text-xs text-muted-foreground">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · بازه بر اساس تقویم شمسی تهران</p></>}
      {isMasterAdmin && error && <div className="login-error mt-4">{error}</div>}</>;
+}
+
+export function PointOfSale() {
+  const { customers, session, createService } = usePulse();
+  const [form, setForm] = useState({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', isPaid: true });
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [created, setCreated] = useState<Service | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const normalize = (value: string) => value.replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/[^\d]/g, '');
+  const query = normalize(form.phone) || form.customerName.trim().toLowerCase();
+  const customerMatches = query.length >= 2
+    ? customers.filter((customer) => normalize(customer.phone).includes(query) || customer.name.toLowerCase().includes(query)).slice(0, 5)
+    : [];
+  const isReseller = session?.role === 'reseller';
+  const pricePerGb = Number(session?.customer_price_per_gb ?? 0);
+  const totalPrice = pricePerGb * Number(form.gb || 0);
+  const recentPackages = [
+    { gb: 10, days: 7, label: 'شروع سریع' },
+    { gb: 30, days: 30, label: 'ماهانه محبوب' },
+    { gb: 50, days: 30, label: 'پرمصرف' },
+    { gb: 100, days: 90, label: 'حرفه‌ای' },
+  ];
+  const projectedExpiry = new Date(Date.now() + Number(form.days || 0) * 86_400_000).toISOString();
+  const message = created
+    ? `سلام ${created.customerName}، سرویس ${created.plan} شما آماده شد.\n\nلینک اشتراک:\n${created.publicSubscriptionUrl ?? created.subscriptionUrl ?? 'لینک پس از تکمیل ساخت در دسترس قرار می‌گیرد.'}\n\nحجم: ${numberFa(created.limitGb)} گیگابایت\nمدت: ${form.days} روز\n${created.awgReady ? 'کانفیگ AmneziaWG هم آماده است؛ فایل آن را جداگانه برای شما ارسال می‌کنم.' : ''}\n\nپشتیبانی فروشنده پالس`
+    : '';
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (normalize(form.phone).length < 10 || !form.customerName.trim() || Number(form.gb) <= 0 || Number(form.days) <= 0) {
+      setError('نام، شماره موبایل، حجم و مدت معتبر را وارد کنید.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      const service = await createService({
+        customer_name: form.customerName.trim(),
+        phone: form.phone.trim(),
+        label: form.label.trim() || 'سرویس ویژه',
+        gb: Number(form.gb),
+        days: Number(form.days),
+        sell_price: isReseller ? totalPrice : null,
+        is_paid: form.isPaid,
+      });
+      setCreated(service);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ثبت فروش و ساخت سرویس انجام نشد.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const reset = () => {
+    setCreated(null);
+    setForm({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', isPaid: true });
+    setSelectedCustomerId(null);
+    setError('');
+  };
+  if (created) {
+    const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl;
+    return <div className="pos-page"><PageHeader eyebrow="رسید فروش" title="سرویس آماده تحویل است" description="فروش در دفتر ثبت شد و لینک آماده ارسال به مشتری است." action={<Button variant="secondary" onClick={reset} testId="button-pos-new-sale"><Plus size={15} /> فروش جدید</Button>} />
+      <section className="pos-success panel-card"><div className="pos-success-mark"><Check size={28} /></div><p className="eyebrow">رسید POS · {created.id}</p><h2>{created.customerName}</h2><p className="pos-success-subtitle">{created.plan} · {numberFa(created.limitGb)} گیگابایت · {form.days} روز</p>
+        {publicUrl && <div className="pos-delivery-grid"><div><span className="pos-label">لینک اشتراک مشتری</span><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="quick-actions"><button className="button button-primary" type="button" onClick={() => navigator.clipboard.writeText(new URL(publicUrl, window.location.origin).toString())}><Copy size={15} /> کپی لینک</button><a className="button button-secondary" href={v2boxUrl(created)}><ExternalLink size={15} /> V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl} download={`pulse-${created.username}.conf`}><Wifi size={15} /> دانلود AWG</a>}</div></div><SubscriptionQr url={publicUrl} /></div>}
+        <div className="pos-message-card"><div className="panel-heading"><div><p className="eyebrow">پیام آماده مشتری</p><h3 className="section-title">کپی و ارسال در تلگرام یا واتساپ</h3></div><Button variant="secondary" onClick={() => navigator.clipboard.writeText(message)} testId="button-copy-customer-message"><Copy size={14} /> کپی پیام</Button></div><textarea readOnly value={message} aria-label="پیام آماده ارسال به مشتری" /></div>
+      </section>
+    </div>;
+  }
+  return <div className="pos-page"><PageHeader eyebrow="فروش حضوری" title="پایانه فروش فروشنده" description="برای ثبت سریع فروش، مشتری را پیدا کنید، بسته را انتخاب کنید و لینک تحویل را همان‌جا کپی کنید." action={<Link href="/sales" className="button button-secondary"><ShoppingBag size={15} /> دفتر فروش</Link>} />
+    <div className="pos-layout"><form className="panel-card pos-form" onSubmit={submit}><div className="pos-form-heading"><div className="pos-kicker"><CreditCard size={16} /> POS سریع</div><h2>ثبت یک فروش جدید</h2><p>همه جزئیات فروش، پرداخت و ساخت سرویس با یک تأیید ثبت می‌شود.</p></div>
+      <div className="pos-section"><div className="pos-section-title"><span>۰۱</span><div><strong>مشتری</strong><small>شماره را وارد کنید تا مشتری قبلی پیدا شود.</small></div></div><label className="finder-input"><Phone size={18} /><input autoFocus inputMode="tel" dir="ltr" value={form.phone} placeholder="۰۹۱۲۱۲۳۴۵۶۷" onChange={(event) => { setForm({ ...form, phone: event.target.value }); setSelectedCustomerId(null); }} /><span>موبایل</span></label>{customerMatches.length > 0 && <div className="finder-results">{customerMatches.map((customer) => <button type="button" className={`finder-result ${selectedCustomerId === customer.id ? 'selected' : ''}`} key={customer.id} onClick={() => { setSelectedCustomerId(customer.id); setForm({ ...form, customerName: customer.name, phone: customer.phone }); }}><Avatar name={customer.name} /><span><strong>{customer.name}</strong><small dir="ltr">{customer.phone}</small></span><Check size={16} /></button>)}</div>}<div className="form-grid"><Field label="نام مشتری" value={form.customerName} onChange={(customerName) => setForm({ ...form, customerName })} placeholder="نام و نام خانوادگی" /><Field label="عنوان سرویس" value={form.label} onChange={(label) => setForm({ ...form, label })} placeholder="مثلاً سرویس ویژه" /></div></div>
+      <div className="pos-section"><div className="pos-section-title"><span>۰۲</span><div><strong>بسته و قیمت</strong><small>بسته آماده یا مقدار دلخواه را انتخاب کنید.</small></div></div><div className="pos-package-grid">{recentPackages.map((item) => <button type="button" key={`${item.gb}-${item.days}`} className={Number(form.gb) === item.gb && Number(form.days) === item.days ? 'selected' : ''} onClick={() => setForm({ ...form, gb: String(item.gb), days: String(item.days) })}><strong>{numberFa(item.gb)} GB</strong><small>{item.label} · {numberFa(item.days, 0)} روز</small></button>)}</div><div className="form-grid"><Field label="حجم (گیگابایت)" type="number" value={form.gb} onChange={(gb) => setForm({ ...form, gb })} /><Field label="مدت (روز)" type="number" value={form.days} onChange={(days) => setForm({ ...form, days })} /></div><div className="pos-price-row"><span>قیمت فروش به مشتری</span><strong>{isReseller && pricePerGb > 0 ? money(totalPrice) : 'طبق تعرفه'}</strong></div><div className="pos-payment-row"><div><strong>وضعیت پرداخت</strong><small>{form.isPaid ? 'مبلغ در محل دریافت شده است.' : 'این فروش در فهرست وصول باقی می‌ماند.'}</small></div><button type="button" className={`toggle ${form.isPaid ? 'on' : ''}`} onClick={() => setForm({ ...form, isPaid: !form.isPaid })} aria-label="تغییر وضعیت پرداخت"><span /></button></div></div>
+      {error && <div className="login-error">{error}</div>}<Button type="submit" disabled={submitting} className="pos-submit" testId="button-pos-submit">{submitting ? <><RefreshCw size={15} className="spin" /> در حال ساخت سرویس...</> : <><Check size={15} /> ثبت فروش و ساخت سرویس</>}</Button>
+    </form><aside className="panel-card pos-receipt"><div className="pos-receipt-top"><span className="pos-receipt-icon"><ReceiptIcon /></span><div><p className="eyebrow">پیش‌نمایش رسید</p><h3>تحویل فوری</h3></div></div><div className="pos-receipt-line"><span>مشتری</span><strong>{form.customerName || 'نام مشتری'}</strong></div><div className="pos-receipt-line"><span>بسته</span><strong>{numberFa(Number(form.gb))} گیگ · {numberFa(Number(form.days), 0)} روز</strong></div><div className="pos-receipt-line"><span>انقضای تقریبی</span><strong>{dateLabel(projectedExpiry)}</strong></div><div className="pos-receipt-total"><span>مبلغ نهایی</span><strong>{isReseller && pricePerGb > 0 ? money(totalPrice) : 'قابل تعیین'}</strong></div><div className="notice"><Wifi size={15} /><span>پس از ثبت، لینک عمومی، QR و گزینه دانلود AWG در همین صفحه آماده می‌شود.</span></div><div className="pos-receipt-foot"><span>ثبت در دفتر فروش</span><Check size={15} /></div></aside></div>
+  </div>;
+}
+
+function ReceiptIcon() {
+  return <ShoppingBag size={18} />;
 }
 
 export function AdminSales() {

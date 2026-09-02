@@ -17,3 +17,4 @@
 - [Renewal service artifacts](renewal-service-artifacts.md) — post-renew QR and AWG actions must use the freshly returned service, not the stale pre-renewal object.
 - [Provider provisioning diagnostics](provider-provisioning-diagnostics.md) — strict all-provider provisioning must return safe per-provider failure details instead of only a generic 502.
 - [Async partial provisioning](async-partial-provisioning.md) — usable services may be saved after one Provider succeeds; failed Providers and AWG retry through monitored jobs.
+- [Seller notification center](seller-notification-center.md) — notifications are owner-scoped and in-app; AWG readiness must not use usage-sync-mutated timestamps.
