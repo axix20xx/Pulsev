@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
+import { decryptPanelCredential } from "./panel-credentials";
 
 type Panel = {
   key?: string;
@@ -14,6 +15,9 @@ type StoredPanel = Panel & {
   username_env?: string | null;
   password_env?: string | null;
   api_key_env?: string | null;
+  username_secret?: string | null;
+  password_secret?: string | null;
+  api_key_secret?: string | null;
 };
 
 type PanelResult = {
@@ -71,7 +75,8 @@ async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
 
   try {
     const result = await pool.query<StoredPanel>(
-      `SELECT p.key, p.kind, p.api_base, p.username_env, p.password_env, p.api_key_env
+      `SELECT p.key, p.kind, p.api_base, p.username_env, p.password_env, p.api_key_env,
+              p.username_secret, p.password_secret, p.api_key_secret
        FROM panel_configs p
        WHERE p.is_enabled = 1
        ORDER BY p.key`,
@@ -82,9 +87,9 @@ async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
         key: panel.key,
         kind: panel.kind,
         api_base: panel.api_base.replace(/\/+$/, ""),
-        admin_user: envValue(panel.username_env),
-        admin_pass: envValue(panel.password_env),
-        api_key: envValue(panel.api_key_env),
+         admin_user: decryptPanelCredential(panel.username_secret) ?? envValue(panel.username_env),
+         admin_pass: decryptPanelCredential(panel.password_secret) ?? envValue(panel.password_env),
+         api_key: decryptPanelCredential(panel.api_key_secret) ?? envValue(panel.api_key_env),
       })).filter((panel) => {
         const kind = panelKind(panel);
         return kind === "falcon"

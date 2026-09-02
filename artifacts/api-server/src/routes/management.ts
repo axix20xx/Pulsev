@@ -67,6 +67,7 @@ import {
   getAwgConfiguration,
   recreateAwgClient,
 } from "../lib/amneziawg";
+import { encryptPanelCredential } from "../lib/panel-credentials";
 
 const MASTER_ADMIN_COST_PER_GB = 2500;
 const resellerCostPerGbSql = (alias = "r") =>
@@ -84,6 +85,9 @@ export const managementReady = pool
       username_env TEXT,
       password_env TEXT,
       api_key_env TEXT,
+      username_secret TEXT,
+      password_secret TEXT,
+      api_key_secret TEXT,
       is_enabled SMALLINT NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -145,15 +149,20 @@ export const managementReady = pool
       );
       CREATE INDEX IF NOT EXISTS reseller_settlement_payments_reseller_date_idx
         ON reseller_settlement_payments (reseller_tg_id, payment_date);
+     ALTER TABLE panel_configs
+       ADD COLUMN IF NOT EXISTS username_secret TEXT;
+     ALTER TABLE panel_configs
+       ADD COLUMN IF NOT EXISTS password_secret TEXT;
+     ALTER TABLE panel_configs
+       ADD COLUMN IF NOT EXISTS api_key_secret TEXT;
      INSERT INTO panel_configs (key, kind, api_base, username_env, password_env, api_key_env)
     VALUES
-       ('phonepanel', 'rain_admin', 'https://videobazi.com', 'RAIN_PHONEPANEL_USER', 'RAIN_PHONEPANEL_PASS', NULL),
-       ('speedur', 'rain_admin', 'https://www.speedur.org:2096', 'RAIN_SPEEDUR_USER', 'RAIN_SPEEDUR_PASS', NULL),
-       ('xxpanel', 'marzban', 'https://panel.jetservices.ir:2096', 'RAIN_XXPANEL_USER', 'RAIN_XXPANEL_PASS', NULL),
-      ('falcon', 'falcon', 'https://falco.all-engines.com/api/v1', NULL, NULL, 'FALCO_API_KEY')
+        ('phonepanel', 'rain_admin', 'https://videobazi.com', NULL, NULL, NULL),
+        ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL),
+        ('xxpanel', 'marzban', 'https://panel.jetservices.ir:2096', NULL, NULL, NULL),
+       ('falcon', 'falcon', 'https://falco.all-engines.com/api/v1', NULL, NULL, NULL)
      ON CONFLICT (key) DO UPDATE SET kind = EXCLUDED.kind, api_base = EXCLUDED.api_base,
-       username_env = EXCLUDED.username_env, password_env = EXCLUDED.password_env,
-       api_key_env = EXCLUDED.api_key_env, updated_at = NOW()
+        username_env = NULL, password_env = NULL, api_key_env = NULL, updated_at = NOW()
   `)
   .catch((error) => {
     console.error("Panel management schema initialization failed", error);
@@ -510,6 +519,7 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
   const result = await pool.query(
     `SELECT p.key, p.kind, p.api_base, p.is_enabled = 1 AS enabled,
             p.username_env, p.password_env, p.api_key_env,
+            p.username_secret, p.password_secret, p.api_key_secret,
             COALESCE(array_agg(a.reseller_tg_id) FILTER (WHERE a.reseller_tg_id IS NOT NULL), '{}') AS assigned_reseller_ids
      FROM panel_configs p
      LEFT JOIN reseller_panel_assignments a ON a.panel_key = p.key
@@ -517,14 +527,12 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
      ORDER BY p.key`,
   );
   const configured = result.rows.map((panel) => ({
-    ...panel,
+     ...panel,
     has_data: panel.kind === "falcon"
-      ? Boolean(panel.api_key_env && process.env[panel.api_key_env])
+       ? Boolean((panel.api_key_secret || "") || (panel.api_key_env && process.env[panel.api_key_env]))
       : Boolean(
-          panel.username_env &&
-            panel.password_env &&
-            process.env[panel.username_env] &&
-            process.env[panel.password_env],
+           (panel.username_secret || (panel.username_env && process.env[panel.username_env])) &&
+             (panel.password_secret || (panel.password_env && process.env[panel.password_env])),
         ),
   }));
   res.json(configured.map((panel) => ({ ...panel, available_to_all_resellers: true })));
@@ -559,9 +567,9 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
     (body.enabled !== undefined && typeof body.enabled !== "boolean") ||
     (body.api_base !== undefined && typeof body.api_base !== "string") ||
     (body.kind !== undefined && !["marzban", "rain_admin", "falcon"].includes(body.kind)) ||
-    (body.username_env !== undefined && typeof body.username_env !== "string") ||
-    (body.password_env !== undefined && typeof body.password_env !== "string") ||
-    (body.api_key_env !== undefined && typeof body.api_key_env !== "string")
+    (body.username !== undefined && typeof body.username !== "string") ||
+    (body.password !== undefined && typeof body.password !== "string") ||
+    (body.api_key !== undefined && typeof body.api_key !== "string")
   ) {
     res.status(400).json({ error: "تنظیمات پنل معتبر نیست" });
     return;
@@ -571,9 +579,12 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
        is_enabled = COALESCE($1, is_enabled),
        kind = COALESCE(NULLIF($2, ''), kind),
        api_base = COALESCE(NULLIF($3, ''), api_base),
-       username_env = COALESCE(NULLIF($4, ''), username_env),
-       password_env = COALESCE(NULLIF($5, ''), password_env),
-       api_key_env = COALESCE(NULLIF($6, ''), api_key_env),
+       username_env = NULL,
+       password_env = NULL,
+       api_key_env = NULL,
+       username_secret = COALESCE(NULLIF($4, ''), username_secret),
+       password_secret = COALESCE(NULLIF($5, ''), password_secret),
+       api_key_secret = COALESCE(NULLIF($6, ''), api_key_secret),
        updated_at = NOW()
      WHERE key = $7
      RETURNING key, kind, api_base, is_enabled = 1 AS enabled,
@@ -582,9 +593,9 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
       body.enabled === undefined ? null : body.enabled ? 1 : 0,
       body.kind ?? null,
       body.api_base ?? null,
-      body.username_env ?? null,
-      body.password_env ?? null,
-      body.api_key_env ?? null,
+       body.username ? encryptPanelCredential(body.username.trim()) : null,
+       body.password ? encryptPanelCredential(body.password) : null,
+       body.api_key ? encryptPanelCredential(body.api_key.trim()) : null,
       key,
     ],
   );

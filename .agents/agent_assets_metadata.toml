@@ -14,3 +14,17 @@ mtime_ms = 1788338252223
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f0f3bc07-6d71-4fa1-ac54-fe7f8c27fd3d/dd7a32db-4444-410a-bba2-b31e052cb74d"
 storage_version_token = "1788338263845367"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "WR4DPP9eoEfqACiKrhKA8"
+uri = "file://exports/pulse-hostinger-final.zip"
+type = "unspecified"
+title = "Pulse Hostinger ZIP با migration کامل"
+description = "بستهٔ آمادهٔ Hostinger شامل frontend و API build‌شده، تنظیم Providerها از داخل Settings اپ، migration خودکار و یک‌بارهٔ SQL کامل legacy، فایل .env.example و راهنمای فارسی. مقدار واقعی credentialها داخل ZIP نیست."
+logical_id = "c835fab9-e719-4de7-a8fc-0f39b14acb17"
+content_hash = "sha256:e35421d67437a622860a1eb122c92aaadcea2ba2d292d4a3022472172a3696ba"
+size = 11768255
+mtime_ms = 1788338530438
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/c835fab9-e719-4de7-a8fc-0f39b14acb17/3aae415f-f3cf-4ed4-88cb-d2a8bbf8993d"
+storage_version_token = "1788338550912486"
+content_type = "application/octet-stream"
