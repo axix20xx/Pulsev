@@ -1,0 +1,431 @@
+FULL WEBSITE REFACTOR & PREMIUM 3D REDESIGN
+
+You are a senior full-stack engineer, creative frontend developer, UI/UX designer, and performance optimization specialist.
+
+I already have an existing website. Do NOT rebuild blindly or break existing functionality. First deeply analyze the entire existing codebase, architecture, components, routes, APIs, database connections, authentication, and current functionality.
+
+Your task is to fully refactor, modernize, optimize, and redesign the website into a premium, futuristic, visually impressive experience.
+
+⸻
+
+1. FIRST: ANALYZE BEFORE CHANGING
+
+Before making changes:
+
+* Inspect the complete project structure.
+* Identify the framework and existing architecture.
+* Analyze all pages, components, routes, APIs, and dependencies.
+* Find duplicated code.
+* Find unused code and dependencies.
+* Find performance bottlenecks.
+* Find broken or inconsistent UI components.
+* Identify security or architectural issues.
+* Preserve all working business logic.
+
+Do not remove existing functionality unless it is clearly obsolete or broken.
+
+Create a clear internal refactoring plan, then implement it carefully.
+
+⸻
+
+2. COMPLETE CODE REFACTOR
+
+Refactor the entire codebase to be:
+
+* Clean
+* Modular
+* Maintainable
+* Scalable
+* Reusable
+* Well organized
+* Fast
+* Production-ready
+
+Requirements:
+
+* Remove duplicated code.
+* Break large components into smaller reusable components.
+* Create reusable UI components.
+* Create reusable hooks and utilities where appropriate.
+* Use clear naming conventions.
+* Improve folder architecture.
+* Remove dead code.
+* Remove unnecessary dependencies.
+* Improve error handling.
+* Add proper loading states.
+* Add empty states.
+* Add error states.
+* Avoid unnecessary re-renders.
+* Optimize state management.
+
+Do NOT over-engineer.
+
+⸻
+
+3. PREMIUM MODERN DESIGN
+
+Completely improve the visual design.
+
+The website should feel:
+
+Premium + Modern + Futuristic + Interactive + Cinematic
+
+Avoid:
+
+* Generic templates
+* Cheap-looking gradients
+* Excessive glassmorphism
+* Too many animations
+* Overly rounded components
+* Cluttered layouts
+* Generic AI-generated UI
+
+Create a unique visual identity.
+
+Focus on:
+
+* Strong typography
+* Excellent spacing
+* Visual hierarchy
+* Premium composition
+* Modern cards
+* Smooth interactions
+* Micro-interactions
+* Cinematic transitions
+* Responsive design
+
+Every section should feel intentionally designed.
+
+⸻
+
+4. 3D EXPERIENCE
+
+Add 3D only where it genuinely improves the experience.
+
+Use:
+
+* Three.js
+* @react-three/fiber
+* @react-three/drei
+
+Install if needed:
+
+npm install three @react-three/fiber @react-three/drei
+
+Possible 3D features:
+
+* Interactive hero section
+* Floating objects
+* Animated particles
+* Subtle depth effects
+* Mouse-responsive elements
+* Interactive backgrounds
+* 3D product/object visualization
+* Cinematic camera movement
+
+IMPORTANT:
+
+3D must NOT negatively affect:
+
+* Mobile performance
+* Page speed
+* Accessibility
+* Core functionality
+
+Use graceful fallbacks.
+
+Do not add 3D everywhere.
+
+⸻
+
+5. ANIMATION SYSTEM
+
+Use animations professionally.
+
+Install if needed:
+
+npm install framer-motion gsap lenis
+
+Use:
+
+Framer Motion
+
+For:
+
+* Page transitions
+* Component animations
+* Hover effects
+* Micro-interactions
+
+GSAP
+
+For:
+
+* Advanced timelines
+* Cinematic animations
+* Scroll-triggered effects
+
+Lenis
+
+For:
+
+* Premium smooth scrolling
+
+IMPORTANT:
+
+Animations must feel:
+
+* Smooth
+* Natural
+* Fast
+* Premium
+* Purposeful
+
+Respect prefers-reduced-motion.
+
+Avoid excessive animations.
+
+⸻
+
+6. DESIGN SYSTEM
+
+Create a consistent design system.
+
+Define:
+
+* Color palette
+* Typography scale
+* Spacing system
+* Border radius system
+* Shadows
+* Animation durations
+* Responsive breakpoints
+* Button styles
+* Input styles
+* Card styles
+
+Use design tokens where appropriate.
+
+The entire website must feel consistent.
+
+⸻
+
+7. RESPONSIVE DESIGN
+
+Fully optimize for:
+
+* Mobile
+* Tablet
+* Laptop
+* Desktop
+* Large screens
+
+Mobile must NOT simply be a compressed desktop layout.
+
+Design mobile layouts intentionally.
+
+Test:
+
+* Navigation
+* Typography
+* Buttons
+* Forms
+* 3D elements
+* Modals
+* Cards
+* Horizontal overflow
+
+There must be zero accidental horizontal scrolling.
+
+⸻
+
+8. PERFORMANCE OPTIMIZATION
+
+Optimize aggressively.
+
+Focus on:
+
+* Lazy loading
+* Code splitting
+* Dynamic imports
+* Image optimization
+* Font optimization
+* Asset optimization
+* Reducing JavaScript bundle size
+* Memoization where appropriate
+* Preventing unnecessary renders
+
+For 3D:
+
+* Pause rendering when not visible.
+* Reduce quality on mobile.
+* Use optimized geometries.
+* Avoid unnecessary shadows.
+* Optimize textures.
+* Limit device pixel ratio.
+
+The website should feel extremely fast.
+
+⸻
+
+9. ACCESSIBILITY
+
+Ensure:
+
+* Proper semantic HTML
+* Keyboard navigation
+* Focus states
+* ARIA labels where necessary
+* Sufficient color contrast
+* Accessible forms
+* Accessible navigation
+
+Do not sacrifice usability for visual effects.
+
+⸻
+
+10. MODERN UI LIBRARIES
+
+You may use high-quality libraries where appropriate.
+
+Recommended:
+
+npm install lucide-react clsx tailwind-merge
+
+Use:
+
+* lucide-react for icons
+* clsx for conditional classes
+* tailwind-merge if Tailwind exists
+
+Do NOT install unnecessary libraries.
+
+⸻
+
+11. CLEAN FOLDER STRUCTURE
+
+Refactor toward a clean architecture such as:
+
+src/
+├── components/
+│   ├── ui/
+│   ├── layout/
+│   └── shared/
+├── features/
+├── pages/
+├── hooks/
+├── lib/
+├── utils/
+├── services/
+├── assets/
+├── styles/
+└── types/
+
+Adapt this structure to the existing project.
+
+Do NOT move files unnecessarily if doing so creates risk.
+
+⸻
+
+12. KEEP EXISTING FUNCTIONALITY
+
+CRITICAL:
+
+Preserve:
+
+* Existing pages
+* Existing routes
+* Existing business logic
+* Existing APIs
+* Authentication
+* Database functionality
+* Forms
+* User workflows
+
+After refactoring, verify that everything still works.
+
+Visual improvements must NOT break functionality.
+
+⸻
+
+13. IMPLEMENTATION PROCESS
+
+Follow this order:
+
+Phase 1 — Audit
+
+Analyze the complete codebase.
+
+Phase 2 — Architecture
+
+Improve the project structure.
+
+Phase 3 — Refactor
+
+Clean and modularize code.
+
+Phase 4 — Design System
+
+Create consistent UI foundations.
+
+Phase 5 — UI Redesign
+
+Redesign every page.
+
+Phase 6 — Animation
+
+Add premium interactions.
+
+Phase 7 — 3D
+
+Add carefully selected 3D experiences.
+
+Phase 8 — Responsive
+
+Optimize every screen size.
+
+Phase 9 — Performance
+
+Optimize speed and bundle size.
+
+Phase 10 — Testing
+
+Verify that all functionality works.
+
+⸻
+
+FINAL QUALITY STANDARD
+
+The final website should feel like it was built by:
+
+A world-class product designer + creative developer + senior frontend engineer.
+
+It should be:
+
+* Visually unique
+* Premium
+* Modern
+* Fast
+* Interactive
+* Responsive
+* Clean
+* Maintainable
+* Scalable
+* Production-ready
+
+Do not make superficial changes.
+
+Perform a real, deep refactor of the entire project.
+
+Before finishing, inspect the entire application again and fix:
+
+* Broken functionality
+* Console errors
+* Type errors
+* Layout issues
+* Mobile issues
+* Performance issues
+* Inconsistent UI
+* Dead code
+
+IMPORTANT: Work carefully with the existing codebase. Do not replace working functionality with mockups. The goal is to make the EXISTING WEBSITE significantly better while preserving its core functionality.
