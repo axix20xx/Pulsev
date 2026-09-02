@@ -107,14 +107,35 @@ export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; 
   if (response.status < 200 || response.status >= 300) {
     throw new AwgApiError(`AmneziaWG returned HTTP ${response.status}`);
   }
-  let payload: any = {};
-  try { payload = JSON.parse(response.text); } catch { /* The endpoint must return JSON for usage sync. */ }
-  const rxBytes = Number(payload?.rx_bytes ?? payload?.rx ?? payload?.received ?? 0);
-  const txBytes = Number(payload?.tx_bytes ?? payload?.tx ?? payload?.sent ?? 0);
-  if (!Number.isFinite(rxBytes) || !Number.isFinite(txBytes)) {
+  let payload: any;
+  try {
+    payload = JSON.parse(response.text);
+  } catch {
+    throw new AwgApiError("AmneziaWG returned non-JSON usage statistics.");
+  }
+
+  const candidates = [
+    payload,
+    payload?.data,
+    payload?.stats,
+    payload?.statistics,
+    payload?.client,
+  ].filter((value) => value && typeof value === "object");
+  const readNumber = (keys: string[]): number | null => {
+    for (const candidate of candidates) {
+      for (const key of keys) {
+        const value = Number(candidate[key]);
+        if (Number.isFinite(value) && value >= 0) return value;
+      }
+    }
+    return null;
+  };
+  const rxBytes = readNumber(["rx_bytes", "rxBytes", "rx", "received", "receive", "download_bytes", "download"]);
+  const txBytes = readNumber(["tx_bytes", "txBytes", "tx", "sent", "transmit", "upload_bytes", "upload"]);
+  if (rxBytes === null || txBytes === null) {
     throw new AwgApiError("AmneziaWG returned invalid usage statistics.");
   }
-  return { rxBytes: Math.max(0, Math.round(rxBytes)), txBytes: Math.max(0, Math.round(txBytes)) };
+  return { rxBytes: Math.round(rxBytes), txBytes: Math.round(txBytes) };
 }
 
 export async function disableAwgClient(clientId: string): Promise<boolean> {
