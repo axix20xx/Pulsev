@@ -1089,6 +1089,8 @@ export function PublicSubscription() {
   const [token, setToken] = useState(() => new URLSearchParams(window.location.search).get('t') || '');
   const [data, setData] = useState<any>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
   useEffect(() => {
     const nextToken = new URLSearchParams(window.location.search).get('t') || '';
     setToken(nextToken);
@@ -1098,14 +1100,38 @@ export function PublicSubscription() {
       return response.json();
     }).then((result) => { setData(result); setState('ready'); }).catch(() => setState('error'));
   }, []);
-  const absoluteUrl = data ? new URL(data.subscription_url, window.location.origin).toString() : '';
-  const v2boxInstall = absoluteUrl ? `v2box://install-sub?url=${encodeURIComponent(absoluteUrl)}&name=${encodeURIComponent(data.plan || 'Pulse')}` : '#';
+  const pageUrl = data ? new URL(data.public_url || `/sub?t=${encodeURIComponent(token)}`, window.location.origin).toString() : '';
+  const feedUrl = data ? new URL(data.subscription_url, window.location.origin).toString() : '';
+  const v2boxInstall = feedUrl ? `v2box://install-sub?url=${encodeURIComponent(feedUrl)}&name=${encodeURIComponent(data.plan || 'Pulse')}` : '#';
   const expires = data?.expires_at ? new Date(data.expires_at) : null;
   const remaining = expires ? Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 86400000)) : 0;
   const ratio = data?.limit_gb ? Math.min(100, Math.round((Number(data.used_gb) / Number(data.limit_gb)) * 100)) : 0;
+  const remainingGb = Math.max(0, Number(data?.remaining_gb ?? Number(data?.limit_gb ?? 0) - Number(data?.used_gb ?? 0)));
+  const expired = data?.status === 'expired' || data?.status === 'disabled' || remaining <= 0;
+  const expiring = !expired && (data?.status === 'expiring' || remaining <= 7);
+  const statusTone = expired ? 'danger' : expiring ? 'warn' : 'ok';
+  const statusLabel = expired ? 'منقضی' : expiring ? 'نزدیک انقضا' : 'فعال';
+  const copyPageLink = async () => {
+    await navigator.clipboard.writeText(pageUrl);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+  const sharePage = async () => {
+    if (navigator.share) {
+      await navigator.share({ title: data?.plan || 'اشتراک پالس', text: 'صفحهٔ وضعیت اشتراک من', url: pageUrl });
+    } else {
+      await copyPageLink();
+    }
+    setShared(true);
+    window.setTimeout(() => setShared(false), 1800);
+  };
+  useEffect(() => {
+    if (data?.plan) document.title = `${data.plan} · پالس`;
+    return () => { document.title = 'پالس'; };
+  }, [data?.plan]);
   if (state === 'loading') return <div className="public-sub-page"><div className="public-sub-loader"><span className="pulse-mark large"><span /></span><p>در حال آماده‌سازی اشتراک...</p></div></div>;
   if (state === 'error') return <div className="public-sub-page"><div className="public-sub-card public-sub-error"><div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="public-sub-icon"><ShieldCheck size={24} /></div><h1>لینک اشتراک در دسترس نیست</h1><p>ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="button button-primary">بازگشت</a></div></div>;
-  return <div className="public-sub-page" dir="rtl"><main className="public-sub-card"><header className="public-sub-header"><div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><span className="public-sub-secure"><ShieldCheck size={14} /> لینک امن</span></header><section className="public-sub-hero"><p className="eyebrow">اشتراک اینترنت</p><h1>{data.customer_name || 'اشتراک شما'}</h1><div className="public-sub-plan"><span className="public-sub-status"><span /> فعال</span><strong>{data.plan}</strong><span dir="ltr">@{data.username}</span></div></section><section className="public-sub-usage"><div className="public-sub-usage-head"><div><span>مصرف‌شده</span><strong>{data.used_gb} از {data.limit_gb} گیگ</strong></div><div className="public-sub-days"><span>باقی‌مانده</span><strong>{new Intl.NumberFormat('fa-IR').format(remaining)} روز</strong></div></div><div className="public-sub-progress"><span style={{ width: `${ratio}%` }} /></div><div className="public-sub-usage-foot"><span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</span><span>انقضا: {dateLabel(data.expires_at)}</span></div></section><section className="public-sub-actions"><a className="public-sub-primary-action" href={v2boxInstall}><Globe2 size={19} /><span><strong>افزودن به V2Box</strong><small>با یک لمس در اپلیکیشن باز می‌شود</small></span><ChevronLeft size={17} /></a><div className="public-sub-action-row"><button onClick={() => navigator.clipboard.writeText(absoluteUrl)}><Copy size={17} /><span>کپی لینک</span></button>{data.awg_ready && <a href={data.awg_url}><Wifi size={17} /><span>دانلود AWG</span></a>}</div></section><section className="public-sub-link"><p>لینک اشتراک شما</p><div dir="ltr">{absoluteUrl}</div></section><section className="public-sub-qr"><SubscriptionQr url={absoluteUrl} /></section><SubscriptionClientActions url={absoluteUrl} name={data.plan || 'Pulse'} /><footer className="public-sub-footer"><ShieldCheck size={15} /><span>این صفحه فقط اطلاعات همین اشتراک را نمایش می‌دهد. رمز یا اطلاعات پنل در مرورگر ذخیره نمی‌شود.</span></footer></main></div>;
+  return <div className="public-sub-page" dir="rtl"><main className="public-sub-card"><header className="public-sub-header"><div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><span className="public-sub-secure"><ShieldCheck size={14} /> لینک امن</span></header><section className="public-sub-hero"><p className="eyebrow">مرکز کنترل اشتراک</p><h1>{data.customer_name || 'اشتراک شما'}</h1><div className="public-sub-plan"><span className={`public-sub-status ${statusTone}`}><span /> {statusLabel}</span><strong>{data.plan}</strong><span dir="ltr">@{data.username}</span></div></section><section className={`public-sub-status-card ${statusTone}`}><div><span className="public-sub-status-kicker">{expired ? 'برای ادامه، تمدید لازم است' : expiring ? 'زمان تمدید نزدیک است' : 'همه‌چیز آمادهٔ اتصال است'}</span><strong>{expired ? 'این اشتراک دیگر فعال نیست' : expiring ? `${new Intl.NumberFormat('fa-IR').format(remaining)} روز تا پایان اعتبار` : 'اشتراک شما فعال و قابل استفاده است'}</strong></div><span className="public-sub-status-icon">{expired ? '!' : expiring ? '!' : '✓'}</span></section><section className="public-sub-usage"><div className="public-sub-usage-head"><div><span>مصرف‌شده</span><strong>{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(Number(data.used_gb))} از {new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(Number(data.limit_gb))} گیگ</strong></div><div className="public-sub-days"><span>حجم باقی‌مانده</span><strong>{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(remainingGb)} گیگ</strong></div></div><div className="public-sub-progress"><span style={{ width: `${ratio}%` }} /></div><div className="public-sub-usage-foot"><span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</span><span>انقضا: {dateLabel(data.expires_at)}</span></div></section><section className="public-sub-actions"><a className="public-sub-primary-action" href={v2boxInstall}><Globe2 size={19} /><span><strong>افزودن به V2Box</strong><small>با یک لمس در اپلیکیشن باز می‌شود</small></span><ChevronLeft size={17} /></a><div className="public-sub-action-row"><button type="button" onClick={() => void copyPageLink()}><Copy size={17} /><span>{copied ? 'لینک صفحه کپی شد' : 'کپی لینک صفحه'}</span></button>{data.awg_ready && <a href={data.awg_url}><Wifi size={17} /><span>دانلود AWG</span></a>}<button type="button" onClick={() => void sharePage()}><ArrowUpLeft size={17} /><span>{shared ? 'اشتراک‌گذاری شد' : 'اشتراک‌گذاری'}</span></button></div></section><section className="public-sub-link"><p>لینک صفحهٔ اشتراک</p><div dir="ltr">{pageUrl}</div><small>برای مشاهدهٔ وضعیت و QR استفاده کنید؛ برای افزودن به کلاینت، از دکمهٔ اتصال سریع پایین صفحه استفاده کنید.</small></section><section className="public-sub-qr"><SubscriptionQr url={pageUrl} /></section><section className="public-sub-install"><div className="public-sub-install-heading"><span className="eyebrow">نصب در سه قدم</span><strong>سریع‌ترین راه اتصال</strong></div><div className="public-sub-steps"><div><b>۱</b><span>کلاینت را انتخاب کنید</span></div><div><b>۲</b><span>افزودن یا کپی لینک</span></div><div><b>۳</b><span>اتصال را روشن کنید</span></div></div></section><SubscriptionClientActions url={feedUrl} name={data.plan || 'Pulse'} /><footer className="public-sub-footer"><ShieldCheck size={15} /><span>این صفحه فقط اطلاعات همین اشتراک را نمایش می‌دهد. رمز یا اطلاعات پنل در مرورگر ذخیره نمی‌شود.</span></footer></main></div>;
 }
 
 export function SettingsPage() {
