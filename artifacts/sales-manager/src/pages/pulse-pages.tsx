@@ -25,6 +25,7 @@ const mapService = (item: any): Service => ({ id: String(item.id), customerId: S
 const mapCustomer = (item: any): Customer => ({ id: String(item.id), name: item.name ?? 'مشتری', phone: item.phone ?? 'ثبت نشده', email: item.email ?? 'ثبت نشده', activeServices: Number(item.active_services ?? 0), totalSpend: Number(item.total_spend ?? 0), lastPurchase: item.last_purchase ?? '' });
 type CustomerTab = 'active' | 'inactive';
 const CUSTOMER_PAGE_SIZE = 12;
+type CustomerServiceTab = 'active' | 'inactive';
 const fetchCustomerCrm = async (id: number, page = 1) => {
   const response = await fetch(`/api/customers/${id}/crm?page=${page}&page_size=8`, { credentials: 'include' });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'اطلاعات CRM دریافت نشد.');
@@ -942,6 +943,12 @@ export function Customers() {
   return <><PageHeader eyebrow="ارتباط با مشتری" title="مشتری‌ها" description={`${numberFormat.format(visibleTotal)} مشتری در بخش ${tab === 'active' ? 'فعال' : 'غیرفعال'} نمایش داده می‌شود.`} action={<div className="directory-stat"><UserRound size={15} /> {numberFormat.format(visibleTotal)} {tab === 'active' ? 'حساب فعال' : 'مشتری غیرفعال'}</div>} /><div className="customer-toolbar"><div className="search-field wide"><Search size={16} /><input placeholder="جست‌وجوی نام، ایمیل یا شماره" value={search} onChange={(event) => updateSearch(event.target.value)} data-testid="input-search-customers" /><span className={`customer-search-state ${loading ? 'is-loading' : ''}`}>{loading ? 'در حال جست‌وجو' : 'جست‌وجوی زنده'}</span></div><Button variant="secondary" onClick={clearSearch} disabled={!search} testId="button-clear-customer-search">پاک کردن جست‌وجو</Button></div><div className="customer-tabs" role="tablist" aria-label="فیلتر وضعیت مشتری"><button type="button" role="tab" aria-selected={tab === 'active'} className={tab === 'active' ? 'selected' : ''} onClick={() => selectTab('active')} data-testid="button-customers-active">فعال</button><button type="button" role="tab" aria-selected={tab === 'inactive'} className={tab === 'inactive' ? 'selected' : ''} onClick={() => selectTab('inactive')} data-testid="button-customers-inactive">غیرفعال</button></div>{error && <div className="login-error mb-4">{error}</div>}{loading && !visibleCustomers.length ? <div className="customer-list-state"><RefreshCw size={18} className="spin" /><span>در حال دریافت مشتری‌ها...</span></div> : <section className="customer-list">{visibleCustomers.map((customer, index) => <Link href={`/customers/${customer.id}`} className="customer-row" key={customer.id} data-testid={`row-customer-${customer.id}`}><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><div className="min-w-0 flex-1"><p className="font-bold">{customer.name}</p><p className="text-xs text-muted-foreground">{customer.email} · {customer.phone}</p></div><div className="customer-col"><span className="text-xs text-muted-foreground">سرویس فعال</span><strong>{numberFormat.format(customer.activeServices)}</strong></div><div className="customer-col hidden sm:flex"><span className="text-xs text-muted-foreground">مجموع خرید</span><strong>{money(customer.totalSpend)}</strong></div><div className="customer-col hidden md:flex"><span className="text-xs text-muted-foreground">آخرین خرید</span><strong>{dateLabel(customer.lastPurchase)}</strong></div><ChevronLeft size={17} className="ml-2 text-muted-foreground" /></Link>)}</section>}{!loading && !visibleCustomers.length && <EmptyState title={tab === 'active' ? 'مشتری فعال پیدا نشد' : 'مشتری غیرفعالی پیدا نشد'} detail={search ? 'عبارت جست‌وجو یا تب وضعیت را تغییر دهید.' : 'با ثبت سرویس فعال، مشتری در این بخش نمایش داده می‌شود.'} />}{totalPages > 1 && <nav className="customer-pagination" aria-label="صفحه‌بندی مشتری‌ها"><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0 || loading} data-testid="button-customers-previous"><ChevronRight size={15} /> قبلی</button><span>صفحه {numberFormat.format(page + 1)} از {numberFormat.format(totalPages)}</span><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))} disabled={page >= totalPages - 1 || loading} data-testid="button-customers-next">بعدی <ChevronLeft size={15} /></button></nav>}</>;
 }
 
+function CustomerServiceControls({ services, tab, search, onTabChange, onSearchChange }: { services: Service[]; tab: CustomerServiceTab; search: string; onTabChange: (tab: CustomerServiceTab) => void; onSearchChange: (value: string) => void }) {
+  const activeCount = services.filter((service) => service.status === 'Active' || service.status === 'Expiring').length;
+  const inactiveCount = services.length - activeCount;
+  return <div className="customer-service-controls"><div className="customer-service-search search-field"><Search size={15} /><input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="جست‌وجوی سرویس، نام کاربری یا پنل" aria-label="جست‌وجوی سرویس‌های مشتری" data-testid="input-search-customer-services" />{search && <button type="button" onClick={() => onSearchChange('')} aria-label="پاک کردن جست‌وجوی سرویس"><X size={13} /></button>}</div><div className="customer-service-tabs" role="tablist" aria-label="فیلتر سرویس‌های مشتری"><button type="button" role="tab" aria-selected={tab === 'active'} className={tab === 'active' ? 'selected' : ''} onClick={() => onTabChange('active')} data-testid="button-customer-services-active">فعال <span>{new Intl.NumberFormat('fa-IR').format(activeCount)}</span></button><button type="button" role="tab" aria-selected={tab === 'inactive'} className={tab === 'inactive' ? 'selected' : ''} onClick={() => onTabChange('inactive')} data-testid="button-customer-services-inactive">غیرفعال <span>{new Intl.NumberFormat('fa-IR').format(inactiveCount)}</span></button></div></div>;
+}
+
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const { customers, services, sales, renewService, resetServiceToken, session } = usePulse();
@@ -950,8 +957,28 @@ export function CustomerDetail() {
   const apiDetail = customerDetailQuery.data;
   const apiCustomer = apiDetail ? mapCustomer(apiDetail) : null;
   const customer = apiCustomer ?? customers.find((item) => item.id === id);
-  const customerServices = apiDetail?.services?.map(mapService) ?? services.filter((service) => service.customerName === customer?.name || service.customerId === id);
+  const allCustomerServices = apiDetail?.services?.map(mapService) ?? services.filter((service) => service.customerName === customer?.name || service.customerId === id);
   const customerSales = apiDetail?.sales?.map(mapSale) ?? sales.filter((sale) => sale.customerName === customer?.name);
+  const [serviceTab, setServiceTab] = useState<CustomerServiceTab>('active');
+  const [serviceSearch, setServiceSearch] = useState('');
+  useEffect(() => {
+    setServiceTab('active');
+    setServiceSearch('');
+  }, [id]);
+  const visibleCustomerServices = allCustomerServices.filter((service) => {
+    const isActive = service.status === 'Active' || service.status === 'Expiring';
+    const matchesTab = serviceTab === 'active' ? isActive : !isActive;
+    const query = serviceSearch.trim().toLowerCase();
+    const matchesSearch = !query || `${service.plan} ${service.username} ${service.panel} ${service.note}`.toLowerCase().includes(query);
+    return matchesTab && matchesSearch;
+  });
+  const customerServices = {
+    length: visibleCustomerServices.length,
+    map: (render: (service: Service) => ReactNode) => [
+      <CustomerServiceControls key="customer-service-controls" services={allCustomerServices} tab={serviceTab} search={serviceSearch} onTabChange={setServiceTab} onSearchChange={setServiceSearch} />,
+      ...visibleCustomerServices.map(render),
+    ],
+  } as { length: number; map: (render: (service: Service) => ReactNode) => ReactNode[] };
   const [notice, setNotice] = useState('');
   const [working, setWorking] = useState('');
   const [crm, setCrm] = useState<{ tags: string[]; notes: { id: number; note: string; created_at: string }[]; timeline: { id: number; type: string; title: string; detail: string; created_at: string }[]; timeline_pagination?: { page: number; page_size: number; total: number; total_pages: number; has_next: boolean; has_previous: boolean } } | null>(null);
