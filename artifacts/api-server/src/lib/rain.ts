@@ -122,8 +122,13 @@ export async function rainConfigured(ownerId?: number, role?: string): Promise<b
 }
 
 export function subscriptionUrl(token: string): string {
+  return `/api/public/subscription/${encodeURIComponent(token)}/feed`;
+}
+
+export function legacySubscriptionUrl(token: string): string {
   const base =
-    process.env.SUBSCRIPTION_BASE_URL?.trim() ||
+    process.env.SUBSCRIPTION_UPSTREAM_BASE_URL?.trim() ||
+    process.env.LEGACY_SUBSCRIPTION_BASE_URL?.trim() ||
     "https://peppernopepper.com/reseller/sub.php";
   const separator = base.includes("?") ? "&" : "?";
   return `${base}${separator}t=${encodeURIComponent(token)}`;

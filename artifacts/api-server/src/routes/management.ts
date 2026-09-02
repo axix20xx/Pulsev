@@ -51,6 +51,7 @@ import {
   createSubscriptionToken,
   provisionUser,
   RainApiError,
+  legacySubscriptionUrl,
   subscriptionUrl,
 } from "../lib/rain";
 import {
@@ -335,7 +336,8 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
   }
   const result = await pool.query(
     `SELECT svc.id, svc.rain_username AS username, svc.label AS plan, svc.status, svc.expire_at AS expires_at,
-            svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.awg_client_id,
+            svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes, svc.last_remaining_bytes,
+            svc.awg_client_id,
             c.full_name AS customer_name, rst.token
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
@@ -350,6 +352,16 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     return;
   }
   const usedGb = Number(row.last_used_bytes ?? 0) / (1024 ** 3);
+  const totalBytes = Number(row.last_total_bytes) > 0
+    ? Number(row.last_total_bytes)
+    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
+  const storedRemainingBytes = row.last_remaining_bytes === null || row.last_remaining_bytes === undefined
+    ? null
+    : Number(row.last_remaining_bytes);
+  const remainingBytes = storedRemainingBytes !== null && Number.isFinite(storedRemainingBytes)
+    ? Math.max(0, storedRemainingBytes)
+    : Math.max(0, totalBytes - usedBytes);
   res.json({
     customer_name: row.customer_name,
     username: row.username,
@@ -358,11 +370,84 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     expires_at: row.expires_at,
     used_gb: Number(usedGb.toFixed(2)),
     limit_gb: Number(row.limit_gb ?? 0),
-    subscription_url: subscriptionUrl(token),
+    remaining_gb: Number((remainingBytes / (1024 ** 3)).toFixed(2)),
+    subscription_url: `/api/public/subscription/${encodeURIComponent(token)}/feed`,
+    public_url: `/sub?t=${encodeURIComponent(token)}`,
     awg_ready: Boolean(row.awg_client_id),
     awg_url: row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
     provider_label: "V2Box",
   });
+});
+
+router.get("/public/subscription/:token/feed", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).send("Invalid subscription token");
+    return;
+  }
+  const result = await pool.query(
+    `SELECT svc.rain_username AS username, svc.label AS plan, svc.expire_at AS expires_at,
+            svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes,
+            svc.last_remaining_bytes
+     FROM reseller_sub_tokens rst
+     JOIN reseller_services svc ON svc.id = rst.service_id
+     WHERE rst.token = $1
+     LIMIT 1`,
+    [token],
+  );
+  const row = result.rows[0];
+  if (!row) {
+    res.status(404).send("Subscription not found");
+    return;
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(legacySubscriptionUrl(token), {
+      headers: {
+        Accept: req.get("accept") || "*/*",
+        "User-Agent": req.get("user-agent") || "PulseSubscription/1.0",
+      },
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    res.status(502).send("Subscription provider is unavailable");
+    return;
+  }
+  if (!upstream.ok) {
+    res.status(502).send("Subscription provider rejected the request");
+    return;
+  }
+
+  const totalBytes = Number(row.last_total_bytes) > 0
+    ? Number(row.last_total_bytes)
+    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
+  const storedRemainingBytes = row.last_remaining_bytes === null || row.last_remaining_bytes === undefined
+    ? null
+    : Number(row.last_remaining_bytes);
+  const remainingBytes = storedRemainingBytes !== null && Number.isFinite(storedRemainingBytes)
+    ? Math.max(0, storedRemainingBytes)
+    : Math.max(0, totalBytes - usedBytes);
+  const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+  const expire = Number.isFinite(expiresAt) && expiresAt > 0 ? Math.floor(expiresAt / 1000) : 0;
+
+  for (const header of ["content-type", "content-disposition", "profile-title", "profile-update-interval", "cache-control", "pragma", "expires"]) {
+    const value = upstream.headers.get(header);
+    if (value) res.setHeader(header, value);
+  }
+  res.setHeader("profile-title", Buffer.from(String(row.plan || "Pulse"), "utf8").toString("base64"));
+  res.setHeader(
+    "subscription-userinfo",
+    `upload=0; download=${usedBytes}; total=${totalBytes}; expire=${expire}; remaining=${remainingBytes}`,
+  );
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const webOrigin = `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}`;
+  res.setHeader("profile-web-page-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  res.setHeader("content-type", upstream.headers.get("content-type") || "text/plain; charset=utf-8");
+  res.send(await upstream.text());
 });
 
 router.get("/public/subscription/:token/awg", async (req, res): Promise<void> => {

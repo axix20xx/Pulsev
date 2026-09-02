@@ -14,3 +14,9 @@ Client deep links should use documented schemes where available (V2Box, Clash/Ka
 **Why:** App URL schemes differ by platform and some commonly copied Streisand/Shadowrocket formats are not stable or officially documented.
 
 **How to apply:** Treat the subscription URL itself as the universal source of truth, expose one-tap schemes only when verified, and always retain a visible copy/import path.
+
+The browser-facing `/sub?t=` route is an HTML details page, not an app-import feed. App links must target the domain-prefixed public feed proxy, which preserves the upstream subscription body and forwards the requesting client headers.
+
+**Why:** Subscription apps cannot parse the React page, while the legacy provider feed already emits the configuration format and supports client-specific negotiation.
+
+**How to apply:** Keep the stored/display page URL separate from the feed URL, proxy the legacy upstream feed without rewriting its body, and override `subscription-userinfo` from the database so quota and expiry remain accurate even when the upstream cache is stale.
