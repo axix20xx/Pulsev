@@ -12,3 +12,4 @@
 - [Reseller payment ledger](reseller-payment-ledger.md) — reseller credit invoices are the source of due, paid, and remaining balances owed to the master admin.
 - [Universal reseller search](universal-reseller-search.md) — global search must be server-side, normalize Persian/Arabic phone digits, include subscription links, and enforce ownership in every result source.
 - [Master-admin sales ledger](master-admin-sales-ledger.md) — detailed reseller/customer sales belong on a separate master-admin page; deletion must affect only the sales log.
+- [Service wizard presets](service-wizard-presets.md) — quick GB/day choices are UI shortcuts only; preserve the numeric create-service payload and live Tehran expiry display.

@@ -547,7 +547,108 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
   const customerMatches = finderQuery.length >= 2
     ? customers.filter((customer) => normalizedPhone(customer.phone).includes(finderQuery) || customer.name.toLowerCase().includes(finderQuery)).slice(0, 5)
     : [];
-  const dateOptions = [{ days: 7, label: '۷ روز' }, { days: 30, label: '۳۰ روز' }, { days: 60, label: '۶۰ روز' }, { days: 90, label: '۹۰ روز' }, { days: 180, label: '۶ ماه' }];
+  const gbOptions = [{ gb: 10, label: '۱۰ گیگ', note: 'شروع سبک' }, { gb: 30, label: '۳۰ گیگ', note: 'محبوب‌ترین' }, { gb: 50, label: '۵۰ گیگ', note: 'پرمصرف' }, { gb: 100, label: '۱۰۰ گیگ', note: 'حرفه‌ای' }];
+  const dateOptions = [{ days: 7, label: '۷ روز', note: 'هفتگی' }, { days: 30, label: '۳۰ روز', note: 'ماهانه' }, { days: 60, label: '۶۰ روز', note: 'دوماهه' }, { days: 90, label: '۹۰ روز', note: 'فصلی' }, { days: 180, label: '۶ ماه', note: 'بلندمدت' }];
+  const isReseller = session?.role === 'reseller';
+  const customerPricePerGb = Number(session?.customer_price_per_gb ?? 0);
+  const lockedSellPrice = customerPricePerGb * Number(form.gb || 0);
+  const currentSellPrice = isReseller ? lockedSellPrice : Number(form.sellPrice || 0);
+  const smartSuggestion = useMemo(() => {
+    if (!selectedCustomerId) return null;
+    const history = services.filter((service) => service.customerId === selectedCustomerId || service.customerName === form.customerName);
+    const gbValues = history.map((service) => Number(service.limitGb)).filter((value) => value > 0);
+    const medianGb = gbValues.length ? [...gbValues].sort((a, b) => a - b)[Math.floor(gbValues.length / 2)] : 30;
+    const suggestedGb = Math.max(1, Math.round(medianGb / 5) * 5);
+    const remainingDays = history.map((service) => service.expiresAt ? Math.ceil((new Date(service.expiresAt).getTime() - Date.now()) / 86_400_000) : 0).filter((value) => value > 0);
+    const typicalDays = remainingDays.length ? remainingDays.sort((a, b) => a - b)[Math.floor(remainingDays.length / 2)] : 30;
+    const suggestedDays = [30, 60, 90].sort((a, b) => Math.abs(a - typicalDays) - Math.abs(b - typicalDays))[0];
+    return { gb: suggestedGb, days: suggestedDays, historyCount: history.length };
+  }, [form.customerName, selectedCustomerId, services]);
+  const projectedExpiry = new Date(Date.now() + Number(form.days || 0) * 86_400_000).toISOString();
+  useEffect(() => {
+    fetch('/api/providers/available', { credentials: 'include' })
+      .then((response) => response.ok ? response.json() : [])
+      .then(setProviders)
+      .catch(() => setProviders([]));
+  }, []);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      const service = await createService({
+        customer_name: form.customerName.trim(),
+        phone: form.phone.trim(),
+        label: form.label.trim(),
+        gb: Number(form.gb),
+        days: Number(form.days),
+        sell_price: isReseller ? lockedSellPrice : form.sellPrice ? Number(form.sellPrice) : null,
+        is_paid: form.isPaid,
+      });
+      setCreated(service);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ساخت سرویس انجام نشد.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  if (created) {
+    const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl;
+    return <Overlay title="سرویس با موفقیت ساخته شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{created.customerName}</h3><p dir="ltr">@{created.username}</p><p>سرویس روی همه Providerهای آماده و AmneziaWG ساخته و همگام شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک آمادهٔ استفاده است</strong><span>QR را اسکن کنید یا لینک را برای مشتری کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => navigator.clipboard.writeText(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(created)}><ExternalLink size={15} /> افزودن به V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl}><Wifi size={15} /> دانلود AmneziaWG</a>}</div></>}<Button className="mt-5 w-full justify-center" onClick={onClose}>تمام</Button></div></Overlay>;
+  }
+  const canContinue = step === 1
+    ? Boolean(form.customerName.trim() && normalizedPhone(form.phone).length >= 10)
+    : step === 2
+      ? Number(form.gb) > 0 && Number(form.days) > 0
+      : providers.length > 0;
+  return <Overlay title="ساخت سرویس جدید" onClose={onClose} fullScreen><form onSubmit={submit} className="wizard-shell service-wizard-redesign">
+    <div className="service-wizard-hero"><div><p className="eyebrow">ساخت سریع سرویس</p><h2>{step === 1 ? 'مشتری را پیدا کنید' : step === 2 ? 'بستهٔ مناسب را بسازید' : 'قبل از ساخت بررسی کنید'}</h2><p>سه انتخاب ساده تا یک سرویس آمادهٔ تحویل.</p></div><div className="service-wizard-hero-badge"><Sparkles size={15} /><span>سریع و دقیق</span></div></div>
+    <div className="wizard-progress">{['مشتری', 'بسته و مدت', 'تأیید نهایی'].map((label, index) => <div className={step >= index + 1 ? 'active' : ''} key={label}><span>{index + 1}</span><strong>{label}</strong></div>)}</div>
+    <div className="wizard-content">
+      {step === 1 && <div className="wizard-step">
+        <div className="wizard-kicker"><span className="wizard-step-number">۰۱</span><span>شروع سریع</span></div><h3>برای چه کسی سرویس می‌سازیم؟</h3><p className="wizard-lede">موبایل را وارد کنید تا مشتری موجود پیدا شود؛ برای مشتری تازه، نام را همین‌جا تکمیل کنید.</p>
+        <div className="finder-card"><div className="finder-icon"><Phone size={22} /></div><div className="finder-copy"><strong>پیدا کردن مشتری با موبایل</strong><span>جست‌وجو با شماره یا نام، بدون خروج از ویزارد</span></div><span className="finder-live"><i /> زنده</span></div>
+        <label className="finder-input"><Phone size={18} /><input autoFocus inputMode="tel" dir="ltr" value={form.phone} placeholder="۰۹۱۲۱۲۳۴۵۶۷" onChange={(event) => { setForm({ ...form, phone: event.target.value }); setSelectedCustomerId(null); }} /><span>موبایل</span></label>
+        {customerMatches.length > 0 && <div className="finder-results"><p>مشتری‌های پیدا شده</p>{customerMatches.map((customer) => <button type="button" className={`finder-result ${selectedCustomerId === customer.id ? 'selected' : ''}`} key={customer.id} onClick={() => { setSelectedCustomerId(customer.id); setForm({ ...form, customerName: customer.name, phone: customer.phone }); }}><Avatar name={customer.name} color="teal" /><span><strong>{customer.name}</strong><small dir="ltr">{customer.phone}</small></span><Check size={16} /></button>)}</div>}
+        {form.phone && !customerMatches.length && normalizedPhone(form.phone).length >= 10 && <div className="finder-empty"><UserPlus size={17} /><span>مشتری جدید؛ نام او را در فرم زیر تکمیل کنید.</span></div>}
+        <div className="form-grid finder-details"><Field label="نام مشتری" value={form.customerName} onChange={(customerName) => { setForm({ ...form, customerName }); setSelectedCustomerId(null); }} placeholder="نام و نام خانوادگی" /><Field label="عنوان سرویس" value={form.label} onChange={(label) => setForm({ ...form, label })} placeholder="مثلاً سرویس ویژه" /></div>
+      </div>}
+      {step === 2 && <div className="wizard-step">
+        <div className="wizard-kicker"><span className="wizard-step-number">۰۲</span><span>تنظیم دسترسی</span></div><h3>حجم و مدت را سریع انتخاب کنید</h3><p className="wizard-lede">از گزینه‌های آماده استفاده کنید یا اگر فروش خاصی دارید، مقدار سفارشی وارد کنید.</p>
+        {smartSuggestion && <div className="smart-suggestion"><div className="smart-suggestion-icon"><Sparkles size={16} /></div><div><strong>پیشنهاد بر اساس سابقه</strong><span>{smartSuggestion.historyCount} سرویس قبلی · {smartSuggestion.gb} گیگ برای {smartSuggestion.days} روز</span></div><button type="button" onClick={() => setForm({ ...form, gb: String(smartSuggestion.gb), days: String(smartSuggestion.days) })}>استفاده از پیشنهاد</button></div>}
+        <div className="wizard-quick-section"><div className="wizard-quick-heading"><div><strong>حجم سرویس</strong><span>انتخاب محبوب برای شروع</span></div><span className="wizard-quick-label">GB</span></div><div className="wizard-quick-grid">{gbOptions.map((option) => <button type="button" key={option.gb} className={Number(form.gb) === option.gb ? 'selected' : ''} onClick={() => setForm({ ...form, gb: String(option.gb) })}><strong>{option.label}</strong><small>{option.note}</small></button>)}</div></div>
+        <div className="form-grid"><Field label="حجم سفارشی (گیگابایت)" type="number" value={form.gb} onChange={(gb) => setForm({ ...form, gb })} /><label className="field"><span>مدت سفارشی (روز)</span><input type="number" min="1" value={form.days} onChange={(event) => setForm({ ...form, days: event.target.value })} /></label></div>
+        <div className="quick-date-block wizard-duration-section"><div className="quick-date-heading"><div><CalendarDays size={16} /><span>مدت سرویس</span></div><small>تاریخ انقضا خودکار محاسبه می‌شود</small></div><div className="quick-date-grid">{dateOptions.map((option) => <button type="button" key={option.days} className={Number(form.days) === option.days ? 'selected' : ''} onClick={() => setForm({ ...form, days: String(option.days) })}><strong>{option.label}</strong><small>{option.note} · {dateLabel(new Date(Date.now() + option.days * 86_400_000).toISOString())}</small></button>)}</div></div>
+        <div className="wizard-live-summary"><div><span>حجم انتخابی</span><strong>{numberFa(Number(form.gb))} گیگ</strong></div><div><span>مدت</span><strong>{numberFa(Number(form.days))} روز</strong></div><div><span>قیمت فروش</span><strong>{currentSellPrice > 0 ? money(currentSellPrice) : 'قابل تعیین'}</strong></div></div>
+        <div className="expiry-preview"><CalendarDays size={17} /><div><span>تاریخ انقضای تقریبی</span><strong>{dateLabel(projectedExpiry)}</strong></div><em>{numberFa(Number(form.days))} روز</em></div>
+      </div>}
+      {step === 3 && <div className="wizard-step">
+        <div className="wizard-kicker"><span className="wizard-step-number">۰۳</span><span>آمادهٔ ساخت</span></div><h3>همه‌چیز آماده است</h3><p className="wizard-lede">اطلاعات را یک‌بار بررسی کنید؛ بعد از تأیید، سرویس روی همهٔ Providerهای آماده و AmneziaWG ساخته می‌شود.</p>
+        <div className="wizard-summary"><div><span>مشتری</span><strong>{form.customerName}</strong><small dir="ltr">{form.phone}</small></div><div><span>بسته</span><strong>{form.gb} گیگابایت</strong><small>{form.days} روز · {dateLabel(projectedExpiry)}</small></div><div className="summary-wide"><span>اتصال‌ها</span><strong>{providers.map((provider) => provider.key).join('، ') || 'در حال بررسی'} + AmneziaWG</strong><small>Credentialهای آماده به‌صورت خودکار استفاده می‌شوند.</small></div><div><span>ثبت پرداخت</span><button type="button" className={`toggle ${form.isPaid ? 'on' : ''}`} onClick={() => setForm({ ...form, isPaid: !form.isPaid })}><span /></button></div></div>
+        <label className="field mt-5"><span>{isReseller ? 'قیمت فروش تعیین‌شده توسط مدیر' : 'قیمت فروش (اختیاری)'}</span><input type="number" value={isReseller ? String(lockedSellPrice) : form.sellPrice} placeholder="برای ثبت در دفتر مالی" disabled={isReseller} onChange={(event) => setForm({ ...form, sellPrice: event.target.value })} /></label>
+        {isReseller && <p className="text-xs text-muted-foreground mt-2">قیمت هر گیگ توسط مدیر تعیین شده و فروشنده امکان تغییر آن را ندارد.</p>}{error && <div className="login-error mt-5">{error}</div>}
+      </div>}
+    </div>
+    <div className="wizard-footer"><Button variant="secondary" disabled={step === 1 || submitting} onClick={() => setStep((value) => Math.max(1, value - 1))}>مرحله قبل</Button>{step < 3 ? <Button disabled={!canContinue} onClick={() => setStep((value) => Math.min(3, value + 1))}>ادامه <ChevronLeft size={15} /></Button> : <Button type="submit" disabled={submitting || !providers.length} testId="button-save-service">{submitting ? <><RefreshCw size={15} className="spin" /> ساخت روی همه پنل‌ها و AWG...</> : <><Check size={15} /> ساخت نهایی سرویس</>}</Button>}</div>
+  </form></Overlay>;
+}
+
+function LegacyServiceModal({ onClose }: { onClose: () => void }) {
+  const { createService, customers, services, session } = usePulse();
+  const [form, setForm] = useState({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', sellPrice: '', isPaid: true });
+  const [created, setCreated] = useState<Service | null>(null);
+  const [step, setStep] = useState(1);
+  const [providers, setProviders] = useState<any[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const normalizedPhone = (value: string) => value.replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[^\d]/g, '');
+  const finderQuery = normalizedPhone(form.phone) || form.customerName.trim().toLowerCase();
+  const customerMatches = finderQuery.length >= 2
+    ? customers.filter((customer) => normalizedPhone(customer.phone).includes(finderQuery) || customer.name.toLowerCase().includes(finderQuery)).slice(0, 5)
+    : [];
+  const gbOptions = [{ gb: 10, label: '۱۰ گیگ', detail: 'سبک' }, { gb: 30, label: '۳۰ گیگ', detail: 'محبوب' }, { gb: 50, label: '۵۰ گیگ', detail: 'پرمصرف' }, { gb: 100, label: '۱۰۰ گیگ', detail: 'حرفه‌ای' }];
+  const dateOptions = [{ days: 7, label: '۷ روز', detail: 'هفتگی' }, { days: 30, label: '۳۰ روز', detail: 'ماهانه' }, { days: 60, label: '۶۰ روز', detail: 'دوماهه' }, { days: 90, label: '۹۰ روز', detail: 'فصلی' }, { days: 180, label: '۶ ماه', detail: 'بلندمدت' }];
   const isReseller = session?.role === 'reseller';
   const customerPricePerGb = Number(session?.customer_price_per_gb ?? 0);
   const lockedSellPrice = customerPricePerGb * Number(form.gb || 0);
