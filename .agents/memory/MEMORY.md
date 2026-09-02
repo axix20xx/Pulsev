@@ -21,3 +21,4 @@
 - [Seller notification center](seller-notification-center.md) — notifications are owner-scoped and in-app; AWG readiness must not use usage-sync-mutated timestamps.
 - [Mobile operational surfaces](mobile-operational-surfaces.md) — fixed bottom navigation needs safe-area space, and dense operational tables should become readable record cards on phone widths.
 - [Insight ownership scopes](insight-ownership-scopes.md) — aggregate dashboards must scope joined customer, service, sale, and job rows independently for every reseller.
+- [ThreeUI integration](threeui-integration.md) — keep WebGL as a resilient visual enhancement with reduced-motion/fallback paths and package-scoped installation.

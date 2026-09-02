@@ -2131,6 +2131,29 @@ body::before {
   width: calc(100% - 6px);
 }
 
+.page-header {
+  position: relative;
+  overflow: hidden;
+}
+
+.page-header-copy, .page-header > .button {
+  position: relative;
+  z-index: 1;
+}
+
+.page-header-network {
+  position: absolute;
+  top: -26px;
+  right: -16px;
+  width: min(38vw, 300px);
+  min-height: 100px !important;
+  margin: 0 !important;
+  border: 0;
+  background: linear-gradient(135deg, hsl(188 82% 33% / .08), transparent);
+  opacity: .52;
+  pointer-events: none;
+}
+
 .login-screen {
   background:
     radial-gradient(circle at 20% 10%, hsl(188 82% 33% / .17), transparent 24rem),
