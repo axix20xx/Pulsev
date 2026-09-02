@@ -1,12 +1,13 @@
-import { useMemo, useState, useEffect, createContext, useContext, type ReactNode, type FormEvent } from 'react';
+import { useMemo, useState, useEffect, createContext, useContext, useId, useRef, type ReactNode, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Activity, ArrowUpLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, CreditCard, Download, ExternalLink, Filter, Globe2, History, KeyRound, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Tag, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Link, useLocation, useParams } from 'wouter';
 import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, type AdminSale } from '@workspace/api-client-react';
-import { Customer, Service, Sale, activities, dateLabel, dateTimeLabel, daysUntil, initialCustomers, initialSales, initialServices, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, money, panels, todayLabel } from '@/lib/pulse-data';
+import { Customer, Service, Sale, dateLabel, dateTimeLabel, daysUntil, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, money, todayLabel } from '@/lib/pulse-data';
 import { Avatar, PageHeader, StatusPill } from '@/components/pulse-shell';
 import { PulseNetworkAccent } from '@/components/pulse-network-accent';
+import { copyTextToClipboard } from '@/lib/browser-utils';
 
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
 type PulseContextValue = {
@@ -76,7 +77,7 @@ const subscriptionClients = (url: string, name: string): SubscriptionClient[] =>
 function SubscriptionClientActions({ url, name, compact = false }: { url: string; name: string; compact?: boolean }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    await navigator.clipboard.writeText(url);
+    if (!(await copyTextToClipboard(url))) return;
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   };
@@ -85,10 +86,10 @@ function SubscriptionClientActions({ url, name, compact = false }: { url: string
 }
 
 export function PulseProvider({ children }: { children: ReactNode }) {
-  const [sales, setSales] = usePersisted('sales', initialSales);
-  const [services, setServices] = usePersisted('services', initialServices);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [prefs, setPrefs] = usePersisted<Prefs>('prefs', { businessName: 'مرکز فروش پالس', currency: 'تومان', reminderDays: '۷', compact: false });
-  const [localResellers, setLocalResellers] = usePersisted('resellers', [{ id: 1, telegram_id: 0, title: 'فروشنده نمونه', enabled: true, used_gb: 286, total_gb: 1000 }, { id: 2, telegram_id: 0, title: 'فروشنده آزمایشی', enabled: false, used_gb: 74, total_gb: 500 }]);
+  const [localResellers, setLocalResellers] = useState<PulseContextValue['resellers']>([]);
   const queryClient = useQueryClient();
   const sessionQuery = useGetAuthSession({ query: { queryKey: getGetAuthSessionQueryKey() } });
   const canLoadApi = sessionQuery.data?.authenticated === true;
@@ -107,17 +108,39 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const apiCustomers = useMemo(() => Array.isArray(customersQuery.data) ? customersQuery.data.map(mapCustomer) : null, [customersQuery.data]);
   const apiSales = useMemo(() => Array.isArray(salesQuery.data) ? salesQuery.data.map(mapSale) : null, [salesQuery.data]);
   const apiServices = useMemo(() => Array.isArray(servicesQuery.data) ? servicesQuery.data.map(mapService) : null, [servicesQuery.data]);
-  useEffect(() => { if (apiSales) setSales(apiSales); }, [apiSales, setSales]);
-  useEffect(() => { if (apiServices) setServices(apiServices); }, [apiServices, setServices]);
-  const customers = useMemo(() => {
-    if (apiCustomers) return apiCustomers;
-    return initialCustomers.map((customer) => ({ ...customer, activeServices: services.filter((service) => service.customerName === customer.name && service.status !== 'Expired' && service.status !== 'Disabled').length, totalSpend: sales.filter((sale) => sale.customerName === customer.name).reduce((sum, sale) => sum + sale.amount, 0) + customer.totalSpend - initialSales.filter((sale) => sale.customerName === customer.name).reduce((sum, sale) => sum + sale.amount, 0) }));
-  }, [apiCustomers, sales, services]);
+  useEffect(() => { setSales(apiSales ?? []); }, [apiSales]);
+  useEffect(() => { setServices(apiServices ?? []); }, [apiServices]);
+  useEffect(() => {
+    if (canLoadApi) return;
+    setSales([]);
+    setServices([]);
+    setLocalResellers([]);
+    setRenewTarget(null);
+  }, [canLoadApi]);
+  const customers = useMemo(() => apiCustomers ?? [], [apiCustomers]);
   const authFallback = Boolean(sessionQuery.error);
   const displaySession = sessionQuery.data ?? null;
   const resellers = Array.isArray(resellerQuery.data) ? resellerQuery.data.map((r: any) => ({ id: r.id, telegram_id: Number(r.telegram_id), title: r.title, enabled: r.enabled, used_gb: r.used_gb, total_gb: r.total_gb, per_gig_price: Number(r.per_gig_price ?? 0), customer_price_per_gb: Number(r.customer_price_per_gb ?? 0) })) : localResellers;
-  const updateSale = (sale: Sale) => { setSales((items) => items.map((item) => item.id === sale.id ? sale : item)); const id = Number(sale.id.replace(/\D/g, '')); if (canLoadApi && Number.isFinite(id) && id > 0) updateSaleApi.mutate({ id, data: { is_paid: sale.paid, custom_sell_price: sale.amount } }); };
-  const updateService = (service: Service) => { setServices((items) => items.map((item) => item.id === service.id ? service : item)); const id = Number(service.id.replace(/\D/g, '')); if (canLoadApi && Number.isFinite(id) && id > 0) updateServiceApi.mutate({ id, data: { status: service.status === 'Disabled' ? 'disabled' : service.status === 'Expired' ? 'expired' : 'active', admin_notes: service.note || null } }); };
+  const updateSale = (sale: Sale) => {
+    setSales((items) => items.map((item) => item.id === sale.id ? sale : item));
+    const id = Number(sale.id.replace(/\D/g, ''));
+    if (canLoadApi && Number.isFinite(id) && id > 0) {
+      updateSaleApi.mutate(
+        { id, data: { is_paid: sale.paid, custom_sell_price: sale.amount } },
+        { onError: () => void queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() }) },
+      );
+    }
+  };
+  const updateService = (service: Service) => {
+    setServices((items) => items.map((item) => item.id === service.id ? service : item));
+    const id = Number(service.id.replace(/\D/g, ''));
+    if (canLoadApi && Number.isFinite(id) && id > 0) {
+      updateServiceApi.mutate(
+        { id, data: { status: service.status === 'Disabled' ? 'disabled' : service.status === 'Expired' ? 'expired' : 'active', admin_notes: service.note || null } },
+        { onError: () => void queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() }) },
+      );
+    }
+  };
   const refreshRealData = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey() }), queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() }), queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() }), queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() })]); };
   const createService = async (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean }) => { const result = await createServiceApi.mutateAsync({ data: input }); await refreshRealData(); return mapService(result.service); };
   const renewService = async (service: Service, days = 30, gb = service.limitGb) => { const id = Number(service.id.replace(/\D/g, '')); if (!canLoadApi || !Number.isFinite(id) || id <= 0) throw new Error('برای تمدید باید وارد سامانه شوید.'); const renewed = await renewServiceApi.mutateAsync({ id, data: { days, gb } }); await Promise.all([refreshRealData(), queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) })]); return mapService(renewed); };
@@ -154,7 +177,25 @@ const EmptyState = ({ title, detail, action }: { title: string; detail: string; 
 function SurfaceFrame({ name, children, signal = false }: { name: string; children: ReactNode; signal?: boolean }) {
   return <div className={`pulse-surface pulse-surface-${name}`}>{signal && <PulseNetworkAccent className="surface-network" />}{children}</div>;
 }
-const Overlay = ({ title, onClose, children, fullScreen = false }: { title: string; onClose: () => void; children: ReactNode; fullScreen?: boolean }) => <div className={`modal-backdrop ${fullScreen ? 'wizard-backdrop' : ''}`}><div className={`modal-card ${fullScreen ? 'modal-card-full' : ''}`}><div className="flex items-start justify-between border-b border-border pb-4"><div><p className="eyebrow">فضای کاری پالس</p><h2 className="mt-1 font-display text-xl font-extrabold">{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="بستن پنجره" data-testid="button-close-dialog"><X size={18} /></button></div>{children}</div></div>;
+function Overlay({ title, onClose, children, fullScreen = false }: { title: string; onClose: () => void; children: ReactNode; fullScreen?: boolean }) {
+  const titleId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseRef.current();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, []);
+  return <div className={`modal-backdrop ${fullScreen ? 'wizard-backdrop' : ''}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className={`modal-card ${fullScreen ? 'modal-card-full' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}><div className="flex items-start justify-between border-b border-border pb-4"><div><p className="eyebrow">فضای کاری پالس</p><h2 id={titleId} className="mt-1 font-display text-xl font-extrabold">{title}</h2></div><button ref={closeButtonRef} className="icon-button" onClick={onClose} aria-label="بستن پنجره" data-testid="button-close-dialog"><X size={18} /></button></div>{children}</div></div>;
+}
 const Field = ({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string | number; onChange: (value: string) => void; placeholder?: string; type?: string }) => <label className="field"><span>{label}</span><input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /></label>;
 const PersianDateField = ({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) => {
   const [draft, setDraft] = useState(() => jalaliInputValue(value));
@@ -526,8 +567,8 @@ function PointOfSaleContent() {
     const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl;
     return <div className="pos-page"><PageHeader eyebrow="رسید فروش" title="سرویس آماده تحویل است" description="فروش در دفتر ثبت شد و لینک آماده ارسال به مشتری است." action={<Button variant="secondary" onClick={reset} testId="button-pos-new-sale"><Plus size={15} /> فروش جدید</Button>} />
       <section className="pos-success panel-card"><div className="pos-success-mark"><Check size={28} /></div><p className="eyebrow">رسید POS · {created.id}</p><h2>{created.customerName}</h2><p className="pos-success-subtitle">{created.plan} · {numberFa(created.limitGb)} گیگابایت · {form.days} روز</p>
-        {publicUrl && <div className="pos-delivery-grid"><div><span className="pos-label">لینک اشتراک مشتری</span><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="quick-actions"><button className="button button-primary" type="button" onClick={() => navigator.clipboard.writeText(new URL(publicUrl, window.location.origin).toString())}><Copy size={15} /> کپی لینک</button><a className="button button-secondary" href={v2boxUrl(created)}><ExternalLink size={15} /> V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl} download={`pulse-${created.username}.conf`}><Wifi size={15} /> دانلود AWG</a>}</div></div><SubscriptionQr url={publicUrl} /></div>}
-        <div className="pos-message-card"><div className="panel-heading"><div><p className="eyebrow">پیام آماده مشتری</p><h3 className="section-title">کپی و ارسال در تلگرام یا واتساپ</h3></div><Button variant="secondary" onClick={() => navigator.clipboard.writeText(message)} testId="button-copy-customer-message"><Copy size={14} /> کپی پیام</Button></div><textarea readOnly value={message} aria-label="پیام آماده ارسال به مشتری" /></div>
+        {publicUrl && <div className="pos-delivery-grid"><div><span className="pos-label">لینک اشتراک مشتری</span><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="quick-actions"><button className="button button-primary" type="button" onClick={() => void copyTextToClipboard(new URL(publicUrl, window.location.origin).toString())}><Copy size={15} /> کپی لینک</button><a className="button button-secondary" href={v2boxUrl(created)}><ExternalLink size={15} /> V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl} download={`pulse-${created.username}.conf`}><Wifi size={15} /> دانلود AWG</a>}</div></div><SubscriptionQr url={publicUrl} /></div>}
+        <div className="pos-message-card"><div className="panel-heading"><div><p className="eyebrow">پیام آماده مشتری</p><h3 className="section-title">کپی و ارسال در تلگرام یا واتساپ</h3></div><Button variant="secondary" onClick={() => void copyTextToClipboard(message)} testId="button-copy-customer-message"><Copy size={14} /> کپی پیام</Button></div><textarea readOnly value={message} aria-label="پیام آماده ارسال به مشتری" /></div>
       </section>
     </div>;
   }
@@ -583,7 +624,7 @@ function AdminSalesContent() {
   const copySubscription = async (sale: AdminSale) => {
     const url = subscriptionHref(sale.subscription_url);
     if (!url) return;
-    await navigator.clipboard.writeText(url);
+    if (!(await copyTextToClipboard(url))) return;
     setCopiedId(sale.id);
     window.setTimeout(() => setCopiedId((current) => current === sale.id ? null : current), 1400);
   };
@@ -704,7 +745,7 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
   };
   if (created) {
     const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl;
-    return <Overlay title="سرویس با موفقیت ساخته شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{created.customerName}</h3><p dir="ltr">@{created.username}</p><p>سرویس روی همه Providerهای آماده و AmneziaWG ساخته و همگام شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک آمادهٔ استفاده است</strong><span>QR را اسکن کنید یا لینک را برای مشتری کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => navigator.clipboard.writeText(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(created)}><ExternalLink size={15} /> افزودن به V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl}><Wifi size={15} /> دانلود AmneziaWG</a>}</div></>}<Button className="mt-5 w-full justify-center" onClick={onClose}>تمام</Button></div></Overlay>;
+    return <Overlay title="سرویس با موفقیت ساخته شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{created.customerName}</h3><p dir="ltr">@{created.username}</p><p>سرویس روی همه Providerهای آماده و AmneziaWG ساخته و همگام شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک آمادهٔ استفاده است</strong><span>QR را اسکن کنید یا لینک را برای مشتری کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => void copyTextToClipboard(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(created)}><ExternalLink size={15} /> افزودن به V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl}><Wifi size={15} /> دانلود AmneziaWG</a>}</div></>}<Button className="mt-5 w-full justify-center" onClick={onClose}>تمام</Button></div></Overlay>;
   }
   const canContinue = step === 1
     ? Boolean(form.customerName.trim() && normalizedPhone(form.phone).length >= 10)
@@ -788,7 +829,7 @@ function LegacyServiceModal({ onClose }: { onClose: () => void }) {
       setSubmitting(false);
     }
   };
-  if (created) { const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl; return <Overlay title="سرویس با موفقیت ساخته شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{created.customerName}</h3><p dir="ltr">@{created.username}</p><p>کاربر روی همه Providerهای آماده ساخته شد و AmneziaWG همگام‌سازی شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک آمادهٔ اسکن است</strong><span>QR را با دوربین موبایل مشتری اسکن کنید یا لینک را کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => navigator.clipboard.writeText(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(created)}><ExternalLink size={15} /> افزودن به V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl}><Wifi size={15} /> دانلود AmneziaWG</a>}</div></>}<Button className="mt-5 w-full justify-center" onClick={onClose}>تمام</Button></div></Overlay>; }
+  if (created) { const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl; return <Overlay title="سرویس با موفقیت ساخته شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{created.customerName}</h3><p dir="ltr">@{created.username}</p><p>کاربر روی همه Providerهای آماده ساخته شد و AmneziaWG همگام‌سازی شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک آمادهٔ اسکن است</strong><span>QR را با دوربین موبایل مشتری اسکن کنید یا لینک را کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => void copyTextToClipboard(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(created)}><ExternalLink size={15} /> افزودن به V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl}><Wifi size={15} /> دانلود AmneziaWG</a>}</div></>}<Button className="mt-5 w-full justify-center" onClick={onClose}>تمام</Button></div></Overlay>; }
   const canContinue = step === 1 ? Boolean(form.customerName.trim() && normalizedPhone(form.phone).length >= 10) : step === 2 ? Number(form.gb) > 0 && Number(form.days) > 0 : providers.length > 0;
   return <Overlay title="ساخت سرویس جدید" onClose={onClose} fullScreen><form onSubmit={submit} className="wizard-shell"><div className="wizard-progress">{['پیدا کردن مشتری', 'بسته و تاریخ', 'تأیید نهایی'].map((label, index) => <div className={step >= index + 1 ? 'active' : ''} key={label}><span>{index + 1}</span><strong>{label}</strong></div>)}</div><div className="wizard-content">{step === 1 && <div className="wizard-step"><div className="wizard-kicker"><span className="wizard-step-number">۰۱</span><span>شروع سریع</span></div><h3>برای چه کسی سرویس می‌سازیم؟</h3><p className="wizard-lede">شماره موبایل را وارد کنید؛ مشتری موجود را هوشمند پیدا می‌کنیم یا همین‌جا مشتری تازه می‌سازیم.</p><div className="finder-card"><div className="finder-icon"><Phone size={22} /></div><div className="finder-copy"><strong>جست‌وجوی سریع با موبایل</strong><span>جست‌وجو با شماره یا نام هم امکان‌پذیر است</span></div><span className="finder-live"><i /> زنده</span></div><label className="finder-input"><Phone size={18} /><input autoFocus inputMode="tel" dir="ltr" value={form.phone} placeholder="۰۹۱۲۱۲۳۴۵۶۷" onChange={(event) => { setForm({ ...form, phone: event.target.value }); setSelectedCustomerId(null); }} /><span>موبایل</span></label>{customerMatches.length > 0 && <div className="finder-results"><p>مشتری‌های پیدا شده</p>{customerMatches.map((customer) => <button type="button" className={`finder-result ${selectedCustomerId === customer.id ? 'selected' : ''}`} key={customer.id} onClick={() => { setSelectedCustomerId(customer.id); setForm({ ...form, customerName: customer.name, phone: customer.phone }); }}><Avatar name={customer.name} color="teal" /><span><strong>{customer.name}</strong><small dir="ltr">{customer.phone}</small></span><Check size={16} /></button>)}</div>}{form.phone && !customerMatches.length && normalizedPhone(form.phone).length >= 10 && <div className="finder-empty"><UserPlus size={17} /><span>مشتری جدید؛ مشخصات را تکمیل کنید.</span></div>}<div className="form-grid finder-details"><Field label="نام مشتری" value={form.customerName} onChange={(customerName) => { setForm({ ...form, customerName }); setSelectedCustomerId(null); }} placeholder="نام و نام خانوادگی" /><Field label="عنوان سرویس" value={form.label} onChange={(label) => setForm({ ...form, label })} placeholder="مثلاً سرویس ویژه" /></div></div>}{step === 2 && <div className="wizard-step"><div className="wizard-kicker"><span className="wizard-step-number">۰۲</span><span>تنظیم دسترسی</span></div><h3>بسته و تاریخ را انتخاب کنید</h3><p className="wizard-lede">حجم را دقیق وارد کنید و مدت سرویس را با پیشنهاد داده‌محور از سابقه مشتری سریع‌تر انتخاب کنید.</p>{smartSuggestion && <div className="smart-suggestion"><div className="smart-suggestion-icon"><Sparkles size={16} /></div><div><strong>پیشنهاد هوشمند</strong><span>بر اساس {smartSuggestion.historyCount} سرویس قبلی این مشتری: {smartSuggestion.gb} گیگ · {smartSuggestion.days} روز</span></div><button type="button" onClick={() => setForm({ ...form, gb: String(smartSuggestion.gb), days: String(smartSuggestion.days) })}>استفاده</button></div>}<div className="form-grid"><Field label="حجم (گیگابایت)" type="number" value={form.gb} onChange={(gb) => setForm({ ...form, gb })} /><label className="field"><span>مدت سفارشی (روز)</span><input type="number" min="1" value={form.days} onChange={(event) => setForm({ ...form, days: event.target.value })} /></label></div><div className="quick-date-block"><div className="quick-date-heading"><CalendarDays size={16} /><span>انتخاب سریع تاریخ انقضا</span></div><div className="quick-date-grid">{dateOptions.map((option) => <button type="button" key={option.days} className={Number(form.days) === option.days ? 'selected' : ''} onClick={() => setForm({ ...form, days: String(option.days) })}><strong>{option.label}</strong><small>{dateLabel(new Date(Date.now() + option.days * 86_400_000).toISOString())}</small></button>)}</div></div><div className="expiry-preview"><CalendarDays size={17} /><div><span>تاریخ انقضای تقریبی</span><strong>{dateLabel(projectedExpiry)}</strong></div><em>{form.days} روز</em></div></div>}{step === 3 && <div className="wizard-step"><div className="wizard-kicker"><span className="wizard-step-number">۰۳</span><span>آماده ساخت</span></div><h3>همه‌چیز آماده است</h3><p className="wizard-lede">با تأیید شما، سرویس هم‌زمان روی همه پنل‌های V2Box آماده و کلاینت AmneziaWG ساخته می‌شود.</p><div className="wizard-summary"><div><span>مشتری</span><strong>{form.customerName}</strong><small dir="ltr">{form.phone}</small></div><div><span>بسته</span><strong>{form.gb} گیگابایت</strong><small>{form.days} روز · {dateLabel(projectedExpiry)}</small></div><div className="summary-wide"><span>مقصد ساخت</span><strong>{providers.map((provider) => provider.key).join('، ') || 'پنل‌های آماده'} + AmneziaWG</strong><small>بدون نیاز به انتخاب دستی؛ همه credentialهای آماده استفاده می‌شوند.</small></div><div><span>ثبت پرداخت</span><button type="button" className={`toggle ${form.isPaid ? 'on' : ''}`} onClick={() => setForm({ ...form, isPaid: !form.isPaid })}><span /></button></div></div><label className="field mt-5"><span>{isReseller ? 'قیمت فروش تعیین‌شده توسط مدیر' : 'قیمت فروش (اختیاری)'}</span><input type="number" value={isReseller ? String(lockedSellPrice) : form.sellPrice} placeholder="برای ثبت در دفتر مالی" disabled={isReseller} onChange={(event) => setForm({ ...form, sellPrice: event.target.value })} /></label>{isReseller && <p className="text-xs text-muted-foreground mt-2">قیمت هر گیگ توسط مدیر تعیین شده و فروشنده امکان تغییر آن را ندارد.</p>}{error && <div className="login-error mt-5">{error}</div>}</div>}</div><div className="wizard-footer"><Button variant="secondary" disabled={step === 1 || submitting} onClick={() => setStep((value) => Math.max(1, value - 1))}>مرحله قبل</Button>{step < 3 ? <Button disabled={!canContinue} onClick={() => setStep((value) => Math.min(3, value + 1))}>ادامه <ChevronLeft size={15} /></Button> : <Button type="submit" disabled={submitting || !providers.length} testId="button-save-service">{submitting ? <><RefreshCw size={15} className="spin" /> ساخت روی همه پنل‌ها و AWG...</> : <><Check size={15} /> ساخت نهایی سرویس</>}</Button>}</div></form></Overlay>;
 }
@@ -803,7 +844,7 @@ function RenewWizard({ service, onClose, onRenew }: { service: Service; onClose:
   const [error, setError] = useState('');
   useEffect(() => { fetch('/api/providers/available', { credentials: 'include' }).then((response) => response.ok ? response.json() : []).then(setProviders).catch(() => setProviders([])); }, []);
   const submit = async () => { setSubmitting(true); setError(''); try { const result = await onRenew(service, Number(days), Number(gb)); setRenewed(result); } catch (cause) { setError(cause instanceof Error ? cause.message : 'تمدید انجام نشد.'); } finally { setSubmitting(false); } };
-  if (renewed) { const publicUrl = renewed.publicSubscriptionUrl ?? renewed.subscriptionUrl; return <Overlay title="تمدید با موفقیت انجام شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{renewed.customerName}</h3><p dir="ltr">@{renewed.username}</p><p>بسته روی تمام Providerهای آماده تمدید و کانفیگ جدید AmneziaWG ساخته شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک جدید آمادهٔ اسکن است</strong><span>QR را با دوربین موبایل مشتری اسکن کنید یا لینک را کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => navigator.clipboard.writeText(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(renewed)}><ExternalLink size={15} /> افزودن به V2Box</a>{renewed.awgConfigUrl && <a className="button button-secondary" href={renewed.awgConfigUrl} download={`pulse-${renewed.username}.conf`}><Download size={15} /> دانلود AWG جدید</a>}</div></>}</div></Overlay>; }
+  if (renewed) { const publicUrl = renewed.publicSubscriptionUrl ?? renewed.subscriptionUrl; return <Overlay title="تمدید با موفقیت انجام شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{renewed.customerName}</h3><p dir="ltr">@{renewed.username}</p><p>بسته روی تمام Providerهای آماده تمدید و کانفیگ جدید AmneziaWG ساخته شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک جدید آمادهٔ اسکن است</strong><span>QR را با دوربین موبایل مشتری اسکن کنید یا لینک را کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => void copyTextToClipboard(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(renewed)}><ExternalLink size={15} /> افزودن به V2Box</a>{renewed.awgConfigUrl && <a className="button button-secondary" href={renewed.awgConfigUrl} download={`pulse-${renewed.username}.conf`}><Download size={15} /> دانلود AWG جدید</a>}</div></>}</div></Overlay>; }
   return <Overlay title="Wizard تمدید سرویس" onClose={onClose} fullScreen><div className="wizard-shell"><div className="wizard-progress">{['بسته', 'Providerها', 'تأیید'].map((label, index) => <div className={step >= index + 1 ? 'active' : ''} key={label}><span>{index + 1}</span><strong>{label}</strong></div>)}</div><div className="wizard-content">{step === 1 && <div className="wizard-step"><p className="eyebrow">مرحله ۱ از ۳</p><h3>بسته جدید</h3><div className="form-grid"><Field label="حجم جدید (GB)" type="number" value={gb} onChange={setGb} /><Field label="مدت تمدید (روز)" type="number" value={days} onChange={setDays} /></div></div>}{step === 2 && <div className="wizard-step"><p className="eyebrow">مرحله ۲ از ۳</p><h3>همگام‌سازی Providerها</h3><div className="provider-choice-grid">{providers.map((provider) => <div className="provider-choice" key={provider.key}><div className="success-check small"><Check size={16} /></div><strong>{provider.key}</strong><span>تمدید کامل کاربر</span></div>)}<div className="provider-choice"><div className="success-check small"><RefreshCw size={16} /></div><strong>AmneziaWG</strong><span>حذف و ساخت مجدد client</span></div></div>{!providers.length && <div className="login-error mt-5">هیچ Provider دارای credential آماده نیست.</div>}</div>}{step === 3 && <div className="wizard-step"><p className="eyebrow">مرحله ۳ از ۳</p><h3>تأیید تمدید</h3><div className="wizard-summary"><div><span>کاربر</span><strong dir="ltr">@{service.username}</strong></div><div><span>بسته</span><strong>{gb} GB · {days} روز</strong></div><div><span>مقصد</span><strong>{providers.map((provider) => provider.key).join('، ')} + AWG</strong></div></div>{error && <div className="login-error mt-5">{error}</div>}</div>}</div><div className="wizard-footer"><Button variant="secondary" disabled={step === 1 || submitting} onClick={() => setStep((value) => value - 1)}>مرحله قبل</Button>{step < 3 ? <Button disabled={(step === 1 && (Number(gb) <= 0 || Number(days) <= 0)) || (step === 2 && !providers.length)} onClick={() => setStep((value) => value + 1)}>ادامه <ChevronLeft size={15} /></Button> : <Button disabled={submitting || !providers.length} onClick={submit} testId="button-confirm-renew">{submitting ? <><RefreshCw size={15} className="spin" /> تمدید Providerها و AWG...</> : <><Check size={15} /> تأیید و تمدید</>}</Button>}</div></div></Overlay>;
 }
 function NoteModal({ service, onClose }: { service: Service; onClose: () => void }) {
@@ -1106,7 +1147,7 @@ function CustomerDetailContent() {
     setWorking(service.id);
     try {
       const url = await resetServiceToken(service);
-      await navigator.clipboard.writeText(url);
+       if (!(await copyTextToClipboard(url))) throw new Error('کپی لینک در این مرورگر ممکن نیست.');
       await customerDetailQuery.refetch();
       setNotice('لینک جدید ساخته و در کلیپ‌بورد کپی شد.');
     } catch (cause) {
@@ -1151,7 +1192,7 @@ function PublicSubscriptionContent() {
   const statusTone = expired ? 'danger' : expiring ? 'warn' : 'ok';
   const statusLabel = expired ? 'منقضی' : expiring ? 'نزدیک انقضا' : 'فعال';
   const copyPageLink = async () => {
-    await navigator.clipboard.writeText(pageUrl);
+    if (!(await copyTextToClipboard(pageUrl))) return;
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   };

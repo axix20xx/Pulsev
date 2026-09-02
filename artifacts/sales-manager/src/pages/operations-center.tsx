@@ -5,6 +5,7 @@ import { usePulse } from '@/pages/pulse-pages';
 import { dateLabel, dateTimeLabel, money } from '@/lib/pulse-data';
 import { PageHeader } from '@/components/pulse-shell';
 import { PulseNetworkAccent } from '@/components/pulse-network-accent';
+import { copyTextToClipboard } from '@/lib/browser-utils';
 
 type JsonRecord = Record<string, any>;
 type Template = { id: string; title: string; body: string };
@@ -184,7 +185,7 @@ function MessageTemplates() {
     setBody('');
   };
   const copyTemplate = async (template: Template) => {
-    await navigator.clipboard.writeText(template.body).catch(() => undefined);
+    await copyTextToClipboard(template.body);
     setCopied(template.id);
     window.setTimeout(() => setCopied((current) => current === template.id ? null : current), 1400);
   };

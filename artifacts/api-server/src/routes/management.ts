@@ -573,7 +573,7 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
      ORDER BY p.key`,
   );
   const configured = result.rows.map((panel) => ({
-     ...panel,
+    ...panel,
     has_data: panel.kind === "falcon"
        ? Boolean((panel.api_key_secret || "") || (panel.api_key_env && process.env[panel.api_key_env]))
       : Boolean(
@@ -581,25 +581,39 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
              (panel.password_secret || (panel.password_env && process.env[panel.password_env])),
         ),
   }));
-  res.json(configured.map((panel) => ({ ...panel, available_to_all_resellers: true })));
+  res.json(
+    configured.map((panel) => ({
+      key: panel.key,
+      kind: panel.kind,
+      api_base: panel.api_base,
+      enabled: panel.enabled,
+      assigned_reseller_ids: panel.assigned_reseller_ids,
+      has_data: panel.has_data,
+      available_to_all_resellers: true,
+    })),
+  );
 });
 
 router.get("/providers/available", requireAuth, async (_req, res): Promise<void> => {
   await managementReady;
   const result = await pool.query(
-    `SELECT key, kind, username_env, password_env, api_key_env
+    `SELECT key, kind, username_env, password_env, api_key_env,
+            username_secret, password_secret, api_key_secret
      FROM panel_configs
      WHERE is_enabled = 1
      ORDER BY key`,
   );
   const configured = result.rows.filter((panel) =>
     panel.kind === "falcon"
-      ? Boolean(panel.api_key_env && process.env[panel.api_key_env])
+      ? Boolean(
+          panel.api_key_secret ||
+            (panel.api_key_env && process.env[panel.api_key_env]),
+        )
       : Boolean(
-          panel.username_env &&
-            panel.password_env &&
-            process.env[panel.username_env] &&
-            process.env[panel.password_env],
+          (panel.username_secret ||
+            (panel.username_env && process.env[panel.username_env])) &&
+            (panel.password_secret ||
+              (panel.password_env && process.env[panel.password_env])),
         ),
   );
   res.json(configured.map(({ key, kind }) => ({ key, kind })));
@@ -2257,9 +2271,23 @@ router.get("/customers", requireAuth, async (req, res): Promise<void> => {
   }
   const status = req.query.status === "active" || req.query.status === "inactive" ? req.query.status : null;
   if (status === "active") {
-    conditions.push("EXISTS (SELECT 1 FROM reseller_services active_svc WHERE active_svc.customer_id = c.id AND active_svc.status = 'active')");
+    const statusOwner =
+      req.auth?.role === "master_admin"
+        ? "TRUE"
+        : `active_svc.reseller_tg_id = $${params.length + 1}`;
+    conditions.push(
+      `EXISTS (SELECT 1 FROM reseller_services active_svc WHERE active_svc.customer_id = c.id AND active_svc.status = 'active' AND ${statusOwner})`,
+    );
+    if (req.auth?.role !== "master_admin") params.push(req.auth?.telegramId);
   } else if (status === "inactive") {
-    conditions.push("NOT EXISTS (SELECT 1 FROM reseller_services active_svc WHERE active_svc.customer_id = c.id AND active_svc.status = 'active')");
+    const statusOwner =
+      req.auth?.role === "master_admin"
+        ? "TRUE"
+        : `active_svc.reseller_tg_id = $${params.length + 1}`;
+    conditions.push(
+      `NOT EXISTS (SELECT 1 FROM reseller_services active_svc WHERE active_svc.customer_id = c.id AND active_svc.status = 'active' AND ${statusOwner})`,
+    );
+    if (req.auth?.role !== "master_admin") params.push(req.auth?.telegramId);
   }
   const requestedOffset = Number(req.query.offset);
   const offset = Number.isSafeInteger(requestedOffset) ? Math.max(0, requestedOffset) : 0;
@@ -2318,6 +2346,12 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "مشتری پیدا نشد" });
     return;
   }
+  const childServiceOwner =
+    req.auth?.role === "master_admin"
+      ? "TRUE"
+      : "svc.reseller_tg_id = $2";
+  const childOwnerParams =
+    req.auth?.role === "master_admin" ? [parsed.data.id] : [parsed.data.id, req.auth?.telegramId];
   const [services, sales] = await Promise.all([
     pool.query(
       `SELECT svc.id, svc.customer_id, c.full_name AS customer_name,
@@ -2327,12 +2361,14 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
          (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
           svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
           svc.awg_client_id IS NOT NULL AS awg_ready,
-          CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url
+           CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url,
+           svc.awg_client_id, svc.awg_rx, svc.awg_tx, svc.awg_total,
+           svc.awg_offset_bytes, svc.last_usage_updated_at
        FROM reseller_services svc
        JOIN reseller_customers c ON c.id = svc.customer_id
-       WHERE svc.customer_id = $1
+        WHERE svc.customer_id = $1 AND ${childServiceOwner}
        ORDER BY svc.id DESC`,
-      [parsed.data.id],
+       childOwnerParams,
     ),
     pool.query(
       `SELECT s.id, s.service_id AS service_id, svc.customer_id,
@@ -2348,18 +2384,35 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
        JOIN reseller_services svc ON svc.id = s.service_id
        JOIN reseller_customers c ON c.id = svc.customer_id
        LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
-       WHERE svc.customer_id = $1
+        WHERE svc.customer_id = $1
+          AND ${childServiceOwner}
+          AND s.reseller_tg_id = svc.reseller_tg_id
        ORDER BY s.created_at DESC NULLS LAST`,
-      [parsed.data.id],
+       childOwnerParams,
     ),
   ]);
+  const usageParams =
+    req.auth?.role === "master_admin"
+      ? [services.rows.map((service: any) => service.username)]
+      : [services.rows.map((service: any) => service.username), parsed.data.id, req.auth?.telegramId];
+  const usageScope =
+    req.auth?.role === "master_admin"
+      ? ""
+      : `AND EXISTS (
+           SELECT 1
+           FROM reseller_services scoped_svc
+           WHERE scoped_svc.rain_username = usage.username
+             AND scoped_svc.customer_id = $2
+             AND scoped_svc.reseller_tg_id = $3
+         )`;
   const usageResult = services.rows.length
     ? await pool.query(
-        `SELECT username, panel_key, upload, download, offset_bytes, last_updated
-         FROM user_panel_usages
-         WHERE username = ANY($1::text[])
+        `SELECT usage.username, usage.panel_key, usage.upload, usage.download,
+                usage.offset_bytes, usage.last_updated
+         FROM user_panel_usages usage
+         WHERE usage.username = ANY($1::text[]) ${usageScope}
          ORDER BY panel_key`,
-        [services.rows.map((service: any) => service.username)],
+        usageParams,
       )
     : { rows: [] };
   const usageByUsername = new Map<string, any[]>();

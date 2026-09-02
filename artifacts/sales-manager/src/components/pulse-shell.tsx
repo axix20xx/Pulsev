@@ -6,6 +6,7 @@ import { getSearchWorkspaceQueryKey, useLogout, useSearchWorkspace, type Workspa
 import { usePulse } from '@/pages/pulse-pages';
 import { dateTimeLabel, statusLabel } from '@/lib/pulse-data';
 import { PulseNetworkAccent } from '@/components/pulse-network-accent';
+import { copyTextToClipboard } from '@/lib/browser-utils';
 
 const subscriptionPageHref = (raw: string | null | undefined): string | null => {
   if (!raw) return null;
@@ -88,6 +89,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const visibleNav = session?.role === 'master_admin'
     ? [...nav, { href: '/admin-sales', label: 'فروش مشتریان فروشندگان', icon: ShieldAlert }]
     : nav;
+  const isNavActive = (href: string) => location === href || (href !== '/' && location.startsWith(`${href}/`));
   const searchResults = Array.isArray(searchQuery.data) ? searchQuery.data : [];
   const searchOpen = searchFocused && searchText.trim().length >= 2;
   const copySearchSubscription = async (event: ReactMouseEvent, item: WorkspaceSearchResult) => {
@@ -95,7 +97,7 @@ export function Shell({ children }: { children: ReactNode }) {
     event.stopPropagation();
     const url = subscriptionPageHref(item.subscription_url);
     if (!url) return;
-    await navigator.clipboard.writeText(new URL(url, window.location.origin).toString());
+    if (!(await copyTextToClipboard(new URL(url, window.location.origin).toString()))) return;
     setCopiedSearchId(item.id);
     window.setTimeout(() => setCopiedSearchId((current) => current === item.id ? null : current), 1400);
   };
@@ -151,18 +153,18 @@ export function Shell({ children }: { children: ReactNode }) {
           <p className="eyebrow px-3 pb-3">فضای کاری</p>
           <nav className="space-y-1">
             {visibleNav.map(({ href, label, icon: Icon }) => (
-              <Link key={href} href={href} className={`side-link ${location === href ? 'active' : ''}`} data-testid={`link-nav-${href === '/' ? 'dashboard' : href.slice(1)}`}>
+              <Link key={href} href={href} className={`side-link ${isNavActive(href) ? 'active' : ''}`} aria-current={isNavActive(href) ? 'page' : undefined} data-testid={`link-nav-${href === '/' ? 'dashboard' : href.slice(1)}`}>
                 <Icon size={17} strokeWidth={1.8} /><span>{label}</span>
                 {label === 'دفتر فروش' && <span className="side-count">۷</span>}
               </Link>
             ))}
           </nav>
            <p className="eyebrow px-3 pb-3 pt-9">مدیریت</p>
-           <Link href={posNav.href} className={`side-link ${location === posNav.href ? 'active' : ''}`} data-testid="link-nav-pos"><posNav.icon size={17} strokeWidth={1.8} /><span>{posNav.label}</span></Link>
-          <Link href={monitoringNav.href} className={`side-link ${location === monitoringNav.href ? 'active' : ''}`} data-testid="link-nav-monitoring"><Activity size={17} strokeWidth={1.8} /><span>{monitoringNav.label}</span></Link>
-           <Link href={operationsNav.href} className={`side-link ${location === operationsNav.href ? 'active' : ''}`} data-testid="link-nav-operations"><Gauge size={17} strokeWidth={1.8} /><span>{operationsNav.label}</span></Link>
-            <Link href={smartNav.href} className={`side-link ${location === smartNav.href ? 'active' : ''}`} data-testid="link-nav-insights"><Sparkles size={17} strokeWidth={1.8} /><span>{smartNav.label}</span></Link>
-          <Link href="/settings" className={`side-link ${location === '/settings' ? 'active' : ''}`} data-testid="link-nav-settings"><Settings size={17} strokeWidth={1.8} /><span>تنظیمات</span></Link>
+            <Link href={posNav.href} className={`side-link ${isNavActive(posNav.href) ? 'active' : ''}`} aria-current={isNavActive(posNav.href) ? 'page' : undefined} data-testid="link-nav-pos"><posNav.icon size={17} strokeWidth={1.8} /><span>{posNav.label}</span></Link>
+           <Link href={monitoringNav.href} className={`side-link ${isNavActive(monitoringNav.href) ? 'active' : ''}`} aria-current={isNavActive(monitoringNav.href) ? 'page' : undefined} data-testid="link-nav-monitoring"><Activity size={17} strokeWidth={1.8} /><span>{monitoringNav.label}</span></Link>
+            <Link href={operationsNav.href} className={`side-link ${isNavActive(operationsNav.href) ? 'active' : ''}`} aria-current={isNavActive(operationsNav.href) ? 'page' : undefined} data-testid="link-nav-operations"><Gauge size={17} strokeWidth={1.8} /><span>{operationsNav.label}</span></Link>
+             <Link href={smartNav.href} className={`side-link ${isNavActive(smartNav.href) ? 'active' : ''}`} aria-current={isNavActive(smartNav.href) ? 'page' : undefined} data-testid="link-nav-insights"><Sparkles size={17} strokeWidth={1.8} /><span>{smartNav.label}</span></Link>
+           <Link href="/settings" className={`side-link ${isNavActive('/settings') ? 'active' : ''}`} aria-current={isNavActive('/settings') ? 'page' : undefined} data-testid="link-nav-settings"><Settings size={17} strokeWidth={1.8} /><span>تنظیمات</span></Link>
            <PulseNetworkAccent compact className="sidebar-network" />
         </div>
         <div className="sidebar-bottom">
@@ -195,11 +197,11 @@ export function Shell({ children }: { children: ReactNode }) {
             />
             {searchText && <button type="button" className="global-search-clear" onClick={() => { setSearchText(''); setDebouncedSearch(''); searchInputRef.current?.focus(); }} aria-label="پاک کردن جست‌وجو"><X size={13} /></button>}
             <kbd>⌘ K</kbd>
-            {searchOpen && <div className="global-search-results" role="listbox" aria-label="نتایج جست‌وجوی سراسری">
+             {searchOpen && <div className="global-search-results" role="listbox" aria-label="نتایج جست‌وجوی سراسری" aria-busy={searchQuery.isFetching}>
               {searchQuery.isFetching && <div className="global-search-state"><Search size={15} className="spin" /> در حال جست‌وجو...</div>}
               {!searchQuery.isFetching && searchResults.length === 0 && <div className="global-search-state">نتیجه‌ای برای «{searchText.trim()}» پیدا نشد.</div>}
-              {!searchQuery.isFetching && searchResults.map((item) => <div className="global-search-result" key={`${item.kind}-${item.id}`} role="option" aria-selected="false" onMouseDown={(event) => event.preventDefault()}>
-                <button type="button" className="global-search-result-main" onClick={() => openSearchResult(item)}>
+               {!searchQuery.isFetching && searchResults.map((item) => <div className="global-search-result" key={`${item.kind}-${item.id}`} role="option" aria-selected="false" onMouseDown={(event) => event.preventDefault()}>
+                 <button type="button" className="global-search-result-main" onClick={() => openSearchResult(item)} tabIndex={0}>
                   <span className={`global-search-kind ${item.kind}`}><Search size={13} /></span>
                   <span className="global-search-copy"><strong>{item.title}</strong><small>{item.subtitle}</small></span>
                   {item.status && <span className="global-search-status">{item.status === 'completed' ? 'پرداخت‌شده' : item.status === 'pending' ? 'در انتظار' : statusLabel(item.status)}</span>}
@@ -220,7 +222,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </main>
        <nav className="mobile-bottom-nav">
-         {nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={location === href ? 'active' : ''} data-testid={`mobile-link-${href === '/' ? 'dashboard' : href.slice(1)}`}><Icon size={17} /><span>{label}</span></Link>)}
+          {nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={location === href || (href !== '/' && location.startsWith(`${href}/`)) ? 'active' : ''} aria-current={location === href || (href !== '/' && location.startsWith(`${href}/`)) ? 'page' : undefined} data-testid={`mobile-link-${href === '/' ? 'dashboard' : href.slice(1)}`}><Icon size={17} /><span>{label}</span></Link>)}
       </nav>
     </div>
   );

@@ -129,12 +129,26 @@ export async function getAuthContext(req: Request): Promise<AuthContext | null> 
        reseller.is_enabled AS enabled
      FROM web_sessions AS session
      LEFT JOIN resellers AS reseller ON reseller.id = session.reseller_id
-     WHERE session.id = $1 AND session.expires_at > NOW()
+      WHERE session.id = $1
+        AND session.expires_at > NOW()
+        AND (
+          (
+            session.role = 'master_admin'
+            AND session.telegram_id = $2
+            AND session.reseller_id IS NULL
+          )
+          OR (
+            session.role = 'reseller'
+            AND reseller.id IS NOT NULL
+            AND reseller.tg_id = session.telegram_id
+            AND reseller.is_enabled = 1
+          )
+        )
      LIMIT 1`,
-    [sessionHash(rawId)],
+     [sessionHash(rawId), MASTER_ADMIN_TELEGRAM_ID],
   );
   const row = result.rows[0];
-  if (!row || (row.role === "reseller" && row.enabled === false)) return null;
+  if (!row) return null;
   return {
     telegramId: Number(row.telegramId),
     role: row.role,

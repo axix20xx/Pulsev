@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import cookieParser from "cookie-parser";
@@ -27,12 +27,72 @@ app.use(
     },
   }),
 );
-app.use(cors());
+const allowedCorsOrigins = (process.env.CORS_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin: (requestOrigin, callback) => {
+      if (!requestOrigin) {
+        callback(null, false);
+        return;
+      }
+      if (allowedCorsOrigins.includes(requestOrigin)) {
+        callback(null, requestOrigin);
+        return;
+      }
+      callback(new Error("Origin is not allowed"));
+    },
+    credentials: true,
+  }),
+);
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "256kb" }));
+app.use(express.urlencoded({ extended: true, limit: "64kb" }));
 
 app.use("/api", router);
+
+app.use(
+  (
+    error: unknown,
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void => {
+    if (res.headersSent) {
+      next(error);
+      return;
+    }
+    const status =
+      typeof error === "object" &&
+      error !== null &&
+      "status" in error &&
+      Number.isInteger(Number(error.status))
+        ? Number(error.status)
+        : typeof error === "object" &&
+            error !== null &&
+            "statusCode" in error &&
+            Number.isInteger(Number(error.statusCode))
+          ? Number(error.statusCode)
+          : 500;
+    const safeStatus = status >= 400 && status < 600 ? status : 500;
+    if (safeStatus >= 500) {
+      req.log.error({ err: error }, "Unhandled API request error");
+    } else {
+      req.log.warn({ err: error }, "Rejected API request");
+    }
+    res.status(safeStatus).json({
+      error:
+        safeStatus === 413
+          ? "درخواست بیش از حد بزرگ است"
+          : safeStatus >= 500
+            ? "خطای داخلی سامانه"
+            : "درخواست معتبر نیست",
+    });
+  },
+);
+
 startUsageSyncWorker();
 
 export default app;

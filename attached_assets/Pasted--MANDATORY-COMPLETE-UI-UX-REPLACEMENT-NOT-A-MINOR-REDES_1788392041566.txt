@@ -1,0 +1,456 @@
+🚨 MANDATORY: COMPLETE UI/UX REPLACEMENT — NOT A MINOR REDESIGN
+
+The current website UI/UX is NOT acceptable as the final design.
+
+I want you to perform a COMPLETE VISUAL AND UX TRANSFORMATION.
+
+CRITICAL INSTRUCTION
+
+DO NOT preserve the existing UI design.
+
+Do NOT:
+
+* Keep the current layout
+* Keep the current component designs
+* Keep the current card designs
+* Keep the current spacing
+* Keep the current navigation design
+* Keep the current page structure just because it already exists
+* Make small CSS changes and call it a redesign
+* Simply change colors, borders, and fonts
+* Add animations to the existing UI
+
+I WANT A REAL REDESIGN.
+
+The existing UI should be treated only as a source of:
+
+* Functionality
+* Content
+* Features
+* Data
+* Business logic
+
+NOT as a design reference.
+
+⸻
+
+🧠 SEPARATE FUNCTIONALITY FROM DESIGN
+
+Preserve:
+
+✅ Features
+✅ Business logic
+✅ APIs
+✅ Database
+✅ Authentication
+✅ Existing data
+✅ User workflows
+
+But completely replace:
+
+❌ Layout
+❌ Visual hierarchy
+❌ Components
+❌ Navigation
+❌ Cards
+❌ Buttons
+❌ Forms
+❌ Typography
+❌ Spacing
+❌ Page compositions
+❌ User experience
+
+⸻
+
+🎨 COMPLETE UI/UX REIMAGINATION
+
+I want you to act as a:
+
+1. World-class UI/UX designer
+2. Creative director
+3. Senior product designer
+4. Creative frontend developer
+
+Before coding, analyze:
+
+* What is wrong with the current UX?
+* What feels outdated?
+* What is visually weak?
+* What is confusing?
+* What feels generic?
+* How can the user flow be improved?
+
+Then create an entirely new design direction.
+
+⸻
+
+🔥 IMPORTANT: REDESIGN EVERY PAGE
+
+Go through EVERY page individually.
+
+For every page:
+
+Step 1
+
+Identify its purpose.
+
+Step 2
+
+Identify the user’s primary action.
+
+Step 3
+
+Redesign the page structure from scratch.
+
+Step 4
+
+Create a better visual hierarchy.
+
+Step 5
+
+Improve the user journey.
+
+Step 6
+
+Create new components if necessary.
+
+Do not reuse the old page layout.
+
+⸻
+
+🏗 REBUILD THE PAGE STRUCTURE
+
+You have permission to completely change:
+
+* Header
+* Navigation
+* Sidebar
+* Hero sections
+* Page sections
+* Card layouts
+* Dashboard layouts
+* Content hierarchy
+* User flows
+* Interaction patterns
+
+As long as existing functionality remains available.
+
+⸻
+
+✨ DESIGN DIRECTION
+
+Create something that feels:
+
+Award-winning + Premium + Futuristic + Creative + Modern + Cinematic
+
+Think of the quality level of:
+
+* Awwwards-quality creative websites
+* Premium Apple-like attention to detail
+* High-end interactive product experiences
+* Modern game interfaces
+* Premium SaaS applications
+
+BUT:
+
+⚠️ Do NOT copy any specific website.
+
+Create an original design.
+
+⸻
+
+🧩 NO GENERIC UI
+
+Avoid generic AI-generated designs.
+
+DO NOT automatically use:
+
+* Generic dashboard cards
+* Random gradients
+* Excessive rounded rectangles
+* Everything inside cards
+* Excessive glassmorphism
+* Giant headings everywhere
+* Generic hero sections
+* Cookie-cutter SaaS layouts
+
+Every major page should have its own visual composition.
+
+⸻
+
+🎯 UX MUST ALSO CHANGE
+
+This is NOT just a visual redesign.
+
+Improve:
+
+* Navigation
+* Information architecture
+* User flows
+* Content hierarchy
+* Discoverability
+* Calls to action
+* Feedback states
+* Loading experiences
+* Empty states
+* Error states
+
+Ask:
+
+“What is the fastest, clearest, and most enjoyable way for a user to complete their goal?”
+
+Then redesign around that.
+
+⸻
+
+🎭 CREATE A NEW DESIGN SYSTEM
+
+Create a completely new design system.
+
+Define:
+
+Typography
+
+* Display typography
+* Headings
+* Body text
+* Labels
+* Numbers
+
+Spacing
+
+Create a consistent spacing scale.
+
+Components
+
+Create NEW:
+
+* Buttons
+* Cards
+* Inputs
+* Modals
+* Navigation
+* Dropdowns
+* Tabs
+* Tooltips
+* Notifications
+
+Do not simply restyle existing components.
+
+Rebuild them if necessary.
+
+⸻
+
+🌐 3D + CREATIVE EXPERIENCE
+
+Use 3D selectively to create a memorable experience.
+
+Recommended:
+
+* Three.js
+* React Three Fiber
+* Drei
+
+Install only if compatible with the project.
+
+Use 3D for:
+
+* Hero experiences
+* Interactive objects
+* Background depth
+* Mouse interaction
+* Cinematic scenes
+
+DO NOT place random 3D objects everywhere.
+
+3D must have purpose.
+
+⸻
+
+🎬 MOTION DESIGN
+
+Create a proper motion system.
+
+Use:
+
+* Framer Motion
+* GSAP where necessary
+* Smooth scrolling where appropriate
+
+Add:
+
+* Page transitions
+* Section reveals
+* Hover interactions
+* Magnetic effects where appropriate
+* Micro-interactions
+* Feedback animations
+
+Motion must feel intentional and premium.
+
+⸻
+
+📱 MOBILE IS A COMPLETE DESIGN
+
+Do NOT simply shrink desktop.
+
+Redesign mobile experiences independently.
+
+Consider:
+
+* Thumb reach
+* Bottom navigation where appropriate
+* Mobile-first interactions
+* Simplified layouts
+* Performance
+
+⸻
+
+🔥 MANDATORY DIFFERENCE TEST
+
+After completing the redesign, compare the OLD and NEW UI.
+
+Ask:
+
+Can someone immediately tell that this is a completely different website?
+
+If the answer is NO:
+
+THE REDESIGN HAS FAILED.
+
+The new UI must be dramatically different.
+
+⸻
+
+🛠 IMPLEMENTATION RULE
+
+You are explicitly authorized to:
+
+* Delete old UI components
+* Replace old CSS
+* Rewrite page layouts
+* Replace component architecture
+* Create new components
+* Change navigation structure
+* Change information architecture
+
+DO NOT ask for permission to redesign the UI.
+
+DO IT.
+
+⸻
+
+⚠️ FUNCTIONALITY LOCK
+
+While the UI changes completely:
+
+DO NOT break:
+
+* Backend
+* APIs
+* Database
+* Authentication
+* Existing features
+* Core functionality
+
+If old UI and functionality are tightly connected:
+
+Extract the functionality and rebuild the UI around it.
+
+Do NOT keep bad UI simply because it is connected to working logic.
+
+⸻
+
+🚀 EXECUTION PROCESS
+
+PHASE 1 — DESIGN AUDIT
+
+Analyze the current UI.
+
+Identify:
+
+* UX problems
+* Visual problems
+* Poor hierarchy
+* Repetitive components
+* Confusing flows
+
+PHASE 2 — NEW CREATIVE DIRECTION
+
+Define a completely NEW design direction.
+
+Do not begin coding until you have a clear visual concept.
+
+PHASE 3 — NEW INFORMATION ARCHITECTURE
+
+Reconsider:
+
+* Navigation
+* Page hierarchy
+* User journeys
+
+PHASE 4 — DESIGN SYSTEM
+
+Build the new foundation.
+
+PHASE 5 — COMPLETE PAGE REBUILD
+
+Rebuild EVERY page.
+
+PHASE 6 — INTERACTION DESIGN
+
+Add premium interactions.
+
+PHASE 7 — 3D AND MOTION
+
+Add creative experiences.
+
+PHASE 8 — MOBILE EXPERIENCE
+
+Optimize independently.
+
+PHASE 9 — FINAL QA
+
+Check everything.
+
+⸻
+
+🚨 DO NOT STOP AFTER ONE PAGE
+
+Continue through the ENTIRE WEBSITE.
+
+Do not redesign only:
+
+* Homepage
+* Header
+* Dashboard
+
+EVERY page must be reviewed and redesigned.
+
+⸻
+
+FINAL INSTRUCTION
+
+I DO NOT WANT:
+
+“The existing website with better CSS.”
+
+I DO NOT WANT:
+
+“The same layout with prettier cards.”
+
+I DO NOT WANT:
+
+“Minor improvements.”
+
+I WANT:
+
+A COMPLETE UI/UX REINVENTION.
+
+Keep the FUNCTIONALITY.
+
+Completely replace the EXPERIENCE.
+
+The final result must look and feel like a completely new, professionally designed product.
+
+Start now by auditing the entire codebase, then systematically rebuild the UI/UX across the entire application.

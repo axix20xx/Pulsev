@@ -1,5 +1,10 @@
-import { ConstellationField } from '@designcodeio/threeui/components/ConstellationField';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+
+const LazyConstellationField = lazy(() =>
+  import('@designcodeio/threeui/components/ConstellationField').then((module) => ({
+    default: module.ConstellationField,
+  })),
+);
 
 type PulseNetworkAccentProps = {
   className?: string;
@@ -13,6 +18,12 @@ export function PulseNetworkAccent({ className = '', compact = false }: PulseNet
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
     const canRender = () => {
+      const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+      if (
+        window.matchMedia('(pointer: coarse)').matches ||
+        connection?.saveData ||
+        (navigator.hardwareConcurrency || 4) < 4
+      ) return false;
       try {
         const canvas = document.createElement('canvas');
         return Boolean(canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
@@ -30,17 +41,19 @@ export function PulseNetworkAccent({ className = '', compact = false }: PulseNet
   return (
     <div className={`pulse-network-accent ${compact ? 'compact' : ''} ${className}`} aria-hidden="true">
       {motionSafe && webglReady ? (
-        <ConstellationField
-          variant="particle-network"
-          mode="light"
-          speed={0.28}
-          density={0.7}
-          opacity={0.55}
-          hue={188}
-          saturation={0.8}
-          brightness={0.9}
-          className="pulse-network-canvas"
-        />
+        <Suspense fallback={<div className="pulse-network-fallback"><span /><span /><span /><span /><i /><i /><i /></div>}>
+          <LazyConstellationField
+            variant="particle-network"
+            mode="light"
+            speed={0.28}
+            density={0.7}
+            opacity={0.55}
+            hue={188}
+            saturation={0.8}
+            brightness={0.9}
+            className="pulse-network-canvas"
+          />
+        </Suspense>
       ) : (
         <div className="pulse-network-fallback">
           <span /><span /><span /><span /><i /><i /><i />
