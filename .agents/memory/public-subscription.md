@@ -21,8 +21,8 @@ The browser-facing `/sub?t=` route is an HTML details page, not an app-import fe
 
 **How to apply:** Keep the stored/display page URL separate from the feed URL, proxy the legacy upstream feed without rewriting its body, and override `subscription-userinfo` from the database so quota and expiry remain accurate even when the upstream cache is stale.
 
-When an upstream feed contains multiple provider URIs, the proxy must preserve the entire payload and the public page should enumerate each supported URI for individual copying; an expired service may legitimately return only a fallback/disabled link.
+When an upstream feed contains multiple provider URIs, the proxy must preserve the entire payload, but the new public subscription page must not expose raw configuration strings; an expired service may legitimately return only a fallback/disabled link.
 
-**Why:** Provider subscriptions commonly contain many server endpoints, and silently showing only the first one makes a healthy multi-provider subscription look incomplete.
+**Why:** The feed is for VPN clients to import, while the customer-facing page should keep provider endpoints private and present only safe import actions.
 
-**How to apply:** Never split-and-rebuild the feed server-side; forward it intact, and use client-side extraction only as an additional visibility/copy aid.
+**How to apply:** Never split-and-rebuild or filter the feed server-side; forward it intact, but do not parse or render its individual URI/config contents in `/sub`.
