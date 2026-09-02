@@ -20,3 +20,9 @@ The browser-facing `/sub?t=` route is an HTML details page, not an app-import fe
 **Why:** Subscription apps cannot parse the React page, while the legacy provider feed already emits the configuration format and supports client-specific negotiation.
 
 **How to apply:** Keep the stored/display page URL separate from the feed URL, proxy the legacy upstream feed without rewriting its body, and override `subscription-userinfo` from the database so quota and expiry remain accurate even when the upstream cache is stale.
+
+When an upstream feed contains multiple provider URIs, the proxy must preserve the entire payload and the public page should enumerate each supported URI for individual copying; an expired service may legitimately return only a fallback/disabled link.
+
+**Why:** Provider subscriptions commonly contain many server endpoints, and silently showing only the first one makes a healthy multi-provider subscription look incomplete.
+
+**How to apply:** Never split-and-rebuild the feed server-side; forward it intact, and use client-side extraction only as an additional visibility/copy aid.

@@ -45,6 +45,45 @@ function SubscriptionQr({ url }: { url: string }) {
   }, [url]);
   return <div className="subscription-qr" aria-label="کد QR لینک اشتراک">{src ? <img src={src} alt="کد QR لینک اشتراک" /> : <div className="subscription-qr-placeholder">{failed ? 'ساخت QR ناموفق بود' : 'در حال ساخت QR...'}</div>}<span>اسکن برای دریافت لینک اشتراک</span></div>;
 }
+function extractSubscriptionLinks(text: string): string[] {
+  const candidates = [text];
+  try {
+    const normalized = text.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+    const bytes = Uint8Array.from(window.atob(padded), (char) => char.charCodeAt(0));
+    candidates.unshift(new TextDecoder().decode(bytes));
+  } catch {
+    // The provider may return plain URI lines or YAML instead of base64.
+  }
+  const links = candidates.flatMap((candidate) => candidate.match(/(?:vless|vmess|trojan|ss|ssr|hysteria2?|tuic|wireguard):\/\/[^\s"'<>]+/gi) ?? []);
+  return [...new Set(links.map((link) => link.replace(/[),]+$/, '')))];
+}
+function SubscriptionLinksPreview({ url }: { url: string }) {
+  const [links, setLinks] = useState<string[]>([]);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setState('loading');
+    fetch(url, { headers: { Accept: 'text/plain, application/json, text/yaml, */*' } }).then(async (response) => {
+      if (!response.ok) throw new Error('feed unavailable');
+      return response.text();
+    }).then((body) => {
+      if (!active) return;
+      setLinks(extractSubscriptionLinks(body));
+      setState('ready');
+    }).catch(() => {
+      if (active) setState('error');
+    });
+    return () => { active = false; };
+  }, [url]);
+  const copy = async (link: string) => {
+    await navigator.clipboard.writeText(link);
+    setCopied(link);
+    window.setTimeout(() => setCopied((current) => current === link ? null : current), 1800);
+  };
+  return <div className="subscription-links-preview"><div className="subscription-links-heading"><div><strong>همهٔ کانفیگ‌ها</strong><small>{state === 'ready' ? `${new Intl.NumberFormat('fa-IR').format(links.length)} لینک از feed اشتراک` : 'لینک‌های V2Ray همهٔ providerها'}</small></div>{state === 'loading' && <RefreshCw size={14} className="spin" />}</div>{state === 'error' && <p className="subscription-links-message">دریافت لیست کانفیگ‌ها ناموفق بود؛ لینک اصلی اشتراک برای import جمعی فعال است.</p>}{state === 'ready' && !links.length && <p className="subscription-links-message">این provider خروجی را به‌صورت فایل ترکیبی می‌فرستد؛ برای دریافت همهٔ کانفیگ‌ها از دکمهٔ import کلاینت استفاده کنید.</p>}{links.length > 0 && <div className="subscription-links-list">{links.map((link, index) => <div className="subscription-link-row" key={`${link}-${index}`}><span className="subscription-link-index">{new Intl.NumberFormat('fa-IR').format(index + 1)}</span><code dir="ltr">{link}</code><button type="button" onClick={() => copy(link)} aria-label={`کپی کانفیگ ${index + 1}`}><Copy size={13} />{copied === link ? 'کپی شد' : 'کپی'}</button></div>)}</div>}</div>;
+}
 type SubscriptionClient = { id: string; label: string; platform: string; href?: string; note?: string };
 const subscriptionClients = (url: string, name: string): SubscriptionClient[] => {
   const encodedUrl = encodeURIComponent(url);
@@ -72,7 +111,7 @@ function SubscriptionClientActions({ url, name, compact = false }: { url: string
     window.setTimeout(() => setCopied(false), 1800);
   };
   const clients = subscriptionClients(url, name);
-  return <section className={`subscription-clients ${compact ? 'compact' : ''}`}><div className="subscription-clients-heading"><div><p className="eyebrow">اتصال سریع</p><strong>باز کردن در کلاینت‌ها</strong></div><button type="button" className="button button-secondary" onClick={copy}><Copy size={14} /> {copied ? 'کپی شد' : 'کپی لینک'}</button></div><div className="subscription-client-grid">{clients.map((client) => client.href ? <a className="subscription-client" href={client.href} key={client.id}><span className="subscription-client-mark">{client.label.slice(0, 1)}</span><span><strong>{client.label}</strong><small>{client.platform}</small></span><ExternalLink size={13} /></a> : <button type="button" className="subscription-client clipboard-only" onClick={copy} key={client.id}><span className="subscription-client-mark">{client.label.slice(0, 1)}</span><span><strong>{client.label}</strong><small>{client.note}</small></span><Copy size={13} /></button>)}</div><p className="subscription-client-footnote">برای کلاینت‌هایی که scheme مستقیم ندارند، ابتدا «کپی لینک» و سپس Import from Clipboard را بزنید.</p></section>;
+  return <section className={`subscription-clients ${compact ? 'compact' : ''}`}><div className="subscription-clients-heading"><div><p className="eyebrow">اتصال سریع</p><strong>باز کردن در کلاینت‌ها</strong></div><button type="button" className="button button-secondary" onClick={copy}><Copy size={14} /> {copied ? 'کپی شد' : 'کپی لینک'}</button></div><div className="subscription-client-grid">{clients.map((client) => client.href ? <a className="subscription-client" href={client.href} key={client.id}><span className="subscription-client-mark">{client.label.slice(0, 1)}</span><span><strong>{client.label}</strong><small>{client.platform}</small></span><ExternalLink size={13} /></a> : <button type="button" className="subscription-client clipboard-only" onClick={copy} key={client.id}><span className="subscription-client-mark">{client.label.slice(0, 1)}</span><span><strong>{client.label}</strong><small>{client.note}</small></span><Copy size={13} /></button>)}</div><p className="subscription-client-footnote">برای کلاینت‌هایی که scheme مستقیم ندارند، ابتدا «کپی لینک» و سپس Import from Clipboard را بزنید.</p><SubscriptionLinksPreview url={url} /></section>;
 }
 
 export function PulseProvider({ children }: { children: ReactNode }) {
