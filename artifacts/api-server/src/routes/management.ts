@@ -72,6 +72,8 @@ import { encryptPanelCredential } from "../lib/panel-credentials";
 const MASTER_ADMIN_COST_PER_GB = 2500;
 const resellerCostPerGbSql = (alias = "r") =>
   `CASE WHEN ${alias}.tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${alias}.per_gig_price, 0) END`;
+const saleAmountToAdminSql = (saleAlias = "s", resellerAlias = "r") =>
+  `CASE WHEN ${saleAlias}.reseller_tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${resellerAlias}.per_gig_price, 0) END`;
 
 const router: IRouter = Router();
 router.use(attachAuth);
@@ -682,12 +684,18 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   const owner = ownership("s", req);
   const serviceOwner = ownership("svc", req);
   const customerOwner = ownership("c", req);
+  const masterAdminView = req.auth?.role === "master_admin";
+  const fullSaleAmountSql = `COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})`;
+  const amountToAdminSql = `s.gb_amount * ${saleAmountToAdminSql()}`;
+  const dashboardIncomeSql = masterAdminView ? amountToAdminSql : fullSaleAmountSql;
+  const dashboardCostSql = masterAdminView ? amountToAdminSql : `s.gb_amount * ${resellerCostPerGbSql()}`;
+  const dashboardProfitSql = `(${fullSaleAmountSql} - ${dashboardCostSql})`;
   const today = tehranIsoDate(new Date());
   const monthStart = persianMonthStartIso(new Date());
   const [revenue, activeServices, renewals, customers, resellers, monthSales, monthDaily, disabledToday, activity] =
     await Promise.all([
       pool.query<{ value: number }>(
-        `SELECT COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})), 0)::float8 AS value
+         `SELECT COALESCE(SUM(${dashboardIncomeSql}), 0)::float8 AS value
          FROM reseller_sales_log s
          LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
          WHERE ${owner.sql} AND COALESCE(s.is_paid, 0) = 1`,
@@ -720,12 +728,11 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
         `SELECT
            COUNT(*)::int AS sales_count,
            COALESCE(SUM(s.gb_amount), 0)::float8 AS sold_gb,
-           COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})), 0)::float8 AS income,
-           COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS paid_income,
-           COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS unpaid_income,
+            COALESCE(SUM(${dashboardIncomeSql}), 0)::float8 AS income,
+            COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN ${dashboardIncomeSql} ELSE 0 END), 0)::float8 AS paid_income,
+            COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN ${dashboardIncomeSql} ELSE 0 END), 0)::float8 AS unpaid_income,
            COALESCE(SUM(
-             COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) -
-             s.gb_amount * ${req.auth?.role === "master_admin" ? MASTER_ADMIN_COST_PER_GB : resellerCostPerGbSql()}
+              ${dashboardProfitSql}
            ), 0)::float8 AS profit
          FROM reseller_sales_log s
          LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
@@ -749,20 +756,17 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
            (s.created_at AT TIME ZONE 'Asia/Tehran')::date::text AS day,
            COUNT(*)::int AS sales_count,
            COALESCE(SUM(s.gb_amount), 0)::float8 AS sold_gb,
-           COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})), 0)::float8 AS income,
-           COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS paid_income,
-           COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) ELSE 0 END), 0)::float8 AS unpaid_income,
+            COALESCE(SUM(${dashboardIncomeSql}), 0)::float8 AS income,
+            COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN ${dashboardIncomeSql} ELSE 0 END), 0)::float8 AS paid_income,
+            COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN ${dashboardIncomeSql} ELSE 0 END), 0)::float8 AS unpaid_income,
            COALESCE(SUM(
-             COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) -
-             s.gb_amount * ${req.auth?.role === "master_admin" ? MASTER_ADMIN_COST_PER_GB : resellerCostPerGbSql()}
-           ), 0)::float8 AS profit,
+              ${dashboardProfitSql}
+            ), 0)::float8 AS profit,
            COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN
-             COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) -
-             s.gb_amount * ${req.auth?.role === "master_admin" ? MASTER_ADMIN_COST_PER_GB : resellerCostPerGbSql()}
+              ${dashboardProfitSql}
              ELSE 0 END), 0)::float8 AS paid_profit,
            COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN
-             COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) -
-             s.gb_amount * ${req.auth?.role === "master_admin" ? MASTER_ADMIN_COST_PER_GB : resellerCostPerGbSql()}
+              ${dashboardProfitSql}
              ELSE 0 END), 0)::float8 AS unpaid_profit
          FROM reseller_sales_log s
          LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
@@ -1236,7 +1240,10 @@ router.get("/reports", requireAuth, async (req, res): Promise<void> => {
               COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
               COALESCE(svc.label, 'سرویس حذف‌شده') AS service_name,
               s.gb_amount::float8 AS gb_amount,
-              COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})::float8 AS amount,
+               COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})::float8 AS full_amount,
+               COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})::float8 AS amount,
+               (s.gb_amount * ${saleAmountToAdminSql()})::float8 AS amount_to_admin,
+               (COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()}) - s.gb_amount * ${saleAmountToAdminSql()})::float8 AS admin_profit,
               COALESCE(s.is_paid, 0) = 1 AS paid, s.created_at::text AS created_at
        FROM reseller_sales_log s
        LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
@@ -1265,10 +1272,13 @@ router.get("/reports", requireAuth, async (req, res): Promise<void> => {
     to,
     summary: {
       customer_sales: customerSales.length,
-      customer_revenue: customerSales.reduce((sum, item) => sum + Number(item.amount ?? 0), 0),
+       customer_revenue: customerSales.reduce((sum, item) => sum + Number(item.full_amount ?? item.amount ?? 0), 0),
+       customer_amount_to_admin: customerSales.reduce((sum, item) => sum + Number(item.amount_to_admin ?? 0), 0),
+       customer_admin_profit: customerSales.reduce((sum, item) => sum + Number(item.admin_profit ?? 0), 0),
       reseller_credit_sales: resellerCredits.length,
       reseller_revenue: resellerCredits.reduce((sum, item) => sum + Number(item.total_amount ?? 0), 0),
-      paid_customer_revenue: customerSales.filter((item) => item.paid).reduce((sum, item) => sum + Number(item.amount ?? 0), 0),
+       paid_customer_revenue: customerSales.filter((item) => item.paid).reduce((sum, item) => sum + Number(item.full_amount ?? item.amount ?? 0), 0),
+       paid_customer_amount_to_admin: customerSales.filter((item) => item.paid).reduce((sum, item) => sum + Number(item.amount_to_admin ?? 0), 0),
       paid_reseller_revenue: resellerCredits.filter((item) => item.paid).reduce((sum, item) => sum + Number(item.total_amount ?? 0), 0),
     },
     customer_sales: customerSales,
@@ -1308,7 +1318,7 @@ router.get("/sales", requireAuth, async (req, res): Promise<void> => {
        s.service_id,
        COALESCE(svc.label, 'سرویس حذف‌شده') AS service_name,
        COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel,
-       COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})::float8 AS amount,
+       ${req.auth?.role === "master_admin" ? `(${saleAmountToAdminSql()}) * s.gb_amount` : `COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})`}::float8 AS amount,
         (COALESCE(s.created_at, NOW()) AT TIME ZONE 'Asia/Tehran')::date::text AS date,
        COALESCE(s.is_paid, 0) = 1 AS paid,
        CASE WHEN COALESCE(s.is_paid, 0) = 1 THEN 'completed' ELSE 'pending' END AS status
@@ -2748,6 +2758,159 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
   const resellerSummary = resellers.rows[0] ?? {};
   const financeSummary = finance.rows[0] ?? {};
   res.json({ role: "master_admin", summary: { ...resellerSummary, month_income: financeSummary.month_income ?? 0, month_profit: financeSummary.month_profit ?? 0, unpaid_amount: financeSummary.unpaid_income ?? 0 }, provider_health: providerHealth, reseller_health: resellerHealth.rows, finance: { ...financeSummary, month_profit: financeSummary.month_profit ?? 0 }, recent_activity: activity.rows });
+});
+
+router.get("/insights", requireAuth, async (req, res): Promise<void> => {
+  await managementReady;
+  const master = req.auth!.role === "master_admin";
+  const ownerParam = master ? [] : [req.auth!.telegramId];
+  const serviceOwner = master ? "TRUE" : "svc.reseller_tg_id = $1";
+  const saleOwner = master ? "TRUE" : "s.reseller_tg_id = $1";
+  const customerOwner = master ? "TRUE" : "c.reseller_tg_id = $1";
+  const saleCostSql = `CASE WHEN s.reseller_tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB}
+    ELSE COALESCE((SELECT per_gig_price FROM resellers rr WHERE rr.tg_id = s.reseller_tg_id), 0) END`;
+  const [today, failedJobs, lifecycle, providers, credit, quality, packageReport, periodReport] = await Promise.all([
+    pool.query(
+      `SELECT
+        COUNT(*) FILTER (WHERE ${serviceOwner} AND svc.status <> 'disabled' AND svc.expire_at IS NOT NULL
+          AND (svc.expire_at AT TIME ZONE 'Asia/Tehran')::date BETWEEN (NOW() AT TIME ZONE 'Asia/Tehran')::date
+          AND ((NOW() AT TIME ZONE 'Asia/Tehran')::date + 1))::int AS expiring_urgent,
+        COUNT(*) FILTER (WHERE ${serviceOwner} AND svc.status IN ('active','expiring') AND COALESCE(svc.gb, 0) > 0
+          AND COALESCE(svc.last_used_bytes, 0) >= svc.gb * 1073741824 * 0.8)::int AS high_usage,
+        COUNT(*) FILTER (WHERE ${saleOwner} AND COALESCE(s.is_paid, 0) = 0)::int AS unpaid_sales,
+        COALESCE(SUM(CASE WHEN ${saleOwner} AND COALESCE(s.is_paid, 0) = 0
+          THEN COALESCE(s.custom_sell_price, s.gb_amount * ${saleCostSql}) ELSE 0 END), 0)::float8 AS unpaid_amount
+       FROM reseller_services svc
+       LEFT JOIN reseller_sales_log s ON s.service_id = svc.id`,
+      ownerParam,
+    ),
+    pool.query(
+      `SELECT COUNT(*)::int AS value
+       FROM service_provision_jobs j
+       LEFT JOIN reseller_services svc ON svc.id = j.service_id
+       WHERE ${serviceOwner} AND j.last_error IS NOT NULL AND j.status <> 'completed'`,
+      ownerParam,
+    ),
+    pool.query(
+      `SELECT c.id, c.full_name AS name, c.phone,
+        COUNT(DISTINCT svc.id) FILTER (WHERE svc.status IN ('active','expiring'))::int AS active_services,
+        COUNT(DISTINCT s.id)::int AS purchases,
+        COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${saleCostSql})), 0)::float8 AS total_spend,
+        MAX(s.created_at)::text AS last_purchase,
+        MAX(s.created_at) FILTER (WHERE (s.created_at AT TIME ZONE 'Asia/Tehran')::date >=
+          (NOW() AT TIME ZONE 'Asia/Tehran')::date - 30)::text AS recent_purchase
+       FROM reseller_customers c
+       LEFT JOIN reseller_services svc ON svc.customer_id = c.id AND ${serviceOwner}
+       LEFT JOIN reseller_sales_log s ON s.service_id = svc.id AND ${saleOwner}
+       WHERE ${customerOwner}
+       GROUP BY c.id, c.full_name, c.phone
+       ORDER BY total_spend DESC, last_purchase DESC NULLS LAST
+       LIMIT 250`,
+      ownerParam,
+    ),
+    pool.query(
+      `SELECT p.key, p.kind, (p.is_enabled = 1) AS enabled,
+        COUNT(j.id) FILTER (WHERE ${serviceOwner})::int AS total_jobs,
+        COUNT(j.id) FILTER (WHERE ${serviceOwner} AND j.status = 'completed')::int AS completed_jobs,
+        COUNT(j.id) FILTER (WHERE ${serviceOwner} AND j.last_error IS NOT NULL AND j.status <> 'completed')::int AS failed_jobs,
+        MAX(j.updated_at) FILTER (WHERE ${serviceOwner})::text AS last_activity,
+        COUNT(DISTINCT svc.id) FILTER (WHERE ${serviceOwner} AND svc.status IN ('active','expiring'))::int AS affected_services
+       FROM panel_configs p
+       LEFT JOIN service_provision_jobs j ON j.provider_keys @> jsonb_build_array(p.key)
+       LEFT JOIN reseller_services svc ON svc.id = j.service_id
+       GROUP BY p.key, p.kind, p.is_enabled
+       ORDER BY p.key`,
+      ownerParam,
+    ),
+    master
+      ? pool.query(
+          `SELECT r.tg_id AS reseller_id, r.title, r.total_gb::float8 AS total_gb, r.used_gb::float8 AS used_gb,
+             (r.total_gb - r.used_gb)::float8 AS remaining_gb,
+             COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN s.gb_amount * ${saleCostSql} ELSE 0 END), 0)::float8 AS unpaid_sales_amount,
+             COUNT(s.id) FILTER (WHERE COALESCE(s.is_paid, 0) = 0)::int AS unpaid_sales
+           FROM resellers r LEFT JOIN reseller_sales_log s ON s.reseller_tg_id = r.tg_id
+           GROUP BY r.tg_id, r.title, r.total_gb, r.used_gb
+           ORDER BY remaining_gb ASC, unpaid_sales_amount DESC`,
+        )
+      : pool.query(
+          `SELECT r.tg_id AS reseller_id, r.title, r.total_gb::float8 AS total_gb, r.used_gb::float8 AS used_gb,
+             (r.total_gb - r.used_gb)::float8 AS remaining_gb,
+             COALESCE(SUM(CASE WHEN COALESCE(s.is_paid, 0) = 0 THEN s.custom_sell_price ELSE 0 END), 0)::float8 AS unpaid_sales_amount,
+             COUNT(s.id) FILTER (WHERE COALESCE(s.is_paid, 0) = 0)::int AS unpaid_sales
+           FROM resellers r LEFT JOIN reseller_sales_log s ON s.reseller_tg_id = r.tg_id
+           WHERE r.tg_id = $1
+           GROUP BY r.tg_id, r.title, r.total_gb, r.used_gb`,
+          ownerParam,
+        ),
+    Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS value FROM (SELECT phone FROM reseller_customers WHERE ${master ? "TRUE" : "reseller_tg_id = $1"} GROUP BY phone HAVING COUNT(*) > 1) duplicates`, ownerParam),
+      pool.query(`SELECT COUNT(*)::int AS value FROM (SELECT rain_username FROM reseller_services WHERE ${master ? "TRUE" : "reseller_tg_id = $1"} AND status IN ('active','expiring') AND NULLIF(rain_username, '') IS NOT NULL GROUP BY rain_username HAVING COUNT(*) > 1) duplicates`, ownerParam),
+      pool.query(`SELECT COUNT(*)::int AS value FROM reseller_services svc WHERE ${serviceOwner} AND NULLIF(svc.subscription_url, '') IS NULL`, ownerParam),
+      pool.query(`SELECT COUNT(*)::int AS value FROM reseller_sales_log s LEFT JOIN reseller_services svc ON svc.id = s.service_id WHERE ${saleOwner} AND svc.id IS NULL`, ownerParam),
+      pool.query(`SELECT COUNT(*)::int AS value FROM reseller_sales_log s WHERE ${saleOwner} AND COALESCE(s.is_paid, 0) = 0`, ownerParam),
+    ]),
+    pool.query(
+      `SELECT COALESCE(svc.label, 'سرویس بدون عنوان') AS package,
+        COUNT(s.id)::int AS sales_count,
+        COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${saleCostSql})), 0)::float8 AS revenue,
+        COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${saleCostSql}) - s.gb_amount * ${saleCostSql}), 0)::float8 AS profit
+       FROM reseller_sales_log s
+       LEFT JOIN reseller_services svc ON svc.id = s.service_id
+       WHERE ${saleOwner}
+       GROUP BY svc.label
+       ORDER BY revenue DESC
+       LIMIT 8`,
+      ownerParam,
+    ),
+    pool.query(
+      `SELECT (s.created_at AT TIME ZONE 'Asia/Tehran')::date::text AS day,
+        COUNT(*)::int AS sales_count,
+         COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * ${saleCostSql})), 0)::float8 AS revenue
+       FROM reseller_sales_log s
+       WHERE ${saleOwner}
+       GROUP BY (s.created_at AT TIME ZONE 'Asia/Tehran')::date
+       ORDER BY revenue DESC
+       LIMIT 5`,
+      ownerParam,
+    ),
+  ]);
+  const todayRow = today.rows[0] ?? {};
+  const lifecycleRows = lifecycle.rows.map((row) => {
+    const active = Number(row.active_services ?? 0);
+    const purchases = Number(row.purchases ?? 0);
+    const spend = Number(row.total_spend ?? 0);
+    const lastPurchase = row.last_purchase ? new Date(row.last_purchase).getTime() : 0;
+    const daysSincePurchase = lastPurchase ? Math.max(0, Math.floor((Date.now() - lastPurchase) / 86_400_000)) : null;
+    const score = Math.max(0, Math.min(100, (active > 0 ? 35 : 0) + Math.min(25, purchases * 5) + Math.min(25, spend > 0 ? 25 : 0) + (daysSincePurchase === null ? 0 : daysSincePurchase <= 30 ? 15 : daysSincePurchase <= 90 ? 7 : 0)));
+    const segment = active > 0 ? "active" : daysSincePurchase !== null && daysSincePurchase <= 90 ? "expired" : "inactive";
+    const recommendation = active > 0 ? "مصرف و تمدید را بررسی کنید" : daysSincePurchase !== null && daysSincePurchase <= 90 ? "پیشنهاد فروش مجدد" : "پیگیری بازگشت مشتری";
+    return { ...row, score, segment, recommendation, days_since_purchase: daysSincePurchase };
+  });
+  const segments = lifecycleRows.reduce<Record<string, number>>((counts, row) => {
+    counts[row.segment] = (counts[row.segment] ?? 0) + 1;
+    return counts;
+  }, {});
+  const providerRows = providers.rows.map((row) => {
+    const total = Number(row.total_jobs ?? 0);
+    const completed = Number(row.completed_jobs ?? 0);
+    return { ...row, success_rate: total ? Math.round(completed / total * 100) : null };
+  });
+  res.json({
+    role: master ? "master_admin" : "reseller",
+    generated_at: new Date().toISOString(),
+    today: { ...todayRow, failed_jobs: Number(failedJobs.rows[0]?.value ?? 0), inactive_customers: segments.inactive ?? 0, lifecycle_sample: lifecycleRows.length },
+    lifecycle: { segments, customers: lifecycleRows },
+    providers: providerRows,
+    credit: credit.rows,
+    quality: {
+      duplicate_phones: Number(quality[0].rows[0]?.value ?? 0),
+      duplicate_active_usernames: Number(quality[1].rows[0]?.value ?? 0),
+      services_without_subscription: Number(quality[2].rows[0]?.value ?? 0),
+      orphan_sales: Number(quality[3].rows[0]?.value ?? 0),
+      unpaid_sales: Number(quality[4].rows[0]?.value ?? 0),
+    },
+    reports: { packages: packageReport.rows, best_periods: periodReport.rows },
+  });
 });
 
 export default router;

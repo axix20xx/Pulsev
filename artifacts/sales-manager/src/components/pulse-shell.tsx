@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bell, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert, Check } from 'lucide-react';
+import { Activity, BarChart3, Bell, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert, Check, Sparkles } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { Copy, Search } from 'lucide-react';
@@ -29,6 +29,7 @@ const nav = [
 const monitoringNav = { href: '/monitoring', label: 'مانیتورینگ', icon: Activity };
 const posNav = { href: '/pos', label: 'پایانه فروش', icon: CreditCard };
 const operationsNav = { href: '/operations', label: 'مرکز عملیات', icon: Gauge };
+const smartNav = { href: '/insights', label: 'مرکز هوشمند', icon: Sparkles };
 
 export function Shell({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
@@ -159,6 +160,7 @@ export function Shell({ children }: { children: ReactNode }) {
            <Link href={posNav.href} className={`side-link ${location === posNav.href ? 'active' : ''}`} data-testid="link-nav-pos"><posNav.icon size={17} strokeWidth={1.8} /><span>{posNav.label}</span></Link>
           <Link href={monitoringNav.href} className={`side-link ${location === monitoringNav.href ? 'active' : ''}`} data-testid="link-nav-monitoring"><Activity size={17} strokeWidth={1.8} /><span>{monitoringNav.label}</span></Link>
            <Link href={operationsNav.href} className={`side-link ${location === operationsNav.href ? 'active' : ''}`} data-testid="link-nav-operations"><Gauge size={17} strokeWidth={1.8} /><span>{operationsNav.label}</span></Link>
+            <Link href={smartNav.href} className={`side-link ${location === smartNav.href ? 'active' : ''}`} data-testid="link-nav-insights"><Sparkles size={17} strokeWidth={1.8} /><span>{smartNav.label}</span></Link>
           <Link href="/settings" className={`side-link ${location === '/settings' ? 'active' : ''}`} data-testid="link-nav-settings"><Settings size={17} strokeWidth={1.8} /><span>تنظیمات</span></Link>
         </div>
         <div className="sidebar-bottom">
@@ -174,7 +176,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </aside>
       {open && <button className="sidebar-scrim md:hidden" onClick={() => setOpen(false)} aria-label="بستن منو" data-testid="button-scrim" />}
-      <main className="min-h-[100dvh] md:pr-[238px]">
+       <main className="min-h-[100dvh] md:pl-[238px]">
         <header className="topbar">
           <button className="icon-button md:hidden" onClick={() => setOpen(true)} aria-label="باز کردن منو" data-testid="button-open-nav"><Menu size={20} /></button>
           <div className="topbar-search-wrap" ref={searchWrapRef}>
