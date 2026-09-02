@@ -243,6 +243,24 @@ async function tokenFor(panel: Panel, forceRefresh = false): Promise<string> {
   throw new RainApiError(`Could not authenticate with panel ${key} (${reason})`);
 }
 
+export async function testPanelAuthentication(
+  key: string,
+  ownerId?: number,
+  role?: string,
+): Promise<{ ok: boolean; detail: string }> {
+  const panel = (await panels(ownerId, role)).find((candidate) => panelKey(candidate) === key);
+  if (!panel) return { ok: false, detail: `Panel ${key} is not configured or has no credentials.` };
+  try {
+    await tokenFor(panel, true);
+    return { ok: true, detail: "Authentication succeeded." };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Authentication failed.",
+    };
+  }
+}
+
 async function panelRequest(
   panel: Panel,
   method: string,

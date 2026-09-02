@@ -82,6 +82,10 @@ async function retryJob(job: ProvisionJob, error: string, providerKeys?: string[
       job.id,
     ],
   );
+  logger.warn(
+    { jobId: job.id, action: job.action, attempts: job.attempts, error: error.slice(0, 240) },
+    "Provisioning job scheduled for retry",
+  );
 }
 
 async function completeJob(jobId: number) {
@@ -111,6 +115,7 @@ async function processProviderJob(job: ProvisionJob) {
       return;
     }
     await completeJob(job.id);
+    logger.info({ jobId: job.id, action: job.action }, "Provisioning job completed");
   } catch (error) {
     const results = error instanceof RainApiError ? error.results : [];
     const failedKeys = results
@@ -144,6 +149,7 @@ async function processAwgJob(job: ProvisionJob) {
       [awg.clientId, job.service_id],
     );
     await completeJob(job.id);
+    logger.info({ jobId: job.id, action: job.action }, "Provisioning job completed");
   } catch (error) {
     await retryJob(job, safeError(error));
   }
@@ -169,6 +175,11 @@ async function tick() {
 }
 
 export function startProvisioningWorker() {
+  void pool.query(
+    `UPDATE service_provision_jobs
+     SET next_attempt_at = NOW(), updated_at = NOW()
+     WHERE status = 'retrying'`,
+  ).catch((error) => logger.error({ err: error }, "Failed to wake retrying provisioning jobs"));
   void tick();
   setInterval(() => void tick(), 5_000);
   logger.info("Service provisioning worker started");
