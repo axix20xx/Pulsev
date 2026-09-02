@@ -5,6 +5,7 @@ import { Copy, Search } from 'lucide-react';
 import { getSearchWorkspaceQueryKey, useLogout, useSearchWorkspace, type WorkspaceSearchResult } from '@workspace/api-client-react';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateTimeLabel, statusLabel } from '@/lib/pulse-data';
+import { PulseNetworkAccent } from '@/components/pulse-network-accent';
 
 const subscriptionPageHref = (raw: string | null | undefined): string | null => {
   if (!raw) return null;
@@ -162,6 +163,7 @@ export function Shell({ children }: { children: ReactNode }) {
            <Link href={operationsNav.href} className={`side-link ${location === operationsNav.href ? 'active' : ''}`} data-testid="link-nav-operations"><Gauge size={17} strokeWidth={1.8} /><span>{operationsNav.label}</span></Link>
             <Link href={smartNav.href} className={`side-link ${location === smartNav.href ? 'active' : ''}`} data-testid="link-nav-insights"><Sparkles size={17} strokeWidth={1.8} /><span>{smartNav.label}</span></Link>
           <Link href="/settings" className={`side-link ${location === '/settings' ? 'active' : ''}`} data-testid="link-nav-settings"><Settings size={17} strokeWidth={1.8} /><span>تنظیمات</span></Link>
+           <PulseNetworkAccent compact className="sidebar-network" />
         </div>
         <div className="sidebar-bottom">
           <div className="connection-card">
