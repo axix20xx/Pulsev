@@ -150,7 +150,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <button className="icon-button md:hidden" onClick={() => setOpen(false)} aria-label="بستن منو" data-testid="button-close-nav"><X size={18} /></button>
         </div>
          <div className="signal-rail-body px-4 pt-11">
-          <p className="eyebrow px-3 pb-3">فضای کاری</p>
+           <p className="rail-section-title eyebrow px-3 pb-3">داده‌های کاری</p>
            <nav className="signal-rail-nav space-y-1">
             {visibleNav.map(({ href, label, icon: Icon }) => (
               <Link key={href} href={href} className={`side-link ${isNavActive(href) ? 'active' : ''}`} aria-current={isNavActive(href) ? 'page' : undefined} data-testid={`link-nav-${href === '/' ? 'dashboard' : href.slice(1)}`}>
@@ -159,7 +159,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
-           <p className="eyebrow px-3 pb-3 pt-9">مدیریت</p>
+            <p className="rail-section-title eyebrow px-3 pb-3 pt-9">مرکز کنترل</p>
             <Link href={posNav.href} className={`side-link ${isNavActive(posNav.href) ? 'active' : ''}`} aria-current={isNavActive(posNav.href) ? 'page' : undefined} data-testid="link-nav-pos"><posNav.icon size={17} strokeWidth={1.8} /><span>{posNav.label}</span></Link>
            <Link href={monitoringNav.href} className={`side-link ${isNavActive(monitoringNav.href) ? 'active' : ''}`} aria-current={isNavActive(monitoringNav.href) ? 'page' : undefined} data-testid="link-nav-monitoring"><Activity size={17} strokeWidth={1.8} /><span>{monitoringNav.label}</span></Link>
             <Link href={operationsNav.href} className={`side-link ${isNavActive(operationsNav.href) ? 'active' : ''}`} aria-current={isNavActive(operationsNav.href) ? 'page' : undefined} data-testid="link-nav-operations"><Gauge size={17} strokeWidth={1.8} /><span>{operationsNav.label}</span></Link>

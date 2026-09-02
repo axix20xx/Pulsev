@@ -2348,6 +2348,24 @@ body::before {
   border-bottom: 1px solid hsl(42 28% 92% / .1);
   padding: 28px 22px 18px;
 }
+.signal-rail .pulse-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  box-shadow: 0 8px 18px hsl(177 45% 42% / .25), inset 0 1px hsl(42 28% 92% / .25);
+}
+.signal-rail .icon-button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: hsl(42 28% 92% / .65);
+}
+.signal-rail .icon-button:hover {
+  border-color: hsl(42 28% 92% / .16);
+  background: hsl(42 28% 92% / .07);
+  color: hsl(42 28% 92%);
+}
 .signal-rail-body {
   padding: 28px 18px 0 !important;
 }
@@ -2392,6 +2410,29 @@ body::before {
   background: hsl(37 78% 61%);
   box-shadow: 0 0 0 4px hsl(37 78% 54% / .1);
 }
+.signal-rail .rail-section-title {
+  margin-top: 0;
+  color: hsl(42 28% 92% / .36);
+  font-size: 9px;
+  font-weight: 500;
+}
+.signal-rail .side-link[href="/insights"] {
+  min-height: 66px;
+  margin-top: 16px;
+  border-color: hsl(177 45% 48% / .24);
+  background: linear-gradient(125deg, hsl(177 45% 42% / .18), hsl(218 23% 26% / .78));
+}
+.signal-rail .side-link[href="/insights"]::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(146 62% 58%);
+  box-shadow: 0 0 0 4px hsl(146 62% 58% / .12);
+}
+.signal-rail .side-link[href="/insights"]::after { display: none; }
 .signal-rail .side-count {
   margin-right: auto;
   border: 1px solid hsl(37 78% 54% / .35);
@@ -2757,11 +2798,50 @@ table td { font-size: 11px; }
 @media (max-width: 767px) {
   .signal-main { padding-left: 0 !important; }
   .signal-rail {
-    width: min(86vw, 310px);
+    top: 0;
+    width: min(71vw, 360px);
+    max-width: 360px;
+    border-left: 2px solid hsl(177 45% 48% / .58);
     transform: translateX(100%);
+    box-shadow: -24px 0 70px hsl(218 35% 10% / .35);
   }
   .signal-rail.is-open { transform: translateX(0); }
-  .signal-rail::before { left: 22px; }
+  .signal-rail::before { top: max(20px, env(safe-area-inset-top)); left: 22px; }
+  .signal-rail > div:first-child {
+    min-height: 78px;
+    padding-top: max(28px, calc(env(safe-area-inset-top) + 12px));
+  }
+  .signal-rail-body {
+    height: calc(100dvh - 88px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 22px 14px 176px !important;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(177 45% 48% / .35) transparent;
+  }
+  .signal-rail .side-link {
+    min-height: 47px;
+    border-radius: 9px;
+    padding-inline: 13px;
+  }
+  .signal-rail .side-link.active {
+    box-shadow: inset 3px 0 hsl(177 55% 55%), 0 10px 24px hsl(218 35% 10% / .18);
+  }
+  .signal-rail .side-link[href="/insights"] { min-height: 68px; margin-top: 14px; }
+  .signal-rail .rail-network { display: none; }
+  .signal-rail .sidebar-bottom {
+    right: 14px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    left: 14px;
+    padding-top: 12px;
+    border-top: 1px solid hsl(42 28% 92% / .1);
+    background: linear-gradient(180deg, transparent, hsl(218 29% 16% / .98) 18%);
+  }
+  .signal-rail .connection-card { margin-bottom: 10px; }
+  .sidebar-scrim {
+    background: hsl(218 29% 18% / .34);
+    backdrop-filter: blur(2px);
+  }
   .signal-command-bar { height: 72px; padding: 0 14px; }
   .command-search { min-width: 0; height: 40px; }
   .command-search input { font-size: 10px; }
