@@ -1,10 +1,10 @@
 import { useMemo, useState, useEffect, createContext, useContext, type ReactNode, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowUpLeft, CalendarDays, Check, ChevronLeft, Copy, CreditCard, Download, ExternalLink, Filter, Globe2, KeyRound, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
+import { Activity, ArrowUpLeft, CalendarDays, Check, ChevronLeft, Copy, CreditCard, Download, ExternalLink, Filter, Globe2, KeyRound, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Link, useLocation, useParams } from 'wouter';
 import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, type AdminSale } from '@workspace/api-client-react';
-import { Customer, Service, Sale, activities, dateLabel, daysUntil, initialCustomers, initialSales, initialServices, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, money, panels, todayLabel } from '@/lib/pulse-data';
+import { Customer, Service, Sale, activities, dateLabel, dateTimeLabel, daysUntil, initialCustomers, initialSales, initialServices, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, money, panels, todayLabel } from '@/lib/pulse-data';
 import { Avatar, PageHeader, StatusPill } from '@/components/pulse-shell';
 
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
@@ -717,6 +717,65 @@ export function Services() {
   return <><PageHeader eyebrow="موجودی دسترسی" title="سرویس‌ها" description="حساب‌ها، مصرف، انقضا و یادداشت‌ها را یک‌جا کنترل کنید." action={<Button onClick={() => setModal(true)} testId="button-add-service"><Plus size={16} /> افزودن سرویس</Button>} />
     <div className="toolbar"><div className="search-field"><Search size={16} /><input placeholder="جست‌وجوی مشتری یا نام کاربری" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-services" /></div><div className="select-wrap"><Filter size={14} /><select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="فیلتر وضعیت سرویس" data-testid="select-service-status"><option value="All">همه وضعیت‌ها</option><option value="Active">فعال</option><option value="Expiring">نزدیک به انقضا</option><option value="Expired">منقضی</option><option value="Disabled">غیرفعال</option></select></div></div>
     <section className="services-grid">{filtered.map((service) => <article className="service-card" key={service.id} data-testid={`card-service-${service.id}`}><div className="flex items-start justify-between"><div className="flex items-center gap-3"><div className="service-symbol"><Globe2 size={17} /></div><div><h3 className="font-bold">{service.plan}</h3><p className="font-mono text-[10px] text-muted-foreground">{service.username}</p></div></div><StatusPill value={service.status} /></div><div className="mt-5 flex items-end justify-between"><div><p className="text-xs text-muted-foreground">مشتری</p><p className="mt-1 text-sm font-semibold">{service.customerName}</p></div><div className="text-right"><p className="text-xs text-muted-foreground">انقضا</p><p className="mt-1 text-sm font-semibold">{dateLabel(service.expiresAt)}</p></div></div><div className="quota"><div className="mb-1.5 flex justify-between text-[11px] text-muted-foreground"><span>مصرف</span><span className="font-mono">{service.usedGb} / {service.limitGb} گیگ</span></div><div className="quota-track"><span style={{ width: `${service.limitGb ? Math.min(100, service.usedGb / service.limitGb * 100) : 0}%` }} /></div></div><div className="mt-4 flex items-center justify-between border-t border-border/70 pt-3"><button className="text-right text-[11px] text-muted-foreground hover:text-foreground" onClick={() => setNoteService(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? `${service.panel} · یادداشت دارد` : `${service.panel} · افزودن یادداشت`}</button><div className="flex items-center gap-1"><Button variant="quiet" onClick={() => toggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Active' && service.status !== 'Disabled' && <Button variant="quiet" onClick={() => renewService(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={12} /> تمدید</Button>}</div></div></article>)}</section>{!filtered.length && <EmptyState title="سرویسی پیدا نشد" detail="فیلتر وضعیت یا عبارت جست‌وجو را تغییر دهید." />}{modal && <ServiceModal onClose={() => setModal(false)} />}{noteService && <NoteModal service={noteService} onClose={() => setNoteService(null)} />}</>;
+}
+
+type MonitoringJob = {
+  id: number;
+  service_id: number;
+  username: string;
+  action: 'providers' | 'awg';
+  provider_keys: string[];
+  status: 'pending' | 'running' | 'retrying' | 'completed';
+  attempts: number;
+  last_error?: string | null;
+  next_attempt_at?: string | null;
+  updated_at?: string | null;
+  completed_at?: string | null;
+  customer_name: string;
+  plan: string;
+};
+
+const monitoringStatus = (status: MonitoringJob['status']) => ({
+  pending: 'در صف',
+  running: 'در حال اجرا',
+  retrying: 'تلاش مجدد',
+  completed: 'انجام شد',
+}[status]);
+
+export function Monitoring() {
+  const [data, setData] = useState<{ summary: { pending: number; running: number; completed: number; total: number }; jobs: MonitoringJob[] }>({ summary: { pending: 0, running: 0, completed: 0, total: 0 }, jobs: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const loadMonitoring = async () => {
+    try {
+      const response = await fetch('/api/monitoring', { credentials: 'include' });
+      if (!response.ok) throw new Error('دریافت وضعیت مانیتورینگ ناموفق بود.');
+      setData(await response.json());
+      setError('');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'دریافت وضعیت مانیتورینگ ناموفق بود.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    void loadMonitoring();
+    const timer = window.setInterval(() => void loadMonitoring(), 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const number = (value: number) => new Intl.NumberFormat('fa-IR').format(Number(value || 0));
+  return <><PageHeader eyebrow="کنترل عملیاتی" title="مانیتورینگ ساخت سرویس" description="تلاش‌های Providerها و AmneziaWG را لحظه‌به‌لحظه پیگیری کنید." action={<Button variant="secondary" onClick={() => { setLoading(true); void loadMonitoring(); }} disabled={loading} testId="button-refresh-monitoring"><RefreshCw size={15} className={loading ? 'spin' : ''} /> بروزرسانی</Button>} />
+    {error && <div className="notice danger"><Activity size={15} /> {error}</div>}
+    <section className="monitoring-metrics">
+      <div className="monitoring-metric"><span className="monitoring-metric-icon amber"><Activity size={17} /></span><div><small>در انتظار / تلاش مجدد</small><strong>{number(data.summary.pending)}</strong></div></div>
+      <div className="monitoring-metric"><span className="monitoring-metric-icon teal"><RefreshCw size={17} /></span><div><small>در حال اجرا</small><strong>{number(data.summary.running)}</strong></div></div>
+      <div className="monitoring-metric"><span className="monitoring-metric-icon sage"><Check size={17} /></span><div><small>تکمیل‌شده</small><strong>{number(data.summary.completed)}</strong></div></div>
+      <div className="monitoring-metric"><span className="monitoring-metric-icon"><Server size={17} /></span><div><small>کل jobها</small><strong>{number(data.summary.total)}</strong></div></div>
+    </section>
+    <section className="panel-card monitoring-card"><div className="panel-heading"><div><p className="eyebrow">صف ساخت</p><h2 className="section-title">وضعیت همه تلاش‌ها</h2></div><span className="soft-badge">بروزرسانی خودکار · ۱۰ ثانیه</span></div>
+      {loading && !data.jobs.length ? <div className="monitoring-empty"><RefreshCw size={18} className="spin" /><p>در حال دریافت وضعیت...</p></div> : !data.jobs.length ? <div className="monitoring-empty"><Check size={18} /><p>هنوز job ساختی ثبت نشده است.</p><small>بعد از ساخت سرویس، وضعیت Providerهای ناموفق و AWG اینجا نمایش داده می‌شود.</small></div> : <div className="monitoring-table-wrap"><table className="monitoring-table"><thead><tr><th>سرویس</th><th>منبع</th><th>وضعیت</th><th>تلاش</th><th>آخرین خطا</th><th>آخرین بروزرسانی</th></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id}><td><strong>{job.plan || 'سرویس'}</strong><small>{job.customer_name} · <span dir="ltr">{job.username}</span></small></td><td><span className="monitoring-source">{job.action === 'awg' ? 'AmneziaWG' : job.provider_keys.join('، ') || 'Providerها'}</span></td><td><span className={`monitoring-status ${job.status}`}><span />{monitoringStatus(job.status)}</span></td><td>{number(job.attempts)}</td><td className="monitoring-error" title={job.last_error || ''}>{job.last_error || '—'}</td><td>{job.updated_at ? dateTimeLabel(job.updated_at) : '—'}</td></tr>)}</tbody></table></div>}
+    </section>
+  </>;
 }
 
 export function Customers() {

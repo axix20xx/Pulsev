@@ -683,6 +683,47 @@ body { font-family: var(--app-font-sans); background: hsl(var(--background)); }
   .admin-sales-table table { min-width: 820px; }
 }
 
+/* Provisioning monitoring */
+.monitoring-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; margin-bottom: 14px; }
+.monitoring-metric { display: flex; align-items: center; gap: 11px; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--card)); padding: 15px; }
+.monitoring-metric > div { min-width: 0; }
+.monitoring-metric small { display: block; color: hsl(var(--muted-foreground)); font-size: 10px; }
+.monitoring-metric strong { display: block; margin-top: 4px; font: 800 22px var(--app-font-display); }
+.monitoring-metric-icon { display: grid; flex: 0 0 auto; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: hsl(var(--muted)); color: hsl(var(--primary)); }
+.monitoring-metric-icon.amber { background: hsl(39 92% 50% / .12); color: hsl(35 76% 42%); }
+.monitoring-metric-icon.teal { background: hsl(183 45% 42% / .12); color: hsl(183 45% 35%); }
+.monitoring-metric-icon.sage { background: hsl(154 42% 42% / .12); color: hsl(154 42% 33%); }
+.monitoring-card { overflow: hidden; }
+.monitoring-table-wrap { overflow-x: auto; margin: 18px -4px -5px; }
+.monitoring-table { width: 100%; min-width: 760px; border-collapse: collapse; text-align: right; }
+.monitoring-table th { padding: 0 10px 11px; color: hsl(var(--muted-foreground)); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.monitoring-table td { border-top: 1px solid hsl(var(--border) / .75); padding: 12px 10px; color: hsl(var(--foreground)); font-size: 11px; vertical-align: middle; }
+.monitoring-table td:first-child strong, .monitoring-table td:first-child small { display: block; }
+.monitoring-table td:first-child small { margin-top: 4px; color: hsl(var(--muted-foreground)); font-size: 10px; }
+.monitoring-source { display: inline-flex; max-width: 170px; overflow: hidden; border-radius: 7px; background: hsl(var(--muted)); padding: 5px 7px; color: hsl(var(--foreground)); font: 600 10px var(--app-font-mono); white-space: nowrap; text-overflow: ellipsis; direction: ltr; }
+.monitoring-status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 10px; font-weight: 800; }
+.monitoring-status > span { width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--muted-foreground)); }
+.monitoring-status.pending, .monitoring-status.retrying { color: hsl(35 76% 42%); }
+.monitoring-status.pending > span, .monitoring-status.retrying > span { background: hsl(39 92% 50%); }
+.monitoring-status.running { color: hsl(183 45% 35%); }
+.monitoring-status.running > span { background: hsl(183 55% 42%); box-shadow: 0 0 0 4px hsl(183 55% 42% / .12); }
+.monitoring-status.completed { color: hsl(154 42% 33%); }
+.monitoring-status.completed > span { background: hsl(154 42% 42%); }
+.monitoring-error { max-width: 260px; overflow: hidden; color: hsl(var(--muted-foreground)) !important; direction: ltr; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.monitoring-empty { display: grid; place-items: center; min-height: 180px; gap: 7px; color: hsl(var(--muted-foreground)); text-align: center; }
+.monitoring-empty p { color: hsl(var(--foreground)); font-size: 12px; font-weight: 700; }
+.monitoring-empty small { font-size: 10px; }
+.notice.danger { border-color: hsl(0 63% 49% / .2); background: hsl(0 63% 49% / .06); color: hsl(0 63% 42%); }
+@media (max-width: 900px) {
+  .monitoring-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .monitoring-metrics { gap: 9px; }
+  .monitoring-metric { padding: 12px; }
+  .monitoring-metric strong { font-size: 19px; }
+  .monitoring-card { padding: 14px; }
+}
+
 /* Quick service creation wizard */
 .service-wizard-redesign .wizard-content { width: min(100%, 920px); }
 .service-wizard-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; border: 1px solid hsl(var(--primary) / .14); border-radius: 18px; background: linear-gradient(135deg, hsl(var(--primary) / .1), hsl(var(--card))); padding: 18px 20px; }

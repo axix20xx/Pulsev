@@ -20,6 +20,7 @@ type PanelResult = {
   key: string;
   kind: string;
   status: number;
+  error?: string;
 };
 
 export class RainApiError extends Error {
@@ -499,8 +500,12 @@ export async function provisionUser(
   label: string,
   ownerId?: number,
   role?: string,
+  onlyPanelKeys?: string[],
 ): Promise<{ ok: boolean; results: PanelResult[] }> {
-  const configuredPanels = await panels(ownerId, role);
+  const configured = await panels(ownerId, role);
+  const configuredPanels = onlyPanelKeys?.length
+    ? configured.filter((panel) => onlyPanelKeys.includes(panelKey(panel)))
+    : configured;
   const hasCredentials = configuredPanels.some((panel) => {
     const kind = panelKind(panel);
     return Boolean(kind === "falcon" ? panel.api_key : panel.admin_user && panel.admin_pass);
@@ -510,8 +515,7 @@ export async function provisionUser(
       "Rain API is not configured. Set RAIN_PANELS_JSON or the RAIN_API_* environment variables.",
     );
   }
-  const results: PanelResult[] = [];
-  for (const panel of configuredPanels) {
+  const results = await Promise.all(configuredPanels.map(async (panel): Promise<PanelResult> => {
     const kind = panelKind(panel);
     try {
       const status =
@@ -520,15 +524,17 @@ export async function provisionUser(
           : kind === "falcon"
             ? await provisionFalcon(panel, gb, days, label)
             : await provisionMarzban(panel, username, gb, days);
-      results.push({ key: panelKey(panel), kind, status });
+      return { key: panelKey(panel), kind, status };
     } catch (error) {
-      results.push({
+      const detail = error instanceof Error ? error.message : "خطای ناشناخته در ارتباط با Provider";
+      return {
         key: panelKey(panel),
         kind,
         status: error instanceof RainApiError ? 502 : 500,
-      });
+        error: detail.slice(0, 240),
+      };
     }
-  }
+  }));
   if (!results.length || !results.some((result) => result.status >= 200 && result.status < 300)) {
     throw new RainApiError("No configured Rain panel accepted the service.", results);
   }

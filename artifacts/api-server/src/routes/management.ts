@@ -75,7 +75,7 @@ const resellerCostPerGbSql = (alias = "r") =>
 const router: IRouter = Router();
 router.use(attachAuth);
 
-const panelSchemaReady = pool
+export const managementReady = pool
   .query(`
     CREATE TABLE IF NOT EXISTS panel_configs (
       key TEXT PRIMARY KEY,
@@ -104,6 +104,26 @@ const panelSchemaReady = pool
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       PRIMARY KEY (reseller_tg_id, panel_key)
     );
+     CREATE TABLE IF NOT EXISTS service_provision_jobs (
+       id BIGSERIAL PRIMARY KEY,
+       service_id BIGINT NOT NULL,
+       owner_tg_id BIGINT NOT NULL,
+       username TEXT NOT NULL,
+       action TEXT NOT NULL CHECK (action IN ('providers', 'awg')),
+       provider_keys JSONB NOT NULL DEFAULT '[]'::jsonb,
+       payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+       status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'retrying', 'completed')),
+       attempts INTEGER NOT NULL DEFAULT 0,
+       last_error TEXT,
+       next_attempt_at TIMESTAMP NOT NULL DEFAULT NOW(),
+       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+       updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+       completed_at TIMESTAMP
+     );
+     CREATE INDEX IF NOT EXISTS service_provision_jobs_due_idx
+       ON service_provision_jobs (status, next_attempt_at);
+     CREATE INDEX IF NOT EXISTS service_provision_jobs_service_idx
+       ON service_provision_jobs (service_id, created_at DESC);
      CREATE TABLE IF NOT EXISTS reseller_credit_sales (
        id BIGSERIAL PRIMARY KEY,
        reseller_tg_id BIGINT NOT NULL,
@@ -141,7 +161,7 @@ const panelSchemaReady = pool
   });
 router.use(async (_req, _res, next) => {
   try {
-    await panelSchemaReady;
+     await managementReady;
     next();
   } catch (error) {
     next(error);
@@ -511,7 +531,7 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
 });
 
 router.get("/providers/available", requireAuth, async (_req, res): Promise<void> => {
-  await panelSchemaReady;
+  await managementReady;
   const result = await pool.query(
     `SELECT key, kind, username_env, password_env, api_key_env
      FROM panel_configs
@@ -1430,6 +1450,53 @@ router.post("/reseller-settlement-payments", requireMasterAdmin, async (req, res
   }
 });
 
+router.get("/monitoring", requireAuth, async (req, res): Promise<void> => {
+  const owner = ownership("svc", req);
+  const [summary, jobs] = await Promise.all([
+    pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE j.status IN ('pending', 'retrying'))::int AS pending,
+         COUNT(*) FILTER (WHERE j.status = 'running')::int AS running,
+         COUNT(*) FILTER (WHERE j.status = 'completed')::int AS completed,
+         COUNT(*)::int AS total
+       FROM service_provision_jobs j
+       JOIN reseller_services svc ON svc.id = j.service_id
+       WHERE ${owner.sql}`,
+      owner.params,
+    ),
+    pool.query(
+      `SELECT
+         j.id,
+         j.service_id,
+         j.username,
+         j.action,
+         j.provider_keys,
+         j.status,
+         j.attempts,
+         j.last_error,
+         j.next_attempt_at,
+         j.created_at,
+         j.updated_at,
+         j.completed_at,
+         COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
+         svc.label AS plan
+       FROM service_provision_jobs j
+       JOIN reseller_services svc ON svc.id = j.service_id
+       LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE ${owner.sql}
+       ORDER BY
+         CASE WHEN j.status IN ('pending', 'running', 'retrying') THEN 0 ELSE 1 END,
+         j.updated_at DESC
+       LIMIT 200`,
+      owner.params,
+    ),
+  ]);
+  res.json({
+    summary: summary.rows[0] ?? { pending: 0, running: 0, completed: 0, total: 0 },
+    jobs: jobs.rows,
+  });
+});
+
 router.get("/services", requireAuth, async (req, res): Promise<void> => {
   const parsed = ListServicesQueryParams.parse(req.query);
   const owner = ownership("svc", req);
@@ -1538,7 +1605,10 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
     const expiresAt = new Date(Date.now() + body.data.days * 86_400_000);
     const subLink = subscriptionUrl(token);
 
-    // Provision every enabled provider before recording the service.
+    let failedProviderKeys: string[] = [];
+    let providerWarning: string | null = null;
+    // Provision every enabled provider before recording the service. A partial
+    // result is still usable: the failed Providers are retried by the worker.
     try {
       const provisioning = await provisionUser(
         username,
@@ -1552,13 +1622,14 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
         (result) => result.status < 200 || result.status >= 300,
       );
       if (failedProviders) {
-        await disablePanelUser(username, null, ownerId, req.auth?.role);
-        await client.query("ROLLBACK");
-        res.status(502).json({
-          error: "همه providerهای سرویس ساخته نشدند؛ سرویس ناقص ثبت نشد",
-          panel_results: provisioning.results,
-        });
-        return;
+        const failed = provisioning.results
+          .filter((result) => result.status < 200 || result.status >= 300)
+          .map((result) => ({
+            key: result.key,
+            detail: result.error ?? `HTTP ${result.status}`,
+          }));
+        failedProviderKeys = failed.map((result) => result.key);
+        providerWarning = failed.map((result) => `${result.key}: ${result.detail}`).join(" · ");
       }
     } catch (error) {
       try {
@@ -1574,23 +1645,7 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
       throw error;
     }
     const awg = await createAwgClient();
-    if (!awg.clientId) {
-      try {
-        await disablePanelUser(
-          username,
-          null,
-          ownerId,
-          req.auth?.role,
-        );
-      } catch {
-        // The database transaction still rolls back; remote cleanup is best effort.
-      }
-      await client.query("ROLLBACK");
-      res.status(502).json({
-        error: awg.error ?? "ساخت AmneziaWG انجام نشد؛ سرویس ناقص ثبت نشد",
-      });
-      return;
-    }
+    const awgWarning = awg.clientId ? null : awg.error ?? "AmneziaWG API is unavailable.";
 
     await client.query(
       `INSERT INTO reseller_services
@@ -1635,11 +1690,39 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
         Number(queueNext.rows[0].id),
         serviceId,
         username,
-        JSON.stringify({ gb: body.data.gb, days: body.data.days, enable: true, awg: true }),
-        awg.clientId ? "completed" : "partial",
-        awg.error,
+        JSON.stringify({ gb: body.data.gb, days: body.data.days, enable: true, awg: Boolean(awg.clientId) }),
+        failedProviderKeys.length || !awg.clientId ? "partial" : "completed",
+        [providerWarning, awgWarning].filter(Boolean).join(" · ") || null,
       ],
     );
+    if (failedProviderKeys.length) {
+      await client.query(
+        `INSERT INTO service_provision_jobs
+         (service_id, owner_tg_id, username, action, provider_keys, payload, status, last_error)
+         VALUES ($1, $2, $3, 'providers', $4::jsonb, $5::jsonb, 'pending', $6)`,
+        [
+          serviceId,
+          ownerId,
+          username,
+          JSON.stringify(failedProviderKeys),
+          JSON.stringify({
+            gb: body.data.gb,
+            days: body.data.days,
+            label: body.data.label,
+            role: req.auth?.role,
+          }),
+          providerWarning,
+        ],
+      );
+    }
+    if (!awg.clientId) {
+      await client.query(
+        `INSERT INTO service_provision_jobs
+         (service_id, owner_tg_id, username, action, payload, status, last_error)
+         VALUES ($1, $2, $3, 'awg', '{}'::jsonb, 'pending', $4)`,
+        [serviceId, ownerId, username, awgWarning],
+      );
+    }
     if (req.auth?.role === "reseller") {
       await client.query(
         "UPDATE resellers SET used_gb = used_gb + $1, updated_at = NOW() WHERE tg_id = $2",
@@ -1661,7 +1744,11 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
        WHERE svc.id = $1`,
       [serviceId],
     );
-    res.status(201).json(CreateServiceResponse.parse({ service: fresh.rows[0], sale_id: saleId, sync_status: awg.clientId ? "completed" : "partial" }));
+     res.status(201).json(CreateServiceResponse.parse({
+       service: fresh.rows[0],
+       sale_id: saleId,
+       sync_status: failedProviderKeys.length || !awg.clientId ? "partial" : "completed",
+     }));
   } catch (error) {
     try {
       await client.query("ROLLBACK");

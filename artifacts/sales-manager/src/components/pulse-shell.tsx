@@ -1,4 +1,4 @@
-import { BarChart3, Bell, CircleHelp, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert } from 'lucide-react';
+import { Activity, BarChart3, Bell, CircleHelp, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { Copy, Search } from 'lucide-react';
@@ -26,6 +26,7 @@ const nav = [
   { href: '/customers', label: 'مشتری‌ها', icon: Users },
   { href: '/reports', label: 'گزارش‌ها', icon: BarChart3 },
 ];
+const monitoringNav = { href: '/monitoring', label: 'مانیتورینگ', icon: Activity };
 
 export function Shell({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
@@ -132,7 +133,7 @@ export function Shell({ children }: { children: ReactNode }) {
   if (sessionLoading || isSignedOut) return <div className="login-screen"><div className="login-card text-center"><div className="pulse-mark large mx-auto"><span /></div><p className="mt-5 font-bold">در حال بررسی دسترسی...</p></div></div>;
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
-      <aside className={`pulse-sidebar ${open ? 'is-open' : ''}`}>
+       <aside className={`pulse-sidebar ${open ? 'is-open' : ''}`}>
         <div className="flex items-center justify-between px-5 pt-6">
           <Link href="/" className="flex items-center gap-2.5" data-testid="link-logo">
             <span className="pulse-mark"><span /></span>
@@ -150,7 +151,8 @@ export function Shell({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
-          <p className="eyebrow px-3 pb-3 pt-9">مدیریت</p>
+           <p className="eyebrow px-3 pb-3 pt-9">مدیریت</p>
+          <Link href={monitoringNav.href} className={`side-link ${location === monitoringNav.href ? 'active' : ''}`} data-testid="link-nav-monitoring"><Activity size={17} strokeWidth={1.8} /><span>{monitoringNav.label}</span></Link>
           <Link href="/settings" className={`side-link ${location === '/settings' ? 'active' : ''}`} data-testid="link-nav-settings"><Settings size={17} strokeWidth={1.8} /><span>تنظیمات</span></Link>
         </div>
         <div className="sidebar-bottom">
@@ -207,8 +209,8 @@ export function Shell({ children }: { children: ReactNode }) {
           {children}
         </div>
       </main>
-      <nav className="mobile-bottom-nav">
-        {nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={location === href ? 'active' : ''} data-testid={`mobile-link-${href === '/' ? 'dashboard' : href.slice(1)}`}><Icon size={17} /><span>{label}</span></Link>)}
+       <nav className="mobile-bottom-nav">
+         {nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={location === href ? 'active' : ''} data-testid={`mobile-link-${href === '/' ? 'dashboard' : href.slice(1)}`}><Icon size={17} /><span>{label}</span></Link>)}
       </nav>
     </div>
   );

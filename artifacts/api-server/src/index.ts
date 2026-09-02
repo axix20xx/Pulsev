@@ -1,5 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startProvisioningWorker } from "./lib/provisioning-worker";
+import { managementReady } from "./routes/management";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +24,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  void managementReady
+    .then(() => startProvisioningWorker())
+    .catch((error) => logger.error({ err: error }, "Provisioning worker failed to start"));
 });
