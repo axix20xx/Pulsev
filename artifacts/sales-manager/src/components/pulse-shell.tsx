@@ -140,8 +140,8 @@ export function Shell({ children }: { children: ReactNode }) {
   if (location === '/login' || location.startsWith('/sub')) return <div className="min-h-[100dvh] bg-background text-foreground">{children}</div>;
   if (sessionLoading || isSignedOut) return <div className="login-screen"><div className="login-card text-center"><div className="pulse-mark large mx-auto"><span /></div><p className="mt-5 font-bold">در حال بررسی دسترسی...</p></div></div>;
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground">
-       <aside className={`pulse-sidebar ${open ? 'is-open' : ''}`}>
+     <div className="signal-shell min-h-[100dvh] bg-background text-foreground">
+        <aside className={`signal-rail pulse-sidebar ${open ? 'is-open' : ''}`}>
         <div className="flex items-center justify-between px-5 pt-6">
           <Link href="/" className="flex items-center gap-2.5" data-testid="link-logo">
             <span className="pulse-mark"><span /></span>
@@ -149,9 +149,9 @@ export function Shell({ children }: { children: ReactNode }) {
           </Link>
           <button className="icon-button md:hidden" onClick={() => setOpen(false)} aria-label="بستن منو" data-testid="button-close-nav"><X size={18} /></button>
         </div>
-        <div className="px-4 pt-11">
+         <div className="signal-rail-body px-4 pt-11">
           <p className="eyebrow px-3 pb-3">فضای کاری</p>
-          <nav className="space-y-1">
+           <nav className="signal-rail-nav space-y-1">
             {visibleNav.map(({ href, label, icon: Icon }) => (
               <Link key={href} href={href} className={`side-link ${isNavActive(href) ? 'active' : ''}`} aria-current={isNavActive(href) ? 'page' : undefined} data-testid={`link-nav-${href === '/' ? 'dashboard' : href.slice(1)}`}>
                 <Icon size={17} strokeWidth={1.8} /><span>{label}</span>
@@ -165,7 +165,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <Link href={operationsNav.href} className={`side-link ${isNavActive(operationsNav.href) ? 'active' : ''}`} aria-current={isNavActive(operationsNav.href) ? 'page' : undefined} data-testid="link-nav-operations"><Gauge size={17} strokeWidth={1.8} /><span>{operationsNav.label}</span></Link>
              <Link href={smartNav.href} className={`side-link ${isNavActive(smartNav.href) ? 'active' : ''}`} aria-current={isNavActive(smartNav.href) ? 'page' : undefined} data-testid="link-nav-insights"><Sparkles size={17} strokeWidth={1.8} /><span>{smartNav.label}</span></Link>
            <Link href="/settings" className={`side-link ${isNavActive('/settings') ? 'active' : ''}`} aria-current={isNavActive('/settings') ? 'page' : undefined} data-testid="link-nav-settings"><Settings size={17} strokeWidth={1.8} /><span>تنظیمات</span></Link>
-           <PulseNetworkAccent compact className="sidebar-network" />
+            <PulseNetworkAccent compact className="rail-network" />
         </div>
         <div className="sidebar-bottom">
           <div className="connection-card">
@@ -180,10 +180,10 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </aside>
       {open && <button className="sidebar-scrim md:hidden" onClick={() => setOpen(false)} aria-label="بستن منو" data-testid="button-scrim" />}
-       <main className="min-h-[100dvh] md:pl-[238px]">
-        <header className="topbar">
+       <main className="signal-main min-h-[100dvh] md:pl-[238px]">
+        <header className="signal-command-bar topbar">
           <button className="icon-button md:hidden" onClick={() => setOpen(true)} aria-label="باز کردن منو" data-testid="button-open-nav"><Menu size={20} /></button>
-          <div className="topbar-search-wrap" ref={searchWrapRef}>
+          <div className="command-search topbar-search-wrap" ref={searchWrapRef}>
             <Search size={16} aria-hidden="true" />
             <input
               ref={searchInputRef}
@@ -217,11 +217,11 @@ export function Shell({ children }: { children: ReactNode }) {
         </header>
          {topbarPanel === 'notifications' && <section className="topbar-popover notification-panel" role="dialog" aria-label="اعلان‌های واقعی"><div className="popover-heading"><div><p className="eyebrow">مرکز اطلاع‌رسانی</p><h2>اعلان‌ها</h2></div><div className="flex items-center gap-2"><span className="soft-badge">{new Intl.NumberFormat('fa-IR').format(unreadNotifications.length)} خوانده‌نشده</span>{unreadNotifications.length > 0 && <button type="button" className="notification-read-all" onClick={() => void markAllNotificationsRead()}><Check size={12} /> همه خوانده شد</button>}</div></div>{notifications.length ? <div className="notification-list">{notifications.map((item) => item.href ? <Link key={item.id} href={item.href} className={`notification-item ${item.tone} ${item.read ? 'read' : ''}`} onClick={() => { void markNotificationRead(item.id); setTopbarPanel(null); }}><span className="notification-icon"><Bell size={14} /></span><span className="notification-copy"><strong>{item.title}</strong><small>{item.detail}</small><em>{dateTimeLabel(item.created_at)}</em></span></Link> : <div key={item.id} className={`notification-item ${item.tone} ${item.read ? 'read' : ''}`} onClick={() => void markNotificationRead(item.id)}><span className="notification-icon"><Bell size={14} /></span><span className="notification-copy"><strong>{item.title}</strong><small>{item.detail}</small><em>{dateTimeLabel(item.created_at)}</em></span></div>)}</div> : <div className="popover-empty"><Bell size={18} /><p>اعلان جدیدی وجود ندارد.</p><small>وقتی سرویس نزدیک انقضا شود، حجم تمام شود یا فاکتوری پرداخت‌نشده باشد، اینجا می‌بینید.</small></div>}</section>}
         {topbarPanel === 'help' && <section className="topbar-popover help-panel" role="dialog" aria-label="راهنمای سامانه"><div className="popover-heading"><div><p className="eyebrow">راهنمای پالس</p><h2>چطور استفاده کنم؟</h2></div><CircleHelp size={20} className="text-muted-foreground" /></div><div className="help-list"><div><strong>ساخت سرویس</strong><span>از صفحه سرویس‌ها مشتری را با شماره موبایل پیدا کنید و سرویس را روی همه پنل‌های آماده بسازید.</span></div><div><strong>مصرف و AWG</strong><span>در پرونده مشتری، مصرف هر پنل و AmneziaWG با offset مستقل نمایش داده می‌شود.</span></div><div><strong>گزارش و چاپ</strong><span>در صفحه گزارش بازه شمسی را انتخاب کنید و روی «چاپ گزارش» بزنید.</span></div><div><strong>دسترسی</strong><span>هر فروشنده فقط مشتری‌ها و سرویس‌های خودش را می‌بیند؛ مدیر اصلی گزارش کامل دارد.</span></div></div><Link href="/settings" className="button button-secondary help-link" onClick={() => setTopbarPanel(null)}>رفتن به تنظیمات</Link></section>}
-        <div className="page-wrap">
+        <div className="signal-page-canvas page-wrap">
           {children}
         </div>
       </main>
-       <nav className="mobile-bottom-nav">
+       <nav className="signal-mobile-dock mobile-bottom-nav">
           {nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={location === href || (href !== '/' && location.startsWith(`${href}/`)) ? 'active' : ''} aria-current={location === href || (href !== '/' && location.startsWith(`${href}/`)) ? 'page' : undefined} data-testid={`mobile-link-${href === '/' ? 'dashboard' : href.slice(1)}`}><Icon size={17} /><span>{label}</span></Link>)}
       </nav>
     </div>
@@ -229,7 +229,7 @@ export function Shell({ children }: { children: ReactNode }) {
 }
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description?: string; action?: ReactNode }) {
-  return <div className="page-header"><div className="page-heading-copy"><p className="eyebrow">{eyebrow}</p><h1 className="page-title">{title}</h1>{description && <p className="page-description">{description}</p>}<div className="page-header-rule" aria-hidden="true"><span /><span /><span /></div></div>{action && <div className="page-header-actions">{action}</div>}</div>;
+  return <header className="page-header"><div className="page-heading-copy"><div className="page-heading-kicker"><span className="kicker-mark" aria-hidden="true" /><p className="eyebrow">{eyebrow}</p><span className="page-heading-context">اتاق کنترل پالس</span></div><h1 className="page-title">{title}</h1>{description && <p className="page-description">{description}</p>}<div className="page-header-rule" aria-hidden="true"><span /><span /><span /></div></div>{action && <div className="page-header-actions">{action}</div>}</header>;
 }
 
 export function StatusPill({ value }: { value: string }) {
