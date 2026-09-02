@@ -181,35 +181,66 @@ async function tokenFor(panel: Panel, forceRefresh = false): Promise<string> {
 
   const paths =
     kind === "rain_admin"
-      ? ["/api/admins/token", "/api/admin/token", "/api/admin/token/"]
+      ? ["/api/admins/token", "/api/admin/token", "/api/admin/token/", "/api/admins/token/"]
       : ["/api/admin/token", "/api/admin/token/"];
+  let lastStatus: number | null = null;
+  let networkFailure = false;
   for (const path of paths) {
-    try {
-      const response = await fetch(`${panel.api_base}${path}`, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+    const requestBodies: Array<{ contentType: string; body: string }> = [
+      {
+        contentType: "application/x-www-form-urlencoded",
         body: new URLSearchParams({
           grant_type: "password",
           username: panel.admin_user ?? "",
           password: panel.admin_pass ?? "",
+        }).toString(),
+      },
+    ];
+    if (kind === "rain_admin") {
+      requestBodies.push({
+        contentType: "application/json",
+        body: JSON.stringify({
+          username: panel.admin_user ?? "",
+          password: panel.admin_pass ?? "",
         }),
-        signal: AbortSignal.timeout(10_000),
       });
-      const text = await response.text();
-      const json = text ? JSON.parse(text) : null;
-      const token = json?.access_token ?? json?.token ?? json?.bearer;
-      if (response.ok && typeof token === "string" && token) {
-        tokenCache.set(key, token);
-        return token;
+    }
+    for (const requestBody of requestBodies) {
+      try {
+        const response = await fetch(`${panel.api_base}${path}`, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": requestBody.contentType,
+          },
+          body: requestBody.body,
+          signal: AbortSignal.timeout(10_000),
+        });
+        lastStatus = response.status;
+        const text = await response.text();
+        let json: any = null;
+        try {
+          json = text ? JSON.parse(text) : null;
+        } catch {
+          json = null;
+        }
+        const token = json?.access_token ?? json?.token ?? json?.bearer;
+        if (response.ok && typeof token === "string" && token) {
+          tokenCache.set(key, token);
+          return token;
+        }
+      } catch {
+        networkFailure = true;
+        // Try the next supported request shape without exposing credentials.
       }
-    } catch {
-      // Try the next known token endpoint without exposing credentials.
     }
   }
-  throw new RainApiError(`Could not authenticate with panel ${key}`);
+  const reason = lastStatus !== null
+    ? `HTTP ${lastStatus}`
+    : networkFailure
+      ? "network error"
+      : "no response";
+  throw new RainApiError(`Could not authenticate with panel ${key} (${reason})`);
 }
 
 async function panelRequest(
