@@ -272,7 +272,12 @@ function subscriptionTokenFromRequest(req) {
 function isSubscriptionBrowserRequest(req) {
   const userAgent = String(req.headers["user-agent"] || "");
   if (subscriptionClientUserAgent.test(userAgent)) return false;
-  return String(req.headers.accept || "").toLowerCase().includes("text/html");
+  const accept = String(req.headers.accept || "").toLowerCase();
+  return (
+    accept.includes("text/html") ||
+    /Mozilla\/|AppleWebKit\/|Chrome\/|Firefox\/|Safari\/|Edg\//i.test(userAgent) ||
+    req.headers["sec-fetch-dest"] === "document"
+  );
 }
 
 function proxySubscriptionFeed(req, res, token) {
