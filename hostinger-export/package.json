@@ -2,6 +2,7 @@
   "name": "pulse-hostinger",
   "private": true,
   "type": "module",
+  "main": "app.js",
   "engines": {
     "node": ">=20"
   },
