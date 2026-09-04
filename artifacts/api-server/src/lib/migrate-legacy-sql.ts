@@ -59,6 +59,15 @@ function splitStatements(source: string): string[] {
       } else if (char === quote) {
         quote = null;
       }
+    } else if (char === "-" && source[index + 1] === "-") {
+      const newline = source.indexOf("\n", index + 2);
+      index = newline === -1 ? source.length : newline;
+    } else if (char === "#") {
+      const newline = source.indexOf("\n", index + 1);
+      index = newline === -1 ? source.length : newline;
+    } else if (char === "/" && source[index + 1] === "*") {
+      const commentEnd = source.indexOf("*/", index + 2);
+      index = commentEnd === -1 ? source.length : commentEnd + 1;
     } else if (char === "'" || char === '"' || char === "`") {
       quote = char;
     } else if (char === ";") {
@@ -248,6 +257,25 @@ async function migrateWithLock(): Promise<void> {
           await client.query(convertInsert(normalized));
         }
       }
+    }
+
+    const importedTables = await client.query<{ tableName: string }>(
+      `SELECT table_name AS "tableName"
+       FROM information_schema.tables
+       WHERE table_schema = 'public'
+         AND table_name = ANY($1::text[])`,
+      [legacyTableNames],
+    );
+    const importedTableNames = new Set(
+      importedTables.rows.map((row) => row.tableName),
+    );
+    const missingImportedTables = legacyTableNames.filter(
+      (tableName) => !importedTableNames.has(tableName),
+    );
+    if (missingImportedTables.length > 0) {
+      throw new Error(
+        `SQL import did not create the expected tables: ${missingImportedTables.join(", ")}`,
+      );
     }
 
     await client.query("COMMIT");
