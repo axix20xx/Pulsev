@@ -255,6 +255,53 @@ function proxyApi(req, res) {
   req.pipe(upstream);
 }
 
+const subscriptionClientUserAgent =
+  /V2Box|Shadowrocket|Stash|Hiddify|Clash|Karing|v2ray|Quantumult|Loon|Surge|SagerNet|sing-box|Xray|Neko|Nekoray|Mihomo|FlClash|NpvTunnel|Outline|WireGuard|Amnezia|okhttp|CFNetwork|curl|Wget/i;
+
+function subscriptionTokenFromRequest(req) {
+  try {
+    const requestUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+    if (requestUrl.pathname !== "/sub" || req.method !== "GET") return null;
+    const token = requestUrl.searchParams.get("t")?.trim() || "";
+    return /^[A-Za-z0-9_-]{12,256}$/.test(token) ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+function isSubscriptionBrowserRequest(req) {
+  const userAgent = String(req.headers["user-agent"] || "");
+  if (subscriptionClientUserAgent.test(userAgent)) return false;
+  return String(req.headers.accept || "").toLowerCase().includes("text/html");
+}
+
+function proxySubscriptionFeed(req, res, token) {
+  const { origin: _browserOrigin, host: _publicHost, ...forwardedHeaders } = req.headers;
+  const upstream = http.request(
+    {
+      hostname: "127.0.0.1",
+      port: apiPort,
+      path: `/api/public/subscription/${encodeURIComponent(token)}/feed`,
+      method: "GET",
+      headers: {
+        ...forwardedHeaders,
+        host: `127.0.0.1:${apiPort}`,
+      },
+    },
+    (response) => {
+      res.writeHead(response.statusCode || 502, response.headers);
+      response.pipe(res);
+    },
+  );
+  upstream.on("error", () => {
+    if (!res.headersSent) {
+      res.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
+    }
+    res.end("Subscription provider is unavailable");
+  });
+  upstream.end();
+}
+
 async function serveWeb(req, res) {
   const requestUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   let pathname;
@@ -297,6 +344,11 @@ async function serveWeb(req, res) {
 
 const server = http.createServer((req, res) => {
   if (handleInstallRoute(req, res)) return;
+  const subscriptionToken = subscriptionTokenFromRequest(req);
+  if (subscriptionToken && !isSubscriptionBrowserRequest(req)) {
+    proxySubscriptionFeed(req, res, subscriptionToken);
+    return;
+  }
   if ((req.url || "").startsWith("/api/")) {
     proxyApi(req, res);
     return;

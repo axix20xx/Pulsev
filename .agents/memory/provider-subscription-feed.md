@@ -14,3 +14,9 @@ V2Box deep links should pass the absolute feed URL as the `url` query value with
 **Why:** V2Box can create a subscription entry from the deep link while still failing to fetch or parse an encoded URL, which looks like a successful import with zero configs.
 
 **How to apply:** Encode the subscription name, but keep the feed URL raw in `v2box://install-sub?url=...&name=...`; always offer a copy-feed fallback.
+
+The canonical customer URL can serve both the browser status page and client feed: the Hostinger launcher uses HTML Accept headers for the page and non-browser client requests for the proxied feed.
+
+**Why:** Customers need one shareable URL instead of separate status and import links, while browsers and VPN clients require different response bodies.
+
+**How to apply:** Keep `/sub?t=<token>` as the public URL, proxy non-browser requests to the internal feed endpoint, and preserve the request User-Agent when forwarding to Provider resolution.

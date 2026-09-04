@@ -34,7 +34,10 @@ const fetchCustomerCrm = async (id: number, page = 1) => {
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'اطلاعات CRM دریافت نشد.');
   return response.json();
 };
-const v2boxUrl = (service: Service) => service.subscriptionUrl ? `v2box://install-sub?url=${service.subscriptionUrl}&name=${encodeURIComponent(service.plan)}` : '#';
+const v2boxUrl = (service: Service) => {
+  const url = service.publicSubscriptionUrl || service.subscriptionUrl;
+  return url ? `v2box://install-sub?url=${url}&name=${encodeURIComponent(service.plan)}` : '#';
+};
 function SubscriptionQr({ url }: { url: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -58,19 +61,18 @@ function SubscriptionQr({ url }: { url: string }) {
 }
 type SubscriptionClient = { id: string; label: string; platform: string; href?: string; note?: string };
 const subscriptionClients = (url: string, name: string): SubscriptionClient[] => {
-  const encodedUrl = encodeURIComponent(url);
   const encodedName = encodeURIComponent(name || 'Pulse');
   const quantumultConfig = encodeURIComponent(JSON.stringify({ server_remote: [`${url}, tag=${name || 'Pulse'}`] }));
   return [
     { id: 'v2box', label: 'V2Box', platform: 'iOS / Android', href: `v2box://install-sub?url=${url}&name=${encodedName}` },
-    { id: 'clash', label: 'Clash / Clash Plus', platform: 'iOS / Android / Desktop', href: `clash://install-config?url=${encodedUrl}&name=${encodedName}` },
-    { id: 'karing', label: 'Karing', platform: 'iOS / Android', href: `karing://install-config?url=${encodedUrl}&name=${encodedName}` },
+    { id: 'clash', label: 'Clash / Clash Plus', platform: 'iOS / Android / Desktop', href: `clash://install-config?url=${encodeURIComponent(url)}&name=${encodedName}` },
+    { id: 'karing', label: 'Karing', platform: 'iOS / Android', href: `karing://install-config?url=${encodeURIComponent(url)}&name=${encodedName}` },
     { id: 'hiddify', label: 'Hiddify', platform: 'iOS / Android', href: `hiddify://import/${url}#${encodedName}` },
-    { id: 'stash', label: 'Stash', platform: 'iOS', href: `stash://install-config?url=${encodedUrl}` },
-    { id: 'v2rayng', label: 'V2RayNG', platform: 'Android', href: `v2rayng://install-sub?url=${encodedUrl}#${encodedName}` },
+    { id: 'stash', label: 'Stash', platform: 'iOS', href: `stash://install-config?url=${encodeURIComponent(url)}` },
+    { id: 'v2rayng', label: 'V2RayNG', platform: 'Android', href: `v2rayng://install-sub?url=${encodeURIComponent(url)}#${encodedName}` },
     { id: 'quantumult-x', label: 'Quantumult X', platform: 'iOS', href: `quantumult-x:///add-resource?remote-resource=${quantumultConfig}` },
-    { id: 'loon', label: 'Loon', platform: 'iOS', href: `loon://import?sub=${encodedUrl}` },
-    { id: 'surge', label: 'Surge', platform: 'iOS / macOS', href: `surge:///install-config?url=${encodedUrl}` },
+    { id: 'loon', label: 'Loon', platform: 'iOS', href: `loon://import?sub=${encodeURIComponent(url)}` },
+    { id: 'surge', label: 'Surge', platform: 'iOS / macOS', href: `surge:///install-config?url=${encodeURIComponent(url)}` },
     { id: 'shadowrocket', label: 'Shadowrocket', platform: 'iOS', note: 'در صورت باز نشدن، لینک را کپی و در برنامه اضافه کنید.' },
     { id: 'streisand', label: 'Streisand', platform: 'iOS', note: 'scheme رسمی import ندارد؛ لینک را کپی و از Import from Clipboard وارد کنید.' },
   ];
@@ -1188,8 +1190,7 @@ function PublicSubscriptionContent() {
     }).then((result) => { setData(result); setState('ready'); }).catch(() => setState('error'));
   }, []);
   const pageUrl = data ? new URL(data.public_url || `/sub?t=${encodeURIComponent(token)}`, window.location.origin).toString() : '';
-  const feedUrl = data ? new URL(data.subscription_url, window.location.origin).toString() : '';
-  const v2boxInstall = feedUrl ? `v2box://install-sub?url=${encodeURIComponent(feedUrl)}&name=${encodeURIComponent(data.plan || 'Pulse')}` : '#';
+  const v2boxInstall = pageUrl ? `v2box://install-sub?url=${pageUrl}&name=${encodeURIComponent(data.plan || 'Pulse')}` : '#';
   const expires = data?.expires_at ? new Date(data.expires_at) : null;
   const remaining = expires ? Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 86400000)) : 0;
   const ratio = data?.limit_gb ? Math.min(100, Math.round((Number(data.used_gb) / Number(data.limit_gb)) * 100)) : 0;
@@ -1203,8 +1204,8 @@ function PublicSubscriptionContent() {
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   };
-  const copyFeedLink = async () => {
-    if (!(await copyTextToClipboard(feedUrl))) return;
+  const copySubscriptionLink = async () => {
+    if (!(await copyTextToClipboard(pageUrl))) return;
     setFeedCopied(true);
     window.setTimeout(() => setFeedCopied(false), 1800);
   };
@@ -1256,23 +1257,23 @@ function PublicSubscriptionContent() {
         </section>
         <section className="public-sub-actions">
           <a className="public-sub-primary-action" href={v2boxInstall}><Globe2 size={19} /><span><strong>افزودن به V2Box</strong><small>با یک لمس در اپلیکیشن باز می‌شود</small></span><ChevronLeft size={17} /></a>
-          <div className="public-sub-action-row">
-            <button type="button" onClick={() => void copyFeedLink()}><Copy size={17} /><span>{feedCopied ? 'لینک V2Box کپی شد' : 'کپی لینک V2Box'}</span></button>
+           <div className="public-sub-action-row">
+             <button type="button" onClick={() => void copySubscriptionLink()}><Copy size={17} /><span>{feedCopied ? 'لینک اشتراک کپی شد' : 'کپی لینک اشتراک'}</span></button>
             {data.awg_ready && <a href={data.awg_url}><Wifi size={17} /><span>دانلود AWG</span></a>}
             <button type="button" onClick={() => void sharePage()}><ArrowUpLeft size={17} /><span>{shared ? 'اشتراک‌گذاری شد' : 'اشتراک‌گذاری'}</span></button>
           </div>
         </section>
-        <section className="public-sub-link">
-          <p>لینک اشتراک برای V2Box و کلاینت‌ها</p>
-          <div dir="ltr">{feedUrl}</div>
-          <small>این لینک را داخل V2Box وارد کنید؛ لینک /sub?t= فقط برای مشاهدهٔ وضعیت اشتراک است.</small>
+         <section className="public-sub-link">
+           <p>یک لینک برای مرورگر و همهٔ کلاینت‌ها</p>
+           <div dir="ltr">{pageUrl}</div>
+           <small>همین لینک را در V2Box، Clash، Hiddify و سایر کلاینت‌ها وارد کنید؛ سرور بر اساس نوع درخواست خروجی مناسب را برمی‌گرداند.</small>
         </section>
-        <section className="public-sub-qr"><SubscriptionQr url={feedUrl} /></section>
+         <section className="public-sub-qr"><SubscriptionQr url={pageUrl} /></section>
         <section className="public-sub-install">
           <div className="public-sub-install-heading"><span className="eyebrow">نصب در سه قدم</span><strong>سریع‌ترین راه اتصال</strong></div>
           <div className="public-sub-steps"><div><b>۱</b><span>کلاینت را انتخاب کنید</span></div><div><b>۲</b><span>افزودن یا کپی لینک</span></div><div><b>۳</b><span>اتصال را روشن کنید</span></div></div>
         </section>
-        <SubscriptionClientActions url={feedUrl} name={data.plan || 'Pulse'} />
+         <SubscriptionClientActions url={pageUrl} name={data.plan || 'Pulse'} />
         <footer className="public-sub-footer"><ShieldCheck size={15} /><span>این صفحه فقط اطلاعات همین اشتراک را نمایش می‌دهد. رمز یا اطلاعات پنل در مرورگر ذخیره نمی‌شود.</span></footer>
       </main>
     </div>
