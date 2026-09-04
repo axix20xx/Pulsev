@@ -213,13 +213,12 @@ export const managementReady = pool
      INSERT INTO panel_configs (key, kind, api_base, username_env, password_env, api_key_env)
     VALUES
          ('phonepanel', 'rain_admin', 'https://videobazi.com', NULL, NULL, NULL),
-         ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL),
-        ('falcon', 'falcon', 'https://falco.all-engines.com/api/v1', NULL, NULL, NULL)
+          ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL)
        ON CONFLICT (key) DO NOTHING;
       DELETE FROM reseller_panel_assignments
-       WHERE panel_key IN ('xxpanel', 'fibrpanel');
+        WHERE panel_key IN ('xxpanel', 'fibrpanel', 'falcon');
       DELETE FROM panel_configs
-       WHERE key IN ('xxpanel', 'fibrpanel')
+        WHERE key IN ('xxpanel', 'fibrpanel', 'falcon')
   `)
   .catch((error) => {
     console.error("Panel management schema initialization failed", error);
@@ -667,7 +666,7 @@ router.post("/panels/:key/test", requireMasterAdmin, async (req, res): Promise<v
   });
 });
 
-const providerKinds = ["marzban", "rain_admin", "falcon"] as const;
+const providerKinds = ["marzban", "rain_admin"] as const;
 type ProviderKind = (typeof providerKinds)[number];
 
 function isProviderKind(value: unknown): value is ProviderKind {
@@ -703,9 +702,8 @@ router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
     !isProviderKind(kind) ||
     !isProviderApiBase(apiBase) ||
     typeof enabled !== "boolean" ||
-    (kind === "falcon" && (username !== null || password !== null)) ||
-    (kind !== "falcon" && apiKey !== null) ||
-    (kind === "falcon" ? false : (username === null) !== (password === null))
+    apiKey !== null ||
+    (username === null) !== (password === null)
   ) {
     res.status(400).json({ error: "اطلاعات Provider معتبر نیست" });
     return;
@@ -730,7 +728,7 @@ router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
     );
     res.status(201).json({
       ...result.rows[0],
-      has_data: kind === "falcon" ? Boolean(apiKey) : Boolean(username && password),
+      has_data: Boolean(username && password),
       available_to_all_resellers: true,
     });
   } catch (error) {
