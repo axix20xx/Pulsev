@@ -9,6 +9,12 @@ Public subscription feeds should first resolve the customer username through act
 
 **How to apply:** Keep the public token endpoint independent from Provider credentials, but let the server authenticate to Providers internally and return a client-compatible feed, combining base64 feeds when multiple Providers succeed.
 
+Persist the last successfully resolved service feed as an encrypted fallback, and serve it when all live Provider attempts temporarily fail.
+
+**Why:** Independent Provider retries keep one failed Provider from blocking healthy Providers, but a total transient outage would otherwise make previously working customer subscriptions return 502.
+
+**How to apply:** Refresh the encrypted cache after any successful live or legacy resolution; use it only after live resolution fails, identify cached responses with a safe response header, and never claim a brand-new service is resilient until it has produced at least one valid feed.
+
 V2Box deep links should pass the absolute feed URL as the `url` query value without percent-encoding the URL itself; the feed URL has no nested query parameters, while encoding it can leave some clients with an empty subscription.
 
 **Why:** V2Box can create a subscription entry from the deep link while still failing to fetch or parse an encoded URL, which looks like a successful import with zero configs.

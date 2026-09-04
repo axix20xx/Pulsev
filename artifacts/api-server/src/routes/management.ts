@@ -160,6 +160,12 @@ export const managementReady = pool
        ON service_provision_jobs (status, next_attempt_at);
      CREATE INDEX IF NOT EXISTS service_provision_jobs_service_idx
        ON service_provision_jobs (service_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS subscription_feed_cache (
+        service_id BIGINT PRIMARY KEY,
+        body_secret TEXT NOT NULL,
+        content_type TEXT NOT NULL DEFAULT 'text/plain; charset=utf-8',
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS reseller_notifications (
         id BIGSERIAL PRIMARY KEY,
         reseller_tg_id BIGINT NOT NULL,
@@ -469,7 +475,7 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     return;
   }
   const result = await pool.query(
-    `SELECT svc.rain_username AS username, svc.label AS plan, svc.expire_at AS expires_at,
+    `SELECT svc.id, svc.rain_username AS username, svc.label AS plan, svc.expire_at AS expires_at,
             svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes,
             svc.last_remaining_bytes
      FROM reseller_sub_tokens rst
@@ -486,11 +492,13 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
 
   let body: string | null = null;
   let upstreamContentType: string | null = null;
+  let feedSource = "provider";
   const panelFeed = await fetchPanelSubscription(String(row.username ?? ""));
   if (panelFeed) {
     body = panelFeed.body;
     upstreamContentType = panelFeed.contentType;
   } else {
+    feedSource = "legacy";
     try {
       const upstream = await fetch(legacySubscriptionUrl(token), {
         headers: {
@@ -505,6 +513,43 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
       }
     } catch {
       // The explicit response below explains that neither Provider nor legacy feed was available.
+    }
+  }
+  if (body) {
+    try {
+      await pool.query(
+        `INSERT INTO subscription_feed_cache (service_id, body_secret, content_type, updated_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (service_id) DO UPDATE SET
+           body_secret = EXCLUDED.body_secret,
+           content_type = EXCLUDED.content_type,
+           updated_at = NOW()`,
+        [
+          row.id,
+          encryptPanelCredential(body),
+          upstreamContentType || "text/plain; charset=utf-8",
+        ],
+      );
+    } catch (error) {
+      req.log.warn({ err: error, serviceId: row.id }, "Could not update subscription feed cache");
+    }
+  } else {
+    const cached = await pool.query(
+      `SELECT body_secret, content_type, updated_at
+       FROM subscription_feed_cache
+       WHERE service_id = $1
+       LIMIT 1`,
+      [row.id],
+    );
+    const cachedBody = decryptPanelCredential(cached.rows[0]?.body_secret);
+    if (cachedBody) {
+      body = cachedBody;
+      upstreamContentType = cached.rows[0]?.content_type || "text/plain; charset=utf-8";
+      feedSource = "cache";
+      const cachedAt = new Date(cached.rows[0]?.updated_at).getTime();
+      if (Number.isFinite(cachedAt)) {
+        res.setHeader("x-pulse-feed-cache-age", String(Math.max(0, Math.floor((Date.now() - cachedAt) / 1000))));
+      }
     }
   }
   if (!body) {
@@ -534,6 +579,7 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
   const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
   const webOrigin = `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}`;
   res.setHeader("profile-web-page-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
+  res.setHeader("x-pulse-feed-source", feedSource);
   res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
   res.setHeader("content-type", upstreamContentType || "text/plain; charset=utf-8");
   res.send(body);
