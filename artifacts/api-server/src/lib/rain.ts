@@ -405,6 +405,46 @@ function bytesValue(payload: any, byteKeys: string[], gbKeys: string[] = []): nu
   return gb === null ? null : Math.round(gb * 1024 ** 3);
 }
 
+function findUserPayload(value: unknown, username: string, depth = 0): any | null {
+  if (!value || typeof value !== "object" || depth > 5) return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = findUserPayload(item, username, depth + 1);
+      if (match) return match;
+    }
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const identity = record.username ?? record.user_name ?? record.name ?? record.email;
+  if (typeof identity === "string" && identity === username) return record;
+  for (const nested of Object.values(record)) {
+    const match = findUserPayload(nested, username, depth + 1);
+    if (match) return match;
+  }
+  return null;
+}
+
+function usedBytesValue(payload: any): number | null {
+  const direct = bytesValue(
+    payload,
+    [
+      "data_limit_used",
+      "used_bytes",
+      "usage_bytes",
+      "total_used",
+      "used",
+      "used_traffic",
+      "traffic_used",
+      "usedTraffic",
+    ],
+    ["used_gb", "usage_gb", "data_used_gb"],
+  );
+  if (direct !== null) return direct;
+  const upload = bytesValue(payload, ["upload", "upload_bytes", "up", "uplink"]);
+  const download = bytesValue(payload, ["download", "download_bytes", "down", "downlink"]);
+  return upload === null && download === null ? null : Math.round((upload ?? 0) + (download ?? 0));
+}
+
 function expiryValue(payload: any): string | null {
   const value = payload?.expire_at ?? payload?.expire_date ?? payload?.expire ?? payload?.expires_at ?? payload?.expires;
   if (value === undefined || value === null || value === "") return null;
@@ -443,15 +483,32 @@ export async function readPanelUsages(
       }
     } else {
       const encoded = encodeURIComponent(username);
-      for (const path of kind === "rain_admin" ? [`/api/users/${encoded}`, `/api/user/${encoded}`] : [`/api/user/${encoded}`]) {
+      const paths = kind === "rain_admin"
+        ? [
+            `/api/users/${encoded}`,
+            `/api/user/${encoded}`,
+            `/api/users?username=${encoded}`,
+            `/api/users?search=${encoded}`,
+            "/api/users",
+          ]
+        : [`/api/user/${encoded}`, `/api/users?username=${encoded}`];
+      for (const path of paths) {
         response = await safePanelRequest(panel, "GET", path);
-        if (response?.status === 200) break;
+        if (response?.status === 200) {
+          const matched = findUserPayload(response.json, username);
+          if (matched) {
+            response = { ...response, json: matched };
+            break;
+          }
+          if (!Array.isArray(response.json) && !Array.isArray(response.json?.data) && !Array.isArray(response.json?.users)) break;
+          continue;
+        }
         if (!response || ![404, 405].includes(response.status)) break;
       }
     }
     if (!response || response.status < 200 || response.status >= 300) continue;
-    const payload = nestedPayload(response.json);
-    const usedBytes = bytesValue(payload, ["data_limit_used", "used_bytes", "usage_bytes", "total_used", "used"], ["used_gb", "usage_gb", "data_used_gb"]);
+    const payload = findUserPayload(response.json, username) ?? nestedPayload(response.json);
+    const usedBytes = usedBytesValue(payload);
     if (usedBytes === null) continue;
     result.push({
       panelKey: panelKey(panel),
