@@ -20,3 +20,9 @@ The canonical customer URL can serve both the browser status page and client fee
 **Why:** Customers need one shareable URL instead of separate status and import links, while browsers and VPN clients require different response bodies.
 
 **How to apply:** Keep `/sub?t=<token>` as the public URL, proxy non-browser requests to the internal feed endpoint, and preserve the request User-Agent when forwarding to Provider resolution.
+
+When detecting the one-link response mode, treat recognizable browser User-Agents as browser requests even if their `Accept` header is `*/*`; only known VPN client signatures should override that.
+
+**Why:** Some embedded browsers and screenshot/proxy browsers omit `text/html` from `Accept`, so relying only on content negotiation can return a feed or provider error instead of the status page.
+
+**How to apply:** Check known VPN client signatures first, then recognize common browser UA markers and `Sec-Fetch-Dest: document`; use the feed branch only for non-browser clients.
