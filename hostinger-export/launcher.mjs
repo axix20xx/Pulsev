@@ -51,10 +51,11 @@ function pipeChildOutput(stream, source, onlyErrors = false) {
       const text = line.trim();
       if (!text) continue;
       console.log(`[${source}] ${text}`);
-      if (!onlyErrors || /error|failed|missing|relation .* does not exist/i.test(text)) {
-        recordInstallLog(text, /error|failed|missing|relation .* does not exist/i.test(text) ? "error" : "info");
+      const safeError = /Panel management schema initialization failed|relation .* does not exist/i.test(text);
+      if (!onlyErrors || safeError) {
+        recordInstallLog(text, safeError || /error|failed|missing/i.test(text) ? "error" : "info");
       }
-      if (source === "api" && /schema initialization failed|relation .* does not exist/i.test(text)) {
+      if (source === "api" && safeError) {
         installState.phase = "error";
         installState.error = text;
         installState.updatedAt = new Date().toISOString();
@@ -65,7 +66,7 @@ function pipeChildOutput(stream, source, onlyErrors = false) {
     const text = buffer.trim();
     if (text) {
       console.log(`[${source}] ${text}`);
-      if (!onlyErrors || /error|failed|missing|relation .* does not exist/i.test(text)) {
+      if (!onlyErrors || /Panel management schema initialization failed|relation .* does not exist/i.test(text)) {
         recordInstallLog(text, "error");
       }
     }
