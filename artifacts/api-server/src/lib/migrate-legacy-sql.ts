@@ -190,10 +190,11 @@ async function migrate(): Promise<void> {
 
   if (!preconvertedPath) {
     await addOwnershipColumn();
-    await pool.query("INSERT INTO app_migrations (name) VALUES ($1)", [
-      migrationName,
-    ]);
   }
+  await pool.query(
+    "INSERT INTO app_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING",
+    [migrationName],
+  );
   console.info("Legacy SQL migration completed.");
 }
 

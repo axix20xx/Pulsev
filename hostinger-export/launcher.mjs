@@ -18,6 +18,10 @@ function childExit(child) {
   });
 }
 
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function startApi() {
   const childEnv = {
     ...process.env,
@@ -29,22 +33,33 @@ async function startApi() {
   const supabaseSqlPath = path.join(root, "supabase-import.sql");
 
   if (shouldMigrate) {
-    console.log("Running one-time legacy SQL migration when needed...");
-    const migration = spawn(
-      process.execPath,
-      [path.join(root, "api", "lib", "migrate-legacy-sql.mjs")],
-      {
-        env: {
-          ...childEnv,
-          LEGACY_SQL_PATH: process.env.LEGACY_SQL_PATH || legacySqlPath,
-          SUPABASE_SQL_PATH: process.env.SUPABASE_SQL_PATH || supabaseSqlPath,
-        },
+    const migrationEnv = {
+      ...childEnv,
+      LEGACY_SQL_PATH: process.env.LEGACY_SQL_PATH || legacySqlPath,
+      SUPABASE_SQL_PATH: process.env.SUPABASE_SQL_PATH || supabaseSqlPath,
+    };
+    const migrationPath = path.join(root, "api", "lib", "migrate-legacy-sql.mjs");
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      console.log(
+        `Running one-time legacy SQL migration when needed (attempt ${attempt}/${maxAttempts})...`,
+      );
+      const migration = spawn(process.execPath, [migrationPath], {
+        env: migrationEnv,
         stdio: "inherit",
-      },
-    );
-    const result = await childExit(migration);
-    if (result.code !== 0) {
-      throw new Error(`Legacy SQL migration failed (${result.code ?? result.signal}).`);
+      });
+      const result = await childExit(migration);
+      if (result.code === 0) break;
+
+      const status = result.signal ? `signal ${result.signal}` : `exit code ${result.code}`;
+      if (attempt === maxAttempts) {
+        throw new Error(`Legacy SQL migration failed (${status}).`);
+      }
+      console.error(
+        `Legacy SQL migration stopped with ${status}; retrying in 3 seconds...`,
+      );
+      await wait(3_000);
     }
   }
 
@@ -149,6 +164,7 @@ server.listen(publicPort, "0.0.0.0", () => {
 void startApi().catch((error) => {
   console.error(error);
   process.exitCode = 1;
+  shutdown();
 });
 
 function shutdown() {
