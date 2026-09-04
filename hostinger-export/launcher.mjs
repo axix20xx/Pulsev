@@ -18,6 +18,7 @@ const installState = {
   maxAttempts: 3,
   error: null,
   logs: [],
+  progress: { current: 0, total: 0 },
   dbConfigured: Boolean(process.env.DATABASE_URL),
   backupIncluded: true,
   apiRunning: false,
@@ -34,6 +35,13 @@ function childExit(child) {
 function recordInstallLog(message, kind = "info") {
   const text = String(message).trim();
   if (!text) return;
+  const progress = text.match(/Import progress:\s*(\d+)\/(\d+)/i);
+  if (progress) {
+    installState.progress = {
+      current: Number(progress[1]),
+      total: Number(progress[2]),
+    };
+  }
   installState.logs.push({ at: new Date().toISOString(), message: text, kind });
   if (installState.logs.length > 80) installState.logs.splice(0, installState.logs.length - 80);
   installState.updatedAt = new Date().toISOString();
@@ -90,6 +98,7 @@ async function startApiInternal() {
   if (shouldMigrate) {
     installState.phase = "migrating";
     installState.error = null;
+    installState.progress = { current: 0, total: 0 };
     installState.updatedAt = new Date().toISOString();
     const migrationEnv = {
       ...childEnv,

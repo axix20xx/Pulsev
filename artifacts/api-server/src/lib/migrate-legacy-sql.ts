@@ -230,6 +230,9 @@ async function migrateWithLock(): Promise<void> {
 
   const source = fs.readFileSync(importPath, "utf8");
   const statements = splitStatements(source);
+  console.info(
+    `Loaded SQL backup (${source.length} bytes, ${statements.length} statements).`,
+  );
   const client = await pool.connect();
 
   try {
@@ -238,11 +241,25 @@ async function migrateWithLock(): Promise<void> {
 
     if (preconvertedPath) {
       console.info(`Using preconverted Supabase SQL from ${importPath}`);
+      let executedStatements = 0;
       for (const statement of statements) {
         const normalized = stripDumpComments(statement);
         if (!normalized || /^(BEGIN|COMMIT)$/i.test(normalized)) continue;
         await client.query(normalized);
+        executedStatements += 1;
+        if (
+          executedStatements === 1 ||
+          executedStatements % 50 === 0 ||
+          executedStatements === statements.length
+        ) {
+          console.info(
+            `Import progress: ${executedStatements}/${statements.length} statements`,
+          );
+        }
       }
+      console.info(
+        `Import progress: ${executedStatements}/${statements.length} statements`,
+      );
     } else {
       for (const statement of statements) {
         const normalized = stripDumpComments(statement);
