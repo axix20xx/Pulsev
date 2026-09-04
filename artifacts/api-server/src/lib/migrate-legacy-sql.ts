@@ -22,6 +22,26 @@ const defaultDump =
 const dumpPath = process.env.LEGACY_SQL_PATH ?? defaultDump;
 const preconvertedPath = process.env.SUPABASE_SQL_PATH;
 const migrationName = "axinetreseller-mysql-import-v1";
+const legacyTableNames = [
+  "hidden_servers",
+  "panel_prices",
+  "panel_usage_curr",
+  "panel_usage_history",
+  "resellers",
+  "reseller_admin_audit",
+  "reseller_customers",
+  "reseller_sales_log",
+  "reseller_services",
+  "reseller_sessions",
+  "reseller_sub_tokens",
+  "reseller_sync_queue",
+  "reseller_usage_log",
+  "settings",
+  "sub_fetch_logs",
+  "upstream_panel_status",
+  "user_panel_usages",
+  "user_stats_cache",
+];
 
 function splitStatements(source: string): string[] {
   const statements: string[] = [];
@@ -152,7 +172,18 @@ async function addOwnershipColumn(): Promise<void> {
   `);
 }
 
-async function migrate(): Promise<void> {
+async function existingLegacyTables(): Promise<string[]> {
+  const result = await pool.query<{ tableName: string }>(
+    `SELECT table_name AS "tableName"
+     FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = ANY($1::text[])`,
+    [legacyTableNames],
+  );
+  return result.rows.map((row) => row.tableName);
+}
+
+async function migrateWithLock(): Promise<void> {
   await logDatabaseTarget();
   await ensureAppTables();
   const existing = await pool.query(
@@ -160,8 +191,27 @@ async function migrate(): Promise<void> {
     [migrationName],
   );
   if (existing.rowCount) {
-    console.info("Legacy SQL migration already completed.");
-    return;
+    const presentTables = await existingLegacyTables();
+    const missingTables = legacyTableNames.filter(
+      (tableName) => !presentTables.includes(tableName),
+    );
+    if (missingTables.length === 0) {
+      console.info("Legacy SQL migration already completed.");
+      return;
+    }
+
+    if (presentTables.length === 0) {
+      console.warn(
+        "Legacy SQL migration marker is stale; no legacy tables exist. Re-running the import.",
+      );
+      await pool.query("DELETE FROM app_migrations WHERE name = $1", [
+        migrationName,
+      ]);
+    } else {
+      throw new Error(
+        `Legacy SQL migration marker exists but the schema is incomplete. Missing tables: ${missingTables.join(", ")}`,
+      );
+    }
   }
 
   const importPath = preconvertedPath ?? dumpPath;
@@ -216,6 +266,24 @@ async function migrate(): Promise<void> {
     [migrationName],
   );
   console.info("Legacy SQL migration completed.");
+}
+
+async function migrate(): Promise<void> {
+  const lockClient = await pool.connect();
+  try {
+    await lockClient.query("SELECT pg_advisory_lock(hashtext($1))", [
+      migrationName,
+    ]);
+    await migrateWithLock();
+  } finally {
+    try {
+      await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", [
+        migrationName,
+      ]);
+    } finally {
+      lockClient.release();
+    }
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
