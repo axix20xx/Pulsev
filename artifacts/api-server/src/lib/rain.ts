@@ -529,7 +529,7 @@ export async function provisionUser(
   });
   if (!configuredPanels.length || !hasCredentials) {
     throw new RainApiError(
-      "Rain API is not configured. Set RAIN_PANELS_JSON or the RAIN_API_* environment variables.",
+      "هیچ Provider فعال و دارای credential در تنظیمات دیتابیس پیدا نشد. از صفحهٔ Settings credential پنل را ذخیره کنید.",
     );
   }
   const results = await Promise.all(configuredPanels.map(async (panel): Promise<PanelResult> => {

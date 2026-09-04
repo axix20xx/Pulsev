@@ -2775,14 +2775,9 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
       LEFT JOIN reseller_sales_log s ON s.reseller_tg_id=r.tg_id
       GROUP BY r.tg_id,r.title,r.is_enabled,r.total_gb,r.used_gb`, [monthStart]),
   ]);
+  const availableProviderKeys = new Set((await listAvailablePanels()).map((provider) => provider.key));
   const providerHealth = providers.rows.map((provider) => {
-    const key = String(provider.key ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "_");
-    const falcon = String(provider.kind ?? "").toLowerCase() === "falcon";
-    const envReady = falcon
-      ? Boolean(process.env[`RAIN_${key}_KEY`] || process.env.RAIN_API_KEY)
-      : Boolean((process.env[`RAIN_${key}_USER`] || process.env.RAIN_API_USERNAME) &&
-          (process.env[`RAIN_${key}_PASS`] || process.env.RAIN_API_PASSWORD));
-    const credentialReady = Boolean(provider.credential_ready || envReady);
+    const credentialReady = availableProviderKeys.has(String(provider.key ?? ""));
     return {
       ...provider,
       credential_ready: credentialReady,
