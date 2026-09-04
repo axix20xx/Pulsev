@@ -68,7 +68,7 @@ import {
   getAwgConfiguration,
   recreateAwgClient,
 } from "../lib/amneziawg";
-import { encryptPanelCredential } from "../lib/panel-credentials";
+import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
 
 const MASTER_ADMIN_COST_PER_GB = 2500;
 const resellerCostPerGbSql = (alias = "r") =>
@@ -208,8 +208,7 @@ export const managementReady = pool
          ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL),
          ('xxpanel', 'marzban', 'https://panel.jetservices.ir:2096', NULL, NULL, NULL),
         ('falcon', 'falcon', 'https://falco.all-engines.com/api/v1', NULL, NULL, NULL)
-     ON CONFLICT (key) DO UPDATE SET kind = EXCLUDED.kind, api_base = EXCLUDED.api_base,
-         username_env = NULL, password_env = NULL, api_key_env = NULL, updated_at = NOW()
+      ON CONFLICT (key) DO NOTHING
   `)
   .catch((error) => {
     console.error("Panel management schema initialization failed", error);
@@ -565,7 +564,6 @@ router.get("/public/subscription/:token/awg", async (req, res): Promise<void> =>
 router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
   const result = await pool.query(
     `SELECT p.key, p.kind, p.api_base, p.is_enabled = 1 AS enabled,
-            p.username_env, p.password_env, p.api_key_env,
             p.username_secret, p.password_secret, p.api_key_secret,
             COALESCE(array_agg(a.reseller_tg_id) FILTER (WHERE a.reseller_tg_id IS NOT NULL), '{}') AS assigned_reseller_ids
      FROM panel_configs p
@@ -576,10 +574,10 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
   const configured = result.rows.map((panel) => ({
     ...panel,
     has_data: panel.kind === "falcon"
-       ? Boolean((panel.api_key_secret || "") || (panel.api_key_env && process.env[panel.api_key_env]))
+       ? Boolean(decryptPanelCredential(panel.api_key_secret))
       : Boolean(
-           (panel.username_secret || (panel.username_env && process.env[panel.username_env])) &&
-             (panel.password_secret || (panel.password_env && process.env[panel.password_env])),
+            decryptPanelCredential(panel.username_secret) &&
+              decryptPanelCredential(panel.password_secret),
         ),
   }));
   res.json(
@@ -595,6 +593,81 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
   );
 });
 
+const providerKinds = ["marzban", "rain_admin", "falcon"] as const;
+type ProviderKind = (typeof providerKinds)[number];
+
+function isProviderKind(value: unknown): value is ProviderKind {
+  return typeof value === "string" && providerKinds.includes(value as ProviderKind);
+}
+
+function isProviderApiBase(value: unknown): value is string {
+  if (typeof value !== "string" || value.trim().length === 0 || value.trim().length > 2048) return false;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function credentialValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
+  const body = req.body ?? {};
+  const key = typeof body.key === "string" ? body.key.trim() : "";
+  const kind = body.kind;
+  const apiBase = typeof body.api_base === "string" ? body.api_base.trim() : "";
+  const enabled = body.enabled === undefined ? true : body.enabled;
+  const username = credentialValue(body.username);
+  const password = credentialValue(body.password);
+  const apiKey = credentialValue(body.api_key);
+
+  if (
+    !/^[a-z0-9_-]{2,64}$/.test(key) ||
+    !isProviderKind(kind) ||
+    !isProviderApiBase(apiBase) ||
+    typeof enabled !== "boolean" ||
+    (kind === "falcon" && (username !== null || password !== null)) ||
+    (kind !== "falcon" && apiKey !== null) ||
+    (kind === "falcon" ? false : (username === null) !== (password === null))
+  ) {
+    res.status(400).json({ error: "اطلاعات Provider معتبر نیست" });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO panel_configs (
+         key, kind, api_base, username_env, password_env, api_key_env,
+         username_secret, password_secret, api_key_secret, is_enabled
+       ) VALUES ($1, $2, $3, NULL, NULL, NULL, $4, $5, $6, $7)
+       RETURNING key, kind, api_base, is_enabled = 1 AS enabled`,
+      [
+        key,
+        kind,
+        apiBase,
+        username ? encryptPanelCredential(username) : null,
+        password ? encryptPanelCredential(password) : null,
+        apiKey ? encryptPanelCredential(apiKey) : null,
+        enabled ? 1 : 0,
+      ],
+    );
+    res.status(201).json({
+      ...result.rows[0],
+      has_data: kind === "falcon" ? Boolean(apiKey) : Boolean(username && password),
+      available_to_all_resellers: true,
+    });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "23505") {
+      res.status(409).json({ error: "این کلید Provider قبلاً ثبت شده است" });
+      return;
+    }
+    throw error;
+  }
+});
+
 router.get("/providers/available", requireAuth, async (_req, res): Promise<void> => {
   await managementReady;
   res.json(await listAvailablePanels());
@@ -606,8 +679,8 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
   if (
     !/^[a-z0-9_-]{2,64}$/.test(key) ||
     (body.enabled !== undefined && typeof body.enabled !== "boolean") ||
-    (body.api_base !== undefined && typeof body.api_base !== "string") ||
-    (body.kind !== undefined && !["marzban", "rain_admin", "falcon"].includes(body.kind)) ||
+    (body.api_base !== undefined && !isProviderApiBase(body.api_base)) ||
+    (body.kind !== undefined && !isProviderKind(body.kind)) ||
     (body.username !== undefined && typeof body.username !== "string") ||
     (body.password !== undefined && typeof body.password !== "string") ||
     (body.api_key !== undefined && typeof body.api_key !== "string")
@@ -645,6 +718,20 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
     return;
   }
   res.json(result.rows[0]);
+});
+
+router.delete("/panels/:key", requireMasterAdmin, async (req, res): Promise<void> => {
+  const key = String(req.params.key ?? "").trim();
+  if (!/^[a-z0-9_-]{2,64}$/.test(key)) {
+    res.status(400).json({ error: "کلید Provider معتبر نیست" });
+    return;
+  }
+  const result = await pool.query("DELETE FROM panel_configs WHERE key = $1 RETURNING key", [key]);
+  if (!result.rows[0]) {
+    res.status(404).json({ error: "Provider پیدا نشد" });
+    return;
+  }
+  res.json({ deleted: true, key });
 });
 
 router.post("/panels/:key/assignments", requireMasterAdmin, async (req, res): Promise<void> => {
@@ -2753,8 +2840,8 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
     pool.query(`SELECT COUNT(*)::int AS resellers, COUNT(svc.id) FILTER (WHERE svc.status='active')::int AS active_services,
       (SELECT COUNT(*)::int FROM service_provision_jobs WHERE status='failed') AS failed_jobs
       FROM resellers r LEFT JOIN reseller_services svc ON svc.reseller_tg_id=r.tg_id`),
-    pool.query(`SELECT p.key,p.kind,p.is_enabled=1 AS enabled,
-      (CASE WHEN p.kind='falcon' THEN COALESCE(p.api_key_secret,p.api_key_env) IS NOT NULL ELSE COALESCE(p.username_secret,p.username_env) IS NOT NULL AND COALESCE(p.password_secret,p.password_env) IS NOT NULL END) AS credential_ready,
+     pool.query(`SELECT p.key,p.kind,p.is_enabled=1 AS enabled,
+       FALSE AS credential_ready,
       COUNT(DISTINCT a.reseller_tg_id)::int AS assigned_resellers, COUNT(DISTINCT svc.id) FILTER (WHERE svc.status='active')::int AS active_services,
       COUNT(DISTINCT j.id) FILTER (WHERE j.status='failed')::int AS failed_jobs FROM panel_configs p LEFT JOIN reseller_panel_assignments a ON a.panel_key=p.key LEFT JOIN reseller_services svc ON svc.reseller_tg_id=a.reseller_tg_id LEFT JOIN service_provision_jobs j ON j.owner_tg_id=a.reseller_tg_id GROUP BY p.key`),
     pool.query(`SELECT COALESCE(SUM(CASE WHEN (s.created_at AT TIME ZONE 'Asia/Tehran')::date >= $1 THEN COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()}) ELSE 0 END),0)::float8 AS month_income,

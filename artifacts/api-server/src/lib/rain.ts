@@ -12,9 +12,6 @@ type Panel = {
 };
 
 type StoredPanel = Panel & {
-  username_env?: string | null;
-  password_env?: string | null;
-  api_key_env?: string | null;
   username_secret?: string | null;
   password_secret?: string | null;
   api_key_secret?: string | null;
@@ -52,7 +49,7 @@ function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" {
 
 async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
   const result = await pool.query<StoredPanel>(
-    `SELECT p.key, p.kind, p.api_base, p.username_env, p.password_env, p.api_key_env,
+    `SELECT p.key, p.kind, p.api_base,
             p.username_secret, p.password_secret, p.api_key_secret
      FROM panel_configs p
      WHERE p.is_enabled = 1
