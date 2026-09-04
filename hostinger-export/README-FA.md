@@ -21,11 +21,16 @@
 
 1. فایل ZIP را upload و Extract کنید.
 2. در بخش Node.js App:
-   - **Application root:** پوشه‌ای که `launcher.mjs` داخل آن است
-   - **Application startup file:** `launcher.mjs`
+   - **Application root:** همان پوشه‌ای که `app.js` داخل آن است
+   - **Application startup file:** `app.js`
    - **Node.js:** نسخهٔ ۲۰ یا بالاتر
 3. Environment Variables زیر را بسازید.
 4. برنامه را Restart کنید.
+
+اگر ZIP را داخل `public_html` Extract کرده‌اید، Application root را روی پوشهٔ
+`pulse-hostinger-supabase` بگذارید، نه روی `public_html` والد. ساده‌ترین حالت این
+است که فایل‌های داخل این پوشه را مستقیماً در Application root قرار دهید تا
+`app.js` در همان مسیر دیده شود.
 
 ```env
 NODE_ENV=production
@@ -40,6 +45,11 @@ LEGACY_SQL_PATH=./legacy/legacy.sql
 ```
 
 `PORT` را اگر Hostinger مقدار خاصی پیشنهاد می‌کند همان مقدار بگذارید. `API_INTERNAL_PORT` باید با آن تداخل نداشته باشد.
+
+این پروژه یک Node.js App است، نه سایت PHP یا Static HTML. اگر دامنه به
+`public_html` معمولی وصل باشد و Node.js App برای آن دامنه ساخته نشده باشد،
+Hostinger ممکن است صفحهٔ `403 Forbidden` نشان دهد؛ در این حالت Domain را به
+همان Node.js Application متصل کنید.
 
 ## ۳) import خودکار
 

@@ -6,6 +6,6 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node launcher.mjs"
+    "start": "node app.js"
   }
 }

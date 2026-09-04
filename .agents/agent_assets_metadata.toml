@@ -56,3 +56,17 @@ mtime_ms = 1788536411129
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/753d026f-0ea2-42c3-9e3e-917d0d1d9106/dff6b31e-91c2-4709-aa3c-634812f216c5"
 storage_version_token = "1788536448718978"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "_Jy1cLBEgBrvy29JkmGJ3"
+uri = "file://exports/pulse-hostinger-supabase-flat.zip"
+type = "unspecified"
+title = "Pulse Hostinger + Supabase — ZIP اصلاح‌شده"
+description = "نسخهٔ flat برای آپلود روی Hostinger؛ app.js در ریشه، Node.js launcher، frontend/API production، import خودکار و فایل Supabase SQL داخل بسته."
+logical_id = "840a21ed-3454-4f72-b77d-8bd4837c5bd0"
+content_hash = "sha256:9e8a21feb81b0b94d1223c1549f512d0b7ffcbd4400aaf26a74c65b43a35e703"
+size = 22706032
+mtime_ms = 1788537919741
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/840a21ed-3454-4f72-b77d-8bd4837c5bd0/087e4e07-8ad3-4511-99b2-0833c3922e93"
+storage_version_token = "1788537926091420"
+content_type = "application/octet-stream"
