@@ -20,6 +20,7 @@ const defaultDump =
   dumpCandidates.find((candidate) => fs.existsSync(candidate)) ??
   dumpCandidates[0];
 const dumpPath = process.env.LEGACY_SQL_PATH ?? defaultDump;
+const preconvertedPath = process.env.SUPABASE_SQL_PATH;
 const migrationName = "axinetreseller-mysql-import-v1";
 
 function splitStatements(source: string): string[] {
@@ -143,11 +144,12 @@ async function migrate(): Promise<void> {
     return;
   }
 
-  if (!fs.existsSync(dumpPath)) {
-    throw new Error(`Legacy SQL dump not found at ${dumpPath}`);
+  const importPath = preconvertedPath ?? dumpPath;
+  if (!fs.existsSync(importPath)) {
+    throw new Error(`SQL import file not found at ${importPath}`);
   }
 
-  const source = fs.readFileSync(dumpPath, "utf8");
+  const source = fs.readFileSync(importPath, "utf8");
   const statements = splitStatements(source);
   const client = await pool.connect();
 
@@ -155,17 +157,26 @@ async function migrate(): Promise<void> {
     await client.query("BEGIN");
     await client.query("SET standard_conforming_strings = off");
 
-    for (const statement of statements) {
-      const normalized = stripDumpComments(statement);
-      if (/^CREATE TABLE/i.test(normalized)) {
-        await client.query(convertCreateTable(normalized));
+    if (preconvertedPath) {
+      console.info(`Using preconverted Supabase SQL from ${importPath}`);
+      for (const statement of statements) {
+        const normalized = stripDumpComments(statement);
+        if (!normalized || /^(BEGIN|COMMIT)$/i.test(normalized)) continue;
+        await client.query(normalized);
       }
-    }
+    } else {
+      for (const statement of statements) {
+        const normalized = stripDumpComments(statement);
+        if (/^CREATE TABLE/i.test(normalized)) {
+          await client.query(convertCreateTable(normalized));
+        }
+      }
 
-    for (const statement of statements) {
-      const normalized = stripDumpComments(statement);
-      if (/^INSERT\s+/i.test(normalized)) {
-        await client.query(convertInsert(normalized));
+      for (const statement of statements) {
+        const normalized = stripDumpComments(statement);
+        if (/^INSERT\s+/i.test(normalized)) {
+          await client.query(convertInsert(normalized));
+        }
       }
     }
 
@@ -177,10 +188,12 @@ async function migrate(): Promise<void> {
     client.release();
   }
 
-  await addOwnershipColumn();
-  await pool.query("INSERT INTO app_migrations (name) VALUES ($1)", [
-    migrationName,
-  ]);
+  if (!preconvertedPath) {
+    await addOwnershipColumn();
+    await pool.query("INSERT INTO app_migrations (name) VALUES ($1)", [
+      migrationName,
+    ]);
+  }
   console.info("Legacy SQL migration completed.");
 }
 

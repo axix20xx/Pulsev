@@ -6,7 +6,7 @@
 
 - Hostinger باید امکان اجرای **Node.js App** داشته باشد.
 - دیتابیس مقصد **Supabase PostgreSQL** است؛ دیتابیس MySQL/MariaDB هاستینگر برای این نسخه قابل‌استفاده نیست.
-- dump اصلی MariaDB داخل `legacy/legacy.sql` قرار دارد و launcher آن را هنگام اولین اجرا به PostgreSQL تبدیل و import می‌کند.
+- dump اصلی MariaDB داخل `legacy/legacy.sql` و نسخهٔ PostgreSQL آماده داخل `supabase-import.sql` قرار دارد؛ launcher نسخهٔ PostgreSQL را هنگام اولین اجرا import می‌کند.
 
 ## ۱) ساخت دیتابیس در Supabase
 
@@ -50,6 +50,8 @@ LEGACY_SQL_PATH=./legacy/legacy.sql
 
 `PORT` را اگر Hostinger مقدار خاصی پیشنهاد می‌کند همان مقدار بگذارید. `API_INTERNAL_PORT` باید با آن تداخل نداشته باشد.
 
+`SUPABASE_SQL_PATH` اختیاری است و فقط در صورت انتقال `supabase-import.sql` به مسیر دیگری تنظیم می‌شود.
+
 این پروژه یک Node.js App است، نه سایت PHP یا Static HTML. اگر دامنه به
 `public_html` معمولی وصل باشد و Node.js App برای آن دامنه ساخته نشده باشد،
 Hostinger ممکن است صفحهٔ `403 Forbidden` نشان دهد؛ در این حالت Domain را به
@@ -60,7 +62,7 @@ Hostinger ممکن است صفحهٔ `403 Forbidden` نشان دهد؛ در ای
 وقتی `AUTO_MIGRATE_LEGACY_SQL=true` باشد:
 
 1. launcher قبل از API به Supabase وصل می‌شود.
-2. جدول‌ها و داده‌های MariaDB را به PostgreSQL تبدیل می‌کند.
+2. SQL آمادهٔ PostgreSQL را از `supabase-import.sql` داخل ZIP اجرا می‌کند.
 3. import را داخل transaction انجام می‌دهد.
 4. در جدول `app_migrations` marker ثبت می‌کند.
 5. در restartهای بعدی دوباره import نمی‌کند.

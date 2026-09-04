@@ -26,6 +26,7 @@ async function startApi() {
   };
   const shouldMigrate = process.env.AUTO_MIGRATE_LEGACY_SQL !== "false";
   const legacySqlPath = path.join(root, "legacy", "legacy.sql");
+  const supabaseSqlPath = path.join(root, "supabase-import.sql");
 
   if (shouldMigrate) {
     console.log("Running one-time legacy SQL migration when needed...");
@@ -36,6 +37,7 @@ async function startApi() {
         env: {
           ...childEnv,
           LEGACY_SQL_PATH: process.env.LEGACY_SQL_PATH || legacySqlPath,
+          SUPABASE_SQL_PATH: process.env.SUPABASE_SQL_PATH || supabaseSqlPath,
         },
         stdio: "inherit",
       },
