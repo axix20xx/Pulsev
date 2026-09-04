@@ -55,6 +55,7 @@ import {
   createServiceUsername,
   createSubscriptionToken,
   disablePanelUser,
+  listAvailablePanels,
   provisionUser,
   RainApiError,
   legacySubscriptionUrl,
@@ -203,12 +204,12 @@ export const managementReady = pool
        ADD COLUMN IF NOT EXISTS api_key_secret TEXT;
      INSERT INTO panel_configs (key, kind, api_base, username_env, password_env, api_key_env)
     VALUES
-        ('phonepanel', 'rain_admin', 'https://videobazi.com', NULL, NULL, NULL),
-        ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL),
-        ('xxpanel', 'marzban', 'https://panel.jetservices.ir:2096', NULL, NULL, NULL),
-       ('falcon', 'falcon', 'https://falco.all-engines.com/api/v1', NULL, NULL, NULL)
+         ('phonepanel', 'rain_admin', 'https://videobazi.com', NULL, NULL, NULL),
+         ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL),
+         ('xxpanel', 'marzban', 'https://panel.jetservices.ir:2096', NULL, NULL, NULL),
+        ('falcon', 'falcon', 'https://falco.all-engines.com/api/v1', NULL, NULL, NULL)
      ON CONFLICT (key) DO UPDATE SET kind = EXCLUDED.kind, api_base = EXCLUDED.api_base,
-        username_env = NULL, password_env = NULL, api_key_env = NULL, updated_at = NOW()
+         username_env = NULL, password_env = NULL, api_key_env = NULL, updated_at = NOW()
   `)
   .catch((error) => {
     console.error("Panel management schema initialization failed", error);
@@ -596,27 +597,7 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
 
 router.get("/providers/available", requireAuth, async (_req, res): Promise<void> => {
   await managementReady;
-  const result = await pool.query(
-    `SELECT key, kind, username_env, password_env, api_key_env,
-            username_secret, password_secret, api_key_secret
-     FROM panel_configs
-     WHERE is_enabled = 1
-     ORDER BY key`,
-  );
-  const configured = result.rows.filter((panel) =>
-    panel.kind === "falcon"
-      ? Boolean(
-          panel.api_key_secret ||
-            (panel.api_key_env && process.env[panel.api_key_env]),
-        )
-      : Boolean(
-          (panel.username_secret ||
-            (panel.username_env && process.env[panel.username_env])) &&
-            (panel.password_secret ||
-              (panel.password_env && process.env[panel.password_env])),
-        ),
-  );
-  res.json(configured.map(({ key, kind }) => ({ key, kind })));
+  res.json(await listAvailablePanels());
 });
 
 router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void> => {

@@ -89,7 +89,9 @@ LEGACY_SUBSCRIPTION_BASE_URL=
 USAGE_SYNC_INTERVAL_MS=60000
 ```
 
-Provider username/password و API key را داخل Settings خود پنل وارد کنید؛ آن‌ها داخل ZIP یا frontend قرار داده نشده‌اند.
+credentialهای Provider فقط از صفحهٔ Settings خود پنل خوانده می‌شوند؛ این
+مقادیر قبل از ذخیره در دیتابیس رمزنگاری می‌شوند و envهای Rain برای provisioning
+استفاده نمی‌شوند.
 
 ## نکتهٔ امنیتی
 

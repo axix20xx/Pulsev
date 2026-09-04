@@ -50,69 +50,32 @@ function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" {
   return "marzban";
 }
 
-function envValue(name?: string | null): string | undefined {
-  return name ? process.env[name]?.trim() || undefined : undefined;
+async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
+  const result = await pool.query<StoredPanel>(
+    `SELECT p.key, p.kind, p.api_base, p.username_env, p.password_env, p.api_key_env,
+            p.username_secret, p.password_secret, p.api_key_secret
+     FROM panel_configs p
+     WHERE p.is_enabled = 1
+     ORDER BY p.key`,
+  );
+  return result.rows.map((panel) => ({
+    key: panel.key,
+    kind: panel.kind,
+    api_base: panel.api_base.replace(/\/+$/, ""),
+    admin_user: decryptPanelCredential(panel.username_secret),
+    admin_pass: decryptPanelCredential(panel.password_secret),
+    api_key: decryptPanelCredential(panel.api_key_secret),
+  })).filter((panel) => {
+    const kind = panelKind(panel);
+    return kind === "falcon"
+      ? Boolean(panel.api_key)
+      : Boolean(panel.admin_user && panel.admin_pass);
+  });
 }
 
-async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
-  const raw = process.env.RAIN_PANELS_JSON?.trim();
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed
-          .filter((panel): panel is Panel => Boolean(panel && typeof panel === "object"))
-          .map((panel) => ({
-            ...panel,
-            api_base: String(panel.api_base ?? "").replace(/\/+$/, ""),
-          }))
-          .filter((panel) => panel.api_base);
-      }
-    } catch {
-      throw new RainApiError("RAIN_PANELS_JSON is not valid JSON");
-    }
-  }
-
-  try {
-    const result = await pool.query<StoredPanel>(
-      `SELECT p.key, p.kind, p.api_base, p.username_env, p.password_env, p.api_key_env,
-              p.username_secret, p.password_secret, p.api_key_secret
-       FROM panel_configs p
-       WHERE p.is_enabled = 1
-       ORDER BY p.key`,
-      [],
-    );
-    if (result.rows.length) {
-      return result.rows.map((panel) => ({
-        key: panel.key,
-        kind: panel.kind,
-        api_base: panel.api_base.replace(/\/+$/, ""),
-         admin_user: decryptPanelCredential(panel.username_secret) ?? envValue(panel.username_env),
-         admin_pass: decryptPanelCredential(panel.password_secret) ?? envValue(panel.password_env),
-         api_key: decryptPanelCredential(panel.api_key_secret) ?? envValue(panel.api_key_env),
-      })).filter((panel) => {
-        const kind = panelKind(panel);
-        return kind === "falcon"
-          ? Boolean(panel.api_key)
-          : Boolean(panel.admin_user && panel.admin_pass);
-      });
-    }
-  } catch {
-    // The route initializes the panel-management schema; retain the legacy env fallback at startup.
-  }
-
-  const base = process.env.RAIN_API_BASE_URL?.trim().replace(/\/+$/, "");
-  if (!base) return [];
-  return [
-    {
-      key: process.env.RAIN_API_KEY_NAME || "primary",
-      kind: process.env.RAIN_API_KIND || "marzban",
-      api_base: base,
-      admin_user: process.env.RAIN_API_USERNAME,
-      admin_pass: process.env.RAIN_API_PASSWORD,
-      api_key: process.env.RAIN_API_KEY,
-    },
-  ];
+export async function listAvailablePanels(): Promise<Array<{ key: string; kind: string }>> {
+  const configured = await panels();
+  return configured.map((panel) => ({ key: panelKey(panel), kind: panelKind(panel) }));
 }
 
 export async function rainConfigured(ownerId?: number, role?: string): Promise<boolean> {

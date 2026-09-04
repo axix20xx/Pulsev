@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, createContext, useContext, useId, useRef, type ReactNode, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Activity, ArrowUpLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, CreditCard, Download, ExternalLink, Filter, Globe2, History, KeyRound, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Tag, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -194,7 +195,7 @@ function Overlay({ title, onClose, children, fullScreen = false }: { title: stri
       previousFocus?.focus?.();
     };
   }, []);
-  return <div className={`modal-backdrop ${fullScreen ? 'wizard-backdrop' : ''}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className={`modal-card ${fullScreen ? 'modal-card-full' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}><div className="flex items-start justify-between border-b border-border pb-4"><div><p className="eyebrow">فضای کاری پالس</p><h2 id={titleId} className="mt-1 font-display text-xl font-extrabold">{title}</h2></div><button ref={closeButtonRef} className="icon-button" onClick={onClose} aria-label="بستن پنجره" data-testid="button-close-dialog"><X size={18} /></button></div>{children}</div></div>;
+  return createPortal(<div className={`modal-backdrop ${fullScreen ? 'wizard-backdrop' : ''}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className={`modal-card ${fullScreen ? 'modal-card-full' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}><div className="flex items-start justify-between border-b border-border pb-4"><div><p className="eyebrow">فضای کاری پالس</p><h2 id={titleId} className="mt-1 font-display text-xl font-extrabold">{title}</h2></div><button type="button" ref={closeButtonRef} className="icon-button" onClick={onClose} aria-label="بستن پنجره" data-testid="button-close-dialog"><X size={18} /></button></div>{children}</div></div>, document.body);
 }
 const Field = ({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string | number; onChange: (value: string) => void; placeholder?: string; type?: string }) => <label className="field"><span>{label}</span><input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} /></label>;
 const PersianDateField = ({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) => {
@@ -690,6 +691,7 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
   const [created, setCreated] = useState<Service | null>(null);
   const [step, setStep] = useState(1);
   const [providers, setProviders] = useState<any[]>([]);
+  const [providersLoading, setProvidersLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -718,9 +720,13 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
   const projectedExpiry = new Date(Date.now() + Number(form.days || 0) * 86_400_000).toISOString();
   useEffect(() => {
     fetch('/api/providers/available', { credentials: 'include' })
-      .then((response) => response.ok ? response.json() : [])
-      .then(setProviders)
-      .catch(() => setProviders([]));
+      .then(async (response) => {
+        if (!response.ok) throw new Error('وضعیت Providerها دریافت نشد.');
+        const result = await response.json();
+        setProviders(Array.isArray(result) ? result : []);
+      })
+      .catch(() => setProviders([]))
+      .finally(() => setProvidersLoading(false));
   }, []);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -773,14 +779,14 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
         <div className="wizard-live-summary"><div><span>حجم انتخابی</span><strong>{numberFa(Number(form.gb))} گیگ</strong></div><div><span>مدت</span><strong>{numberFa(Number(form.days))} روز</strong></div><div><span>قیمت فروش</span><strong>{currentSellPrice > 0 ? money(currentSellPrice) : 'قابل تعیین'}</strong></div></div>
         <div className="expiry-preview"><CalendarDays size={17} /><div><span>تاریخ انقضای تقریبی</span><strong>{dateLabel(projectedExpiry)}</strong></div><em>{numberFa(Number(form.days))} روز</em></div>
       </div>}
-      {step === 3 && <div className="wizard-step">
+       {step === 3 && <div className="wizard-step">
         <div className="wizard-kicker"><span className="wizard-step-number">۰۳</span><span>آمادهٔ ساخت</span></div><h3>همه‌چیز آماده است</h3><p className="wizard-lede">اطلاعات را یک‌بار بررسی کنید؛ بعد از تأیید، سرویس روی همهٔ Providerهای آماده و AmneziaWG ساخته می‌شود.</p>
-        <div className="wizard-summary"><div><span>مشتری</span><strong>{form.customerName}</strong><small dir="ltr">{form.phone}</small></div><div><span>بسته</span><strong>{form.gb} گیگابایت</strong><small>{form.days} روز · {dateLabel(projectedExpiry)}</small></div><div className="summary-wide"><span>اتصال‌ها</span><strong>{providers.map((provider) => provider.key).join('، ') || 'در حال بررسی'} + AmneziaWG</strong><small>Credentialهای آماده به‌صورت خودکار استفاده می‌شوند.</small></div><div><span>ثبت پرداخت</span><button type="button" className={`toggle ${form.isPaid ? 'on' : ''}`} onClick={() => setForm({ ...form, isPaid: !form.isPaid })}><span /></button></div></div>
+         <div className="wizard-summary"><div><span>مشتری</span><strong>{form.customerName}</strong><small dir="ltr">{form.phone}</small></div><div><span>بسته</span><strong>{form.gb} گیگابایت</strong><small>{form.days} روز · {dateLabel(projectedExpiry)}</small></div><div className="summary-wide"><span>اتصال‌ها</span><strong>{providersLoading ? 'در حال بررسی Providerها' : providers.map((provider) => provider.key).join('، ') || 'هیچ Provider آماده‌ای نیست'}{!providersLoading && providers.length ? ' + AmneziaWG' : ''}</strong><small>Credentialهای آماده به‌صورت خودکار استفاده می‌شوند.</small></div><div><span>ثبت پرداخت</span><button type="button" className={`toggle ${form.isPaid ? 'on' : ''}`} onClick={() => setForm({ ...form, isPaid: !form.isPaid })}><span /></button></div></div>
         <label className="field mt-5"><span>{isReseller ? 'قیمت فروش تعیین‌شده توسط مدیر' : 'قیمت فروش (اختیاری)'}</span><input type="number" value={isReseller ? String(lockedSellPrice) : form.sellPrice} placeholder="برای ثبت در دفتر مالی" disabled={isReseller} onChange={(event) => setForm({ ...form, sellPrice: event.target.value })} /></label>
-        {isReseller && <p className="text-xs text-muted-foreground mt-2">قیمت هر گیگ توسط مدیر تعیین شده و فروشنده امکان تغییر آن را ندارد.</p>}{error && <div className="login-error mt-5">{error}</div>}
+         {isReseller && <p className="text-xs text-muted-foreground mt-2">قیمت هر گیگ توسط مدیر تعیین شده و فروشنده امکان تغییر آن را ندارد.</p>}{!providersLoading && !providers.length && <div className="login-error mt-5">هیچ Provider دارای credential آماده نیست. از صفحهٔ تنظیمات، credential پنل را ذخیره و دوباره تلاش کنید.</div>}{error && <div className="login-error mt-5">{error}</div>}
       </div>}
     </div>
-    <div className="wizard-footer"><Button variant="secondary" disabled={step === 1 || submitting} onClick={() => setStep((value) => Math.max(1, value - 1))}>مرحله قبل</Button>{step < 3 ? <Button disabled={!canContinue} onClick={() => setStep((value) => Math.min(3, value + 1))}>ادامه <ChevronLeft size={15} /></Button> : <Button type="submit" disabled={submitting || !providers.length} testId="button-save-service">{submitting ? <><RefreshCw size={15} className="spin" /> ساخت روی همه پنل‌ها و AWG...</> : <><Check size={15} /> ساخت نهایی سرویس</>}</Button>}</div>
+     <div className="wizard-footer"><Button variant="secondary" disabled={step === 1 || submitting} onClick={() => setStep((value) => Math.max(1, value - 1))}>مرحله قبل</Button>{step < 3 ? <Button disabled={!canContinue} onClick={() => setStep((value) => Math.min(3, value + 1))}>ادامه <ChevronLeft size={15} /></Button> : <Button type="submit" disabled={submitting || providersLoading || !providers.length} testId="button-save-service">{submitting ? <><RefreshCw size={15} className="spin" /> ساخت روی همه پنل‌ها و AWG...</> : providersLoading ? <><RefreshCw size={15} className="spin" /> بررسی Providerها...</> : <><Check size={15} /> ساخت نهایی سرویس</>}</Button>}</div>
   </form></Overlay>;
 }
 
@@ -865,7 +871,7 @@ function ServicesContent() {
   const { services, updateService, renewService } = usePulse(); const [search, setSearch] = useState(''); const [status, setStatus] = useState('All'); const [modal, setModal] = useState(false); const [noteService, setNoteService] = useState<Service | null>(null);
   const filtered = services.filter((service) => (status === 'All' || service.status === status) && `${service.customerName} ${service.username} ${service.plan}`.toLowerCase().includes(search.toLowerCase()));
   const toggle = (service: Service) => updateService({ ...service, status: service.status === 'Disabled' ? 'Active' : 'Disabled' });
-  return <><PageHeader eyebrow="موجودی دسترسی" title="سرویس‌ها" description="حساب‌ها، مصرف، انقضا و یادداشت‌ها را یک‌جا کنترل کنید." action={<Button onClick={() => setModal(true)} testId="button-add-service"><Plus size={16} /> افزودن سرویس</Button>} />
+  return <><PageHeader eyebrow="موجودی دسترسی" title="سرویس‌ها" description="حساب‌ها، مصرف، انقضا و یادداشت‌ها را یک‌جا کنترل کنید." action={<button type="button" className="button button-primary" onClick={() => setModal(true)} aria-haspopup="dialog" data-testid="button-add-service"><Plus size={16} /> افزودن سرویس</button>} />
     <div className="toolbar"><div className="search-field"><Search size={16} /><input placeholder="جست‌وجوی مشتری یا نام کاربری" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-services" /></div><div className="select-wrap"><Filter size={14} /><select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="فیلتر وضعیت سرویس" data-testid="select-service-status"><option value="All">همه وضعیت‌ها</option><option value="Active">فعال</option><option value="Expiring">نزدیک به انقضا</option><option value="Expired">منقضی</option><option value="Disabled">غیرفعال</option></select></div></div>
     <section className="services-grid">{filtered.map((service) => <article className="service-card" key={service.id} data-testid={`card-service-${service.id}`}><div className="flex items-start justify-between"><div className="flex items-center gap-3"><div className="service-symbol"><Globe2 size={17} /></div><div><h3 className="font-bold">{service.plan}</h3><p className="font-mono text-[10px] text-muted-foreground">{service.username}</p></div></div><StatusPill value={service.status} /></div><div className="mt-5 flex items-end justify-between"><div><p className="text-xs text-muted-foreground">مشتری</p><p className="mt-1 text-sm font-semibold">{service.customerName}</p></div><div className="text-right"><p className="text-xs text-muted-foreground">انقضا</p><p className="mt-1 text-sm font-semibold">{dateLabel(service.expiresAt)}</p></div></div><div className="quota"><div className="mb-1.5 flex justify-between text-[11px] text-muted-foreground"><span>مصرف</span><span className="font-mono">{service.usedGb} / {service.limitGb} گیگ</span></div><div className="quota-track"><span style={{ width: `${service.limitGb ? Math.min(100, service.usedGb / service.limitGb * 100) : 0}%` }} /></div></div><div className="mt-4 flex items-center justify-between border-t border-border/70 pt-3"><button className="text-right text-[11px] text-muted-foreground hover:text-foreground" onClick={() => setNoteService(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? `${service.panel} · یادداشت دارد` : `${service.panel} · افزودن یادداشت`}</button><div className="flex items-center gap-1"><Button variant="quiet" onClick={() => toggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Active' && service.status !== 'Disabled' && <Button variant="quiet" onClick={() => renewService(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={12} /> تمدید</Button>}</div></div></article>)}</section>{!filtered.length && <EmptyState title="سرویسی پیدا نشد" detail="فیلتر وضعیت یا عبارت جست‌وجو را تغییر دهید." />}{modal && <ServiceModal onClose={() => setModal(false)} />}{noteService && <NoteModal service={noteService} onClose={() => setNoteService(null)} />}</>;
 }
