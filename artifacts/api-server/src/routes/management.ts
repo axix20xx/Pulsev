@@ -98,6 +98,28 @@ export const managementReady = pool
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS user_panel_usages (
+      id BIGSERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      panel_key TEXT NOT NULL,
+      upload BIGINT NOT NULL DEFAULT 0,
+      download BIGINT NOT NULL DEFAULT 0,
+      total BIGINT NOT NULL DEFAULT 0,
+      offset_bytes BIGINT NOT NULL DEFAULT 0,
+      last_updated TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    ALTER TABLE user_panel_usages
+      ADD COLUMN IF NOT EXISTS offset_bytes BIGINT NOT NULL DEFAULT 0;
+    CREATE SEQUENCE IF NOT EXISTS user_panel_usages_id_seq;
+    SELECT setval(
+      'user_panel_usages_id_seq',
+      GREATEST(COALESCE((SELECT MAX(id) FROM user_panel_usages), 0) + 1, 1),
+      false
+    );
+    ALTER SEQUENCE user_panel_usages_id_seq
+      OWNED BY user_panel_usages.id;
+    ALTER TABLE user_panel_usages
+      ALTER COLUMN id SET DEFAULT nextval('user_panel_usages_id_seq');
      CREATE TABLE IF NOT EXISTS reseller_customer_tags (
        customer_id BIGINT NOT NULL,
        reseller_tg_id BIGINT NOT NULL,

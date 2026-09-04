@@ -20,3 +20,9 @@ The Hostinger first-run flow uses the legacy backup bundled in the deployment ZI
 **Why:** The deployment is intended to restore the known backup into the configured Supabase database, while exposing database credentials or arbitrary SQL upload in a public installer would create unnecessary risk.
 
 **How to apply:** Keep `/install` focused on connection status, bundled-backup import progress, safe error details, and retry; configure `DATABASE_URL` through Hostinger environment variables.
+
+Legacy PostgreSQL tables may retain an integer primary key without an attached sequence/default even when the imported rows are valid. Startup compatibility migrations must repair missing identity defaults before background workers insert new operational rows.
+
+**Why:** A migrated usage table accepted historical data but rejected every new sync row with a not-null violation because its `id` column generated no value.
+
+**How to apply:** For legacy tables that receive new writes, create/attach an owned sequence, advance it beyond the current maximum ID, and verify an insert can generate an ID without supplying one.
