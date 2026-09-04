@@ -1,0 +1,125 @@
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+[migration] {"timestamp":"2026-09-04T17:15:01.716Z","level":"INFO","message":"PostgreSQL target: database=postgres, schema=public, user=postgres"}
+[migration] {"timestamp":"2026-09-04T17:15:03.584Z","level":"INFO","message":"Loaded SQL backup (80722278 bytes, 1755 statements)."}
+[migration] {"timestamp":"2026-09-04T17:15:04.211Z","level":"INFO","message":"Using preconverted Supabase SQL from ./supabase-import.sql"}
+[migration] {"timestamp":"2026-09-04T17:15:04.524Z","level":"INFO","message":"Import progress: 1/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:15:24.418Z","level":"INFO","message":"Import progress: 50/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:15:48.447Z","level":"INFO","message":"Import progress: 100/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:16:12.028Z","level":"INFO","message":"Import progress: 150/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:16:35.608Z","level":"INFO","message":"Import progress: 200/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:16:59.189Z","level":"INFO","message":"Import progress: 250/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:17:22.902Z","level":"INFO","message":"Import progress: 300/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:17:46.531Z","level":"INFO","message":"Import progress: 350/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:18:10.495Z","level":"INFO","message":"Import progress: 400/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:18:35.232Z","level":"INFO","message":"Import progress: 450/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:18:58.855Z","level":"INFO","message":"Import progress: 500/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:19:22.501Z","level":"INFO","message":"Import progress: 550/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:19:46.386Z","level":"INFO","message":"Import progress: 600/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:20:10.140Z","level":"INFO","message":"Import progress: 650/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:20:34.233Z","level":"INFO","message":"Import progress: 700/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:20:58.071Z","level":"INFO","message":"Import progress: 750/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:21:22.017Z","level":"INFO","message":"Import progress: 800/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:21:45.584Z","level":"INFO","message":"Import progress: 850/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:22:09.554Z","level":"INFO","message":"Import progress: 900/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:22:33.741Z","level":"INFO","message":"Import progress: 950/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:22:54.605Z","level":"INFO","message":"Import progress: 1000/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:23:15.101Z","level":"INFO","message":"Import progress: 1050/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:23:34.798Z","level":"INFO","message":"Import progress: 1100/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:23:53.655Z","level":"INFO","message":"Import progress: 1150/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:24:11.467Z","level":"INFO","message":"Import progress: 1200/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:24:28.386Z","level":"INFO","message":"Import progress: 1250/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:24:45.145Z","level":"INFO","message":"Import progress: 1300/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:25:01.860Z","level":"INFO","message":"Import progress: 1350/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:25:18.426Z","level":"INFO","message":"Import progress: 1400/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:25:34.981Z","level":"INFO","message":"Import progress: 1450/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:25:51.425Z","level":"INFO","message":"Import progress: 1500/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:26:07.804Z","level":"INFO","message":"Import progress: 1550/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:26:24.200Z","level":"INFO","message":"Import progress: 1600/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:26:40.754Z","level":"INFO","message":"Import progress: 1650/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:26:58.998Z","level":"INFO","message":"Import progress: 1700/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:27:16.463Z","level":"INFO","message":"Import progress: 1750/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:27:17.663Z","level":"INFO","message":"Import progress: 1753/1755 statements"}
+[migration] {"timestamp":"2026-09-04T17:27:18.669Z","level":"INFO","message":"Legacy SQL migration completed."}
+[api] [17:27:19.645] [32mINFO[39m (4117040): [36mCombined usage sync worker started[39m
+[api] [35mintervalMs[39m: 60000
+[api] [17:27:19.650] [32mINFO[39m (4117040): [36mServer listening[39m
+[api] [35mport[39m: 3001
+[api] [17:27:21.849] [32mINFO[39m (4117040): [36mService provisioning worker started[39m
+[api] [17:28:09.945] [32mINFO[39m (4117040): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 1,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 5
+[api] [17:28:10.253] [33mWARN[39m (4117040): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 673
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404
+[api] at getAwgStats (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:57549:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncService (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:60384:21)
+[api] at async runUsageSync (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:60475:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [17:28:14.546] [31mERROR[39m (4117040): [36mUnhandled API request error[39m
+[api] [35mreq[39m: {
+[api] "id": 2,
+[api] "method": "POST",
+[api] "url": "/api/auth/telegram-id"
+[api] }
+[api] err: {
+[api] "type": "Error",
+[api] "message": "Origin is not allowed",
+[api] "stack":
+[api] Error: Origin is not allowed
+[api] at origin (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:60531:16)
+[api] at file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:24084:17
+[api] at optionsCallback (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:24066:13)
+[api] at corsMiddleware (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:24070:11)
+[api] at Layer.handleRequest (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:20507:21)
+[api] at trimPrefix (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:20866:17)
+[api] at file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:20837:13
+[api] at processParams (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:20982:16)
+[api] at next (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:20831:9)
+[api] at loggingMiddleware (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:28607:11)
+[api] }
+[api] [17:28:14.547] [32mINFO[39m (4117040): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 2,
+[api] "method": "POST",
+[api] "url": "/api/auth/telegram-id"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 500
+[api] }
+[api] [35mresponseTime[39m: 1
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 500",
+[api] "stack":
+[api] Error: failed with status code 500
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06d69-6c7d-72a0-993a-c349646f90cb/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
