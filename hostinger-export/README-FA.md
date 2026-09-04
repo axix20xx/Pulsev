@@ -27,6 +27,10 @@
 3. Environment Variables زیر را بسازید.
 4. برنامه را Restart کنید.
 
+در صورت وجود مرحلهٔ Build در Hostinger، دستور `npm run build` را نگه دارید؛
+این بسته از قبل production build شده و این دستور کامل بودن فایل‌های runtime را
+بررسی می‌کند.
+
 اگر ZIP را داخل `public_html` Extract کرده‌اید، Application root را روی پوشهٔ
 `pulse-hostinger-supabase` بگذارید، نه روی `public_html` والد. ساده‌ترین حالت این
 است که فایل‌های داخل این پوشه را مستقیماً در Application root قرار دهید تا
