@@ -1,0 +1,1061 @@
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+[migration] {"timestamp":"2026-09-04T21:07:56.849Z","level":"INFO","message":"PostgreSQL target: database=postgres, schema=public, user=postgres"}
+[migration] {"timestamp":"2026-09-04T21:07:57.821Z","level":"INFO","message":"Legacy SQL migration already completed."}
+[api] [21:07:58.720] [32mINFO[39m (788303): [36mCombined usage sync worker started[39m
+[api] [35mintervalMs[39m: 60000
+[api] [21:07:58.725] [32mINFO[39m (788303): [36mServer listening[39m
+[api] [35mport[39m: 3001
+[api] [21:08:01.326] [32mINFO[39m (788303): [36mService provisioning worker started[39m
+[api] [21:08:02.023] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 9,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 390
+[api] [21:08:02.036] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 1,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2122
+[api] [21:08:02.236] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 4,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2207
+[api] [21:08:02.461] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 6,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2429
+[api] [21:08:02.887] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 7,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2758
+[api] [21:08:02.927] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 3,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2899
+[api] [21:08:03.197] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 10,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 316
+[api] [21:08:03.257] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 5,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3226
+[api] [21:08:03.536] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 11,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 647
+[api] [21:08:03.725] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 13,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 642
+[api] [21:08:04.035] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 14,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 952
+[api] [21:08:04.107] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 15,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1016
+[api] [21:08:04.174] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 8,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/13d3b19050cfa1c187195d4c99d2c9f4"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2703
+[api] [21:08:04.413] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 2,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4389
+[api] [21:08:04.465] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 12,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1383
+[api] [21:08:06.502] [33mWARN[39m (788303): [36mProvisioning job scheduled for retry[39m
+[api] [35mjobId[39m: "2"
+[api] [35maction[39m: "providers"
+[api] [35mattempts[39m: 9
+[api] error: "speedur: Could not authenticate with panel speedur (HTTP 404)"
+[api] [21:08:14.479] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 16,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/13d3b19050cfa1c187195d4c99d2c9f4/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 6037
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:08:22.620] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 17,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/13d3b19050cfa1c187195d4c99d2c9f4/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 5653
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:08:40.260] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 18,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 320
+[api] [21:10:37.610] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 19,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 319
+[api] [21:10:38.825] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 20,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 651
+[api] [21:10:40.296] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 21,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2121
+[api] [21:10:40.609] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 23,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2430
+[api] [21:10:40.904] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 22,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2728
+[api] [21:10:41.248] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 24,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3069
+[api] [21:10:42.553] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 25,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4371
+[api] [21:10:46.151] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 26,
+[api] "method": "GET",
+[api] "url": "/api/panels"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 638
+[api] [21:10:52.378] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 27,
+[api] "method": "DELETE",
+[api] "url": "/api/panels/falcon"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 727
+[api] [21:10:53.766] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 28,
+[api] "method": "GET",
+[api] "url": "/api/panels"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 708
+[api] [21:10:59.896] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 29,
+[api] "method": "DELETE",
+[api] "url": "/api/panels/xxpanel"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 706
+[api] [21:11:02.372] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 30,
+[api] "method": "GET",
+[api] "url": "/api/panels"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 708
+[api] [21:11:13.594] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 31,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2107
+[api] [21:11:26.801] [33mWARN[39m (788303): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 755
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404
+[api] at getAwgStats (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:57603:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncService (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:60543:21)
+[api] at async runUsageSync (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:60634:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [21:11:36.191] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 32,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 320
+[api] [21:11:38.137] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 33,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2218
+[api] [21:11:38.339] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 35,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2418
+[api] [21:11:38.790] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 38,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2857
+[api] [21:11:39.034] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 36,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3107
+[api] [21:11:39.082] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 37,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3154
+[api] [21:11:40.273] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 34,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4352
+[api] [21:11:41.382] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 39,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 340
+[api] [21:11:41.694] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 45,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 342
+[api] [21:11:41.755] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 40,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 712
+[api] [21:11:42.012] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 42,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 964
+[api] [21:11:42.061] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 44,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1012
+[api] [21:11:42.069] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 43,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1020
+[api] [21:11:42.517] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 41,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1474
+[api] [21:11:55.407] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 46,
+[api] "method": "PATCH",
+[api] "url": "/api/panels/speedur"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 400
+[api] }
+[api] [35mresponseTime[39m: 354
+[api] [21:12:09.562] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 47,
+[api] "method": "PATCH",
+[api] "url": "/api/panels/speedur"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 400
+[api] }
+[api] [35mresponseTime[39m: 334
+[api] [21:12:11.738] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 48,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 351
+[api] [21:12:13.269] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 49,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 342
+[api] [21:12:20.306] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 50,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/13d3b19050cfa1c187195d4c99d2c9f4/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 5275
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:12:29.744] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 51,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/0055d87d1e8d4e00408263d4b1fae44c/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 5091
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:12:38.553] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 52,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/dacfa3ac0324965b397a8d56010459f5/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 4995
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:12:39.991] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 54,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 316
+[api] [21:12:40.633] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 53,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 961
+[api] [21:12:41.725] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 59,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 336
+[api] [21:12:42.452] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 56,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2773
+[api] [21:12:42.553] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 57,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2873
+[api] [21:12:42.742] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 55,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3064
+[api] [21:12:43.976] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 58,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4296
+[api] [21:12:57.713] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 60,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 326
+[api] [21:12:59.509] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 62,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2090
+[api] [21:12:59.821] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 61,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2404
+[api] [21:13:00.133] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 63,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2712
+[api] [21:13:00.328] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 67,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 491
+[api] [21:13:00.718] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 66,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3291
+[api] [21:13:01.100] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 68,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1055
+[api] [21:13:01.335] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 70,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1194
+[api] [21:13:01.380] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 72,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1237
+[api] [21:13:01.394] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 64,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3968
+[api] [21:13:01.565] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 69,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1424
+[api] [21:13:01.896] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 65,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4469
+[api] [21:13:01.926] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 71,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1783
+[api] [21:13:07.223] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 73,
+[api] "method": "PATCH",
+[api] "url": "/api/panels/speedur"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 400
+[api] }
+[api] [35mresponseTime[39m: 325
+[api] [21:13:11.712] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 74,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 324
+[api] [21:13:24.321] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 75,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/dacfa3ac0324965b397a8d56010459f5/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 5936
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:13:24.663] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 76,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/13d3b19050cfa1c187195d4c99d2c9f4/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 6277
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:13:29.139] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 79,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 321
+[api] [21:13:30.517] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 77,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/dacfa3ac0324965b397a8d56010459f5/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 5717
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:13:33.678] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 78,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/0055d87d1e8d4e00408263d4b1fae44c/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 6799
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:13:36.083] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 80,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/0055d87d1e8d4e00408263d4b1fae44c/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 4896
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:13:38.411] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 83,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 983
+[api] [21:13:38.820] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 84,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1391
+[api] [21:13:39.513] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 85,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2083
+[api] [21:13:39.962] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 82,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2540
+[api] [21:13:40.185] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 87,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2753
+[api] [21:13:40.725] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 86,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3294
+[api] [21:13:41.530] [32mINFO[39m (788303): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 81,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/13d3b19050cfa1c187195d4c99d2c9f4/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 502
+[api] }
+[api] [35mresponseTime[39m: 4740
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 502",
+[api] "stack":
+[api] Error: failed with status code 502
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a06e3f-5b39-72fb-90dc-8202ea1d4b85/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [21:13:41.711] [32mINFO[39m (788303): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 88,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 323

@@ -59,6 +59,7 @@ import {
   listAvailablePanels,
   provisionUser,
   RainApiError,
+  testPanelAuthentication,
   legacySubscriptionUrl,
   subscriptionUrl,
 } from "../lib/rain";
@@ -213,9 +214,12 @@ export const managementReady = pool
     VALUES
          ('phonepanel', 'rain_admin', 'https://videobazi.com', NULL, NULL, NULL),
          ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL),
-         ('xxpanel', 'marzban', 'https://panel.jetservices.ir:2096', NULL, NULL, NULL),
         ('falcon', 'falcon', 'https://falco.all-engines.com/api/v1', NULL, NULL, NULL)
-      ON CONFLICT (key) DO NOTHING
+       ON CONFLICT (key) DO NOTHING;
+      DELETE FROM reseller_panel_assignments
+       WHERE panel_key IN ('xxpanel', 'fibrpanel');
+      DELETE FROM panel_configs
+       WHERE key IN ('xxpanel', 'fibrpanel')
   `)
   .catch((error) => {
     console.error("Panel management schema initialization failed", error);
@@ -646,6 +650,23 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
   );
 });
 
+router.post("/panels/:key/test", requireMasterAdmin, async (req, res): Promise<void> => {
+  const key = String(req.params.key ?? "").trim();
+  if (!/^[a-z0-9_-]{2,64}$/.test(key)) {
+    res.status(400).json({ ok: false, detail: "Provider key is invalid." });
+    return;
+  }
+  const result = await testPanelAuthentication(
+    key,
+    req.auth?.telegramId,
+    req.auth?.role,
+  );
+  res.status(result.ok ? 200 : 503).json({
+    ...result,
+    checked_at: new Date().toISOString(),
+  });
+});
+
 const providerKinds = ["marzban", "rain_admin", "falcon"] as const;
 type ProviderKind = (typeof providerKinds)[number];
 
@@ -729,11 +750,17 @@ router.get("/providers/available", requireAuth, async (_req, res): Promise<void>
 router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void> => {
   const key = String(req.params.key ?? "").trim();
   const body = req.body ?? {};
+  const requestedKind =
+    body.kind === undefined
+      ? undefined
+      : typeof body.kind === "string"
+        ? body.kind.trim().toLowerCase()
+        : body.kind;
   if (
     !/^[a-z0-9_-]{2,64}$/.test(key) ||
     (body.enabled !== undefined && typeof body.enabled !== "boolean") ||
     (body.api_base !== undefined && !isProviderApiBase(body.api_base)) ||
-    (body.kind !== undefined && !isProviderKind(body.kind)) ||
+    (requestedKind !== undefined && !isProviderKind(requestedKind)) ||
     (body.username !== undefined && typeof body.username !== "string") ||
     (body.password !== undefined && typeof body.password !== "string") ||
     (body.api_key !== undefined && typeof body.api_key !== "string")
@@ -758,8 +785,8 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
        username_env, password_env, api_key_env`,
     [
       body.enabled === undefined ? null : body.enabled ? 1 : 0,
-      body.kind ?? null,
-      body.api_base ?? null,
+      requestedKind ?? null,
+      typeof body.api_base === "string" ? body.api_base.trim() : null,
        body.username ? encryptPanelCredential(body.username.trim()) : null,
        body.password ? encryptPanelCredential(body.password) : null,
        body.api_key ? encryptPanelCredential(body.api_key.trim()) : null,

@@ -1369,7 +1369,76 @@ export function Reports() {
   return <SurfaceFrame name="reports"><ReportsContent /></SurfaceFrame>;
 }
 
-function PanelAssignments({ resellers: _resellers }: { resellers: PulseContextValue['resellers'] }) {
+type ProviderConnectionResult = {
+  ok: boolean;
+  detail: string;
+  checkedAt: string;
+  checking?: boolean;
+};
+
+function ProviderConnectionPanel() {
+  const [providers, setProviders] = useState<any[]>([]);
+  const [results, setResults] = useState<Record<string, ProviderConnectionResult>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const testProvider = async (key: string) => {
+    setResults((current) => ({
+      ...current,
+      [key]: { ok: false, detail: 'در حال بررسی اتصال...', checkedAt: '', checking: true },
+    }));
+    try {
+      const response = await fetch(`/api/panels/${encodeURIComponent(key)}/test`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const payload = await response.json().catch(() => null);
+      setResults((current) => ({
+        ...current,
+        [key]: {
+          ok: Boolean(payload?.ok),
+          detail: payload?.detail || (response.ok ? 'اتصال برقرار است.' : 'اتصال Provider ناموفق بود.'),
+          checkedAt: payload?.checked_at || new Date().toISOString(),
+        },
+      }));
+    } catch {
+      setResults((current) => ({
+        ...current,
+        [key]: {
+          ok: false,
+          detail: 'سرور Provider قابل دسترسی نیست.',
+          checkedAt: new Date().toISOString(),
+        },
+      }));
+    }
+  };
+
+  const refresh = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch('/api/panels', { credentials: 'include' });
+      if (!response.ok) throw new Error('فهرست Providerها دریافت نشد.');
+      const items = await response.json();
+      setProviders(items);
+      await Promise.all(items.map((provider: any) => testProvider(provider.key)));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'بررسی اتصال Providerها ناموفق بود.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void refresh(); }, []);
+
+  return <section className="panel-card"><div className="settings-heading"><div className="settings-symbol sage"><Wifi size={17} /></div><div><h2 className="section-title">سلامت زنده Providerها</h2><p className="text-sm text-muted-foreground">اتصال شبکه و اعتبار credentialها مستقیماً از سرور بررسی می‌شود.</p></div></div><div className="provider-create-actions mt-4"><span className="text-xs text-muted-foreground">هیچ رمز یا API key در نتیجه نمایش داده نمی‌شود.</span><Button variant="secondary" onClick={refresh} disabled={loading}>{loading ? <><RefreshCw size={14} className="spin" /> در حال تست...</> : <><Activity size={14} /> تست مجدد همه</>}</Button></div>{error && <div className="login-error mt-4">{error}</div>}<div className="list-stack mt-4">{providers.length ? providers.map((provider) => { const result = results[provider.key]; const healthy = result?.ok && !result?.checking; return <div className="panel-row" key={provider.key}><div className={`avatar ${healthy ? 'avatar-sage' : ''}`}><Server size={15} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><strong className="text-sm">{provider.key}</strong><span className={`soft-badge ${healthy ? '' : 'muted'}`}>{result?.checking ? 'در حال بررسی' : healthy ? 'متصل' : result ? 'قطع / نامعتبر' : 'در انتظار تست'}</span></div><p className="text-xs text-muted-foreground mt-1">{provider.api_base}</p><p className="text-xs mt-1">{result?.detail || 'هنوز بررسی نشده است.'}</p>{result?.checkedAt && <small className="text-muted-foreground">آخرین بررسی: {dateTimeLabel(result.checkedAt)}</small>}</div><Button variant="secondary" onClick={() => testProvider(provider.key)} disabled={result?.checking}>{result?.checking ? <RefreshCw size={14} className="spin" /> : <Wifi size={14} />}</Button></div>; }) : !loading && <div className="notice"><Server size={16} /><span>Provider فعالی ثبت نشده است.</span></div>}</div></section>;
+}
+
+function PanelAssignments({ resellers }: { resellers: PulseContextValue['resellers'] }) {
+  return <><ProviderConnectionPanel /><ProviderManagementEditor resellers={resellers} /></>;
+}
+
+function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseContextValue['resellers'] }) {
   const [items, setItems] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState('');
@@ -1378,8 +1447,8 @@ function PanelAssignments({ resellers: _resellers }: { resellers: PulseContextVa
   const [newPanel, setNewPanel] = useState({ key: '', kind: 'rain_admin', api_base: '', enabled: true, username: '', password: '', api_key: '' });
   const loadPanels = async () => { const response = await fetch('/api/panels', { credentials: 'include' }); if (!response.ok) throw new Error('دریافت پنل‌ها ناموفق بود'); setItems(await response.json()); };
   useEffect(() => { loadPanels().catch((cause) => setError(cause instanceof Error ? cause.message : 'خطای پنل')); }, []);
-  const save = async (panel: any) => { setSaving(panel.key); setError(''); try { const response = await fetch(`/api/panels/${panel.key}`, { method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: panel.enabled, kind: panel.kind, api_base: panel.api_base, username: panel.username || '', password: panel.password || '', api_key: panel.api_key || '' }) }); if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'ذخیره Provider ناموفق بود'); await loadPanels(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'خطای ذخیره'); } finally { setSaving(''); } };
-  const edit = (key: string, field: string, value: string | boolean) => setItems((current) => current.map((panel) => panel.key === key ? { ...panel, [field]: value } : panel));
+  const save = async (panel: any) => { setSaving(panel.key); setError(''); try { const response = await fetch(`/api/panels/${panel.key}`, { method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: panel.enabled, kind: String(panel.kind || '').trim().toLowerCase(), api_base: String(panel.api_base || '').trim(), username: panel.username || '', password: panel.password || '', api_key: panel.api_key || '' }) }); if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'ذخیره Provider ناموفق بود'); await loadPanels(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'خطای ذخیره'); } finally { setSaving(''); } };
+  const edit = (key: string, field: string, value: string | boolean) => setItems((current) => current.map((panel) => panel.key === key ? { ...panel, [field]: field === 'kind' && typeof value === 'string' ? value.trim().toLowerCase() : value } : panel));
   const create = async (event: FormEvent) => {
     event.preventDefault();
     setCreating(true);

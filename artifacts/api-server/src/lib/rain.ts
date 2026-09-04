@@ -264,6 +264,7 @@ async function tokenFor(panel: Panel, forceRefresh = false): Promise<string> {
       ? ["/api/admins/token", "/api/admin/token", "/api/admin/token/", "/api/admins/token/"]
       : ["/api/admin/token", "/api/admin/token/"];
   let lastStatus: number | null = null;
+  let authenticationFailureStatus: number | null = null;
   let networkFailure = false;
   for (const path of paths) {
     const requestBodies: Array<{ contentType: string; body: string }> = [
@@ -297,6 +298,9 @@ async function tokenFor(panel: Panel, forceRefresh = false): Promise<string> {
           signal: AbortSignal.timeout(10_000),
         });
         lastStatus = response.status;
+        if ([401, 403, 422].includes(response.status)) {
+          authenticationFailureStatus = response.status;
+        }
         const text = await response.text();
         let json: any = null;
         try {
@@ -315,8 +319,10 @@ async function tokenFor(panel: Panel, forceRefresh = false): Promise<string> {
       }
     }
   }
-  const reason = lastStatus !== null
-    ? `HTTP ${lastStatus}`
+  const reason = authenticationFailureStatus !== null
+    ? `HTTP ${authenticationFailureStatus}`
+    : lastStatus !== null
+      ? `HTTP ${lastStatus}`
     : networkFailure
       ? "network error"
       : "no response";
@@ -331,7 +337,13 @@ export async function testPanelAuthentication(
   const panel = (await panels(ownerId, role)).find((candidate) => panelKey(candidate) === key);
   if (!panel) return { ok: false, detail: `Panel ${key} is not configured or has no credentials.` };
   try {
-    await tokenFor(panel, true);
+    const token = await tokenFor(panel, true);
+    if (panelKind(panel) === "falcon") {
+      const response = await request(panel, "GET", "/configs?limit=1", token);
+      if (response.status < 200 || response.status >= 300) {
+        return { ok: false, detail: `Falcon API returned ${safeError(response)}.` };
+      }
+    }
     return { ok: true, detail: "Authentication succeeded." };
   } catch (error) {
     return {
