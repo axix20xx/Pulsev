@@ -14,3 +14,9 @@ The preconverted PostgreSQL bundle may contain its own marker insert, but the mi
 **Why:** A successful preconverted import previously did not reliably create the runner’s completion marker, so Hostinger could repeat the large import after each restart.
 
 **How to apply:** Insert the migration marker with `ON CONFLICT DO NOTHING` for both converted and preconverted paths, after the transaction commits.
+
+The Hostinger first-run flow uses the legacy backup bundled in the deployment ZIP; it must not require an unauthenticated public SQL file-upload form.
+
+**Why:** The deployment is intended to restore the known backup into the configured Supabase database, while exposing database credentials or arbitrary SQL upload in a public installer would create unnecessary risk.
+
+**How to apply:** Keep `/install` focused on connection status, bundled-backup import progress, safe error details, and retry; configure `DATABASE_URL` through Hostinger environment variables.
