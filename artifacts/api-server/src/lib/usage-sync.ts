@@ -156,6 +156,23 @@ async function syncService(service: ServiceRow): Promise<void> {
   }
 }
 
+export async function syncServiceUsageById(serviceId: number): Promise<boolean> {
+  const result = await pool.query<ServiceRow>(
+    `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
+            svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+            svc.gb::float8 AS gb, rst.token
+     FROM reseller_services svc
+     LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
+     WHERE svc.id = $1
+     LIMIT 1`,
+    [serviceId],
+  );
+  const service = result.rows[0];
+  if (!service) return false;
+  await syncService(service);
+  return true;
+}
+
 export async function runUsageSync(): Promise<void> {
   if (running) return;
   running = true;

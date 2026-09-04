@@ -9,11 +9,11 @@ Quota enforcement must aggregate effective usage from every successful V2Box pan
 
 **How to apply:** Keep the worker idempotent and single-flight, persist combined bytes and cache state, disable remote clients and the local service on quota/date exhaustion, and leave failed provider reads stale rather than replacing them with zero.
 
-The legacy AWG server is configured through the imported `settings` row and exposes client stats at `/api/clients/{clientId}/stats` with top-level `rx_bytes` and `tx_bytes`; usage parsing must reject unknown payloads instead of treating them as zero.
+The legacy AWG server's client list contains identity/address metadata but no traffic counters; counters come from each client's stats resource, and a 404 there means the stored client no longer exists remotely.
 
-**Why:** The old server remains the source of truth for AWG provisioning and counters, and silently accepting a changed response shape can erase a customer's displayed usage.
+**Why:** Falling back to an unscoped client list can attribute another client's traffic, while silently accepting a missing client as zero erases real usage.
 
-**How to apply:** Keep loading the URL/token from the database settings, support direct and wrapped stats payloads, and throw on non-JSON or missing receive/transmit counters so the sync worker preserves the previous value.
+**How to apply:** Support wrapped stats and common counter aliases, preserve the previous value on invalid/missing stats, and only recreate a missing client during an explicit AWG repair/save action because its configuration changes.
 
 Provider clients and the AWG client are lifecycle parts of the same service: creation must not persist a partial service, and quota/date/manual disable is complete only after every configured remote is disabled.
 

@@ -98,7 +98,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const canLoadApi = sessionQuery.data?.authenticated === true;
   const dashboardQuery = useGetDashboard({ query: { enabled: canLoadApi, queryKey: getGetDashboardQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true } });
   const salesQuery = useListSales(undefined, { query: { enabled: canLoadApi, queryKey: getListSalesQueryKey() } });
-  const servicesQuery = useListServices(undefined, { query: { enabled: canLoadApi, queryKey: getListServicesQueryKey() } });
+  const servicesQuery = useListServices(undefined, { query: { enabled: canLoadApi, queryKey: getListServicesQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true } });
   const customersQuery = useListCustomers(undefined, { query: { enabled: canLoadApi, queryKey: getListCustomersQueryKey() } });
   const resellerQuery = useListResellers({ query: { enabled: canLoadApi && sessionQuery.data?.role === 'master_admin', queryKey: getListResellersQueryKey() } });
   const updateSaleApi = useUpdateSale();
@@ -1184,10 +1184,22 @@ function PublicSubscriptionContent() {
     const nextToken = new URLSearchParams(window.location.search).get('t') || '';
     setToken(nextToken);
     if (!nextToken) { setState('error'); return; }
-    fetch(`/api/public/subscription/${encodeURIComponent(nextToken)}`).then(async (response) => {
+    let active = true;
+    let hasLoaded = false;
+    const load = () => fetch(`/api/public/subscription/${encodeURIComponent(nextToken)}`, { cache: 'no-store' }).then(async (response) => {
       if (!response.ok) throw new Error('این لینک اشتراک منقضی یا نامعتبر است.');
       return response.json();
-    }).then((result) => { setData(result); setState('ready'); }).catch(() => setState('error'));
+    }).then((result) => {
+      if (!active) return;
+      hasLoaded = true;
+      setData(result);
+      setState('ready');
+    }).catch(() => {
+      if (active && !hasLoaded) setState('error');
+    });
+    void load();
+    const interval = window.setInterval(() => { void load(); }, 30_000);
+    return () => { active = false; window.clearInterval(interval); };
   }, []);
   const pageUrl = data ? new URL(data.public_url || `/sub?t=${encodeURIComponent(token)}`, window.location.origin).toString() : '';
   const v2boxInstall = pageUrl ? `v2box://install-sub?url=${pageUrl}&name=${encodeURIComponent(data.plan || 'Pulse')}` : '#';

@@ -63,6 +63,7 @@ import {
   legacySubscriptionUrl,
   subscriptionUrl,
 } from "../lib/rain";
+import { syncServiceUsageById } from "../lib/usage-sync";
 import {
   AwgApiError,
   createAwgClient,
@@ -443,6 +444,20 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     res.status(404).json({ error: "لینک اشتراک پیدا نشد" });
     return;
   }
+  try {
+    await Promise.race([
+      syncServiceUsageById(Number(row.id)),
+      new Promise((resolve) => setTimeout(resolve, 8_000)),
+    ]);
+    const fresh = await pool.query(
+      `SELECT last_used_bytes, last_total_bytes, last_remaining_bytes
+       FROM reseller_services WHERE id = $1 LIMIT 1`,
+      [row.id],
+    );
+    Object.assign(row, fresh.rows[0] ?? {});
+  } catch (error) {
+    req.log.warn({ err: error, serviceId: row.id }, "Public usage refresh failed");
+  }
   const usedGb = Number(row.last_used_bytes ?? 0) / (1024 ** 3);
   const totalBytes = Number(row.last_total_bytes) > 0
     ? Number(row.last_total_bytes)
@@ -491,6 +506,20 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
   if (!row) {
     res.status(404).send("Subscription not found");
     return;
+  }
+  try {
+    await Promise.race([
+      syncServiceUsageById(Number(row.id)),
+      new Promise((resolve) => setTimeout(resolve, 8_000)),
+    ]);
+    const fresh = await pool.query(
+      `SELECT last_used_bytes, last_total_bytes, last_remaining_bytes
+       FROM reseller_services WHERE id = $1 LIMIT 1`,
+      [row.id],
+    );
+    Object.assign(row, fresh.rows[0] ?? {});
+  } catch (error) {
+    req.log.warn({ err: error, serviceId: row.id }, "Feed usage refresh failed");
   }
 
   let body: string | null = null;
@@ -2316,8 +2345,25 @@ router.post("/services/:id/awg", requireAuth, async (req, res): Promise<void> =>
     return;
   }
   if (current.rows[0].awg_client_id) {
-    res.json({ awg_ready: true, awg_config_url: `/api/services/${params.data.id}/awg/config` });
-    return;
+    try {
+      await getAwgConfiguration(current.rows[0].awg_client_id);
+      res.json({ awg_ready: true, awg_config_url: `/api/services/${params.data.id}/awg/config` });
+      return;
+    } catch {
+      await recreateAwgClient(current.rows[0].awg_client_id);
+      await pool.query(
+        `UPDATE reseller_services
+         SET awg_rx = 0, awg_tx = 0, awg_total = 0, awg_offset_bytes = 0, updated_at = NOW()
+         WHERE id = $1`,
+        [params.data.id],
+      );
+      res.status(201).json({
+        awg_ready: true,
+        awg_repaired: true,
+        awg_config_url: `/api/services/${params.data.id}/awg/config`,
+      });
+      return;
+    }
   }
   const awg = await createAwgClient();
   if (!awg.clientId) {

@@ -102,10 +102,24 @@ export async function getAwgConfiguration(clientId: string): Promise<string> {
 }
 
 export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; txBytes: number }> {
-  const response = await request("GET", `/api/clients/${encodeURIComponent(clientId)}/stats`);
-  if (!response.configured) throw new AwgApiError("AmneziaWG API is not configured.");
-  if (response.status < 200 || response.status >= 300) {
-    throw new AwgApiError(`AmneziaWG returned HTTP ${response.status}`);
+  const encodedId = encodeURIComponent(clientId);
+  const endpoints = [
+    `/api/clients/${encodedId}/stats`,
+    `/api/clients/${encodedId}`,
+    `/api/client/${encodedId}`,
+    `/api/client/${encodedId}/stats`,
+    `/api/stats/${encodedId}`,
+  ];
+  let response: Awaited<ReturnType<typeof request>> | null = null;
+  for (const endpoint of endpoints) {
+    const candidate = await request("GET", endpoint);
+    if (!candidate.configured) throw new AwgApiError("AmneziaWG API is not configured.");
+    response = candidate;
+    if (candidate.status >= 200 && candidate.status < 300) break;
+    if (candidate.status !== 404 && candidate.status !== 405) break;
+  }
+  if (!response || response.status < 200 || response.status >= 300) {
+    throw new AwgApiError(`AmneziaWG returned HTTP ${response?.status ?? 0}`);
   }
   let payload: any;
   try {
@@ -114,13 +128,19 @@ export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; 
     throw new AwgApiError("AmneziaWG returned non-JSON usage statistics.");
   }
 
-  const candidates = [
-    payload,
-    payload?.data,
-    payload?.stats,
-    payload?.statistics,
-    payload?.client,
-  ].filter((value) => value && typeof value === "object");
+  const candidates: Record<string, unknown>[] = [];
+  const collect = (value: unknown, depth = 0): void => {
+    if (!value || typeof value !== "object" || depth > 3) return;
+    if (Array.isArray(value)) {
+      for (const item of value) collect(item, depth + 1);
+      return;
+    }
+    candidates.push(value as Record<string, unknown>);
+    for (const nested of Object.values(value as Record<string, unknown>)) {
+      collect(nested, depth + 1);
+    }
+  };
+  collect(payload);
   const readNumber = (keys: string[]): number | null => {
     for (const candidate of candidates) {
       for (const key of keys) {
@@ -130,8 +150,8 @@ export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; 
     }
     return null;
   };
-  const rxBytes = readNumber(["rx_bytes", "rxBytes", "rx", "received", "receive", "download_bytes", "download"]);
-  const txBytes = readNumber(["tx_bytes", "txBytes", "tx", "sent", "transmit", "upload_bytes", "upload"]);
+  const rxBytes = readNumber(["rx_bytes", "rxBytes", "rx", "received", "received_bytes", "receive", "download_bytes", "download", "transfer_rx", "transferRx"]);
+  const txBytes = readNumber(["tx_bytes", "txBytes", "tx", "sent", "sent_bytes", "transmit", "upload_bytes", "upload", "transfer_tx", "transferTx"]);
   if (rxBytes === null || txBytes === null) {
     throw new AwgApiError("AmneziaWG returned invalid usage statistics.");
   }
