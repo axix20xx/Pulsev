@@ -26,3 +26,9 @@ When detecting the one-link response mode, treat recognizable browser User-Agent
 **Why:** Some embedded browsers and screenshot/proxy browsers omit `text/html` from `Accept`, so relying only on content negotiation can return a feed or provider error instead of the status page.
 
 **How to apply:** Check known VPN client signatures first, then recognize common browser UA markers and `Sec-Fetch-Dest: document`; use the feed branch only for non-browser clients.
+
+Portable database exports require the Hostinger runtime to use the same `SESSION_SECRET` that encrypted Provider credentials, or every Provider must be re-saved after migration.
+
+**Why:** The imported subscription rows remain readable with any secret, but encrypted Provider credentials silently fail decryption and the public feed falls back to an unavailable-provider error.
+
+**How to apply:** Treat a public subscription `502` with a healthy token/status response as a Provider credential/runtime problem first; repair the secret or re-enter Provider credentials before changing subscription tokens or frontend links.

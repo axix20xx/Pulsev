@@ -41,7 +41,10 @@ NODE_ENV=production
 PORT=3000
 API_INTERNAL_PORT=3001
 DATABASE_URL=postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require
-SESSION_SECRET=یک-رشته-تصادفی-طولانی
+# باید با SESSION_SECRETای که credentialهای Provider با آن ذخیره شده‌اند یکسان باشد.
+# اگر secret قبلی در دسترس نیست، یک مقدار طولانی جدید بگذارید و بعد از ورود،
+# credential همه Providerها را از Settings دوباره ذخیره کنید.
+SESSION_SECRET=همان-SESSION_SECRET-نسخه-اصلی
 TELEGRAM_BOT_TOKEN=توکن-ربات-تلگرام
 TELEGRAM_MASTER_ADMIN_ID=1026368027
 AUTO_MIGRATE_LEGACY_SQL=true
@@ -96,5 +99,7 @@ credentialهای Provider فقط از صفحهٔ Settings خود پنل خوان
 ## نکتهٔ امنیتی
 
 - فایل `.env.example` فقط نمونه است؛ آن را به `.env` عمومی تبدیل نکنید و secret واقعی را داخل ZIP قرار ندهید.
-- `SESSION_SECRET` را طولانی و تصادفی انتخاب کنید.
+- `SESSION_SECRET` کلید رمزگشایی credentialهای Provider هم هست؛ برای دیتابیس
+  importشده باید دقیقاً همان مقدار نسخهٔ اصلی باشد. اگر مقدار قبلی موجود نیست،
+  مقدار جدید بگذارید و credentialهای Provider را در Settings دوباره ذخیره کنید.
 - connection string Supabase و Telegram token را فقط در Environment Variables خصوصی Hostinger قرار دهید.
