@@ -1,1 +1,2 @@
 attached_assets/u517065565_axinetreseller_13_1788279271659.sql filter=lfs diff=lfs merge=lfs -text
+exports/pulse-hostinger-supabase-import.sql filter=lfs diff=lfs merge=lfs -text
