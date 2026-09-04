@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 const requiredFiles = [
   "app.js",
   "launcher.mjs",
+  "installer.html",
   "web/index.html",
   "api/index.mjs",
   "api/lib/migrate-legacy-sql.mjs",
