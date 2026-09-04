@@ -23,3 +23,4 @@
 - [Insight ownership scopes](insight-ownership-scopes.md) — aggregate dashboards must scope joined customer, service, sale, and job rows independently for every reseller.
 - [ThreeUI integration](threeui-integration.md) — keep WebGL as a resilient visual enhancement with reduced-motion/fallback paths and package-scoped installation.
 - [Server entity cache boundary](server-entity-cache-boundary.md) — authenticated business records must not be restored from generic browser storage across account changes.
+- [Hostinger root bundle](hostinger-root-bundle.md) — flat Hostinger deployments must build the frontend with `BASE_PATH=/`, not the Replit artifact prefix.
