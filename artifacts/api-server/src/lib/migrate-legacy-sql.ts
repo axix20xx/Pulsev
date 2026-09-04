@@ -115,6 +115,25 @@ async function ensureAppTables(): Promise<void> {
   `);
 }
 
+async function logDatabaseTarget(): Promise<void> {
+  const result = await pool.query<{
+    databaseName: string;
+    schemaName: string;
+    userName: string;
+  }>(
+    `SELECT
+       current_database() AS "databaseName",
+       current_schema() AS "schemaName",
+       current_user AS "userName"`,
+  );
+  const target = result.rows[0];
+  if (target) {
+    console.info(
+      `PostgreSQL target: database=${target.databaseName}, schema=${target.schemaName}, user=${target.userName}`,
+    );
+  }
+}
+
 async function addOwnershipColumn(): Promise<void> {
   await pool.query(`
     ALTER TABLE reseller_customers
@@ -134,6 +153,7 @@ async function addOwnershipColumn(): Promise<void> {
 }
 
 async function migrate(): Promise<void> {
+  await logDatabaseTarget();
   await ensureAppTables();
   const existing = await pool.query(
     "SELECT 1 FROM app_migrations WHERE name = $1",
