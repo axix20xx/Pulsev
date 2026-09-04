@@ -229,13 +229,17 @@ const contentTypes = {
 };
 
 function proxyApi(req, res) {
+  // The frontend and this proxy share the same public origin. Do not forward
+  // the browser's Origin header to the internal API, otherwise the API treats
+  // the Hostinger public domain as an unconfigured cross-origin client.
+  const { origin: _browserOrigin, ...forwardedHeaders } = req.headers;
   const upstream = http.request(
     {
       hostname: "127.0.0.1",
       port: apiPort,
       path: req.url,
       method: req.method,
-      headers: { ...req.headers, host: `127.0.0.1:${apiPort}` },
+      headers: { ...forwardedHeaders, host: `127.0.0.1:${apiPort}` },
     },
     (response) => {
       res.writeHead(response.statusCode || 502, response.headers);
