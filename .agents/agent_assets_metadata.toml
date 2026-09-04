@@ -28,3 +28,31 @@ mtime_ms = 1788338530438
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/c835fab9-e719-4de7-a8fc-0f39b14acb17/3aae415f-f3cf-4ed4-88cb-d2a8bbf8993d"
 storage_version_token = "1788338550912486"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "lqLQhySjZhyzDZ_2qtUXV"
+uri = "file://exports/pulse-hostinger-supabase.zip"
+type = "unspecified"
+title = "Pulse Hostinger + Supabase — ZIP آماده آپلود"
+description = "بستهٔ production شامل frontend، API، launcher، import خودکار SQL، dump داده‌ها، README فارسی و env.example. بدون secret واقعی."
+logical_id = "38173569-c473-4e19-b6a3-429341aa16be"
+content_hash = "sha256:0a3522f9c4a53f247f8484967ead7f13b2424feecf0cdc593428ac3abd81ae23"
+size = 22706938
+mtime_ms = 1788536441324
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/38173569-c473-4e19-b6a3-429341aa16be/416fe91f-c28c-43c4-b9a3-34d6c7fd8358"
+storage_version_token = "1788536447085649"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "C7mxj4Nq4HpO8rxZrd01r"
+uri = "file://exports/pulse-hostinger-supabase-import.sql"
+type = "unspecified"
+title = "Supabase PostgreSQL — SQL Import"
+description = "فایل SQL تبدیل‌شده از dump MariaDB برای اجرای یک‌باره در Supabase SQL Editor."
+logical_id = "753d026f-0ea2-42c3-9e3e-917d0d1d9106"
+content_hash = "sha256:ad7b285499101a93a37c6ce3804ae1d0d98065858738533cee029443c7ab1ca8"
+size = 80897064
+mtime_ms = 1788536411129
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/753d026f-0ea2-42c3-9e3e-917d0d1d9106/dff6b31e-91c2-4709-aa3c-634812f216c5"
+storage_version_token = "1788536448718978"
+content_type = "application/octet-stream"
