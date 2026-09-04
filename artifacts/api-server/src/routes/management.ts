@@ -1932,7 +1932,32 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
        svc.subscription_url,
        svc.awg_client_id IS NOT NULL AS awg_ready,
            CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url,
-           svc.awg_client_id, svc.awg_rx, svc.awg_tx, svc.awg_total, svc.awg_offset_bytes, svc.last_usage_updated_at
+            svc.awg_client_id, svc.awg_rx, svc.awg_tx, svc.awg_total, svc.awg_offset_bytes, svc.last_usage_updated_at,
+       COALESCE((
+         SELECT json_agg(json_build_object(
+           'panel_key', panel.key,
+           'used_gb', GREATEST(0, COALESCE(usage.upload, 0) + COALESCE(usage.download, 0) - COALESCE(usage.offset_bytes, 0)) / 1073741824.0,
+           'raw_used_gb', (COALESCE(usage.upload, 0) + COALESCE(usage.download, 0)) / 1073741824.0,
+           'offset_gb', COALESCE(usage.offset_bytes, 0) / 1073741824.0,
+           'last_updated', usage.last_updated
+         ) ORDER BY panel.key)
+         FROM panel_configs panel
+         LEFT JOIN user_panel_usages usage
+           ON usage.username = svc.rain_username
+          AND usage.panel_key = panel.key
+         WHERE panel.is_enabled = 1
+           AND panel.kind IN ('rain_admin', 'marzban')
+           AND NULLIF(panel.username_secret, '') IS NOT NULL
+           AND NULLIF(panel.password_secret, '') IS NOT NULL
+       ), '[]'::json) AS panel_usages,
+       CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE json_build_object(
+         'rx_gb', COALESCE(svc.awg_rx, 0) / 1073741824.0,
+         'tx_gb', COALESCE(svc.awg_tx, 0) / 1073741824.0,
+         'raw_total_gb', COALESCE(svc.awg_total, 0) / 1073741824.0,
+         'used_gb', GREATEST(0, COALESCE(svc.awg_total, 0) - COALESCE(svc.awg_offset_bytes, 0)) / 1073741824.0,
+         'offset_gb', COALESCE(svc.awg_offset_bytes, 0) / 1073741824.0,
+         'last_updated', CASE WHEN svc.last_usage_updated_at IS NULL THEN NULL ELSE to_timestamp(svc.last_usage_updated_at) END
+       ) END AS awg_usage
      FROM reseller_services svc
      LEFT JOIN reseller_customers c ON c.id = svc.customer_id
      WHERE ${conditions.join(" AND ")}
@@ -2583,28 +2608,27 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
        childOwnerParams,
     ),
   ]);
-  const usageParams =
-    req.auth?.role === "master_admin"
-      ? [services.rows.map((service: any) => service.username)]
-      : [services.rows.map((service: any) => service.username), parsed.data.id, req.auth?.telegramId];
-  const usageScope =
-    req.auth?.role === "master_admin"
-      ? ""
-      : `AND EXISTS (
-           SELECT 1
-           FROM reseller_services scoped_svc
-           WHERE scoped_svc.rain_username = usage.username
-             AND scoped_svc.customer_id = $2
-             AND scoped_svc.reseller_tg_id = $3
-         )`;
   const usageResult = services.rows.length
     ? await pool.query(
-        `SELECT usage.username, usage.panel_key, usage.upload, usage.download,
-                usage.offset_bytes, usage.last_updated
-         FROM user_panel_usages usage
-         WHERE usage.username = ANY($1::text[]) ${usageScope}
-         ORDER BY panel_key`,
-        usageParams,
+        `WITH requested_usernames AS (
+           SELECT unnest($1::text[]) AS username
+         )
+         SELECT requested.username, panel.key AS panel_key,
+                COALESCE(usage.upload, 0) AS upload,
+                COALESCE(usage.download, 0) AS download,
+                COALESCE(usage.offset_bytes, 0) AS offset_bytes,
+                usage.last_updated
+         FROM requested_usernames requested
+         CROSS JOIN panel_configs panel
+         LEFT JOIN user_panel_usages usage
+           ON usage.username = requested.username
+          AND usage.panel_key = panel.key
+         WHERE panel.is_enabled = 1
+           AND panel.kind IN ('rain_admin', 'marzban')
+           AND NULLIF(panel.username_secret, '') IS NOT NULL
+           AND NULLIF(panel.password_secret, '') IS NOT NULL
+         ORDER BY requested.username, panel.key`,
+        [services.rows.map((service: any) => service.username)],
       )
     : { rows: [] };
   const usageByUsername = new Map<string, any[]>();
