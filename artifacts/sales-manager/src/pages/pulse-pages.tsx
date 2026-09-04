@@ -34,7 +34,7 @@ const fetchCustomerCrm = async (id: number, page = 1) => {
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'اطلاعات CRM دریافت نشد.');
   return response.json();
 };
-const v2boxUrl = (service: Service) => service.subscriptionUrl ? `v2box://install-sub?url=${encodeURIComponent(service.subscriptionUrl)}&name=${encodeURIComponent(service.plan)}` : '#';
+const v2boxUrl = (service: Service) => service.subscriptionUrl ? `v2box://install-sub?url=${service.subscriptionUrl}&name=${encodeURIComponent(service.plan)}` : '#';
 function SubscriptionQr({ url }: { url: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -62,7 +62,7 @@ const subscriptionClients = (url: string, name: string): SubscriptionClient[] =>
   const encodedName = encodeURIComponent(name || 'Pulse');
   const quantumultConfig = encodeURIComponent(JSON.stringify({ server_remote: [`${url}, tag=${name || 'Pulse'}`] }));
   return [
-    { id: 'v2box', label: 'V2Box', platform: 'iOS / Android', href: `v2box://install-sub?url=${encodedUrl}&name=${encodedName}` },
+    { id: 'v2box', label: 'V2Box', platform: 'iOS / Android', href: `v2box://install-sub?url=${url}&name=${encodedName}` },
     { id: 'clash', label: 'Clash / Clash Plus', platform: 'iOS / Android / Desktop', href: `clash://install-config?url=${encodedUrl}&name=${encodedName}` },
     { id: 'karing', label: 'Karing', platform: 'iOS / Android', href: `karing://install-config?url=${encodedUrl}&name=${encodedName}` },
     { id: 'hiddify', label: 'Hiddify', platform: 'iOS / Android', href: `hiddify://import/${url}#${encodedName}` },
@@ -1176,6 +1176,7 @@ function PublicSubscriptionContent() {
   const [data, setData] = useState<any>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [copied, setCopied] = useState(false);
+  const [feedCopied, setFeedCopied] = useState(false);
   const [shared, setShared] = useState(false);
   useEffect(() => {
     const nextToken = new URLSearchParams(window.location.search).get('t') || '';
@@ -1202,6 +1203,11 @@ function PublicSubscriptionContent() {
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   };
+  const copyFeedLink = async () => {
+    if (!(await copyTextToClipboard(feedUrl))) return;
+    setFeedCopied(true);
+    window.setTimeout(() => setFeedCopied(false), 1800);
+  };
   const sharePage = async () => {
     if (navigator.share) {
       await navigator.share({ title: data?.plan || 'اشتراک پالس', text: 'صفحهٔ وضعیت اشتراک من', url: pageUrl });
@@ -1217,7 +1223,60 @@ function PublicSubscriptionContent() {
   }, [data?.plan]);
   if (state === 'loading') return <div className="public-sub-page"><div className="public-sub-loader"><span className="pulse-mark large"><span /></span><p>در حال آماده‌سازی اشتراک...</p></div></div>;
   if (state === 'error') return <div className="public-sub-page"><div className="public-sub-card public-sub-error"><div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="public-sub-icon"><ShieldCheck size={24} /></div><h1>لینک اشتراک در دسترس نیست</h1><p>ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="button button-primary">بازگشت</a></div></div>;
-  return <div className="public-sub-page" dir="rtl"><main className="public-sub-card"><header className="public-sub-header"><div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><span className="public-sub-secure"><ShieldCheck size={14} /> لینک امن</span></header><section className="public-sub-hero"><p className="eyebrow">مرکز کنترل اشتراک</p><h1>{data.customer_name || 'اشتراک شما'}</h1><div className="public-sub-plan"><span className={`public-sub-status ${statusTone}`}><span /> {statusLabel}</span><strong>{data.plan}</strong><span dir="ltr">@{data.username}</span></div></section><section className={`public-sub-status-card ${statusTone}`}><div><span className="public-sub-status-kicker">{expired ? 'برای ادامه، تمدید لازم است' : expiring ? 'زمان تمدید نزدیک است' : 'همه‌چیز آمادهٔ اتصال است'}</span><strong>{expired ? 'این اشتراک دیگر فعال نیست' : expiring ? `${new Intl.NumberFormat('fa-IR').format(remaining)} روز تا پایان اعتبار` : 'اشتراک شما فعال و قابل استفاده است'}</strong></div><span className="public-sub-status-icon">{expired ? '!' : expiring ? '!' : '✓'}</span></section><section className="public-sub-usage"><div className="public-sub-usage-head"><div><span>مصرف‌شده</span><strong>{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(Number(data.used_gb))} از {new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(Number(data.limit_gb))} گیگ</strong></div><div className="public-sub-days"><span>حجم باقی‌مانده</span><strong>{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(remainingGb)} گیگ</strong></div></div><div className="public-sub-progress"><span style={{ width: `${ratio}%` }} /></div><div className="public-sub-usage-foot"><span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</span><span>انقضا: {dateLabel(data.expires_at)}</span></div></section><section className="public-sub-actions"><a className="public-sub-primary-action" href={v2boxInstall}><Globe2 size={19} /><span><strong>افزودن به V2Box</strong><small>با یک لمس در اپلیکیشن باز می‌شود</small></span><ChevronLeft size={17} /></a><div className="public-sub-action-row"><button type="button" onClick={() => void copyPageLink()}><Copy size={17} /><span>{copied ? 'لینک صفحه کپی شد' : 'کپی لینک صفحه'}</span></button>{data.awg_ready && <a href={data.awg_url}><Wifi size={17} /><span>دانلود AWG</span></a>}<button type="button" onClick={() => void sharePage()}><ArrowUpLeft size={17} /><span>{shared ? 'اشتراک‌گذاری شد' : 'اشتراک‌گذاری'}</span></button></div></section><section className="public-sub-link"><p>لینک صفحهٔ اشتراک</p><div dir="ltr">{pageUrl}</div><small>برای مشاهدهٔ وضعیت و QR استفاده کنید؛ برای افزودن به کلاینت، از دکمهٔ اتصال سریع پایین صفحه استفاده کنید.</small></section><section className="public-sub-qr"><SubscriptionQr url={pageUrl} /></section><section className="public-sub-install"><div className="public-sub-install-heading"><span className="eyebrow">نصب در سه قدم</span><strong>سریع‌ترین راه اتصال</strong></div><div className="public-sub-steps"><div><b>۱</b><span>کلاینت را انتخاب کنید</span></div><div><b>۲</b><span>افزودن یا کپی لینک</span></div><div><b>۳</b><span>اتصال را روشن کنید</span></div></div></section><SubscriptionClientActions url={feedUrl} name={data.plan || 'Pulse'} /><footer className="public-sub-footer"><ShieldCheck size={15} /><span>این صفحه فقط اطلاعات همین اشتراک را نمایش می‌دهد. رمز یا اطلاعات پنل در مرورگر ذخیره نمی‌شود.</span></footer></main></div>;
+  return (
+    <div className="public-sub-page" dir="rtl">
+      <main className="public-sub-card">
+        <header className="public-sub-header">
+          <div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div>
+          <span className="public-sub-secure"><ShieldCheck size={14} /> لینک امن</span>
+        </header>
+        <section className="public-sub-hero">
+          <p className="eyebrow">مرکز کنترل اشتراک</p>
+          <h1>{data.customer_name || 'اشتراک شما'}</h1>
+          <div className="public-sub-plan">
+            <span className={`public-sub-status ${statusTone}`}><span /> {statusLabel}</span>
+            <strong>{data.plan}</strong>
+            <span dir="ltr">@{data.username}</span>
+          </div>
+        </section>
+        <section className={`public-sub-status-card ${statusTone}`}>
+          <div>
+            <span className="public-sub-status-kicker">{expired ? 'برای ادامه، تمدید لازم است' : expiring ? 'زمان تمدید نزدیک است' : 'همه‌چیز آمادهٔ اتصال است'}</span>
+            <strong>{expired ? 'این اشتراک دیگر فعال نیست' : expiring ? `${new Intl.NumberFormat('fa-IR').format(remaining)} روز تا پایان اعتبار` : 'اشتراک شما فعال و قابل استفاده است'}</strong>
+          </div>
+          <span className="public-sub-status-icon">{expired ? '!' : expiring ? '!' : '✓'}</span>
+        </section>
+        <section className="public-sub-usage">
+          <div className="public-sub-usage-head">
+            <div><span>مصرف‌شده</span><strong>{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(Number(data.used_gb))} از {new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(Number(data.limit_gb))} گیگ</strong></div>
+            <div className="public-sub-days"><span>حجم باقی‌مانده</span><strong>{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(remainingGb)} گیگ</strong></div>
+          </div>
+          <div className="public-sub-progress"><span style={{ width: `${ratio}%` }} /></div>
+          <div className="public-sub-usage-foot"><span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</span><span>انقضا: {dateLabel(data.expires_at)}</span></div>
+        </section>
+        <section className="public-sub-actions">
+          <a className="public-sub-primary-action" href={v2boxInstall}><Globe2 size={19} /><span><strong>افزودن به V2Box</strong><small>با یک لمس در اپلیکیشن باز می‌شود</small></span><ChevronLeft size={17} /></a>
+          <div className="public-sub-action-row">
+            <button type="button" onClick={() => void copyFeedLink()}><Copy size={17} /><span>{feedCopied ? 'لینک V2Box کپی شد' : 'کپی لینک V2Box'}</span></button>
+            {data.awg_ready && <a href={data.awg_url}><Wifi size={17} /><span>دانلود AWG</span></a>}
+            <button type="button" onClick={() => void sharePage()}><ArrowUpLeft size={17} /><span>{shared ? 'اشتراک‌گذاری شد' : 'اشتراک‌گذاری'}</span></button>
+          </div>
+        </section>
+        <section className="public-sub-link">
+          <p>لینک اشتراک برای V2Box و کلاینت‌ها</p>
+          <div dir="ltr">{feedUrl}</div>
+          <small>این لینک را داخل V2Box وارد کنید؛ لینک /sub?t= فقط برای مشاهدهٔ وضعیت اشتراک است.</small>
+        </section>
+        <section className="public-sub-qr"><SubscriptionQr url={feedUrl} /></section>
+        <section className="public-sub-install">
+          <div className="public-sub-install-heading"><span className="eyebrow">نصب در سه قدم</span><strong>سریع‌ترین راه اتصال</strong></div>
+          <div className="public-sub-steps"><div><b>۱</b><span>کلاینت را انتخاب کنید</span></div><div><b>۲</b><span>افزودن یا کپی لینک</span></div><div><b>۳</b><span>اتصال را روشن کنید</span></div></div>
+        </section>
+        <SubscriptionClientActions url={feedUrl} name={data.plan || 'Pulse'} />
+        <footer className="public-sub-footer"><ShieldCheck size={15} /><span>این صفحه فقط اطلاعات همین اشتراک را نمایش می‌دهد. رمز یا اطلاعات پنل در مرورگر ذخیره نمی‌شود.</span></footer>
+      </main>
+    </div>
+  );
 }
 
 export function PublicSubscription() {
