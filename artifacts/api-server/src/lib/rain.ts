@@ -104,9 +104,10 @@ function collectSubscriptionLinks(value: unknown, keyHint = "", depth = 0): stri
   if (depth > 5 || value === null || value === undefined) return [];
   if (typeof value === "string") {
     const candidate = value.trim();
+    const configUri = /^(?:vless|vmess|trojan|ss|ssr|hysteria|hysteria2|tuic|socks(?:4|5)?):\/\//i.test(candidate);
     if (
-      /(subscription|subscribe|sub)/i.test(keyHint) &&
-      (/^https?:\/\//i.test(candidate) || candidate.startsWith("/"))
+      /(subscription|subscribe|sub|links?|configs?|uris?)/i.test(keyHint) &&
+      (/^https?:\/\//i.test(candidate) || candidate.startsWith("/") || configUri)
     ) {
       return [candidate];
     }
@@ -119,6 +120,10 @@ function collectSubscriptionLinks(value: unknown, keyHint = "", depth = 0): stri
   return Object.entries(value).flatMap(([key, item]) =>
     collectSubscriptionLinks(item, key, depth + 1),
   );
+}
+
+function isClientConfigUri(value: string): boolean {
+  return /^(?:vless|vmess|trojan|ss|ssr|hysteria|hysteria2|tuic|socks(?:4|5)?):\/\//i.test(value);
 }
 
 function resolvePanelUrl(panel: Panel, rawUrl: string): string {
@@ -178,6 +183,10 @@ export async function fetchPanelSubscription(
     }
 
     for (const rawLink of links) {
+      if (isClientConfigUri(rawLink)) {
+        feeds.push({ text: rawLink, encoded: false });
+        continue;
+      }
       try {
         const response = await fetch(resolvePanelUrl(panel, rawLink), {
           headers: {
