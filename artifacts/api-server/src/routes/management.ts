@@ -55,6 +55,7 @@ import {
   createServiceUsername,
   createSubscriptionToken,
   disablePanelUser,
+  fetchPanelSubscription,
   listAvailablePanels,
   provisionUser,
   RainApiError,
@@ -483,21 +484,31 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     return;
   }
 
-  let upstream: Response;
-  try {
-    upstream = await fetch(legacySubscriptionUrl(token), {
-      headers: {
-        Accept: req.get("accept") || "*/*",
-        "User-Agent": req.get("user-agent") || "PulseSubscription/1.0",
-      },
-      signal: AbortSignal.timeout(20_000),
-    });
-  } catch {
-    res.status(502).send("Subscription provider is unavailable");
-    return;
+  let body: string | null = null;
+  let upstreamContentType: string | null = null;
+  const panelFeed = await fetchPanelSubscription(String(row.username ?? ""));
+  if (panelFeed) {
+    body = panelFeed.body;
+    upstreamContentType = panelFeed.contentType;
+  } else {
+    try {
+      const upstream = await fetch(legacySubscriptionUrl(token), {
+        headers: {
+          Accept: req.get("accept") || "*/*",
+          "User-Agent": req.get("user-agent") || "PulseSubscription/1.0",
+        },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (upstream.ok) {
+        body = await upstream.text();
+        upstreamContentType = upstream.headers.get("content-type");
+      }
+    } catch {
+      // The explicit response below explains that neither Provider nor legacy feed was available.
+    }
   }
-  if (!upstream.ok) {
-    res.status(502).send("Subscription provider rejected the request");
+  if (!body) {
+    res.status(502).send("Subscription provider is unavailable");
     return;
   }
 
@@ -514,10 +525,6 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const expire = Number.isFinite(expiresAt) && expiresAt > 0 ? Math.floor(expiresAt / 1000) : 0;
 
-  for (const header of ["content-type", "content-disposition", "profile-title", "profile-update-interval", "cache-control", "pragma", "expires"]) {
-    const value = upstream.headers.get(header);
-    if (value) res.setHeader(header, value);
-  }
   res.setHeader("profile-title", Buffer.from(String(row.plan || "Pulse"), "utf8").toString("base64"));
   res.setHeader(
     "subscription-userinfo",
@@ -528,8 +535,8 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
   const webOrigin = `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}`;
   res.setHeader("profile-web-page-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
   res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
-  res.setHeader("content-type", upstream.headers.get("content-type") || "text/plain; charset=utf-8");
-  res.send(await upstream.text());
+  res.setHeader("content-type", upstreamContentType || "text/plain; charset=utf-8");
+  res.send(body);
 });
 
 router.get("/public/subscription/:token/awg", async (req, res): Promise<void> => {

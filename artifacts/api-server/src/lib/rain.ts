@@ -100,6 +100,112 @@ export function legacySubscriptionUrl(token: string): string {
   return `${base}${separator}t=${encodeURIComponent(token)}`;
 }
 
+function collectSubscriptionLinks(value: unknown, keyHint = "", depth = 0): string[] {
+  if (depth > 5 || value === null || value === undefined) return [];
+  if (typeof value === "string") {
+    const candidate = value.trim();
+    if (
+      /(subscription|subscribe|sub)/i.test(keyHint) &&
+      (/^https?:\/\//i.test(candidate) || candidate.startsWith("/"))
+    ) {
+      return [candidate];
+    }
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectSubscriptionLinks(item, keyHint, depth + 1));
+  }
+  if (typeof value !== "object") return [];
+  return Object.entries(value).flatMap(([key, item]) =>
+    collectSubscriptionLinks(item, key, depth + 1),
+  );
+}
+
+function resolvePanelUrl(panel: Panel, rawUrl: string): string {
+  if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
+  return `${panel.api_base.replace(/\/+$/, "")}/${rawUrl.replace(/^\/+/, "")}`;
+}
+
+function decodeSubscriptionBody(body: string): { text: string; encoded: boolean } {
+  const trimmed = body.trim();
+  const compact = trimmed.replace(/\s+/g, "");
+  if (
+    compact.length >= 16 &&
+    compact.length % 4 === 0 &&
+    /^[A-Za-z0-9+/=_-]+$/.test(compact)
+  ) {
+    try {
+      const decoded = Buffer.from(compact, "base64").toString("utf8").trim();
+      if (decoded && /(?:[a-z][a-z0-9+.-]*):\/\//i.test(decoded)) {
+        return { text: decoded, encoded: true };
+      }
+    } catch {
+      // Keep the original response when it is not valid base64.
+    }
+  }
+  return { text: trimmed, encoded: false };
+}
+
+export async function fetchPanelSubscription(
+  username: string,
+  ownerId?: number,
+  role?: string,
+): Promise<{ body: string; contentType: string } | null> {
+  const feeds: Array<{ text: string; encoded: boolean }> = [];
+  const encodedUsername = encodeURIComponent(username);
+
+  for (const panel of await panels(ownerId, role)) {
+    const kind = panelKind(panel);
+    const paths =
+      kind === "rain_admin"
+        ? [`/api/users/${encodedUsername}`, `/api/user/${encodedUsername}`]
+        : kind === "falcon"
+          ? [`/api/v1/configs?username=${encodedUsername}`]
+          : [`/api/user/${encodedUsername}`];
+
+    let links: string[] = [];
+    for (const path of paths) {
+      try {
+        const response = await panelRequest(panel, "GET", path);
+        if (response.status >= 200 && response.status < 300) {
+          links = [...new Set(collectSubscriptionLinks(response.json))];
+          if (links.length) break;
+        }
+        if (![404, 405].includes(response.status)) break;
+      } catch {
+        // A single unavailable Provider must not prevent another Provider from serving a feed.
+      }
+    }
+
+    for (const rawLink of links) {
+      try {
+        const response = await fetch(resolvePanelUrl(panel, rawLink), {
+          headers: {
+            Accept: "text/plain, application/octet-stream, */*",
+            "User-Agent": "PulseSubscription/1.0",
+          },
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (!response.ok) continue;
+        const body = await response.text();
+        if (body.trim()) feeds.push(decodeSubscriptionBody(body));
+      } catch {
+        // Try the next link or Provider.
+      }
+    }
+  }
+
+  if (!feeds.length) return null;
+  const text = feeds.map((feed) => feed.text).join("\n").trim();
+  if (!text) return null;
+  return {
+    body: feeds.every((feed) => feed.encoded)
+      ? Buffer.from(text, "utf8").toString("base64")
+      : text,
+    contentType: "text/plain; charset=utf-8",
+  };
+}
+
 function bytesForGb(gb: number): number {
   return Math.round(Math.max(0, gb) * 1024 * 1024 * 1024);
 }
