@@ -1,7 +1,6 @@
-import { Activity, BarChart3, Bell, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert, Check, Sparkles } from 'lucide-react';
+import { Activity, BarChart3, Bell, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert, Check, Sparkles, Copy, Search } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
-import { Copy, Search } from 'lucide-react';
 import { getSearchWorkspaceQueryKey, useLogout, useSearchWorkspace, type WorkspaceSearchResult } from '@workspace/api-client-react';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateTimeLabel, statusLabel } from '@/lib/pulse-data';
@@ -50,6 +49,7 @@ export function Shell({ children }: { children: ReactNode }) {
     { search: debouncedSearch, limit: 12 },
     { query: { queryKey: getSearchWorkspaceQueryKey({ search: debouncedSearch, limit: 12 }), enabled: Boolean(session?.authenticated && debouncedSearch.length >= 2), staleTime: 30_000 } },
   );
+  
   useEffect(() => setOpen(false), [location]);
   useEffect(() => setTopbarPanel(null), [location]);
   useEffect(() => {
@@ -84,6 +84,7 @@ export function Shell({ children }: { children: ReactNode }) {
     setDebouncedSearch('');
     setSearchFocused(false);
   }, [location]);
+
   const name = session?.display_name || 'مدیر فروش';
   const isSignedOut = !sessionLoading && (authFallback || session?.authenticated === false || !session);
   const visibleNav = session?.role === 'master_admin'
@@ -92,6 +93,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const isNavActive = (href: string) => location === href || (href !== '/' && location.startsWith(`${href}/`));
   const searchResults = Array.isArray(searchQuery.data) ? searchQuery.data : [];
   const searchOpen = searchFocused && searchText.trim().length >= 2;
+
   const copySearchSubscription = async (event: ReactMouseEvent, item: WorkspaceSearchResult) => {
     event.preventDefault();
     event.stopPropagation();
@@ -101,12 +103,14 @@ export function Shell({ children }: { children: ReactNode }) {
     setCopiedSearchId(item.id);
     window.setTimeout(() => setCopiedSearchId((current) => current === item.id ? null : current), 1400);
   };
+  
   const openSearchResult = (item: WorkspaceSearchResult) => {
     setSearchText('');
     setDebouncedSearch('');
     setSearchFocused(false);
     navigate(item.href);
   };
+
   const loadNotifications = async () => {
     if (!session?.authenticated) return;
     try {
@@ -115,15 +119,15 @@ export function Shell({ children }: { children: ReactNode }) {
         const result = await response.json();
         setNotifications(Array.isArray(result) ? result : []);
       }
-    } catch {
-      // The dashboard remains usable when the notification poll is unavailable.
-    }
+    } catch { }
   };
+  
   useEffect(() => {
     void loadNotifications();
     const timer = window.setInterval(() => void loadNotifications(), 30_000);
     return () => window.clearInterval(timer);
   }, [session?.authenticated]);
+
   const unreadNotifications = notifications.filter((item) => !item.read);
   const markNotificationRead = async (id: number) => {
     setNotifications((items) => items.map((item) => item.id === id ? { ...item, read: true } : item));
@@ -133,110 +137,281 @@ export function Shell({ children }: { children: ReactNode }) {
     setNotifications((items) => items.map((item) => ({ ...item, read: true })));
     await fetch('/api/notifications/read-all', { method: 'POST', credentials: 'include' }).catch(() => undefined);
   };
+
   useEffect(() => {
     if (isSignedOut && location !== '/login' && !location.startsWith('/sub')) navigate('/login');
     if (session?.authenticated && location === '/login') navigate('/');
   }, [isSignedOut, location, navigate, session?.authenticated]);
-  if (location === '/login' || location.startsWith('/sub')) return <div className="min-h-[100dvh] bg-background text-foreground">{children}</div>;
-  if (sessionLoading || isSignedOut) return <div className="login-screen"><div className="login-card text-center"><div className="pulse-mark large mx-auto"><span /></div><p className="mt-5 font-bold">در حال بررسی دسترسی...</p></div></div>;
+
+  if (location === '/login' || location.startsWith('/sub')) return <div className="min-h-[100dvh] bg-background text-foreground relative overflow-hidden">{children}</div>;
+  if (sessionLoading || isSignedOut) return <div className="min-h-[100dvh] flex items-center justify-center bg-background text-foreground"><div className="text-center animate-pulse"><div className="pulse-mark large mx-auto mb-4 scale-150"><span /></div><p className="font-bold tracking-tight text-primary">در حال احراز هویت...</p></div></div>;
+
   return (
-     <div className="signal-shell min-h-[100dvh] bg-background text-foreground">
-        <aside className={`signal-rail pulse-sidebar ${open ? 'is-open' : ''}`}>
-        <div className="flex items-center justify-between px-5 pt-6">
-          <Link href="/" className="flex items-center gap-2.5" data-testid="link-logo">
-            <span className="pulse-mark"><span /></span>
-            <span className="font-display text-[19px] font-extrabold tracking-[-.04em]">پالس</span>
+    <div className="min-h-[100dvh] bg-background text-foreground flex overflow-hidden relative selection:bg-primary/30" dir="rtl">
+      {/* Absolute Spatial Background */}
+      <div className="fixed inset-0 z-0 opacity-40 pointer-events-none mix-blend-screen">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(var(--primary)/0.15),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,hsl(var(--accent)/0.15),transparent_50%)]" />
+      </div>
+      
+      <PulseNetworkAccent className="fixed inset-0 z-0 opacity-60" />
+
+      {/* Sidebar */}
+      <aside className={`pulse-sidebar ${open ? 'translate-x-0' : 'translate-x-[100%] md:translate-x-0'} flex flex-col h-[100dvh]`}>
+        <div className="flex items-center justify-between px-6 pt-8 pb-4">
+          <Link href="/" className="flex items-center gap-3 transition-transform hover:scale-[1.02]" data-testid="link-logo">
+            <span className="pulse-mark shadow-lg shadow-primary/20"><span /></span>
+            <span className="font-display text-[22px] font-extrabold tracking-[-.05em] bg-clip-text text-transparent bg-gradient-to-l from-foreground to-foreground/70">پالس</span>
           </Link>
-          <button className="icon-button md:hidden" onClick={() => setOpen(false)} aria-label="بستن منو" data-testid="button-close-nav"><X size={18} /></button>
+          <button className="icon-button md:hidden rounded-full hover:bg-foreground/5 text-muted-foreground" onClick={() => setOpen(false)} aria-label="بستن منو"><X size={18} /></button>
         </div>
-         <div className="signal-rail-body px-4 pt-11">
-           <p className="rail-section-title eyebrow px-3 pb-3">داده‌های کاری</p>
-           <nav className="signal-rail-nav space-y-1">
+        
+        <div className="flex-1 overflow-y-auto px-4 pt-6 pb-24 scrollbar-none">
+          <p className="eyebrow px-3 pb-3 text-[10px] tracking-widest text-muted-foreground/80 font-semibold uppercase">داده‌های کاری</p>
+          <nav className="space-y-1">
             {visibleNav.map(({ href, label, icon: Icon }) => (
-              <Link key={href} href={href} className={`side-link ${isNavActive(href) ? 'active' : ''}`} aria-current={isNavActive(href) ? 'page' : undefined} data-testid={`link-nav-${href === '/' ? 'dashboard' : href.slice(1)}`}>
-                <Icon size={17} strokeWidth={1.8} /><span>{label}</span>
-                {label === 'دفتر فروش' && <span className="side-count">۷</span>}
+              <Link key={href} href={href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`} aria-current={isNavActive(href) ? 'page' : undefined}>
+                <Icon size={18} strokeWidth={isNavActive(href) ? 2.5 : 2} className={`transition-transform duration-300 ${isNavActive(href) ? 'scale-110' : 'group-hover:scale-110'}`} />
+                <span className="text-sm font-semibold tracking-tight">{label}</span>
               </Link>
             ))}
           </nav>
-            <p className="rail-section-title eyebrow px-3 pb-3 pt-9">مرکز کنترل</p>
-            <Link href={posNav.href} className={`side-link ${isNavActive(posNav.href) ? 'active' : ''}`} aria-current={isNavActive(posNav.href) ? 'page' : undefined} data-testid="link-nav-pos"><posNav.icon size={17} strokeWidth={1.8} /><span>{posNav.label}</span></Link>
-           <Link href={monitoringNav.href} className={`side-link ${isNavActive(monitoringNav.href) ? 'active' : ''}`} aria-current={isNavActive(monitoringNav.href) ? 'page' : undefined} data-testid="link-nav-monitoring"><Activity size={17} strokeWidth={1.8} /><span>{monitoringNav.label}</span></Link>
-            <Link href={operationsNav.href} className={`side-link ${isNavActive(operationsNav.href) ? 'active' : ''}`} aria-current={isNavActive(operationsNav.href) ? 'page' : undefined} data-testid="link-nav-operations"><Gauge size={17} strokeWidth={1.8} /><span>{operationsNav.label}</span></Link>
-             <Link href={smartNav.href} className={`side-link ${isNavActive(smartNav.href) ? 'active' : ''}`} aria-current={isNavActive(smartNav.href) ? 'page' : undefined} data-testid="link-nav-insights"><Sparkles size={17} strokeWidth={1.8} /><span>{smartNav.label}</span></Link>
-           <Link href="/settings" className={`side-link ${isNavActive('/settings') ? 'active' : ''}`} aria-current={isNavActive('/settings') ? 'page' : undefined} data-testid="link-nav-settings"><Settings size={17} strokeWidth={1.8} /><span>تنظیمات</span></Link>
-            <PulseNetworkAccent compact className="rail-network" />
+          
+          <p className="eyebrow px-3 pb-3 pt-10 text-[10px] tracking-widest text-muted-foreground/80 font-semibold uppercase">مرکز کنترل</p>
+          <nav className="space-y-1">
+            <Link href={posNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(posNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
+              <posNav.icon size={18} strokeWidth={isNavActive(posNav.href) ? 2.5 : 2} className={`transition-transform duration-300 ${isNavActive(posNav.href) ? 'scale-110' : 'group-hover:scale-110'}`} />
+              <span className="text-sm font-semibold tracking-tight">{posNav.label}</span>
+            </Link>
+            <Link href={monitoringNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(monitoringNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
+              <monitoringNav.icon size={18} strokeWidth={isNavActive(monitoringNav.href) ? 2.5 : 2} className={`transition-transform duration-300 ${isNavActive(monitoringNav.href) ? 'scale-110' : 'group-hover:scale-110'}`} />
+              <span className="text-sm font-semibold tracking-tight">{monitoringNav.label}</span>
+            </Link>
+            <Link href={operationsNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(operationsNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
+              <operationsNav.icon size={18} strokeWidth={isNavActive(operationsNav.href) ? 2.5 : 2} className={`transition-transform duration-300 ${isNavActive(operationsNav.href) ? 'scale-110' : 'group-hover:scale-110'}`} />
+              <span className="text-sm font-semibold tracking-tight">{operationsNav.label}</span>
+            </Link>
+            <Link href={smartNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(smartNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
+              <smartNav.icon size={18} strokeWidth={isNavActive(smartNav.href) ? 2.5 : 2} className={`transition-transform duration-300 ${isNavActive(smartNav.href) ? 'scale-110' : 'group-hover:scale-110 text-amber-500'}`} />
+              <span className="text-sm font-semibold tracking-tight">{smartNav.label}</span>
+            </Link>
+            <Link href="/settings" className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive('/settings') ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
+              <Settings size={18} strokeWidth={isNavActive('/settings') ? 2.5 : 2} className={`transition-transform duration-300 ${isNavActive('/settings') ? 'scale-110' : 'group-hover:scale-110 text-muted-foreground'}`} />
+              <span className="text-sm font-semibold tracking-tight">تنظیمات</span>
+            </Link>
+          </nav>
         </div>
-        <div className="sidebar-bottom">
-          <div className="connection-card">
-            <div className="flex items-center gap-2"><span className="status-dot online" /><span className="text-xs font-semibold">داده‌های SQL متصل است</span></div>
-            <p className="mt-2 text-[11px] text-muted-foreground">نشست فعال · دسترسی کنترل‌شده</p>
+
+        <div className="sidebar-bottom mt-auto border-t border-border/40 bg-background/30 backdrop-blur-xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+              <span className="text-xs font-semibold tracking-tight text-foreground/80">اتصال SQL پایدار</span>
+            </div>
           </div>
-          <div className="flex items-center gap-3 border-t border-border/70 pt-4">
-            <div className="avatar avatar-teal">{name.slice(0, 2)}</div>
-            <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{name}</p><p className="text-[11px] text-muted-foreground">{session?.role === 'master_admin' ? 'مدیر اصلی' : 'فروشنده'}</p></div>
-            {session?.authenticated && <button className="icon-button" onClick={() => logout.mutate()} aria-label="خروج از حساب" data-testid="button-logout"><LogOut size={14} /></button>}
+          <div className="flex items-center gap-3">
+            <Avatar name={name} color="teal" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-bold tracking-tight">{name}</p>
+              <p className="text-[11px] text-muted-foreground/80 tracking-tight font-medium">{session?.role === 'master_admin' ? 'مدیر اصلی' : 'فروشنده'}</p>
+            </div>
+            <button className="icon-button text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors" onClick={() => logout.mutate()} aria-label="خروج" title="خروج"><LogOut size={16} /></button>
           </div>
         </div>
       </aside>
-      {open && <button className="sidebar-scrim md:hidden" onClick={() => setOpen(false)} aria-label="بستن منو" data-testid="button-scrim" />}
-       <main className="signal-main min-h-[100dvh] md:pl-[238px]">
-        <header className="signal-command-bar topbar">
-          <button className="icon-button md:hidden" onClick={() => setOpen(true)} aria-label="باز کردن منو" data-testid="button-open-nav"><Menu size={20} /></button>
-          <div className="command-search topbar-search-wrap" ref={searchWrapRef}>
-            <Search size={16} aria-hidden="true" />
-            <input
-              ref={searchInputRef}
-              type="search"
-              value={searchText}
-              onChange={(event) => { setSearchText(event.target.value); setSearchFocused(true); }}
-              onFocus={() => setSearchFocused(true)}
-              placeholder="جست‌وجوی نام، موبایل، سرویس یا لینک اشتراک"
-              aria-label="جست‌وجوی سراسری"
-              data-testid="input-global-search"
-            />
-            {searchText && <button type="button" className="global-search-clear" onClick={() => { setSearchText(''); setDebouncedSearch(''); searchInputRef.current?.focus(); }} aria-label="پاک کردن جست‌وجو"><X size={13} /></button>}
-            <kbd>⌘ K</kbd>
-             {searchOpen && <div className="global-search-results" role="listbox" aria-label="نتایج جست‌وجوی سراسری" aria-busy={searchQuery.isFetching}>
-              {searchQuery.isFetching && <div className="global-search-state"><Search size={15} className="spin" /> در حال جست‌وجو...</div>}
-              {!searchQuery.isFetching && searchResults.length === 0 && <div className="global-search-state">نتیجه‌ای برای «{searchText.trim()}» پیدا نشد.</div>}
-               {!searchQuery.isFetching && searchResults.map((item) => <div className="global-search-result" key={`${item.kind}-${item.id}`} role="option" aria-selected="false" onMouseDown={(event) => event.preventDefault()}>
-                 <button type="button" className="global-search-result-main" onClick={() => openSearchResult(item)} tabIndex={0}>
-                  <span className={`global-search-kind ${item.kind}`}><Search size={13} /></span>
-                  <span className="global-search-copy"><strong>{item.title}</strong><small>{item.subtitle}</small></span>
-                  {item.status && <span className="global-search-status">{item.status === 'completed' ? 'پرداخت‌شده' : item.status === 'pending' ? 'در انتظار' : statusLabel(item.status)}</span>}
-                </button>
-                {item.subscription_url && <button type="button" className="global-search-link" onClick={(event) => copySearchSubscription(event, item)} title="کپی لینک اشتراک">
-                  <Copy size={13} /> {copiedSearchId === item.id ? 'کپی شد' : 'لینک اشتراک'}
-                </button>}
-              </div>)}
-              {!searchQuery.isFetching && searchResults.length > 0 && <p className="global-search-hint">برای باز کردن نتیجه کلیک کنید · جست‌وجو در همه داده‌های قابل مشاهده</p>}
-            </div>}
+
+      {open && <button className="fixed inset-0 z-30 bg-background/80 backdrop-blur-sm md:hidden" onClick={() => setOpen(false)} aria-label="بستن منو" />}
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col min-w-0 md:pr-[260px] relative z-10 transition-all duration-300">
+        <header className="topbar">
+          <button className="icon-button md:hidden rounded-full hover:bg-foreground/5" onClick={() => setOpen(true)} aria-label="باز کردن منو"><Menu size={20} /></button>
+          
+          <div className="relative flex-1 max-w-xl mx-auto md:ml-auto md:mr-0 group" ref={searchWrapRef}>
+            <div className={`flex items-center gap-2 px-4 h-[42px] bg-background/50 border backdrop-blur-xl rounded-full transition-all duration-300 ${searchFocused ? 'border-primary ring-4 ring-primary/20 shadow-lg shadow-primary/5 bg-background/80' : 'border-border/60 hover:bg-background/80 hover:border-border'}`}>
+              <Search size={16} className={`transition-colors ${searchFocused ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground/70'}`} />
+              <input
+                ref={searchInputRef}
+                type="search"
+                value={searchText}
+                onChange={(event) => { setSearchText(event.target.value); setSearchFocused(true); }}
+                onFocus={() => setSearchFocused(true)}
+                placeholder="جست‌وجوی مشتری، سرویس، یا فاکتور..."
+                className="flex-1 bg-transparent border-0 outline-none text-[13px] font-medium placeholder:text-muted-foreground/60 w-full"
+              />
+              {searchText ? (
+                <button type="button" className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-foreground/5 transition-colors" onClick={() => { setSearchText(''); setDebouncedSearch(''); searchInputRef.current?.focus(); }}><X size={14} /></button>
+              ) : (
+                <kbd className="hidden md:flex items-center gap-1 text-[10px] font-mono font-semibold text-muted-foreground/60 border border-border/50 rounded-md px-1.5 py-0.5 bg-background/50">⌘ K</kbd>
+              )}
+            </div>
+            
+            {/* Search Results Dropdown */}
+            {searchOpen && (
+              <div className="absolute top-[calc(100%+12px)] right-0 w-[calc(100vw-32px)] md:w-full max-h-[60vh] overflow-y-auto bg-card/90 backdrop-blur-2xl border border-border/50 rounded-2xl shadow-[0_24px_48px_-12px_rgba(0,0,0,0.18)] p-2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
+                {searchQuery.isFetching ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+                    <Search size={20} className="animate-bounce text-primary/60" />
+                    <span className="text-xs font-semibold">در حال جستجو...</span>
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+                    <div className="w-10 h-10 rounded-full bg-foreground/5 flex items-center justify-center mb-1"><Search size={18} className="opacity-50" /></div>
+                    <span className="text-sm font-bold text-foreground">نتیجه‌ای پیدا نشد</span>
+                    <span className="text-[11px]">برای «{searchText}» موردی یافت نشد.</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <p className="text-[10px] font-bold text-muted-foreground tracking-wider px-3 py-2 uppercase">نتایج جستجو</p>
+                    {searchResults.map((item) => (
+                      <div key={`${item.kind}-${item.id}`} className="group flex items-start justify-between gap-3 p-2.5 rounded-xl hover:bg-foreground/5 transition-colors cursor-pointer" onClick={() => openSearchResult(item)}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${item.kind === 'customer' ? 'bg-blue-500/10 text-blue-500' : item.kind === 'service' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                            {item.kind === 'customer' ? <Users size={16} /> : item.kind === 'service' ? <Package size={16} /> : <ShoppingBag size={16} />}
+                          </div>
+                          <div className="min-w-0 flex flex-col">
+                            <span className="text-[13px] font-bold text-foreground truncate">{item.title}</span>
+                            <span className="text-[11px] font-medium text-muted-foreground truncate">{item.subtitle}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                          {item.status && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.status === 'completed' || item.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>{statusLabel(item.status)}</span>}
+                          {item.subscription_url && (
+                            <button type="button" className="text-[10px] flex items-center gap-1 font-semibold text-primary hover:text-primary/80 transition-colors" onClick={(e) => copySearchSubscription(e, item)}>
+                              <Copy size={12} /> {copiedSearchId === item.id ? 'کپی شد' : 'لینک'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-           <div className="topbar-actions mr-auto flex items-center gap-2"><button className={`icon-button ${topbarPanel === 'help' ? 'selected' : ''}`} onClick={() => setTopbarPanel((current) => current === 'help' ? null : 'help')} aria-label="راهنما" aria-expanded={topbarPanel === 'help'} data-testid="button-help"><CircleHelp size={18} /></button><button className={`icon-button relative ${topbarPanel === 'notifications' ? 'selected' : ''}`} onClick={() => { setTopbarPanel((current) => current === 'notifications' ? null : 'notifications'); void loadNotifications(); }} aria-label="اعلان‌ها" aria-expanded={topbarPanel === 'notifications'} data-testid="button-notifications"><Bell size={18} />{unreadNotifications.length > 0 && <span className="notification-dot" />}</button></div>
+
+          <div className="flex items-center gap-2 mr-auto">
+            <button className={`icon-button relative rounded-full w-10 h-10 transition-colors ${topbarPanel === 'notifications' ? 'bg-primary/10 text-primary' : 'hover:bg-foreground/5 text-muted-foreground'}`} onClick={() => { setTopbarPanel((c) => c === 'notifications' ? null : 'notifications'); void loadNotifications(); }} aria-label="اعلان‌ها">
+              <Bell size={18} />
+              {unreadNotifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-destructive border-2 border-background" />}
+            </button>
+            <button className={`icon-button rounded-full w-10 h-10 transition-colors ${topbarPanel === 'help' ? 'bg-primary/10 text-primary' : 'hover:bg-foreground/5 text-muted-foreground'}`} onClick={() => setTopbarPanel((c) => c === 'help' ? null : 'help')} aria-label="راهنما">
+              <CircleHelp size={18} />
+            </button>
+          </div>
         </header>
-         {topbarPanel === 'notifications' && <section className="topbar-popover notification-panel" role="dialog" aria-label="اعلان‌های واقعی"><div className="popover-heading"><div><p className="eyebrow">مرکز اطلاع‌رسانی</p><h2>اعلان‌ها</h2></div><div className="flex items-center gap-2"><span className="soft-badge">{new Intl.NumberFormat('fa-IR').format(unreadNotifications.length)} خوانده‌نشده</span>{unreadNotifications.length > 0 && <button type="button" className="notification-read-all" onClick={() => void markAllNotificationsRead()}><Check size={12} /> همه خوانده شد</button>}</div></div>{notifications.length ? <div className="notification-list">{notifications.map((item) => item.href ? <Link key={item.id} href={item.href} className={`notification-item ${item.tone} ${item.read ? 'read' : ''}`} onClick={() => { void markNotificationRead(item.id); setTopbarPanel(null); }}><span className="notification-icon"><Bell size={14} /></span><span className="notification-copy"><strong>{item.title}</strong><small>{item.detail}</small><em>{dateTimeLabel(item.created_at)}</em></span></Link> : <div key={item.id} className={`notification-item ${item.tone} ${item.read ? 'read' : ''}`} onClick={() => void markNotificationRead(item.id)}><span className="notification-icon"><Bell size={14} /></span><span className="notification-copy"><strong>{item.title}</strong><small>{item.detail}</small><em>{dateTimeLabel(item.created_at)}</em></span></div>)}</div> : <div className="popover-empty"><Bell size={18} /><p>اعلان جدیدی وجود ندارد.</p><small>وقتی سرویس نزدیک انقضا شود، حجم تمام شود یا فاکتوری پرداخت‌نشده باشد، اینجا می‌بینید.</small></div>}</section>}
-        {topbarPanel === 'help' && <section className="topbar-popover help-panel" role="dialog" aria-label="راهنمای سامانه"><div className="popover-heading"><div><p className="eyebrow">راهنمای پالس</p><h2>چطور استفاده کنم؟</h2></div><CircleHelp size={20} className="text-muted-foreground" /></div><div className="help-list"><div><strong>ساخت سرویس</strong><span>از صفحه سرویس‌ها مشتری را با شماره موبایل پیدا کنید و سرویس را روی همه پنل‌های آماده بسازید.</span></div><div><strong>مصرف و AWG</strong><span>در پرونده مشتری، مصرف هر پنل و AmneziaWG با offset مستقل نمایش داده می‌شود.</span></div><div><strong>گزارش و چاپ</strong><span>در صفحه گزارش بازه شمسی را انتخاب کنید و روی «چاپ گزارش» بزنید.</span></div><div><strong>دسترسی</strong><span>هر فروشنده فقط مشتری‌ها و سرویس‌های خودش را می‌بیند؛ مدیر اصلی گزارش کامل دارد.</span></div></div><Link href="/settings" className="button button-secondary help-link" onClick={() => setTopbarPanel(null)}>رفتن به تنظیمات</Link></section>}
-        <div className="signal-page-canvas page-wrap">
-          {children}
+
+        {topbarPanel === 'notifications' && (
+          <section className="absolute top-[88px] left-[42px] z-50 w-[380px] max-w-[calc(100vw-32px)] bg-card/90 backdrop-blur-2xl border border-border/50 rounded-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] overflow-hidden animate-in slide-in-from-top-4 fade-in duration-300">
+            <div className="flex items-center justify-between p-5 border-b border-border/40 bg-foreground/[0.02]">
+              <div>
+                <p className="eyebrow text-[10px] tracking-widest text-primary font-bold mb-1">مرکز اطلاع‌رسانی</p>
+                <h2 className="text-lg font-extrabold tracking-tight">اعلان‌ها</h2>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <span className="bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-1 rounded-full">{unreadNotifications.length} خوانده‌نشده</span>
+                {unreadNotifications.length > 0 && <button className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1" onClick={markAllNotificationsRead}><Check size={12} /> همه خوانده شد</button>}
+              </div>
+            </div>
+            <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-border">
+              {notifications.length ? notifications.map((item) => (
+                <div key={item.id} className={`p-4 border-b border-border/30 flex gap-3 hover:bg-foreground/5 transition-colors cursor-pointer ${item.read ? 'opacity-60' : ''}`} onClick={() => void markNotificationRead(item.id)}>
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${item.tone === 'warning' ? 'bg-amber-500/10 text-amber-500' : item.tone === 'danger' ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
+                    <Bell size={16} />
+                  </div>
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <strong className="text-[13px] font-bold text-foreground">{item.title}</strong>
+                    <span className="text-[11px] font-medium text-muted-foreground line-clamp-2 leading-relaxed">{item.detail}</span>
+                    <time className="text-[9px] font-mono text-muted-foreground/60 mt-1">{dateTimeLabel(item.created_at)}</time>
+                  </div>
+                </div>
+              )) : (
+                <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                  <div className="w-16 h-16 rounded-full bg-foreground/5 flex items-center justify-center mb-4 text-muted-foreground/50">
+                    <Bell size={24} />
+                  </div>
+                  <p className="text-sm font-bold text-foreground mb-1">اعلان جدیدی ندارید</p>
+                  <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">زمانی که سرویسی نزدیک انقضا شود یا مشکلی پیش بیاید، اینجا باخبر می‌شوید.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        <div className="page-wrap flex-1 overflow-x-hidden">
+          <div className="relative z-10 w-full h-full">
+            {children}
+          </div>
         </div>
       </main>
-       <nav className="signal-mobile-dock mobile-bottom-nav">
-          {nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={location === href || (href !== '/' && location.startsWith(`${href}/`)) ? 'active' : ''} aria-current={location === href || (href !== '/' && location.startsWith(`${href}/`)) ? 'page' : undefined} data-testid={`mobile-link-${href === '/' ? 'dashboard' : href.slice(1)}`}><Icon size={17} /><span>{label}</span></Link>)}
+
+      {/* Mobile Bottom Dock */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-2xl border-t border-border/50 pb-safe pt-2 px-2 flex items-center justify-around shadow-[0_-8px_32px_rgba(0,0,0,0.05)]">
+        {nav.map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${isNavActive(href) ? 'text-primary scale-110' : 'text-muted-foreground hover:text-foreground'}`}>
+            <Icon size={20} strokeWidth={isNavActive(href) ? 2.5 : 2} />
+            <span className="text-[9px] font-bold tracking-tight">{label}</span>
+          </Link>
+        ))}
       </nav>
     </div>
   );
 }
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description?: string; action?: ReactNode }) {
-  return <header className="page-header"><div className="page-heading-copy"><div className="page-heading-kicker"><span className="kicker-mark" aria-hidden="true" /><p className="eyebrow">{eyebrow}</p><span className="page-heading-context">اتاق کنترل پالس</span></div><h1 className="page-title">{title}</h1>{description && <p className="page-description">{description}</p>}<div className="page-header-rule" aria-hidden="true"><span /><span /><span /></div></div>{action && <div className="page-header-actions">{action}</div>}</header>;
+  return (
+    <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-10 pb-6 border-b border-border/30">
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2.5 mb-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.6)]" aria-hidden="true" />
+          <p className="eyebrow text-[10px] tracking-widest text-primary/80 font-bold uppercase">{eyebrow}</p>
+        </div>
+        <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-[-.05em] text-foreground mb-3">{title}</h1>
+        {description && <p className="text-sm font-medium text-muted-foreground max-w-2xl leading-relaxed">{description}</p>}
+      </div>
+      {action && <div className="flex-shrink-0">{action}</div>}
+    </header>
+  );
 }
 
 export function StatusPill({ value }: { value: string }) {
-  const tone = value.toLowerCase().replace(' ', '-');
-  return <span className={`status-pill ${tone}`} data-testid={`status-${tone}`}><span className="status-dot" />{statusLabel(value)}</span>;
+  const toneMap: Record<string, string> = {
+    active: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    completed: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    paid: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    pending: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    expiring: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    expired: 'bg-destructive/10 text-destructive border-destructive/20',
+    disabled: 'bg-muted text-muted-foreground border-border',
+    refunded: 'bg-muted text-muted-foreground border-border',
+    offline: 'bg-destructive/10 text-destructive border-destructive/20',
+    online: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    degraded: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+  };
+  
+  const key = value.toLowerCase().replace(' ', '_');
+  const tone = toneMap[key] || 'bg-secondary text-secondary-foreground border-border';
+  
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${tone}`}>
+      <span className="w-1 h-1 rounded-full bg-current opacity-60" />
+      {statusLabel(value)}
+    </span>
+  );
 }
 
-export function Avatar({ name, color = 'teal' }: { name: string; color?: string }) {
-  return <span className={`avatar avatar-${color}`} data-testid={`avatar-${name}`}>{name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</span>;
+export function Avatar({ name, color = 'primary' }: { name: string; color?: string }) {
+  const colorMap: Record<string, string> = {
+    primary: 'bg-primary/10 text-primary',
+    teal: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+    amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    rose: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  };
+  const tone = colorMap[color] || colorMap.primary;
+  
+  return (
+    <span className={`inline-flex items-center justify-center w-9 h-9 rounded-2xl font-mono text-[11px] font-bold tracking-wider ${tone}`}>
+      {name.split(' ').map((part) => part[0]).join('').slice(0, 2)}
+    </span>
+  );
 }
