@@ -2344,16 +2344,38 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     throw error;
   }
   const values: unknown[] = [days, gb, params.data.id];
-  const result = await pool.query(
-    `UPDATE reseller_services svc
-     SET status = 'active',
-         expire_at = GREATEST(COALESCE(expire_at, NOW()), NOW()) + make_interval(days => $1::int),
-          gb = $2,
-          updated_at = NOW()
-      WHERE svc.id = $3 AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
-     RETURNING svc.id`,
-    [...values, ...owner.params],
-  );
+  const client = await pool.connect();
+  let result;
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `UPDATE user_panel_usages
+       SET offset_bytes = COALESCE(total, 0),
+           last_updated = NOW()
+       WHERE username = $1`,
+      [current.username],
+    );
+    result = await client.query(
+      `UPDATE reseller_services svc
+       SET status = 'active',
+           expire_at = NOW() + make_interval(days => $1::int),
+           gb = $2,
+           last_used_bytes = 0,
+           last_total_bytes = ROUND($2::numeric * 1073741824),
+           last_remaining_bytes = ROUND($2::numeric * 1073741824),
+           last_usage_updated_at = NOW(),
+           updated_at = NOW()
+        WHERE svc.id = $3 AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
+       RETURNING svc.id`,
+      [...values, ...owner.params],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
   if (!result.rows[0]) {
     res.status(404).json({ error: "سرویس پیدا نشد" });
     return;

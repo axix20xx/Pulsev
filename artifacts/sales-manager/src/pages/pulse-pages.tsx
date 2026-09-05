@@ -851,7 +851,7 @@ function RenewWizard({ service, onClose, onRenew }: { service: Service; onClose:
   const [error, setError] = useState('');
   const gbOptions = [10, 30, 50, 100];
   const dateOptions = [{ days: 7, label: '۷ روز' }, { days: 30, label: '۳۰ روز' }, { days: 60, label: '۶۰ روز' }, { days: 90, label: '۹۰ روز' }, { days: 180, label: '۶ ماه' }];
-  const renewalBase = Math.max(Date.now(), service.expiresAt ? new Date(service.expiresAt).getTime() : 0);
+  const renewalBase = Date.now();
   const projectedExpiry = new Date(renewalBase + Math.max(0, Number(days) || 0) * 86_400_000).toISOString();
   useEffect(() => { fetch('/api/providers/available', { credentials: 'include' }).then((response) => response.ok ? response.json() : []).then(setProviders).catch(() => setProviders([])); }, []);
   const submit = async () => { setSubmitting(true); setError(''); try { const result = await onRenew(service, Number(days), Number(gb)); setRenewed(result); } catch (cause) { setError(cause instanceof Error ? cause.message : 'تمدید انجام نشد.'); } finally { setSubmitting(false); } };
