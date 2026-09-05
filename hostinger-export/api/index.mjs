@@ -57131,6 +57131,67 @@ function decodeSubscriptionBody(body) {
   }
   return { text: trimmed, encoded: false };
 }
+var COUNTRY_FLAGS = [
+  [/(?:^|[^a-z])(iran|ir)(?:[^a-z]|$)|ایران/i, "\u{1F1EE}\u{1F1F7}"],
+  [/(?:^|[^a-z])(germany|de)(?:[^a-z]|$)|آلمان/i, "\u{1F1E9}\u{1F1EA}"],
+  [/(?:^|[^a-z])(france|fr)(?:[^a-z]|$)|فرانسه/i, "\u{1F1EB}\u{1F1F7}"],
+  [/(?:^|[^a-z])(netherlands|holland|nl)(?:[^a-z]|$)|هلند/i, "\u{1F1F3}\u{1F1F1}"],
+  [/(?:^|[^a-z])(finland|fi)(?:[^a-z]|$)|فنلاند/i, "\u{1F1EB}\u{1F1EE}"],
+  [/(?:^|[^a-z])(sweden|se)(?:[^a-z]|$)|سوئد/i, "\u{1F1F8}\u{1F1EA}"],
+  [/(?:^|[^a-z])(switzerland|ch)(?:[^a-z]|$)|سوئیس/i, "\u{1F1E8}\u{1F1ED}"],
+  [/(?:^|[^a-z])(united kingdom|england|uk|gb)(?:[^a-z]|$)|انگلیس/i, "\u{1F1EC}\u{1F1E7}"],
+  [/(?:^|[^a-z])(united states|usa|us)(?:[^a-z]|$)|آمریکا/i, "\u{1F1FA}\u{1F1F8}"],
+  [/(?:^|[^a-z])(canada|ca)(?:[^a-z]|$)|کانادا/i, "\u{1F1E8}\u{1F1E6}"],
+  [/(?:^|[^a-z])(turkey|tr)(?:[^a-z]|$)|ترکیه/i, "\u{1F1F9}\u{1F1F7}"],
+  [/(?:^|[^a-z])(russia|ru)(?:[^a-z]|$)|روسیه/i, "\u{1F1F7}\u{1F1FA}"],
+  [/(?:^|[^a-z])(uae|united arab emirates|ae)(?:[^a-z]|$)|امارات/i, "\u{1F1E6}\u{1F1EA}"],
+  [/(?:^|[^a-z])(singapore|sg)(?:[^a-z]|$)|سنگاپور/i, "\u{1F1F8}\u{1F1EC}"],
+  [/(?:^|[^a-z])(japan|jp)(?:[^a-z]|$)|ژاپن/i, "\u{1F1EF}\u{1F1F5}"]
+];
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+function countryFlag(value) {
+  const existing = value.match(/\p{Regional_Indicator}{2}/u)?.[0];
+  if (existing) return existing;
+  return COUNTRY_FLAGS.find(([pattern]) => pattern.test(value))?.[1] ?? "\u{1F310}";
+}
+function brandedConfigLink(raw, index) {
+  const value = raw.trim();
+  if (!value || value.startsWith("#")) return raw;
+  const vmess = value.match(/^vmess:\/\/(.+)$/i);
+  if (vmess) {
+    try {
+      const json3 = JSON.parse(Buffer.from(vmess[1], "base64").toString("utf8"));
+      if (json3 && typeof json3 === "object") {
+        const flag2 = countryFlag(`${String(json3.ps ?? "")} ${String(json3.add ?? "")}`);
+        json3.ps = `Pulse - ${flag2} ${String(index).padStart(2, "0")}`;
+        return `vmess://${Buffer.from(JSON.stringify(json3), "utf8").toString("base64")}`;
+      }
+    } catch {
+    }
+  }
+  if (!isClientConfigUri(value)) return raw;
+  const hashAt = value.indexOf("#");
+  const base = hashAt >= 0 ? value.slice(0, hashAt) : value;
+  const oldName = hashAt >= 0 ? safeDecode(value.slice(hashAt + 1)) : "";
+  const flag = countryFlag(`${oldName} ${base}`);
+  return `${base}#${encodeURIComponent(`Pulse - ${flag} ${String(index).padStart(2, "0")}`)}`;
+}
+function brandSubscriptionBody(body) {
+  const decoded = decodeSubscriptionBody(body);
+  let configIndex = 0;
+  const branded = decoded.text.split(/\r?\n/).map((line2) => {
+    if (!isClientConfigUri(line2.trim())) return line2;
+    configIndex += 1;
+    return brandedConfigLink(line2, configIndex);
+  }).join("\n").trim();
+  return decoded.encoded ? Buffer.from(branded, "utf8").toString("base64") : branded;
+}
 async function fetchPanelSubscription(username, ownerId, role) {
   const feeds = [];
   const encodedUsername = encodeURIComponent(username);
@@ -58404,6 +58465,7 @@ router2.get("/public/subscription/:token/feed", async (req, res) => {
     }
   }
   if (body) {
+    body = brandSubscriptionBody(body);
     try {
       await pool.query(
         `INSERT INTO subscription_feed_cache (service_id, body_secret, content_type, updated_at)
@@ -58444,13 +58506,16 @@ router2.get("/public/subscription/:token/feed", async (req, res) => {
     res.status(502).send("Subscription provider is unavailable");
     return;
   }
+  body = brandSubscriptionBody(body);
   const totalBytes = Number(row.last_total_bytes) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
   const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
   const storedRemainingBytes = row.last_remaining_bytes === null || row.last_remaining_bytes === void 0 ? null : Number(row.last_remaining_bytes);
   const remainingBytes = storedRemainingBytes !== null && Number.isFinite(storedRemainingBytes) ? Math.max(0, storedRemainingBytes) : Math.max(0, totalBytes - usedBytes);
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const expire = Number.isFinite(expiresAt) && expiresAt > 0 ? Math.floor(expiresAt / 1e3) : 0;
-  res.setHeader("profile-title", Buffer.from(String(row.plan || "Pulse"), "utf8").toString("base64"));
+  res.setHeader("profile-title", `base64:${Buffer.from("Pulse", "utf8").toString("base64")}`);
+  res.setHeader("subscription-name", "Pulse");
+  res.setHeader("profile-update-interval", "1");
   res.setHeader(
     "subscription-userinfo",
     `upload=0; download=${usedBytes}; total=${totalBytes}; expire=${expire}; remaining=${remainingBytes}`
@@ -58459,6 +58524,10 @@ router2.get("/public/subscription/:token/feed", async (req, res) => {
   const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
   const webOrigin = `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}`;
   res.setHeader("profile-web-page-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
+  const announcement = `\u0633\u0631\u0648\u06CC\u0633 Pulse \u0641\u0639\u0627\u0644 \u0627\u0633\u062A. \u062D\u062C\u0645 \u0628\u0627\u0642\u06CC\u200C\u0645\u0627\u0646\u062F\u0647: ${(remainingBytes / 1024 ** 3).toFixed(2)} \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A. \u0628\u0631\u0627\u06CC \u062C\u0632\u0626\u06CC\u0627\u062A \u0635\u0641\u062D\u0647 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0631\u0627 \u0628\u0627\u0632 \u06A9\u0646\u06CC\u062F.`;
+  res.setHeader("announce", `base64:${Buffer.from(announcement, "utf8").toString("base64")}`);
+  res.setHeader("announce-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
+  res.setHeader("content-disposition", 'attachment; filename="Pulse.txt"');
   res.setHeader("x-pulse-feed-source", feedSource);
   res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
   res.setHeader("content-type", upstreamContentType || "text/plain; charset=utf-8");
@@ -60039,7 +60108,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
   const owner = ownership("svc", req);
   const days = body.data.days ?? 30;
   const existing = await pool.query(
-    `SELECT rain_username AS username, gb::float8 AS gb, label, awg_client_id
+    `SELECT rain_username AS username, gb::float8 AS gb, label, awg_client_id, reseller_tg_id
      FROM reseller_services svc
      WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
     [params.data.id, ...owner.params]
@@ -60050,8 +60119,23 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     return;
   }
   const gb = body.data.gb ?? Number(current.gb);
+  let failedProviderKeys = [];
+  let providerWarning = null;
   try {
-    await provisionUser(current.username, gb, days, current.label, Number(req.auth?.telegramId), req.auth?.role);
+    const provisioning = await provisionUser(
+      current.username,
+      gb,
+      days,
+      current.label,
+      Number(current.reseller_tg_id),
+      req.auth?.role
+    );
+    const failed = provisioning.results.filter((result2) => result2.status < 200 || result2.status >= 300).map((result2) => ({
+      key: result2.key,
+      detail: result2.error ?? `HTTP ${result2.status}`
+    }));
+    failedProviderKeys = failed.map((result2) => result2.key);
+    providerWarning = failed.map((result2) => `${result2.key}: ${result2.detail}`).join(" \xB7 ") || null;
     if (current.awg_client_id) await recreateAwgClient(current.awg_client_id);
   } catch (error40) {
     if (error40 instanceof RainApiError) {
@@ -60086,6 +60170,28 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
        RETURNING svc.id`,
       [...values, ...owner.params]
     );
+    if (failedProviderKeys.length) {
+      await client.query(
+        `INSERT INTO service_provision_jobs
+         (service_id, owner_tg_id, username, action, provider_keys, payload, status, last_error)
+         VALUES ($1, $2, $3, 'providers', $4::jsonb, $5::jsonb, 'pending', $6)`,
+        [
+          params.data.id,
+          current.reseller_tg_id,
+          current.username,
+          JSON.stringify(failedProviderKeys),
+          JSON.stringify({ gb, days, label: current.label, role: req.auth?.role }),
+          providerWarning
+        ]
+      );
+      await client.query(
+        `INSERT INTO reseller_notifications
+         (reseller_tg_id, event_key, kind, title, detail, href, tone, created_at)
+         VALUES ($1, 'renew-provider:' || $2::text || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
+                 'provider', '\u062A\u0645\u062F\u06CC\u062F \u0628\u0627 \u0647\u0634\u062F\u0627\u0631 Provider \u0627\u0646\u062C\u0627\u0645 \u0634\u062F', $3, '/services', 'warning', NOW())`,
+        [current.reseller_tg_id, params.data.id, providerWarning]
+      );
+    }
     await client.query("COMMIT");
   } catch (error40) {
     await client.query("ROLLBACK");

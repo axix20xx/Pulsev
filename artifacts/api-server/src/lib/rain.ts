@@ -151,6 +151,77 @@ function decodeSubscriptionBody(body: string): { text: string; encoded: boolean 
   return { text: trimmed, encoded: false };
 }
 
+const COUNTRY_FLAGS: Array<[RegExp, string]> = [
+  [/(?:^|[^a-z])(iran|ir)(?:[^a-z]|$)|ایران/i, "🇮🇷"],
+  [/(?:^|[^a-z])(germany|de)(?:[^a-z]|$)|آلمان/i, "🇩🇪"],
+  [/(?:^|[^a-z])(france|fr)(?:[^a-z]|$)|فرانسه/i, "🇫🇷"],
+  [/(?:^|[^a-z])(netherlands|holland|nl)(?:[^a-z]|$)|هلند/i, "🇳🇱"],
+  [/(?:^|[^a-z])(finland|fi)(?:[^a-z]|$)|فنلاند/i, "🇫🇮"],
+  [/(?:^|[^a-z])(sweden|se)(?:[^a-z]|$)|سوئد/i, "🇸🇪"],
+  [/(?:^|[^a-z])(switzerland|ch)(?:[^a-z]|$)|سوئیس/i, "🇨🇭"],
+  [/(?:^|[^a-z])(united kingdom|england|uk|gb)(?:[^a-z]|$)|انگلیس/i, "🇬🇧"],
+  [/(?:^|[^a-z])(united states|usa|us)(?:[^a-z]|$)|آمریکا/i, "🇺🇸"],
+  [/(?:^|[^a-z])(canada|ca)(?:[^a-z]|$)|کانادا/i, "🇨🇦"],
+  [/(?:^|[^a-z])(turkey|tr)(?:[^a-z]|$)|ترکیه/i, "🇹🇷"],
+  [/(?:^|[^a-z])(russia|ru)(?:[^a-z]|$)|روسیه/i, "🇷🇺"],
+  [/(?:^|[^a-z])(uae|united arab emirates|ae)(?:[^a-z]|$)|امارات/i, "🇦🇪"],
+  [/(?:^|[^a-z])(singapore|sg)(?:[^a-z]|$)|سنگاپور/i, "🇸🇬"],
+  [/(?:^|[^a-z])(japan|jp)(?:[^a-z]|$)|ژاپن/i, "🇯🇵"],
+];
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function countryFlag(value: string): string {
+  const existing = value.match(/\p{Regional_Indicator}{2}/u)?.[0];
+  if (existing) return existing;
+  return COUNTRY_FLAGS.find(([pattern]) => pattern.test(value))?.[1] ?? "🌐";
+}
+
+function brandedConfigLink(raw: string, index: number): string {
+  const value = raw.trim();
+  if (!value || value.startsWith("#")) return raw;
+  const vmess = value.match(/^vmess:\/\/(.+)$/i);
+  if (vmess) {
+    try {
+      const json = JSON.parse(Buffer.from(vmess[1], "base64").toString("utf8"));
+      if (json && typeof json === "object") {
+        const flag = countryFlag(`${String(json.ps ?? "")} ${String(json.add ?? "")}`);
+        json.ps = `Pulse - ${flag} ${String(index).padStart(2, "0")}`;
+        return `vmess://${Buffer.from(JSON.stringify(json), "utf8").toString("base64")}`;
+      }
+    } catch {
+      // Fall through to the generic fragment renamer.
+    }
+  }
+  if (!isClientConfigUri(value)) return raw;
+  const hashAt = value.indexOf("#");
+  const base = hashAt >= 0 ? value.slice(0, hashAt) : value;
+  const oldName = hashAt >= 0 ? safeDecode(value.slice(hashAt + 1)) : "";
+  const flag = countryFlag(`${oldName} ${base}`);
+  return `${base}#${encodeURIComponent(`Pulse - ${flag} ${String(index).padStart(2, "0")}`)}`;
+}
+
+export function brandSubscriptionBody(body: string): string {
+  const decoded = decodeSubscriptionBody(body);
+  let configIndex = 0;
+  const branded = decoded.text
+    .split(/\r?\n/)
+    .map((line) => {
+      if (!isClientConfigUri(line.trim())) return line;
+      configIndex += 1;
+      return brandedConfigLink(line, configIndex);
+    })
+    .join("\n")
+    .trim();
+  return decoded.encoded ? Buffer.from(branded, "utf8").toString("base64") : branded;
+}
+
 export async function fetchPanelSubscription(
   username: string,
   ownerId?: number,

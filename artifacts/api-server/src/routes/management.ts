@@ -52,6 +52,7 @@ import {
   sessionHash,
 } from "../lib/auth";
 import {
+  brandSubscriptionBody,
   createServiceUsername,
   createSubscriptionToken,
   disablePanelUser,
@@ -570,6 +571,7 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     }
   }
   if (body) {
+    body = brandSubscriptionBody(body);
     try {
       await pool.query(
         `INSERT INTO subscription_feed_cache (service_id, body_secret, content_type, updated_at)
@@ -610,6 +612,7 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     res.status(502).send("Subscription provider is unavailable");
     return;
   }
+  body = brandSubscriptionBody(body);
 
   const totalBytes = Number(row.last_total_bytes) > 0
     ? Number(row.last_total_bytes)
@@ -624,7 +627,9 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const expire = Number.isFinite(expiresAt) && expiresAt > 0 ? Math.floor(expiresAt / 1000) : 0;
 
-  res.setHeader("profile-title", Buffer.from(String(row.plan || "Pulse"), "utf8").toString("base64"));
+  res.setHeader("profile-title", `base64:${Buffer.from("Pulse", "utf8").toString("base64")}`);
+  res.setHeader("subscription-name", "Pulse");
+  res.setHeader("profile-update-interval", "1");
   res.setHeader(
     "subscription-userinfo",
     `upload=0; download=${usedBytes}; total=${totalBytes}; expire=${expire}; remaining=${remainingBytes}`,
@@ -633,6 +638,10 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
   const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
   const webOrigin = `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}`;
   res.setHeader("profile-web-page-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
+  const announcement = `سرویس Pulse فعال است. حجم باقی‌مانده: ${(remainingBytes / (1024 ** 3)).toFixed(2)} گیگابایت. برای جزئیات صفحه اشتراک را باز کنید.`;
+  res.setHeader("announce", `base64:${Buffer.from(announcement, "utf8").toString("base64")}`);
+  res.setHeader("announce-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
+  res.setHeader("content-disposition", "attachment; filename=\"Pulse.txt\"");
   res.setHeader("x-pulse-feed-source", feedSource);
   res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
   res.setHeader("content-type", upstreamContentType || "text/plain; charset=utf-8");
@@ -2321,8 +2330,8 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   }
   const owner = ownership("svc", req);
   const days = body.data.days ?? 30;
-  const existing = await pool.query<{ username: string; gb: number; label: string; awg_client_id: string | null }>(
-    `SELECT rain_username AS username, gb::float8 AS gb, label, awg_client_id
+  const existing = await pool.query<{ username: string; gb: number; label: string; awg_client_id: string | null; reseller_tg_id: number }>(
+    `SELECT rain_username AS username, gb::float8 AS gb, label, awg_client_id, reseller_tg_id
      FROM reseller_services svc
      WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
     [params.data.id, ...owner.params],
@@ -2333,8 +2342,25 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     return;
   }
   const gb = body.data.gb ?? Number(current.gb);
+  let failedProviderKeys: string[] = [];
+  let providerWarning: string | null = null;
   try {
-    await provisionUser(current.username, gb, days, current.label, Number(req.auth?.telegramId), req.auth?.role);
+    const provisioning = await provisionUser(
+      current.username,
+      gb,
+      days,
+      current.label,
+      Number(current.reseller_tg_id),
+      req.auth?.role,
+    );
+    const failed = provisioning.results
+      .filter((result) => result.status < 200 || result.status >= 300)
+      .map((result) => ({
+        key: result.key,
+        detail: result.error ?? `HTTP ${result.status}`,
+      }));
+    failedProviderKeys = failed.map((result) => result.key);
+    providerWarning = failed.map((result) => `${result.key}: ${result.detail}`).join(" · ") || null;
     if (current.awg_client_id) await recreateAwgClient(current.awg_client_id);
   } catch (error) {
     if (error instanceof RainApiError) {
@@ -2369,6 +2395,28 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
        RETURNING svc.id`,
       [...values, ...owner.params],
     );
+    if (failedProviderKeys.length) {
+      await client.query(
+        `INSERT INTO service_provision_jobs
+         (service_id, owner_tg_id, username, action, provider_keys, payload, status, last_error)
+         VALUES ($1, $2, $3, 'providers', $4::jsonb, $5::jsonb, 'pending', $6)`,
+        [
+          params.data.id,
+          current.reseller_tg_id,
+          current.username,
+          JSON.stringify(failedProviderKeys),
+          JSON.stringify({ gb, days, label: current.label, role: req.auth?.role }),
+          providerWarning,
+        ],
+      );
+      await client.query(
+        `INSERT INTO reseller_notifications
+         (reseller_tg_id, event_key, kind, title, detail, href, tone, created_at)
+         VALUES ($1, 'renew-provider:' || $2::text || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
+                 'provider', 'تمدید با هشدار Provider انجام شد', $3, '/services', 'warning', NOW())`,
+        [current.reseller_tg_id, params.data.id, providerWarning],
+      );
+    }
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
