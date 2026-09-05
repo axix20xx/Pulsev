@@ -2363,7 +2363,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
            last_used_bytes = 0,
            last_total_bytes = ROUND($2::numeric * 1073741824),
            last_remaining_bytes = ROUND($2::numeric * 1073741824),
-           last_usage_updated_at = NOW(),
+            last_usage_updated_at = EXTRACT(EPOCH FROM NOW())::int,
            updated_at = NOW()
         WHERE svc.id = $3 AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
        RETURNING svc.id`,
