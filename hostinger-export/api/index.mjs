@@ -57120,9 +57120,11 @@ function resolvePanelUrl(panel, rawUrl) {
 function decodeSubscriptionBody(body) {
   const trimmed = body.trim();
   const compact = trimmed.replace(/\s+/g, "");
-  if (compact.length >= 16 && compact.length % 4 === 0 && /^[A-Za-z0-9+/=_-]+$/.test(compact)) {
+  if (compact.length >= 16 && /^[A-Za-z0-9+/=_-]+$/.test(compact)) {
     try {
-      const decoded = Buffer.from(compact, "base64").toString("utf8").trim();
+      const normalized = compact.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+      const decoded = Buffer.from(padded, "base64").toString("utf8").trim();
       if (decoded && /(?:[a-z][a-z0-9+.-]*):\/\//i.test(decoded)) {
         return { text: decoded, encoded: true };
       }
@@ -58012,6 +58014,236 @@ function startUsageSyncWorker() {
   logger.info({ intervalMs: interval2 }, "Combined usage sync worker started");
 }
 
+// src/lib/subscription-formats.ts
+function decodeBase64(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  return Buffer.from(padded, "base64").toString("utf8");
+}
+function decodedSubscription(body) {
+  const trimmed = body.trim();
+  const compact = trimmed.replace(/\s+/g, "");
+  if (compact.length >= 16 && /^[A-Za-z0-9+/=_-]+$/.test(compact)) {
+    try {
+      const decoded = decodeBase64(compact).trim();
+      if (/(?:vless|vmess|trojan|ss|ssr|hysteria2?|tuic):\/\//i.test(decoded)) {
+        return decoded;
+      }
+    } catch {
+    }
+  }
+  return trimmed;
+}
+function proxyName(raw, fallback) {
+  try {
+    const fragment = raw.includes("#") ? raw.slice(raw.indexOf("#") + 1) : "";
+    return fragment ? decodeURIComponent(fragment) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function queryBoolean(value) {
+  return value === "1" || value === "true";
+}
+function transportOptions(proxy, query) {
+  const network = query.get("type") || "tcp";
+  proxy.network = network;
+  if (network === "ws") {
+    proxy["ws-opts"] = {
+      path: query.get("path") || "/",
+      headers: query.get("host") ? { Host: query.get("host") } : {}
+    };
+  } else if (network === "grpc") {
+    proxy["grpc-opts"] = {
+      "grpc-service-name": query.get("serviceName") || query.get("service-name") || ""
+    };
+  } else if (network === "http" || network === "h2") {
+    proxy["http-opts"] = {
+      path: [query.get("path") || "/"],
+      headers: query.get("host") ? { Host: [query.get("host")] } : {}
+    };
+  }
+}
+function tlsOptions(proxy, query) {
+  const security = (query.get("security") || "").toLowerCase();
+  if (security !== "tls" && security !== "reality") return;
+  proxy.tls = true;
+  proxy.servername = query.get("sni") || query.get("serverName") || void 0;
+  proxy["client-fingerprint"] = query.get("fp") || "chrome";
+  proxy["skip-cert-verify"] = queryBoolean(query.get("allowInsecure"));
+  if (security === "reality") {
+    proxy["reality-opts"] = {
+      "public-key": query.get("pbk") || "",
+      "short-id": query.get("sid") || ""
+    };
+  }
+}
+function parseVless(raw, index) {
+  try {
+    const url2 = new URL(raw);
+    const proxy = {
+      name: proxyName(raw, `Pulse ${index}`),
+      type: "vless",
+      server: url2.hostname,
+      port: Number(url2.port || 443),
+      uuid: decodeURIComponent(url2.username),
+      udp: true
+    };
+    const flow = url2.searchParams.get("flow");
+    if (flow) proxy.flow = flow;
+    const packetEncoding = url2.searchParams.get("packetEncoding");
+    if (packetEncoding) proxy["packet-encoding"] = packetEncoding;
+    transportOptions(proxy, url2.searchParams);
+    tlsOptions(proxy, url2.searchParams);
+    return proxy;
+  } catch {
+    return null;
+  }
+}
+function parseTrojan(raw, index) {
+  try {
+    const url2 = new URL(raw);
+    const proxy = {
+      name: proxyName(raw, `Pulse ${index}`),
+      type: "trojan",
+      server: url2.hostname,
+      port: Number(url2.port || 443),
+      password: decodeURIComponent(url2.username),
+      udp: true
+    };
+    transportOptions(proxy, url2.searchParams);
+    tlsOptions(proxy, new URLSearchParams({ ...Object.fromEntries(url2.searchParams), security: "tls" }));
+    return proxy;
+  } catch {
+    return null;
+  }
+}
+function parseVmess(raw, index) {
+  try {
+    const payload = JSON.parse(decodeBase64(raw.slice("vmess://".length).split("#")[0]));
+    const network = String(payload.net || payload.network || "tcp");
+    const proxy = {
+      name: String(payload.ps || `Pulse ${index}`),
+      type: "vmess",
+      server: String(payload.add),
+      port: Number(payload.port || 443),
+      uuid: String(payload.id),
+      alterId: Number(payload.aid || 0),
+      cipher: String(payload.scy || "auto"),
+      udp: true,
+      network
+    };
+    if (String(payload.tls || "").toLowerCase() === "tls") {
+      proxy.tls = true;
+      proxy.servername = String(payload.sni || payload.host || payload.add);
+      proxy["client-fingerprint"] = String(payload.fp || "chrome");
+      proxy["skip-cert-verify"] = false;
+    }
+    if (network === "ws") {
+      proxy["ws-opts"] = {
+        path: String(payload.path || "/"),
+        headers: payload.host ? { Host: String(payload.host) } : {}
+      };
+    } else if (network === "grpc") {
+      proxy["grpc-opts"] = { "grpc-service-name": String(payload.path || payload.serviceName || "") };
+    }
+    return proxy;
+  } catch {
+    return null;
+  }
+}
+function parseShadowsocks(raw, index) {
+  try {
+    const value = raw.slice("ss://".length);
+    const [withoutFragment] = value.split("#");
+    const at = withoutFragment.lastIndexOf("@");
+    if (at < 0) return null;
+    let credentials = withoutFragment.slice(0, at);
+    const endpoint = withoutFragment.slice(at + 1).split("?")[0];
+    if (!credentials.includes(":")) credentials = decodeBase64(credentials);
+    const separator = credentials.indexOf(":");
+    if (separator < 1) return null;
+    const endpointUrl = new URL(`ss://${endpoint}`);
+    return {
+      name: proxyName(raw, `Pulse ${index}`),
+      type: "ss",
+      server: endpointUrl.hostname,
+      port: Number(endpointUrl.port),
+      cipher: credentials.slice(0, separator),
+      password: credentials.slice(separator + 1),
+      udp: true
+    };
+  } catch {
+    return null;
+  }
+}
+function parseProxy(raw, index) {
+  const value = raw.trim();
+  if (/^vless:\/\//i.test(value)) return parseVless(value, index);
+  if (/^vmess:\/\//i.test(value)) return parseVmess(value, index);
+  if (/^trojan:\/\//i.test(value)) return parseTrojan(value, index);
+  if (/^ss:\/\//i.test(value)) return parseShadowsocks(value, index);
+  return null;
+}
+function yamlScalar(value) {
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value === null || value === void 0) return '""';
+  return JSON.stringify(String(value));
+}
+function yaml(value, indent = 0) {
+  const space = " ".repeat(indent);
+  if (Array.isArray(value)) {
+    if (!value.length) return `${space}[]`;
+    return value.map((item) => {
+      if (item && typeof item === "object") {
+        const lines = yaml(item, indent + 2).split("\n");
+        return `${space}- ${lines[0].trimStart()}
+${lines.slice(1).join("\n")}`;
+      }
+      return `${space}- ${yamlScalar(item)}`;
+    }).join("\n");
+  }
+  if (value && typeof value === "object") {
+    return Object.entries(value).filter(([, item]) => item !== void 0).map(([key, item]) => {
+      if (item && typeof item === "object") return `${space}${key}:
+${yaml(item, indent + 2)}`;
+      return `${space}${key}: ${yamlScalar(item)}`;
+    }).join("\n");
+  }
+  return `${space}${yamlScalar(value)}`;
+}
+function requestedSubscriptionFormat(userAgent, explicitFormat) {
+  if (/^(clash|mihomo|yaml)$/i.test(explicitFormat || "")) return "clash";
+  return /clash|mihomo|clashplus|stash/i.test(userAgent) ? "clash" : "uri";
+}
+function toClashSubscription(body) {
+  const links = decodedSubscription(body).split(/\r?\n/).map((line2) => line2.trim()).filter(Boolean);
+  const proxies = links.map((link, index) => parseProxy(link, index + 1)).filter((proxy) => Boolean(proxy));
+  if (!proxies.length) return null;
+  const names = proxies.map((proxy) => String(proxy.name));
+  return `${yaml({
+    "mixed-port": 7890,
+    "allow-lan": false,
+    mode: "rule",
+    "log-level": "info",
+    ipv6: false,
+    proxies,
+    "proxy-groups": [
+      { name: "Pulse", type: "select", proxies: ["Auto", ...names] },
+      {
+        name: "Auto",
+        type: "url-test",
+        proxies: names,
+        url: "https://www.gstatic.com/generate_204",
+        interval: 300,
+        tolerance: 50
+      }
+    ],
+    rules: ["MATCH,Pulse"]
+  })}
+`;
+}
+
 // src/routes/management.ts
 var MASTER_ADMIN_COST_PER_GB = 2500;
 var resellerCostPerGbSql = (alias = "r") => `CASE WHEN ${alias}.tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${alias}.per_gig_price, 0) END`;
@@ -58507,6 +58739,19 @@ router2.get("/public/subscription/:token/feed", async (req, res) => {
     return;
   }
   body = brandSubscriptionBody(body);
+  const requestedFormat = requestedSubscriptionFormat(
+    req.get("user-agent") || "",
+    typeof req.query.format === "string" ? req.query.format : void 0
+  );
+  if (requestedFormat === "clash") {
+    const clashBody = toClashSubscription(body);
+    if (!clashBody) {
+      res.status(422).send("No Clash-compatible configurations are available");
+      return;
+    }
+    body = clashBody;
+    upstreamContentType = "text/yaml; charset=utf-8";
+  }
   const totalBytes = Number(row.last_total_bytes) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
   const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
   const storedRemainingBytes = row.last_remaining_bytes === null || row.last_remaining_bytes === void 0 ? null : Number(row.last_remaining_bytes);
@@ -58527,7 +58772,10 @@ router2.get("/public/subscription/:token/feed", async (req, res) => {
   const announcement = `\u0633\u0631\u0648\u06CC\u0633 Pulse \u0641\u0639\u0627\u0644 \u0627\u0633\u062A. \u062D\u062C\u0645 \u0628\u0627\u0642\u06CC\u200C\u0645\u0627\u0646\u062F\u0647: ${(remainingBytes / 1024 ** 3).toFixed(2)} \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A. \u0628\u0631\u0627\u06CC \u062C\u0632\u0626\u06CC\u0627\u062A \u0635\u0641\u062D\u0647 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0631\u0627 \u0628\u0627\u0632 \u06A9\u0646\u06CC\u062F.`;
   res.setHeader("announce", `base64:${Buffer.from(announcement, "utf8").toString("base64")}`);
   res.setHeader("announce-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
-  res.setHeader("content-disposition", 'attachment; filename="Pulse.txt"');
+  res.setHeader(
+    "content-disposition",
+    requestedFormat === "clash" ? 'attachment; filename="Pulse.yaml"' : 'attachment; filename="Pulse.txt"'
+  );
   res.setHeader("x-pulse-feed-source", feedSource);
   res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
   res.setHeader("content-type", upstreamContentType || "text/plain; charset=utf-8");

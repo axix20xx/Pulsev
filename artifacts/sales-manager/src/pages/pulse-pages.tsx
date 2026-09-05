@@ -1187,6 +1187,17 @@ export function CustomerDetail() {
   return <SurfaceFrame name="customer-detail"><CustomerDetailContent /></SurfaceFrame>;
 }
 
+type ClientOS = 'iOS' | 'Android' | 'Windows' | 'macOS' | 'Other';
+function detectClientOS(): ClientOS {
+  if (typeof window === 'undefined') return 'Other';
+  const ua = window.navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'iOS';
+  if (/Android/.test(ua)) return 'Android';
+  if (/Win/.test(ua)) return 'Windows';
+  if (/Mac/.test(ua)) return 'macOS';
+  return 'Other';
+}
+
 function PublicSubscriptionContent() {
   const [token, setToken] = useState(() => new URLSearchParams(window.location.search).get('t') || '');
   const [data, setData] = useState<any>(null);
@@ -1194,7 +1205,12 @@ function PublicSubscriptionContent() {
   const [copied, setCopied] = useState(false);
   const [feedCopied, setFeedCopied] = useState(false);
   const [shared, setShared] = useState(false);
+  const [activeOS, setActiveOS] = useState<ClientOS>('iOS');
+
   useEffect(() => {
+    const os = detectClientOS();
+    setActiveOS(os === 'Other' ? 'iOS' : os);
+    
     const nextToken = new URLSearchParams(window.location.search).get('t') || '';
     setToken(nextToken);
     if (!nextToken) { setState('error'); return; }
@@ -1216,7 +1232,12 @@ function PublicSubscriptionContent() {
     return () => { active = false; window.clearInterval(interval); };
   }, []);
   const pageUrl = data ? new URL(data.public_url || `/sub?t=${encodeURIComponent(token)}`, window.location.origin).toString() : '';
-  const v2boxInstall = pageUrl ? `v2box://install-sub?url=${pageUrl}&name=${encodeURIComponent(data.plan || 'Pulse')}` : '#';
+  const feedUrl = data ? new URL(data.subscription_url, window.location.origin).toString() : '';
+  const clashFeedUrl = feedUrl ? (() => {
+    const url = new URL(feedUrl);
+    url.searchParams.set('format', 'clash');
+    return url.toString();
+  })() : '';
   const expires = data?.expires_at ? new Date(data.expires_at) : null;
   const remaining = expires ? Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 86400000)) : 0;
   const ratio = data?.limit_gb ? Math.min(100, Math.round((Number(data.used_gb) / Number(data.limit_gb)) * 100)) : 0;
@@ -1231,7 +1252,7 @@ function PublicSubscriptionContent() {
     window.setTimeout(() => setCopied(false), 1800);
   };
   const copySubscriptionLink = async () => {
-    if (!(await copyTextToClipboard(pageUrl))) return;
+    if (!(await copyTextToClipboard(feedUrl))) return;
     setFeedCopied(true);
     window.setTimeout(() => setFeedCopied(false), 1800);
   };
@@ -1248,10 +1269,45 @@ function PublicSubscriptionContent() {
     if (data?.plan) document.title = `${data.plan} · پالس`;
     return () => { document.title = 'پالس'; };
   }, [data?.plan]);
+
+  type AppRecommendation = { id: string; name: string; description: string; subscriptionUrl: string; schemeUrl?: string; storeUrl?: string; directUrl?: string; icon: any; isPrimary?: boolean; };
+  const getAppsForOS = (os: ClientOS, uriUrl: string, clashUrl: string, planName: string): AppRecommendation[] => {
+    const encodedName = encodeURIComponent(planName || 'Pulse');
+    const encodedUriUrl = encodeURIComponent(uriUrl);
+    const encodedClashUrl = encodeURIComponent(clashUrl);
+    switch(os) {
+      case 'iOS': return [
+        { id: 'clash-plus', name: 'Clash Plus', description: 'کانفیگ اختصاصی سازگار با Mihomo', subscriptionUrl: clashUrl, schemeUrl: `clash://install-config?url=${encodedClashUrl}&name=${encodedName}`, storeUrl: 'https://apps.apple.com/us/app/clash-plus-smart-proxy-tool/id6774378761', icon: Activity, isPrimary: true },
+        { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', subscriptionUrl: uriUrl, schemeUrl: `v2box://install-sub?url=${uriUrl}&name=${encodedName}`, storeUrl: 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690', icon: Globe2 },
+        { id: 'streisand', name: 'Streisand', description: 'لینک را کپی و داخل برنامه اضافه کنید', subscriptionUrl: uriUrl, storeUrl: 'https://apps.apple.com/us/app/streisand/id6450534064', icon: ShieldCheck },
+        { id: 'shadowrocket', name: 'Shadowrocket', description: 'لینک را کپی و داخل برنامه اضافه کنید', subscriptionUrl: uriUrl, storeUrl: 'https://apps.apple.com/us/app/shadowrocket/id932747118', icon: Settings2 }
+      ];
+      case 'Android': return [
+        { id: 'clash-meta', name: 'Clash Meta', description: 'کانفیگ اختصاصی سازگار با Mihomo', subscriptionUrl: clashUrl, schemeUrl: `clash://install-config?url=${encodedClashUrl}&name=${encodedName}`, directUrl: 'https://github.com/MetaCubeX/ClashMetaForAndroid/releases', icon: Activity, isPrimary: true },
+        { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', subscriptionUrl: uriUrl, schemeUrl: `v2box://install-sub?url=${uriUrl}&name=${encodedName}`, storeUrl: 'https://play.google.com/store/apps/details?id=dev.hexasoftware.v2box', icon: Globe2 },
+        { id: 'v2rayng', name: 'v2rayNG', description: 'کلاینت قدرتمند و حرفه‌ای', subscriptionUrl: uriUrl, schemeUrl: `v2rayng://install-sub?url=${encodedUriUrl}#${encodedName}`, storeUrl: 'https://play.google.com/store/apps/details?id=com.v2ray.ang', icon: Server },
+        { id: 'hiddify', name: 'Hiddify', description: 'ساده و کاربرپسند', subscriptionUrl: uriUrl, schemeUrl: `hiddify://import/${encodedUriUrl}#${encodedName}`, storeUrl: 'https://play.google.com/store/apps/details?id=app.hiddify.com', icon: ShieldCheck }
+      ];
+      case 'Windows': return [
+        { id: 'clash-verge', name: 'Clash Verge Rev', description: 'کانفیگ اختصاصی Clash برای ویندوز', subscriptionUrl: clashUrl, directUrl: 'https://github.com/clash-verge-rev/clash-verge-rev/releases', icon: Activity, isPrimary: true },
+        { id: 'v2rayn', name: 'v2rayN', description: 'لینک را کپی و داخل برنامه اضافه کنید', subscriptionUrl: uriUrl, directUrl: 'https://github.com/2dust/v2rayN/releases', icon: Server },
+        { id: 'hiddify', name: 'Hiddify', description: 'لینک را کپی و داخل برنامه اضافه کنید', subscriptionUrl: uriUrl, directUrl: 'https://github.com/hiddify/hiddify-next/releases', icon: ShieldCheck }
+      ];
+      case 'macOS': return [
+        { id: 'clash-verge', name: 'Clash Verge Rev', description: 'کانفیگ اختصاصی Clash برای macOS', subscriptionUrl: clashUrl, directUrl: 'https://github.com/clash-verge-rev/clash-verge-rev/releases', icon: Activity, isPrimary: true },
+        { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', subscriptionUrl: uriUrl, schemeUrl: `v2box://install-sub?url=${uriUrl}&name=${encodedName}`, storeUrl: 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690', icon: Globe2 },
+        { id: 'surge', name: 'Surge', description: 'کلاینت حرفه‌ای شبکه', subscriptionUrl: uriUrl, schemeUrl: `surge:///install-config?url=${encodedUriUrl}`, directUrl: 'https://nssurge.com/', icon: Activity }
+      ];
+      default: return [];
+    }
+  };
+
+  const apps = state === 'ready' ? getAppsForOS(activeOS, feedUrl, clashFeedUrl, data.plan || 'Pulse') : [];
+
   if (state === 'loading') return <div className="public-sub-page"><div className="public-sub-loader flex flex-col items-center gap-4"><span className="pulse-mark large"><span /></span><p className="font-bold text-lg mt-4 text-primary">پالس</p><p className="text-muted-foreground text-sm">در حال دریافت وضعیت اشتراک...</p></div></div>;
   if (state === 'error') return <div className="public-sub-page"><div className="public-sub-card public-sub-error flex flex-col items-center text-center p-8"><div className="public-sub-brand mb-6 flex items-center justify-center gap-2"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="w-16 h-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-4"><ShieldCheck size={32} /></div><h1 className="text-2xl font-bold text-center mb-2">لینک نامعتبر است</h1><p className="text-muted-foreground text-center mb-8 text-sm">ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="button button-primary w-full justify-center">بازگشت به سایت</a></div></div>;
   return (
-    <div className="public-sub-page" dir="rtl">
+    <div className="public-sub-page pb-12" dir="rtl">
       <main className="public-sub-card relative z-10 w-full max-w-[440px] mx-auto bg-card/95 backdrop-blur-3xl border border-border/50 rounded-[32px] p-6 shadow-2xl overflow-hidden">
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3"><span className="pulse-mark shadow-primary/20"><span /></span><strong className="text-xl font-extrabold tracking-tight">پالس</strong></div>
@@ -1295,32 +1351,63 @@ function PublicSubscriptionContent() {
 
         <div className="space-y-6">
           <section className="space-y-3">
-            <div className="flex items-center gap-2 mb-1 px-1">
+            <div className="flex items-center gap-2 mb-3 px-1">
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-              <strong className="text-xs font-bold uppercase tracking-widest text-muted-foreground">اتصال سریع</strong>
+              <strong className="text-xs font-bold uppercase tracking-widest text-muted-foreground">راهنمای اتصال هوشمند</strong>
             </div>
-            <a className="flex items-center gap-4 p-4 rounded-[20px] bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 group hover:-translate-y-1" href={v2boxInstall}>
-              <div className="w-12 h-12 rounded-[14px] bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform"><Globe2 size={24} /></div>
-              <div className="flex-1 flex flex-col gap-0.5">
-                <strong className="text-[17px] font-extrabold">افزودن به V2Box</strong>
-                <span className="text-[10px] font-medium opacity-80">نصب خودکار در اپلیکیشن</span>
-              </div>
-              <ChevronLeft size={20} className="opacity-70" />
-            </a>
+            
+            <div className="flex bg-muted/40 p-1.5 rounded-2xl mb-4 gap-1">
+              {(['iOS', 'Android', 'Windows', 'macOS'] as ClientOS[]).map(os => (
+                <button
+                  key={os}
+                  type="button"
+                  onClick={() => setActiveOS(os)}
+                  className={`flex-1 text-center py-2.5 rounded-[14px] text-xs font-bold transition-all ${activeOS === os ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}
+                >
+                  {os}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              {apps.map(app => (
+                <div key={app.id} className={`flex flex-col gap-3 p-4 rounded-[20px] transition-all border ${app.isPrimary ? 'bg-primary/5 border-primary/20 shadow-sm' : 'bg-card border-border'}`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-[14px] flex items-center justify-center flex-shrink-0 ${app.isPrimary ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                      <app.icon size={24} />
+                    </div>
+                    <div className="flex-1 flex flex-col gap-0.5">
+                      <strong className="text-[16px] font-extrabold">{app.name}</strong>
+                      <span className="text-[10px] font-medium opacity-80 text-muted-foreground">{app.description}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    {app.schemeUrl ? (
+                      <a href={app.schemeUrl} className={`flex-1 button justify-center ${app.isPrimary ? 'button-primary' : 'button-secondary'}`}><ExternalLink size={14} /> اتصال سریع</a>
+                    ) : (
+                      <button type="button" onClick={() => void copyTextToClipboard(app.subscriptionUrl)} className="flex-1 button button-secondary justify-center"><Copy size={14} /> کپی لینک</button>
+                    )}
+                    {(app.storeUrl || app.directUrl) && (
+                      <a href={app.storeUrl || app.directUrl} target="_blank" rel="noreferrer" className="flex-1 button button-quiet justify-center bg-muted/60 hover:bg-muted/80 text-muted-foreground hover:text-foreground"><Download size={14} /> نصب برنامه</a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
             
             {data.awg_ready && (
-              <a className="flex items-center gap-4 p-4 rounded-[20px] bg-[#0e1726] text-white hover:bg-[#1a2639] transition-all shadow-xl shadow-black/10 group hover:-translate-y-1" href={data.awg_url}>
+              <a className="flex items-center gap-4 p-4 mt-3 rounded-[20px] bg-[#0e1726] text-white hover:bg-[#1a2639] transition-all shadow-xl shadow-black/10 group hover:-translate-y-1" href={data.awg_url}>
                 <div className="w-12 h-12 rounded-[14px] bg-white/10 backdrop-blur flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform"><Wifi size={24} /></div>
                 <div className="flex-1 flex flex-col gap-0.5">
                   <strong className="text-[17px] font-extrabold">AmneziaWG</strong>
-                  <span className="text-[10px] font-medium opacity-80">دانلود فایل کانفیگ</span>
+                  <span className="text-[10px] font-medium opacity-80 text-white/70">دانلود فایل کانفیگ اختصاصی</span>
                 </div>
                 <ChevronLeft size={20} className="opacity-70" />
               </a>
             )}
           </section>
 
-          <section className="space-y-3">
+          <section className="space-y-3 pt-3 border-t border-border/50">
              <div className="flex items-center gap-2 mb-1 px-1">
               <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
               <strong className="text-xs font-bold uppercase tracking-widest text-muted-foreground">عملیات اشتراک</strong>
@@ -1348,10 +1435,6 @@ function PublicSubscriptionContent() {
           </div>
         </section>
         
-        <div className="mt-8">
-          <SubscriptionClientActions url={pageUrl} name={data.plan || 'Pulse'} compact />
-        </div>
-        
         <footer className="mt-8 pt-5 border-t border-border flex items-start gap-3 text-muted-foreground/80 text-[10px] leading-relaxed">
           <ShieldCheck size={16} className="flex-shrink-0 mt-0.5 text-primary/60" />
           <p>این صفحه ایمن است و مختص اشتراک شما ساخته شده. لطفاً لینک را فقط با دستگاه‌های شخصی خود به اشتراک بگذارید.</p>
@@ -1359,7 +1442,6 @@ function PublicSubscriptionContent() {
       </main>
     </div>
   );
-
 }
 
 export function PublicSubscription() {

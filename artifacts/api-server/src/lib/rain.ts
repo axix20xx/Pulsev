@@ -136,11 +136,12 @@ function decodeSubscriptionBody(body: string): { text: string; encoded: boolean 
   const compact = trimmed.replace(/\s+/g, "");
   if (
     compact.length >= 16 &&
-    compact.length % 4 === 0 &&
     /^[A-Za-z0-9+/=_-]+$/.test(compact)
   ) {
     try {
-      const decoded = Buffer.from(compact, "base64").toString("utf8").trim();
+      const normalized = compact.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+      const decoded = Buffer.from(padded, "base64").toString("utf8").trim();
       if (decoded && /(?:[a-z][a-z0-9+.-]*):\/\//i.test(decoded)) {
         return { text: decoded, encoded: true };
       }

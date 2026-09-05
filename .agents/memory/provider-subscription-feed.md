@@ -27,6 +27,12 @@ The canonical customer URL can serve both the browser status page and client fee
 
 **How to apply:** Keep `/sub?t=<token>` as the public URL, proxy non-browser requests to the internal feed endpoint, and preserve the request User-Agent when forwarding to Provider resolution.
 
+Clash-family clients must receive generated Mihomo YAML, while URI clients must keep the original plain/base64 subscription.
+
+**Why:** Clash and Clash Plus reject V2Box-style URI/base64 feeds even when the underlying Provider configurations are valid.
+
+**How to apply:** Detect Clash/Mihomo/Stash User-Agents or an explicit `format=clash`, convert supported VLESS/VMess/Trojan/Shadowsocks links to YAML, and return a `.yaml` content disposition without changing the cached source feed.
+
 When detecting the one-link response mode, treat recognizable browser User-Agents as browser requests even if their `Accept` header is `*/*`; only known VPN client signatures should override that.
 
 **Why:** Some embedded browsers and screenshot/proxy browsers omit `text/html` from `Accept`, so relying only on content negotiation can return a feed or provider error instead of the status page.

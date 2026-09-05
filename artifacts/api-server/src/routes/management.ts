@@ -73,6 +73,10 @@ import {
   recreateAwgClient,
 } from "../lib/amneziawg";
 import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
+import {
+  requestedSubscriptionFormat,
+  toClashSubscription,
+} from "../lib/subscription-formats";
 
 const MASTER_ADMIN_COST_PER_GB = 2500;
 const resellerCostPerGbSql = (alias = "r") =>
@@ -613,6 +617,19 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     return;
   }
   body = brandSubscriptionBody(body);
+  const requestedFormat = requestedSubscriptionFormat(
+    req.get("user-agent") || "",
+    typeof req.query.format === "string" ? req.query.format : undefined,
+  );
+  if (requestedFormat === "clash") {
+    const clashBody = toClashSubscription(body);
+    if (!clashBody) {
+      res.status(422).send("No Clash-compatible configurations are available");
+      return;
+    }
+    body = clashBody;
+    upstreamContentType = "text/yaml; charset=utf-8";
+  }
 
   const totalBytes = Number(row.last_total_bytes) > 0
     ? Number(row.last_total_bytes)
@@ -641,7 +658,12 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
   const announcement = `سرویس Pulse فعال است. حجم باقی‌مانده: ${(remainingBytes / (1024 ** 3)).toFixed(2)} گیگابایت. برای جزئیات صفحه اشتراک را باز کنید.`;
   res.setHeader("announce", `base64:${Buffer.from(announcement, "utf8").toString("base64")}`);
   res.setHeader("announce-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
-  res.setHeader("content-disposition", "attachment; filename=\"Pulse.txt\"");
+  res.setHeader(
+    "content-disposition",
+    requestedFormat === "clash"
+      ? "attachment; filename=\"Pulse.yaml\""
+      : "attachment; filename=\"Pulse.txt\"",
+  );
   res.setHeader("x-pulse-feed-source", feedSource);
   res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
   res.setHeader("content-type", upstreamContentType || "text/plain; charset=utf-8");
