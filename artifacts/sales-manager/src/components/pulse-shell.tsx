@@ -157,7 +157,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <PulseNetworkAccent className="fixed inset-0 z-0 opacity-60" />
 
       {/* Sidebar */}
-      <aside className={`pulse-sidebar ${open ? 'translate-x-0' : 'translate-x-[100%] md:translate-x-0'} flex flex-col h-[100dvh]`}>
+      <aside className={`pulse-sidebar ${open ? 'is-open translate-x-0' : 'translate-x-full md:translate-x-0'} flex flex-col h-[100dvh]`}>
         <div className="flex items-center justify-between px-6 pt-8 pb-4">
           <Link href="/" className="flex items-center gap-3 transition-transform hover:scale-[1.02]" data-testid="link-logo">
             <span className="pulse-mark shadow-lg shadow-primary/20"><span /></span>
@@ -360,16 +360,16 @@ export function Shell({ children }: { children: ReactNode }) {
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description?: string; action?: ReactNode }) {
   return (
-    <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-10 pb-6 border-b border-border/30">
+    <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6 mb-6 sm:mb-10 pb-4 sm:pb-6 border-b border-border/30">
       <div className="flex flex-col">
         <div className="flex items-center gap-2.5 mb-2">
           <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.6)]" aria-hidden="true" />
           <p className="eyebrow text-[10px] tracking-widest text-primary/80 font-bold uppercase">{eyebrow}</p>
         </div>
-        <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-[-.05em] text-foreground mb-3">{title}</h1>
-        {description && <p className="text-sm font-medium text-muted-foreground max-w-2xl leading-relaxed">{description}</p>}
+        <h1 className="font-display text-2xl sm:text-4xl font-extrabold tracking-[-.05em] text-foreground mb-2 sm:mb-3 leading-tight">{title}</h1>
+        {description && <p className="text-xs sm:text-sm font-medium text-muted-foreground max-w-2xl leading-relaxed">{description}</p>}
       </div>
-      {action && <div className="flex-shrink-0">{action}</div>}
+      {action && <div className="w-full sm:w-auto flex-shrink-0 mt-2 sm:mt-0">{action}</div>}
     </header>
   );
 }

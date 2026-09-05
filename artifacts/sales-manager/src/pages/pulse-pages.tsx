@@ -278,7 +278,7 @@ function OverviewContent() {
       .finally(() => { if (active) setSelectedDayLoading(false); });
     return () => { active = false; };
   }, [selectedDay]);
-  return <><PageHeader eyebrow={`گزارش امروز · ${today}`} title={`خوش آمدید، ${session?.display_name || 'مدیر فروش'}`} description={`نمای زنده اطلاعات PostgreSQL · نقش: ${role}`} action={<Button onClick={() => window.print()} variant="secondary" testId="button-export-overview"><Printer size={15} /> چاپ گزارش</Button>} />
+  return <><div className="overview-home-header"><PageHeader eyebrow={`امروز · ${today}`} title={session?.display_name || 'مدیر فروش'} description={`داشبورد زنده · ${role}`} action={<Button onClick={() => window.print()} variant="secondary" testId="button-export-overview"><Printer size={15} /> چاپ گزارش</Button>} /></div>
      <div className="metrics-grid"><Metric label={isMasterAdmin ? 'قابل پرداخت resellerها' : 'درآمد ثبت‌شده'} value={money(total)} detail={isMasterAdmin ? 'مبلغ عمدهٔ فروشندگان برای مدیر اصلی' : 'فروش‌های پرداخت‌شده در دیتابیس'} icon={TrendingUp} /><Metric label="سرویس‌های فعال" value={new Intl.NumberFormat('fa-IR').format(activeCount)} detail={`${new Intl.NumberFormat('fa-IR').format(dashboard?.visible_customers ?? customers.length)} مشتری قابل مشاهده`} icon={Wifi} accent="amber" /><Metric label="تمدیدهای نزدیک" value={new Intl.NumberFormat('fa-IR').format(renewalCount)} detail="در ۱۴ روز آینده" icon={RefreshCw} accent="coral" /><Metric label="سلامت سرویس" value={`${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 }).format(health)}٪`} detail="برگرفته از وضعیت سرویس‌های SQL" icon={ShieldCheck} accent="sage" /><Metric label={isMasterAdmin ? 'بدهی resellerها در ماه' : 'فروش ماه جاری'} value={money(monthIncome)} detail={`${new Intl.NumberFormat('fa-IR').format(monthSalesCount)} فروش · ${new Intl.NumberFormat('fa-IR').format(monthSoldGb)} گیگ`} icon={TrendingUp} accent="sage" /><Metric label="غیرفعال‌شده امروز" value={new Intl.NumberFormat('fa-IR').format(disabledToday)} detail="با ثبت زمان و دلیل در دیتابیس" icon={Wifi} accent="coral" /></div>
      <div className="overview-grid mt-5"><section className="panel-card revenue-panel"><div className="panel-heading"><div><p className="eyebrow">ماه جاری · تقویم شمسی</p><h2 className="section-title">فروش و سود روزانه</h2></div><span className="soft-badge"><CalendarDays size={13} /> {dashboardDayLabel(isoStartOfPersianMonth())} تا امروز</span></div><div className="chart-wrap"><div className="chart-amount">{money(monthIncome)}<span> فروش این ماه</span></div><div className="chart-subline"><span>{numberFa(monthSalesCount, 0)} فروش · {numberFa(monthSoldGb)} گیگ</span><span>{money(Number((dashboard?.month_profit ?? 0)))} سود</span></div><div className="chart-legend"><span><i className="legend-sale" /> فروش</span><span><i className="legend-profit" /> سود</span></div><div className="bar-chart month-bar-chart" aria-label="نمودار فروش و سود روزانه ماه جاری">{monthDays.map((item, index) => <button type="button" className={`chart-column ${selectedDay === item.day ? 'selected' : ''}`} key={item.day} onClick={() => setSelectedDay(item.day)} aria-label={`${dashboardDayLabel(item.day)}، فروش ${money(item.income)}، سود ${money(item.profit)}`} title={`${dashboardDayLabel(item.day)} · فروش ${money(item.income)} · سود ${money(item.profit)}`}><span className="chart-tooltip">{dashboardDayLabel(item.day)}<strong>{money(item.income)}</strong><small>سود {money(item.profit)}</small></span><div className="chart-bar" style={{ height: `${Math.max(item.income ? 8 : 2, item.income / chartMax * 100)}%` }} /><div className="chart-profit-bar" style={{ height: `${Math.max(item.profit ? 5 : 2, Math.max(0, item.profit) / chartMax * 100)}%` }} /></button>)}</div><div className="chart-labels month-chart-labels"><span>{monthDays[0] ? dashboardDayLabel(monthDays[0].day) : 'شروع ماه'}</span><span>{monthDays[Math.floor(monthDays.length / 2)] ? dashboardDayLabel(monthDays[Math.floor(monthDays.length / 2)].day) : ''}</span><span>{monthDays[monthDays.length - 1] ? dashboardDayLabel(monthDays[monthDays.length - 1].day) : 'امروز'}</span></div></div>{selectedDaySummary ? <section className="day-detail"><div className="panel-heading"><div><p className="eyebrow">جزئیات کامل روز انتخاب‌شده</p><h3 className="section-title">{dashboardDayLabel(selectedDaySummary.day)}</h3></div><button type="button" className="button button-quiet" onClick={() => setSelectedDay(null)}>بستن</button></div><div className="day-detail-metrics"><div><span>کل فروش</span><strong>{money(selectedDaySummary.income)}</strong></div><div><span>سود</span><strong>{money(selectedDaySummary.profit)}</strong></div><div><span>تعداد فروش</span><strong>{numberFa(selectedDaySummary.sales_count, 0)}</strong></div><div><span>حجم فروخته‌شده</span><strong>{numberFa(selectedDaySummary.sold_gb)} گیگ</strong></div><div><span>وصول‌شده</span><strong>{money(selectedDaySummary.paid_income)}</strong></div><div><span>در انتظار وصول</span><strong>{money(selectedDaySummary.unpaid_income)}</strong></div></div><div className="day-sales-list">{selectedDayLoading ? <p className="text-sm text-muted-foreground">در حال دریافت فروش‌های این روز...</p> : selectedDaySales.length ? selectedDaySales.map((sale) => <div className="day-sale-row" key={sale.id}><div><strong>{session?.role === 'master_admin' ? sale.resellerName || 'فروشنده' : sale.customerName}</strong><span>{sale.serviceName} · {sale.id}</span></div><div><strong>{money(sale.amount)}</strong><span className={sale.paid ? 'paid-text' : 'pending-text'}>{sale.paid ? 'پرداخت‌شده' : 'در انتظار'}</span></div></div>) : <p className="text-sm text-muted-foreground">در این روز فروش ثبت نشده است.</p>}</div></section> : <div className="chart-empty-hint">برای دیدن جمع فروش، سود و جزئیات کامل هر روز روی ستون همان روز کلیک کنید.</div>}</section>
       <section className="panel-card"><div className="panel-heading"><div><p className="eyebrow">نیازمند توجه</p><h2 className="section-title">تمدیدهای پیش‌رو</h2></div><Link href="/services" className="text-link" data-testid="link-view-renewals">مشاهده همه <ChevronLeft size={14} /></Link></div>{due.length ? <div className="list-stack">{due.slice(0, 3).map((service) => <Link href={`/customers/${service.customerId || 'C-01'}`} className="renewal-row" key={service.id} data-testid={`row-renewal-${service.id}`}><Avatar name={service.customerName} color="amber" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{service.customerName}</p><p className="text-xs text-muted-foreground">{service.plan} · {Math.max(0, daysUntil(service.expiresAt))} روز مانده</p></div><ChevronLeft size={15} className="text-muted-foreground" /></Link>)}</div> : <EmptyState title="صف تمدید خالی است" detail="در حال حاضر مورد فوری برای پیگیری ندارید." />}</section>
@@ -1248,62 +1248,118 @@ function PublicSubscriptionContent() {
     if (data?.plan) document.title = `${data.plan} · پالس`;
     return () => { document.title = 'پالس'; };
   }, [data?.plan]);
-  if (state === 'loading') return <div className="public-sub-page"><div className="public-sub-loader"><span className="pulse-mark large"><span /></span><p>در حال آماده‌سازی اشتراک...</p></div></div>;
-  if (state === 'error') return <div className="public-sub-page"><div className="public-sub-card public-sub-error"><div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="public-sub-icon"><ShieldCheck size={24} /></div><h1>لینک اشتراک در دسترس نیست</h1><p>ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="button button-primary">بازگشت</a></div></div>;
+  if (state === 'loading') return <div className="public-sub-page"><div className="public-sub-loader flex flex-col items-center gap-4"><span className="pulse-mark large"><span /></span><p className="font-bold text-lg mt-4 text-primary">پالس</p><p className="text-muted-foreground text-sm">در حال دریافت وضعیت اشتراک...</p></div></div>;
+  if (state === 'error') return <div className="public-sub-page"><div className="public-sub-card public-sub-error flex flex-col items-center text-center p-8"><div className="public-sub-brand mb-6 flex items-center justify-center gap-2"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="w-16 h-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-4"><ShieldCheck size={32} /></div><h1 className="text-2xl font-bold text-center mb-2">لینک نامعتبر است</h1><p className="text-muted-foreground text-center mb-8 text-sm">ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="button button-primary w-full justify-center">بازگشت به سایت</a></div></div>;
   return (
     <div className="public-sub-page" dir="rtl">
-      <main className="public-sub-card">
-        <header className="public-sub-header">
-          <div className="public-sub-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div>
-          <span className="public-sub-secure"><ShieldCheck size={14} /> لینک امن</span>
+      <main className="public-sub-card relative z-10 w-full max-w-[440px] mx-auto bg-card/95 backdrop-blur-3xl border border-border/50 rounded-[32px] p-6 shadow-2xl overflow-hidden">
+        <header className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3"><span className="pulse-mark shadow-primary/20"><span /></span><strong className="text-xl font-extrabold tracking-tight">پالس</strong></div>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold tracking-widest uppercase"><ShieldCheck size={12} strokeWidth={2.5} /> امن</span>
         </header>
-        <section className="public-sub-hero">
-          <p className="eyebrow">مرکز کنترل اشتراک</p>
-          <h1>{data.customer_name || 'اشتراک شما'}</h1>
-          <div className="public-sub-plan">
-            <span className={`public-sub-status ${statusTone}`}><span /> {statusLabel}</span>
-            <strong>{data.plan}</strong>
-            <span dir="ltr">@{data.username}</span>
+        <section className="text-center mb-8 relative">
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold mb-5 border ${statusTone === 'ok' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : statusTone === 'warn' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-destructive/10 text-destructive border-destructive/20'}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-75" /> {statusLabel}
+          </div>
+          <h1 className="font-display text-4xl font-extrabold tracking-tight mb-2 text-foreground">{data.plan}</h1>
+          <p className="text-muted-foreground font-mono text-sm tracking-wide" dir="ltr">@{data.username}</p>
+        </section>
+
+        <section className={`rounded-[24px] p-5 mb-6 relative overflow-hidden border ${statusTone === 'ok' ? 'bg-emerald-500/5 border-emerald-500/20' : statusTone === 'warn' ? 'bg-amber-500/5 border-amber-500/20' : 'bg-destructive/5 border-destructive/20'}`}>
+          <div className="absolute top-0 right-0 w-32 h-32 bg-current opacity-[0.03] rounded-full -mr-10 -mt-10 pointer-events-none" />
+          <div className="relative z-10 flex flex-col gap-1">
+            <span className="text-[10px] font-bold tracking-widest uppercase opacity-70 mb-1">{expired ? 'پایان اعتبار اشتراک' : expiring ? 'زمان تمدید نزدیک است' : 'وضعیت ارتباط'}</span>
+            <strong className="text-[17px] font-extrabold leading-tight">{expired ? 'این اشتراک غیرفعال شده است' : expiring ? `${new Intl.NumberFormat('fa-IR').format(remaining)} روز تا پایان اعتبار باقی مانده` : 'اشتراک شما فعال و آماده کار است'}</strong>
           </div>
         </section>
-        <section className={`public-sub-status-card ${statusTone}`}>
-          <div>
-            <span className="public-sub-status-kicker">{expired ? 'برای ادامه، تمدید لازم است' : expiring ? 'زمان تمدید نزدیک است' : 'همه‌چیز آمادهٔ اتصال است'}</span>
-            <strong>{expired ? 'این اشتراک دیگر فعال نیست' : expiring ? `${new Intl.NumberFormat('fa-IR').format(remaining)} روز تا پایان اعتبار` : 'اشتراک شما فعال و قابل استفاده است'}</strong>
+
+        <section className="rounded-[24px] bg-card border border-border/50 p-5 mb-8 shadow-sm">
+          <div className="flex justify-between items-end mb-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">مصرف‌شده</span>
+              <strong className="text-2xl font-display font-extrabold">{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 }).format(Number(data.used_gb))} <span className="text-xs font-sans text-muted-foreground font-medium">از {new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 0 }).format(Number(data.limit_gb))}</span></strong>
+            </div>
+            <div className="flex flex-col gap-1 text-left">
+              <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">باقی‌مانده</span>
+              <strong className="text-xl font-display font-bold text-primary">{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 }).format(remainingGb)} <span className="text-xs font-sans text-primary/70 font-medium">GB</span></strong>
+            </div>
           </div>
-          <span className="public-sub-status-icon">{expired ? '!' : expiring ? '!' : '✓'}</span>
-        </section>
-        <section className="public-sub-usage">
-          <div className="public-sub-usage-head">
-            <div><span>مصرف‌شده</span><strong>{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(Number(data.used_gb))} از {new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(Number(data.limit_gb))} گیگ</strong></div>
-            <div className="public-sub-days"><span>حجم باقی‌مانده</span><strong>{new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(remainingGb)} گیگ</strong></div>
+          <div className="h-2.5 rounded-full bg-border overflow-hidden mb-3">
+            <span className="block h-full bg-primary rounded-full transition-all duration-1000 ease-out" style={{ width: `${ratio}%` }} />
           </div>
-          <div className="public-sub-progress"><span style={{ width: `${ratio}%` }} /></div>
-          <div className="public-sub-usage-foot"><span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</span><span>انقضا: {dateLabel(data.expires_at)}</span></div>
-        </section>
-        <section className="public-sub-actions">
-          <a className="public-sub-primary-action" href={v2boxInstall}><Globe2 size={19} /><span><strong>افزودن به V2Box</strong><small>با یک لمس در اپلیکیشن باز می‌شود</small></span><ChevronLeft size={17} /></a>
-           <div className="public-sub-action-row">
-             <button type="button" onClick={() => void copySubscriptionLink()}><Copy size={17} /><span>{feedCopied ? 'لینک اشتراک کپی شد' : 'کپی لینک اشتراک'}</span></button>
-            {data.awg_ready && <a href={data.awg_url}><Wifi size={17} /><span>دانلود AWG</span></a>}
-            <button type="button" onClick={() => void sharePage()}><ArrowUpLeft size={17} /><span>{shared ? 'اشتراک‌گذاری شد' : 'اشتراک‌گذاری'}</span></button>
+          <div className="flex justify-between text-[10px] font-bold text-muted-foreground">
+            <span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف شده</span>
+            <span>انقضا: {dateLabel(data.expires_at)}</span>
           </div>
         </section>
-         <section className="public-sub-link">
-           <p>یک لینک برای مرورگر و همهٔ کلاینت‌ها</p>
-           <div dir="ltr">{pageUrl}</div>
-           <small>همین لینک را در V2Box، Clash، Hiddify و سایر کلاینت‌ها وارد کنید؛ سرور بر اساس نوع درخواست خروجی مناسب را برمی‌گرداند.</small>
+
+        <div className="space-y-6">
+          <section className="space-y-3">
+            <div className="flex items-center gap-2 mb-1 px-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <strong className="text-xs font-bold uppercase tracking-widest text-muted-foreground">اتصال سریع</strong>
+            </div>
+            <a className="flex items-center gap-4 p-4 rounded-[20px] bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 group hover:-translate-y-1" href={v2boxInstall}>
+              <div className="w-12 h-12 rounded-[14px] bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform"><Globe2 size={24} /></div>
+              <div className="flex-1 flex flex-col gap-0.5">
+                <strong className="text-[17px] font-extrabold">افزودن به V2Box</strong>
+                <span className="text-[10px] font-medium opacity-80">نصب خودکار در اپلیکیشن</span>
+              </div>
+              <ChevronLeft size={20} className="opacity-70" />
+            </a>
+            
+            {data.awg_ready && (
+              <a className="flex items-center gap-4 p-4 rounded-[20px] bg-[#0e1726] text-white hover:bg-[#1a2639] transition-all shadow-xl shadow-black/10 group hover:-translate-y-1" href={data.awg_url}>
+                <div className="w-12 h-12 rounded-[14px] bg-white/10 backdrop-blur flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform"><Wifi size={24} /></div>
+                <div className="flex-1 flex flex-col gap-0.5">
+                  <strong className="text-[17px] font-extrabold">AmneziaWG</strong>
+                  <span className="text-[10px] font-medium opacity-80">دانلود فایل کانفیگ</span>
+                </div>
+                <ChevronLeft size={20} className="opacity-70" />
+              </a>
+            )}
+          </section>
+
+          <section className="space-y-3">
+             <div className="flex items-center gap-2 mb-1 px-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
+              <strong className="text-xs font-bold uppercase tracking-widest text-muted-foreground">عملیات اشتراک</strong>
+            </div>
+             <div className="grid grid-cols-2 gap-3">
+               <button type="button" className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-[20px] bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-colors border border-border" onClick={() => void copySubscriptionLink()}>
+                 <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center text-primary shadow-sm"><Copy size={18} /></div>
+                 <span className="text-[11px] font-bold">{feedCopied ? 'کپی شد' : 'کپی لینک'}</span>
+               </button>
+              <button type="button" className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-[20px] bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-colors border border-border" onClick={() => void sharePage()}>
+                <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center text-primary shadow-sm"><ArrowUpLeft size={18} /></div>
+                <span className="text-[11px] font-bold">{shared ? 'ارسال شد' : 'اشتراک‌گذاری'}</span>
+              </button>
+            </div>
+          </section>
+        </div>
+
+        <section className="mt-8 p-5 rounded-[24px] bg-muted/40 border border-border text-center">
+          <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-3">لینک سابسکرایپشن شما</p>
+          <div className="p-3 rounded-xl bg-background border border-primary/20 text-primary font-mono text-[9px] break-all mb-4 select-all cursor-pointer" dir="ltr" onClick={() => void copyPageLink()}>
+            {pageUrl}
+          </div>
+          <div className="flex justify-center bg-white p-2 rounded-2xl w-fit mx-auto shadow-sm">
+            <SubscriptionQr url={pageUrl} />
+          </div>
         </section>
-         <section className="public-sub-qr"><SubscriptionQr url={pageUrl} /></section>
-        <section className="public-sub-install">
-          <div className="public-sub-install-heading"><span className="eyebrow">نصب در سه قدم</span><strong>سریع‌ترین راه اتصال</strong></div>
-          <div className="public-sub-steps"><div><b>۱</b><span>کلاینت را انتخاب کنید</span></div><div><b>۲</b><span>افزودن یا کپی لینک</span></div><div><b>۳</b><span>اتصال را روشن کنید</span></div></div>
-        </section>
-         <SubscriptionClientActions url={pageUrl} name={data.plan || 'Pulse'} />
-        <footer className="public-sub-footer"><ShieldCheck size={15} /><span>این صفحه فقط اطلاعات همین اشتراک را نمایش می‌دهد. رمز یا اطلاعات پنل در مرورگر ذخیره نمی‌شود.</span></footer>
+        
+        <div className="mt-8">
+          <SubscriptionClientActions url={pageUrl} name={data.plan || 'Pulse'} compact />
+        </div>
+        
+        <footer className="mt-8 pt-5 border-t border-border flex items-start gap-3 text-muted-foreground/80 text-[10px] leading-relaxed">
+          <ShieldCheck size={16} className="flex-shrink-0 mt-0.5 text-primary/60" />
+          <p>این صفحه ایمن است و مختص اشتراک شما ساخته شده. لطفاً لینک را فقط با دستگاه‌های شخصی خود به اشتراک بگذارید.</p>
+        </footer>
       </main>
     </div>
   );
+
 }
 
 export function PublicSubscription() {
