@@ -23646,7 +23646,11 @@ if (!process.env.DATABASE_URL) {
     "DATABASE_URL must be set. Did you forget to provision a database?"
   );
 }
-var pool = new Pool3({ connectionString: process.env.DATABASE_URL });
+var configuredConnectionTimeout = Number(process.env.DATABASE_CONNECT_TIMEOUT_MS ?? 15e3);
+var pool = new Pool3({
+  connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: Number.isFinite(configuredConnectionTimeout) && configuredConnectionTimeout > 0 ? configuredConnectionTimeout : 15e3
+});
 var db = drizzle(pool, { schema: schema_exports });
 
 // src/lib/migrate-legacy-sql.ts
@@ -23668,6 +23672,10 @@ var defaultDump = dumpCandidates.find((candidate) => fs.existsSync(candidate)) ?
 var dumpPath = process.env.LEGACY_SQL_PATH ?? defaultDump;
 var preconvertedPath = process.env.SUPABASE_SQL_PATH;
 var migrationName = "axinetreseller-mysql-import-v1";
+var migrationLockWaitMs = Math.max(
+  3e4,
+  Number(process.env.LEGACY_MIGRATION_LOCK_WAIT_MS ?? 10 * 6e4)
+);
 var legacyTableNames = [
   "hidden_servers",
   "panel_prices",
@@ -23909,17 +23917,46 @@ async function migrateWithLock() {
   console.info("Legacy SQL migration completed.");
 }
 async function migrate() {
+  console.info("Connecting to PostgreSQL for the legacy migration check...");
   const lockClient = await pool.connect();
+  let lockAcquired = false;
   try {
-    await lockClient.query("SELECT pg_advisory_lock(hashtext($1))", [
-      migrationName
-    ]);
+    const waitStartedAt = Date.now();
+    while (!lockAcquired) {
+      const lockResult = await lockClient.query(
+        "SELECT pg_try_advisory_lock(hashtext($1)) AS acquired",
+        [migrationName]
+      );
+      lockAcquired = lockResult.rows[0]?.acquired === true;
+      if (lockAcquired) break;
+      const completed = await lockClient.query(
+        "SELECT 1 FROM app_migrations WHERE name = $1",
+        [migrationName]
+      ).catch(() => ({ rowCount: 0 }));
+      if (completed.rowCount) {
+        console.info("Another process completed the legacy SQL migration.");
+        return;
+      }
+      const elapsedMs = Date.now() - waitStartedAt;
+      if (elapsedMs >= migrationLockWaitMs) {
+        throw new Error(
+          `Timed out after ${Math.round(elapsedMs / 1e3)} seconds waiting for another legacy migration process to release its database lock.`
+        );
+      }
+      console.info(
+        `Another migration process holds the lock; waiting (${Math.round(elapsedMs / 1e3)}s elapsed)...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1e4));
+    }
+    console.info("Legacy migration lock acquired.");
     await migrateWithLock();
   } finally {
     try {
-      await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", [
-        migrationName
-      ]);
+      if (lockAcquired) {
+        await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", [
+          migrationName
+        ]);
+      }
     } finally {
       lockClient.release();
     }

@@ -56865,7 +56865,11 @@ if (!process.env.DATABASE_URL) {
     "DATABASE_URL must be set. Did you forget to provision a database?"
   );
 }
-var pool = new Pool3({ connectionString: process.env.DATABASE_URL });
+var configuredConnectionTimeout = Number(process.env.DATABASE_CONNECT_TIMEOUT_MS ?? 15e3);
+var pool = new Pool3({
+  connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: Number.isFinite(configuredConnectionTimeout) && configuredConnectionTimeout > 0 ? configuredConnectionTimeout : 15e3
+});
 var db = drizzle(pool, { schema: schema_exports });
 
 // src/lib/auth.ts

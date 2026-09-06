@@ -22,6 +22,10 @@ const defaultDump =
 const dumpPath = process.env.LEGACY_SQL_PATH ?? defaultDump;
 const preconvertedPath = process.env.SUPABASE_SQL_PATH;
 const migrationName = "axinetreseller-mysql-import-v1";
+const migrationLockWaitMs = Math.max(
+  30_000,
+  Number(process.env.LEGACY_MIGRATION_LOCK_WAIT_MS ?? 10 * 60_000),
+);
 const legacyTableNames = [
   "hidden_servers",
   "panel_prices",
@@ -314,17 +318,48 @@ async function migrateWithLock(): Promise<void> {
 }
 
 async function migrate(): Promise<void> {
+  console.info("Connecting to PostgreSQL for the legacy migration check...");
   const lockClient = await pool.connect();
+  let lockAcquired = false;
   try {
-    await lockClient.query("SELECT pg_advisory_lock(hashtext($1))", [
-      migrationName,
-    ]);
+    const waitStartedAt = Date.now();
+    while (!lockAcquired) {
+      const lockResult = await lockClient.query<{ acquired: boolean }>(
+        "SELECT pg_try_advisory_lock(hashtext($1)) AS acquired",
+        [migrationName],
+      );
+      lockAcquired = lockResult.rows[0]?.acquired === true;
+      if (lockAcquired) break;
+
+      const completed = await lockClient.query(
+        "SELECT 1 FROM app_migrations WHERE name = $1",
+        [migrationName],
+      ).catch(() => ({ rowCount: 0 }));
+      if (completed.rowCount) {
+        console.info("Another process completed the legacy SQL migration.");
+        return;
+      }
+
+      const elapsedMs = Date.now() - waitStartedAt;
+      if (elapsedMs >= migrationLockWaitMs) {
+        throw new Error(
+          `Timed out after ${Math.round(elapsedMs / 1000)} seconds waiting for another legacy migration process to release its database lock.`,
+        );
+      }
+      console.info(
+        `Another migration process holds the lock; waiting (${Math.round(elapsedMs / 1000)}s elapsed)...`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
+    }
+    console.info("Legacy migration lock acquired.");
     await migrateWithLock();
   } finally {
     try {
-      await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", [
-        migrationName,
-      ]);
+      if (lockAcquired) {
+        await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", [
+          migrationName,
+        ]);
+      }
     } finally {
       lockClient.release();
     }

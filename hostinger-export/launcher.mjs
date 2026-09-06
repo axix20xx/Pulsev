@@ -11,7 +11,9 @@ const installerPath = path.join(root, "installer.html");
 const publicPort = Number(process.env.PORT || 3000);
 const apiPort = Number(process.env.API_INTERNAL_PORT || publicPort + 1);
 let api;
+let migrationProcess;
 let startupPromise;
+let shuttingDown = false;
 const installState = {
   phase: "starting",
   attempt: 0,
@@ -60,8 +62,9 @@ function pipeChildOutput(stream, source, onlyErrors = false) {
       if (!text) continue;
       console.log(`[${source}] ${text}`);
       const safeError = /Panel management schema initialization failed|relation .* does not exist/i.test(text);
-      if (!onlyErrors || safeError) {
-        recordInstallLog(text, safeError || /error|failed|missing/i.test(text) ? "error" : "info");
+      const shouldRecord = !onlyErrors || source === "migration" || safeError;
+      if (shouldRecord) {
+        recordInstallLog(text, onlyErrors || safeError || /error|failed|missing|timeout/i.test(text) ? "error" : "info");
       }
       if (source === "api" && safeError) {
         installState.phase = "error";
@@ -74,7 +77,7 @@ function pipeChildOutput(stream, source, onlyErrors = false) {
     const text = buffer.trim();
     if (text) {
       console.log(`[${source}] ${text}`);
-      if (!onlyErrors || /Panel management schema initialization failed|relation .* does not exist/i.test(text)) {
+      if (!onlyErrors || source === "migration" || /Panel management schema initialization failed|relation .* does not exist/i.test(text)) {
         recordInstallLog(text, "error");
       }
     }
@@ -118,9 +121,35 @@ async function startApiInternal() {
         env: migrationEnv,
         stdio: ["ignore", "pipe", "pipe"],
       });
+      migrationProcess = migration;
       pipeChildOutput(migration.stdout, "migration");
       pipeChildOutput(migration.stderr, "migration", true);
+      const startedAt = Date.now();
+      const heartbeat = setInterval(() => {
+        const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+        const message = `Legacy migration is still running (${elapsedSeconds}s elapsed, attempt ${attempt}/${maxAttempts})...`;
+        console.log(message);
+        recordInstallLog(message);
+      }, 15_000);
+      heartbeat.unref();
+      const configuredTimeout = Number(process.env.LEGACY_MIGRATION_TIMEOUT_MS ?? 30 * 60_000);
+      const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout >= 60_000
+        ? configuredTimeout
+        : 30 * 60_000;
+      const timeout = setTimeout(() => {
+        recordInstallLog(
+          `Legacy migration exceeded ${Math.round(timeoutMs / 60_000)} minutes and was stopped for a safe retry.`,
+          "error",
+        );
+        migration.kill("SIGTERM");
+        setTimeout(() => migration.kill("SIGKILL"), 5_000).unref();
+      }, timeoutMs);
+      timeout.unref();
       const result = await childExit(migration);
+      clearInterval(heartbeat);
+      clearTimeout(timeout);
+      if (migrationProcess === migration) migrationProcess = undefined;
+      if (shuttingDown) return;
       if (result.code === 0) break;
 
       const status = result.signal ? `signal ${result.signal}` : `exit code ${result.code}`;
@@ -165,6 +194,7 @@ async function startApiInternal() {
 }
 
 async function startApi() {
+  if (shuttingDown) return;
   if (api && !api.killed) return;
   if (startupPromise) return startupPromise;
   startupPromise = startApiInternal()
@@ -372,7 +402,13 @@ server.listen(publicPort, "0.0.0.0", () => {
 void startApi();
 
 function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
   server.close();
+  if (migrationProcess && !migrationProcess.killed) {
+    migrationProcess.kill("SIGTERM");
+    setTimeout(() => migrationProcess?.kill("SIGKILL"), 5_000).unref();
+  }
   if (api) {
     api.kill("SIGTERM");
     setTimeout(() => api.kill("SIGKILL"), 5_000).unref();

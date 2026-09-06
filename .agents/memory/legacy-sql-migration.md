@@ -26,3 +26,9 @@ Legacy PostgreSQL tables may retain an integer primary key without an attached s
 **Why:** A migrated usage table accepted historical data but rejected every new sync row with a not-null violation because its `id` column generated no value.
 
 **How to apply:** For legacy tables that receive new writes, create/attach an owned sequence, advance it beyond the current maximum ID, and verify an insert can generate an ID without supplying one.
+
+Hostinger restarts must terminate the migration child process, and migration lock acquisition must be bounded and observable.
+
+**Why:** A parent restart can otherwise leave an orphaned importer holding PostgreSQL’s advisory lock, causing every replacement process to wait forever before reporting progress.
+
+**How to apply:** Track and kill the migration child on shutdown, use retryable advisory-lock polling with a deadline, set a database connection timeout, and emit regular migration heartbeat logs.
