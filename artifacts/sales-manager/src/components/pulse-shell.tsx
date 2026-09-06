@@ -1,7 +1,8 @@
 import { Activity, BarChart3, Bell, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert, Check, Sparkles, Copy, Search } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
-import { getSearchWorkspaceQueryKey, useLogout, useSearchWorkspace, type WorkspaceSearchResult } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { getGetAuthSessionQueryKey, getSearchWorkspaceQueryKey, useLogout, useSearchWorkspace, type WorkspaceSearchResult } from '@workspace/api-client-react';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateTimeLabel, statusLabel } from '@/lib/pulse-data';
 import { PulseNetworkAccent } from '@/components/pulse-network-accent';
@@ -44,6 +45,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const { session, sessionLoading, authFallback } = usePulse();
+  const queryClient = useQueryClient();
   const logout = useLogout();
   const searchQuery = useSearchWorkspace(
     { search: debouncedSearch, limit: 12 },
@@ -91,6 +93,17 @@ export function Shell({ children }: { children: ReactNode }) {
     ? [...nav, { href: '/admin-sales', label: 'فروش مشتریان فروشندگان', icon: ShieldAlert }]
     : nav;
   const isNavActive = (href: string) => location === href || (href !== '/' && location.startsWith(`${href}/`));
+  const signOut = async () => {
+    if (logout.isPending) return;
+    try {
+      await logout.mutateAsync();
+    } finally {
+      queryClient.setQueryData(getGetAuthSessionQueryKey(), { authenticated: false });
+      setOpen(false);
+      const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+      window.location.replace(`${basePath}/login`);
+    }
+  };
   const searchResults = Array.isArray(searchQuery.data) ? searchQuery.data : [];
   const searchOpen = searchFocused && searchText.trim().length >= 2;
 
@@ -215,7 +228,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <p className="truncate text-[13px] font-bold tracking-tight">{name}</p>
               <p className="text-[11px] text-muted-foreground/80 tracking-tight font-medium">{session?.role === 'master_admin' ? 'مدیر اصلی' : 'فروشنده'}</p>
             </div>
-            <button className="icon-button text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors" onClick={() => logout.mutate()} aria-label="خروج" title="خروج"><LogOut size={16} /></button>
+            <button className="icon-button text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors" onClick={() => void signOut()} disabled={logout.isPending} aria-label="خروج از حساب" title="خروج از حساب"><LogOut size={16} /></button>
           </div>
         </div>
       </aside>
@@ -346,14 +359,14 @@ export function Shell({ children }: { children: ReactNode }) {
       </main>
 
       {/* Mobile Bottom Dock */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-2xl border-t border-border/50 pb-safe pt-2 px-2 flex items-center justify-around shadow-[0_-8px_32px_rgba(0,0,0,0.05)]">
+      {!open && <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-2xl border-t border-border/50 pb-safe pt-2 px-2 flex items-center justify-around shadow-[0_-8px_32px_rgba(0,0,0,0.05)]">
         {nav.map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${isNavActive(href) ? 'text-primary scale-110' : 'text-muted-foreground hover:text-foreground'}`}>
             <Icon size={20} strokeWidth={isNavActive(href) ? 2.5 : 2} />
             <span className="text-[9px] font-bold tracking-tight">{label}</span>
           </Link>
         ))}
-      </nav>
+      </nav>}
     </div>
   );
 }

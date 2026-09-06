@@ -61280,22 +61280,30 @@ app.use(
   })
 );
 var allowedCorsOrigins = (process.env.CORS_ORIGINS ?? "").split(",").map((origin) => origin.trim()).filter(Boolean);
-app.use(
+app.use((req, res, next) => {
   (0, import_cors.default)({
     origin: (requestOrigin, callback) => {
       if (!requestOrigin) {
         callback(null, false);
         return;
       }
-      if (allowedCorsOrigins.includes(requestOrigin)) {
-        callback(null, requestOrigin);
-        return;
+      try {
+        const originHost = new URL(requestOrigin).host.toLowerCase();
+        const requestHosts = [
+          req.get("host"),
+          req.get("x-forwarded-host")?.split(",")[0]?.trim()
+        ].filter((host) => Boolean(host)).map((host) => host.toLowerCase());
+        if (requestHosts.includes(originHost) || allowedCorsOrigins.includes(requestOrigin)) {
+          callback(null, requestOrigin);
+          return;
+        }
+      } catch {
       }
       callback(new Error("Origin is not allowed"));
     },
     credentials: true
-  })
-);
+  })(req, res, next);
+});
 app.use((0, import_cookie_parser.default)());
 app.use(import_express4.default.json({ limit: "256kb" }));
 app.use(import_express4.default.urlencoded({ extended: true, limit: "64kb" }));

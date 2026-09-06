@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, createContext, useContext, useId, useRef, type ReactNode, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Activity, ArrowUpLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, CreditCard, Download, ExternalLink, Filter, Gauge, Globe2, History, KeyRound, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Tag, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
+import { Activity, ArrowUpLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, CreditCard, Download, ExternalLink, Filter, Gauge, Globe2, History, KeyRound, Lock, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Tag, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Link, useLocation, useParams } from 'wouter';
 import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, type AdminSale } from '@workspace/api-client-react';
@@ -121,8 +121,8 @@ export function PulseProvider({ children }: { children: ReactNode }) {
     setRenewTarget(null);
   }, [canLoadApi]);
   const customers = useMemo(() => apiCustomers ?? [], [apiCustomers]);
-  const displaySession = { authenticated: true, role: 'master_admin', display_name: 'مدیر ارشد' };
-  const authFallback = false;
+  const displaySession = sessionQuery.data ?? null;
+  const authFallback = sessionQuery.isError;
   const resellers = Array.isArray(resellerQuery.data) ? resellerQuery.data.map((r: any) => ({ id: r.id, telegram_id: Number(r.telegram_id), title: r.title, enabled: r.enabled, used_gb: r.used_gb, total_gb: r.total_gb, per_gig_price: Number(r.per_gig_price ?? 0), customer_price_per_gb: Number(r.customer_price_per_gb ?? 0) })) : localResellers;
   const updateSale = (sale: Sale) => {
     setSales((items) => items.map((item) => item.id === sale.id ? sale : item));
@@ -159,18 +159,121 @@ function LoginPageContent() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const [telegramId, setTelegramId] = useState('');
+  
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const id = Number(telegramId.replace(/[^\d]/g, ''));
     if (!Number.isSafeInteger(id) || id <= 0) return;
-    await login.mutateAsync({ data: { telegram_id: id } });
+    const authenticatedSession = await login.mutateAsync({ data: { telegram_id: id } });
+    queryClient.setQueryData(getGetAuthSessionQueryKey(), authenticatedSession);
     await queryClient.invalidateQueries({ queryKey: getGetAuthSessionQueryKey() });
     navigate('/');
   };
-  return <div className="login-screen"><div className="login-card"><div className="login-orb"><div className="pulse-mark large"><span /></div></div><p className="eyebrow mt-6 text-center">مرکز عملیات پالس</p><h1 className="page-title mt-2 text-center">ورود با شناسه تلگرام</h1><p className="page-description mt-3 text-center">شناسه عددی تلگرام مدیر یا فروشنده را وارد کنید. اطلاعات شما مستقیماً از دیتابیس SQL بارگذاری می‌شود.</p>{session?.authenticated ? <Link href="/" className="button button-primary mt-7 w-full justify-center">ورود به داشبورد</Link> : <form onSubmit={submit} className="login-action mt-7"><label className="field"><span>Telegram ID</span><div className="login-id-field"><KeyRound size={18} /><input inputMode="numeric" dir="ltr" autoFocus value={telegramId} onChange={(event) => setTelegramId(event.target.value)} data-testid="input-telegram-id" /></div></label><button className="button button-primary mt-4 w-full justify-center" disabled={login.isPending || !telegramId.trim()} data-testid="button-login-id">{login.isPending ? <><RefreshCw size={16} className="spin" /> در حال بررسی...</> : <>ورود به پنل <ChevronLeft size={16} /></>}</button>{login.isError && <div className="login-error mt-4">این شناسه در فهرست مدیر یا فروشنده‌های فعال نیست.</div>}</form>}<div className="login-security mt-6"><ShieldCheck size={16} /><span>دسترسی هر فروشنده در سرور به اطلاعات خودش محدود شده است.</span></div></div></div>;
+
+  return (
+    <div className="flex w-full max-w-[420px] flex-col items-center justify-center p-6 mx-auto min-h-[100dvh] relative z-10 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+      <div className="w-full flex flex-col items-center animate-in fade-in zoom-in-95 duration-700">
+        <div className="relative flex h-24 w-24 items-center justify-center mb-8">
+          <div className="absolute inset-0 rounded-3xl bg-primary/20 blur-xl animate-pulse"></div>
+          <div className="pulse-mark scale-[2.5] shadow-xl shadow-primary/20 ring-1 ring-primary/30"><span /></div>
+        </div>
+        
+        <div className="w-full text-center space-y-3 mb-10">
+          <p className="eyebrow text-primary/80 font-bold tracking-[0.2em] uppercase">فضای امنیتی پالس</p>
+          <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground">احراز هویت سامانه</h1>
+          <p className="text-[13px] font-medium text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
+            دسترسی به این پنل محدود است. برای ورود، شناسه عددی تلگرام خود را وارد کنید.
+          </p>
+        </div>
+
+        <div className="w-full bg-card/80 backdrop-blur-2xl border border-border/60 rounded-[2rem] p-6 sm:p-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+          
+          {session?.authenticated ? (
+            <div className="flex flex-col items-center gap-6 py-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                <Check className="text-emerald-500" size={32} />
+              </div>
+              <div className="text-center">
+                <p className="text-base font-bold text-foreground mb-1">دسترسی تایید شد</p>
+                <p className="text-xs text-muted-foreground">در حال انتقال به مرکز عملیات...</p>
+              </div>
+              <Link href="/" className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:shadow-primary/30 active:scale-[0.98]">
+                ورود به داشبورد <ChevronLeft size={18} />
+              </Link>
+            </div>
+          ) : (
+            <form onSubmit={submit} className="flex flex-col gap-6">
+              <div className="space-y-2.5">
+                <label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-between">
+                  <span>شناسه تلگرام (ID)</span>
+                  <Lock size={12} className="text-primary/70" />
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-4 flex items-center justify-center pointer-events-none text-muted-foreground/60 group-focus-within:text-primary transition-colors">
+                    <KeyRound size={20} />
+                  </div>
+                  <input 
+                    inputMode="numeric" 
+                    dir="ltr" 
+                    autoFocus 
+                    value={telegramId} 
+                    onChange={(event) => setTelegramId(event.target.value)} 
+                    data-testid="input-telegram-id"
+                    placeholder="123456789"
+                    className="w-full h-14 bg-background/60 border border-border/80 rounded-2xl pl-12 pr-4 text-left font-mono text-lg font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/15 transition-all shadow-inner"
+                  />
+                  <div className="absolute inset-0 -z-10 rounded-2xl bg-primary/20 opacity-0 group-focus-within:opacity-100 blur-xl transition-opacity"></div>
+                </div>
+              </div>
+              
+              <button 
+                type="submit"
+                className="group relative flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold shadow-[0_8px_24px_-8px_rgba(var(--primary),0.5)] transition-all hover:bg-primary/90 hover:shadow-[0_12px_32px_-8px_rgba(var(--primary),0.6)] active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none overflow-hidden" 
+                disabled={login.isPending || !telegramId.trim()} 
+                data-testid="button-login-id"
+              >
+                {login.isPending ? (
+                  <><RefreshCw size={18} className="animate-spin" /> در حال احراز هویت...</>
+                ) : (
+                  <>بررسی صلاحیت <ChevronLeft size={18} className="transition-transform group-hover:-translate-x-1" /></>
+                )}
+              </button>
+
+              {login.isError && (
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-medium animate-in fade-in slide-in-from-top-2">
+                  <ShieldCheck size={18} className="flex-shrink-0 mt-0.5" />
+                  <p className="leading-relaxed text-[13px]">این شناسه در فهرست پرسنل مجاز یافت نشد. لطفاً بررسی کنید.</p>
+                </div>
+              )}
+            </form>
+          )}
+        </div>
+
+        <div className="mt-8 flex items-center justify-center gap-2 text-[11px] font-medium text-muted-foreground/80 bg-card/40 backdrop-blur-md px-4 py-2.5 rounded-full border border-border/40 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both">
+          <Server size={12} className="text-primary/70" />
+          <span>اتصال شما به سرور اختصاصی رمزنگاری شده است</span>
+        </div>
+      </div>
+    </div>
+  );
 }
+
 export function LoginPage() {
-  return <SurfaceFrame name="login" signal><LoginPageContent /></SurfaceFrame>;
+  return (
+    <div className="min-h-[100dvh] w-full flex flex-col bg-background text-foreground relative overflow-y-auto overflow-x-hidden selection:bg-primary/30" dir="rtl">
+      <div className="fixed inset-0 z-0 bg-[linear-gradient(to_right,hsl(var(--border)/0.2)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.2)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,#000_10%,transparent_100%)] opacity-60 pointer-events-none"></div>
+      
+      <div className="fixed top-1/4 left-1/4 w-[500px] h-[500px] bg-primary/10 blur-[120px] rounded-full pointer-events-none mix-blend-screen opacity-70"></div>
+      <div className="fixed bottom-1/4 right-1/4 w-[400px] h-[400px] bg-accent/10 blur-[100px] rounded-full pointer-events-none mix-blend-screen opacity-50"></div>
+
+      <div className="fixed inset-0 z-0 opacity-40 mix-blend-screen pointer-events-none">
+        <PulseNetworkAccent />
+      </div>
+      
+      <LoginPageContent />
+    </div>
+  );
 }
 
 const Button = ({ children, onClick, variant = 'primary', type = 'button', className = '', disabled = false, testId }: { children: ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'quiet' | 'danger'; type?: 'button' | 'submit'; className?: string; disabled?: boolean; testId?: string }) => <button type={type} onClick={onClick} disabled={disabled} className={`button button-${variant} ${className}`} data-testid={testId}>{children}</button>;

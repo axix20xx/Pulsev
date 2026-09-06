@@ -25,3 +25,4 @@
 - [Server entity cache boundary](server-entity-cache-boundary.md) — authenticated business records must not be restored from generic browser storage across account changes.
 - [Hostinger root bundle](hostinger-root-bundle.md) — flat Hostinger deployments must build the frontend with `BASE_PATH=/`, not the Replit artifact prefix.
 - [Provider subscription feed](provider-subscription-feed.md) — public feeds must resolve through active Provider URLs; legacy token proxying is compatibility-only.
+- [Session guard and logout](session-guard-logout.md) — management UI must trust only server sessions; same-origin login and logout must survive proxy hosts and stale client caches.

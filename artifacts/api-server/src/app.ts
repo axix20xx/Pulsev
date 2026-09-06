@@ -31,22 +31,36 @@ const allowedCorsOrigins = (process.env.CORS_ORIGINS ?? "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
-app.use(
+app.use((req, res, next) => {
   cors({
     origin: (requestOrigin, callback) => {
       if (!requestOrigin) {
         callback(null, false);
         return;
       }
-      if (allowedCorsOrigins.includes(requestOrigin)) {
-        callback(null, requestOrigin);
-        return;
+      try {
+        const originHost = new URL(requestOrigin).host.toLowerCase();
+        const requestHosts = [
+          req.get("host"),
+          req.get("x-forwarded-host")?.split(",")[0]?.trim(),
+        ]
+          .filter((host): host is string => Boolean(host))
+          .map((host) => host.toLowerCase());
+        if (
+          requestHosts.includes(originHost) ||
+          allowedCorsOrigins.includes(requestOrigin)
+        ) {
+          callback(null, requestOrigin);
+          return;
+        }
+      } catch {
+        // Invalid origins are rejected below.
       }
       callback(new Error("Origin is not allowed"));
     },
     credentials: true,
-  }),
-);
+  })(req, res, next);
+});
 app.use(cookieParser());
 app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: true, limit: "64kb" }));
