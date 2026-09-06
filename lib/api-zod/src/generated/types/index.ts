@@ -45,6 +45,7 @@ export * from './saleUpdate';
 export * from './searchParameter';
 export * from './searchWorkspaceParams';
 export * from './service';
+export * from './servicesLimitParameter';
 export * from './serviceStatus';
 export * from './serviceUpdate';
 export * from './serviceUpdateStatus';

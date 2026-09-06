@@ -5,14 +5,15 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { LimitParameter } from './limitParameter';
 import type { SearchParameter } from './searchParameter';
+import type { ServicesLimitParameter } from './servicesLimitParameter';
 
 export type ListServicesParams = {
 search?: SearchParameter;
 /**
+ * Maximum visible services returned for management filtering
  * @minimum 1
- * @maximum 200
+ * @maximum 5000
  */
-limit?: LimitParameter;
+limit?: ServicesLimitParameter;
 };

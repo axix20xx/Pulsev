@@ -38117,11 +38117,11 @@ var UpdateSaleResponse = objectType({
   "paid": booleanType(),
   "status": stringType()
 });
-var listServicesQueryLimitDefault = 100;
-var listServicesQueryLimitMax = 200;
+var listServicesQueryLimitDefault = 1e3;
+var listServicesQueryLimitMax = 5e3;
 var ListServicesQueryParams = objectType({
   "search": coerce.string().optional(),
-  "limit": coerce.number().min(1).max(listServicesQueryLimitMax).default(listServicesQueryLimitDefault)
+  "limit": coerce.number().min(1).max(listServicesQueryLimitMax).default(listServicesQueryLimitDefault).describe("Maximum visible services returned for management filtering")
 });
 var ListServicesResponseItem = objectType({
   "id": numberType(),

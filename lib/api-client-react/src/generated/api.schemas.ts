@@ -408,6 +408,11 @@ export type SearchParameter = string;
 export type LimitParameter = number;
 
 /**
+ * Maximum visible services returned for management filtering
+ */
+export type ServicesLimitParameter = number;
+
+/**
  * Start date in ISO Gregorian format; the UI displays this as a Persian date.
  */
 export type FromDateParameter = string;
@@ -486,10 +491,11 @@ to?: ToDateParameter;
 export type ListServicesParams = {
 search?: SearchParameter;
 /**
+ * Maximum visible services returned for management filtering
  * @minimum 1
- * @maximum 200
+ * @maximum 5000
  */
-limit?: LimitParameter;
+limit?: ServicesLimitParameter;
 };
 
 export type ResetServiceToken200 = {

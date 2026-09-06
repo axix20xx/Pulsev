@@ -416,14 +416,14 @@ export const UpdateSaleResponse = zod.object({
 /**
  * @summary List services visible to the current user
  */
-export const listServicesQueryLimitDefault = 100;
-export const listServicesQueryLimitMax = 200;
+export const listServicesQueryLimitDefault = 1000;
+export const listServicesQueryLimitMax = 5000;
 
 
 
 export const ListServicesQueryParams = zod.object({
   "search": zod.coerce.string().optional(),
-  "limit": zod.coerce.number().min(1).max(listServicesQueryLimitMax).default(listServicesQueryLimitDefault)
+  "limit": zod.coerce.number().min(1).max(listServicesQueryLimitMax).default(listServicesQueryLimitDefault).describe('Maximum visible services returned for management filtering')
 })
 
 export const ListServicesResponseItem = zod.object({
