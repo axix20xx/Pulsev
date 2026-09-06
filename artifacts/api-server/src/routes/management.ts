@@ -2149,15 +2149,12 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
     );
     const saleId = Number(saleNext.rows[0].id);
     const customerPricePerGb = Number(currentReseller.rows[0]?.customer_price_per_gb ?? 0);
-    if (req.auth?.role === "reseller" && customerPricePerGb <= 0) {
+    if (req.auth?.role === "reseller" && body.data.sell_price == null && customerPricePerGb <= 0) {
       await client.query("ROLLBACK");
-      res.status(400).json({ error: "مدیر هنوز قیمت فروش سرویس به مشتری را برای شما تعیین نکرده است" });
+      res.status(400).json({ error: "قیمت فروش به مشتری را وارد کنید" });
       return;
     }
-    const sellPrice =
-      req.auth?.role === "reseller"
-        ? body.data.gb * customerPricePerGb
-        : body.data.sell_price ?? body.data.gb * customerPricePerGb;
+    const sellPrice = body.data.sell_price ?? body.data.gb * customerPricePerGb;
     await client.query(
       `INSERT INTO reseller_sales_log
        (id, reseller_tg_id, service_id, action_type, gb_amount, days_amount, created_at, custom_sell_price, is_paid)

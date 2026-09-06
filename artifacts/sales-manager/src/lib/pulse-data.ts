@@ -100,7 +100,7 @@ export const isoToday = () => { const parts = dateParts(new Date()); return `${p
 export const isoDaysFromToday = (offset: number) => { const parts = dateParts(new Date(Date.now() + offset * 86400000)); return `${parts.year}-${parts.month}-${parts.day}`; };
 export const jalaliInputValue = (iso: string) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return ''; const parts = dateParts(tehranDate(iso), 'persian'); return toPersianDigits(`${parts.year}/${parts.month}/${parts.day}`); };
 
-function jalaliToGregorian(jy: number, jm: number, jd: number): string | null {
+export function jalaliToGregorian(jy: number, jm: number, jd: number): string | null {
   if (jy < 1200 || jy > 1600 || jm < 1 || jm > 12 || jd < 1 || jd > (jm <= 6 ? 31 : jm <= 11 ? 30 : 30)) return null;
   const adjustedYear = jy + 1595;
   let days = -355668 + 365 * adjustedYear + Math.floor(adjustedYear / 33) * 8 + Math.floor(((adjustedYear % 33) + 3) / 4) + jd + (jm < 7 ? (jm - 1) * 31 : (jm - 7) * 30 + 186);
