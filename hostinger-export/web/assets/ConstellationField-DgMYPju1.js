@@ -1,4 +1,4 @@
-import{j as S,r as x}from"./index-CvTnWbWE.js";const G=`<!DOCTYPE html>
+import{j as S,r as x}from"./index-CQ1e7Qrs.js";const G=`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />

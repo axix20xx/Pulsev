@@ -3580,8 +3580,85 @@ h1, h2, h3, h4, h5, h6, p, ul, ol, li { text-align: right; }
 }
 
 @media (max-width: 767px) {
+  #root .pulse-surface-overview .metrics-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+  #root .pulse-surface-overview .metric-card {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    align-items: center !important;
+    column-gap: 11px;
+    min-height: 0;
+    padding: 12px 13px;
+    border-radius: 16px;
+  }
+  #root .pulse-surface-overview .metric-icon {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    width: 36px;
+    height: 36px;
+    margin: 0 !important;
+  }
+  #root .pulse-surface-overview .metric-label {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+  #root .pulse-surface-overview .metric-card > div:nth-of-type(2) {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    margin: 3px 0 0;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  #root .pulse-surface-overview .metric-value {
+    display: block;
+    max-width: 100%;
+    font-size: clamp(17px, 5vw, 20px);
+    line-height: 1.35;
+    letter-spacing: -.035em;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  #root .pulse-surface-overview .metric-detail {
+    grid-column: 2;
+    grid-row: 3;
+    min-width: 0;
+    margin: 2px 0 0;
+    font-size: 8.5px;
+    line-height: 1.45;
+  }
   .save-toast {
     bottom: calc(88px + env(safe-area-inset-bottom)) !important;
   }
 }
+
+.sidebar-logout-button {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 12px;
+  border: 1px solid hsl(var(--destructive) / .2);
+  border-radius: 11px;
+  background: hsl(var(--destructive) / .07);
+  color: hsl(var(--destructive));
+  font-size: 11px;
+  font-weight: 800;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+.sidebar-logout-button:hover:not(:disabled) {
+  border-color: hsl(var(--destructive) / .38);
+  background: hsl(var(--destructive) / .12);
+}
+.sidebar-logout-button:active:not(:disabled) { transform: scale(.985); }
+.sidebar-logout-button:disabled { cursor: wait; opacity: .65; }
 

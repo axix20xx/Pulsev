@@ -228,8 +228,8 @@ export function Shell({ children }: { children: ReactNode }) {
               <p className="truncate text-[13px] font-bold tracking-tight">{name}</p>
               <p className="text-[11px] text-muted-foreground/80 tracking-tight font-medium">{session?.role === 'master_admin' ? 'مدیر اصلی' : 'فروشنده'}</p>
             </div>
-            <button className="icon-button text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors" onClick={() => void signOut()} disabled={logout.isPending} aria-label="خروج از حساب" title="خروج از حساب"><LogOut size={16} /></button>
           </div>
+          <button className="sidebar-logout-button" onClick={() => void signOut()} disabled={logout.isPending} aria-label="خروج از حساب"><LogOut size={15} /><span>{logout.isPending ? 'در حال خروج...' : 'خروج از حساب'}</span></button>
         </div>
       </aside>
 
