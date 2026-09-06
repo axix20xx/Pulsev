@@ -57068,6 +57068,11 @@ function panelKind(panel) {
   if (kind === "falcon") return "falcon";
   return "marzban";
 }
+function panelEnvCredential(key, suffix) {
+  const normalized = key?.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  if (!normalized) return void 0;
+  return process.env[`RAIN_${normalized}_${suffix}`]?.trim() || void 0;
+}
 async function panels(ownerId, role) {
   const result = await pool.query(
     `SELECT p.key, p.kind, p.api_base,
@@ -57080,9 +57085,9 @@ async function panels(ownerId, role) {
     key: panel.key,
     kind: panel.kind,
     api_base: panel.api_base.replace(/\/+$/, ""),
-    admin_user: decryptPanelCredential(panel.username_secret),
-    admin_pass: decryptPanelCredential(panel.password_secret),
-    api_key: decryptPanelCredential(panel.api_key_secret)
+    admin_user: decryptPanelCredential(panel.username_secret) ?? panelEnvCredential(panel.key, "USER"),
+    admin_pass: decryptPanelCredential(panel.password_secret) ?? panelEnvCredential(panel.key, "PASS"),
+    api_key: decryptPanelCredential(panel.api_key_secret) ?? panelEnvCredential(panel.key, "API_KEY")
   })).filter((panel) => {
     const kind = panelKind(panel);
     return kind === "falcon" ? Boolean(panel.api_key) : Boolean(panel.admin_user && panel.admin_pass);
@@ -57250,9 +57255,6 @@ async function fetchPanelSubscription(username, ownerId, role) {
 }
 function bytesForGb(gb) {
   return Math.round(Math.max(0, gb) * 1024 * 1024 * 1024);
-}
-function isoInDays(days) {
-  return new Date(Date.now() + Math.max(0, days) * 864e5).toISOString();
 }
 async function request(panel, method, path, token, body) {
   const response = await fetch(`${panel.api_base}${path}`, {
@@ -57499,7 +57501,7 @@ async function disablePanelUser(username, falcoConfigId, ownerId, role) {
     attempted += 1;
     const kind = panelKind(panel);
     const encoded = encodeURIComponent(username);
-    const candidates = kind === "falcon" ? falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [] : kind === "rain_admin" ? [["PATCH", `/api/users/${encoded}`, { status: "disabled" }], ["PUT", `/api/users/${encoded}`, { status: "disabled" }]] : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
+    const candidates = kind === "falcon" ? falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [] : kind === "rain_admin" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
     let success2 = false;
     for (const [method, path, body] of candidates) {
       try {
@@ -57521,12 +57523,11 @@ async function disablePanelUser(username, falcoConfigId, ownerId, role) {
   }
   return { attempted, disabled };
 }
-async function rainAdminServiceIds(panel) {
-  const response = await panelRequest(panel, "GET", "/api/services");
-  if (!response || ![200, 201].includes(response.status)) return [];
-  const list = response.json?.items ?? response.json?.data ?? response.json?.results ?? response.json?.services ?? response.json;
-  if (!Array.isArray(list)) return [];
-  return list.map((item) => Number(item?.id)).filter((id) => Number.isInteger(id) && id > 0);
+function groupIdsFromUser(value) {
+  const payload = nestedPayload(value);
+  const direct = Array.isArray(payload?.group_ids) ? payload.group_ids : [];
+  const groups = Array.isArray(payload?.groups) ? payload.groups.map((group) => group?.id) : [];
+  return [...new Set([...direct, ...groups, 1].map(Number).filter((id) => Number.isInteger(id) && id > 0))];
 }
 async function marzbanInbounds(panel) {
   const response = await panelRequest(panel, "GET", "/api/inbounds");
@@ -57551,26 +57552,18 @@ async function marzbanInbounds(panel) {
   return result;
 }
 async function provisionRainAdmin(panel, username, gb, days) {
-  const ids = await rainAdminServiceIds(panel);
+  const encoded = encodeURIComponent(username);
+  const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
   const body = {
     username,
-    expire_strategy: "fixed_date",
-    expire_date: isoInDays(days),
-    expire_at: isoInDays(days),
+    status: "active",
+    expire: Math.floor((Date.now() + Math.max(0, days) * 864e5) / 1e3),
     data_limit: bytesForGb(gb),
-    data_limit_bytes: bytesForGb(gb),
     data_limit_reset_strategy: "no_reset",
-    note: `Pulse provisioned ${(/* @__PURE__ */ new Date()).toISOString()}`,
-    ...ids.length ? { service_ids: ids } : {}
+    group_ids: existing.status === 200 ? groupIdsFromUser(existing.json) : [1],
+    note: `Pulse provisioned ${(/* @__PURE__ */ new Date()).toISOString()}`
   };
-  const encoded = encodeURIComponent(username);
-  const candidates = [
-    ["PUT", `/api/users/${encoded}`],
-    ["PATCH", `/api/users/${encoded}`],
-    ["POST", "/api/users"],
-    ["PUT", `/api/user/${encoded}`],
-    ["POST", "/api/user"]
-  ];
+  const candidates = existing.status === 200 ? [["PUT", `/api/user/${encoded}`]] : [["POST", "/api/user"]];
   let last = { status: 0, json: null, text: "" };
   for (const [method, path] of candidates) {
     last = await panelRequest(panel, method, path, body);
@@ -57578,6 +57571,39 @@ async function provisionRainAdmin(panel, username, gb, days) {
     if (![404, 405, 422].includes(last.status)) break;
   }
   throw new RainApiError(`Rain panel ${panelKey(panel)} rejected the user: ${safeError(last)}`);
+}
+async function ensureRainAdminGroupOne(username, ownerId, role) {
+  let attempted = 0;
+  let enabled = 0;
+  const errors = [];
+  const encoded = encodeURIComponent(username);
+  for (const panel of await panels(ownerId, role)) {
+    if (panelKind(panel) !== "rain_admin") continue;
+    attempted += 1;
+    try {
+      const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+      if (existing.status === 404) {
+        errors.push(`${panelKey(panel)}: user not found`);
+        continue;
+      }
+      if (existing.status < 200 || existing.status >= 300) {
+        errors.push(`${panelKey(panel)}: ${safeError(existing)}`);
+        continue;
+      }
+      const response = await panelRequest(panel, "PUT", `/api/user/${encoded}`, {
+        status: "active",
+        group_ids: groupIdsFromUser(existing.json)
+      });
+      if (response.status >= 200 && response.status < 300) {
+        enabled += 1;
+      } else {
+        errors.push(`${panelKey(panel)}: ${safeError(response)}`);
+      }
+    } catch (error40) {
+      errors.push(`${panelKey(panel)}: ${error40 instanceof Error ? error40.message : "unknown error"}`);
+    }
+  }
+  return { attempted, enabled, errors };
 }
 async function provisionMarzban(panel, username, gb, days) {
   const encoded = encodeURIComponent(username);
@@ -61721,6 +61747,90 @@ function startProvisioningWorker() {
   logger.info("Service provisioning worker started");
 }
 
+// src/lib/rain-group-sync.ts
+var LOCK_NAMESPACE = 74421;
+var DEFAULT_INTERVAL_MS2 = 6 * 60 * 6e4;
+var INITIAL_DELAY_MS = 9e4;
+async function eligibleServices() {
+  const result = await pool.query(
+    `SELECT id, reseller_tg_id, rain_username
+     FROM reseller_services
+     WHERE status IN ('active', 'expiring')
+       AND (expire_at IS NULL OR expire_at > NOW())
+       AND COALESCE(last_used_bytes, 0) <
+         CASE
+           WHEN COALESCE(last_total_bytes, 0) > 0 THEN last_total_bytes
+           ELSE ROUND(COALESCE(gb, 0)::numeric * 1073741824)
+         END
+     ORDER BY id`
+  );
+  return result.rows;
+}
+async function syncOne(service) {
+  const lockClient = await pool.connect();
+  try {
+    await lockClient.query("SELECT pg_advisory_lock($1, $2)", [LOCK_NAMESPACE, service.id]);
+    const current = await pool.query(
+      `SELECT id, reseller_tg_id, rain_username
+       FROM reseller_services
+       WHERE id = $1
+         AND status IN ('active', 'expiring')
+         AND (expire_at IS NULL OR expire_at > NOW())
+         AND COALESCE(last_used_bytes, 0) <
+           CASE
+             WHEN COALESCE(last_total_bytes, 0) > 0 THEN last_total_bytes
+             ELSE ROUND(COALESCE(gb, 0)::numeric * 1073741824)
+           END
+       LIMIT 1`,
+      [service.id]
+    );
+    if (!current.rows[0]) return { attempted: 0, enabled: 0 };
+    const result = await ensureRainAdminGroupOne(
+      current.rows[0].rain_username,
+      Number(current.rows[0].reseller_tg_id)
+    );
+    if (result.errors.length) {
+      logger.warn(
+        { serviceId: service.id, errors: result.errors.slice(0, 5) },
+        "PasarGuard Group 1 reconciliation was incomplete"
+      );
+    }
+    return { attempted: result.attempted, enabled: result.enabled };
+  } finally {
+    await lockClient.query("SELECT pg_advisory_unlock($1, $2)", [LOCK_NAMESPACE, service.id]).catch(() => void 0);
+    lockClient.release();
+  }
+}
+async function runRainGroupSync() {
+  const services = await eligibleServices();
+  let attempted = 0;
+  let enabled = 0;
+  for (const service of services) {
+    const result = await syncOne(service);
+    attempted += result.attempted;
+    enabled += result.enabled;
+  }
+  logger.info(
+    { services: services.length, attempted, enabled },
+    "PasarGuard Group 1 reconciliation completed"
+  );
+}
+function startRainGroupSyncWorker() {
+  const configured = Number(process.env.RAIN_GROUP_SYNC_INTERVAL_MS ?? DEFAULT_INTERVAL_MS2);
+  const interval2 = Number.isFinite(configured) && configured >= 6e4 ? configured : DEFAULT_INTERVAL_MS2;
+  setTimeout(() => {
+    void runRainGroupSync().catch(
+      (error40) => logger.error({ err: error40 }, "PasarGuard Group 1 reconciliation failed")
+    );
+  }, INITIAL_DELAY_MS);
+  setInterval(() => {
+    void runRainGroupSync().catch(
+      (error40) => logger.error({ err: error40 }, "PasarGuard Group 1 reconciliation failed")
+    );
+  }, interval2);
+  logger.info({ intervalMs: interval2 }, "PasarGuard Group 1 reconciliation worker started");
+}
+
 // src/index.ts
 var rawPort = process.env["PORT"];
 if (!rawPort) {
@@ -61738,7 +61848,10 @@ app_default.listen(port, (err) => {
     process.exit(1);
   }
   logger.info({ port }, "Server listening");
-  void managementReady.then(() => startProvisioningWorker()).catch((error40) => logger.error({ err: error40 }, "Provisioning worker failed to start"));
+  void managementReady.then(() => {
+    startProvisioningWorker();
+    startRainGroupSyncWorker();
+  }).catch((error40) => logger.error({ err: error40 }, "Provisioning worker failed to start"));
 });
 /*! Bundled license information:
 

@@ -90,11 +90,19 @@ Variables Hostinger تنظیم کنید.
 SUBSCRIPTION_UPSTREAM_BASE_URL=
 LEGACY_SUBSCRIPTION_BASE_URL=
 USAGE_SYNC_INTERVAL_MS=60000
+RAIN_GROUP_SYNC_INTERVAL_MS=21600000
 ```
 
+`RAIN_GROUP_SYNC_INTERVAL_MS` فاصلهٔ اجرای همگام‌سازی کاربران فعال PasarGuard
+است. این worker به‌طور پیش‌فرض هر ۶ ساعت اجرا می‌شود، Group 1 را با حفظ
+گروه‌های قبلی اضافه می‌کند و فقط وضعیت/group را تغییر می‌دهد؛ حجم، تاریخ و
+مصرف کاربران قبلی بازنویسی نمی‌شود.
+
 credentialهای Provider فقط از صفحهٔ Settings خود پنل خوانده می‌شوند؛ این
-مقادیر قبل از ذخیره در دیتابیس رمزنگاری می‌شوند و envهای Rain برای provisioning
-استفاده نمی‌شوند.
+مقادیر قبل از ذخیره در دیتابیس رمزنگاری می‌شوند. برای مهاجرت نسخه‌های قدیمی،
+اگر credential دیتابیس هنوز ذخیره نشده باشد، `phonepanel` و `speedur` می‌توانند
+به‌ترتیب از `RAIN_PHONEPANEL_USER/PASS` و `RAIN_SPEEDUR_USER/PASS` استفاده کنند؛
+credential دیتابیس همیشه اولویت دارد.
 
 ## نکتهٔ امنیتی
 

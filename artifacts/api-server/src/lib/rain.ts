@@ -47,6 +47,12 @@ function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" {
   return "marzban";
 }
 
+function panelEnvCredential(key: string | undefined, suffix: "USER" | "PASS" | "API_KEY"): string | undefined {
+  const normalized = key?.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  if (!normalized) return undefined;
+  return process.env[`RAIN_${normalized}_${suffix}`]?.trim() || undefined;
+}
+
 async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
   const result = await pool.query<StoredPanel>(
     `SELECT p.key, p.kind, p.api_base,
@@ -59,9 +65,9 @@ async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
     key: panel.key,
     kind: panel.kind,
     api_base: panel.api_base.replace(/\/+$/, ""),
-    admin_user: decryptPanelCredential(panel.username_secret),
-    admin_pass: decryptPanelCredential(panel.password_secret),
-    api_key: decryptPanelCredential(panel.api_key_secret),
+    admin_user: decryptPanelCredential(panel.username_secret) ?? panelEnvCredential(panel.key, "USER"),
+    admin_pass: decryptPanelCredential(panel.password_secret) ?? panelEnvCredential(panel.key, "PASS"),
+    api_key: decryptPanelCredential(panel.api_key_secret) ?? panelEnvCredential(panel.key, "API_KEY"),
   })).filter((panel) => {
     const kind = panelKind(panel);
     return kind === "falcon"
@@ -607,7 +613,7 @@ export async function disablePanelUser(
     const candidates: Array<[string, string, unknown]> = kind === "falcon"
       ? (falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [])
       : kind === "rain_admin"
-        ? [["PATCH", `/api/users/${encoded}`, { status: "disabled" }], ["PUT", `/api/users/${encoded}`, { status: "disabled" }]]
+        ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]]
         : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
     let success = false;
     for (const [method, path, body] of candidates) {
@@ -625,19 +631,15 @@ export async function disablePanelUser(
   return { attempted, disabled };
 }
 
-async function rainAdminServiceIds(panel: Panel): Promise<number[]> {
-  const response = await panelRequest(panel, "GET", "/api/services");
-  if (!response || ![200, 201].includes(response.status)) return [];
-  const list =
-    response.json?.items ??
-    response.json?.data ??
-    response.json?.results ??
-    response.json?.services ??
-    response.json;
-  if (!Array.isArray(list)) return [];
-  return list
-    .map((item) => Number(item?.id))
-    .filter((id) => Number.isInteger(id) && id > 0);
+function groupIdsFromUser(value: any): number[] {
+  const payload = nestedPayload(value);
+  const direct = Array.isArray(payload?.group_ids) ? payload.group_ids : [];
+  const groups = Array.isArray(payload?.groups)
+    ? payload.groups.map((group: any) => group?.id)
+    : [];
+  return [...new Set([...direct, ...groups, 1]
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0))];
 }
 
 async function marzbanInbounds(panel: Panel): Promise<Record<string, string[]>> {
@@ -672,26 +674,20 @@ async function provisionRainAdmin(
   gb: number,
   days: number,
 ): Promise<number> {
-  const ids = await rainAdminServiceIds(panel);
+  const encoded = encodeURIComponent(username);
+  const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
   const body = {
     username,
-    expire_strategy: "fixed_date",
-    expire_date: isoInDays(days),
-    expire_at: isoInDays(days),
+    status: "active",
+    expire: Math.floor((Date.now() + Math.max(0, days) * 86_400_000) / 1000),
     data_limit: bytesForGb(gb),
-    data_limit_bytes: bytesForGb(gb),
     data_limit_reset_strategy: "no_reset",
+    group_ids: existing.status === 200 ? groupIdsFromUser(existing.json) : [1],
     note: `Pulse provisioned ${new Date().toISOString()}`,
-    ...(ids.length ? { service_ids: ids } : {}),
   };
-  const encoded = encodeURIComponent(username);
-  const candidates: Array<[string, string]> = [
-    ["PUT", `/api/users/${encoded}`],
-    ["PATCH", `/api/users/${encoded}`],
-    ["POST", "/api/users"],
-    ["PUT", `/api/user/${encoded}`],
-    ["POST", "/api/user"],
-  ];
+  const candidates: Array<[string, string]> = existing.status === 200
+    ? [["PUT", `/api/user/${encoded}`]]
+    : [["POST", "/api/user"]];
   let last = { status: 0, json: null, text: "" };
   for (const [method, path] of candidates) {
     last = await panelRequest(panel, method, path, body);
@@ -699,6 +695,44 @@ async function provisionRainAdmin(
     if (![404, 405, 422].includes(last.status)) break;
   }
   throw new RainApiError(`Rain panel ${panelKey(panel)} rejected the user: ${safeError(last)}`);
+}
+
+export async function ensureRainAdminGroupOne(
+  username: string,
+  ownerId?: number,
+  role?: string,
+): Promise<{ attempted: number; enabled: number; errors: string[] }> {
+  let attempted = 0;
+  let enabled = 0;
+  const errors: string[] = [];
+  const encoded = encodeURIComponent(username);
+  for (const panel of await panels(ownerId, role)) {
+    if (panelKind(panel) !== "rain_admin") continue;
+    attempted += 1;
+    try {
+      const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+      if (existing.status === 404) {
+        errors.push(`${panelKey(panel)}: user not found`);
+        continue;
+      }
+      if (existing.status < 200 || existing.status >= 300) {
+        errors.push(`${panelKey(panel)}: ${safeError(existing)}`);
+        continue;
+      }
+      const response = await panelRequest(panel, "PUT", `/api/user/${encoded}`, {
+        status: "active",
+        group_ids: groupIdsFromUser(existing.json),
+      });
+      if (response.status >= 200 && response.status < 300) {
+        enabled += 1;
+      } else {
+        errors.push(`${panelKey(panel)}: ${safeError(response)}`);
+      }
+    } catch (error) {
+      errors.push(`${panelKey(panel)}: ${error instanceof Error ? error.message : "unknown error"}`);
+    }
+  }
+  return { attempted, enabled, errors };
 }
 
 async function provisionMarzban(

@@ -26,3 +26,4 @@
 - [Hostinger root bundle](hostinger-root-bundle.md) — flat Hostinger deployments must build the frontend with `BASE_PATH=/`, not the Replit artifact prefix.
 - [Provider subscription feed](provider-subscription-feed.md) — public feeds must resolve through active Provider URLs; legacy token proxying is compatibility-only.
 - [Session guard and logout](session-guard-logout.md) — management UI must trust only server sessions; same-origin login and logout must survive proxy hosts and stale client caches.
+- [PasarGuard Provider contract](pasarguard-provider-contract.md) — rain_admin uses singular user routes; Group 1 reconciliation must preserve lifecycle shutdown safety.
