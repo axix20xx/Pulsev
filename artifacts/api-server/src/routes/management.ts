@@ -162,7 +162,33 @@ export const managementReady = pool
        SET per_gig_price = ${MASTER_ADMIN_COST_PER_GB}
        WHERE tg_id = ${MASTER_ADMIN_TELEGRAM_ID};
      ALTER TABLE reseller_services
-       ADD COLUMN IF NOT EXISTS disabled_at TIMESTAMP;
+        ADD COLUMN IF NOT EXISTS disabled_at TIMESTAMP;
+      ALTER TABLE reseller_services
+        ADD COLUMN IF NOT EXISTS disable_reason TEXT;
+      ALTER TABLE reseller_services
+        ADD COLUMN IF NOT EXISTS remote_disable_pending SMALLINT NOT NULL DEFAULT 0;
+      ALTER TABLE reseller_services
+        ADD COLUMN IF NOT EXISTS remote_disabled_at TIMESTAMP;
+      ALTER TABLE reseller_services
+        ADD COLUMN IF NOT EXISTS lifecycle_version INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE reseller_sub_tokens
+        ALTER COLUMN token TYPE VARCHAR(256) USING btrim(token)::VARCHAR(256);
+      INSERT INTO reseller_sub_tokens (token, service_id, created_at)
+      SELECT extracted.token, extracted.service_id, NOW()
+      FROM (
+        SELECT
+          substring(svc.subscription_url FROM '/sub/([A-Za-z0-9_-]+)') AS token,
+          svc.id AS service_id
+        FROM reseller_services svc
+        WHERE svc.subscription_url IS NOT NULL
+      ) extracted
+      WHERE extracted.token IS NOT NULL
+        AND length(extracted.token) BETWEEN 12 AND 256
+        AND NOT EXISTS (
+          SELECT 1
+          FROM reseller_sub_tokens existing
+          WHERE existing.token = extracted.token
+        );
     CREATE TABLE IF NOT EXISTS reseller_panel_assignments (
       reseller_tg_id BIGINT NOT NULL,
       panel_key TEXT NOT NULL REFERENCES panel_configs(key) ON DELETE CASCADE,
@@ -185,6 +211,14 @@ export const managementReady = pool
        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
        completed_at TIMESTAMP
      );
+      ALTER TABLE service_provision_jobs
+        ADD COLUMN IF NOT EXISTS lifecycle_version INTEGER NOT NULL DEFAULT 1;
+      UPDATE service_provision_jobs job
+        SET lifecycle_version = svc.lifecycle_version
+        FROM reseller_services svc
+        WHERE svc.id = job.service_id
+          AND job.lifecycle_version IS DISTINCT FROM svc.lifecycle_version
+          AND job.status IN ('pending', 'running', 'retrying');
      CREATE INDEX IF NOT EXISTS service_provision_jobs_due_idx
        ON service_provision_jobs (status, next_attempt_at);
      CREATE INDEX IF NOT EXISTS service_provision_jobs_service_idx
@@ -458,10 +492,10 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     `SELECT svc.id, svc.rain_username AS username, svc.label AS plan, svc.status, svc.expire_at AS expires_at,
             svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes, svc.last_remaining_bytes,
             svc.awg_client_id,
-            c.full_name AS customer_name, rst.token
+            COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name, rst.token
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
-     JOIN reseller_customers c ON c.id = svc.customer_id
+     LEFT JOIN reseller_customers c ON c.id = svc.customer_id
      WHERE rst.token = $1
      LIMIT 1`,
     [token],
@@ -477,7 +511,8 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
       new Promise((resolve) => setTimeout(resolve, 8_000)),
     ]);
     const fresh = await pool.query(
-      `SELECT last_used_bytes, last_total_bytes, last_remaining_bytes
+      `SELECT status, expire_at AS expires_at, disable_reason, awg_client_id,
+              last_used_bytes, last_total_bytes, last_remaining_bytes
        FROM reseller_services WHERE id = $1 LIMIT 1`,
       [row.id],
     );
@@ -496,6 +531,12 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
   const remainingBytes = storedRemainingBytes !== null && Number.isFinite(storedRemainingBytes)
     ? Math.max(0, storedRemainingBytes)
     : Math.max(0, totalBytes - usedBytes);
+  const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+  const quotaFinished = totalBytes > 0 && usedBytes >= totalBytes;
+  const dateFinished = Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now();
+  const finished = row.status === "disabled" || quotaFinished || dateFinished;
+  const disableReason = row.disable_reason
+    || (quotaFinished ? "حجم اشتراک به پایان رسیده است" : dateFinished ? "تاریخ اعتبار اشتراک به پایان رسیده است" : null);
   res.json({
     customer_name: row.customer_name,
     username: row.username,
@@ -505,10 +546,13 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     used_gb: Number(usedGb.toFixed(2)),
     limit_gb: Number(row.limit_gb ?? 0),
     remaining_gb: Number((remainingBytes / (1024 ** 3)).toFixed(2)),
+    finished,
+    disable_reason: disableReason,
+    renew_url: `/login?next=${encodeURIComponent(`/services?renew=${row.id}`)}`,
     subscription_url: `/api/public/subscription/${encodeURIComponent(token)}/feed`,
     public_url: `/sub?t=${encodeURIComponent(token)}`,
-    awg_ready: Boolean(row.awg_client_id),
-    awg_url: row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
+    awg_ready: !finished && Boolean(row.awg_client_id),
+    awg_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
     provider_label: "V2Box",
   });
 });
@@ -520,7 +564,8 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     return;
   }
   const result = await pool.query(
-    `SELECT svc.id, svc.rain_username AS username, svc.label AS plan, svc.expire_at AS expires_at,
+    `SELECT svc.id, svc.rain_username AS username, svc.label AS plan, svc.status,
+            svc.disable_reason, svc.expire_at AS expires_at,
             svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes,
             svc.last_remaining_bytes
      FROM reseller_sub_tokens rst
@@ -540,13 +585,40 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
       new Promise((resolve) => setTimeout(resolve, 8_000)),
     ]);
     const fresh = await pool.query(
-      `SELECT last_used_bytes, last_total_bytes, last_remaining_bytes
+      `SELECT status, disable_reason, expire_at AS expires_at,
+              last_used_bytes, last_total_bytes, last_remaining_bytes
        FROM reseller_services WHERE id = $1 LIMIT 1`,
       [row.id],
     );
     Object.assign(row, fresh.rows[0] ?? {});
   } catch (error) {
     req.log.warn({ err: error, serviceId: row.id }, "Feed usage refresh failed");
+  }
+
+  const finishedTotalBytes = Number(row.last_total_bytes) > 0
+    ? Number(row.last_total_bytes)
+    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const finishedUsedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
+  const finishedExpiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+  const quotaFinished = finishedTotalBytes > 0 && finishedUsedBytes >= finishedTotalBytes;
+  const dateFinished = Number.isFinite(finishedExpiresAt) && finishedExpiresAt > 0 && finishedExpiresAt <= Date.now();
+  const finished = row.status === "disabled" || quotaFinished || dateFinished;
+  if (finished) {
+    const reason = row.disable_reason
+      || (quotaFinished ? "حجم اشتراک به پایان رسیده است" : dateFinished ? "تاریخ اعتبار اشتراک به پایان رسیده است" : "اشتراک غیرفعال شده است");
+    const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+    const webOrigin = `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}`;
+    const publicUrl = `${webOrigin}/sub?t=${encodeURIComponent(token)}`;
+    const announcement = `${reason}. برای تمدید صفحه اشتراک را باز کنید: ${publicUrl}`;
+    res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+    res.setHeader("x-pulse-subscription-state", "finished");
+    res.setHeader("x-pulse-disable-reason", encodeURIComponent(reason));
+    res.setHeader("profile-web-page-url", publicUrl);
+    res.setHeader("announce", `base64:${Buffer.from(announcement, "utf8").toString("base64")}`);
+    res.setHeader("announce-url", publicUrl);
+    res.status(410).send(`${reason}. برای تمدید وارد صفحه اشتراک شوید: ${publicUrl}`);
+    return;
   }
 
   let body: string | null = null;
@@ -655,9 +727,10 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
   const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
   const webOrigin = `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}`;
   res.setHeader("profile-web-page-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
-  const announcement = `سرویس Pulse فعال است. حجم باقی‌مانده: ${(remainingBytes / (1024 ** 3)).toFixed(2)} گیگابایت. برای جزئیات صفحه اشتراک را باز کنید.`;
+  const publicSubscriptionUrl = `${webOrigin}/sub?t=${encodeURIComponent(token)}`;
+  const announcement = `سرویس Pulse فعال است. حجم باقی‌مانده: ${(remainingBytes / (1024 ** 3)).toFixed(2)} گیگابایت. صفحه اشتراک: ${publicSubscriptionUrl}`;
   res.setHeader("announce", `base64:${Buffer.from(announcement, "utf8").toString("base64")}`);
-  res.setHeader("announce-url", `${webOrigin}/sub?t=${encodeURIComponent(token)}`);
+  res.setHeader("announce-url", publicSubscriptionUrl);
   res.setHeader(
     "content-disposition",
     requestedFormat === "clash"
@@ -672,8 +745,19 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
 
 router.get("/public/subscription/:token/awg", async (req, res): Promise<void> => {
   const token = String(req.params.token ?? "").trim();
-  const result = await pool.query<{ awg_client_id: string | null; username: string }>(
-    `SELECT svc.awg_client_id, svc.rain_username AS username
+  const result = await pool.query<{
+    awg_client_id: string | null;
+    username: string;
+    status: string;
+    disable_reason: string | null;
+    expires_at: string | null;
+    limit_gb: number;
+    last_used_bytes: number | null;
+    last_total_bytes: number | null;
+  }>(
+    `SELECT svc.awg_client_id, svc.rain_username AS username, svc.status,
+            svc.disable_reason, svc.expire_at AS expires_at, svc.gb::float8 AS limit_gb,
+            svc.last_used_bytes, svc.last_total_bytes
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
      WHERE rst.token = $1
@@ -681,6 +765,20 @@ router.get("/public/subscription/:token/awg", async (req, res): Promise<void> =>
     [token],
   );
   const row = result.rows[0];
+  const totalBytes = Number(row?.last_total_bytes) > 0
+    ? Number(row?.last_total_bytes)
+    : Math.round(Number(row?.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = Math.max(0, Number(row?.last_used_bytes ?? 0));
+  const expiresAt = row?.expires_at ? new Date(row.expires_at).getTime() : 0;
+  const finished = row?.status === "disabled"
+    || (totalBytes > 0 && usedBytes >= totalBytes)
+    || (Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now());
+  if (row && finished) {
+    res.status(410).json({
+      error: row.disable_reason || (usedBytes >= totalBytes ? "حجم اشتراک به پایان رسیده است" : "اعتبار اشتراک به پایان رسیده است"),
+    });
+    return;
+  }
   if (!row?.awg_client_id) {
     res.status(404).json({ error: "کانفیگ AmneziaWG برای این اشتراک آماده نیست" });
     return;
@@ -1117,7 +1215,10 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
          'سرویس فردا منقضی می‌شود' AS title,
          c.full_name || ' · ' || svc.label || ' · انقضا: ' ||
            to_char(svc.expire_at AT TIME ZONE 'Asia/Tehran', 'YYYY-MM-DD') AS detail,
-         '/customers/' || c.id::text AS href,
+          COALESCE(
+            (SELECT '/sub?t=' || rst.token FROM reseller_sub_tokens rst WHERE rst.service_id = svc.id LIMIT 1),
+            '/customers/' || c.id::text
+          ) AS href,
          'warning' AS tone
        FROM reseller_services svc
        JOIN reseller_customers c ON c.id = svc.customer_id
@@ -1135,12 +1236,15 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
          'quota' AS kind,
          'حجم سرویس تمام شده است' AS title,
          c.full_name || ' · ' || svc.label || ' · نیازمند تمدید یا افزایش حجم' AS detail,
-         '/customers/' || c.id::text AS href,
+          COALESCE(
+            (SELECT '/sub?t=' || rst.token FROM reseller_sub_tokens rst WHERE rst.service_id = svc.id LIMIT 1),
+            '/customers/' || c.id::text
+          ) AS href,
          'danger' AS tone
        FROM reseller_services svc
        JOIN reseller_customers c ON c.id = svc.customer_id
        WHERE svc.reseller_tg_id = $1
-         AND svc.status = 'active'
+          AND svc.gb > 0
          AND COALESCE(svc.last_remaining_bytes,
            GREATEST(0, svc.gb * 1073741824 - COALESCE(svc.last_used_bytes, 0))) <= 0
 
@@ -1154,7 +1258,10 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
          COALESCE(c.full_name, 'سرویس ' || job.service_id::text) || ' · ' ||
            COALESCE(NULLIF(array_to_string(ARRAY(SELECT jsonb_array_elements_text(job.provider_keys)), '، '), ''), 'اتصال سرویس') ||
            CASE WHEN job.last_error IS NULL THEN '' ELSE ' · ' || left(job.last_error, 180) END AS detail,
-         CASE WHEN c.id IS NULL THEN '/monitoring' ELSE '/customers/' || c.id::text END AS href,
+          COALESCE(
+            (SELECT '/sub?t=' || rst.token FROM reseller_sub_tokens rst WHERE rst.service_id = svc.id LIMIT 1),
+            CASE WHEN c.id IS NULL THEN '/monitoring' ELSE '/customers/' || c.id::text END
+          ) AS href,
          'danger' AS tone
        FROM service_provision_jobs job
        LEFT JOIN reseller_services svc ON svc.id = job.service_id
@@ -1171,7 +1278,10 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
          'awg' AS kind,
          'AmneziaWG آماده است' AS title,
          c.full_name || ' · ' || svc.label || ' · فایل اتصال قابل دانلود است' AS detail,
-         '/customers/' || c.id::text AS href,
+          COALESCE(
+            (SELECT '/sub?t=' || rst.token FROM reseller_sub_tokens rst WHERE rst.service_id = svc.id LIMIT 1),
+            '/customers/' || c.id::text
+          ) AS href,
          'normal' AS tone
        FROM reseller_services svc
        JOIN reseller_customers c ON c.id = svc.customer_id
@@ -1216,7 +1326,11 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
        (reseller_tg_id, event_key, kind, title, detail, href, tone, created_at)
      SELECT reseller_tg_id, event_key, kind, title, detail, href, tone, NOW()
      FROM candidates
-     ON CONFLICT (reseller_tg_id, event_key) DO NOTHING`,
+      ON CONFLICT (reseller_tg_id, event_key) DO UPDATE SET
+        title = EXCLUDED.title,
+        detail = EXCLUDED.detail,
+        href = EXCLUDED.href,
+        tone = EXCLUDED.tone`,
     [resellerId],
   );
   const result = await pool.query(
@@ -1729,10 +1843,25 @@ router.get("/search", requireAuth, async (req, res): Promise<void> => {
       .replace(/\D/g, "");
   const phoneSearch = normalizeDigits(search);
   const phonePattern = phoneSearch ? `%${phoneSearch}%` : "__no_phone_match__";
+  const tokenFromSearch = (() => {
+    try {
+      const parsedUrl = new URL(search);
+      const candidate =
+        parsedUrl.searchParams.get("t")
+        || parsedUrl.pathname.match(/\/api\/public\/subscription\/([A-Za-z0-9_-]+)\/feed/)?.[1]
+        || parsedUrl.pathname.match(/\/sub\/([A-Za-z0-9_-]+)(?:\/|$)/)?.[1]
+        || "";
+      return /^[A-Za-z0-9_-]{12,256}$/.test(candidate) ? candidate : "";
+    } catch {
+      const candidate = search.match(/[?&]t=([A-Za-z0-9_-]{12,256})(?:[&#]|$)/)?.[1] ?? "";
+      return candidate;
+    }
+  })();
+  const tokenPattern = tokenFromSearch ? `%${tokenFromSearch}%` : "__no_token_match__";
   const isMasterAdmin = req.auth?.role === "master_admin";
-  const customerOwner = isMasterAdmin ? "TRUE" : "c.reseller_tg_id = $4";
-  const serviceOwner = isMasterAdmin ? "TRUE" : "svc.reseller_tg_id = $4";
-  const saleOwner = isMasterAdmin ? "TRUE" : "s.reseller_tg_id = $4";
+  const customerOwner = isMasterAdmin ? "TRUE" : "c.reseller_tg_id = $5";
+  const serviceOwner = isMasterAdmin ? "TRUE" : "svc.reseller_tg_id = $5";
+  const saleOwner = isMasterAdmin ? "TRUE" : "s.reseller_tg_id = $5";
   const result = await pool.query(
     `WITH matches AS (
        SELECT
@@ -1774,6 +1903,11 @@ router.get("/search", requireAuth, async (req, res): Promise<void> => {
            OR svc.label ILIKE $1
            OR svc.admin_notes ILIKE $1
            OR svc.subscription_url ILIKE $1
+            OR EXISTS (
+              SELECT 1 FROM reseller_sub_tokens search_token
+              WHERE search_token.service_id = svc.id
+                AND search_token.token ILIKE $4
+            )
            OR svc.id::text ILIKE $1
          )
 
@@ -1798,6 +1932,11 @@ router.get("/search", requireAuth, async (req, res): Promise<void> => {
            OR c.phone ILIKE $1
            OR svc.label ILIKE $1
            OR svc.subscription_url ILIKE $1
+            OR EXISTS (
+              SELECT 1 FROM reseller_sub_tokens search_token
+              WHERE search_token.service_id = svc.id
+                AND search_token.token ILIKE $4
+            )
            OR s.id::text ILIKE $1
          )
      )
@@ -1806,8 +1945,8 @@ router.get("/search", requireAuth, async (req, res): Promise<void> => {
      ORDER BY kind_order, id DESC
      LIMIT $3`,
     isMasterAdmin
-      ? [`%${search}%`, phonePattern, parsed.limit]
-      : [`%${search}%`, phonePattern, parsed.limit, Number(req.auth?.telegramId ?? 0)],
+      ? [`%${search}%`, phonePattern, parsed.limit, tokenPattern]
+      : [`%${search}%`, phonePattern, parsed.limit, tokenPattern, Number(req.auth?.telegramId ?? 0)],
   );
   res.json(SearchWorkspaceResponse.parse(result.rows));
 });
@@ -2347,6 +2486,9 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     res.status(400).json({ error: "اطلاعات تمدید معتبر نیست" });
     return;
   }
+  const lifecycleLock = await pool.connect();
+  await lifecycleLock.query("SELECT pg_advisory_lock(74421, $1)", [params.data.id]);
+  try {
   const owner = ownership("svc", req);
   const days = body.data.days ?? 30;
   const existing = await pool.query<{ username: string; gb: number; label: string; awg_client_id: string | null; reseller_tg_id: number }>(
@@ -2409,16 +2551,39 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
            last_total_bytes = ROUND($2::numeric * 1073741824),
            last_remaining_bytes = ROUND($2::numeric * 1073741824),
             last_usage_updated_at = EXTRACT(EPOCH FROM NOW())::int,
+            disabled_at = NULL,
+            disable_reason = NULL,
+            remote_disable_pending = 0,
+            remote_disabled_at = NULL,
+            awg_rx = 0,
+            awg_tx = 0,
+            awg_total = 0,
+            awg_offset_bytes = 0,
+            lifecycle_version = lifecycle_version + 1,
            updated_at = NOW()
         WHERE svc.id = $3 AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
-       RETURNING svc.id`,
+        RETURNING svc.id, svc.lifecycle_version`,
       [...values, ...owner.params],
     );
+    const renewedVersion = Number(result.rows[0]?.lifecycle_version ?? 0);
+    if (renewedVersion > 0) {
+      await client.query(
+        `UPDATE service_provision_jobs
+         SET status = 'completed',
+             last_error = 'لغو شد: نسل جدید سرویس تمدید شد',
+             updated_at = NOW(),
+             completed_at = NOW()
+         WHERE service_id = $1
+           AND lifecycle_version < $2
+           AND status IN ('pending', 'running', 'retrying')`,
+        [params.data.id, renewedVersion],
+      );
+    }
     if (failedProviderKeys.length) {
       await client.query(
         `INSERT INTO service_provision_jobs
-         (service_id, owner_tg_id, username, action, provider_keys, payload, status, last_error)
-         VALUES ($1, $2, $3, 'providers', $4::jsonb, $5::jsonb, 'pending', $6)`,
+          (service_id, owner_tg_id, username, action, provider_keys, payload, status, last_error, lifecycle_version)
+          VALUES ($1, $2, $3, 'providers', $4::jsonb, $5::jsonb, 'pending', $6, $7)`,
         [
           params.data.id,
           current.reseller_tg_id,
@@ -2426,6 +2591,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
           JSON.stringify(failedProviderKeys),
           JSON.stringify({ gb, days, label: current.label, role: req.auth?.role }),
           providerWarning,
+          renewedVersion,
         ],
       );
       await client.query(
@@ -2434,6 +2600,14 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
          VALUES ($1, 'renew-provider:' || $2::text || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
                  'provider', 'تمدید با هشدار Provider انجام شد', $3, '/services', 'warning', NOW())`,
         [current.reseller_tg_id, params.data.id, providerWarning],
+      );
+    }
+    if (!current.awg_client_id && renewedVersion > 0) {
+      await client.query(
+        `INSERT INTO service_provision_jobs
+          (service_id, owner_tg_id, username, action, payload, status, last_error, lifecycle_version)
+         VALUES ($1, $2, $3, 'awg', '{}'::jsonb, 'pending', $4, $5)`,
+        [params.data.id, current.reseller_tg_id, current.username, "AmneziaWG پس از تمدید در صف ساخت قرار گرفت", renewedVersion],
       );
     }
     await client.query("COMMIT");
@@ -2462,6 +2636,10 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     [params.data.id],
   );
   res.json(RenewServiceResponse.parse(fresh.rows[0]));
+  } finally {
+    await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [params.data.id]).catch(() => undefined);
+    lifecycleLock.release();
+  }
 });
 
 router.post("/services/:id/awg", requireAuth, async (req, res): Promise<void> => {

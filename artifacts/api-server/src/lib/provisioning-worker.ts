@@ -3,7 +3,7 @@ import {
   provisionUser,
   RainApiError,
 } from "./rain";
-import { createAwgClient } from "./amneziawg";
+import { createAwgClient, disableAwgClient } from "./amneziawg";
 import { logger } from "./logger";
 
 type ProvisionJob = {
@@ -15,6 +15,7 @@ type ProvisionJob = {
   provider_keys: string[];
   payload: Record<string, unknown>;
   attempts: number;
+  lifecycle_version: number;
 };
 
 const retryDelayMs = (attempts: number) =>
@@ -31,7 +32,8 @@ async function claimJob(): Promise<ProvisionJob | null> {
   try {
     await client.query("BEGIN");
     const result = await client.query<ProvisionJob & { provider_keys: unknown; payload: unknown }>(
-      `SELECT id, service_id, owner_tg_id, username, action, provider_keys, payload, attempts
+      `SELECT id, service_id, owner_tg_id, username, action, provider_keys, payload, attempts,
+              lifecycle_version
        FROM service_provision_jobs
        WHERE status IN ('pending', 'retrying')
          AND next_attempt_at <= NOW()
@@ -144,10 +146,18 @@ async function processAwgJob(job: ProvisionJob) {
       await retryJob(job, awg.error ?? "AmneziaWG API is unavailable.");
       return;
     }
-    await pool.query(
-      "UPDATE reseller_services SET awg_client_id = $1, updated_at = NOW() WHERE id = $2",
-      [awg.clientId, job.service_id],
+    const updated = await pool.query(
+      `UPDATE reseller_services
+       SET awg_client_id = $1, updated_at = NOW()
+       WHERE id = $2 AND status = 'active' AND lifecycle_version = $3
+       RETURNING id`,
+      [awg.clientId, job.service_id, job.lifecycle_version],
     );
+    if (!updated.rows[0]) {
+      await disableAwgClient(awg.clientId);
+      await completeJob(job.id);
+      return;
+    }
     await completeJob(job.id);
     logger.info({ jobId: job.id, action: job.action }, "Provisioning job completed");
   } catch (error) {
@@ -156,10 +166,28 @@ async function processAwgJob(job: ProvisionJob) {
 }
 
 async function processOneJob(job: ProvisionJob) {
-  if (job.action === "providers") {
-    await processProviderJob(job);
-  } else {
-    await processAwgJob(job);
+  const lockClient = await pool.connect();
+  try {
+    await lockClient.query("SELECT pg_advisory_lock(74421, $1)", [job.service_id]);
+    const service = await pool.query(
+      `SELECT id
+       FROM reseller_services
+       WHERE id = $1 AND status = 'active' AND lifecycle_version = $2
+       LIMIT 1`,
+      [job.service_id, job.lifecycle_version],
+    );
+    if (!service.rows[0]) {
+      await completeJob(job.id);
+      return;
+    }
+    if (job.action === "providers") {
+      await processProviderJob(job);
+    } else {
+      await processAwgJob(job);
+    }
+  } finally {
+    await lockClient.query("SELECT pg_advisory_unlock(74421, $1)", [job.service_id]).catch(() => undefined);
+    lockClient.release();
   }
 }
 

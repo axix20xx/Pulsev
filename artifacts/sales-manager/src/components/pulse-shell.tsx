@@ -13,7 +13,8 @@ const subscriptionPageHref = (raw: string | null | undefined): string | null => 
     const parsed = new URL(raw, window.location.origin);
     const token =
       parsed.searchParams.get('t') ||
-      parsed.pathname.match(/\/api\/public\/subscription\/([A-Za-z0-9_-]+)\/feed/)?.[1];
+      parsed.pathname.match(/\/api\/public\/subscription\/([A-Za-z0-9_-]+)\/feed/)?.[1] ||
+      parsed.pathname.match(/\/sub\/([A-Za-z0-9_-]{12,256})(?:\/|$)/)?.[1];
     return token ? `/sub?t=${encodeURIComponent(token)}` : parsed.toString();
   } catch {
     return raw;
@@ -145,17 +146,28 @@ export function Shell({ children }: { children: ReactNode }) {
     setNotifications((items) => items.map((item) => item.id === id ? { ...item, read: true } : item));
     await fetch(`/api/notifications/${id}/read`, { method: 'POST', credentials: 'include' }).catch(() => undefined);
   };
+  const openNotification = async (item: any) => {
+    await markNotificationRead(item.id);
+    setTopbarPanel(null);
+    if (typeof item.href === 'string' && item.href) navigate(subscriptionPageHref(item.href) || item.href);
+  };
   const markAllNotificationsRead = async () => {
     setNotifications((items) => items.map((item) => ({ ...item, read: true })));
     await fetch('/api/notifications/read-all', { method: 'POST', credentials: 'include' }).catch(() => undefined);
   };
 
   useEffect(() => {
-    if (isSignedOut && location !== '/login' && !location.startsWith('/sub')) navigate('/login');
-    if (session?.authenticated && location === '/login') navigate('/');
+    const pathname = window.location.pathname;
+    if (isSignedOut && pathname !== '/login' && !pathname.startsWith('/sub')) {
+      navigate(`/login?next=${encodeURIComponent(`${pathname}${window.location.search}`)}`);
+    }
+    if (session?.authenticated && pathname === '/login') {
+      const requestedNext = new URLSearchParams(window.location.search).get('next');
+      navigate(requestedNext?.startsWith('/services') ? requestedNext : '/');
+    }
   }, [isSignedOut, location, navigate, session?.authenticated]);
 
-  if (location === '/login' || location.startsWith('/sub')) return <div className="min-h-[100dvh] bg-background text-foreground relative overflow-hidden">{children}</div>;
+  if (window.location.pathname === '/login' || window.location.pathname.startsWith('/sub')) return <div className="min-h-[100dvh] bg-background text-foreground relative overflow-hidden">{children}</div>;
   if (sessionLoading || isSignedOut) return <div className="min-h-[100dvh] flex items-center justify-center bg-background text-foreground"><div className="text-center animate-pulse"><div className="pulse-mark large mx-auto mb-4 scale-150"><span /></div><p className="font-bold tracking-tight text-primary">در حال احراز هویت...</p></div></div>;
 
   return (
@@ -246,7 +258,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 value={searchText}
                 onChange={(event) => { setSearchText(event.target.value); setSearchFocused(true); }}
                 onFocus={() => setSearchFocused(true)}
-                placeholder="جست‌وجوی مشتری، سرویس، یا فاکتور..."
+                placeholder="جست‌وجوی مشتری، سرویس، فاکتور یا لینک اشتراک..."
                 className="flex-1 bg-transparent border-0 outline-none text-[13px] font-medium placeholder:text-muted-foreground/60 w-full"
               />
               {searchText ? (
@@ -325,13 +337,14 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
             <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-border">
               {notifications.length ? notifications.map((item) => (
-                <div key={item.id} className={`p-4 border-b border-border/30 flex gap-3 hover:bg-foreground/5 transition-colors cursor-pointer ${item.read ? 'opacity-60' : ''}`} onClick={() => void markNotificationRead(item.id)}>
+                <div key={item.id} className={`p-4 border-b border-border/30 flex gap-3 hover:bg-foreground/5 transition-colors cursor-pointer ${item.read ? 'opacity-60' : ''}`} onClick={() => void openNotification(item)}>
                   <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${item.tone === 'warning' ? 'bg-amber-500/10 text-amber-500' : item.tone === 'danger' ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
                     <Bell size={16} />
                   </div>
                   <div className="flex flex-col gap-1 min-w-0">
                     <strong className="text-[13px] font-bold text-foreground">{item.title}</strong>
                     <span className="text-[11px] font-medium text-muted-foreground line-clamp-2 leading-relaxed">{item.detail}</span>
+                     {typeof item.href === 'string' && item.href.startsWith('/sub') && <span className="text-[10px] font-bold text-primary">باز کردن صفحه اشتراک</span>}
                     <time className="text-[9px] font-mono text-muted-foreground/60 mt-1">{dateTimeLabel(item.created_at)}</time>
                   </div>
                 </div>

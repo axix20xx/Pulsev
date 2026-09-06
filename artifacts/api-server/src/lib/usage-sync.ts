@@ -18,6 +18,10 @@ type ServiceRow = {
   expire_at: string | null;
   gb: number;
   token: string | null;
+  status: string;
+  disable_reason: string | null;
+  lifecycle_version: number;
+  remote_disable_pending: number;
 };
 
 function epochSeconds(date: string | null): number | null {
@@ -58,7 +62,7 @@ async function updatePanelUsage(username: string, panelKey: string, rawBytes: nu
   return effective;
 }
 
-async function syncService(service: ServiceRow): Promise<void> {
+async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
   const panelUsages = await readPanelUsages(
     service.rain_username,
     service.falco_config_id,
@@ -98,47 +102,74 @@ async function syncService(service: ServiceRow): Promise<void> {
   const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB));
   const expired = Boolean(service.expire_at && new Date(service.expire_at).getTime() <= Date.now());
   const quotaReached = limitBytes > 0 && combinedBytes >= limitBytes;
-  const shouldDisable = expired || quotaReached;
-  let remoteDisabled = false;
+  const alreadyDisabled = service.status === "disabled";
+  const shouldDisable = alreadyDisabled || expired || quotaReached;
+  const needsRemoteDisable = !alreadyDisabled || Number(service.remote_disable_pending) === 1;
+  let remoteDisabled = alreadyDisabled && !needsRemoteDisable;
+  let awgDisabled = !service.awg_client_id;
 
-  if (shouldDisable) {
+  if (shouldDisable && needsRemoteDisable) {
     const panelResult = await disablePanelUser(
       service.rain_username,
       service.falco_config_id,
       Number(service.reseller_tg_id),
       "reseller",
     );
-    const awgDisabled = service.awg_client_id ? await disableAwgClient(service.awg_client_id) : true;
+    awgDisabled = service.awg_client_id ? await disableAwgClient(service.awg_client_id) : true;
     const providersDisabled =
-      panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+      panelResult.attempted > 0 && panelResult.disabled === panelResult.attempted;
     remoteDisabled = providersDisabled && awgDisabled;
   }
 
-  const disableComplete = shouldDisable && remoteDisabled;
   const remainingBytes = limitBytes > 0 ? Math.max(0, limitBytes - combinedBytes) : 0;
-  const reason = quotaReached ? "سقف حجم مصرفی تکمیل شد" : expired ? "تاریخ انقضا رسید" : null;
-  await pool.query(
+  const reason = quotaReached
+    ? "حجم اشتراک به پایان رسیده است"
+    : expired
+      ? "تاریخ اعتبار اشتراک به پایان رسیده است"
+      : service.disable_reason ?? (alreadyDisabled ? "سرویس غیرفعال شده است" : null);
+  const updated = await pool.query<{ lifecycle_version: number }>(
     `UPDATE reseller_services
      SET last_used_bytes = $1, last_total_bytes = $2, last_remaining_bytes = $3,
          last_expire_ts = $4, last_usage_updated_at = $5,
-       status = CASE WHEN $6 THEN 'disabled' ELSE status END,
-           disabled_at = CASE WHEN $6 AND status <> 'disabled' THEN NOW() ELSE disabled_at END,
-         admin_notes = CASE WHEN $7::text IS NOT NULL THEN COALESCE(admin_notes, '') || CASE WHEN COALESCE(admin_notes, '') = '' THEN '' ELSE ' · ' END || $7::text ELSE admin_notes END,
+         status = CASE WHEN $6 THEN 'disabled' ELSE status END,
+         disabled_at = CASE WHEN $6 AND status <> 'disabled' THEN NOW() ELSE disabled_at END,
+         disable_reason = CASE WHEN $6 THEN COALESCE($7::text, disable_reason) ELSE disable_reason END,
+         remote_disable_pending = CASE WHEN $6 AND NOT $8 THEN 1 ELSE 0 END,
+         remote_disabled_at = CASE WHEN $6 AND $8 THEN COALESCE(remote_disabled_at, NOW()) ELSE remote_disabled_at END,
+         awg_client_id = CASE WHEN $9 THEN NULL ELSE awg_client_id END,
+         lifecycle_version = CASE WHEN $6 AND status <> 'disabled' THEN lifecycle_version + 1 ELSE lifecycle_version END,
          updated_at = NOW()
-     WHERE id = $8`,
+     WHERE id = $10
+     RETURNING lifecycle_version`,
     [
       combinedBytes,
       limitBytes,
       remainingBytes,
       epochSeconds(service.expire_at),
       Math.floor(Date.now() / 1000),
-       disableComplete,
-      shouldDisable && !remoteDisabled ? `${reason}؛ غیرفعال‌سازی provider در تلاش بعدی انجام می‌شود` : reason,
+      shouldDisable,
+      reason,
+      remoteDisabled,
+      Boolean(service.awg_client_id && awgDisabled),
       service.id,
     ],
   );
+  const currentVersion = Number(updated.rows[0]?.lifecycle_version ?? service.lifecycle_version);
+  if (shouldDisable) {
+    await pool.query(
+      `UPDATE service_provision_jobs
+       SET status = 'completed',
+           last_error = 'لغو شد: سرویس به پایان رسیده است',
+           updated_at = NOW(),
+           completed_at = NOW()
+       WHERE service_id = $1
+         AND lifecycle_version < $2
+         AND status IN ('pending', 'running', 'retrying')`,
+      [service.id, currentVersion],
+    );
+  }
   if (service.token) {
-      const cacheValues = [combinedBytes, limitBytes, epochSeconds(service.expire_at), disableComplete ? 1 : 0, service.token];
+    const cacheValues = [combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0, service.token];
     const updatedCache = await pool.query(
       `UPDATE user_stats_cache
        SET used_bytes = $1, total_bytes = $2, expire_ts = $3, is_disabled = $4,
@@ -150,9 +181,31 @@ async function syncService(service: ServiceRow): Promise<void> {
       await pool.query(
         `INSERT INTO user_stats_cache (token, used_bytes, total_bytes, expire_ts, is_disabled, last_updated)
          VALUES ($1, $2, $3, $4, $5, EXTRACT(EPOCH FROM NOW())::int)`,
-         [service.token, combinedBytes, limitBytes, epochSeconds(service.expire_at), disableComplete ? 1 : 0],
+          [service.token, combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0],
       );
     }
+  }
+}
+
+async function syncService(service: ServiceRow): Promise<void> {
+  const lockClient = await pool.connect();
+  try {
+    await lockClient.query("SELECT pg_advisory_lock(74421, $1)", [service.id]);
+    const fresh = await pool.query<ServiceRow>(
+      `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
+              svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
+              svc.lifecycle_version, svc.remote_disable_pending
+       FROM reseller_services svc
+       LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
+       WHERE svc.id = $1
+       LIMIT 1`,
+      [service.id],
+    );
+    if (fresh.rows[0]) await syncServiceUnlocked(fresh.rows[0]);
+  } finally {
+    await lockClient.query("SELECT pg_advisory_unlock(74421, $1)", [service.id]).catch(() => undefined);
+    lockClient.release();
   }
 }
 
@@ -160,7 +213,8 @@ export async function syncServiceUsageById(serviceId: number): Promise<boolean> 
   const result = await pool.query<ServiceRow>(
     `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
             svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
-            svc.gb::float8 AS gb, rst.token
+             svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
+             svc.lifecycle_version, svc.remote_disable_pending
      FROM reseller_services svc
      LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
      WHERE svc.id = $1
@@ -180,10 +234,12 @@ export async function runUsageSync(): Promise<void> {
     const result = await pool.query<ServiceRow>(
       `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
-              svc.gb::float8 AS gb, rst.token
+               svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
+               svc.lifecycle_version, svc.remote_disable_pending
        FROM reseller_services svc
        LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
-       WHERE svc.status IN ('active', 'expiring')
+        WHERE svc.status IN ('active', 'expiring')
+           OR (svc.status = 'disabled' AND COALESCE(svc.remote_disable_pending, 0) = 1)
        ORDER BY svc.id`,
     );
     for (const service of result.rows) {

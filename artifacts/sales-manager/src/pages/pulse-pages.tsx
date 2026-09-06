@@ -22,7 +22,7 @@ const load = <T,>(key: string, fallback: T): T => { try { const raw = localStora
 function usePersisted<T>(key: string, initial: T) { const [value, setValue] = useState<T>(() => load(key, initial)); useEffect(() => localStorage.setItem(`pulse-${key}`, JSON.stringify(value)), [key, value]); return [value, setValue] as const; }
 
 const mapSale = (item: any): Sale => ({ id: String(item.id), customerName: item.customer_name ?? 'مشتری', resellerName: item.reseller_name ?? '', serviceName: item.service_name ?? 'سرویس', panel: item.panel ?? 'پنل اصلی', amount: Number(item.amount ?? 0), date: item.date ?? new Date().toISOString(), paid: Boolean(item.paid ?? item.is_paid), status: item.status === 'refunded' ? 'Refunded' : item.paid || item.is_paid ? 'Completed' : 'Pending' });
-const subscriptionTokenFromUrl = (parsed: URL) => parsed.searchParams.get('t') || parsed.pathname.match(/\/api\/public\/subscription\/([A-Za-z0-9_-]+)\/feed/)?.[1] || null;
+const subscriptionTokenFromUrl = (parsed: URL) => parsed.searchParams.get('t') || parsed.pathname.match(/\/api\/public\/subscription\/([A-Za-z0-9_-]+)\/feed/)?.[1] || parsed.pathname.match(/\/sub\/([A-Za-z0-9_-]{12,256})(?:\/|$)/)?.[1] || null;
 const freshSubscriptionUrl = (raw: string | null | undefined) => { if (!raw) return null; try { const parsed = new URL(raw, window.location.origin); const token = subscriptionTokenFromUrl(parsed); return token ? `${window.location.origin}/sub?t=${encodeURIComponent(token)}` : parsed.toString(); } catch { return raw; } };
 const subscriptionFeedUrl = (raw: string | null | undefined) => { if (!raw) return null; try { const parsed = new URL(raw, window.location.origin); const token = subscriptionTokenFromUrl(parsed); return token ? `${window.location.origin}/api/public/subscription/${encodeURIComponent(token)}/feed` : parsed.toString(); } catch { return raw; } };
 const mapService = (item: any): Service => {
@@ -172,7 +172,9 @@ function LoginPageContent() {
     const authenticatedSession = await login.mutateAsync({ data: { telegram_id: id } });
     queryClient.setQueryData(getGetAuthSessionQueryKey(), authenticatedSession);
     await queryClient.invalidateQueries({ queryKey: getGetAuthSessionQueryKey() });
-    navigate('/');
+    const requestedNext = new URLSearchParams(window.location.search).get('next');
+    const safeNext = requestedNext?.startsWith('/services') ? requestedNext : '/';
+    navigate(safeNext);
   };
 
   return (
@@ -1022,6 +1024,17 @@ function ServicesContent() {
   const [sortBy, setSortBy] = useState('expiry-asc');
   const [modal, setModal] = useState(false);
   const [noteService, setNoteService] = useState<Service | null>(null);
+  const openedRenewDeepLink = useRef(false);
+  useEffect(() => {
+    if (openedRenewDeepLink.current || services.length === 0) return;
+    const renewId = new URLSearchParams(window.location.search).get('renew');
+    if (!renewId) return;
+    const service = services.find((item) => Number(item.id.replace(/\D/g, '')) === Number(renewId));
+    if (!service) return;
+    openedRenewDeepLink.current = true;
+    renewService(service);
+    window.history.replaceState({}, '', '/services');
+  }, [renewService, services]);
   const panels = useMemo(() => [...new Set(services.map((service) => service.panel).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa')), [services]);
   const filtered = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -1402,10 +1415,12 @@ function PublicSubscriptionContent() {
   const remaining = expires ? Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 86400000)) : 0;
   const ratio = data?.limit_gb ? Math.min(100, Math.round((Number(data.used_gb) / Number(data.limit_gb)) * 100)) : 0;
   const remainingGb = Math.max(0, Number(data?.remaining_gb ?? Number(data?.limit_gb ?? 0) - Number(data?.used_gb ?? 0)));
-  const expired = data?.status === 'expired' || data?.status === 'disabled' || remaining <= 0;
-  const expiring = !expired && (data?.status === 'expiring' || remaining <= 7);
-  const statusTone = expired ? 'danger' : expiring ? 'warn' : 'ok';
-  const statusLabel = expired ? 'منقضی' : expiring ? 'نزدیک انقضا' : 'فعال';
+  const quotaFinished = Boolean(data?.limit_gb > 0 && (remainingGb <= 0 || Number(data?.used_gb ?? 0) >= Number(data?.limit_gb ?? 0)));
+  const finished = Boolean(data?.finished || data?.status === 'expired' || data?.status === 'disabled' || remaining <= 0 || quotaFinished);
+  const expiring = !finished && (data?.status === 'expiring' || remaining <= 7);
+  const statusTone = finished ? 'danger' : expiring ? 'warn' : 'ok';
+  const statusLabel = finished ? 'پایان‌یافته' : expiring ? 'نزدیک انقضا' : 'فعال';
+  const finishedReason = data?.disable_reason || (quotaFinished ? 'حجم اشتراک به پایان رسیده است' : 'اعتبار اشتراک به پایان رسیده است');
   const copyPageLink = async () => {
     if (!(await copyTextToClipboard(pageUrl))) return;
     setCopied(true);
@@ -1462,7 +1477,7 @@ function PublicSubscriptionContent() {
     }
   };
 
-  const apps = state === 'ready' ? getAppsForOS(activeOS, feedUrl, clashFeedUrl, data.plan || 'Pulse') : [];
+  const apps = state === 'ready' && !finished ? getAppsForOS(activeOS, feedUrl, clashFeedUrl, data.plan || 'Pulse') : [];
 
   if (state === 'loading') return <div className="public-sub-page"><div className="public-sub-loader flex flex-col items-center gap-4"><span className="pulse-mark large"><span /></span><p className="font-bold text-lg mt-4 text-primary">پالس</p><p className="text-muted-foreground text-sm">در حال دریافت وضعیت اشتراک...</p></div></div>;
   if (state === 'error') return <div className="public-sub-page"><div className="public-sub-card public-sub-error flex flex-col items-center text-center p-8"><div className="public-sub-brand mb-6 flex items-center justify-center gap-2"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="w-16 h-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-4"><ShieldCheck size={32} /></div><h1 className="text-2xl font-bold text-center mb-2">لینک نامعتبر است</h1><p className="text-muted-foreground text-center mb-8 text-sm">ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="button button-primary w-full justify-center">بازگشت به سایت</a></div></div>;
@@ -1484,8 +1499,8 @@ function PublicSubscriptionContent() {
         <section className={`rounded-[24px] p-5 mb-6 relative overflow-hidden border ${statusTone === 'ok' ? 'bg-emerald-500/5 border-emerald-500/20' : statusTone === 'warn' ? 'bg-amber-500/5 border-amber-500/20' : 'bg-destructive/5 border-destructive/20'}`}>
           <div className="absolute top-0 right-0 w-32 h-32 bg-current opacity-[0.03] rounded-full -mr-10 -mt-10 pointer-events-none" />
           <div className="relative z-10 flex flex-col gap-1">
-            <span className="text-[10px] font-bold tracking-widest uppercase opacity-70 mb-1">{expired ? 'پایان اعتبار اشتراک' : expiring ? 'زمان تمدید نزدیک است' : 'وضعیت ارتباط'}</span>
-            <strong className="text-[17px] font-extrabold leading-tight">{expired ? 'این اشتراک غیرفعال شده است' : expiring ? `${new Intl.NumberFormat('fa-IR').format(remaining)} روز تا پایان اعتبار باقی مانده` : 'اشتراک شما فعال و آماده کار است'}</strong>
+            <span className="text-[10px] font-bold tracking-widest uppercase opacity-70 mb-1">{finished ? 'پایان اشتراک' : expiring ? 'زمان تمدید نزدیک است' : 'وضعیت ارتباط'}</span>
+            <strong className="text-[17px] font-extrabold leading-tight">{finished ? finishedReason : expiring ? `${new Intl.NumberFormat('fa-IR').format(remaining)} روز تا پایان اعتبار باقی مانده` : 'اشتراک شما فعال و آماده کار است'}</strong>
           </div>
         </section>
 
@@ -1509,7 +1524,13 @@ function PublicSubscriptionContent() {
           </div>
         </section>
 
-        <div className="space-y-6">
+        {finished ? (
+          <section className="rounded-[24px] border border-destructive/20 bg-destructive/5 p-5 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 text-destructive"><RefreshCw size={24} /></div>
+            <h2 className="text-lg font-extrabold">برای تمدید با فروشنده تماس بگیرید</h2>
+            <p className="mx-auto mt-2 max-w-[320px] text-xs leading-7 text-muted-foreground">{finishedReason} کانفیگ‌های Provider و AmneziaWG دیگر ارائه نمی‌شوند.</p>
+          </section>
+        ) : <div className="space-y-6">
           <section className="space-y-3">
             <div className="flex items-center gap-2 mb-3 px-1">
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
@@ -1583,7 +1604,7 @@ function PublicSubscriptionContent() {
               </button>
             </div>
           </section>
-        </div>
+        </div>}
 
         <section className="mt-8 p-5 rounded-[24px] bg-muted/40 border border-border text-center">
           <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-3">لینک سابسکرایپشن شما</p>

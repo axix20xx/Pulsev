@@ -26,3 +26,9 @@ When an upstream feed contains multiple provider URIs, the proxy must preserve t
 **Why:** The feed is for VPN clients to import, while the customer-facing page should keep provider endpoints private and present only safe import actions.
 
 **How to apply:** Never split-and-rebuild or filter the feed server-side; forward it intact, but do not parse or render its individual URI/config contents in `/sub`.
+
+Imported Provider tokens may be longer than the locally generated 32-character tokens, and one service may need both its existing local token and a legacy URL token to remain valid during migration.
+
+**Why:** Replacing or truncating a legacy token breaks already-distributed subscription links, while rejecting a second token alias makes the canonical imported URL resolve to an invalid page.
+
+**How to apply:** Store tokens in a variable-length column large enough for Provider values, backfill legacy `/sub/<token>` values as aliases without deleting local tokens, and resolve all aliases to the same service.
