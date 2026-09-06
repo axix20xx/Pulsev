@@ -110,6 +110,7 @@ async function processProviderJob(job: ProvisionJob) {
       job.owner_tg_id,
       typeof payload.role === "string" ? payload.role : undefined,
       job.provider_keys,
+      { resetUsage: payload.resetUsage === true },
     );
     const failed = result.results.filter((item) => item.status < 200 || item.status >= 300);
     if (failed.length) {

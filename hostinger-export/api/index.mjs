@@ -57551,7 +57551,7 @@ async function marzbanInbounds(panel) {
   if (!Object.keys(result).length) result.vless = [];
   return result;
 }
-async function provisionRainAdmin(panel, username, gb, days) {
+async function provisionRainAdmin(panel, username, gb, days, resetUsage) {
   const encoded = encodeURIComponent(username);
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
   const body = {
@@ -57567,7 +57567,17 @@ async function provisionRainAdmin(panel, username, gb, days) {
   let last = { status: 0, json: null, text: "" };
   for (const [method, path] of candidates) {
     last = await panelRequest(panel, method, path, body);
-    if (last.status >= 200 && last.status < 300) return last.status;
+    if (last.status >= 200 && last.status < 300) {
+      if (resetUsage && existing.status === 200) {
+        const reset = await panelRequest(panel, "POST", `/api/user/${encoded}/reset`);
+        if (reset.status < 200 || reset.status >= 300) {
+          throw new RainApiError(
+            `PasarGuard panel ${panelKey(panel)} updated the plan but could not reset usage: ${safeError(reset)}`
+          );
+        }
+      }
+      return last.status;
+    }
     if (![404, 405, 422].includes(last.status)) break;
   }
   throw new RainApiError(`Rain panel ${panelKey(panel)} rejected the user: ${safeError(last)}`);
@@ -57646,7 +57656,7 @@ async function provisionFalcon(panel, gb, days, label) {
     `Falcon panel ${panelKey(panel)} rejected the user: ${safeError(response)}`
   );
 }
-async function provisionUser(username, gb, days, label, ownerId, role, onlyPanelKeys) {
+async function provisionUser(username, gb, days, label, ownerId, role, onlyPanelKeys, options) {
   const configured = await panels(ownerId, role);
   const configuredPanels = onlyPanelKeys?.length ? configured.filter((panel) => onlyPanelKeys.includes(panelKey(panel))) : configured;
   const hasCredentials = configuredPanels.some((panel) => {
@@ -57661,7 +57671,7 @@ async function provisionUser(username, gb, days, label, ownerId, role, onlyPanel
   const results = await Promise.all(configuredPanels.map(async (panel) => {
     const kind = panelKind(panel);
     try {
-      const status = kind === "rain_admin" ? await provisionRainAdmin(panel, username, gb, days) : kind === "falcon" ? await provisionFalcon(panel, gb, days, label) : await provisionMarzban(panel, username, gb, days);
+      const status = kind === "rain_admin" ? await provisionRainAdmin(panel, username, gb, days, options?.resetUsage === true) : kind === "falcon" ? await provisionFalcon(panel, gb, days, label) : await provisionMarzban(panel, username, gb, days);
       return { key: panelKey(panel), kind, status };
     } catch (error40) {
       const detail = error40 instanceof Error ? error40.message : "\u062E\u0637\u0627\u06CC \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647 \u062F\u0631 \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 Provider";
@@ -60577,7 +60587,9 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
         days,
         current.label,
         Number(current.reseller_tg_id),
-        req.auth?.role
+        req.auth?.role,
+        void 0,
+        { resetUsage: true }
       );
       const failed = provisioning.results.filter((result2) => result2.status < 200 || result2.status >= 300).map((result2) => ({
         key: result2.key,
@@ -60652,7 +60664,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
             current.reseller_tg_id,
             current.username,
             JSON.stringify(failedProviderKeys),
-            JSON.stringify({ gb, days, label: current.label, role: req.auth?.role }),
+            JSON.stringify({ gb, days, label: current.label, role: req.auth?.role, resetUsage: true }),
             providerWarning,
             renewedVersion
           ]
@@ -61649,7 +61661,8 @@ async function processProviderJob(job) {
       String(payload.label ?? ""),
       job.owner_tg_id,
       typeof payload.role === "string" ? payload.role : void 0,
-      job.provider_keys
+      job.provider_keys,
+      { resetUsage: payload.resetUsage === true }
     );
     const failed = result.results.filter((item) => item.status < 200 || item.status >= 300);
     if (failed.length) {

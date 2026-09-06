@@ -673,6 +673,7 @@ async function provisionRainAdmin(
   username: string,
   gb: number,
   days: number,
+  resetUsage: boolean,
 ): Promise<number> {
   const encoded = encodeURIComponent(username);
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
@@ -691,7 +692,17 @@ async function provisionRainAdmin(
   let last = { status: 0, json: null, text: "" };
   for (const [method, path] of candidates) {
     last = await panelRequest(panel, method, path, body);
-    if (last.status >= 200 && last.status < 300) return last.status;
+    if (last.status >= 200 && last.status < 300) {
+      if (resetUsage && existing.status === 200) {
+        const reset = await panelRequest(panel, "POST", `/api/user/${encoded}/reset`);
+        if (reset.status < 200 || reset.status >= 300) {
+          throw new RainApiError(
+            `PasarGuard panel ${panelKey(panel)} updated the plan but could not reset usage: ${safeError(reset)}`,
+          );
+        }
+      }
+      return last.status;
+    }
     if (![404, 405, 422].includes(last.status)) break;
   }
   throw new RainApiError(`Rain panel ${panelKey(panel)} rejected the user: ${safeError(last)}`);
@@ -805,6 +816,7 @@ export async function provisionUser(
   ownerId?: number,
   role?: string,
   onlyPanelKeys?: string[],
+  options?: { resetUsage?: boolean },
 ): Promise<{ ok: boolean; results: PanelResult[] }> {
   const configured = await panels(ownerId, role);
   const configuredPanels = onlyPanelKeys?.length
@@ -824,7 +836,7 @@ export async function provisionUser(
     try {
       const status =
         kind === "rain_admin"
-          ? await provisionRainAdmin(panel, username, gb, days)
+          ? await provisionRainAdmin(panel, username, gb, days, options?.resetUsage === true)
           : kind === "falcon"
             ? await provisionFalcon(panel, gb, days, label)
             : await provisionMarzban(panel, username, gb, days);

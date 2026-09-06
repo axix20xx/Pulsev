@@ -2513,6 +2513,8 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       current.label,
       Number(current.reseller_tg_id),
       req.auth?.role,
+      undefined,
+      { resetUsage: true },
     );
     const failed = provisioning.results
       .filter((result) => result.status < 200 || result.status >= 300)
@@ -2589,7 +2591,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
           current.reseller_tg_id,
           current.username,
           JSON.stringify(failedProviderKeys),
-          JSON.stringify({ gb, days, label: current.label, role: req.auth?.role }),
+          JSON.stringify({ gb, days, label: current.label, role: req.auth?.role, resetUsage: true }),
           providerWarning,
           renewedVersion,
         ],
