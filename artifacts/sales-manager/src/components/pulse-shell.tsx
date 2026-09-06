@@ -5,7 +5,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getGetAuthSessionQueryKey, getSearchWorkspaceQueryKey, useLogout, useSearchWorkspace, type WorkspaceSearchResult } from '@workspace/api-client-react';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateTimeLabel, statusLabel } from '@/lib/pulse-data';
-import { PulseNetworkAccent } from '@/components/pulse-network-accent';
 import { copyTextToClipboard } from '@/lib/browser-utils';
 
 const subscriptionPageHref = (raw: string | null | undefined): string | null => {
@@ -167,8 +166,6 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,hsl(var(--accent)/0.15),transparent_50%)]" />
       </div>
       
-      <PulseNetworkAccent className="fixed inset-0 z-0 opacity-60" />
-
       {/* Sidebar */}
       <aside className={`pulse-sidebar ${open ? 'is-open translate-x-0' : 'translate-x-full md:translate-x-0'} flex flex-col h-[100dvh]`}>
         <div className="flex items-center justify-between px-6 pt-8 pb-4">

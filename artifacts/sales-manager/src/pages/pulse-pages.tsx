@@ -280,7 +280,7 @@ const Button = ({ children, onClick, variant = 'primary', type = 'button', class
 const Metric = ({ label, value, detail, trend, icon: Icon, accent = '' }: { label: string; value: string; detail: string; trend?: string; icon: typeof TrendingUp; accent?: string }) => <div className="metric-card"><div className={`metric-icon ${accent}`}><Icon size={17} /></div><p className="metric-label">{label}</p><div className="mt-2 flex items-end justify-between gap-2"><strong className="metric-value" data-testid={`text-metric-${label}`}>{value}</strong>{trend && <span className="trend-up"><ArrowUpLeft size={13} />{trend}</span>}</div><p className="metric-detail">{detail}</p></div>;
 const EmptyState = ({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) => <div className="empty-state"><div className="empty-symbol"><Sparkles size={19} /></div><p className="font-bold">{title}</p><p className="mt-1 max-w-xs text-sm text-muted-foreground">{detail}</p>{action && <div className="mt-4">{action}</div>}</div>;
 function SurfaceFrame({ name, children, signal = false }: { name: string; children: ReactNode; signal?: boolean }) {
-  return <div className={`pulse-surface pulse-surface-${name}`}>{signal && <PulseNetworkAccent className="surface-network" />}{children}</div>;
+  return <div className={`pulse-surface pulse-surface-${name}`}>{children}</div>;
 }
 function Overlay({ title, onClose, children, fullScreen = false }: { title: string; onClose: () => void; children: ReactNode; fullScreen?: boolean }) {
   const titleId = useId();
