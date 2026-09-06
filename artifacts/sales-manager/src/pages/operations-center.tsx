@@ -4,7 +4,6 @@ import { Link } from 'wouter';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateLabel, dateTimeLabel, money } from '@/lib/pulse-data';
 import { PageHeader } from '@/components/pulse-shell';
-import { PulseNetworkAccent } from '@/components/pulse-network-accent';
 import { copyTextToClipboard } from '@/lib/browser-utils';
 
 type JsonRecord = Record<string, any>;
@@ -303,5 +302,5 @@ function OperationsCenterContent() {
 }
 
 export function OperationsCenter() {
-  return <div className="pulse-surface pulse-surface-operations ops-route-frame" dir="rtl"><PulseNetworkAccent className="surface-network" /><OperationsCenterContent /></div>;
+  return <div className="pulse-surface pulse-surface-operations ops-route-frame" dir="rtl"><OperationsCenterContent /></div>;
 }

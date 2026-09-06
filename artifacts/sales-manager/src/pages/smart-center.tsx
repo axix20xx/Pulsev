@@ -4,7 +4,6 @@ import { Link } from 'wouter';
 import { PageHeader } from '@/components/pulse-shell';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateLabel, money } from '@/lib/pulse-data';
-import { PulseNetworkAccent } from '@/components/pulse-network-accent';
 
 type JsonRecord = Record<string, any>;
 type SavedView = { id: string; label: string; href: string };
@@ -158,5 +157,5 @@ function SmartCenterContent() {
 }
 
 export function SmartCenter() {
-  return <div className="pulse-surface pulse-surface-insights smart-route-frame" dir="rtl"><PulseNetworkAccent className="surface-network" /><SmartCenterContent /></div>;
+  return <div className="pulse-surface pulse-surface-insights smart-route-frame" dir="rtl"><SmartCenterContent /></div>;
 }
