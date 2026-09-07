@@ -3746,6 +3746,46 @@ h1, h2, h3, h4, h5, h6, p, ul, ol, li { text-align: right; }
 .connection-filter-grid label > span { color: hsl(var(--muted-foreground)); font-size: 9px; font-weight: 700; }
 .connection-filter-grid select { width: 100%; height: 36px; min-width: 0; border: 1px solid hsl(var(--border)); border-radius: 9px; background: hsl(var(--card)); padding: 0 9px; color: hsl(var(--foreground)); font-size: 10px; outline: 0; }
 .action-requests-page { display: grid; gap: 18px; }
+.reseller-accounting-page { display: grid; gap: 18px; }
+.accounting-range { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); align-items: end; gap: 20px; }
+.accounting-range-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; align-items: end; gap: 10px; }
+.accounting-range-fields .button { height: 40px; white-space: nowrap; }
+.accounting-metrics { margin: 0; }
+.accounting-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(380px, .8fr); gap: 14px; }
+.accounting-status-panel, .accounting-payment-form, .accounting-table-panel, .accounting-history-panel { min-width: 0; }
+.accounting-progress { display: grid; gap: 8px; margin-top: 18px; }
+.accounting-progress > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.accounting-progress span, .accounting-status-summary small { color: hsl(var(--muted-foreground)); font-size: 10px; }
+.accounting-progress strong { color: hsl(var(--primary)); font: 800 13px var(--app-font-mono); }
+.accounting-progress-track, .accounting-bar { height: 9px; overflow: hidden; border-radius: 99px; background: hsl(var(--muted)); }
+.accounting-progress-track span, .accounting-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent))); transition: width .35s ease; }
+.accounting-status-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 22px; }
+.accounting-status-summary > div { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 7px; border: 1px solid hsl(var(--border)); border-radius: 12px; padding: 10px; }
+.accounting-status-summary .status-dot { grid-row: span 2; }
+.accounting-status-summary strong { font: 800 14px var(--app-font-mono); }
+.accounting-payment-fields { display: grid; gap: 10px; margin-top: 18px; }
+.accounting-payment-fields .button { justify-content: center; }
+.accounting-payment-message { margin-top: 10px; font-size: 10px; font-weight: 700; }
+.accounting-payment-message.success { color: hsl(154 42% 35%); }
+.accounting-payment-message.error { color: hsl(var(--destructive)); }
+.accounting-reseller-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; margin-top: 18px; }
+.accounting-reseller-card { display: grid; gap: 13px; min-width: 0; border: 1px solid hsl(var(--border)); border-radius: 15px; background: hsl(var(--background) / .42); padding: 14px; }
+.accounting-reseller-card.has-due { border-color: hsl(var(--destructive) / .28); }
+.accounting-reseller-card.settled { border-color: hsl(154 42% 45% / .28); }
+.accounting-reseller-head, .accounting-reseller-footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.accounting-reseller-head > div { display: grid; gap: 4px; min-width: 0; }
+.accounting-reseller-head strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.accounting-reseller-head small, .accounting-reseller-footer small { color: hsl(var(--muted-foreground)); font: 9px var(--app-font-mono); }
+.accounting-status { flex: 0 0 auto; border-radius: 99px; padding: 5px 8px; background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); font-size: 9px; font-weight: 800; }
+.accounting-status.unpaid, .accounting-status.overdue { background: hsl(var(--destructive) / .1); color: hsl(var(--destructive)); }
+.accounting-status.partial { background: hsl(var(--accent) / .14); color: hsl(31 64% 37%); }
+.accounting-status.paid { background: hsl(154 40% 90%); color: hsl(154 42% 31%); }
+.accounting-reseller-values { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.accounting-reseller-values > div { display: grid; gap: 4px; min-width: 0; }
+.accounting-reseller-values span { color: hsl(var(--muted-foreground)); font-size: 9px; }
+.accounting-reseller-values strong { overflow: hidden; font: 800 11px var(--app-font-mono); text-overflow: ellipsis; white-space: nowrap; }
+.accounting-reseller-footer { align-items: center; }
+.accounting-reseller-footer .button { min-height: 30px; padding: 0 9px; font-size: 9px; }
 .action-request-form { display: grid; gap: 16px; }
 .request-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .request-choice { display: flex; align-items: flex-start; gap: 10px; min-width: 0; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--background) / .45); padding: 12px; cursor: pointer; }
@@ -3772,6 +3812,14 @@ h1, h2, h3, h4, h5, h6, p, ul, ol, li { text-align: right; }
   .action-request-head, .request-action-row { align-items: stretch; flex-direction: column; }
   .request-action-buttons { width: 100%; }
   .request-action-buttons > button { flex: 1; justify-content: center; }
+  .accounting-range { grid-template-columns: 1fr; gap: 14px; }
+  .accounting-range-fields { grid-template-columns: 1fr 1fr; }
+  .accounting-range-fields .button { grid-column: 1 / -1; width: 100%; justify-content: center; }
+  .accounting-overview-grid { grid-template-columns: 1fr; }
+  .accounting-reseller-cards { grid-template-columns: 1fr; }
+  .accounting-status-summary { gap: 6px; }
+  .accounting-status-summary > div { padding: 8px 6px; }
+  .accounting-status-summary small { font-size: 8px; }
 }
 @media (max-width: 620px) {
   .creation-status-screen { min-height: calc(100dvh - 135px); padding-inline: 2px; }
