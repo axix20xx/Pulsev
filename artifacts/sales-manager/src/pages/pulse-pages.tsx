@@ -721,6 +721,15 @@ function ResellerAccountingContent() {
       setLoading(false);
     }
   };
+  const applyAccountingRange = (event: FormEvent) => {
+    event.preventDefault();
+    if (draftFrom > draftTo) {
+      setError('بازه تاریخ معتبر نیست.');
+      return;
+    }
+    setFrom(draftFrom);
+    setTo(draftTo);
+  };
   useEffect(() => {
     if (isMasterAdmin) void loadReport();
   }, [isMasterAdmin, from, to]);
@@ -774,9 +783,9 @@ function ResellerAccountingContent() {
   if (!isMasterAdmin) return <div className="panel-card"><EmptyState title="این صفحه فقط برای مدیر اصلی است" detail="اطلاعات حسابداری فروشندگان برای نقش فروشنده نمایش داده نمی‌شود." /></div>;
   return <div className="reseller-accounting-page">
     <PageHeader eyebrow="مدیریت مالی" title="حسابداری فروشندگان" description="مانده بدهی، پرداخت‌های ثبت‌شده و سود هر reseller را در یک صفحه ببینید و پرداخت دلخواه را ثبت کنید." action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => window.print()}><Printer size={15} /> چاپ صفحه</Button><Button variant="quiet" onClick={() => void loadReport()} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} /> بروزرسانی</Button></div>} />
-    <form className="accounting-range panel-card" onSubmit={loadReport}>
+    <form className="accounting-range panel-card" onSubmit={applyAccountingRange}>
       <div><p className="eyebrow">بازه حسابداری</p><h2 className="section-title">{dateLabel(from)} تا {dateLabel(to)}</h2><p className="text-xs text-muted-foreground">بدهی‌های قبلی تا پایان این بازه هم در مانده هر فروشنده لحاظ می‌شوند.</p></div>
-      <div className="accounting-range-fields"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button type="submit" onClick={() => { setFrom(draftFrom); setTo(draftTo); }} disabled={loading}>{loading ? 'در حال دریافت...' : 'اعمال بازه'}</Button></div>
+      <div className="accounting-range-fields"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button type="submit" disabled={loading}>{loading ? 'در حال دریافت...' : 'اعمال بازه'}</Button></div>
     </form>
     {error && <div className="login-error mt-4">{error}</div>}
     {report && <><section className="metrics-grid accounting-metrics">
