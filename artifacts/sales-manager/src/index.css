@@ -794,6 +794,24 @@ body { font-family: var(--app-font-sans); background: hsl(var(--background)); }
   .public-sub-v3 *, .public-sub-v3 *::before, .public-sub-v3 *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 }
 
+/* Keep the public subscription cards separated on narrow phone viewports. */
+.public-sub-v3 .public-sub-app-shell { display: flex; flex-direction: column; gap: 14px; }
+.public-sub-v3 .public-sub-app-shell > .public-sub-status-card,
+.public-sub-v3 .public-sub-app-shell > .public-sub-connections-card,
+.public-sub-v3 .public-sub-app-shell > .public-sub-finished-card,
+.public-sub-v3 .public-sub-app-shell > .public-sub-share-card,
+.public-sub-v3 .public-sub-app-shell > .public-sub-expired-config-card,
+.public-sub-v3 .public-sub-app-shell > .public-sub-footer-v3 { margin-block: 0; }
+.public-sub-expired-config-card { border: 1px solid #f0d3cf; border-radius: 22px; background: linear-gradient(145deg, #fffaf8, #fff3ef); padding: 17px; box-shadow: 0 16px 30px -24px rgba(174, 86, 76, .45); }
+.public-sub-expired-config-heading { display: flex; align-items: center; gap: 11px; }
+.public-sub-expired-config-icon { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 13px; background: #ffe1dc; color: var(--sub-danger); }
+.public-sub-expired-config-heading > div:last-child { display: grid; gap: 4px; }
+.public-sub-expired-config-heading .public-sub-kicker { margin: 0; color: var(--sub-danger); }
+.public-sub-expired-config-heading strong { color: var(--sub-ink); font-size: 12px; }
+.public-sub-expired-config-card > p { margin: 13px 0 11px; color: var(--sub-muted); font-size: 10px; line-height: 1.9; }
+.public-sub-expired-config-placeholder { overflow: hidden; border: 1px dashed #e5bbb4; border-radius: 12px; background: rgba(255, 255, 255, .62); padding: 11px 12px; color: #a96d66; font: 700 10px var(--app-font-mono); text-overflow: ellipsis; white-space: nowrap; }
+.public-sub-expired-config-card > small { display: block; margin-top: 8px; color: #ad817c; font-size: 9px; }
+
 @media (max-width: 767px) {
   .report-page, .ops-page { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
   .report-page .page-description, .ops-page .page-description { max-width: 100%; font-size: 12px; line-height: 1.8; }
