@@ -1,0 +1,808 @@
+STOP MODIFYING THE EXISTING DESIGN.
+
+THE CURRENT UI MUST BE COMPLETELY DISCARDED AND REBUILT FROM SCRATCH.
+
+I DO NOT WANT A SIMPLE WEBSITE WITH MANY LARGE ROUNDED RECTANGLES.
+
+The product must feel like a premium native iOS application combined with a world-class modern SaaS interface.
+
+══════════════════════════════════════
+CORE DESIGN PHILOSOPHY
+══════════════════════════════════════
+
+Create a sophisticated, dynamic, premium VPN subscription dashboard.
+
+Design inspiration:
+
+• Apple Wallet
+• Apple Settings
+• Linear
+• Raycast
+• Arc Browser
+• Revolut
+• Stripe
+• modern iOS applications
+
+DO NOT COPY THEIR DESIGN.
+
+Use them only as inspiration for:
+
+• information hierarchy
+• spatial design
+• micro interactions
+• animations
+• visual depth
+• native mobile feeling
+
+The experience should feel EXPENSIVE, INTELLIGENT, and ALIVE.
+
+══════════════════════════════════════
+MANDATORY TECHNOLOGY
+══════════════════════════════════════
+
+Use:
+
+• React
+• TypeScript
+• Tailwind CSS
+• shadcn/ui
+• Radix UI primitives
+• Motion / Framer Motion
+• Lucide icons
+
+You MAY use compatible components inspired by:
+
+• Aceternity UI
+• Magic UI
+• Motion Primitives
+• React Bits
+
+DO NOT blindly import visual components.
+
+Adapt them into ONE cohesive custom design system.
+
+The final product must NOT look like a collection of component-library demos.
+
+══════════════════════════════════════
+IMPORTANT:
+NO GENERIC DASHBOARD
+══════════════════════════════════════
+
+DO NOT create:
+
+❌ dashboard cards everywhere
+❌ repeated white rectangles
+❌ huge rounded boxes
+❌ excessive borders
+❌ excessive shadows
+❌ large empty spaces
+❌ desktop-looking buttons
+❌ Bootstrap-like layouts
+❌ generic SaaS cards
+
+Instead use:
+
+✓ layered surfaces
+✓ visual grouping
+✓ floating controls
+✓ progressive disclosure
+✓ subtle depth
+✓ dynamic layouts
+✓ animated transitions
+✓ gesture-friendly interactions
+
+══════════════════════════════════════
+VISUAL LANGUAGE
+══════════════════════════════════════
+
+Background:
+
+Pure warm white.
+
+NOT gray.
+
+Use:
+
+#FCFCFA
+or a very subtle warm off-white.
+
+Primary accent:
+
+Deep sophisticated teal.
+
+Example:
+
+#0B5D5E
+
+Secondary teal:
+
+#2F7D7E
+
+Success:
+
+muted emerald green.
+
+Text:
+
+Primary:
+very dark navy / charcoal.
+
+Secondary:
+soft slate gray.
+
+Borders:
+
+extremely subtle.
+
+Do not put borders around everything.
+
+══════════════════════════════════════
+TYPOGRAPHY
+══════════════════════════════════════
+
+Persian RTL interface.
+
+Use a high-quality Persian font.
+
+Typography must have strong hierarchy.
+
+Large subscription name:
+
+bold
+premium
+editorial feeling
+
+Numbers:
+
+use tabular figures.
+
+Usage values should animate.
+
+Do not use excessive bold text.
+
+══════════════════════════════════════
+REDESIGN THE TOP SECTION
+══════════════════════════════════════
+
+DO NOT place the user information inside a large rectangular card.
+
+Create a premium PROFILE HERO.
+
+Layout:
+
+Top area has:
+
+small premium logo mark
+
+notification/settings action
+
+security status chip
+
+Then:
+
+"سرویس ویژه"
+
+as a small animated status label.
+
+Main title:
+
+سرویس ویژه
+
+Below:
+
+@u29_975ba5
+
+The hero should breathe.
+
+No border around the entire hero.
+
+Add subtle animated teal ambient light behind the title.
+
+Very subtle.
+
+Almost invisible.
+
+══════════════════════════════════════
+SUBSCRIPTION STATUS
+══════════════════════════════════════
+
+Replace the huge rectangular status card.
+
+Create a dynamic status module.
+
+It should feel similar to a native system status.
+
+Show:
+
+● فعال
+
+اشتراک شما فعال و آماده استفاده است
+
+Use a small animated status indicator.
+
+The green dot should have an extremely subtle pulse.
+
+Do not use a giant card.
+
+Use spacing and typography to create hierarchy.
+
+══════════════════════════════════════
+DATA USAGE
+══════════════════════════════════════
+
+The usage section must be visually impressive.
+
+DO NOT create another generic rectangle.
+
+Create a premium data visualization.
+
+Display:
+
+مصرف شده
+
+0 MB
+
+باقی مانده
+
+30 GB
+
+Use a sophisticated animated progress visualization.
+
+Possible direction:
+
+A thin horizontal fluid progress bar.
+
+The fill should animate when the page loads.
+
+OR:
+
+A circular orbital usage visualization.
+
+The visualization should NOT look like a basic HTML progress bar.
+
+The animation should be smooth.
+
+Use Motion spring animation.
+
+When usage changes:
+
+numbers animate.
+
+Progress animates.
+
+No sudden changes.
+
+Show:
+
+0٪ مصرف شده
+
+انقضا:
+15 مهر 1405
+
+══════════════════════════════════════
+CONNECTION GUIDE
+══════════════════════════════════════
+
+This is currently the worst part of the design.
+
+REMOVE THE LARGE STACKED RECTANGLES.
+
+Create a modern CONNECTION EXPERIENCE.
+
+Platforms:
+
+iOS
+Android
+Windows
+macOS
+
+Do NOT use a traditional tab bar.
+
+Create a floating segmented control.
+
+The active platform should smoothly move.
+
+Use a layout animation.
+
+The active pill should slide between platforms.
+
+The content transition should:
+
+fade
+translate slightly
+spring into position
+
+Do not instantly replace content.
+
+══════════════════════════════════════
+CONNECTION APPLICATIONS
+══════════════════════════════════════
+
+Applications:
+
+Clash Plus
+V2Box
+Streisand
+Shadowrocket
+AmneziaWG
+
+DO NOT display every application as a giant card.
+
+Create an intelligent vertical connection list.
+
+Each item should contain:
+
+Application icon
+
+Application name
+
+Short description
+
+Compatibility
+
+Action
+
+Example:
+
+[ ICON ] Clash Plus
+         کانفیگ اختصاصی سازگار با Mihomo
+
+         نصب برنامه      اتصال سریع →
+
+But visually much more sophisticated.
+
+══════════════════════════════════════
+LIST INTERACTION
+══════════════════════════════════════
+
+Each connection item should behave like a premium native list item.
+
+Normal state:
+
+minimal.
+
+Hover desktop:
+
+slight elevation.
+
+Icon background animates.
+
+Arrow moves slightly.
+
+Mobile:
+
+tap feedback.
+
+When tapping:
+
+use scale 0.98.
+
+Then spring back.
+
+The selected / recommended application should have:
+
+subtle teal background glow.
+
+NOT a huge teal rectangle.
+
+══════════════════════════════════════
+PRIMARY RECOMMENDED APP
+══════════════════════════════════════
+
+Clash Plus should be visually prioritized.
+
+But DO NOT use a giant colored card.
+
+Use:
+
+small "پیشنهادی" badge
+
+subtle teal accent line
+
+animated icon background
+
+premium quick action
+
+The quick action button should be:
+
+"اتصال سریع"
+
+The button must feel interactive.
+
+Use:
+
+slight magnetic interaction on desktop.
+
+Scale interaction.
+
+Loading state.
+
+Success state.
+
+══════════════════════════════════════
+BUTTON SYSTEM
+══════════════════════════════════════
+
+Create a custom button system.
+
+Primary button:
+
+deep teal.
+
+Soft depth.
+
+No excessive shadow.
+
+Hover:
+
+slightly brighter.
+
+Tap:
+
+scale down.
+
+Loading:
+
+button content transitions into loader.
+
+Success:
+
+icon smoothly changes to checkmark.
+
+Secondary button:
+
+minimal.
+
+Almost transparent.
+
+No heavy borders.
+
+══════════════════════════════════════
+MOBILE EXPERIENCE
+══════════════════════════════════════
+
+THIS IS CRITICAL.
+
+Mobile must feel like a REAL APPLICATION.
+
+DO NOT simply stack the desktop design vertically.
+
+Create a mobile-first experience.
+
+Use:
+
+• bottom sheets
+• floating action controls
+• sticky contextual actions
+• gesture-friendly spacing
+• large touch targets
+
+On mobile:
+
+The application list should be compact.
+
+Do NOT show enormous cards.
+
+Use a sophisticated list architecture.
+
+══════════════════════════════════════
+AMNEZIAWG
+══════════════════════════════════════
+
+AmneziaWG should be presented differently.
+
+It is a special configuration.
+
+Do NOT make it a massive dark rectangle.
+
+Instead:
+
+create an expandable connection module.
+
+Collapsed:
+
+AmneziaWG
+فایل کانفیگ اختصاصی
+
+When tapped:
+
+expand smoothly.
+
+Reveal:
+
+Download configuration
+
+Copy configuration
+
+Installation guide
+
+The expansion must use:
+
+height animation
+
+opacity animation
+
+staggered child animation
+
+══════════════════════════════════════
+ANIMATION SYSTEM
+══════════════════════════════════════
+
+The interface MUST feel alive.
+
+Use Motion.
+
+Create these animation principles:
+
+1. PAGE LOAD
+
+Hero:
+fade + translate
+
+Usage visualization:
+delayed animation
+
+Connection section:
+stagger children.
+
+Do not animate everything at once.
+
+2. LIST ITEMS
+
+Stagger entrance.
+
+Very subtle.
+
+3. BUTTONS
+
+Tap scale.
+
+Hover elevation.
+
+Loading transition.
+
+4. TABS
+
+Use shared layout animation.
+
+The active pill slides smoothly.
+
+5. NUMBERS
+
+Animate numerical changes.
+
+6. EXPANDABLE CONTENT
+
+Smooth height transition.
+
+══════════════════════════════════════
+MOTION VALUES
+══════════════════════════════════════
+
+Animations must be premium.
+
+Avoid:
+
+❌ bouncing everywhere
+❌ excessive animations
+❌ spinning decorations
+❌ flashy neon effects
+❌ gaming UI
+❌ cyberpunk UI
+
+Use:
+
+spring transitions.
+
+Fast interactions:
+
+150–250ms
+
+Content transitions:
+
+250–450ms
+
+Animations should feel:
+
+calm
+precise
+expensive
+natural
+
+══════════════════════════════════════
+DEPTH SYSTEM
+══════════════════════════════════════
+
+Use depth intelligently.
+
+Layer 1:
+
+background.
+
+Layer 2:
+
+content.
+
+Layer 3:
+
+floating controls.
+
+Layer 4:
+
+modal / bottom sheet.
+
+Do NOT put shadows everywhere.
+
+Use:
+
+subtle shadow.
+
+Ambient light.
+
+Very subtle gradients.
+
+Soft translucent surfaces ONLY where useful.
+
+Do not turn everything into glassmorphism.
+
+══════════════════════════════════════
+ICONS
+══════════════════════════════════════
+
+Use Lucide icons.
+
+Do NOT use emojis.
+
+Icons should have consistent stroke width.
+
+Create custom icon containers.
+
+Do not put every icon inside the same square.
+
+Some icons can be:
+
+floating.
+
+Some inline.
+
+Some inside circular surfaces.
+
+Vary composition intelligently.
+
+══════════════════════════════════════
+DESKTOP
+══════════════════════════════════════
+
+Desktop should NOT be a stretched mobile layout.
+
+Create a maximum content width.
+
+Use an editorial asymmetric composition.
+
+Possible structure:
+
+PROFILE HERO
+
+Then:
+
+LEFT
+Usage visualization
+
+RIGHT
+Subscription details
+
+Then:
+
+Connection platform selector
+
+Application connection list.
+
+Use generous whitespace.
+
+But do NOT waste space.
+
+══════════════════════════════════════
+TABLET
+══════════════════════════════════════
+
+Tablet should intelligently interpolate.
+
+Do not simply scale desktop.
+
+══════════════════════════════════════
+ACCESSIBILITY
+══════════════════════════════════════
+
+Maintain:
+
+RTL support.
+
+Keyboard navigation.
+
+Accessible dialogs.
+
+High contrast.
+
+Touch targets minimum 44px.
+
+Respect prefers-reduced-motion.
+
+══════════════════════════════════════
+COMPONENT ARCHITECTURE
+══════════════════════════════════════
+
+Create reusable components:
+
+AppShell
+
+ProfileHero
+
+SecurityStatus
+
+UsageVisualizer
+
+AnimatedStat
+
+PlatformSelector
+
+ConnectionAppList
+
+ConnectionAppItem
+
+QuickConnectButton
+
+InstallButton
+
+ExpandableConfig
+
+BottomSheet
+
+Do NOT put everything inside one page component.
+
+══════════════════════════════════════
+FINAL QUALITY CHECK
+══════════════════════════════════════
+
+Before considering the implementation complete:
+
+Ask:
+
+"Does this look like a premium modern product?"
+
+NOT:
+
+"Does this technically work?"
+
+If the interface looks like:
+
+a template
+
+a Bootstrap website
+
+a generic SaaS dashboard
+
+a stack of cards
+
+START AGAIN.
+
+The design must feel:
+
+Apple-level refinement
+Linear-level clarity
+Revolut-level information design
+modern motion design
+premium Persian product
+
+══════════════════════════════════════
+MOST IMPORTANT RULE
+══════════════════════════════════════
+
+DO NOT REUSE THE EXISTING UI STRUCTURE.
+
+COMPLETELY REDESIGN THE PAGE FROM SCRATCH.
+
+The screenshots represent functionality only.
+
+They are NOT design references.
+
+Create an entirely new visual architecture.

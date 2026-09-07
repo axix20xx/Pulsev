@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, createContext, useContext, useId, useRef,
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Activity, ArrowUpLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Copy, CreditCard, Download, ExternalLink, Filter, Gauge, Globe2, History, KeyRound, Lock, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Tag, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import QRCode from 'qrcode';
 import { Link, useLocation, useParams } from 'wouter';
 import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, type AdminSale } from '@workspace/api-client-react';
@@ -2055,8 +2056,192 @@ function PublicSubscriptionContent() {
   );
 }
 
+function PublicSubscriptionContentV2() {
+  const reduceMotion = useReducedMotion();
+  const [token, setToken] = useState(() => new URLSearchParams(window.location.search).get('t') || '');
+  const [data, setData] = useState<any>(null);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [activeOS, setActiveOS] = useState<ClientOS>('iOS');
+  const [copied, setCopied] = useState<'page' | 'feed' | 'awg' | null>(null);
+  const [shared, setShared] = useState(false);
+  const [awgOpen, setAwgOpen] = useState(false);
+  const [connectState, setConnectState] = useState<string | null>(null);
+
+  useEffect(() => {
+    const detected = detectClientOS();
+    setActiveOS(detected === 'Other' ? 'iOS' : detected);
+    const nextToken = new URLSearchParams(window.location.search).get('t') || '';
+    setToken(nextToken);
+    if (!nextToken) { setState('error'); return; }
+    let active = true;
+    let hasLoaded = false;
+    const load = () => fetch(`/api/public/subscription/${encodeURIComponent(nextToken)}`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('این لینک اشتراک معتبر نیست.');
+        return response.json();
+      })
+      .then((result) => {
+        if (!active) return;
+        hasLoaded = true;
+        setData(result);
+        setState('ready');
+      })
+      .catch(() => { if (active && !hasLoaded) setState('error'); });
+    void load();
+    const interval = window.setInterval(() => { void load(); }, 30_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, []);
+
+  const pageUrl = data ? new URL(data.public_url || `/sub?t=${encodeURIComponent(token)}`, window.location.origin).toString() : '';
+  const feedUrl = data ? new URL(data.subscription_url, window.location.origin).toString() : '';
+  const clashFeedUrl = feedUrl ? (() => {
+    const url = new URL(feedUrl);
+    url.searchParams.set('format', 'clash');
+    return url.toString();
+  })() : '';
+  const expires = data?.expires_at ? new Date(data.expires_at) : null;
+  const remaining = expires ? Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 86400000)) : 0;
+  const usedGb = Number(data?.used_gb ?? 0);
+  const limitGb = Number(data?.limit_gb ?? 0);
+  const remainingGb = Math.max(0, Number(data?.remaining_gb ?? limitGb - usedGb));
+  const ratio = limitGb > 0 ? Math.min(100, Math.round((usedGb / limitGb) * 100)) : 0;
+  const quotaFinished = Boolean(limitGb > 0 && (remainingGb <= 0 || usedGb >= limitGb));
+  const finished = Boolean(data?.finished || data?.status === 'expired' || data?.status === 'disabled' || remaining <= 0 || quotaFinished);
+  const expiring = !finished && (data?.status === 'expiring' || remaining <= 7);
+  const statusTone = finished ? 'danger' : expiring ? 'warn' : 'ok';
+  const statusLabel = finished ? 'پایان‌یافته' : expiring ? 'نزدیک انقضا' : 'فعال';
+  const finishedReason = data?.disable_reason || (quotaFinished ? 'حجم اشتراک به پایان رسیده است' : 'اعتبار اشتراک به پایان رسیده است');
+  const number = (value: number, maximumFractionDigits = 1) => new Intl.NumberFormat('fa-IR', { maximumFractionDigits }).format(value);
+  const flashCopy = (kind: 'page' | 'feed' | 'awg') => {
+    setCopied(kind);
+    window.setTimeout(() => setCopied((current) => current === kind ? null : current), 1800);
+  };
+  const copyUrl = async (url: string, kind: 'page' | 'feed' | 'awg') => {
+    if (!url || !(await copyTextToClipboard(url))) return;
+    flashCopy(kind);
+  };
+  const copyAwg = async () => {
+    if (!data?.awg_url) return;
+    try {
+      const response = await fetch(data.awg_url, { credentials: 'include' });
+      if (!response.ok) throw new Error();
+      const configuration = await response.text();
+      if (!(await copyTextToClipboard(configuration))) throw new Error();
+      flashCopy('awg');
+    } catch {
+      await copyUrl(new URL(data.awg_url, window.location.origin).toString(), 'awg');
+    }
+  };
+  const sharePage = async () => {
+    if (navigator.share) {
+      await navigator.share({ title: data?.plan || 'اشتراک پالس', text: 'صفحه وضعیت اشتراک من', url: pageUrl }).catch(() => undefined);
+    } else {
+      await copyUrl(pageUrl, 'page');
+    }
+    setShared(true);
+    window.setTimeout(() => setShared(false), 1800);
+  };
+  useEffect(() => {
+    if (data?.plan) document.title = `${data.plan} · پالس`;
+    return () => { document.title = 'پالس'; };
+  }, [data?.plan]);
+
+  type AppRecommendation = { id: string; name: string; description: string; compatibility: string; subscriptionUrl: string; schemeUrl?: string; storeUrl?: string; directUrl?: string; icon: typeof Activity; isPrimary?: boolean };
+  const getApps = (os: ClientOS): AppRecommendation[] => {
+    const name = encodeURIComponent(data?.plan || 'Pulse');
+    const uri = feedUrl;
+    const clash = clashFeedUrl;
+    const encodedUri = encodeURIComponent(uri);
+    const encodedClash = encodeURIComponent(clash);
+    if (os === 'iOS') return [
+      { id: 'clash-plus', name: 'Clash Plus', description: 'کانفیگ اختصاصی سازگار با Mihomo', compatibility: 'iOS', subscriptionUrl: clash, schemeUrl: `clash://install-config?url=${encodedClash}&name=${name}`, storeUrl: 'https://apps.apple.com/us/app/clash-plus-smart-proxy-tool/id6774378761', icon: Activity, isPrimary: true },
+      { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', compatibility: 'iOS', subscriptionUrl: uri, schemeUrl: `v2box://install-sub?url=${uri}&name=${name}`, storeUrl: 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690', icon: Globe2 },
+      { id: 'streisand', name: 'Streisand', description: 'لینک را از کلیپ‌بورد وارد کنید', compatibility: 'iOS', subscriptionUrl: uri, storeUrl: 'https://apps.apple.com/us/app/streisand/id6450534064', icon: ShieldCheck },
+      { id: 'shadowrocket', name: 'Shadowrocket', description: 'لینک را کپی و داخل برنامه اضافه کنید', compatibility: 'iOS', subscriptionUrl: uri, storeUrl: 'https://apps.apple.com/us/app/shadowrocket/id932747118', icon: Settings2 },
+    ];
+    if (os === 'Android') return [
+      { id: 'clash-meta', name: 'Clash Meta', description: 'کانفیگ اختصاصی سازگار با Mihomo', compatibility: 'Android', subscriptionUrl: clash, schemeUrl: `clash://install-config?url=${encodedClash}&name=${name}`, directUrl: 'https://github.com/MetaCubeX/ClashMetaForAndroid/releases', icon: Activity, isPrimary: true },
+      { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', compatibility: 'Android', subscriptionUrl: uri, schemeUrl: `v2box://install-sub?url=${uri}&name=${name}`, storeUrl: 'https://play.google.com/store/apps/details?id=dev.hexasoftware.v2box', icon: Globe2 },
+      { id: 'v2rayng', name: 'v2rayNG', description: 'کلاینت قدرتمند و حرفه‌ای', compatibility: 'Android', subscriptionUrl: uri, schemeUrl: `v2rayng://install-sub?url=${encodedUri}#${name}`, storeUrl: 'https://play.google.com/store/apps/details?id=com.v2ray.ang', icon: Server },
+      { id: 'hiddify', name: 'Hiddify', description: 'ساده و کاربرپسند', compatibility: 'Android', subscriptionUrl: uri, schemeUrl: `hiddify://import/${encodedUri}#${name}`, storeUrl: 'https://play.google.com/store/apps/details?id=app.hiddify.com', icon: ShieldCheck },
+    ];
+    if (os === 'Windows') return [
+      { id: 'clash-verge', name: 'Clash Verge Rev', description: 'کانفیگ اختصاصی Clash برای ویندوز', compatibility: 'Windows', subscriptionUrl: clash, directUrl: 'https://github.com/clash-verge-rev/clash-verge-rev/releases', icon: Activity, isPrimary: true },
+      { id: 'v2rayn', name: 'v2rayN', description: 'لینک را کپی و داخل برنامه اضافه کنید', compatibility: 'Windows', subscriptionUrl: uri, directUrl: 'https://github.com/2dust/v2rayN/releases', icon: Server },
+      { id: 'hiddify', name: 'Hiddify', description: 'لینک را کپی و داخل برنامه اضافه کنید', compatibility: 'Windows', subscriptionUrl: uri, directUrl: 'https://github.com/hiddify/hiddify-next/releases', icon: ShieldCheck },
+    ];
+    return [
+      { id: 'clash-verge', name: 'Clash Verge Rev', description: 'کانفیگ اختصاصی Clash برای macOS', compatibility: 'macOS', subscriptionUrl: clash, directUrl: 'https://github.com/clash-verge-rev/clash-verge-rev/releases', icon: Activity, isPrimary: true },
+      { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', compatibility: 'macOS', subscriptionUrl: uri, schemeUrl: `v2box://install-sub?url=${uri}&name=${name}`, storeUrl: 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690', icon: Globe2 },
+      { id: 'surge', name: 'Surge', description: 'کلاینت حرفه‌ای شبکه', compatibility: 'macOS', subscriptionUrl: uri, schemeUrl: `surge:///install-config?url=${encodedUri}`, directUrl: 'https://nssurge.com/', icon: Activity },
+    ];
+  };
+  const platformLabels: ClientOS[] = ['iOS', 'Android', 'Windows', 'macOS'];
+  const apps = state === 'ready' && !finished ? getApps(activeOS) : [];
+  const pageMotion = reduceMotion ? {} : { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: .45, ease: 'easeOut' as const } };
+
+  if (state === 'loading') return <div className="public-sub-v2 public-sub-state" dir="rtl"><div className="public-sub-loader-v2"><span className="pulse-mark large"><span /></span><div className="public-sub-skeleton-line wide" /><div className="public-sub-skeleton-line" /><p>در حال دریافت وضعیت اشتراک...</p></div></div>;
+  if (state === 'error') return <div className="public-sub-v2 public-sub-state" dir="rtl"><motion.div {...pageMotion} className="public-sub-error-v2"><div className="public-sub-v2-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="public-sub-error-icon"><ShieldCheck size={28} /></div><p className="public-sub-kicker">دسترسی اشتراک</p><h1>لینک نامعتبر است</h1><p>ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="public-sub-button primary">بازگشت به پالس</a></motion.div></div>;
+
+  return (
+    <div className="public-sub-v2" dir="rtl">
+      <div className="public-sub-ambient public-sub-ambient-one" />
+      <div className="public-sub-ambient public-sub-ambient-two" />
+      <main className="public-sub-canvas">
+        <motion.header {...pageMotion} className="public-sub-topbar">
+          <div className="public-sub-v2-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div>
+          <div className="public-sub-top-actions"><span className="public-sub-security"><ShieldCheck size={14} /> اتصال امن</span><button type="button" className="public-sub-icon-button" onClick={() => void sharePage()} aria-label="اشتراک‌گذاری صفحه"><ArrowUpLeft size={17} /></button></div>
+        </motion.header>
+
+        <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .08, duration: .5 }} className="public-sub-profile">
+          <div className={`public-sub-status-label ${statusTone}`}><span className="public-sub-status-dot" />{statusLabel}</div>
+          <p className="public-sub-kicker">سرویس ویژه</p>
+          <h1>{data.plan || 'سرویس ویژه'}</h1>
+          <p className="public-sub-username" dir="ltr">@{data.username}</p>
+          <div className="public-sub-profile-actions"><button type="button" className="public-sub-text-action" onClick={() => void copyUrl(pageUrl, 'page')}><Copy size={15} />{copied === 'page' ? 'کپی شد' : 'کپی لینک صفحه'}</button><button type="button" className="public-sub-text-action" onClick={() => void sharePage()}><ArrowUpLeft size={15} />{shared ? 'ارسال شد' : 'اشتراک‌گذاری'}</button></div>
+        </motion.section>
+
+        <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .15, duration: .5 }} className={`public-sub-status-module ${statusTone}`}>
+          <div className="public-sub-status-copy"><span className="public-sub-status-overline">{finished ? 'وضعیت اشتراک' : expiring ? 'زمان تمدید نزدیک است' : 'وضعیت اتصال'}</span><strong>{finished ? finishedReason : expiring ? `${number(remaining, 0)} روز تا پایان اعتبار` : 'اشتراک شما فعال و آماده استفاده است'}</strong></div>
+          <span className="public-sub-status-icon">{finished ? '!' : <Check size={17} />}</span>
+        </motion.section>
+
+        <div className="public-sub-editorial-grid">
+          <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .22, duration: .55 }} className="public-sub-usage-module">
+            <div className="public-sub-section-heading"><div><p className="public-sub-kicker">مصرف اینترنت</p><h2>فضای شما</h2></div><span className="public-sub-percent">{number(ratio, 0)}٪</span></div>
+            <div className="public-sub-usage-visual"><svg viewBox="0 0 420 16" role="img" aria-label={`${number(ratio, 0)} درصد مصرف شده`}><defs><linearGradient id="pulse-usage-gradient" x1="0" x2="1"><stop offset="0" stopColor="#0B5D5E" /><stop offset="1" stopColor="#56A2A0" /></linearGradient></defs><path d="M8 8H412" className="public-sub-track" /><motion.path initial={{ pathLength: 0 }} animate={{ pathLength: Math.max(.015, ratio / 100) }} transition={reduceMotion ? { duration: 0 } : { delay: .45, duration: .9, ease: [0.22, 1, .36, 1] }} d="M8 8H412" className="public-sub-fill" /></svg><div className="public-sub-usage-glow" style={{ insetInlineStart: `${Math.max(1, Math.min(98, ratio))}%` }} /></div>
+            <div className="public-sub-usage-values"><div><span>مصرف شده</span><strong>{number(usedGb)} <em>GB</em></strong></div><div><span>باقی‌مانده</span><strong>{number(remainingGb)} <em>GB</em></strong></div></div>
+            <div className="public-sub-usage-foot"><span>حجم کل {number(limitGb, 0)} گیگابایت</span><span>انقضا: {dateLabel(data.expires_at)}</span></div>
+          </motion.section>
+          <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .28, duration: .55 }} className="public-sub-details-module">
+            <p className="public-sub-kicker">جزئیات اشتراک</p>
+            <div className="public-sub-detail-row"><span><CalendarDays size={16} />اعتبار باقی‌مانده</span><strong>{number(remaining, 0)} روز</strong></div>
+            <div className="public-sub-detail-row"><span><Globe2 size={16} />ارائه‌دهنده</span><strong>{data.provider_label || 'پالس'}</strong></div>
+            <div className="public-sub-detail-row"><span><ShieldCheck size={16} />شناسه کاربری</span><strong dir="ltr">@{data.username}</strong></div>
+          </motion.section>
+        </div>
+
+        {finished ? <motion.section {...pageMotion} className="public-sub-finished"><RefreshCw size={22} /><div><strong>برای تمدید با فروشنده تماس بگیرید</strong><p>{finishedReason} کانفیگ‌های Provider و AmneziaWG دیگر ارائه نمی‌شوند.</p></div></motion.section> : <section className="public-sub-connections">
+          <div className="public-sub-connection-heading"><div><p className="public-sub-kicker">راهنمای اتصال</p><h2>بهترین مسیر برای دستگاه شما</h2></div><span>اتصال سریع و امن</span></div>
+          <div className="public-sub-platforms" role="tablist" aria-label="انتخاب پلتفرم">{platformLabels.map((os) => <button type="button" role="tab" aria-selected={activeOS === os} key={os} onClick={() => setActiveOS(os)} className={activeOS === os ? 'active' : ''}>{activeOS === os && <motion.span layoutId="public-sub-platform-pill" className="public-sub-platform-pill" transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 450, damping: 35 }} />}{os}</button>)}</div>
+          <AnimatePresence mode="wait">
+            <motion.div key={activeOS} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={reduceMotion ? { opacity: 1 } : { opacity: 0, x: -8 }} transition={reduceMotion ? { duration: 0 } : { duration: .28 }} className="public-sub-app-list">
+              {apps.map((app, index) => { const Icon = app.icon; const isConnecting = connectState === app.id; return <motion.article key={app.id} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={reduceMotion ? { duration: 0 } : { delay: index * .045, duration: .3 }} className={`public-sub-app-item ${app.isPrimary ? 'recommended' : ''}`}><div className="public-sub-app-icon"><Icon size={20} /></div><div className="public-sub-app-copy"><div className="public-sub-app-title"><strong>{app.name}</strong>{app.isPrimary && <span>پیشنهادی</span>}</div><p>{app.description}</p><small>{app.compatibility}</small></div><div className="public-sub-app-actions">{app.schemeUrl ? <a href={app.schemeUrl} className="public-sub-quick-action" onClick={() => { setConnectState(app.id); window.setTimeout(() => setConnectState(null), 1600); }}>{isConnecting ? <RefreshCw size={14} className="public-sub-spin" /> : <ExternalLink size={14} />}{isConnecting ? 'در حال باز کردن' : 'اتصال سریع'}</a> : <button type="button" className="public-sub-copy-action" onClick={() => void copyUrl(app.subscriptionUrl, 'feed')}><Copy size={14} />کپی لینک</button>}{(app.storeUrl || app.directUrl) && <a className="public-sub-install-action" href={app.storeUrl || app.directUrl} target="_blank" rel="noreferrer"><Download size={14} />نصب</a>}</div></motion.article>; })}
+            </motion.div>
+          </AnimatePresence>
+
+          {data.awg_ready && <motion.section layout className={`public-sub-awg ${awgOpen ? 'open' : ''}`}><button type="button" className="public-sub-awg-trigger" onClick={() => setAwgOpen((open) => !open)} aria-expanded={awgOpen}><span className="public-sub-awg-icon"><Wifi size={19} /></span><span><strong>AmneziaWG</strong><small>فایل کانفیگ اختصاصی</small></span><ChevronLeft size={18} className={awgOpen ? 'rotate-90' : ''} /></button><AnimatePresence initial={false}>{awgOpen && <motion.div initial={reduceMotion ? { opacity: 1, height: 'auto' } : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }} className="public-sub-awg-body"><p>برای اتصال اختصاصی، فایل را دریافت کنید یا متن کانفیگ را در Amnezia وارد کنید.</p><div><a href={data.awg_url} className="public-sub-awg-action"><Download size={15} />دانلود فایل</a><button type="button" className="public-sub-awg-action" onClick={() => void copyAwg()}><Copy size={15} />{copied === 'awg' ? 'کپی شد' : 'کپی کانفیگ'}</button><button type="button" className="public-sub-awg-guide" onClick={() => setAwgOpen(true)}><ShieldCheck size={15} />راهنمای نصب: فایل را در Amnezia وارد کنید</button></div></motion.div>}</AnimatePresence></motion.section>}
+        </section>}
+
+        <section className="public-sub-share-strip"><div><p className="public-sub-kicker">لینک اشتراک</p><strong>همیشه در دسترس شما</strong><span dir="ltr">{pageUrl}</span></div><button type="button" onClick={() => void copyUrl(feedUrl, 'feed')} className="public-sub-icon-button" aria-label="کپی لینک فید">{copied === 'feed' ? <Check size={17} /> : <Copy size={17} />}</button></section>
+        <footer className="public-sub-v2-footer"><ShieldCheck size={16} /><span>این صفحه ایمن و اختصاصی است. لینک اشتراک را فقط با دستگاه‌های شخصی خود به اشتراک بگذارید.</span><div className="public-sub-qr-v2"><SubscriptionQr url={pageUrl} /></div></footer>
+      </main>
+    </div>
+  );
+}
+
 export function PublicSubscription() {
-  return <div className="public-sub-route"><PulseNetworkAccent className="public-route-network" /><PublicSubscriptionContent /></div>;
+  return <div className="public-sub-route"><PublicSubscriptionContentV2 /></div>;
 }
 
 function SettingsPageContent() {
