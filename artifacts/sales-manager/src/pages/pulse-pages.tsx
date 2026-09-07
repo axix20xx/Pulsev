@@ -1356,6 +1356,11 @@ function ConnectionsContent() {
   const [users, setUsers] = useState<ConnectionUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'recent'>('all');
+  const [panelFilter, setPanelFilter] = useState('all');
+  const [groupFilter, setGroupFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'recent' | 'traffic' | 'name'>('recent');
   const load = async () => {
     try {
       const response = await fetch('/api/pasarguard/connections', { credentials: 'include' });
@@ -1374,19 +1379,54 @@ function ConnectionsContent() {
     const timer = window.setInterval(() => void load(), 30_000);
     return () => window.clearInterval(timer);
   }, []);
-  const online = users.filter((user) => user.online);
-  const recent = users.filter((user) => !user.online);
+  const onlineUsers = users.filter((user) => user.online);
+  const recentUsers = users.filter((user) => !user.online);
+  const panelOptions = useMemo(() => Array.from(new Set(users.map((user) => user.panel_key))).sort(), [users]);
+  const groupOptions = useMemo(() => Array.from(new Set(users.flatMap((user) => user.group_names))).sort(), [users]);
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const filteredUsers = useMemo(() => {
+    const result = users.filter((user) => {
+      const searchable = [user.customer_name, user.username, user.phone ?? '', user.panel_key, user.group_names.join(' ')].join(' ').toLocaleLowerCase();
+      return (!normalizedSearch || searchable.includes(normalizedSearch))
+        && (statusFilter === 'all' || (statusFilter === 'online' ? user.online : !user.online))
+        && (panelFilter === 'all' || user.panel_key === panelFilter)
+        && (groupFilter === 'all' || user.group_names.includes(groupFilter));
+    });
+    return result.sort((left, right) => {
+      if (sortBy === 'name') return left.customer_name.localeCompare(right.customer_name, 'fa');
+      if (sortBy === 'traffic') return right.used_traffic - left.used_traffic;
+      return Number(right.online) - Number(left.online) || (right.online_at ?? '').localeCompare(left.online_at ?? '');
+    });
+  }, [groupFilter, normalizedSearch, panelFilter, sortBy, statusFilter, users]);
+  const hasFilters = Boolean(normalizedSearch || statusFilter !== 'all' || panelFilter !== 'all' || groupFilter !== 'all' || sortBy !== 'recent');
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('all');
+    setPanelFilter('all');
+    setGroupFilter('all');
+    setSortBy('recent');
+  };
   return <><PageHeader eyebrow="پاسارگارد" title="کاربران آنلاین" description="کاربران آنلاین و کسانی که در ۲۴ ساعت اخیر به پنل پاسارگارد متصل شده‌اند." action={<Button variant="secondary" onClick={() => { setLoading(true); void load(); }} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} /> بروزرسانی</Button>} />
     {error && <div className="notice danger"><Activity size={15} /> {error}</div>}
     <section className="monitoring-metrics connection-metrics">
-      <div className="monitoring-metric"><span className="monitoring-metric-icon teal"><Wifi size={17} /></span><div><small>همین حالا آنلاین</small><strong>{new Intl.NumberFormat('fa-IR').format(online.length)}</strong></div></div>
-      <div className="monitoring-metric"><span className="monitoring-metric-icon sage"><History size={17} /></span><div><small>اخیراً متصل‌شده</small><strong>{new Intl.NumberFormat('fa-IR').format(recent.length)}</strong></div></div>
+      <div className="monitoring-metric"><span className="monitoring-metric-icon teal"><Wifi size={17} /></span><div><small>همین حالا آنلاین</small><strong>{new Intl.NumberFormat('fa-IR').format(onlineUsers.length)}</strong></div></div>
+      <div className="monitoring-metric"><span className="monitoring-metric-icon sage"><History size={17} /></span><div><small>اخیراً متصل‌شده</small><strong>{new Intl.NumberFormat('fa-IR').format(recentUsers.length)}</strong></div></div>
       <div className="monitoring-metric"><span className="monitoring-metric-icon"><Server size={17} /></span><div><small>Providerهای پاسارگارد</small><strong>{new Set(users.map((user) => user.panel_key)).size.toLocaleString('fa-IR')}</strong></div></div>
       <div className="monitoring-metric"><span className="monitoring-metric-icon amber"><RefreshCw size={17} /></span><div><small>بروزرسانی</small><strong>۳۰ ثانیه</strong></div></div>
     </section>
     <section className="panel-card connections-card">
       <div className="panel-heading"><div><p className="eyebrow">اتصال‌های واقعی</p><h2 className="section-title">آخرین وضعیت کاربران</h2></div><span className="soft-badge">فقط سرویس‌های شما</span></div>
-      {loading && !users.length ? <div className="monitoring-empty"><RefreshCw size={18} className="spin" /><p>در حال دریافت وضعیت کاربران...</p></div> : !users.length ? <div className="monitoring-empty"><Wifi size={18} /><p>کاربر متصل یا اخیراً فعالی پیدا نشد.</p><small>پس از اتصال کاربر، این صفحه خودکار بروزرسانی می‌شود.</small></div> : <div className="connection-list">{users.map((user) => <article className={`connection-user ${user.online ? 'is-online' : ''}`} key={`${user.panel_key}:${user.username}`}><div className="connection-user-avatar">{user.online ? <Wifi size={17} /> : <History size={17} />}</div><div className="connection-user-main"><div className="connection-user-heading"><strong>{user.customer_name}</strong><span className={user.online ? 'connection-live' : 'connection-recent'}>{user.online ? 'آنلاین' : 'اخیراً متصل'}</span></div><p dir="ltr">@{user.username}</p><small>{user.panel_key} · {user.online_at ? dateTimeLabel(user.online_at) : 'زمان اتصال ثبت نشده'}</small></div><div className="connection-user-meta"><strong>{trafficLabel(user.used_traffic)}</strong><span>مصرف ثبت‌شده</span><small>{user.group_names?.join('، ') || 'بدون گروه نمایشی'}</small></div></article>)}</div>}
+      <div className="connection-filter-card">
+        <div className="connection-filter-heading"><div><span className="filter-kicker"><Filter size={13} /> فیلتر پیشرفته</span><strong>{new Intl.NumberFormat('fa-IR').format(filteredUsers.length)} کاربر از {new Intl.NumberFormat('fa-IR').format(users.length)}</strong></div>{hasFilters && <button type="button" className="connection-clear-filter" onClick={clearFilters}>پاک کردن فیلترها</button>}</div>
+        <div className="connection-filter-search search-field"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="نام مشتری، نام کاربری، تلفن، Provider یا گروه" aria-label="جست‌وجوی کاربران آنلاین" /></div>
+        <div className="connection-filter-grid">
+          <label><span>وضعیت اتصال</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}><option value="all">همه کاربران</option><option value="online">همین حالا آنلاین</option><option value="recent">اخیراً متصل‌شده</option></select></label>
+          <label><span>Provider</span><select value={panelFilter} onChange={(event) => setPanelFilter(event.target.value)}><option value="all">همه Providerها</option>{panelOptions.map((panel) => <option key={panel} value={panel}>{panel}</option>)}</select></label>
+          <label><span>گروه</span><select value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}><option value="all">همه گروه‌ها</option>{groupOptions.map((group) => <option key={group} value={group}>{group}</option>)}</select></label>
+          <label><span>مرتب‌سازی</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)}><option value="recent">آخرین اتصال</option><option value="traffic">بیشترین مصرف</option><option value="name">نام مشتری</option></select></label>
+        </div>
+      </div>
+      {loading && !users.length ? <div className="monitoring-empty"><RefreshCw size={18} className="spin" /><p>در حال دریافت وضعیت کاربران...</p></div> : !users.length ? <div className="monitoring-empty"><Wifi size={18} /><p>کاربر متصل یا اخیراً فعالی پیدا نشد.</p><small>پس از اتصال کاربر، این صفحه خودکار بروزرسانی می‌شود.</small></div> : !filteredUsers.length ? <div className="monitoring-empty"><Search size={18} /><p>با فیلترهای فعلی کاربری پیدا نشد.</p><button type="button" className="button button-secondary mt-3" onClick={clearFilters}>نمایش همه کاربران</button></div> : <div className="connection-list">{filteredUsers.map((user) => <article className={`connection-user ${user.online ? 'is-online' : ''}`} key={`${user.panel_key}:${user.username}`}><div className="connection-user-avatar">{user.online ? <Wifi size={17} /> : <History size={17} />}</div><div className="connection-user-main"><div className="connection-user-heading"><strong>{user.customer_name}</strong><span className={user.online ? 'connection-live' : 'connection-recent'}>{user.online ? 'آنلاین' : 'اخیراً متصل'}</span></div><p dir="ltr">@{user.username}</p><small>{user.panel_key} · {user.online_at ? dateTimeLabel(user.online_at) : 'زمان اتصال ثبت نشده'}</small></div><div className="connection-user-meta"><strong>{trafficLabel(user.used_traffic)}</strong><span>مصرف ثبت‌شده</span><small>{user.group_names?.join('، ') || 'بدون گروه نمایشی'}</small></div></article>)}</div>}
     </section>
   </>;
 }
