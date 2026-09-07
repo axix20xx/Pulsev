@@ -431,6 +431,70 @@ export async function testPanelAuthentication(
   }
 }
 
+export type PasarguardConnectionUser = {
+  panel_key: string;
+  username: string;
+  status: string;
+  online: boolean;
+  online_at: string | null;
+  used_traffic: number;
+  data_limit: number | null;
+  expire: string | null;
+  group_names: string[];
+};
+
+export async function listPasarguardConnectionUsers(
+  ownerId?: number,
+  role?: string,
+): Promise<PasarguardConnectionUser[]> {
+  const rainPanels = (await panels(ownerId, role)).filter((panel) => panelKind(panel) === "rain_admin");
+  const recentAfter = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const results = await Promise.all(rainPanels.map(async (panel) => {
+    const query = new URLSearchParams({
+      limit: "200",
+      sort: "-online_at",
+      online_after: recentAfter,
+    });
+    try {
+      const response = await panelRequest(panel, "GET", `/api/users?${query.toString()}`);
+      if (response.status < 200 || response.status >= 300) return [];
+      const users = Array.isArray(response.json?.users)
+        ? response.json.users
+        : Array.isArray(response.json)
+          ? response.json
+          : [];
+      return users.flatMap((user: any) => {
+        const username = typeof user?.username === "string" ? user.username.trim() : "";
+        if (!username) return [];
+        const onlineAt = typeof user.online_at === "string" ? user.online_at : null;
+        const online = Boolean(user.online) || (
+          onlineAt ? Date.now() - new Date(onlineAt).getTime() <= 15 * 60 * 1000 : false
+        );
+        return [{
+          panel_key: panelKey(panel),
+          username,
+          status: typeof user.status === "string" ? user.status : "unknown",
+          online,
+          online_at: onlineAt,
+          used_traffic: Number(user.used_traffic ?? 0),
+          data_limit: user.data_limit === null || user.data_limit === undefined ? null : Number(user.data_limit),
+          expire: typeof user.expire === "string" ? user.expire : null,
+          group_names: Array.isArray(user.group_names) ? user.group_names.filter((item: unknown): item is string => typeof item === "string") : [],
+        }];
+      });
+    } catch {
+      return [];
+    }
+  }));
+  const seen = new Set<string>();
+  return results.flat().filter((user) => {
+    const key = `${user.panel_key}:${user.username}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => Number(b.online) - Number(a.online) || (b.online_at ?? "").localeCompare(a.online_at ?? ""));
+}
+
 async function panelRequest(
   panel: Panel,
   method: string,

@@ -824,6 +824,7 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
   const [providers, setProviders] = useState<any[]>([]);
   const [providersLoading, setProvidersLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [creationSeconds, setCreationSeconds] = useState(0);
   const [error, setError] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const normalizedPhone = (value: string) => value.replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[^\d]/g, '');
@@ -859,6 +860,15 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
       .catch(() => setProviders([]))
       .finally(() => setProvidersLoading(false));
   }, []);
+  useEffect(() => {
+    if (!submitting) {
+      setCreationSeconds(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => setCreationSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, [submitting]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitting(true);
@@ -883,6 +893,32 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
   if (created) {
     const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl;
     return <Overlay title="سرویس با موفقیت ساخته شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{created.customerName}</h3><p dir="ltr">@{created.username}</p><p>سرویس روی همه Providerهای آماده و AmneziaWG ساخته و همگام شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک آمادهٔ استفاده است</strong><span>QR را اسکن کنید یا لینک را برای مشتری کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => void copyTextToClipboard(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(created)}><ExternalLink size={15} /> افزودن به V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl}><Wifi size={15} /> دانلود AmneziaWG</a>}</div></>}<Button className="mt-5 w-full justify-center" onClick={onClose}>تمام</Button></div></Overlay>;
+  }
+  if (submitting) {
+    const phase = creationSeconds < 2 ? 0 : creationSeconds < 7 ? 1 : creationSeconds < 13 ? 2 : 3;
+    const phases = [
+      ['آماده‌سازی سرویس', 'اطلاعات مشتری و بسته در حال بررسی است.'],
+      ['ساخت کاربران Provider', 'درخواست ساخت روی Providerهای آماده ارسال می‌شود.'],
+      ['ساخت AmneziaWG', 'کلاینت AWG در حال ایجاد یا همگام‌سازی است.'],
+      ['ثبت و نهایی‌سازی', 'نتیجه‌ها جمع‌بندی می‌شوند؛ حتی خطاهای جزئی برای retry ثبت می‌شوند.'],
+    ];
+    return <Overlay title="ساخت سرویس در حال انجام است" onClose={() => undefined} fullScreen>
+      <div className="creation-status-screen" role="status" aria-live="polite">
+        <div className="creation-status-orb"><RefreshCw size={30} className="spin" /></div>
+        <p className="eyebrow">عملیات زنده · {numberFa(creationSeconds)} ثانیه</p>
+        <h2>{phases[phase][0]}</h2>
+        <p className="creation-status-lede">{phases[phase][1]}</p>
+        <div className="creation-progress-track"><span style={{ width: `${Math.min(96, 18 + phase * 25 + Math.min(16, creationSeconds))}%` }} /></div>
+        <div className="creation-counter-grid">
+          <div><span>Providerهای آماده</span><strong>{numberFa(providers.length)}</strong><small>هدف این ساخت</small></div>
+          <div><span>Providerها</span><strong>{phase >= 1 ? 'در حال ارسال' : 'در انتظار'}</strong><small>نتیجه نهایی بعد از پاسخ API</small></div>
+          <div><span>AmneziaWG</span><strong>{phase >= 2 ? 'در حال ساخت' : 'در صف'}</strong><small>کلاینت مستقل</small></div>
+          <div><span>Retry</span><strong>خودکار</strong><small>خطاهای جزئی حذف نمی‌شوند</small></div>
+        </div>
+        <div className="creation-status-steps">{phases.map(([label], index) => <div className={index < phase ? 'done' : index === phase ? 'current' : ''} key={label}><span>{index < phase ? '✓' : index + 1}</span><strong>{label}</strong></div>)}</div>
+        <p className="creation-status-note">این صفحه را نبندید؛ ساخت هم‌زمان روی پنل‌ها ممکن است چند ثانیه طول بکشد.</p>
+      </div>
+    </Overlay>;
   }
   const canContinue = step === 1
     ? Boolean(form.customerName.trim() && normalizedPhone(form.phone).length >= 10)
@@ -1130,6 +1166,68 @@ function MonitoringContent() {
 
 export function Monitoring() {
   return <SurfaceFrame name="monitoring" signal><MonitoringContent /></SurfaceFrame>;
+}
+
+type ConnectionUser = {
+  panel_key: string;
+  username: string;
+  status: string;
+  online: boolean;
+  online_at: string | null;
+  used_traffic: number;
+  data_limit: number | null;
+  expire: string | null;
+  customer_name: string;
+  phone: string | null;
+  group_names: string[];
+};
+
+function trafficLabel(bytes: number) {
+  const gb = bytes / (1024 ** 3);
+  return gb >= 1 ? `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(gb)} گیگ` : `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 }).format(bytes / (1024 ** 2))} مگ`;
+}
+
+function ConnectionsContent() {
+  const [users, setUsers] = useState<ConnectionUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const load = async () => {
+    try {
+      const response = await fetch('/api/pasarguard/connections', { credentials: 'include' });
+      if (!response.ok) throw new Error('دریافت وضعیت اتصال کاربران پاسارگارد ناموفق بود.');
+      const result = await response.json();
+      setUsers(Array.isArray(result?.users) ? result.users : []);
+      setError('');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'دریافت وضعیت اتصال ناموفق بود.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => void load(), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const online = users.filter((user) => user.online);
+  const recent = users.filter((user) => !user.online);
+  return <><PageHeader eyebrow="پاسارگارد" title="کاربران آنلاین" description="کاربران آنلاین و کسانی که در ۲۴ ساعت اخیر به پنل پاسارگارد متصل شده‌اند." action={<Button variant="secondary" onClick={() => { setLoading(true); void load(); }} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} /> بروزرسانی</Button>} />
+    {error && <div className="notice danger"><Activity size={15} /> {error}</div>}
+    <section className="monitoring-metrics connection-metrics">
+      <div className="monitoring-metric"><span className="monitoring-metric-icon teal"><Wifi size={17} /></span><div><small>همین حالا آنلاین</small><strong>{new Intl.NumberFormat('fa-IR').format(online.length)}</strong></div></div>
+      <div className="monitoring-metric"><span className="monitoring-metric-icon sage"><History size={17} /></span><div><small>اخیراً متصل‌شده</small><strong>{new Intl.NumberFormat('fa-IR').format(recent.length)}</strong></div></div>
+      <div className="monitoring-metric"><span className="monitoring-metric-icon"><Server size={17} /></span><div><small>Providerهای پاسارگارد</small><strong>{new Set(users.map((user) => user.panel_key)).size.toLocaleString('fa-IR')}</strong></div></div>
+      <div className="monitoring-metric"><span className="monitoring-metric-icon amber"><RefreshCw size={17} /></span><div><small>بروزرسانی</small><strong>۳۰ ثانیه</strong></div></div>
+    </section>
+    <section className="panel-card connections-card">
+      <div className="panel-heading"><div><p className="eyebrow">اتصال‌های واقعی</p><h2 className="section-title">آخرین وضعیت کاربران</h2></div><span className="soft-badge">فقط سرویس‌های شما</span></div>
+      {loading && !users.length ? <div className="monitoring-empty"><RefreshCw size={18} className="spin" /><p>در حال دریافت وضعیت کاربران...</p></div> : !users.length ? <div className="monitoring-empty"><Wifi size={18} /><p>کاربر متصل یا اخیراً فعالی پیدا نشد.</p><small>پس از اتصال کاربر، این صفحه خودکار بروزرسانی می‌شود.</small></div> : <div className="connection-list">{users.map((user) => <article className={`connection-user ${user.online ? 'is-online' : ''}`} key={`${user.panel_key}:${user.username}`}><div className="connection-user-avatar">{user.online ? <Wifi size={17} /> : <History size={17} />}</div><div className="connection-user-main"><div className="connection-user-heading"><strong>{user.customer_name}</strong><span className={user.online ? 'connection-live' : 'connection-recent'}>{user.online ? 'آنلاین' : 'اخیراً متصل'}</span></div><p dir="ltr">@{user.username}</p><small>{user.panel_key} · {user.online_at ? dateTimeLabel(user.online_at) : 'زمان اتصال ثبت نشده'}</small></div><div className="connection-user-meta"><strong>{trafficLabel(user.used_traffic)}</strong><span>مصرف ثبت‌شده</span><small>{user.group_names?.join('، ') || 'بدون گروه نمایشی'}</small></div></article>)}</div>}
+    </section>
+  </>;
+}
+
+export function Connections() {
+  return <SurfaceFrame name="connections" signal><ConnectionsContent /></SurfaceFrame>;
 }
 
 function CustomersContent() {

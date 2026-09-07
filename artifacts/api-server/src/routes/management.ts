@@ -58,6 +58,7 @@ import {
   disablePanelUser,
   fetchPanelSubscription,
   listAvailablePanels,
+  listPasarguardConnectionUsers,
   provisionUser,
   RainApiError,
   testPanelAuthentication,
@@ -2094,6 +2095,31 @@ router.get("/monitoring", requireAuth, async (req, res): Promise<void> => {
     summary: summary.rows[0] ?? { pending: 0, running: 0, completed: 0, total: 0 },
     jobs: jobs.rows,
   });
+});
+
+router.get("/pasarguard/connections", requireAuth, async (req, res): Promise<void> => {
+  const owner = ownership("svc", req);
+  const [remoteUsers, localUsers] = await Promise.all([
+    listPasarguardConnectionUsers(req.auth?.telegramId, req.auth?.role),
+    pool.query(
+      `SELECT svc.rain_username AS username,
+              COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
+              c.phone
+       FROM reseller_services svc
+       LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE ${owner.sql}`,
+      owner.params,
+    ),
+  ]);
+  const localByUsername = new Map(localUsers.rows.map((row) => [String(row.username), row]));
+  const users = remoteUsers
+    .map((user) => {
+      const local = localByUsername.get(user.username);
+      if (!local) return null;
+      return { ...user, customer_name: local.customer_name, phone: local.phone };
+    })
+    .filter((user): user is NonNullable<typeof user> => Boolean(user));
+  res.json({ generated_at: new Date().toISOString(), users });
 });
 
 router.get("/services", requireAuth, async (req, res): Promise<void> => {

@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bell, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, X, LogOut, ShieldAlert, Check, Sparkles, Copy, Search } from 'lucide-react';
+import { Activity, BarChart3, Bell, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, Wifi, X, LogOut, ShieldAlert, Check, Sparkles, Copy, Search } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,6 +29,7 @@ const nav = [
   { href: '/reports', label: 'گزارش‌ها', icon: BarChart3 },
 ];
 const monitoringNav = { href: '/monitoring', label: 'مانیتورینگ', icon: Activity };
+const connectionsNav = { href: '/connections', label: 'کاربران آنلاین', icon: Wifi };
 const posNav = { href: '/pos', label: 'پایانه فروش', icon: CreditCard };
 const operationsNav = { href: '/operations', label: 'مرکز عملیات', icon: Gauge };
 const smartNav = { href: '/insights', label: 'مرکز هوشمند', icon: Sparkles };
@@ -208,6 +209,10 @@ export function Shell({ children }: { children: ReactNode }) {
             <Link href={monitoringNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(monitoringNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
               <monitoringNav.icon size={18} strokeWidth={isNavActive(monitoringNav.href) ? 2.5 : 2} className={`transition-transform duration-300 ${isNavActive(monitoringNav.href) ? 'scale-110' : 'group-hover:scale-110'}`} />
               <span className="text-sm font-semibold tracking-tight">{monitoringNav.label}</span>
+            </Link>
+            <Link href={connectionsNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(connectionsNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
+              <connectionsNav.icon size={18} strokeWidth={isNavActive(connectionsNav.href) ? 2.5 : 2} className={`transition-transform duration-300 ${isNavActive(connectionsNav.href) ? 'scale-110' : 'group-hover:scale-110'}`} />
+              <span className="text-sm font-semibold tracking-tight">{connectionsNav.label}</span>
             </Link>
             <Link href={operationsNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(operationsNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
               <operationsNav.icon size={18} strokeWidth={isNavActive(operationsNav.href) ? 2.5 : 2} className={`transition-transform duration-300 ${isNavActive(operationsNav.href) ? 'scale-110' : 'group-hover:scale-110'}`} />

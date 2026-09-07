@@ -11,7 +11,7 @@ import {
   Router as WouterRouter,
 } from 'wouter';
 import { Shell } from '@/components/pulse-shell';
- import { AdminSales, CustomerDetail, Customers, LoginPage, Monitoring, Overview, PointOfSale, PublicSubscription, PulseProvider, Reports, Sales, Services, SettingsPage } from '@/pages/pulse-pages';
+ import { AdminSales, Connections, CustomerDetail, Customers, LoginPage, Monitoring, Overview, PointOfSale, PublicSubscription, PulseProvider, Reports, Sales, Services, SettingsPage } from '@/pages/pulse-pages';
  import { SmartCenter } from '@/pages/smart-center';
  import { OperationsCenter } from '@/pages/operations-center';
 
@@ -36,6 +36,7 @@ function Router() {
             <Route path="/customers/:id" component={CustomerDetail} />
             <Route path="/reports" component={Reports} />
              <Route path="/monitoring" component={Monitoring} />
+             <Route path="/connections" component={Connections} />
              <Route path="/operations" component={OperationsCenter} />
              <Route path="/insights" component={SmartCenter} />
             <Route path="/settings" component={SettingsPage} />

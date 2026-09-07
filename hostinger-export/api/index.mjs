@@ -57362,6 +57362,48 @@ async function testPanelAuthentication(key, ownerId, role) {
     };
   }
 }
+async function listPasarguardConnectionUsers(ownerId, role) {
+  const rainPanels = (await panels(ownerId, role)).filter((panel) => panelKind(panel) === "rain_admin");
+  const recentAfter = new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString();
+  const results = await Promise.all(rainPanels.map(async (panel) => {
+    const query = new URLSearchParams({
+      limit: "200",
+      sort: "-online_at",
+      online_after: recentAfter
+    });
+    try {
+      const response = await panelRequest(panel, "GET", `/api/users?${query.toString()}`);
+      if (response.status < 200 || response.status >= 300) return [];
+      const users = Array.isArray(response.json?.users) ? response.json.users : Array.isArray(response.json) ? response.json : [];
+      return users.flatMap((user) => {
+        const username = typeof user?.username === "string" ? user.username.trim() : "";
+        if (!username) return [];
+        const onlineAt = typeof user.online_at === "string" ? user.online_at : null;
+        const online = Boolean(user.online) || (onlineAt ? Date.now() - new Date(onlineAt).getTime() <= 15 * 60 * 1e3 : false);
+        return [{
+          panel_key: panelKey(panel),
+          username,
+          status: typeof user.status === "string" ? user.status : "unknown",
+          online,
+          online_at: onlineAt,
+          used_traffic: Number(user.used_traffic ?? 0),
+          data_limit: user.data_limit === null || user.data_limit === void 0 ? null : Number(user.data_limit),
+          expire: typeof user.expire === "string" ? user.expire : null,
+          group_names: Array.isArray(user.group_names) ? user.group_names.filter((item) => typeof item === "string") : []
+        }];
+      });
+    } catch {
+      return [];
+    }
+  }));
+  const seen = /* @__PURE__ */ new Set();
+  return results.flat().filter((user) => {
+    const key = `${user.panel_key}:${user.username}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => Number(b.online) - Number(a.online) || (b.online_at ?? "").localeCompare(a.online_at ?? ""));
+}
 async function panelRequest(panel, method, path, body) {
   let token = await tokenFor(panel);
   let response = await request(panel, method, path, token, body);
@@ -60190,6 +60232,28 @@ router2.get("/monitoring", requireAuth, async (req, res) => {
     summary: summary.rows[0] ?? { pending: 0, running: 0, completed: 0, total: 0 },
     jobs: jobs.rows
   });
+});
+router2.get("/pasarguard/connections", requireAuth, async (req, res) => {
+  const owner = ownership("svc", req);
+  const [remoteUsers, localUsers] = await Promise.all([
+    listPasarguardConnectionUsers(req.auth?.telegramId, req.auth?.role),
+    pool.query(
+      `SELECT svc.rain_username AS username,
+              COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
+              c.phone
+       FROM reseller_services svc
+       LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+       WHERE ${owner.sql}`,
+      owner.params
+    )
+  ]);
+  const localByUsername = new Map(localUsers.rows.map((row) => [String(row.username), row]));
+  const users = remoteUsers.map((user) => {
+    const local = localByUsername.get(user.username);
+    if (!local) return null;
+    return { ...user, customer_name: local.customer_name, phone: local.phone };
+  }).filter((user) => Boolean(user));
+  res.json({ generated_at: (/* @__PURE__ */ new Date()).toISOString(), users });
 });
 router2.get("/services", requireAuth, async (req, res) => {
   const parsed = ListServicesQueryParams.parse(req.query);
