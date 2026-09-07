@@ -681,6 +681,124 @@ export function Sales() {
   return <SurfaceFrame name="sales"><SalesContent /></SurfaceFrame>;
 }
 
+function ResellerAccountingContent() {
+  const { session } = usePulse();
+  const [from, setFrom] = useState(() => isoStartOfPersianMonth());
+  const [to, setTo] = useState(() => isoToday());
+  const [draftFrom, setDraftFrom] = useState(from);
+  const [draftTo, setDraftTo] = useState(to);
+  const [report, setReport] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [selectedResellerId, setSelectedResellerId] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState(() => isoToday());
+  const [paymentNote, setPaymentNote] = useState('');
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState('');
+  const isMasterAdmin = session?.role === 'master_admin';
+  const number = new Intl.NumberFormat('fa-IR');
+  const normalizeAmount = (value: string) => value
+    .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .replace(/,/g, '');
+  const loadReport = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (from > to) {
+      setError('بازه تاریخ معتبر نیست.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/sales-summary?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { credentials: 'include' });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || 'اطلاعات حسابداری دریافت نشد.');
+      setReport(body);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'اطلاعات حسابداری دریافت نشد.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (isMasterAdmin) void loadReport();
+  }, [isMasterAdmin, from, to]);
+  const settlements = Array.isArray(report?.reseller_settlements) ? report.reseller_settlements : [];
+  const paymentHistory = Array.isArray(report?.reseller_payment_history) ? report.reseller_payment_history : [];
+  const totals = settlements.reduce((acc: any, item: any) => ({
+    due: acc.due + Number(item.current_due ?? 0) + Number(item.previous_balance ?? 0),
+    paid: acc.paid + Number(item.period_paid ?? 0),
+    remaining: acc.remaining + Number(item.remaining_amount ?? 0),
+    profit: acc.profit + Number(item.current_profit ?? 0),
+    soldGb: acc.soldGb + Number(item.current_sold_gb ?? 0),
+  }), { due: 0, paid: 0, remaining: 0, profit: 0, soldGb: 0 });
+  const needingPayment = settlements.filter((item: any) => Number(item.remaining_amount ?? 0) > 0);
+  const paidCount = settlements.filter((item: any) => Number(item.remaining_amount ?? 0) <= 0 && Number(item.current_due ?? 0) > 0).length;
+  const paymentCoverage = totals.due > 0 ? Math.min(100, (totals.paid / totals.due) * 100) : 0;
+  const maxRemaining = Math.max(1, ...settlements.map((item: any) => Number(item.remaining_amount ?? 0)));
+  const selectReseller = (id: string) => {
+    setSelectedResellerId(id);
+    setPaymentMessage('');
+    const target = settlements.find((item: any) => String(item.reseller_tg_id) === id);
+    if (target) setPaymentDate(to);
+  };
+  const recordPayment = async (event: FormEvent) => {
+    event.preventDefault();
+    const amount = Number(normalizeAmount(paymentAmount));
+    if (!selectedResellerId || !Number.isFinite(amount) || amount <= 0 || !paymentDate) {
+      setPaymentMessage('فروشنده، مبلغ و تاریخ پرداخت را کامل وارد کنید.');
+      return;
+    }
+    setPaymentSaving(true);
+    setPaymentMessage('');
+    try {
+      const response = await fetch('/api/reseller-settlement-payments', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reseller_tg_id: Number(selectedResellerId), amount, payment_date: paymentDate, note: paymentNote.trim() || null }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || 'ثبت پرداخت ناموفق بود.');
+      setPaymentAmount('');
+      setPaymentNote('');
+      setPaymentMessage('پرداخت دلخواه با موفقیت ثبت شد.');
+      await loadReport();
+    } catch (cause) {
+      setPaymentMessage(cause instanceof Error ? cause.message : 'ثبت پرداخت ناموفق بود.');
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
+  if (!isMasterAdmin) return <div className="panel-card"><EmptyState title="این صفحه فقط برای مدیر اصلی است" detail="اطلاعات حسابداری فروشندگان برای نقش فروشنده نمایش داده نمی‌شود." /></div>;
+  return <div className="reseller-accounting-page">
+    <PageHeader eyebrow="مدیریت مالی" title="حسابداری فروشندگان" description="مانده بدهی، پرداخت‌های ثبت‌شده و سود هر reseller را در یک صفحه ببینید و پرداخت دلخواه را ثبت کنید." action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => window.print()}><Printer size={15} /> چاپ صفحه</Button><Button variant="quiet" onClick={() => void loadReport()} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} /> بروزرسانی</Button></div>} />
+    <form className="accounting-range panel-card" onSubmit={loadReport}>
+      <div><p className="eyebrow">بازه حسابداری</p><h2 className="section-title">{dateLabel(from)} تا {dateLabel(to)}</h2><p className="text-xs text-muted-foreground">بدهی‌های قبلی تا پایان این بازه هم در مانده هر فروشنده لحاظ می‌شوند.</p></div>
+      <div className="accounting-range-fields"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button type="submit" onClick={() => { setFrom(draftFrom); setTo(draftTo); }} disabled={loading}>{loading ? 'در حال دریافت...' : 'اعمال بازه'}</Button></div>
+    </form>
+    {error && <div className="login-error mt-4">{error}</div>}
+    {report && <><section className="metrics-grid accounting-metrics">
+      <Metric label="کل بدهی تا این بازه" value={money(totals.due)} detail={`${number(needingPayment.length)} فروشنده نیازمند پرداخت`} icon={CreditCard} accent="coral" />
+      <Metric label="پرداخت ثبت‌شده" value={money(totals.paid)} detail={`${number(paymentCoverage, { maximumFractionDigits: 1 })}٪ پوشش بدهی`} icon={Check} accent="sage" />
+      <Metric label="مانده قابل دریافت" value={money(totals.remaining)} detail={`${number(settlements.length)} فروشنده در حسابداری`} icon={TrendingUp} />
+      <Metric label="سود مدیر" value={money(totals.profit)} detail={`${number(totals.soldGb)} گیگ فروش این بازه`} icon={ShieldCheck} accent="amber" />
+    </section>
+    <div className="accounting-overview-grid">
+      <section className="panel-card accounting-status-panel"><div className="panel-heading"><div><p className="eyebrow">وضعیت تسویه</p><h2 className="section-title">چه کسی باید پرداخت کند؟</h2></div><span className="soft-badge">{number(paidCount)} تسویه‌شده</span></div><div className="accounting-progress"><div><span>درصد پوشش بدهی</span><strong>{number(paymentCoverage, { maximumFractionDigits: 1 })}٪</strong></div><div className="accounting-progress-track"><span style={{ width: `${paymentCoverage}%` }} /></div></div><div className="accounting-status-summary"><div><span className="status-dot offline" /><strong>{number(needingPayment.length)}</strong><small>نیازمند پرداخت</small></div><div><span className="status-dot online" /><strong>{number(paidCount)}</strong><small>تسویه‌شده</small></div><div><span className="status-dot pending" /><strong>{number(settlements.filter((item: any) => item.payment_status === 'partial').length)}</strong><small>پرداخت ناقص</small></div></div></section>
+      <section className="panel-card accounting-payment-form"><div className="panel-heading"><div><p className="eyebrow">ثبت دریافت</p><h2 className="section-title">پرداخت مبلغ دلخواه</h2></div><span className="soft-badge">فقط مدیر اصلی</span></div><form onSubmit={recordPayment} className="accounting-payment-fields"><label className="field"><span>فروشنده</span><select value={selectedResellerId} onChange={(event) => selectReseller(event.target.value)}><option value="">انتخاب فروشنده</option>{settlements.map((item: any) => <option key={item.reseller_tg_id} value={item.reseller_tg_id}>{item.reseller_name} · مانده {money(item.remaining_amount)}</option>)}</select></label><Field label="مبلغ پرداختی" value={paymentAmount} onChange={setPaymentAmount} placeholder="مثلاً ۵۰۰۰۰۰" /><PersianDateField label="تاریخ پرداخت" value={paymentDate} onChange={setPaymentDate} /><label className="field"><span>یادداشت</span><input value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} placeholder="اختیاری؛ شماره رسید یا توضیح" /></label><Button type="submit" disabled={paymentSaving || !settlements.length}><CreditCard size={14} />{paymentSaving ? 'در حال ثبت...' : 'ثبت پرداخت'}</Button></form>{paymentMessage && <p className={`accounting-payment-message ${paymentMessage.includes('موفق') ? 'success' : 'error'}`}>{paymentMessage}</p>}</section>
+    </div>
+    <section className="panel-card accounting-table-panel"><div className="panel-heading"><div><p className="eyebrow">دفتر فروشندگان</p><h2 className="section-title">مانده حساب هر reseller</h2><p className="text-xs text-muted-foreground">برای ثبت پرداخت سریع، روی «ثبت پرداخت» همان ردیف بزنید.</p></div><span className="soft-badge">{number(settlements.length)} حساب</span></div><div className="accounting-reseller-cards">{settlements.map((item: any) => { const remaining = Number(item.remaining_amount ?? 0); const percent = Math.min(100, remaining / maxRemaining * 100); return <article className={`accounting-reseller-card ${remaining > 0 ? 'has-due' : 'settled'}`} key={item.reseller_tg_id}><div className="accounting-reseller-head"><div><strong>{item.reseller_name}</strong><small dir="ltr">TG: {item.reseller_tg_id}</small></div><span className={`accounting-status ${item.payment_status}`}>{item.payment_status === 'paid' ? 'تسویه‌شده' : item.payment_status === 'overdue' ? 'معوق' : item.payment_status === 'partial' ? 'پرداخت ناقص' : item.payment_status === 'no_sales' ? 'بدون فروش' : 'نیازمند پرداخت'}</span></div><div className="accounting-reseller-values"><div><span>بدهی این بازه</span><strong>{money(item.current_due)}</strong></div><div><span>پرداخت این بازه</span><strong>{money(item.period_paid)}</strong></div><div><span>مانده نهایی</span><strong className={remaining > 0 ? 'text-rose-700' : 'text-emerald-700'}>{money(remaining)}</strong></div></div><div className="accounting-bar"><span style={{ width: `${percent}%` }} /></div><div className="accounting-reseller-footer"><small>{number(item.current_sold_gb)} گیگ · سود {money(item.current_profit)}</small><button type="button" className="button button-secondary compact-button" onClick={() => { selectReseller(String(item.reseller_tg_id)); document.querySelector('.accounting-payment-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>ثبت پرداخت</button></div></article>; })}</div>{!settlements.length && <EmptyState title="فروشنده‌ای در این بازه پیدا نشد" detail="بازه را تغییر دهید یا بعد از ثبت فروش دوباره بررسی کنید." />}</section>
+    <section className="panel-card accounting-history-panel"><div className="panel-heading"><div><p className="eyebrow">گردش پرداخت</p><h2 className="section-title">آخرین پرداخت‌های ثبت‌شده</h2></div><span className="soft-badge">{number(paymentHistory.length)} پرداخت</span></div>{paymentHistory.length ? <div className="table-scroll mt-4"><table><thead><tr><th>فروشنده</th><th>مبلغ</th><th>تاریخ پرداخت</th><th>یادداشت</th></tr></thead><tbody>{paymentHistory.map((payment: any) => <tr key={payment.id}><td className="font-bold">{payment.reseller_name}</td><td className="font-display font-bold text-emerald-700">{money(payment.amount)}</td><td>{dateLabel(payment.payment_date)}</td><td className="text-muted-foreground">{payment.note || '—'}</td></tr>)}</tbody></table></div> : <div className="request-empty"><CreditCard size={16} /> هنوز پرداختی در این بازه ثبت نشده است.</div>}</section>
+    </>}
+  </div>;
+}
+
+export function ResellerAccounting() {
+  return <SurfaceFrame name="reseller-accounting"><ResellerAccountingContent /></SurfaceFrame>;
+}
+
 function PointOfSaleContent() {
   const { customers, session, createService } = usePulse();
   const [form, setForm] = useState({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', sellPrice: '', isPaid: true });
