@@ -58540,6 +58540,27 @@ var managementReady = pool.query(`
         ON reseller_notifications (reseller_tg_id, event_key);
       CREATE INDEX IF NOT EXISTS reseller_notifications_inbox_idx
         ON reseller_notifications (reseller_tg_id, read_at, created_at DESC);
+      CREATE TABLE IF NOT EXISTS service_action_requests (
+        id BIGSERIAL PRIMARY KEY,
+        service_id BIGINT NOT NULL,
+        sale_id BIGINT,
+        reseller_tg_id BIGINT NOT NULL,
+        cancel_service_requested SMALLINT NOT NULL DEFAULT 0,
+        delete_sale_requested SMALLINT NOT NULL DEFAULT 0,
+        cancel_service_status TEXT NOT NULL DEFAULT 'not_requested'
+          CHECK (cancel_service_status IN ('not_requested', 'pending', 'approved', 'rejected')),
+        delete_sale_status TEXT NOT NULL DEFAULT 'not_requested'
+          CHECK (delete_sale_status IN ('not_requested', 'pending', 'approved', 'rejected')),
+        reason TEXT,
+        admin_note TEXT,
+        requested_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        reviewed_at TIMESTAMP,
+        reviewed_by_tg_id BIGINT
+      );
+      CREATE INDEX IF NOT EXISTS service_action_requests_owner_idx
+        ON service_action_requests (reseller_tg_id, requested_at DESC);
+      CREATE INDEX IF NOT EXISTS service_action_requests_pending_idx
+        ON service_action_requests (service_id, requested_at DESC);
      CREATE TABLE IF NOT EXISTS reseller_credit_sales (
        id BIGSERIAL PRIMARY KEY,
        reseller_tg_id BIGINT NOT NULL,
@@ -59924,6 +59945,248 @@ router2.delete("/admin/sales/:id", requireMasterAdmin, async (req, res) => {
     return;
   }
   res.status(204).end();
+});
+router2.get("/service-action-requests", requireAuth, async (req, res) => {
+  await managementReady;
+  const params = [];
+  const owner = req.auth?.role === "master_admin" ? "TRUE" : (params.push(Number(req.auth?.telegramId)), `request.reseller_tg_id = $${params.length}`);
+  const result = await pool.query(
+    `SELECT
+       request.id::float8 AS id,
+       request.service_id::float8 AS service_id,
+       request.sale_id::float8 AS sale_id,
+       request.reseller_tg_id::float8 AS reseller_tg_id,
+       COALESCE(NULLIF(reseller.title, ''), '\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ' || request.reseller_tg_id::text) AS reseller_name,
+       COALESCE(customer.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
+       COALESCE(customer.phone, '') AS customer_phone,
+       COALESCE(service.label, '\u0633\u0631\u0648\u06CC\u0633 \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS service_name,
+       COALESCE(service.rain_username, '') AS username,
+       COALESCE(service.status, 'deleted') AS service_status,
+       request.cancel_service_requested = 1 AS cancel_service_requested,
+       request.delete_sale_requested = 1 AS delete_sale_requested,
+       request.cancel_service_status,
+       request.delete_sale_status,
+       request.reason,
+       request.admin_note,
+       request.requested_at::text AS requested_at,
+       request.reviewed_at::text AS reviewed_at,
+       sale.gb_amount::float8 AS sale_gb,
+       sale.created_at::text AS sale_created_at
+     FROM service_action_requests request
+     LEFT JOIN reseller_services service ON service.id = request.service_id
+     LEFT JOIN reseller_customers customer ON customer.id = service.customer_id
+     LEFT JOIN resellers reseller ON reseller.tg_id = request.reseller_tg_id
+     LEFT JOIN reseller_sales_log sale ON sale.id = request.sale_id
+     WHERE ${owner}
+     ORDER BY request.requested_at DESC, request.id DESC`,
+    params
+  );
+  res.json(result.rows);
+});
+router2.post("/services/:id/cancellation-request", requireAuth, async (req, res) => {
+  await managementReady;
+  if (req.auth?.role !== "reseller") {
+    res.status(403).json({ error: "\u0641\u0642\u0637 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u062F \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062B\u0628\u062A \u06A9\u0646\u062F" });
+    return;
+  }
+  const serviceId = Number(req.params.id);
+  const cancelService = req.body?.cancel_service === true;
+  const deleteSale = req.body?.delete_sale_log === true;
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : null;
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0 || !cancelService && !deleteSale) {
+    res.status(400).json({ error: "\u062D\u062F\u0627\u0642\u0644 \u06CC\u06A9 \u0627\u0642\u062F\u0627\u0645 \u0631\u0627 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F" });
+    return;
+  }
+  const service = await pool.query(
+    `SELECT id, reseller_tg_id::float8 AS reseller_tg_id, status
+     FROM reseller_services
+     WHERE id = $1 AND reseller_tg_id = $2`,
+    [serviceId, req.auth.telegramId]
+  );
+  if (!service.rows[0]) {
+    res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+    return;
+  }
+  if (cancelService && service.rows[0].status === "disabled") {
+    res.status(400).json({ error: "\u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u0642\u0628\u0644\u0627\u064B \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0634\u062F\u0647 \u0627\u0633\u062A" });
+    return;
+  }
+  const sale = deleteSale ? await pool.query(
+    `SELECT id FROM reseller_sales_log
+         WHERE service_id = $1 AND reseller_tg_id = $2
+         ORDER BY created_at DESC NULLS LAST, id DESC
+         LIMIT 1`,
+    [serviceId, req.auth.telegramId]
+  ) : { rows: [] };
+  if (deleteSale && !sale.rows[0]) {
+    res.status(400).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u0644\u0627\u06AF \u0641\u0631\u0648\u0634\u06CC \u0628\u0631\u0627\u06CC \u062D\u0630\u0641 \u0648\u062C\u0648\u062F \u0646\u062F\u0627\u0631\u062F" });
+    return;
+  }
+  const pending = await pool.query(
+    `SELECT id FROM service_action_requests
+     WHERE service_id = $1 AND reseller_tg_id = $2
+       AND (cancel_service_status = 'pending' OR delete_sale_status = 'pending')
+     LIMIT 1`,
+    [serviceId, req.auth.telegramId]
+  );
+  if (pending.rows[0]) {
+    res.status(409).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u06CC\u06A9 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06CC \u0648\u062C\u0648\u062F \u062F\u0627\u0631\u062F" });
+    return;
+  }
+  const created = await pool.query(
+    `INSERT INTO service_action_requests
+       (service_id, sale_id, reseller_tg_id, cancel_service_requested, delete_sale_requested,
+        cancel_service_status, delete_sale_status, reason)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id::float8 AS id`,
+    [
+      serviceId,
+      sale.rows[0]?.id ?? null,
+      req.auth.telegramId,
+      cancelService ? 1 : 0,
+      deleteSale ? 1 : 0,
+      cancelService ? "pending" : "not_requested",
+      deleteSale ? "pending" : "not_requested",
+      reason
+    ]
+  );
+  await recordAudit(req, "service_action_requested", "service", serviceId, {
+    request_id: created.rows[0].id,
+    cancel_service: cancelService,
+    delete_sale_log: deleteSale
+  });
+  res.status(201).json({ id: created.rows[0].id });
+});
+router2.post("/sales/:id/action-request", requireAuth, async (req, res) => {
+  await managementReady;
+  if (req.auth?.role !== "reseller") {
+    res.status(403).json({ error: "\u0641\u0642\u0637 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u062F \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062B\u0628\u062A \u06A9\u0646\u062F" });
+    return;
+  }
+  const saleId = Number(req.params.id);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : null;
+  if (!Number.isSafeInteger(saleId) || saleId <= 0) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0641\u0631\u0648\u0634 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  const sale = await pool.query(
+    `SELECT service_id, reseller_tg_id::float8 AS reseller_tg_id
+     FROM reseller_sales_log
+     WHERE id = $1 AND reseller_tg_id = $2`,
+    [saleId, req.auth.telegramId]
+  );
+  if (!sale.rows[0]) {
+    res.status(404).json({ error: "\u0631\u06A9\u0648\u0631\u062F \u0641\u0631\u0648\u0634 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+    return;
+  }
+  const pending = await pool.query(
+    `SELECT id FROM service_action_requests
+     WHERE sale_id = $1 AND reseller_tg_id = $2 AND delete_sale_status = 'pending'
+     LIMIT 1`,
+    [saleId, req.auth.telegramId]
+  );
+  if (pending.rows[0]) {
+    res.status(409).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0644\u0627\u06AF \u0641\u0631\u0648\u0634 \u06CC\u06A9 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06CC \u0648\u062C\u0648\u062F \u062F\u0627\u0631\u062F" });
+    return;
+  }
+  const created = await pool.query(
+    `INSERT INTO service_action_requests
+       (service_id, sale_id, reseller_tg_id, delete_sale_requested, delete_sale_status, reason)
+     VALUES ($1, $2, $3, 1, 'pending', $4)
+     RETURNING id::float8 AS id`,
+    [sale.rows[0].service_id, saleId, req.auth.telegramId, reason]
+  );
+  await recordAudit(req, "sale_log_removal_requested", "sale", saleId, { request_id: created.rows[0].id });
+  res.status(201).json({ id: created.rows[0].id });
+});
+router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res) => {
+  await managementReady;
+  const requestId = Number(req.params.id);
+  const cancelDecision = req.body?.cancel_service;
+  const saleDecision = req.body?.delete_sale_log;
+  const adminNote = typeof req.body?.admin_note === "string" ? req.body.admin_note.trim().slice(0, 500) : null;
+  const validDecision = (value) => value === "approve" || value === "reject";
+  if (!Number.isSafeInteger(requestId) || requestId <= 0 || !validDecision(cancelDecision) && !validDecision(saleDecision)) {
+    res.status(400).json({ error: "\u062A\u0635\u0645\u06CC\u0645 \u0645\u0639\u062A\u0628\u0631 \u0628\u0631\u0627\u06CC \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F" });
+    return;
+  }
+  const request3 = await pool.query(
+    `SELECT request.id, request.service_id, request.sale_id,
+       request.reseller_tg_id::float8 AS reseller_tg_id,
+       request.cancel_service_status, request.delete_sale_status,
+       service.rain_username, service.falco_config_id, service.awg_client_id,
+       service.status AS service_status
+     FROM service_action_requests request
+     LEFT JOIN reseller_services service ON service.id = request.service_id
+     WHERE request.id = $1`,
+    [requestId]
+  );
+  const current = request3.rows[0];
+  if (!current) {
+    res.status(404).json({ error: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+    return;
+  }
+  if (validDecision(cancelDecision) && current.cancel_service_status === "pending") {
+    if (cancelDecision === "approve" && current.service_status && current.service_status !== "disabled") {
+      let panelResult = { attempted: 0, disabled: 0 };
+      try {
+        panelResult = await disablePanelUser(
+          current.rain_username ?? "",
+          current.falco_config_id,
+          current.reseller_tg_id,
+          "master_admin"
+        );
+      } catch {
+        res.status(502).json({ error: "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC Provider\u0647\u0627 \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F\u061B \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0647\u0645\u0686\u0646\u0627\u0646 \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06CC \u0627\u0633\u062A" });
+        return;
+      }
+      const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+      const awgDisabled = current.awg_client_id ? await disableAwgClient(current.awg_client_id) : true;
+      if (!providersDisabled || !awgDisabled) {
+        res.status(502).json({ error: "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0647\u0645\u0647 Provider\u0647\u0627 \u0648 AWG \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F\u061B \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0647\u0645\u0686\u0646\u0627\u0646 \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06CC \u0627\u0633\u062A" });
+        return;
+      }
+      await pool.query(
+        `UPDATE reseller_services
+         SET status = 'disabled',
+             disabled_at = NOW(),
+             disable_reason = '\u0644\u063A\u0648 \u0633\u0631\u0648\u06CC\u0633 \u0628\u0627 \u062A\u0623\u06CC\u06CC\u062F \u0645\u062F\u06CC\u0631 \u0627\u0635\u0644\u06CC',
+             remote_disable_pending = 0,
+             remote_disabled_at = NOW(),
+             lifecycle_version = lifecycle_version + 1,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [current.service_id]
+      );
+    }
+    await pool.query(
+      `UPDATE service_action_requests
+       SET cancel_service_status = $1, reviewed_at = NOW(), reviewed_by_tg_id = $2,
+           admin_note = COALESCE($3, admin_note)
+       WHERE id = $4`,
+      [cancelDecision === "approve" ? "approved" : "rejected", req.auth.telegramId, adminNote, requestId]
+    );
+  }
+  if (validDecision(saleDecision) && current.delete_sale_status === "pending") {
+    if (saleDecision === "approve" && current.sale_id) {
+      await pool.query(
+        `DELETE FROM reseller_sales_log WHERE id = $1 AND service_id = $2`,
+        [current.sale_id, current.service_id]
+      );
+    }
+    await pool.query(
+      `UPDATE service_action_requests
+       SET delete_sale_status = $1, reviewed_at = NOW(), reviewed_by_tg_id = $2,
+           admin_note = COALESCE($3, admin_note)
+       WHERE id = $4`,
+      [saleDecision === "approve" ? "approved" : "rejected", req.auth.telegramId, adminNote, requestId]
+    );
+  }
+  await recordAudit(req, "service_action_reviewed", "service_action_request", requestId, {
+    cancel_service: cancelDecision,
+    delete_sale_log: saleDecision
+  });
+  res.json({ ok: true });
 });
 router2.patch("/sales/:id", requireAuth, async (req, res) => {
   const params = UpdateSaleParams.safeParse(req.params);

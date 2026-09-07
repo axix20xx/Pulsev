@@ -246,6 +246,27 @@ export const managementReady = pool
         ON reseller_notifications (reseller_tg_id, event_key);
       CREATE INDEX IF NOT EXISTS reseller_notifications_inbox_idx
         ON reseller_notifications (reseller_tg_id, read_at, created_at DESC);
+      CREATE TABLE IF NOT EXISTS service_action_requests (
+        id BIGSERIAL PRIMARY KEY,
+        service_id BIGINT NOT NULL,
+        sale_id BIGINT,
+        reseller_tg_id BIGINT NOT NULL,
+        cancel_service_requested SMALLINT NOT NULL DEFAULT 0,
+        delete_sale_requested SMALLINT NOT NULL DEFAULT 0,
+        cancel_service_status TEXT NOT NULL DEFAULT 'not_requested'
+          CHECK (cancel_service_status IN ('not_requested', 'pending', 'approved', 'rejected')),
+        delete_sale_status TEXT NOT NULL DEFAULT 'not_requested'
+          CHECK (delete_sale_status IN ('not_requested', 'pending', 'approved', 'rejected')),
+        reason TEXT,
+        admin_note TEXT,
+        requested_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        reviewed_at TIMESTAMP,
+        reviewed_by_tg_id BIGINT
+      );
+      CREATE INDEX IF NOT EXISTS service_action_requests_owner_idx
+        ON service_action_requests (reseller_tg_id, requested_at DESC);
+      CREATE INDEX IF NOT EXISTS service_action_requests_pending_idx
+        ON service_action_requests (service_id, requested_at DESC);
      CREATE TABLE IF NOT EXISTS reseller_credit_sales (
        id BIGSERIAL PRIMARY KEY,
        reseller_tg_id BIGINT NOT NULL,
@@ -1771,6 +1792,271 @@ router.delete("/admin/sales/:id", requireMasterAdmin, async (req, res): Promise<
     return;
   }
   res.status(204).end();
+});
+
+router.get("/service-action-requests", requireAuth, async (req, res): Promise<void> => {
+  await managementReady;
+  const params: number[] = [];
+  const owner = req.auth?.role === "master_admin"
+    ? "TRUE"
+    : (params.push(Number(req.auth?.telegramId)), `request.reseller_tg_id = $${params.length}`);
+  const result = await pool.query(
+    `SELECT
+       request.id::float8 AS id,
+       request.service_id::float8 AS service_id,
+       request.sale_id::float8 AS sale_id,
+       request.reseller_tg_id::float8 AS reseller_tg_id,
+       COALESCE(NULLIF(reseller.title, ''), 'فروشنده ' || request.reseller_tg_id::text) AS reseller_name,
+       COALESCE(customer.full_name, 'مشتری حذف‌شده') AS customer_name,
+       COALESCE(customer.phone, '') AS customer_phone,
+       COALESCE(service.label, 'سرویس حذف‌شده') AS service_name,
+       COALESCE(service.rain_username, '') AS username,
+       COALESCE(service.status, 'deleted') AS service_status,
+       request.cancel_service_requested = 1 AS cancel_service_requested,
+       request.delete_sale_requested = 1 AS delete_sale_requested,
+       request.cancel_service_status,
+       request.delete_sale_status,
+       request.reason,
+       request.admin_note,
+       request.requested_at::text AS requested_at,
+       request.reviewed_at::text AS reviewed_at,
+       sale.gb_amount::float8 AS sale_gb,
+       sale.created_at::text AS sale_created_at
+     FROM service_action_requests request
+     LEFT JOIN reseller_services service ON service.id = request.service_id
+     LEFT JOIN reseller_customers customer ON customer.id = service.customer_id
+     LEFT JOIN resellers reseller ON reseller.tg_id = request.reseller_tg_id
+     LEFT JOIN reseller_sales_log sale ON sale.id = request.sale_id
+     WHERE ${owner}
+     ORDER BY request.requested_at DESC, request.id DESC`,
+    params,
+  );
+  res.json(result.rows);
+});
+
+router.post("/services/:id/cancellation-request", requireAuth, async (req, res): Promise<void> => {
+  await managementReady;
+  if (req.auth?.role !== "reseller") {
+    res.status(403).json({ error: "فقط فروشنده می‌تواند درخواست ثبت کند" });
+    return;
+  }
+  const serviceId = Number(req.params.id);
+  const cancelService = req.body?.cancel_service === true;
+  const deleteSale = req.body?.delete_sale_log === true;
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : null;
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0 || (!cancelService && !deleteSale)) {
+    res.status(400).json({ error: "حداقل یک اقدام را انتخاب کنید" });
+    return;
+  }
+  const service = await pool.query<{
+    id: number;
+    reseller_tg_id: number;
+    status: string;
+  }>(
+    `SELECT id, reseller_tg_id::float8 AS reseller_tg_id, status
+     FROM reseller_services
+     WHERE id = $1 AND reseller_tg_id = $2`,
+    [serviceId, req.auth.telegramId],
+  );
+  if (!service.rows[0]) {
+    res.status(404).json({ error: "سرویس پیدا نشد" });
+    return;
+  }
+  if (cancelService && service.rows[0].status === "disabled") {
+    res.status(400).json({ error: "این سرویس قبلاً غیرفعال شده است" });
+    return;
+  }
+  const sale = deleteSale
+    ? await pool.query<{ id: number }>(
+        `SELECT id FROM reseller_sales_log
+         WHERE service_id = $1 AND reseller_tg_id = $2
+         ORDER BY created_at DESC NULLS LAST, id DESC
+         LIMIT 1`,
+        [serviceId, req.auth.telegramId],
+      )
+    : { rows: [] as { id: number }[] };
+  if (deleteSale && !sale.rows[0]) {
+    res.status(400).json({ error: "برای این سرویس لاگ فروشی برای حذف وجود ندارد" });
+    return;
+  }
+  const pending = await pool.query(
+    `SELECT id FROM service_action_requests
+     WHERE service_id = $1 AND reseller_tg_id = $2
+       AND (cancel_service_status = 'pending' OR delete_sale_status = 'pending')
+     LIMIT 1`,
+    [serviceId, req.auth.telegramId],
+  );
+  if (pending.rows[0]) {
+    res.status(409).json({ error: "برای این سرویس یک درخواست در انتظار بررسی وجود دارد" });
+    return;
+  }
+  const created = await pool.query(
+    `INSERT INTO service_action_requests
+       (service_id, sale_id, reseller_tg_id, cancel_service_requested, delete_sale_requested,
+        cancel_service_status, delete_sale_status, reason)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id::float8 AS id`,
+    [
+      serviceId,
+      sale.rows[0]?.id ?? null,
+      req.auth.telegramId,
+      cancelService ? 1 : 0,
+      deleteSale ? 1 : 0,
+      cancelService ? "pending" : "not_requested",
+      deleteSale ? "pending" : "not_requested",
+      reason,
+    ],
+  );
+  await recordAudit(req, "service_action_requested", "service", serviceId, {
+    request_id: created.rows[0].id,
+    cancel_service: cancelService,
+    delete_sale_log: deleteSale,
+  });
+  res.status(201).json({ id: created.rows[0].id });
+});
+
+router.post("/sales/:id/action-request", requireAuth, async (req, res): Promise<void> => {
+  await managementReady;
+  if (req.auth?.role !== "reseller") {
+    res.status(403).json({ error: "فقط فروشنده می‌تواند درخواست ثبت کند" });
+    return;
+  }
+  const saleId = Number(req.params.id);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : null;
+  if (!Number.isSafeInteger(saleId) || saleId <= 0) {
+    res.status(400).json({ error: "شناسه فروش معتبر نیست" });
+    return;
+  }
+  const sale = await pool.query<{ service_id: number; reseller_tg_id: number }>(
+    `SELECT service_id, reseller_tg_id::float8 AS reseller_tg_id
+     FROM reseller_sales_log
+     WHERE id = $1 AND reseller_tg_id = $2`,
+    [saleId, req.auth.telegramId],
+  );
+  if (!sale.rows[0]) {
+    res.status(404).json({ error: "رکورد فروش پیدا نشد" });
+    return;
+  }
+  const pending = await pool.query(
+    `SELECT id FROM service_action_requests
+     WHERE sale_id = $1 AND reseller_tg_id = $2 AND delete_sale_status = 'pending'
+     LIMIT 1`,
+    [saleId, req.auth.telegramId],
+  );
+  if (pending.rows[0]) {
+    res.status(409).json({ error: "برای این لاگ فروش یک درخواست در انتظار بررسی وجود دارد" });
+    return;
+  }
+  const created = await pool.query(
+    `INSERT INTO service_action_requests
+       (service_id, sale_id, reseller_tg_id, delete_sale_requested, delete_sale_status, reason)
+     VALUES ($1, $2, $3, 1, 'pending', $4)
+     RETURNING id::float8 AS id`,
+    [sale.rows[0].service_id, saleId, req.auth.telegramId, reason],
+  );
+  await recordAudit(req, "sale_log_removal_requested", "sale", saleId, { request_id: created.rows[0].id });
+  res.status(201).json({ id: created.rows[0].id });
+});
+
+router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res): Promise<void> => {
+  await managementReady;
+  const requestId = Number(req.params.id);
+  const cancelDecision = req.body?.cancel_service;
+  const saleDecision = req.body?.delete_sale_log;
+  const adminNote = typeof req.body?.admin_note === "string" ? req.body.admin_note.trim().slice(0, 500) : null;
+  const validDecision = (value: unknown) => value === "approve" || value === "reject";
+  if (!Number.isSafeInteger(requestId) || requestId <= 0 || (!validDecision(cancelDecision) && !validDecision(saleDecision))) {
+    res.status(400).json({ error: "تصمیم معتبر برای درخواست وارد کنید" });
+    return;
+  }
+  const request = await pool.query<{
+    id: number;
+    service_id: number;
+    sale_id: number | null;
+    reseller_tg_id: number;
+    cancel_service_status: string;
+    delete_sale_status: string;
+    rain_username: string | null;
+    falco_config_id: number | null;
+    awg_client_id: string | null;
+    service_status: string | null;
+  }>(
+    `SELECT request.id, request.service_id, request.sale_id,
+       request.reseller_tg_id::float8 AS reseller_tg_id,
+       request.cancel_service_status, request.delete_sale_status,
+       service.rain_username, service.falco_config_id, service.awg_client_id,
+       service.status AS service_status
+     FROM service_action_requests request
+     LEFT JOIN reseller_services service ON service.id = request.service_id
+     WHERE request.id = $1`,
+    [requestId],
+  );
+  const current = request.rows[0];
+  if (!current) {
+    res.status(404).json({ error: "درخواست پیدا نشد" });
+    return;
+  }
+  if (validDecision(cancelDecision) && current.cancel_service_status === "pending") {
+    if (cancelDecision === "approve" && current.service_status && current.service_status !== "disabled") {
+      let panelResult = { attempted: 0, disabled: 0 };
+      try {
+        panelResult = await disablePanelUser(
+          current.rain_username ?? "",
+          current.falco_config_id,
+          current.reseller_tg_id,
+          "master_admin",
+        );
+      } catch {
+        res.status(502).json({ error: "غیرفعال‌سازی Providerها کامل نشد؛ درخواست همچنان در انتظار بررسی است" });
+        return;
+      }
+      const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+      const awgDisabled = current.awg_client_id ? await disableAwgClient(current.awg_client_id) : true;
+      if (!providersDisabled || !awgDisabled) {
+        res.status(502).json({ error: "غیرفعال‌سازی همه Providerها و AWG کامل نشد؛ درخواست همچنان در انتظار بررسی است" });
+        return;
+      }
+      await pool.query(
+        `UPDATE reseller_services
+         SET status = 'disabled',
+             disabled_at = NOW(),
+             disable_reason = 'لغو سرویس با تأیید مدیر اصلی',
+             remote_disable_pending = 0,
+             remote_disabled_at = NOW(),
+             lifecycle_version = lifecycle_version + 1,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [current.service_id],
+      );
+    }
+    await pool.query(
+      `UPDATE service_action_requests
+       SET cancel_service_status = $1, reviewed_at = NOW(), reviewed_by_tg_id = $2,
+           admin_note = COALESCE($3, admin_note)
+       WHERE id = $4`,
+      [cancelDecision === "approve" ? "approved" : "rejected", req.auth!.telegramId, adminNote, requestId],
+    );
+  }
+  if (validDecision(saleDecision) && current.delete_sale_status === "pending") {
+    if (saleDecision === "approve" && current.sale_id) {
+      await pool.query(
+        `DELETE FROM reseller_sales_log WHERE id = $1 AND service_id = $2`,
+        [current.sale_id, current.service_id],
+      );
+    }
+    await pool.query(
+      `UPDATE service_action_requests
+       SET delete_sale_status = $1, reviewed_at = NOW(), reviewed_by_tg_id = $2,
+           admin_note = COALESCE($3, admin_note)
+       WHERE id = $4`,
+      [saleDecision === "approve" ? "approved" : "rejected", req.auth!.telegramId, adminNote, requestId],
+    );
+  }
+  await recordAudit(req, "service_action_reviewed", "service_action_request", requestId, {
+    cancel_service: cancelDecision,
+    delete_sale_log: saleDecision,
+  });
+  res.json({ ok: true });
 });
 
 router.patch("/sales/:id", requireAuth, async (req, res): Promise<void> => {

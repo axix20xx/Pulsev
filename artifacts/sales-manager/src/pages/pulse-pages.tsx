@@ -34,10 +34,54 @@ const mapCustomer = (item: any): Customer => ({ id: String(item.id), name: item.
 type CustomerTab = 'active' | 'inactive';
 const CUSTOMER_PAGE_SIZE = 12;
 type CustomerServiceTab = 'active' | 'inactive';
+type ServiceActionRequest = {
+  id: number;
+  service_id: number;
+  sale_id: number | null;
+  reseller_tg_id: number;
+  reseller_name: string;
+  customer_name: string;
+  customer_phone: string;
+  service_name: string;
+  username: string;
+  service_status: string;
+  cancel_service_requested: boolean;
+  delete_sale_requested: boolean;
+  cancel_service_status: 'not_requested' | 'pending' | 'approved' | 'rejected';
+  delete_sale_status: 'not_requested' | 'pending' | 'approved' | 'rejected';
+  reason: string | null;
+  admin_note: string | null;
+  requested_at: string;
+  reviewed_at: string | null;
+  sale_gb: number | null;
+  sale_created_at: string | null;
+};
 const fetchCustomerCrm = async (id: number, page = 1) => {
   const response = await fetch(`/api/customers/${id}/crm?page=${page}&page_size=8`, { credentials: 'include' });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'اطلاعات CRM دریافت نشد.');
   return response.json();
+};
+const submitServiceActionRequest = async (serviceId: string, data: { cancel_service: boolean; delete_sale_log: boolean; reason?: string }) => {
+  const response = await fetch(`/api/services/${encodeURIComponent(serviceId)}/cancellation-request`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(body?.error || 'درخواست ثبت نشد.');
+  return body;
+};
+const submitSaleActionRequest = async (saleId: string, reason?: string) => {
+  const response = await fetch(`/api/sales/${encodeURIComponent(saleId)}/action-request`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ reason: reason?.trim() || null }),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(body?.error || 'درخواست ثبت نشد.');
+  return body;
 };
 const v2boxUrl = (service: Service) => {
   const url = service.publicSubscriptionUrl || service.subscriptionUrl;
@@ -1039,6 +1083,47 @@ function NoteModal({ service, onClose }: { service: Service; onClose: () => void
   const { updateService } = usePulse(); const [note, setNote] = useState(service.note);
   return <Overlay title={`یادداشت · ${service.customerName}`} onClose={onClose}><div className="pt-5"><label className="field"><span>یادداشت داخلی</span><textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} placeholder="جزئیاتی برای پیگیری بعدی بنویسید." /></label><Button className="mt-5 w-full justify-center" onClick={() => { updateService({ ...service, note }); onClose(); }} testId={`button-save-note-${service.id}`}><Save size={15} /> ذخیره یادداشت</Button></div></Overlay>;
 }
+function ServiceActionRequestModal({ service, onClose }: { service: Service; onClose: () => void }) {
+  const [cancelService, setCancelService] = useState(true);
+  const [deleteSaleLog, setDeleteSaleLog] = useState(false);
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async () => {
+    if (!cancelService && !deleteSaleLog) {
+      setError('حداقل یک اقدام را انتخاب کنید.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await submitServiceActionRequest(service.id, {
+        cancel_service: cancelService,
+        delete_sale_log: deleteSaleLog,
+        reason,
+      });
+      window.alert('درخواست برای بررسی مدیر اصلی ارسال شد.');
+      onClose();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'درخواست ثبت نشد.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <Overlay title={`درخواست عملیات · ${service.customerName}`} onClose={onClose}>
+    <div className="action-request-modal">
+      <p className="text-sm text-muted-foreground">مدیر اصلی هر اقدام را جداگانه بررسی می‌کند و سرویس تا زمان تأیید نهایی فعال می‌ماند.</p>
+      <label className="request-choice"><input type="checkbox" checked={cancelService} onChange={(event) => setCancelService(event.target.checked)} /><span><strong>درخواست لغو سرویس</strong><small>پس از تأیید، Providerها و AmneziaWG غیرفعال می‌شوند.</small></span></label>
+      <label className="request-choice"><input type="checkbox" checked={deleteSaleLog} onChange={(event) => setDeleteSaleLog(event.target.checked)} /><span><strong>درخواست حذف آخرین لاگ فروش</strong><small>فقط رکورد دفتر فروش حذف می‌شود؛ سرویس و مشتری دست‌نخورده می‌مانند.</small></span></label>
+      <label className="field"><span>دلیل یا توضیح (اختیاری)</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="مثلاً درخواست مشتری برای پایان سرویس" /></label>
+      {error && <div className="login-error">{error}</div>}
+      <Button className="w-full justify-center" onClick={() => void submit()} disabled={saving} testId={`button-submit-service-request-${service.id}`}>{saving ? <><RefreshCw size={15} className="spin" /> در حال ارسال...</> : <><SendIcon /> ارسال درخواست</>}</Button>
+    </div>
+  </Overlay>;
+}
+function SendIcon() {
+  return <ArrowUpLeft size={15} />;
+}
 
 const usageLabel = (value: number) => value > 0 && value < 0.01 ? `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(value * 1024)} مگابایت` : `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(value)} گیگابایت`;
 const usageDate = (value: string | null) => value ? dateLabel(value) : 'هنوز همگام‌سازی نشده';
@@ -1126,6 +1211,86 @@ const monitoringStatus = (status: MonitoringJob['status']) => ({
 
 export function Services() {
   return <SurfaceFrame name="services"><ServicesContent /></SurfaceFrame>;
+}
+
+function ActionRequestsContent() {
+  const { services, session } = usePulse();
+  const isMasterAdmin = session?.role === 'master_admin';
+  const isReseller = session?.role === 'reseller';
+  const [requests, setRequests] = useState<ServiceActionRequest[]>([]);
+  const [serviceId, setServiceId] = useState('');
+  const [cancelService, setCancelService] = useState(true);
+  const [deleteSaleLog, setDeleteSaleLog] = useState(false);
+  const [reason, setReason] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const load = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/service-action-requests', { credentials: 'include' });
+      const body = await response.json().catch(() => []);
+      if (!response.ok) throw new Error(body?.error || 'درخواست‌ها دریافت نشد.');
+      setRequests(Array.isArray(body) ? body : []);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'درخواست‌ها دریافت نشد.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { if (isMasterAdmin || isReseller) void load(); }, [isMasterAdmin, isReseller]);
+  const submit = async () => {
+    if (!serviceId || (!cancelService && !deleteSaleLog)) {
+      setError('سرویس و حداقل یک اقدام را انتخاب کنید.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await submitServiceActionRequest(serviceId, { cancel_service: cancelService, delete_sale_log: deleteSaleLog, reason });
+      setServiceId('');
+      setReason('');
+      setCancelService(true);
+      setDeleteSaleLog(false);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'درخواست ثبت نشد.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const review = async (requestId: number, key: 'cancel_service' | 'delete_sale_log', decision: 'approve' | 'reject') => {
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/service-action-requests/${requestId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ [key]: decision }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || 'بررسی درخواست انجام نشد.');
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'بررسی درخواست انجام نشد.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const statusText = (status: ServiceActionRequest['cancel_service_status']) => ({ pending: 'در انتظار', approved: 'تأیید شد', rejected: 'رد شد', not_requested: 'درخواست نشده' }[status]);
+  const statusClass = (status: ServiceActionRequest['cancel_service_status']) => status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : status === 'pending' ? 'pending' : '';
+  if (!isMasterAdmin && !isReseller) return <><PageHeader eyebrow="دسترسی محدود" title="درخواست‌ها" description="این بخش برای فروشنده‌ها و مدیر اصلی فعال است." /><EmptyState title="دسترسی ندارید" detail="برای مشاهده درخواست‌ها وارد حساب مجاز شوید." /></>;
+  return <div className="action-requests-page">
+    <PageHeader eyebrow={isMasterAdmin ? 'مرکز تأیید مدیر اصلی' : 'ارتباط با مدیر اصلی'} title="درخواست‌های سرویس و لاگ فروش" description={isMasterAdmin ? 'لغو سرویس و حذف لاگ فروش دو اقدام مستقل هستند و جداگانه بررسی می‌شوند.' : 'درخواست را ثبت کنید؛ هیچ اقدامی پیش از تأیید مدیر اصلی روی سرویس انجام نمی‌شود.'} />
+    {isReseller && <section className="panel-card action-request-form"><div className="panel-heading"><div><p className="eyebrow">درخواست جدید</p><h2 className="section-title">ارسال برای مدیر اصلی</h2></div><ArrowUpLeft size={18} className="text-muted-foreground" /></div><div className="form-grid"><label className="field"><span>سرویس</span><select value={serviceId} onChange={(event) => setServiceId(event.target.value)}><option value="">انتخاب سرویس</option>{services.filter((service) => service.status !== 'Disabled').map((service) => <option value={service.id} key={service.id}>{service.customerName} · {service.plan} · @{service.username}</option>)}</select></label><label className="field"><span>دلیل (اختیاری)</span><input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="مثلاً درخواست مشتری" /></label></div><div className="request-choice-grid"><label className="request-choice"><input type="checkbox" checked={cancelService} onChange={(event) => setCancelService(event.target.checked)} /><span><strong>لغو سرویس</strong><small>پس از تأیید، دسترسی Provider و AWG قطع می‌شود.</small></span></label><label className="request-choice"><input type="checkbox" checked={deleteSaleLog} onChange={(event) => setDeleteSaleLog(event.target.checked)} /><span><strong>حذف آخرین لاگ فروش</strong><small>فقط رکورد دفتر فروش حذف می‌شود.</small></span></label></div><Button onClick={() => void submit()} disabled={saving} testId="button-submit-action-request">{saving ? <><RefreshCw size={15} className="spin" /> در حال ارسال...</> : <><ArrowUpLeft size={15} /> ارسال درخواست</>}</Button></section>}
+    {error && <div className="login-error mt-4">{error}</div>}
+    <section className="request-list">{loading ? <div className="panel-card request-empty"><RefreshCw size={18} className="spin" /> در حال دریافت درخواست‌ها...</div> : requests.map((request) => <article className="panel-card action-request-card" key={request.id}><div className="action-request-head"><div><p className="eyebrow">درخواست #{numberFa(request.id, 0)}</p><h2 className="section-title">{request.customer_name} · {request.service_name}</h2><p className="text-xs text-muted-foreground">{isMasterAdmin ? `${request.reseller_name} · TG ${request.reseller_tg_id}` : `سرویس ${request.service_id}`} · {dateTimeLabel(request.requested_at)}</p></div><span className="soft-badge">{request.service_status === 'disabled' ? 'سرویس غیرفعال' : 'سرویس فعال'}</span></div><div className="action-request-details">{request.cancel_service_requested && <div className={`request-action-row ${statusClass(request.cancel_service_status)}`}><div><strong>لغو سرویس</strong><span>{statusText(request.cancel_service_status)}</span></div>{isMasterAdmin && request.cancel_service_status === 'pending' && <div className="request-action-buttons"><Button variant="secondary" disabled={saving} onClick={() => void review(request.id, 'cancel_service', 'reject')}>رد</Button><Button disabled={saving} onClick={() => void review(request.id, 'cancel_service', 'approve')}><Check size={14} /> تأیید لغو</Button></div>}</div>}{request.delete_sale_requested && <div className={`request-action-row ${statusClass(request.delete_sale_status)}`}><div><strong>حذف لاگ فروش {request.sale_id ? `#${numberFa(request.sale_id, 0)}` : ''}</strong><span>{statusText(request.delete_sale_status)}{request.sale_gb ? ` · ${numberFa(request.sale_gb)} گیگ` : ''}</span></div>{isMasterAdmin && request.delete_sale_status === 'pending' && <div className="request-action-buttons"><Button variant="secondary" disabled={saving} onClick={() => void review(request.id, 'delete_sale_log', 'reject')}>رد</Button><Button disabled={saving} onClick={() => void review(request.id, 'delete_sale_log', 'approve')}><Trash2 size={14} /> تأیید حذف لاگ</Button></div>}</div>}</div>{request.reason && <div className="notice mt-3"><span>توضیح فروشنده: {request.reason}</span></div>}</article>)}{!loading && !requests.length && <div className="panel-card request-empty"><Check size={18} /><span>درخواستی برای نمایش وجود ندارد.</span></div>}</section>
+  </div>;
+}
+
+export function ActionRequests() {
+  return <SurfaceFrame name="action-requests"><ActionRequestsContent /></SurfaceFrame>;
 }
 
 function MonitoringContent() {
