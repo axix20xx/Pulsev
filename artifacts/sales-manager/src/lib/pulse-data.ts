@@ -12,6 +12,7 @@ export type Sale = {
 
 export type Service = {
   id: string;
+  serviceCode?: string;
   customerId?: string;
   customerName: string;
   username: string;
@@ -19,6 +20,8 @@ export type Service = {
   panel: string;
   status: 'Active' | 'Expiring' | 'Expired' | 'Disabled';
   expiresAt: string;
+  createdAt?: string;
+  lastRenewedAt?: string | null;
   usedGb: number;
   limitGb: number;
   note: string;

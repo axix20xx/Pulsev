@@ -11,6 +11,7 @@ import type { ServiceStatus } from './serviceStatus';
 
 export interface Service {
   id: number;
+  service_code: string;
   customer_id: number;
   customer_name: string;
   username: string;
@@ -25,6 +26,9 @@ export interface Service {
   note: string | null;
   /** @nullable */
   subscription_url: string | null;
+  created_at: string;
+  /** @nullable */
+  last_renewed_at: string | null;
   awg_ready?: boolean;
   /** @nullable */
   awg_config_url?: string | null;

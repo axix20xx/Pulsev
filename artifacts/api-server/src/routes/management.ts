@@ -233,6 +233,7 @@ export const managementReady = pool
       CREATE TABLE IF NOT EXISTS reseller_notifications (
         id BIGSERIAL PRIMARY KEY,
         reseller_tg_id BIGINT NOT NULL,
+        service_id BIGINT,
         event_key TEXT NOT NULL,
         kind TEXT NOT NULL,
         title TEXT NOT NULL,
@@ -242,6 +243,8 @@ export const managementReady = pool
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         read_at TIMESTAMP
       );
+      ALTER TABLE reseller_notifications
+        ADD COLUMN IF NOT EXISTS service_id BIGINT;
       CREATE UNIQUE INDEX IF NOT EXISTS reseller_notifications_event_idx
         ON reseller_notifications (reseller_tg_id, event_key);
       CREATE INDEX IF NOT EXISTS reseller_notifications_inbox_idx
@@ -559,7 +562,27 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
   const finished = row.status === "disabled" || quotaFinished || dateFinished;
   const disableReason = row.disable_reason
     || (quotaFinished ? "حجم اشتراک به پایان رسیده است" : dateFinished ? "تاریخ اعتبار اشتراک به پایان رسیده است" : null);
+  const serviceCode = `PULSE-${String(row.id).padStart(6, "0")}`;
+  const daysRemaining = expiresAt > 0 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 86400000)) : null;
+  const announcement = finished
+    ? {
+        title: "اشتراک پایان یافته است",
+        detail: `${disableReason || "اعتبار اشتراک به پایان رسیده است"}؛ برای فعال‌سازی دوباره با فروشنده تماس بگیرید.`,
+        tone: "danger",
+      }
+    : daysRemaining !== null && daysRemaining <= 7
+      ? {
+          title: "زمان تمدید نزدیک است",
+          detail: `شناسه سرویس ${serviceCode} · فقط ${daysRemaining} روز تا پایان اعتبار باقی مانده است.`,
+          tone: "warning",
+        }
+      : {
+          title: "اشتراک شما آماده استفاده است",
+          detail: `شناسه سرویس: ${serviceCode}`,
+          tone: "normal",
+        };
   res.json({
+    service_code: serviceCode,
     customer_name: row.customer_name,
     username: row.username,
     plan: row.plan,
@@ -576,6 +599,7 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     awg_ready: !finished && Boolean(row.awg_client_id),
     awg_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
     provider_label: "V2Box",
+    announcement: { ...announcement, service_code: serviceCode },
   });
 });
 
@@ -1232,6 +1256,7 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
     `WITH candidates AS (
        SELECT
          svc.reseller_tg_id,
+         svc.id AS service_id,
          'expiry:' || svc.id::text || ':' || (svc.expire_at AT TIME ZONE 'Asia/Tehran')::date::text AS event_key,
          'expiry' AS kind,
          'سرویس فردا منقضی می‌شود' AS title,
@@ -1254,6 +1279,7 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
 
        SELECT
          svc.reseller_tg_id,
+         svc.id AS service_id,
          'quota:' || svc.id::text AS event_key,
          'quota' AS kind,
          'حجم سرویس تمام شده است' AS title,
@@ -1274,6 +1300,7 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
 
        SELECT
          job.owner_tg_id AS reseller_tg_id,
+         job.service_id AS service_id,
          'provider:' || job.id::text AS event_key,
          'provider' AS kind,
          CASE WHEN job.action = 'awg' THEN 'مشکل در آماده‌سازی AWG' ELSE 'Provider نیازمند بررسی است' END AS title,
@@ -1296,6 +1323,7 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
 
        SELECT
          svc.reseller_tg_id,
+         svc.id AS service_id,
          'awg-ready:' || svc.id::text || ':' || svc.awg_client_id::text AS event_key,
          'awg' AS kind,
          'AmneziaWG آماده است' AS title,
@@ -1315,6 +1343,7 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
 
        SELECT
          r.tg_id AS reseller_tg_id,
+         NULL::bigint AS service_id,
          'balance:' || r.tg_id::text || ':' ||
            to_char(NOW() AT TIME ZONE 'Asia/Tehran', 'YYYY-MM') AS event_key,
          'balance' AS kind,
@@ -1333,6 +1362,7 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
 
        SELECT
          cs.reseller_tg_id,
+         NULL::bigint AS service_id,
          'invoice:' || cs.id::text AS event_key,
          'invoice' AS kind,
          'فاکتور پرداخت‌نشده دارید' AS title,
@@ -1345,10 +1375,11 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
          AND COALESCE(cs.is_paid, 0) = 0
      )
      INSERT INTO reseller_notifications
-       (reseller_tg_id, event_key, kind, title, detail, href, tone, created_at)
-     SELECT reseller_tg_id, event_key, kind, title, detail, href, tone, NOW()
+        (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
+      SELECT reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, NOW()
      FROM candidates
       ON CONFLICT (reseller_tg_id, event_key) DO UPDATE SET
+         service_id = EXCLUDED.service_id,
         title = EXCLUDED.title,
         detail = EXCLUDED.detail,
         href = EXCLUDED.href,
@@ -1356,7 +1387,9 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
     [resellerId],
   );
   const result = await pool.query(
-    `SELECT id::float8 AS id, kind, title, detail, href, tone,
+    `SELECT id::float8 AS id, service_id,
+            CASE WHEN service_id IS NULL THEN NULL ELSE 'PULSE-' || LPAD(service_id::text, 6, '0') END AS service_code,
+            kind, title, detail, href, tone,
             created_at::text AS created_at, read_at IS NOT NULL AS read
      FROM reseller_notifications
      WHERE reseller_tg_id = $1
@@ -2423,6 +2456,7 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
   const result = await pool.query(
     `SELECT
        svc.id,
+       'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
        svc.customer_id,
        COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
        svc.rain_username AS username,
@@ -2430,6 +2464,12 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
        COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel,
        svc.status,
        svc.expire_at::date::text AS expires_at,
+       svc.created_at::text AS created_at,
+       (
+         SELECT MAX(sale.created_at)::text
+         FROM reseller_sales_log sale
+         WHERE sale.service_id = svc.id AND sale.action_type = 'renew'
+       ) AS last_renewed_at,
        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
        svc.gb::float8 AS limit_gb,
        svc.admin_notes AS note,
@@ -2661,12 +2701,31 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
         "UPDATE resellers SET used_gb = used_gb + $1, updated_at = NOW() WHERE tg_id = $2",
         [body.data.gb, ownerId],
       );
+      await client.query(
+        `INSERT INTO reseller_notifications
+          (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
+         VALUES ($1, $2, 'service-created:' || $2::text, 'service',
+                 'سرویس جدید آماده است',
+                 'شناسه سرویس: ' || 'PULSE-' || LPAD($2::text, 6, '0') || ' · برای مشاهده جزئیات باز کنید',
+                 COALESCE((SELECT '/sub?t=' || token FROM reseller_sub_tokens WHERE service_id = $2 LIMIT 1),
+                          '/customers/' || $3::text),
+                 'normal', NOW())
+         ON CONFLICT (reseller_tg_id, event_key) DO UPDATE SET
+           service_id = EXCLUDED.service_id,
+           detail = EXCLUDED.detail,
+           href = EXCLUDED.href,
+           tone = EXCLUDED.tone`,
+        [ownerId, serviceId, customerId],
+      );
     }
     await client.query("COMMIT");
     const fresh = await pool.query(
-      `SELECT svc.id, svc.customer_id, c.full_name AS customer_name,
+      `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+        svc.customer_id, c.full_name AS customer_name,
         svc.rain_username AS username, svc.label AS plan, 'پنل اصلی' AS panel,
         svc.status, svc.expire_at::date::text AS expires_at,
+        svc.created_at::text AS created_at,
+        (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
         (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
           svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
         svc.awg_client_id IS NOT NULL AS awg_ready,
@@ -2775,10 +2834,13 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const fresh = await pool.query(
-    `SELECT svc.id, svc.customer_id, COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
+    `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+       svc.customer_id, COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
        svc.rain_username AS username, svc.label AS plan,
        COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel, svc.status,
        svc.expire_at::date::text AS expires_at,
+       svc.created_at::text AS created_at,
+       (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
        svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
        svc.awg_client_id IS NOT NULL AS awg_ready,
@@ -2910,10 +2972,21 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       );
       await client.query(
         `INSERT INTO reseller_notifications
-         (reseller_tg_id, event_key, kind, title, detail, href, tone, created_at)
-         VALUES ($1, 'renew-provider:' || $2::text || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
+         (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
+         VALUES ($1, $2, 'renew-provider:' || $2::text || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
                  'provider', 'تمدید با هشدار Provider انجام شد', $3, '/services', 'warning', NOW())`,
         [current.reseller_tg_id, params.data.id, providerWarning],
+      );
+    }
+    if (renewedVersion > 0) {
+      await client.query(
+        `INSERT INTO reseller_notifications
+          (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
+         VALUES ($1, $2, 'service-renewed:' || $2::text || ':' || $3::text, 'renewal',
+                 'سرویس تمدید شد',
+                 'شناسه سرویس: ' || 'PULSE-' || LPAD($2::text, 6, '0') || ' · بسته جدید ثبت شد',
+                 '/services', 'normal', NOW())`,
+        [current.reseller_tg_id, params.data.id, renewedVersion],
       );
     }
     if (!current.awg_client_id && renewedVersion > 0) {
@@ -2936,10 +3009,13 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     return;
   }
   const fresh = await pool.query(
-    `SELECT svc.id, svc.customer_id, COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
+    `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+       svc.customer_id, COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
        svc.rain_username AS username, svc.label AS plan,
        COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel, svc.status,
        svc.expire_at::date::text AS expires_at,
+       svc.created_at::text AS created_at,
+       (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
        svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
        svc.awg_client_id IS NOT NULL AS awg_ready,
@@ -3174,10 +3250,13 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
     req.auth?.role === "master_admin" ? [parsed.data.id] : [parsed.data.id, req.auth?.telegramId];
   const [services, sales] = await Promise.all([
     pool.query(
-      `SELECT svc.id, svc.customer_id, c.full_name AS customer_name,
+      `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+         svc.customer_id, c.full_name AS customer_name,
          svc.rain_username AS username, svc.label AS plan,
          COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel, svc.status,
          svc.expire_at::date::text AS expires_at,
+         svc.created_at::text AS created_at,
+         (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
          (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
           svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
           svc.awg_client_id IS NOT NULL AS awg_ready,

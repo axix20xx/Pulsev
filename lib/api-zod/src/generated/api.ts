@@ -428,6 +428,7 @@ export const ListServicesQueryParams = zod.object({
 
 export const ListServicesResponseItem = zod.object({
   "id": zod.number(),
+  "service_code": zod.string(),
   "customer_id": zod.number(),
   "customer_name": zod.string(),
   "username": zod.string(),
@@ -439,6 +440,8 @@ export const ListServicesResponseItem = zod.object({
   "limit_gb": zod.number(),
   "note": zod.string().nullable(),
   "subscription_url": zod.string().nullable(),
+  "created_at": zod.string(),
+  "last_renewed_at": zod.string().nullable(),
   "awg_ready": zod.boolean().optional(),
   "awg_config_url": zod.string().nullish(),
   "panel_usages": zod.array(zod.object({
@@ -488,6 +491,7 @@ export const CreateServiceBody = zod.object({
 export const CreateServiceResponse = zod.object({
   "service": zod.object({
   "id": zod.number(),
+  "service_code": zod.string(),
   "customer_id": zod.number(),
   "customer_name": zod.string(),
   "username": zod.string(),
@@ -499,6 +503,8 @@ export const CreateServiceResponse = zod.object({
   "limit_gb": zod.number(),
   "note": zod.string().nullable(),
   "subscription_url": zod.string().nullable(),
+  "created_at": zod.string(),
+  "last_renewed_at": zod.string().nullable(),
   "awg_ready": zod.boolean().optional(),
   "awg_config_url": zod.string().nullish(),
   "panel_usages": zod.array(zod.object({
@@ -539,6 +545,7 @@ export const UpdateServiceBody = zod.object({
 
 export const UpdateServiceResponse = zod.object({
   "id": zod.number(),
+  "service_code": zod.string(),
   "customer_id": zod.number(),
   "customer_name": zod.string(),
   "username": zod.string(),
@@ -550,6 +557,8 @@ export const UpdateServiceResponse = zod.object({
   "limit_gb": zod.number(),
   "note": zod.string().nullable(),
   "subscription_url": zod.string().nullable(),
+  "created_at": zod.string(),
+  "last_renewed_at": zod.string().nullable(),
   "awg_ready": zod.boolean().optional(),
   "awg_config_url": zod.string().nullish(),
   "panel_usages": zod.array(zod.object({
@@ -592,6 +601,7 @@ export const RenewServiceBody = zod.object({
 
 export const RenewServiceResponse = zod.object({
   "id": zod.number(),
+  "service_code": zod.string(),
   "customer_id": zod.number(),
   "customer_name": zod.string(),
   "username": zod.string(),
@@ -603,6 +613,8 @@ export const RenewServiceResponse = zod.object({
   "limit_gb": zod.number(),
   "note": zod.string().nullable(),
   "subscription_url": zod.string().nullable(),
+  "created_at": zod.string(),
+  "last_renewed_at": zod.string().nullable(),
   "awg_ready": zod.boolean().optional(),
   "awg_config_url": zod.string().nullish(),
   "panel_usages": zod.array(zod.object({
@@ -708,6 +720,7 @@ export const GetCustomerResponse = zod.object({
 }).and(zod.object({
   "services": zod.array(zod.object({
   "id": zod.number(),
+  "service_code": zod.string(),
   "customer_id": zod.number(),
   "customer_name": zod.string(),
   "username": zod.string(),
@@ -719,6 +732,8 @@ export const GetCustomerResponse = zod.object({
   "limit_gb": zod.number(),
   "note": zod.string().nullable(),
   "subscription_url": zod.string().nullable(),
+  "created_at": zod.string(),
+  "last_renewed_at": zod.string().nullable(),
   "awg_ready": zod.boolean().optional(),
   "awg_config_url": zod.string().nullish(),
   "panel_usages": zod.array(zod.object({

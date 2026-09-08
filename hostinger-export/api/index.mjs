@@ -38125,6 +38125,7 @@ var ListServicesQueryParams = objectType({
 });
 var ListServicesResponseItem = objectType({
   "id": numberType(),
+  "service_code": stringType(),
   "customer_id": numberType(),
   "customer_name": stringType(),
   "username": stringType(),
@@ -38136,6 +38137,8 @@ var ListServicesResponseItem = objectType({
   "limit_gb": numberType(),
   "note": stringType().nullable(),
   "subscription_url": stringType().nullable(),
+  "created_at": stringType(),
+  "last_renewed_at": stringType().nullable(),
   "awg_ready": booleanType().optional(),
   "awg_config_url": stringType().nullish(),
   "panel_usages": arrayType(objectType({
@@ -38172,6 +38175,7 @@ var CreateServiceBody = objectType({
 var CreateServiceResponse = objectType({
   "service": objectType({
     "id": numberType(),
+    "service_code": stringType(),
     "customer_id": numberType(),
     "customer_name": stringType(),
     "username": stringType(),
@@ -38183,6 +38187,8 @@ var CreateServiceResponse = objectType({
     "limit_gb": numberType(),
     "note": stringType().nullable(),
     "subscription_url": stringType().nullable(),
+    "created_at": stringType(),
+    "last_renewed_at": stringType().nullable(),
     "awg_ready": booleanType().optional(),
     "awg_config_url": stringType().nullish(),
     "panel_usages": arrayType(objectType({
@@ -38213,6 +38219,7 @@ var UpdateServiceBody = objectType({
 });
 var UpdateServiceResponse = objectType({
   "id": numberType(),
+  "service_code": stringType(),
   "customer_id": numberType(),
   "customer_name": stringType(),
   "username": stringType(),
@@ -38224,6 +38231,8 @@ var UpdateServiceResponse = objectType({
   "limit_gb": numberType(),
   "note": stringType().nullable(),
   "subscription_url": stringType().nullable(),
+  "created_at": stringType(),
+  "last_renewed_at": stringType().nullable(),
   "awg_ready": booleanType().optional(),
   "awg_config_url": stringType().nullish(),
   "panel_usages": arrayType(objectType({
@@ -38252,6 +38261,7 @@ var RenewServiceBody = objectType({
 });
 var RenewServiceResponse = objectType({
   "id": numberType(),
+  "service_code": stringType(),
   "customer_id": numberType(),
   "customer_name": stringType(),
   "username": stringType(),
@@ -38263,6 +38273,8 @@ var RenewServiceResponse = objectType({
   "limit_gb": numberType(),
   "note": stringType().nullable(),
   "subscription_url": stringType().nullable(),
+  "created_at": stringType(),
+  "last_renewed_at": stringType().nullable(),
   "awg_ready": booleanType().optional(),
   "awg_config_url": stringType().nullish(),
   "panel_usages": arrayType(objectType({
@@ -38323,6 +38335,7 @@ var GetCustomerResponse = objectType({
 }).and(objectType({
   "services": arrayType(objectType({
     "id": numberType(),
+    "service_code": stringType(),
     "customer_id": numberType(),
     "customer_name": stringType(),
     "username": stringType(),
@@ -38334,6 +38347,8 @@ var GetCustomerResponse = objectType({
     "limit_gb": numberType(),
     "note": stringType().nullable(),
     "subscription_url": stringType().nullable(),
+    "created_at": stringType(),
+    "last_renewed_at": stringType().nullable(),
     "awg_ready": booleanType().optional(),
     "awg_config_url": stringType().nullish(),
     "panel_usages": arrayType(objectType({
@@ -58527,6 +58542,7 @@ var managementReady = pool.query(`
       CREATE TABLE IF NOT EXISTS reseller_notifications (
         id BIGSERIAL PRIMARY KEY,
         reseller_tg_id BIGINT NOT NULL,
+        service_id BIGINT,
         event_key TEXT NOT NULL,
         kind TEXT NOT NULL,
         title TEXT NOT NULL,
@@ -58536,6 +58552,8 @@ var managementReady = pool.query(`
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         read_at TIMESTAMP
       );
+      ALTER TABLE reseller_notifications
+        ADD COLUMN IF NOT EXISTS service_id BIGINT;
       CREATE UNIQUE INDEX IF NOT EXISTS reseller_notifications_event_idx
         ON reseller_notifications (reseller_tg_id, event_key);
       CREATE INDEX IF NOT EXISTS reseller_notifications_inbox_idx
@@ -58815,7 +58833,23 @@ router2.get("/public/subscription/:token", async (req, res) => {
   const dateFinished = Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now();
   const finished = row.status === "disabled" || quotaFinished || dateFinished;
   const disableReason = row.disable_reason || (quotaFinished ? "\u062D\u062C\u0645 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : dateFinished ? "\u062A\u0627\u0631\u06CC\u062E \u0627\u0639\u062A\u0628\u0627\u0631 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : null);
+  const serviceCode = `PULSE-${String(row.id).padStart(6, "0")}`;
+  const daysRemaining = expiresAt > 0 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 864e5)) : null;
+  const announcement = finished ? {
+    title: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u0627\u06CC\u0627\u0646 \u06CC\u0627\u0641\u062A\u0647 \u0627\u0633\u062A",
+    detail: `${disableReason || "\u0627\u0639\u062A\u0628\u0627\u0631 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A"}\u061B \u0628\u0631\u0627\u06CC \u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u062F\u0648\u0628\u0627\u0631\u0647 \u0628\u0627 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u062A\u0645\u0627\u0633 \u0628\u06AF\u06CC\u0631\u06CC\u062F.`,
+    tone: "danger"
+  } : daysRemaining !== null && daysRemaining <= 7 ? {
+    title: "\u0632\u0645\u0627\u0646 \u062A\u0645\u062F\u06CC\u062F \u0646\u0632\u062F\u06CC\u06A9 \u0627\u0633\u062A",
+    detail: `\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 ${serviceCode} \xB7 \u0641\u0642\u0637 ${daysRemaining} \u0631\u0648\u0632 \u062A\u0627 \u067E\u0627\u06CC\u0627\u0646 \u0627\u0639\u062A\u0628\u0627\u0631 \u0628\u0627\u0642\u06CC \u0645\u0627\u0646\u062F\u0647 \u0627\u0633\u062A.`,
+    tone: "warning"
+  } : {
+    title: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0622\u0645\u0627\u062F\u0647 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u0627\u0633\u062A",
+    detail: `\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633: ${serviceCode}`,
+    tone: "normal"
+  };
   res.json({
+    service_code: serviceCode,
     customer_name: row.customer_name,
     username: row.username,
     plan: row.plan,
@@ -58831,7 +58865,8 @@ router2.get("/public/subscription/:token", async (req, res) => {
     public_url: `/sub?t=${encodeURIComponent(token)}`,
     awg_ready: !finished && Boolean(row.awg_client_id),
     awg_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
-    provider_label: "V2Box"
+    provider_label: "V2Box",
+    announcement: { ...announcement, service_code: serviceCode }
   });
 });
 router2.get("/public/subscription/:token/feed", async (req, res) => {
@@ -59405,6 +59440,7 @@ router2.get("/notifications", requireAuth, async (req, res) => {
     `WITH candidates AS (
        SELECT
          svc.reseller_tg_id,
+         svc.id AS service_id,
          'expiry:' || svc.id::text || ':' || (svc.expire_at AT TIME ZONE 'Asia/Tehran')::date::text AS event_key,
          'expiry' AS kind,
          '\u0633\u0631\u0648\u06CC\u0633 \u0641\u0631\u062F\u0627 \u0645\u0646\u0642\u0636\u06CC \u0645\u06CC\u200C\u0634\u0648\u062F' AS title,
@@ -59427,6 +59463,7 @@ router2.get("/notifications", requireAuth, async (req, res) => {
 
        SELECT
          svc.reseller_tg_id,
+         svc.id AS service_id,
          'quota:' || svc.id::text AS event_key,
          'quota' AS kind,
          '\u062D\u062C\u0645 \u0633\u0631\u0648\u06CC\u0633 \u062A\u0645\u0627\u0645 \u0634\u062F\u0647 \u0627\u0633\u062A' AS title,
@@ -59447,6 +59484,7 @@ router2.get("/notifications", requireAuth, async (req, res) => {
 
        SELECT
          job.owner_tg_id AS reseller_tg_id,
+         job.service_id AS service_id,
          'provider:' || job.id::text AS event_key,
          'provider' AS kind,
          CASE WHEN job.action = 'awg' THEN '\u0645\u0634\u06A9\u0644 \u062F\u0631 \u0622\u0645\u0627\u062F\u0647\u200C\u0633\u0627\u0632\u06CC AWG' ELSE 'Provider \u0646\u06CC\u0627\u0632\u0645\u0646\u062F \u0628\u0631\u0631\u0633\u06CC \u0627\u0633\u062A' END AS title,
@@ -59469,6 +59507,7 @@ router2.get("/notifications", requireAuth, async (req, res) => {
 
        SELECT
          svc.reseller_tg_id,
+         svc.id AS service_id,
          'awg-ready:' || svc.id::text || ':' || svc.awg_client_id::text AS event_key,
          'awg' AS kind,
          'AmneziaWG \u0622\u0645\u0627\u062F\u0647 \u0627\u0633\u062A' AS title,
@@ -59488,6 +59527,7 @@ router2.get("/notifications", requireAuth, async (req, res) => {
 
        SELECT
          r.tg_id AS reseller_tg_id,
+         NULL::bigint AS service_id,
          'balance:' || r.tg_id::text || ':' ||
            to_char(NOW() AT TIME ZONE 'Asia/Tehran', 'YYYY-MM') AS event_key,
          'balance' AS kind,
@@ -59506,6 +59546,7 @@ router2.get("/notifications", requireAuth, async (req, res) => {
 
        SELECT
          cs.reseller_tg_id,
+         NULL::bigint AS service_id,
          'invoice:' || cs.id::text AS event_key,
          'invoice' AS kind,
          '\u0641\u0627\u06A9\u062A\u0648\u0631 \u067E\u0631\u062F\u0627\u062E\u062A\u200C\u0646\u0634\u062F\u0647 \u062F\u0627\u0631\u06CC\u062F' AS title,
@@ -59518,10 +59559,11 @@ router2.get("/notifications", requireAuth, async (req, res) => {
          AND COALESCE(cs.is_paid, 0) = 0
      )
      INSERT INTO reseller_notifications
-       (reseller_tg_id, event_key, kind, title, detail, href, tone, created_at)
-     SELECT reseller_tg_id, event_key, kind, title, detail, href, tone, NOW()
+        (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
+      SELECT reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, NOW()
      FROM candidates
       ON CONFLICT (reseller_tg_id, event_key) DO UPDATE SET
+         service_id = EXCLUDED.service_id,
         title = EXCLUDED.title,
         detail = EXCLUDED.detail,
         href = EXCLUDED.href,
@@ -59529,7 +59571,9 @@ router2.get("/notifications", requireAuth, async (req, res) => {
     [resellerId]
   );
   const result = await pool.query(
-    `SELECT id::float8 AS id, kind, title, detail, href, tone,
+    `SELECT id::float8 AS id, service_id,
+            CASE WHEN service_id IS NULL THEN NULL ELSE 'PULSE-' || LPAD(service_id::text, 6, '0') END AS service_code,
+            kind, title, detail, href, tone,
             created_at::text AS created_at, read_at IS NOT NULL AS read
      FROM reseller_notifications
      WHERE reseller_tg_id = $1
@@ -60533,6 +60577,7 @@ router2.get("/services", requireAuth, async (req, res) => {
   const result = await pool.query(
     `SELECT
        svc.id,
+       'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
        svc.customer_id,
        COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
        svc.rain_username AS username,
@@ -60540,6 +60585,12 @@ router2.get("/services", requireAuth, async (req, res) => {
        COALESCE(svc.falco_system_name, '\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC') AS panel,
        svc.status,
        svc.expire_at::date::text AS expires_at,
+       svc.created_at::text AS created_at,
+       (
+         SELECT MAX(sale.created_at)::text
+         FROM reseller_sales_log sale
+         WHERE sale.service_id = svc.id AND sale.action_type = 'renew'
+       ) AS last_renewed_at,
        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
        svc.gb::float8 AS limit_gb,
        svc.admin_notes AS note,
@@ -60759,12 +60810,31 @@ router2.post("/services", requireAuth, async (req, res) => {
         "UPDATE resellers SET used_gb = used_gb + $1, updated_at = NOW() WHERE tg_id = $2",
         [body.data.gb, ownerId]
       );
+      await client.query(
+        `INSERT INTO reseller_notifications
+          (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
+         VALUES ($1, $2, 'service-created:' || $2::text, 'service',
+                 '\u0633\u0631\u0648\u06CC\u0633 \u062C\u062F\u06CC\u062F \u0622\u0645\u0627\u062F\u0647 \u0627\u0633\u062A',
+                 '\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633: ' || 'PULSE-' || LPAD($2::text, 6, '0') || ' \xB7 \u0628\u0631\u0627\u06CC \u0645\u0634\u0627\u0647\u062F\u0647 \u062C\u0632\u0626\u06CC\u0627\u062A \u0628\u0627\u0632 \u06A9\u0646\u06CC\u062F',
+                 COALESCE((SELECT '/sub?t=' || token FROM reseller_sub_tokens WHERE service_id = $2 LIMIT 1),
+                          '/customers/' || $3::text),
+                 'normal', NOW())
+         ON CONFLICT (reseller_tg_id, event_key) DO UPDATE SET
+           service_id = EXCLUDED.service_id,
+           detail = EXCLUDED.detail,
+           href = EXCLUDED.href,
+           tone = EXCLUDED.tone`,
+        [ownerId, serviceId, customerId2]
+      );
     }
     await client.query("COMMIT");
     const fresh = await pool.query(
-      `SELECT svc.id, svc.customer_id, c.full_name AS customer_name,
+      `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+        svc.customer_id, c.full_name AS customer_name,
         svc.rain_username AS username, svc.label AS plan, '\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC' AS panel,
         svc.status, svc.expire_at::date::text AS expires_at,
+        svc.created_at::text AS created_at,
+        (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
         (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
           svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
         svc.awg_client_id IS NOT NULL AS awg_ready,
@@ -60866,10 +60936,13 @@ router2.patch("/services/:id", requireAuth, async (req, res) => {
     return;
   }
   const fresh = await pool.query(
-    `SELECT svc.id, svc.customer_id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
+    `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+       svc.customer_id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
        svc.rain_username AS username, svc.label AS plan,
        COALESCE(svc.falco_system_name, '\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC') AS panel, svc.status,
        svc.expire_at::date::text AS expires_at,
+       svc.created_at::text AS created_at,
+       (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
        svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
        svc.awg_client_id IS NOT NULL AS awg_ready,
@@ -60998,10 +61071,21 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
         );
         await client.query(
           `INSERT INTO reseller_notifications
-         (reseller_tg_id, event_key, kind, title, detail, href, tone, created_at)
-         VALUES ($1, 'renew-provider:' || $2::text || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
+         (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
+         VALUES ($1, $2, 'renew-provider:' || $2::text || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
                  'provider', '\u062A\u0645\u062F\u06CC\u062F \u0628\u0627 \u0647\u0634\u062F\u0627\u0631 Provider \u0627\u0646\u062C\u0627\u0645 \u0634\u062F', $3, '/services', 'warning', NOW())`,
           [current.reseller_tg_id, params.data.id, providerWarning]
+        );
+      }
+      if (renewedVersion > 0) {
+        await client.query(
+          `INSERT INTO reseller_notifications
+          (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
+         VALUES ($1, $2, 'service-renewed:' || $2::text || ':' || $3::text, 'renewal',
+                 '\u0633\u0631\u0648\u06CC\u0633 \u062A\u0645\u062F\u06CC\u062F \u0634\u062F',
+                 '\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633: ' || 'PULSE-' || LPAD($2::text, 6, '0') || ' \xB7 \u0628\u0633\u062A\u0647 \u062C\u062F\u06CC\u062F \u062B\u0628\u062A \u0634\u062F',
+                 '/services', 'normal', NOW())`,
+          [current.reseller_tg_id, params.data.id, renewedVersion]
         );
       }
       if (!current.awg_client_id && renewedVersion > 0) {
@@ -61024,10 +61108,13 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
       return;
     }
     const fresh = await pool.query(
-      `SELECT svc.id, svc.customer_id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
+      `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+       svc.customer_id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
        svc.rain_username AS username, svc.label AS plan,
        COALESCE(svc.falco_system_name, '\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC') AS panel, svc.status,
        svc.expire_at::date::text AS expires_at,
+       svc.created_at::text AS created_at,
+       (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
        svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
        svc.awg_client_id IS NOT NULL AS awg_ready,
@@ -61246,10 +61333,13 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
   const childOwnerParams = req.auth?.role === "master_admin" ? [parsed.data.id] : [parsed.data.id, req.auth?.telegramId];
   const [services, sales] = await Promise.all([
     pool.query(
-      `SELECT svc.id, svc.customer_id, c.full_name AS customer_name,
+      `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+         svc.customer_id, c.full_name AS customer_name,
          svc.rain_username AS username, svc.label AS plan,
          COALESCE(svc.falco_system_name, '\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC') AS panel, svc.status,
          svc.expire_at::date::text AS expires_at,
+         svc.created_at::text AS created_at,
+         (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
          (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
           svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
           svc.awg_client_id IS NOT NULL AS awg_ready,

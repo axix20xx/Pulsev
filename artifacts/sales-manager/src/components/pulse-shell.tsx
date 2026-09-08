@@ -350,6 +350,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   </div>
                   <div className="flex flex-col gap-1 min-w-0">
                     <strong className="text-[13px] font-bold text-foreground">{item.title}</strong>
+                    {item.service_code && <span className="text-[10px] font-mono font-bold text-primary" dir="ltr">{item.service_code}</span>}
                     <span className="text-[11px] font-medium text-muted-foreground line-clamp-2 leading-relaxed">{item.detail}</span>
                      {typeof item.href === 'string' && item.href.startsWith('/sub') && <span className="text-[10px] font-bold text-primary">باز کردن صفحه اشتراک</span>}
                     <time className="text-[9px] font-mono text-muted-foreground/60 mt-1">{dateTimeLabel(item.created_at)}</time>

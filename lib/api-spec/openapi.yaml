@@ -950,10 +950,12 @@ components:
           type: ["string", "null"]
     Service:
       type: object
-      required: [id, customer_id, customer_name, username, plan, panel, status, expires_at, used_gb, limit_gb, note, subscription_url]
+      required: [id, service_code, customer_id, customer_name, username, plan, panel, status, expires_at, used_gb, limit_gb, note, subscription_url, created_at, last_renewed_at]
       properties:
         id:
           type: number
+        service_code:
+          type: string
         customer_id:
           type: number
         customer_name:
@@ -976,6 +978,10 @@ components:
         note:
           type: ["string", "null"]
         subscription_url:
+          type: ["string", "null"]
+        created_at:
+          type: string
+        last_renewed_at:
           type: ["string", "null"]
         awg_ready:
           type: boolean
