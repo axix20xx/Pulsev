@@ -26,3 +26,9 @@ For legacy services that already have an AWG client, renewal should provision a 
 **Why:** New-service creation succeeds through the fresh-client endpoint, while an existing client can be stale or rejected by the AWG API when recreated with the same identifier.
 
 **How to apply:** Best-effort disable the old client, create a fresh client, update the service atomically, and queue an AWG retry if fresh creation fails.
+
+Renewal notification SQL must not reuse one PostgreSQL parameter as both a bigint column value and a text event-key fragment.
+
+**Why:** PostgreSQL raises `42P08` (`inconsistent types deduced for parameter`) when a service ID parameter is used for `service_id` and directly constrained as text in the same prepared query.
+
+**How to apply:** Pass a separate string parameter for event-key formatting while keeping the numeric service ID parameter for bigint columns.

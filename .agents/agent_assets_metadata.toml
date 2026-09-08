@@ -252,3 +252,17 @@ mtime_ms = 1788882078106
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/adcd494c-335c-4fe7-8cd3-d5a2d9dc17fb/3f60da29-5c4d-4f64-ac4e-1c981f4177b1"
 storage_version_token = "1788882089528296"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "AJkI2ZmmHtt3QIkjeV4Qc"
+uri = "file://exports/pulse-hostinger-renewal-final-db-fix.zip"
+type = "unspecified"
+title = "Final Renewal Database Fix"
+description = "Bundle نهایی شامل اصلاح renewal سرویس‌های قدیمی با AWG client تازه، رفع خطای PostgreSQL 42P08 در notificationهای renewal، و اصلاح process startup مربوط به EAGAIN."
+logical_id = "8b4bb356-7249-4ec4-a65b-beb383d71283"
+content_hash = "sha256:0e0f72dbcfd2ac85cd57c89a12809a203da5dffb6d850131b4aab4c6294262e9"
+size = 26231748
+mtime_ms = 1788882564414
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8b4bb356-7249-4ec4-a65b-beb383d71283/87242775-09d2-4dcb-8f3f-d475cb4e2732"
+storage_version_token = "1788882578746391"
+content_type = "application/octet-stream"

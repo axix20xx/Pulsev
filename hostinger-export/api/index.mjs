@@ -61166,20 +61166,20 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
         await client.query(
           `INSERT INTO reseller_notifications
          (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
-         VALUES ($1, $2, 'renew-provider:' || $2::text || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
+          VALUES ($1, $2, 'renew-provider:' || $4 || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
                  'provider', '\u062A\u0645\u062F\u06CC\u062F \u0628\u0627 \u0647\u0634\u062F\u0627\u0631 Provider \u0627\u0646\u062C\u0627\u0645 \u0634\u062F', $3, '/services', 'warning', NOW())`,
-          [current.reseller_tg_id, params.data.id, providerWarning]
+          [current.reseller_tg_id, params.data.id, providerWarning, String(params.data.id)]
         );
       }
       if (renewedVersion > 0) {
         await client.query(
           `INSERT INTO reseller_notifications
           (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
-         VALUES ($1, $2, 'service-renewed:' || $2::text || ':' || $3::text, 'renewal',
+         VALUES ($1, $2, 'service-renewed:' || $4 || ':' || $3::text, 'renewal',
                  '\u0633\u0631\u0648\u06CC\u0633 \u062A\u0645\u062F\u06CC\u062F \u0634\u062F',
-                 '\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633: ' || 'PULSE-' || LPAD($2::text, 6, '0') || ' \xB7 \u0628\u0633\u062A\u0647 \u062C\u062F\u06CC\u062F \u062B\u0628\u062A \u0634\u062F',
+                 '\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633: ' || 'PULSE-' || LPAD($4, 6, '0') || ' \xB7 \u0628\u0633\u062A\u0647 \u062C\u062F\u06CC\u062F \u062B\u0628\u062A \u0634\u062F',
                  '/services', 'normal', NOW())`,
-          [current.reseller_tg_id, params.data.id, renewedVersion]
+          [current.reseller_tg_id, params.data.id, renewedVersion, String(params.data.id)]
         );
       }
       if ((awgWarning || !current.awg_client_id) && renewedVersion > 0) {

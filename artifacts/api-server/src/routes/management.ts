@@ -3046,20 +3046,20 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       await client.query(
         `INSERT INTO reseller_notifications
          (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
-         VALUES ($1, $2, 'renew-provider:' || $2::text || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
+          VALUES ($1, $2, 'renew-provider:' || $4 || ':' || EXTRACT(EPOCH FROM NOW())::bigint::text,
                  'provider', 'تمدید با هشدار Provider انجام شد', $3, '/services', 'warning', NOW())`,
-        [current.reseller_tg_id, params.data.id, providerWarning],
+         [current.reseller_tg_id, params.data.id, providerWarning, String(params.data.id)],
       );
     }
     if (renewedVersion > 0) {
       await client.query(
         `INSERT INTO reseller_notifications
           (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
-         VALUES ($1, $2, 'service-renewed:' || $2::text || ':' || $3::text, 'renewal',
+         VALUES ($1, $2, 'service-renewed:' || $4 || ':' || $3::text, 'renewal',
                  'سرویس تمدید شد',
-                 'شناسه سرویس: ' || 'PULSE-' || LPAD($2::text, 6, '0') || ' · بسته جدید ثبت شد',
+                 'شناسه سرویس: ' || 'PULSE-' || LPAD($4, 6, '0') || ' · بسته جدید ثبت شد',
                  '/services', 'normal', NOW())`,
-        [current.reseller_tg_id, params.data.id, renewedVersion],
+         [current.reseller_tg_id, params.data.id, renewedVersion, String(params.data.id)],
       );
     }
     if ((awgWarning || !current.awg_client_id) && renewedVersion > 0) {
