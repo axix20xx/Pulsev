@@ -12,6 +12,7 @@ const showcaseRoot = path.join(publicRoot, "showcase");
 const subscriptionRoot = path.join(publicRoot, "sub-app");
 const panelSubscriptionAssetsRoot = path.join(publicRoot, "panel-sub-assets");
 const installerPath = path.join(root, "installer.html");
+const startupLockPath = path.join(root, ".pulse-startup.lock");
 const publicPort = Number(process.env.PORT || 3000);
 const apiPort = Number(process.env.API_INTERNAL_PORT || publicPort + 1);
 let api;
@@ -125,6 +126,41 @@ function reuseHealthyApi() {
   recordInstallLog("API قبلی روی پورت داخلی فعال است؛ از همان process استفاده شد.");
 }
 
+async function acquireStartupLock() {
+  const startedAt = Date.now();
+  const maxWaitMs = 45 * 60_000;
+  const staleAfterMs = 45 * 60_000;
+  while (Date.now() - startedAt < maxWaitMs) {
+    try {
+      const handle = await fs.open(startupLockPath, "wx");
+      await handle.writeFile(`${process.pid}\n`, "utf8");
+      return handle;
+    } catch (error) {
+      if (!error || typeof error !== "object" || error.code !== "EEXIST") {
+        throw error;
+      }
+      if (await probeApi()) return null;
+      try {
+        const lockStat = await fs.stat(startupLockPath);
+        if (Date.now() - lockStat.mtimeMs > staleAfterMs) {
+          await fs.unlink(startupLockPath);
+          continue;
+        }
+      } catch {
+        // The owner may have released the lock between stat and unlink.
+      }
+      await wait(500);
+    }
+  }
+  throw new Error("Timed out waiting for another Hostinger launcher to finish startup.");
+}
+
+async function releaseStartupLock(handle) {
+  if (!handle) return;
+  await handle.close().catch(() => undefined);
+  await fs.unlink(startupLockPath).catch(() => undefined);
+}
+
 async function startApiInternal() {
   const childEnv = {
     ...process.env,
@@ -142,6 +178,13 @@ async function startApiInternal() {
     return;
   }
 
+  const startupLock = await acquireStartupLock();
+  if (!startupLock) {
+    reuseHealthyApi();
+    return;
+  }
+
+  try {
   const shouldMigrate = process.env.AUTO_MIGRATE_LEGACY_SQL !== "false";
   const legacySqlPath = path.join(root, "legacy", "legacy.sql");
   const supabaseSqlPath = path.join(root, "supabase-import.sql");
@@ -264,6 +307,9 @@ async function startApiInternal() {
       recordInstallLog(installState.error, "error");
     }
   });
+  } finally {
+    await releaseStartupLock(startupLock);
+  }
 }
 
 async function startApi() {
