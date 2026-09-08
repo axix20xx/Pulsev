@@ -117,12 +117,31 @@ function probeApi() {
   });
 }
 
+function reuseHealthyApi() {
+  apiReady = true;
+  installState.apiRunning = true;
+  installState.phase = "ready";
+  installState.updatedAt = new Date().toISOString();
+  recordInstallLog("API قبلی روی پورت داخلی فعال است؛ از همان process استفاده شد.");
+}
+
 async function startApiInternal() {
   const childEnv = {
     ...process.env,
     NODE_ENV: process.env.NODE_ENV || "production",
     PORT: String(apiPort),
   };
+  installState.phase = "starting-api";
+  installState.updatedAt = new Date().toISOString();
+
+  // Hostinger may restart the public launcher while the API child is still
+  // alive. Reuse it before starting another migration child; otherwise every
+  // launcher restart consumes another process and can hit EAGAIN.
+  if (await probeApi()) {
+    reuseHealthyApi();
+    return;
+  }
+
   const shouldMigrate = process.env.AUTO_MIGRATE_LEGACY_SQL !== "false";
   const legacySqlPath = path.join(root, "legacy", "legacy.sql");
   const supabaseSqlPath = path.join(root, "supabase-import.sql");
@@ -179,7 +198,18 @@ async function startApiInternal() {
         setTimeout(() => migration.kill("SIGKILL"), 5_000).unref();
       }, timeoutMs);
       timeout.unref();
-      const result = await childExit(migration);
+      let result;
+      try {
+        result = await childExit(migration);
+      } catch (error) {
+        if (error && typeof error === "object" && "code" in error && error.code === "EAGAIN") {
+          if (migrationProcess === migration) migrationProcess = undefined;
+          console.error("Legacy migration child could not start because the process limit was reached; retrying.");
+          await wait(Math.min(3_000 * attempt, 9_000));
+          continue;
+        }
+        throw error;
+      }
       clearInterval(heartbeat);
       clearTimeout(timeout);
       if (migrationProcess === migration) migrationProcess = undefined;
@@ -198,17 +228,11 @@ async function startApiInternal() {
     }
   }
 
-  installState.phase = "starting-api";
-  installState.updatedAt = new Date().toISOString();
   if (await probeApi()) {
     // Hostinger can restart the public launcher while the previous API child
     // survives briefly. Reuse that healthy local API instead of creating a
     // second child that will fail with EADDRINUSE on API_INTERNAL_PORT.
-    apiReady = true;
-    installState.apiRunning = true;
-    installState.phase = "ready";
-    installState.updatedAt = new Date().toISOString();
-    recordInstallLog("API قبلی روی پورت داخلی فعال است؛ از همان process استفاده شد.");
+    reuseHealthyApi();
     return;
   }
 
