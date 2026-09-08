@@ -71,7 +71,6 @@ import {
   createAwgClient,
   disableAwgClient,
   getAwgConfiguration,
-  recreateAwgClient,
 } from "../lib/amneziawg";
 import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
 import {
@@ -2925,6 +2924,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   let failedProviderKeys: string[] = [];
   let providerWarning: string | null = null;
    let awgWarning: string | null = null;
+   let replacementAwgClientId: string | null | undefined;
    renewalPhase = "provision-providers";
   try {
     const provisioning = await provisionUser(
@@ -2946,13 +2946,15 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     failedProviderKeys = failed.map((result) => result.key);
     providerWarning = failed.map((result) => `${result.key}: ${result.detail}`).join(" · ") || null;
      if (current.awg_client_id) {
-       try {
-         await recreateAwgClient(current.awg_client_id);
-       } catch (error) {
-         // AWG is an optional sidecar. Do not turn a successful renewal into
-         // a 500 when the sidecar is temporarily unavailable; the job below
-         // will create a fresh client after the new lifecycle is committed.
-         awgWarning = error instanceof Error ? error.message : "AmneziaWG API is unavailable.";
+       // Existing clients can be stale or already missing on AWG. Renewal
+       // uses the same fresh-client path as new service creation instead of
+       // trying to POST the old client ID again.
+       await disableAwgClient(current.awg_client_id);
+       const awg = await createAwgClient();
+       if (awg.clientId) {
+         replacementAwgClientId = awg.clientId;
+       } else {
+         awgWarning = awg.error ?? "AmneziaWG API is unavailable.";
        }
      }
   } catch (error) {
@@ -2999,6 +3001,19 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       [...values, ...owner.params],
     );
     const renewedVersion = Number(result.rows[0]?.lifecycle_version ?? 0);
+     if (current.awg_client_id && (replacementAwgClientId !== undefined || awgWarning)) {
+       await client.query(
+         `UPDATE reseller_services
+          SET awg_client_id = $1,
+              awg_rx = 0,
+              awg_tx = 0,
+              awg_total = 0,
+              awg_offset_bytes = 0,
+              updated_at = NOW()
+          WHERE id = $2`,
+         [replacementAwgClientId ?? null, params.data.id],
+       );
+     }
     if (renewedVersion > 0) {
       await client.query(
         `UPDATE service_provision_jobs
