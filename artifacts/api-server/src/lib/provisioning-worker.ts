@@ -3,7 +3,7 @@ import {
   provisionUser,
   RainApiError,
 } from "./rain";
-import { createAwgClient, disableAwgClient } from "./amneziawg";
+import { createAwgClient, disableAwgClient, replaceAwgClient } from "./amneziawg";
 import { logger } from "./logger";
 
 type ProvisionJob = {
@@ -142,14 +142,9 @@ async function processAwgJob(job: ProvisionJob) {
       await completeJob(job.id);
       return;
     }
-    if (service.rows[0].awg_client_id) {
-      const deleted = await disableAwgClient(service.rows[0].awg_client_id);
-      if (!deleted) {
-        await retryJob(job, "حذف client قبلی AmneziaWG انجام نشد");
-        return;
-      }
-    }
-    const awg = await createAwgClient();
+    const awg = service.rows[0].awg_client_id
+      ? await replaceAwgClient(service.rows[0].awg_client_id)
+      : await createAwgClient();
     if (!awg.clientId) {
       await retryJob(job, awg.error ?? "AmneziaWG API is unavailable.");
       return;

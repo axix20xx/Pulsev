@@ -57937,6 +57937,18 @@ async function disableAwgClient(clientId) {
     return false;
   }
 }
+async function replaceAwgClient(clientId) {
+  const deleted = await disableAwgClient(clientId);
+  if (!deleted) {
+    return {
+      configured: true,
+      clientId: null,
+      error: "\u062D\u0630\u0641 client \u0642\u0628\u0644\u06CC AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F"
+    };
+  }
+  await new Promise((resolve) => setTimeout(resolve, 2e3));
+  return createAwgClient();
+}
 async function recreateAwgClient(clientId) {
   try {
     await request2("DELETE", `/api/clients/${encodeURIComponent(clientId)}`);
@@ -61127,11 +61139,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
           WHERE id = $2::bigint`,
           [awgUsageOffset, params.data.id]
         );
-        const deleted = await disableAwgClient(current.awg_client_id);
-        if (!deleted) {
-          throw new Error("\u062D\u0630\u0641 client \u0642\u0628\u0644\u06CC AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F");
-        }
-        const awg = await createAwgClient();
+        const awg = await replaceAwgClient(current.awg_client_id);
         if (!awg.clientId) {
           throw new Error(awg.error ?? "\u0633\u0627\u062E\u062A client \u062C\u062F\u06CC\u062F AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F");
         }
@@ -62293,14 +62301,7 @@ async function processAwgJob(job) {
       await completeJob(job.id);
       return;
     }
-    if (service.rows[0].awg_client_id) {
-      const deleted = await disableAwgClient(service.rows[0].awg_client_id);
-      if (!deleted) {
-        await retryJob(job, "\u062D\u0630\u0641 client \u0642\u0628\u0644\u06CC AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F");
-        return;
-      }
-    }
-    const awg = await createAwgClient();
+    const awg = service.rows[0].awg_client_id ? await replaceAwgClient(service.rows[0].awg_client_id) : await createAwgClient();
     if (!awg.clientId) {
       await retryJob(job, awg.error ?? "AmneziaWG API is unavailable.");
       return;

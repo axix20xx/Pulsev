@@ -73,6 +73,7 @@ import {
   getAwgConfiguration,
   getAwgStats,
   recreateAwgClient,
+  replaceAwgClient,
 } from "../lib/amneziawg";
 import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
 import {
@@ -2991,11 +2992,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
           WHERE id = $2::bigint`,
          [awgUsageOffset, params.data.id],
        );
-        const deleted = await disableAwgClient(current.awg_client_id);
-        if (!deleted) {
-          throw new Error("حذف client قبلی AmneziaWG انجام نشد");
-        }
-        const awg = await createAwgClient();
+        const awg = await replaceAwgClient(current.awg_client_id);
         if (!awg.clientId) {
           throw new Error(awg.error ?? "ساخت client جدید AmneziaWG انجام نشد");
         }
