@@ -16,7 +16,7 @@ type Prefs = { businessName: string; currency: string; reminderDays: string; com
 type PulseContextValue = {
   sales: Sale[]; services: Service[]; customers: Customer[]; prefs: Prefs; session: { authenticated?: boolean; role?: string; display_name?: string | null; customer_price_per_gb?: number | null } | null;
   sessionLoading: boolean; authFallback: boolean; dashboard: any | null; resellers: { id: number; telegram_id: number; title?: string | null; enabled: boolean; used_gb: number; total_gb: number; per_gig_price?: number; customer_price_per_gb?: number }[];
-  addSale: (sale: Sale) => void; updateSale: (sale: Sale) => void; createService: (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean }) => Promise<Service>; updateService: (service: Service) => void; renewService: (service: Service, days?: number, gb?: number) => Promise<Service>; openRenewWizard: (service: Service) => void; resetServiceToken: (service: Service) => Promise<string>; setPrefs: (prefs: Prefs) => void; updateReseller: (id: number, enabled: boolean) => void;
+  addSale: (sale: Sale) => void; updateSale: (sale: Sale) => Promise<void>; createService: (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean }) => Promise<Service>; updateService: (service: Service) => void; renewService: (service: Service, days?: number, gb?: number) => Promise<Service>; openRenewWizard: (service: Service) => void; resetServiceToken: (service: Service) => Promise<string>; setPrefs: (prefs: Prefs) => void; updateReseller: (id: number, enabled: boolean) => void;
 };
 const PulseContext = createContext<PulseContextValue | null>(null);
 const load = <T,>(key: string, fallback: T): T => { try { const raw = localStorage.getItem(`pulse-${key}`); return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; } };
@@ -182,14 +182,16 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const displaySession = sessionQuery.data ?? null;
   const authFallback = sessionQuery.isError;
   const resellers = Array.isArray(resellerQuery.data) ? resellerQuery.data.map((r: any) => ({ id: r.id, telegram_id: Number(r.telegram_id), title: r.title, enabled: r.enabled, used_gb: r.used_gb, total_gb: r.total_gb, per_gig_price: Number(r.per_gig_price ?? 0), customer_price_per_gb: Number(r.customer_price_per_gb ?? 0) })) : localResellers;
-  const updateSale = (sale: Sale) => {
+  const updateSale = async (sale: Sale) => {
     setSales((items) => items.map((item) => item.id === sale.id ? sale : item));
     const id = Number(sale.id.replace(/\D/g, ''));
     if (canLoadApi && Number.isFinite(id) && id > 0) {
-      updateSaleApi.mutate(
+      await updateSaleApi.mutateAsync(
         { id, data: { is_paid: sale.paid, custom_sell_price: sale.amount } },
-        { onError: () => void queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() }) },
-      );
+      ).catch(async (error) => {
+        await queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() });
+        throw error;
+      });
     }
   };
   const updateService = (service: Service) => {
@@ -503,6 +505,10 @@ function SalesContent() {
   const [paymentDate, setPaymentDate] = useState(() => isoToday());
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [saleEditTarget, setSaleEditTarget] = useState<Sale | null>(null);
+  const [saleEditPrice, setSaleEditPrice] = useState('');
+  const [saleEditPaid, setSaleEditPaid] = useState(false);
+  const [saleEditSaving, setSaleEditSaving] = useState(false);
   const rangeLabel = period === 'today' ? 'امروز' : period === 'yesterday' ? 'دیروز' : period === 'week' ? '۷ روز اخیر' : period === 'month' ? 'این ماه' : 'بازه انتخاب‌شده';
   useEffect(() => {
     let active = true;
@@ -555,7 +561,43 @@ function SalesContent() {
         cash_after_admin: paidIncome - current.admin_cost,
       };
     });
-    updateSale(nextSale);
+    void updateSale(nextSale).catch((cause) => {
+      setError(cause instanceof Error ? cause.message : 'وضعیت پرداخت ذخیره نشد.');
+      setPeriodSales((items) => items.map((item) => item.id === sale.id ? sale : item));
+    });
+  };
+  const openSaleEditor = (sale: Sale) => {
+    setSaleEditTarget(sale);
+    setSaleEditPrice(String(Math.round(sale.amount)));
+    setSaleEditPaid(sale.paid);
+    setError('');
+  };
+  const saveSaleEditor = async () => {
+    if (!saleEditTarget) return;
+    const normalizedPrice = saleEditPrice.replace(/,/g, '').replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+    const amount = Number(normalizedPrice);
+    if (!Number.isFinite(amount) || amount < 0) {
+      setError('قیمت فروش باید یک عدد صفر یا بزرگ‌تر باشد.');
+      return;
+    }
+    const nextSale: Sale = {
+      ...saleEditTarget,
+      amount,
+      paid: saleEditPaid,
+      status: saleEditPaid ? 'Completed' : 'Pending',
+    };
+    setSaleEditSaving(true);
+    setError('');
+    setPeriodSales((items) => items.map((item) => item.id === nextSale.id ? nextSale : item));
+    try {
+      await updateSale(nextSale);
+      setSaleEditTarget(null);
+    } catch (cause) {
+      setPeriodSales((items) => items.map((item) => item.id === saleEditTarget.id ? saleEditTarget : item));
+      setError(cause instanceof Error ? cause.message : 'ویرایش فروش ذخیره نشد.');
+    } finally {
+      setSaleEditSaving(false);
+    }
   };
   const toggleCreditPaid = async (credit: any) => {
     const nextPaid = !Boolean(credit.paid);
@@ -682,8 +724,12 @@ function SalesContent() {
     </section>}
     {!isMasterAdmin && summary && <section className="sales-payment-breakdown panel-card"><div><p className="eyebrow">وضعیت وصول</p><h2 className="section-title">پرداخت و سود این بازه</h2></div><div className="sales-payment-grid"><div><span>مبلغ باقی‌مانده برای دریافت</span><strong>{money(summary.remaining_to_collect)}</strong></div><div><span>سود وصول‌شده</span><strong>{money(summary.paid_profit)}</strong></div><div><span>سود در انتظار پرداخت</span><strong>{money(summary.unpaid_profit)}</strong></div></div></section>}
     <section className="sales-period-panel report-filter panel-card"><div className="sales-period-heading"><div><p className="eyebrow">بازه زمانی</p><h2 className="section-title">{dateLabel(from)} تا {dateLabel(to)}</h2></div><span className="soft-badge">{rangeLabel}</span></div><div className="period-tabs">{([['today', 'امروز'], ['yesterday', 'دیروز'], ['week', '۷ روز اخیر'], ['month', 'این ماه'], ['custom', 'بازه دلخواه']] as [SalesPeriod, string][]).map(([value, label]) => <button key={value} className={period === value ? 'selected' : ''} onClick={() => selectPeriod(value)} data-testid={`button-sales-period-${value}`}>{label}</button>)}</div>{period === 'custom' && <div className="sales-custom-range"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button onClick={applyCustomRange} disabled={loading}>اعمال بازه</Button></div>}</section>
-     {!isMasterAdmin && <><div className="toolbar"><div className="search-field"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="جست‌وجوی مشتری، سرویس یا شناسه" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></div><div className="filter-tabs">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}{value === 'All' && <span>{numberFa(visibleSales.length, 0)}</span>}</button>)}</div></div>{error && <div className="login-error mb-4">{error}</div>}<section className="table-card"><div className="table-scroll"><table><thead><tr><th>فروش</th><th>سرویس / پنل</th><th>تاریخ</th><th>وضعیت</th><th className="text-right">مبلغ</th><th /></tr></thead><tbody>{filtered.map((sale) => <tr key={sale.id} data-testid={`row-sale-${sale.id}`}><td><div className="flex items-center gap-3"><Avatar name={sale.customerName} /><div><p className="font-bold">{sale.customerName}</p><p className="font-mono text-[10px] text-muted-foreground">{sale.id}</p></div></div></td><td><p className="font-semibold">{sale.serviceName}</p><p className="text-xs text-muted-foreground">{sale.panel}</p></td><td className="text-sm text-muted-foreground">{dateLabel(sale.date)}</td><td><button onClick={() => togglePaid(sale)} data-testid={`button-toggle-paid-${sale.id}`}><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></button></td><td className="text-right font-display text-sm font-bold">{money(sale.amount)}</td><td><button className="icon-button" aria-label={sale.paid ? `برگرداندن پرداخت ${sale.id}` : `علامت‌گذاری پرداخت ${sale.id}`} onClick={() => togglePaid(sale)} data-testid={`button-edit-sale-${sale.id}`}>{sale.paid ? <RefreshCw size={14} /> : <Check size={14} />}</button></td></tr>)}</tbody></table></div>{!loading && !filtered.length && <EmptyState title="فروشی پیدا نشد" detail="بازه زمانی، عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." />}</section><p className="mt-3 text-xs text-muted-foreground">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · بازه بر اساس تقویم شمسی تهران</p></>}
-     {isMasterAdmin && error && <div className="login-error mt-4">{error}</div>}</>;
+      {!isMasterAdmin && <><div className="toolbar"><div className="search-field"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="جست‌وجوی مشتری، سرویس یا شناسه" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></div><div className="filter-tabs">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}{value === 'All' && <span>{numberFa(visibleSales.length, 0)}</span>}</button>)}</div></div>{error && <div className="login-error mb-4">{error}</div>}<section className="table-card"><div className="table-scroll"><table><thead><tr><th>فروش</th><th>سرویس / پنل</th><th>تاریخ</th><th>وضعیت</th><th className="text-right">مبلغ</th><th /></tr></thead><tbody>{filtered.map((sale) => <tr key={sale.id} data-testid={`row-sale-${sale.id}`}><td><div className="flex items-center gap-3"><Avatar name={sale.customerName} /><div><p className="font-bold">{sale.customerName}</p><p className="font-mono text-[10px] text-muted-foreground">{sale.id}</p></div></div></td><td><p className="font-semibold">{sale.serviceName}</p><p className="text-xs text-muted-foreground">{sale.panel}</p></td><td className="text-sm text-muted-foreground">{dateLabel(sale.date)}</td><td><button onClick={() => openSaleEditor(sale)} data-testid={`button-toggle-paid-${sale.id}`}><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></button></td><td className="text-right font-display text-sm font-bold">{money(sale.amount)}</td><td><button className="icon-button" aria-label={`ویرایش فروش ${sale.id}`} onClick={() => openSaleEditor(sale)} data-testid={`button-edit-sale-${sale.id}`}><Pencil size={14} /></button></td></tr>)}</tbody></table></div>{!loading && !filtered.length && <EmptyState title="فروشی پیدا نشد" detail="بازه زمانی، عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." />}</section><p className="mt-3 text-xs text-muted-foreground">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · بازه بر اساس تقویم شمسی تهران</p></>}
+      {isMasterAdmin && error && <div className="login-error mt-4">{error}</div>}{saleEditTarget && <SaleEditModal sale={saleEditTarget} price={saleEditPrice} paid={saleEditPaid} saving={saleEditSaving} onPriceChange={setSaleEditPrice} onPaidChange={setSaleEditPaid} onClose={() => setSaleEditTarget(null)} onSave={() => void saveSaleEditor()} />}</>;
+}
+
+function SaleEditModal({ sale, price, paid, saving, onPriceChange, onPaidChange, onClose, onSave }: { sale: Sale; price: string; paid: boolean; saving: boolean; onPriceChange: (value: string) => void; onPaidChange: (value: boolean) => void; onClose: () => void; onSave: () => void }) {
+  return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><div className="modal-card sale-edit-modal" role="dialog" aria-modal="true" aria-labelledby="sale-edit-title" onMouseDown={(event) => event.stopPropagation()}><div className="panel-heading"><div><p className="eyebrow">ویرایش دفتر فروش</p><h2 id="sale-edit-title" className="section-title">اصلاح مبلغ و پرداخت</h2></div><button type="button" className="icon-button" aria-label="بستن مودال" onClick={onClose}><X size={16} /></button></div><div className="sale-edit-summary"><Avatar name={sale.customerName} /><div><strong>{sale.customerName}</strong><small>{sale.serviceName} · {sale.id}</small></div></div><label className="field"><span>قیمت فروش به مشتری (تومان)</span><input autoFocus type="number" min="0" value={price} onChange={(event) => onPriceChange(event.target.value)} /></label><div className="sale-edit-payment"><div><strong>وضعیت پرداخت</strong><small>{paid ? 'این فروش پرداخت‌شده ثبت می‌شود.' : 'این فروش در فهرست وصول باقی می‌ماند.'}</small></div><button type="button" className={`toggle ${paid ? 'on' : ''}`} onClick={() => onPaidChange(!paid)} aria-label="تغییر وضعیت پرداخت"><span /></button></div><div className="modal-actions"><Button variant="quiet" type="button" onClick={onClose}>انصراف</Button><Button type="button" onClick={onSave} disabled={saving}>{saving ? <><RefreshCw size={14} className="spin" /> در حال ذخیره...</> : <><Save size={14} /> ذخیره تغییرات</>}</Button></div></div></div>;
 }
 
 export function Sales() {

@@ -3008,6 +3008,16 @@ table td { font-size: 11px; }
 .modal-card input,
 .modal-card textarea,
 .modal-card select { border-radius: 8px; }
+.sale-edit-modal { width: min(460px, calc(100vw - 28px)); padding: 20px; }
+.sale-edit-summary { display: flex; align-items: center; gap: 11px; margin: 18px 0; border: 1px solid hsl(var(--border)); border-radius: 11px; background: hsl(var(--muted) / .42); padding: 11px; }
+.sale-edit-summary > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.sale-edit-summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sale-edit-summary small { color: hsl(var(--muted-foreground)); font-size: 11px; }
+.sale-edit-payment { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; border-top: 1px solid hsl(var(--border)); padding-top: 16px; }
+.sale-edit-payment > div { display: flex; flex-direction: column; gap: 4px; }
+.sale-edit-payment small { color: hsl(var(--muted-foreground)); font-size: 11px; }
+.sale-edit-payment .toggle { flex: 0 0 auto; }
+.sale-edit-modal .modal-actions { display: flex; justify-content: flex-start; gap: 8px; margin-top: 22px; }
 
 .login-screen {
   display: grid;
