@@ -98,3 +98,17 @@ mtime_ms = 1788865757288
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1a327712-904f-47b9-9267-0a49916b8f0c/cff06caa-d53d-496c-9125-fabb7a432c32"
 storage_version_token = "1788865764322865"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "FN89VsaBBbsEFwBfkWXv_"
+uri = "file://exports/pulse-whole-project.zip"
+type = "unspecified"
+title = "Pulse Workspace — Complete Project ZIP"
+description = "بستهٔ کامل کل پروژه شامل Sales Manager، API Server، Gift Card Showcase با webapp، mockup sandbox، shared libraries، Hostinger export، backupهای لازم و تنظیمات pnpm. node_modules و cacheهای محیطی حذف شده‌اند؛ پس از extract با pnpm install اجرا می‌شود."
+logical_id = "5c87b3da-cce9-4b42-97ac-ac02beacb9d5"
+content_hash = "sha256:8ac632708e93c0865d0fa67fb4c879d97ae4d73468f48c914e2fc2f44a89d316"
+size = 77285527
+mtime_ms = 1788865904563
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5c87b3da-cce9-4b42-97ac-ac02beacb9d5/aa25f307-3fe9-4e59-9488-3c3df8eb37b8"
+storage_version_token = "1788865929121774"
+content_type = "application/octet-stream"
