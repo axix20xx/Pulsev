@@ -1,0 +1,149 @@
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+[migration] {"timestamp":"2026-09-08T15:46:49.816Z","level":"INFO","message":"Connecting to PostgreSQL for the legacy migration check..."}
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+[migration] {"timestamp":"2026-09-08T15:46:50.357Z","level":"INFO","message":"Connecting to PostgreSQL for the legacy migration check..."}
+[migration] {"timestamp":"2026-09-08T15:46:51.771Z","level":"INFO","message":"Legacy migration lock acquired."}
+[migration] {"timestamp":"2026-09-08T15:46:52.597Z","level":"INFO","message":"Another process completed the legacy SQL migration."}
+[api] [15:46:53.547] [32mINFO[39m (3174055): [36mCombined usage sync worker started[39m
+[api] [35mintervalMs[39m: 60000
+[api] [15:46:53.552] [32mINFO[39m (3174055): [36mServer listening[39m
+[api] [35mport[39m: 3001
+[migration] {"timestamp":"2026-09-08T15:46:53.717Z","level":"INFO","message":"PostgreSQL target: database=postgres, schema=public, user=postgres"}
+[migration] {"timestamp":"2026-09-08T15:46:54.612Z","level":"INFO","message":"Legacy SQL migration already completed."}
+[api] [15:46:55.841] [32mINFO[39m (3174055): [36mService provisioning worker started[39m
+[api] [15:46:55.841] [32mINFO[39m (3174055): [36mPasarGuard Group 1 reconciliation worker started[39m
+[api] [35mintervalMs[39m: 21600000
+[api] [15:46:55.846] [32mINFO[39m (3174055): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 2,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 648
+[api] [15:47:00.708] [32mINFO[39m (3174055): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 5,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 2668
+[api] [15:47:01.619] [32mINFO[39m (3174055): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 4,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3929
+[api] [15:47:02.230] [32mINFO[39m (3174055): [36mProvisioning job completed[39m
+[api] [35mjobId[39m: "5"
+[api] [35maction[39m: "awg"
+[api] [15:47:05.109] [31mERROR[39m (3174055): [36mService renewal failed[39m
+[api] [35mserviceId[39m: 805
+[api] [35mphase[39m: "persist-renewal"
+[api] err: {
+[api] "type": "DatabaseError2",
+[api] "message": "inconsistent types deduced for parameter $2",
+[api] "stack":
+[api] error: inconsistent types deduced for parameter $2
+[api] at file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a081b2-6a1b-736d-b42d-0e9f08a0fbc2/nodejs/api/index.mjs:32933:21
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a081b2-6a1b-736d-b42d-0e9f08a0fbc2/nodejs/api/index.mjs:61175:9
+[api] "length": 144,
+[api] "name": "error",
+[api] "severity": "ERROR",
+[api] "code": "42P08",
+[api] "detail": "text versus bigint",
+[api] "position": "152",
+[api] "file": "parse_param.c",
+[api] "line": "219",
+[api] "routine": "variable_coerce_param_hook"
+[api] }
+[api] [15:47:05.110] [32mINFO[39m (3174055): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 1,
+[api] "method": "POST",
+[api] "url": "/api/services/805/renew"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 500
+[api] }
+[api] [35mresponseTime[39m: 10064
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 500",
+[api] "stack":
+[api] Error: failed with status code 500
+[api] at onResFinished (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a081b2-6a1b-736d-b42d-0e9f08a0fbc2/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a081b2-6a1b-736d-b42d-0e9f08a0fbc2/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [15:47:05.405] [32mINFO[39m (3174055): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 3,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/a13e9ab7a63a89df592342cb1512ec16"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 8886
+[api] [15:47:08.756] [32mINFO[39m (3174055): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 7,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2295
+[api] [15:47:08.819] [32mINFO[39m (3174055): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 6,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2359
+[api] [15:47:08.854] [33mWARN[39m (3174055): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 805
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a081b2-6a1b-736d-b42d-0e9f08a0fbc2/nodejs/api/index.mjs:57882:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a081b2-6a1b-736d-b42d-0e9f08a0fbc2/nodejs/api/index.mjs:58013:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a081b2-6a1b-736d-b42d-0e9f08a0fbc2/nodejs/api/index.mjs:58127:24)
+[api] at async syncServiceUsageById (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a081b2-6a1b-736d-b42d-0e9f08a0fbc2/nodejs/api/index.mjs:58147:3)
+[api] "name": "AwgApiError"
+[api] }
+[api] [15:47:09.837] [32mINFO[39m (3174055): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 8,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 869
