@@ -34,6 +34,7 @@ const mapService = (item: any): Service => {
 const serviceDisplayCode = (service: Service) => service.serviceCode ?? `PULSE-${String(service.id).replace(/\D/g, '').padStart(6, '0')}`;
 const serviceTimestamp = (value?: string | null) => value ? new Date(value).getTime() || 0 : 0;
 const serviceHasRecentFailure = (service: Service) => {
+  if (!['pending', 'running', 'retrying'].includes(service.provisionStatus ?? '')) return false;
   if (!service.provisionLastError) return false;
   const updatedAt = serviceTimestamp(service.provisionUpdatedAt);
   return !updatedAt || Date.now() - updatedAt <= 30 * 86_400_000;

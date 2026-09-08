@@ -211,6 +211,41 @@ export function startProvisioningWorker() {
      SET next_attempt_at = NOW(), updated_at = NOW()
      WHERE status = 'retrying'`,
   ).catch((error) => logger.error({ err: error }, "Failed to wake retrying provisioning jobs"));
+  void pool.query(
+    `UPDATE service_provision_jobs job
+     SET status = 'retrying',
+         lifecycle_version = svc.lifecycle_version,
+         last_error = 'job قدیمی AWG دوباره در صف ساخت قرار گرفت',
+         next_attempt_at = NOW(),
+         updated_at = NOW(),
+         completed_at = NULL
+     FROM reseller_services svc
+     WHERE job.service_id = svc.id
+       AND job.action = 'awg'
+       AND job.status = 'completed'
+       AND job.last_error LIKE 'لغو شد:%'
+       AND svc.status = 'active'
+       AND svc.awg_client_id IS NULL
+       AND job.id = (
+         SELECT MAX(candidate.id)
+         FROM service_provision_jobs candidate
+         WHERE candidate.service_id = job.service_id
+           AND candidate.action = 'awg'
+           AND candidate.status = 'completed'
+           AND candidate.last_error LIKE 'لغو شد:%'
+       )
+       AND NOT EXISTS (
+         SELECT 1
+         FROM service_provision_jobs active_job
+         WHERE active_job.service_id = job.service_id
+           AND active_job.action = 'awg'
+           AND active_job.status IN ('pending', 'running', 'retrying')
+       )`,
+   ).then((result) => {
+     if (result.rowCount) {
+       logger.info({ jobsRequeued: result.rowCount }, "Requeued old AWG jobs");
+     }
+   }).catch((error) => logger.error({ err: error }, "Failed to requeue old AWG jobs"));
   void tick();
   setInterval(() => void tick(), 5_000);
   logger.info("Service provisioning worker started");

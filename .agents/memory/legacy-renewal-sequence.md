@@ -7,4 +7,4 @@ For service renewal, the AWG-compatible sequence is: clear usage caches, capture
 
 **Why:** The product behavior requires renewal to be equivalent to a new AWG account rather than preserving the old client identity; creating first also avoids provider failures caused by deleting before a new client is accepted.
 
-**How to apply:** Renewal and its AWG retry job must call the normal `POST /api/clients` flow first, persist the returned new UUID, and then remove the previous client.
+**How to apply:** Renewal and its AWG retry job must call the normal `POST /api/clients` flow first, persist the returned new UUID, and then remove the previous client. Completed or superseded jobs must not retain a `last_error`; old cancelled AWG jobs may be requeued only when the active service still has no AWG client and no newer AWG job is already active.

@@ -58110,7 +58110,7 @@ async function syncServiceUnlocked(service) {
     await pool.query(
       `UPDATE service_provision_jobs
        SET status = 'completed',
-           last_error = '\u0644\u063A\u0648 \u0634\u062F: \u0633\u0631\u0648\u06CC\u0633 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A',
+           last_error = NULL,
            updated_at = NOW(),
            completed_at = NOW()
        WHERE service_id = $1
@@ -60570,7 +60570,7 @@ router2.get("/monitoring", requireAuth, async (req, res) => {
          j.provider_keys,
          j.status,
          j.attempts,
-         j.last_error,
+         CASE WHEN j.status IN ('pending', 'running', 'retrying') THEN j.last_error ELSE NULL END AS last_error,
          j.next_attempt_at,
          j.created_at,
          j.updated_at,
@@ -61218,7 +61218,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
         await client.query(
           `UPDATE service_provision_jobs
          SET status = 'completed',
-             last_error = '\u0644\u063A\u0648 \u0634\u062F: \u0646\u0633\u0644 \u062C\u062F\u06CC\u062F \u0633\u0631\u0648\u06CC\u0633 \u062A\u0645\u062F\u06CC\u062F \u0634\u062F',
+             last_error = NULL,
              updated_at = NOW(),
              completed_at = NOW()
          WHERE service_id = $1
@@ -62367,6 +62367,41 @@ function startProvisioningWorker() {
      SET next_attempt_at = NOW(), updated_at = NOW()
      WHERE status = 'retrying'`
   ).catch((error40) => logger.error({ err: error40 }, "Failed to wake retrying provisioning jobs"));
+  void pool.query(
+    `UPDATE service_provision_jobs job
+     SET status = 'retrying',
+         lifecycle_version = svc.lifecycle_version,
+         last_error = 'job قدیمی AWG دوباره در صف ساخت قرار گرفت',
+         next_attempt_at = NOW(),
+         updated_at = NOW(),
+         completed_at = NULL
+     FROM reseller_services svc
+     WHERE job.service_id = svc.id
+       AND job.action = 'awg'
+       AND job.status = 'completed'
+       AND job.last_error LIKE 'لغو شد:%'
+       AND svc.status = 'active'
+       AND svc.awg_client_id IS NULL
+       AND job.id = (
+         SELECT MAX(candidate.id)
+         FROM service_provision_jobs candidate
+         WHERE candidate.service_id = job.service_id
+           AND candidate.action = 'awg'
+           AND candidate.status = 'completed'
+           AND candidate.last_error LIKE 'لغو شد:%'
+       )
+       AND NOT EXISTS (
+         SELECT 1
+         FROM service_provision_jobs active_job
+         WHERE active_job.service_id = job.service_id
+           AND active_job.action = 'awg'
+           AND active_job.status IN ('pending', 'running', 'retrying')
+       )`
+  ).then((result) => {
+    if (result.rowCount) {
+      logger.info({ jobsRequeued: result.rowCount }, "Requeued old AWG jobs");
+    }
+  }).catch((error40) => logger.error({ err: error40 }, "Failed to requeue old AWG jobs"));
   void tick();
   setInterval(() => void tick(), 5e3);
   logger.info("Service provisioning worker started");

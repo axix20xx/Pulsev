@@ -159,7 +159,7 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
     await pool.query(
       `UPDATE service_provision_jobs
        SET status = 'completed',
-           last_error = 'لغو شد: سرویس به پایان رسیده است',
+           last_error = NULL,
            updated_at = NOW(),
            completed_at = NOW()
        WHERE service_id = $1

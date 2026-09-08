@@ -378,3 +378,17 @@ mtime_ms = 1788887748485
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/21a1e277-243e-42e4-a183-60a85bedc86c/1172634f-75dc-4ed1-a091-eb3f9ca72873"
 storage_version_token = "1788887786452532"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "QdN31ehKgjn7hV0KCQb7z"
+uri = "file://exports/pulse-hostinger-awg-old-jobs-monitoring-fix.zip"
+type = "unspecified"
+title = "Pulse Hostinger — AWG Old Jobs and Monitoring Fix"
+description = "نسخهٔ اصلاح‌شده: jobهای قدیمی AWG در شرایط امن دوباره صف می‌شوند، jobهای تکمیل‌شده با پیام لغو failed نمایش داده نمی‌شوند، و تمدید جدید همچنان با ساخت client جدید کار می‌کند."
+logical_id = "6cf7f878-dacc-499a-9d0e-0b550457cdb0"
+content_hash = "sha256:5f2273012d3d6e80c769d05f9d6b82b4e5ad2e0c2fc3ca84f746ec4fe74dbab9"
+size = 26230584
+mtime_ms = 1788888471676
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6cf7f878-dacc-499a-9d0e-0b550457cdb0/9a0aea11-adc6-4832-b766-a4a721220f68"
+storage_version_token = "1788888478233851"
+content_type = "application/octet-stream"

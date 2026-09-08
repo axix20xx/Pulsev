@@ -2395,7 +2395,7 @@ router.get("/monitoring", requireAuth, async (req, res): Promise<void> => {
          j.provider_keys,
          j.status,
          j.attempts,
-         j.last_error,
+          CASE WHEN j.status IN ('pending', 'running', 'retrying') THEN j.last_error ELSE NULL END AS last_error,
          j.next_attempt_at,
          j.created_at,
          j.updated_at,
@@ -3074,7 +3074,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       await client.query(
         `UPDATE service_provision_jobs
          SET status = 'completed',
-             last_error = 'لغو شد: نسل جدید سرویس تمدید شد',
+             last_error = NULL,
              updated_at = NOW(),
              completed_at = NOW()
          WHERE service_id = $1
