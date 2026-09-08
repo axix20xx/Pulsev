@@ -659,6 +659,32 @@ body { font-family: var(--app-font-sans); background: hsl(var(--background)); }
 @media (max-width: 430px) { .public-sub-canvas { width: min(100% - 28px, 520px); padding-top: 19px; }.public-sub-profile { padding-top: 76px; }.public-sub-profile h1 { font-size: 42px; }.public-sub-security { display: none; }.public-sub-status-module { margin-bottom: 31px; }.public-sub-usage-values strong { font-size: 23px; }.public-sub-app-actions { width: calc(100% - 56px); }.public-sub-install-action { display: none; }.public-sub-share-strip { margin-top: 55px; } }
 @media (prefers-reduced-motion: reduce) { .public-sub-v2 *, .public-sub-v2 *::before, .public-sub-v2 *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
 
+/* Service codes are longer than the status-card affordance on narrow screens. */
+.public-sub-status-card > * {
+  min-width: 0;
+}
+.public-sub-status-card .public-sub-status-arrow {
+  width: auto;
+  min-width: 31px;
+  max-width: min(42%, 190px);
+  padding-inline: 8px;
+  overflow: hidden;
+}
+.public-sub-status-card .public-sub-status-arrow > span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  direction: ltr;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 430px) {
+  .public-sub-status-card .public-sub-status-arrow {
+    max-width: 46%;
+    padding-inline: 7px;
+  }
+}
+
 /* Public subscription — tactile native-app surface. */
 .public-sub-v3 {
   --sub-bg: #edf5f4;
