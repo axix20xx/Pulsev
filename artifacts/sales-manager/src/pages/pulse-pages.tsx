@@ -869,6 +869,7 @@ function PointOfSaleContent() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [created, setCreated] = useState<Service | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [creationSeconds, setCreationSeconds] = useState(0);
   const [error, setError] = useState('');
   const normalize = (value: string) => value.replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/[^\d]/g, '');
   const query = normalize(form.phone) || form.customerName.trim().toLowerCase();
@@ -915,15 +916,54 @@ function PointOfSaleContent() {
       setSubmitting(false);
     }
   };
+  useEffect(() => {
+    if (!submitting) {
+      setCreationSeconds(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => setCreationSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, [submitting]);
   const reset = () => {
     setCreated(null);
     setForm({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', sellPrice: '', isPaid: true });
     setSelectedCustomerId(null);
     setError('');
   };
+  if (submitting) {
+    const phase = creationSeconds < 2 ? 0 : creationSeconds < 7 ? 1 : creationSeconds < 13 ? 2 : 3;
+    const phases = [
+      ['آماده‌سازی فروش', 'اطلاعات مشتری، بسته و مبلغ پرداخت در حال بررسی است.'],
+      ['ساخت سرویس روی Providerها', 'درخواست ساخت کاربر روی Providerهای فعال ارسال می‌شود.'],
+      ['آماده‌سازی AmneziaWG', 'کلاینت AWG و لینک‌های تحویل در حال همگام‌سازی هستند.'],
+      ['ثبت نهایی در دفتر فروش', 'نتیجهٔ Providerها، AWG و ثبت فروش جمع‌بندی می‌شود.'],
+    ];
+    return <Overlay title="ثبت فروش در حال انجام است" onClose={() => undefined} fullScreen>
+      <div className="creation-status-screen pos-creation-status" role="status" aria-live="polite">
+        <div className="creation-status-orb"><RefreshCw size={30} className="spin" /></div>
+        <p className="eyebrow">وضعیت زندهٔ POS · {numberFa(creationSeconds)} ثانیه</p>
+        <h2>{phases[phase][0]}</h2>
+        <p className="creation-status-lede">{phases[phase][1]}</p>
+        <div className="creation-progress-track"><span style={{ width: `${Math.min(96, 18 + phase * 25 + Math.min(16, creationSeconds))}%` }} /></div>
+        <div className="creation-counter-grid">
+          <div><span>Providerها</span><strong>{phase >= 1 ? 'در حال اجرا' : 'در انتظار'}</strong><small>ساخت سرویس</small></div>
+          <div><span>AmneziaWG</span><strong>{phase >= 2 ? 'در حال ساخت' : 'در صف'}</strong><small>کلاینت مستقل</small></div>
+          <div><span>دفتر فروش</span><strong>{phase >= 3 ? 'در حال ثبت' : 'در انتظار'}</strong><small>پرداخت و فروش</small></div>
+          <div><span>Retry</span><strong>خودکار</strong><small>برای خطاهای جزئی</small></div>
+        </div>
+        <div className="creation-status-steps">{phases.map(([label], index) => <div className={index < phase ? 'done' : index === phase ? 'current' : ''} key={label}><span>{index < phase ? '✓' : index + 1}</span><strong>{label}</strong></div>)}</div>
+        <p className="creation-status-note">این صفحه را نبندید؛ نتیجهٔ ساخت و لینک تحویل پس از پاسخ واقعی API نمایش داده می‌شود.</p>
+      </div>
+    </Overlay>;
+  }
   if (created) {
     const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl;
-    return <div className="pos-page"><PageHeader eyebrow="رسید فروش" title="سرویس آماده تحویل است" description="فروش در دفتر ثبت شد و لینک آماده ارسال به مشتری است." action={<Button variant="secondary" onClick={reset} testId="button-pos-new-sale"><Plus size={15} /> فروش جدید</Button>} />
+    const hasPendingSync = created.provisionStatus === 'pending' || created.provisionStatus === 'running' || created.provisionStatus === 'retrying';
+    const completionDescription = hasPendingSync || !created.awgReady
+      ? 'فروش ثبت شد؛ بخشی از همگام‌سازی Provider یا AWG در پس‌زمینه ادامه دارد.'
+      : 'فروش در دفتر ثبت شد و سرویس آمادهٔ تحویل است.';
+    return <div className="pos-page"><PageHeader eyebrow="رسید فروش" title={hasPendingSync ? 'فروش ثبت شد؛ ساخت ادامه دارد' : 'سرویس آماده تحویل است'} description={completionDescription} action={<Button variant="secondary" onClick={reset} testId="button-pos-new-sale"><Plus size={15} /> فروش جدید</Button>} />
       <section className="pos-success panel-card"><div className="pos-success-mark"><Check size={28} /></div><p className="eyebrow">رسید POS · {created.id}</p><h2>{created.customerName}</h2><p className="pos-success-subtitle">{created.plan} · {numberFa(created.limitGb)} گیگابایت · {form.days} روز</p>
         {publicUrl && <div className="pos-delivery-grid"><div><span className="pos-label">لینک اشتراک مشتری</span><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="quick-actions"><button className="button button-primary" type="button" onClick={() => void copyTextToClipboard(new URL(publicUrl, window.location.origin).toString())}><Copy size={15} /> کپی لینک</button><a className="button button-secondary" href={v2boxUrl(created)}><ExternalLink size={15} /> V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl} download={`pulse-${created.username}.conf`}><Wifi size={15} /> دانلود AWG</a>}</div></div><SubscriptionQr url={publicUrl} /></div>}
         <div className="pos-message-card"><div className="panel-heading"><div><p className="eyebrow">پیام آماده مشتری</p><h3 className="section-title">کپی و ارسال در تلگرام یا واتساپ</h3></div><Button variant="secondary" onClick={() => void copyTextToClipboard(message)} testId="button-copy-customer-message"><Copy size={14} /> کپی پیام</Button></div><textarea readOnly value={message} aria-label="پیام آماده ارسال به مشتری" /></div>
