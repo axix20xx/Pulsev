@@ -350,3 +350,17 @@ mtime_ms = 1788886768017
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/224dbea4-5ac1-4c80-8ec9-cb0da35a037a/4c0bd7bd-69df-4494-bc2a-aaeb6c18c394"
 storage_version_token = "1788886778487756"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "etrpH3o4uf0I9Uqx-i6t7"
+uri = "file://exports/pulse-hostinger-renew-new-awg-client-delay.zip"
+type = "unspecified"
+title = "Pulse Hostinger — AWG Replacement Delay Fix"
+description = "نسخهٔ نهایی که بعد از حذف client قدیمی، ۲ ثانیه صبر می‌کند و سپس client جدید با UUID جدید می‌سازد؛ این مکث در تمدید و retryهای AWG اعمال شده است."
+logical_id = "3bb8e478-4f4e-4a34-997f-549e718f40ce"
+content_hash = "sha256:19db5ba9ccd345ff4f95548dd9e176739913ced2978f40dcec29a8444aa263dd"
+size = 26230200
+mtime_ms = 1788887177317
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3bb8e478-4f4e-4a34-997f-549e718f40ce/2edea627-08c5-42b3-9e46-994f48967ff6"
+storage_version_token = "1788887195896288"
+content_type = "application/octet-stream"
