@@ -238,3 +238,17 @@ mtime_ms = 1788881839078
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/65ff16c0-ad02-4a1a-8e86-ff1e7e1e327c/c8808ae6-8740-4833-b619-344cb9efe06b"
 storage_version_token = "1788881861297759"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "_yeEPuhImxwuaThgER4B6"
+uri = "file://exports/pulse-hostinger-existing-awg-renewal-fix.zip"
+type = "unspecified"
+title = "Existing Service AWG Renewal Fix"
+description = "نسخهٔ اصلاح‌شده برای renewal سرویس‌های قدیمی دارای AWG client: client قبلی best-effort غیرفعال می‌شود، client تازه ساخته می‌شود، و در صورت عدم دسترسی AWG، renewal اصلی با retry job ادامه پیدا می‌کند."
+logical_id = "adcd494c-335c-4fe7-8cd3-d5a2d9dc17fb"
+content_hash = "sha256:cacb2bb5c4e7a93f3adc271d6e475970e80fb02c368840423263ee5277954267"
+size = 26231727
+mtime_ms = 1788882078106
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/adcd494c-335c-4fe7-8cd3-d5a2d9dc17fb/3f60da29-5c4d-4f64-ac4e-1c981f4177b1"
+storage_version_token = "1788882089528296"
+content_type = "application/octet-stream"

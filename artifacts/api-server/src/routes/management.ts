@@ -71,6 +71,7 @@ import {
   createAwgClient,
   disableAwgClient,
   getAwgConfiguration,
+  recreateAwgClient,
 } from "../lib/amneziawg";
 import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
 import {

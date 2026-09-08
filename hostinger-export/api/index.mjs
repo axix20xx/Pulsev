@@ -61050,6 +61050,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     let failedProviderKeys = [];
     let providerWarning = null;
     let awgWarning = null;
+    let replacementAwgClientId;
     renewalPhase = "provision-providers";
     try {
       const provisioning = await provisionUser(
@@ -61069,10 +61070,12 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
       failedProviderKeys = failed.map((result2) => result2.key);
       providerWarning = failed.map((result2) => `${result2.key}: ${result2.detail}`).join(" \xB7 ") || null;
       if (current.awg_client_id) {
-        try {
-          await recreateAwgClient(current.awg_client_id);
-        } catch (error40) {
-          awgWarning = error40 instanceof Error ? error40.message : "AmneziaWG API is unavailable.";
+        await disableAwgClient(current.awg_client_id);
+        const awg = await createAwgClient();
+        if (awg.clientId) {
+          replacementAwgClientId = awg.clientId;
+        } else {
+          awgWarning = awg.error ?? "AmneziaWG API is unavailable.";
         }
       }
     } catch (error40) {
@@ -61119,6 +61122,19 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
         [...values, ...owner.params]
       );
       const renewedVersion = Number(result.rows[0]?.lifecycle_version ?? 0);
+      if (current.awg_client_id && (replacementAwgClientId !== void 0 || awgWarning)) {
+        await client.query(
+          `UPDATE reseller_services
+          SET awg_client_id = $1,
+              awg_rx = 0,
+              awg_tx = 0,
+              awg_total = 0,
+              awg_offset_bytes = 0,
+              updated_at = NOW()
+          WHERE id = $2`,
+          [replacementAwgClientId ?? null, params.data.id]
+        );
+      }
       if (renewedVersion > 0) {
         await client.query(
           `UPDATE service_provision_jobs

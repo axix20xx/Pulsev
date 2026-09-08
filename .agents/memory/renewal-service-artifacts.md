@@ -20,3 +20,9 @@ Renewal must treat AmneziaWG recreation as an optional sidecar operation; a temp
 **Why:** The main Provider renewal and database lifecycle can succeed while the separate AWG API is unavailable, and the seller still needs the renewed service immediately.
 
 **How to apply:** Catch AWG recreation errors, commit the renewal, and enqueue an AWG job using the new lifecycle version for retry.
+
+For legacy services that already have an AWG client, renewal should provision a fresh AWG client ID rather than POSTing the old ID again.
+
+**Why:** New-service creation succeeds through the fresh-client endpoint, while an existing client can be stale or rejected by the AWG API when recreated with the same identifier.
+
+**How to apply:** Best-effort disable the old client, create a fresh client, update the service atomically, and queue an AWG retry if fresh creation fails.
