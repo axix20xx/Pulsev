@@ -4133,9 +4133,23 @@ h1, h2, h3, h4, h5, h6, p, ul, ol, li { text-align: right; }
 .request-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .request-choice { display: flex; align-items: flex-start; gap: 10px; min-width: 0; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--background) / .45); padding: 12px; cursor: pointer; }
 .request-choice input { margin-top: 3px; accent-color: hsl(var(--primary)); }
+.request-choice.selected { border-color: hsl(var(--primary) / .42); background: hsl(var(--primary) / .07); box-shadow: 0 7px 18px hsl(var(--primary) / .08); }
 .request-choice span { display: grid; gap: 4px; min-width: 0; }
 .request-choice strong { font-size: 11px; }
 .request-choice small { color: hsl(var(--muted-foreground)); font-size: 10px; line-height: 1.7; }
+.service-request-action { display: flex; justify-content: flex-end; margin-top: 14px; border-top: 1px solid hsl(var(--border) / .75); padding-top: 12px; }
+.service-request-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 12px; border-radius: 12px; background: hsl(var(--muted) / .35); padding: 8px 10px; font-size: 10px; color: hsl(var(--muted-foreground)); }
+.service-request-status > span:first-child { font-weight: 800; color: hsl(var(--foreground)); }
+.service-request-status-pill { border-radius: 999px; background: hsl(var(--background)); padding: 3px 7px; }
+.service-request-status-pill.pending { color: hsl(35 76% 36%); background: hsl(42 91% 93%); }
+.service-request-status-pill.approved { color: hsl(148 54% 28%); background: hsl(145 48% 91%); }
+.service-request-status-pill.rejected { color: hsl(0 58% 42%); background: hsl(0 70% 94%); }
+.service-request-status-link { margin-right: auto; color: hsl(var(--primary)); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.action-request-confirmation { display: grid; gap: 7px; border: 1px solid hsl(var(--accent) / .45); border-radius: 14px; background: hsl(var(--accent) / .09); padding: 14px; }
+.action-request-confirmation .eyebrow { margin: 0; color: hsl(31 64% 37%); }
+.action-request-confirmation h3 { font-size: 15px; }
+.action-request-confirmation p:last-child { color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 1.8; }
+.request-confirm-actions { display: flex; gap: 8px; }
 .request-list { display: grid; gap: 10px; }
 .request-empty { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 110px; color: hsl(var(--muted-foreground)); font-size: 12px; }
 .action-request-card { display: grid; gap: 14px; }
