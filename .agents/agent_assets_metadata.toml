@@ -224,3 +224,17 @@ mtime_ms = 1788881110126
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/32504627-3c0e-4a4c-a388-89cfa2498036/eef77d32-3d48-41b6-a2c2-0d091673e49e"
 storage_version_token = "1788881624733452"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "raJQTE6yWUJMyvL3lS762"
+uri = "file://exports/pulse-hostinger-eagain-renewal-fix.zip"
+type = "unspecified"
+title = "Hostinger EAGAIN Renewal Fix"
+description = "نسخهٔ نهایی با اصلاح startup launcher: ابتدا API سالم را reuse می‌کند، migration child اضافی نمی‌سازد، و خطای موقت spawn EAGAIN را با retry کنترل‌شده مدیریت می‌کند. شامل پنل، API، showcase، /sub و migration."
+logical_id = "65ff16c0-ad02-4a1a-8e86-ff1e7e1e327c"
+content_hash = "sha256:237320eb1b1fa01e2a66f4958628a9d028c3751995af61656659e13f8aa653c0"
+size = 26231548
+mtime_ms = 1788881839078
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/65ff16c0-ad02-4a1a-8e86-ff1e7e1e327c/c8808ae6-8740-4833-b619-344cb9efe06b"
+storage_version_token = "1788881861297759"
+content_type = "application/octet-stream"
