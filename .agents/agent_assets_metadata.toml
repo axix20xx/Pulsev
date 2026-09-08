@@ -294,3 +294,17 @@ mtime_ms = 1788883777364
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/46fcc6f2-054d-4288-9f96-8c4f8849994d/5802856b-beff-4578-a55a-eead0d2d79d3"
 storage_version_token = "1788883791637473"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "M-bdnsg8pYvOjZZdNaPpb"
+uri = "file://exports/pulse-hostinger-renewal-sql-types-fixed.zip"
+type = "unspecified"
+title = "Pulse Hostinger — Renewal SQL Fix"
+description = "ZIP آمادهٔ آپلود روی Hostinger با اصلاح خطای تمدید PostgreSQL در مرحلهٔ ذخیره‌سازی renewal. آرشیو با موفقیت تست و verify شده است."
+logical_id = "79313216-cfbc-45f6-947e-512277f146da"
+content_hash = "sha256:57828a1a404c2e9647b2908bb09ffd1afe562426677bf3aa3f4f6cc4b20acbc9"
+size = 26229612
+mtime_ms = 1788884792994
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/79313216-cfbc-45f6-947e-512277f146da/c2bbc370-b744-4aac-a579-3512752cddf3"
+storage_version_token = "1788884798619857"
+content_type = "application/octet-stream"
