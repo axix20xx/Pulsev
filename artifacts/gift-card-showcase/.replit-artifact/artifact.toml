@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/gift-card-showcase/"
+title = "Gift Card Showcase"
+description = "A premium showcase website for curated gift cards, with a public landing page, browser-accessible login route, protected demo showcase, branded logo, and iOS-ready web app metadata."
+version = "1.0.0"
+id = "artifacts/gift-card-showcase"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/gift-card-showcase/" ]
+localPort = 18828
+
+[services.development]
+run = "pnpm --filter @workspace/gift-card-showcase run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/gift-card-showcase", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/gift-card-showcase/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18828"
+BASE_PATH = "/gift-card-showcase/"
