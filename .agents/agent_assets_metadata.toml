@@ -84,3 +84,17 @@ mtime_ms = 1788865514612
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/421b3c2f-9866-4203-90f3-3ae3b79c7c7a/c3bb5be4-2877-4f7c-a7ca-90c217dde342"
 storage_version_token = "1788865535781314"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "RKRJ9LdPJFAGYdxssijg2"
+uri = "file://exports/gift-card-showcase-full.zip"
+type = "unspecified"
+title = "Gift Card Showcase — Full Webapp ZIP"
+description = "بستهٔ کامل شامل پوشهٔ webapp، source، production build، لوگو، favicon، Apple touch icon، manifest iOS و تنظیمات اجرا. ZIP با unzip -t اعتبارسنجی شده است."
+logical_id = "1a327712-904f-47b9-9267-0a49916b8f0c"
+content_hash = "sha256:009c9e17070400481e210b5c4b76a9c613a1939c7c5e9341643ad4c4330aeecc"
+size = 225589
+mtime_ms = 1788865757288
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1a327712-904f-47b9-9267-0a49916b8f0c/cff06caa-d53d-496c-9125-fabb7a432c32"
+storage_version_token = "1788865764322865"
+content_type = "application/octet-stream"
