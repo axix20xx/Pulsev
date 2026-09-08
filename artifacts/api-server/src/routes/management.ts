@@ -71,6 +71,7 @@ import {
   createAwgClient,
   disableAwgClient,
   getAwgConfiguration,
+  getAwgStats,
   recreateAwgClient,
 } from "../lib/amneziawg";
 import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
@@ -2925,7 +2926,60 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   let failedProviderKeys: string[] = [];
   let providerWarning: string | null = null;
    let awgWarning: string | null = null;
-   let replacementAwgClientId: string | null | undefined;
+   let awgUsageOffset = 0;
+   renewalPhase = "renew-awg";
+   try {
+     await pool.query("DELETE FROM panel_usage_curr WHERE username = $1", [current.username]);
+     await pool.query(
+       "DELETE FROM user_panel_usages WHERE username = $1 AND panel_key <> 'rootvpn'",
+       [current.username],
+     );
+     await pool.query(
+       `UPDATE user_panel_usages
+        SET offset_bytes = COALESCE(upload, 0) + COALESCE(download, 0),
+            last_updated = NOW()
+        WHERE username = $1 AND panel_key = 'rootvpn'`,
+       [current.username],
+     );
+     const token = await pool.query<{ token: string }>(
+       `SELECT token
+        FROM reseller_sub_tokens
+        WHERE service_id = $1
+        LIMIT 1`,
+       [params.data.id],
+     );
+     if (token.rows[0]?.token) {
+       await pool.query("DELETE FROM user_stats_cache WHERE token = $1", [token.rows[0].token]);
+     }
+   } catch {
+     // Match the legacy worker: cache cleanup must not block renewal.
+   }
+   if (current.awg_client_id) {
+     try {
+       try {
+         const stats = await getAwgStats(current.awg_client_id);
+         awgUsageOffset = Math.max(0, Math.round(stats.rxBytes + stats.txBytes));
+       } catch {
+         // The legacy worker treats unavailable stats as zero and continues.
+       }
+       await pool.query(
+         `UPDATE reseller_services
+          SET awg_offset_bytes = $1::bigint,
+              awg_total = 0,
+              awg_rx = 0,
+              awg_tx = 0,
+              updated_at = NOW()
+          WHERE id = $2::bigint`,
+         [awgUsageOffset, params.data.id],
+       );
+       await recreateAwgClient(current.awg_client_id);
+     } catch (error) {
+       awgWarning =
+         error instanceof Error
+           ? error.message.slice(0, 500)
+           : "بازسازی AmneziaWG پس از تمدید انجام نشد";
+     }
+   }
    renewalPhase = "provision-providers";
   try {
     const provisioning = await provisionUser(
@@ -2946,27 +3000,6 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       }));
     failedProviderKeys = failed.map((result) => result.key);
     providerWarning = failed.map((result) => `${result.key}: ${result.detail}`).join(" · ") || null;
-     if (current.awg_client_id) {
-       // A healthy existing client does not need to be deleted and recreated
-       // for a renewal. Preserve it first; only stale/missing clients need a
-       // fresh create, which avoids unnecessary provider-side 500s.
-       let existingAwgIsUsable = false;
-       try {
-         await getAwgConfiguration(current.awg_client_id);
-         existingAwgIsUsable = true;
-       } catch {
-         // Fall through to stale-client replacement.
-       }
-       if (!existingAwgIsUsable) {
-         const awg = await createAwgClient();
-         if (awg.clientId) {
-           await disableAwgClient(current.awg_client_id);
-           replacementAwgClientId = awg.clientId;
-         } else {
-           awgWarning = awg.error ?? "AmneziaWG API is unavailable.";
-         }
-       }
-     }
   } catch (error) {
     if (error instanceof RainApiError) {
       res.status(502).json({ error: error.message, panel_results: error.results });
@@ -2975,7 +3008,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     throw error;
   }
    renewalPhase = "persist-renewal";
-   const values: unknown[] = [days, gb, params.data.id];
+    const values: unknown[] = [days, gb, params.data.id, awgUsageOffset];
   const client = await pool.connect();
   let result;
   try {
@@ -3004,7 +3037,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
             awg_rx = 0,
             awg_tx = 0,
             awg_total = 0,
-            awg_offset_bytes = 0,
+            awg_offset_bytes = $4::bigint,
             lifecycle_version = lifecycle_version + 1,
            updated_at = NOW()
          WHERE svc.id = $3::bigint AND ${owner.sql.replace("$1", `$${ownerParam}::bigint`)}
@@ -3012,19 +3045,6 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       [...values, ...owner.params],
     );
     const renewedVersion = Number(result.rows[0]?.lifecycle_version ?? 0);
-     if (current.awg_client_id && replacementAwgClientId !== undefined) {
-       await client.query(
-         `UPDATE reseller_services
-          SET awg_client_id = $1,
-              awg_rx = 0,
-              awg_tx = 0,
-              awg_total = 0,
-              awg_offset_bytes = 0,
-              updated_at = NOW()
-          WHERE id = $2`,
-         [replacementAwgClientId ?? null, params.data.id],
-       );
-     }
     if (renewedVersion > 0) {
       await client.query(
         `UPDATE service_provision_jobs

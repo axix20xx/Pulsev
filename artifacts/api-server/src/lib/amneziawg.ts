@@ -190,6 +190,7 @@ export async function recreateAwgClient(clientId: string): Promise<void> {
   } catch {
     // Continue with create, matching the legacy renewal worker.
   }
+  await new Promise((resolve) => setTimeout(resolve, 2_000));
   const response = await request("POST", "/api/clients", { id: clientId });
   if (!response.configured) throw new AwgApiError("AmneziaWG API is not configured.");
   if (response.status < 200 || response.status >= 300) {

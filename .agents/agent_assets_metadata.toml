@@ -308,3 +308,17 @@ mtime_ms = 1788884792994
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/79313216-cfbc-45f6-947e-512277f146da/c2bbc370-b744-4aac-a579-3512752cddf3"
 storage_version_token = "1788884798619857"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "CftMkCDaxpVwTHEAJGDx_"
+uri = "file://exports/pulse-hostinger-renewal-cron-style-fixed.zip"
+type = "unspecified"
+title = "Pulse Hostinger — Legacy Cron Renewal Fix"
+description = "ZIP نهایی با ترتیب تمدید مطابق cron قدیمی: پاک‌سازی مصرف، ثبت offset، DELETE client، مکث ۲ ثانیه، و POST همان ID. آرشیو با موفقیت verify شده است."
+logical_id = "447d79ed-46f6-44be-95fe-e36c446af153"
+content_hash = "sha256:265079d296b809eb40d9bc38d42ea0cf5b02abfc383306324c72897943c7a6f0"
+size = 26229861
+mtime_ms = 1788885196822
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/447d79ed-46f6-44be-95fe-e36c446af153/e857d991-51d6-469f-91f7-657de380799b"
+storage_version_token = "1788885203755144"
+content_type = "application/octet-stream"
