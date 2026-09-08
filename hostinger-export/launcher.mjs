@@ -117,8 +117,13 @@ async function startApiInternal() {
       );
       installState.attempt = attempt;
       recordInstallLog(`شروع بررسی و import پشتیبان (تلاش ${attempt} از ${maxAttempts})`);
-      const migration = spawn(process.execPath, [migrationPath], {
-        env: migrationEnv,
+      const migration = spawn(process.execPath, ["--v8-pool-size=1", migrationPath], {
+        env: {
+          ...migrationEnv,
+          // Hostinger shared plans can reject Node's default startup thread pool
+          // before the migration gets a chance to inspect its completion marker.
+          UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE || "1",
+        },
         stdio: ["ignore", "pipe", "pipe"],
       });
       migrationProcess = migration;
@@ -160,7 +165,7 @@ async function startApiInternal() {
       console.error(
         `Legacy SQL migration stopped with ${status}; retrying in 3 seconds...`,
       );
-      await wait(3_000);
+      await wait(Math.min(3_000 * attempt, 9_000));
     }
   }
 
