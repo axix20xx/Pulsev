@@ -3,3 +3,4 @@ exports/pulse-hostinger-supabase-import.sql filter=lfs diff=lfs merge=lfs -text
 hostinger-export/legacy/legacy.sql filter=lfs diff=lfs merge=lfs -text
 hostinger-export/supabase-import.sql filter=lfs diff=lfs merge=lfs -text
 exports/pulse-whole-project.zip filter=lfs diff=lfs merge=lfs -text
+attached_assets/u517065565_axinetreseller_14_1788876120268.sql filter=lfs diff=lfs merge=lfs -text
