@@ -62388,6 +62388,23 @@ async function tick() {
 function startProvisioningWorker() {
   void pool.query(
     `UPDATE service_provision_jobs
+     SET status = 'retrying',
+         last_error = CASE
+           WHEN last_error IS NULL THEN 'اجرای جاب با راه‌اندازی دوباره Worker قطع شد'
+           ELSE left('اجرای جاب با راه‌اندازی دوباره Worker قطع شد · ' || last_error, 500)
+         END,
+         next_attempt_at = NOW(),
+         updated_at = NOW(),
+         completed_at = NULL
+     WHERE status = 'running'
+       AND updated_at < NOW() - INTERVAL '10 minutes'`
+  ).then((result) => {
+    if (result.rowCount) {
+      logger.warn({ jobsRecovered: result.rowCount }, "Recovered stale running provisioning jobs");
+    }
+  }).catch((error) => logger.error({ err: error }, "Failed to recover stale provisioning jobs"));
+  void pool.query(
+    `UPDATE service_provision_jobs
      SET next_attempt_at = NOW(), updated_at = NOW()
      WHERE status = 'retrying'`
   ).catch((error40) => logger.error({ err: error40 }, "Failed to wake retrying provisioning jobs"));
