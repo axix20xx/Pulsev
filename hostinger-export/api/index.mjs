@@ -61046,6 +61046,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     const gb = body.data.gb ?? Number(current.gb);
     let failedProviderKeys = [];
     let providerWarning = null;
+    let awgWarning = null;
     try {
       const provisioning = await provisionUser(
         current.username,
@@ -61063,7 +61064,13 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
       }));
       failedProviderKeys = failed.map((result2) => result2.key);
       providerWarning = failed.map((result2) => `${result2.key}: ${result2.detail}`).join(" \xB7 ") || null;
-      if (current.awg_client_id) await recreateAwgClient(current.awg_client_id);
+      if (current.awg_client_id) {
+        try {
+          await recreateAwgClient(current.awg_client_id);
+        } catch (error40) {
+          awgWarning = error40 instanceof Error ? error40.message : "AmneziaWG API is unavailable.";
+        }
+      }
     } catch (error40) {
       if (error40 instanceof RainApiError) {
         res.status(502).json({ error: error40.message, panel_results: error40.results });
@@ -61154,12 +61161,18 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
           [current.reseller_tg_id, params.data.id, renewedVersion]
         );
       }
-      if (!current.awg_client_id && renewedVersion > 0) {
+      if ((awgWarning || !current.awg_client_id) && renewedVersion > 0) {
         await client.query(
           `INSERT INTO service_provision_jobs
           (service_id, owner_tg_id, username, action, payload, status, last_error, lifecycle_version)
          VALUES ($1, $2, $3, 'awg', '{}'::jsonb, 'pending', $4, $5)`,
-          [params.data.id, current.reseller_tg_id, current.username, "AmneziaWG \u067E\u0633 \u0627\u0632 \u062A\u0645\u062F\u06CC\u062F \u062F\u0631 \u0635\u0641 \u0633\u0627\u062E\u062A \u0642\u0631\u0627\u0631 \u06AF\u0631\u0641\u062A", renewedVersion]
+          [
+            params.data.id,
+            current.reseller_tg_id,
+            current.username,
+            awgWarning ?? "AmneziaWG \u067E\u0633 \u0627\u0632 \u062A\u0645\u062F\u06CC\u062F \u062F\u0631 \u0635\u0641 \u0633\u0627\u062E\u062A \u0642\u0631\u0627\u0631 \u06AF\u0631\u0641\u062A",
+            renewedVersion
+          ]
         );
       }
       await client.query("COMMIT");

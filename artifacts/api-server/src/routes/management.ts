@@ -2920,6 +2920,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   const gb = body.data.gb ?? Number(current.gb);
   let failedProviderKeys: string[] = [];
   let providerWarning: string | null = null;
+   let awgWarning: string | null = null;
   try {
     const provisioning = await provisionUser(
       current.username,
@@ -2939,7 +2940,16 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       }));
     failedProviderKeys = failed.map((result) => result.key);
     providerWarning = failed.map((result) => `${result.key}: ${result.detail}`).join(" · ") || null;
-    if (current.awg_client_id) await recreateAwgClient(current.awg_client_id);
+     if (current.awg_client_id) {
+       try {
+         await recreateAwgClient(current.awg_client_id);
+       } catch (error) {
+         // AWG is an optional sidecar. Do not turn a successful renewal into
+         // a 500 when the sidecar is temporarily unavailable; the job below
+         // will create a fresh client after the new lifecycle is committed.
+         awgWarning = error instanceof Error ? error.message : "AmneziaWG API is unavailable.";
+       }
+     }
   } catch (error) {
     if (error instanceof RainApiError) {
       res.status(502).json({ error: error.message, panel_results: error.results });
@@ -3030,12 +3040,18 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
         [current.reseller_tg_id, params.data.id, renewedVersion],
       );
     }
-    if (!current.awg_client_id && renewedVersion > 0) {
+    if ((awgWarning || !current.awg_client_id) && renewedVersion > 0) {
       await client.query(
         `INSERT INTO service_provision_jobs
           (service_id, owner_tg_id, username, action, payload, status, last_error, lifecycle_version)
          VALUES ($1, $2, $3, 'awg', '{}'::jsonb, 'pending', $4, $5)`,
-        [params.data.id, current.reseller_tg_id, current.username, "AmneziaWG پس از تمدید در صف ساخت قرار گرفت", renewedVersion],
+        [
+          params.data.id,
+          current.reseller_tg_id,
+          current.username,
+          awgWarning ?? "AmneziaWG پس از تمدید در صف ساخت قرار گرفت",
+          renewedVersion,
+        ],
       );
     }
     await client.query("COMMIT");

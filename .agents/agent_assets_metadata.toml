@@ -168,3 +168,17 @@ mtime_ms = 1788877458518
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/45fac8b1-dec8-46fb-9ba7-39b87d397fd1/7a7ca624-bde7-4b12-a0b4-6eedf84cc1d9"
 storage_version_token = "1788877468446211"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "HXaKu09KxYNDASdK3wgW7"
+uri = "file://exports/pulse-hostinger-renewal-500-fixed.zip"
+type = "unspecified"
+title = "Hostinger Renewal 500 Fix"
+description = "نسخهٔ جدید Hostinger که خطای 500 تمدید را اصلاح می‌کند: خطای موقت AmneziaWG دیگر تمدید اصلی را شکست نمی‌دهد و برای retry در service_provision_jobs قرار می‌گیرد. شامل API compiled، پنل، showcase، migration و مسیر /sub است."
+logical_id = "472e1da4-03ab-4ce2-93af-bd167f68d891"
+content_hash = "sha256:afba2948005b4db7b3e7d733c06b36a71eb4fd4dcefb647ac392d804837dae61"
+size = 26230810
+mtime_ms = 1788880081662
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/472e1da4-03ab-4ce2-93af-bd167f68d891/7f08a658-949e-4774-bfba-89e073c1d8e9"
+storage_version_token = "1788880097314724"
+content_type = "application/octet-stream"

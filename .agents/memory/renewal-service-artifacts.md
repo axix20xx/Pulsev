@@ -14,3 +14,9 @@ A renewal starts a fresh package immediately: its expiry is calculated from the 
 **Why:** Sellers expect renewal to replace the current package; carrying remaining days or historical traffic forward makes the selected duration and allowance inaccurate.
 
 **How to apply:** Set expiry to now plus the selected days, set service usage/remaining fields to the new package baseline, and set each Provider usage offset to its pre-renewal raw counter.
+
+Renewal must treat AmneziaWG recreation as an optional sidecar operation; a temporary AWG failure must not roll a successful service renewal into a 500 response.
+
+**Why:** The main Provider renewal and database lifecycle can succeed while the separate AWG API is unavailable, and the seller still needs the renewed service immediately.
+
+**How to apply:** Catch AWG recreation errors, commit the renewal, and enqueue an AWG job using the new lifecycle version for retry.
