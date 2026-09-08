@@ -2470,6 +2470,41 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
          FROM reseller_sales_log sale
          WHERE sale.service_id = svc.id AND sale.action_type = 'renew'
        ) AS last_renewed_at,
+       (
+         SELECT job.status
+         FROM service_provision_jobs job
+         WHERE job.service_id = svc.id
+         ORDER BY job.updated_at DESC NULLS LAST, job.id DESC
+         LIMIT 1
+       ) AS provision_status,
+       (
+         SELECT job.last_error
+         FROM service_provision_jobs job
+         WHERE job.service_id = svc.id
+         ORDER BY job.updated_at DESC NULLS LAST, job.id DESC
+         LIMIT 1
+       ) AS provision_last_error,
+       (
+         SELECT job.updated_at::text
+         FROM service_provision_jobs job
+         WHERE job.service_id = svc.id
+         ORDER BY job.updated_at DESC NULLS LAST, job.id DESC
+         LIMIT 1
+       ) AS provision_updated_at,
+       (
+         SELECT request.cancel_service_status
+         FROM service_action_requests request
+         WHERE request.service_id = svc.id
+         ORDER BY request.requested_at DESC, request.id DESC
+         LIMIT 1
+       ) AS cancel_status,
+       (
+         SELECT request.requested_at::text
+         FROM service_action_requests request
+         WHERE request.service_id = svc.id
+         ORDER BY request.requested_at DESC, request.id DESC
+         LIMIT 1
+       ) AS cancel_requested_at,
        (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
        svc.gb::float8 AS limit_gb,
        svc.admin_notes AS note,
@@ -2726,6 +2761,11 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
         svc.status, svc.expire_at::date::text AS expires_at,
         svc.created_at::text AS created_at,
         (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
+          (SELECT job.status FROM service_provision_jobs job WHERE job.service_id = svc.id ORDER BY job.updated_at DESC NULLS LAST, job.id DESC LIMIT 1) AS provision_status,
+          (SELECT job.last_error FROM service_provision_jobs job WHERE job.service_id = svc.id ORDER BY job.updated_at DESC NULLS LAST, job.id DESC LIMIT 1) AS provision_last_error,
+          (SELECT job.updated_at::text FROM service_provision_jobs job WHERE job.service_id = svc.id ORDER BY job.updated_at DESC NULLS LAST, job.id DESC LIMIT 1) AS provision_updated_at,
+          (SELECT request.cancel_service_status FROM service_action_requests request WHERE request.service_id = svc.id ORDER BY request.requested_at DESC, request.id DESC LIMIT 1) AS cancel_status,
+          (SELECT request.requested_at::text FROM service_action_requests request WHERE request.service_id = svc.id ORDER BY request.requested_at DESC, request.id DESC LIMIT 1) AS cancel_requested_at,
         (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
           svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
         svc.awg_client_id IS NOT NULL AS awg_ready,

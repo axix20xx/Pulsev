@@ -22,6 +22,11 @@ export type Service = {
   expiresAt: string;
   createdAt?: string;
   lastRenewedAt?: string | null;
+  provisionStatus?: 'pending' | 'running' | 'retrying' | 'completed' | null;
+  provisionLastError?: string | null;
+  provisionUpdatedAt?: string | null;
+  cancelStatus?: 'not_requested' | 'pending' | 'approved' | 'rejected' | null;
+  cancelRequestedAt?: string | null;
   usedGb: number;
   limitGb: number;
   note: string;

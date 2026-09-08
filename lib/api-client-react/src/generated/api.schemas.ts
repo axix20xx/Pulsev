@@ -326,6 +326,16 @@ export interface Service {
   created_at: string;
   /** @nullable */
   last_renewed_at: string | null;
+  /** @nullable */
+  provision_status?: string | null;
+  /** @nullable */
+  provision_last_error?: string | null;
+  /** @nullable */
+  provision_updated_at?: string | null;
+  /** @nullable */
+  cancel_status?: string | null;
+  /** @nullable */
+  cancel_requested_at?: string | null;
   awg_ready?: boolean;
   /** @nullable */
   awg_config_url?: string | null;

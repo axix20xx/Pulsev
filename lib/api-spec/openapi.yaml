@@ -983,6 +983,16 @@ components:
           type: string
         last_renewed_at:
           type: ["string", "null"]
+        provision_status:
+          type: ["string", "null"]
+        provision_last_error:
+          type: ["string", "null"]
+        provision_updated_at:
+          type: ["string", "null"]
+        cancel_status:
+          type: ["string", "null"]
+        cancel_requested_at:
+          type: ["string", "null"]
         awg_ready:
           type: boolean
         awg_config_url:
