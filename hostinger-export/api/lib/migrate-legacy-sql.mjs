@@ -23760,11 +23760,11 @@ function stripDumpComments(statement) {
 }
 function convertCreateTable(statement) {
   let sql2 = stripDumpComments(statement).replace(/^CREATE TABLE/i, "CREATE TABLE IF NOT EXISTS").replaceAll("`", '"').replace(/\bint\(\d+\)/gi, "INTEGER").replace(/\bbigint\(\d+\)/gi, "BIGINT").replace(/\btinyint\(\d+\)/gi, "SMALLINT").replace(/\bdatetime\b/gi, "TIMESTAMP").replace(/\bfloat\b/gi, "DOUBLE PRECISION").replace(/\bdecimal\(\d+,\s*\d+\)/gi, "NUMERIC").replace(/\blongtext\b/gi, "TEXT").replace(/\benum\([^)]*\)/gi, "TEXT").replace(/\s+UNSIGNED\b/gi, "").replace(/\s+ZEROFILL\b/gi, "").replace(/\s+CHARACTER SET\s+\w+/gi, "").replace(/\s+COLLATE\s+\w+/gi, "").replace(/\s+ON UPDATE CURRENT_TIMESTAMP\(\)/gi, "").replace(/\s+CHECK\s+\(json_valid\([^)]*\)\)/gi, "").replace(/\bcurrent_timestamp\(\)/gi, "CURRENT_TIMESTAMP").replace(/\)\s*ENGINE=.*$/is, ")");
-  return `${sql2}
+  return `${sql2.trim()};
 `;
 }
 function convertInsert(statement) {
-  return statement.replace(/^INSERT\s+IGNORE\s+INTO/i, "INSERT INTO").replace(/^INSERT\s+INTO/i, "INSERT INTO").replaceAll("`", '"').replace(/'0000-00-00 00:00:00'/g, "NULL").replace(/'0000-00-00'/g, "NULL");
+  return `${statement.replace(/^INSERT\s+IGNORE\s+INTO/i, "INSERT INTO").replace(/^INSERT\s+INTO/i, "INSERT INTO").replaceAll("`", '"').replace(/'0000-00-00 00:00:00'/g, "NULL").replace(/'0000-00-00'/g, "NULL").trim()};`;
 }
 async function ensureAppTables() {
   await pool.query(`

@@ -38,3 +38,9 @@ Legacy imports on Hostinger can preserve numeric IDs with different integer widt
 **Why:** A migrated Hostinger database first returned `operator does not exist: integer = text`, then exposed PostgreSQL `42P08` when one parameter was reused as both text and bigint in the quick-sale notification query.
 
 **How to apply:** For compatibility-sensitive create-service joins and lookups, use explicit casts and keep each bind parameter on one base type throughout a query; derive text values from that typed value and keep the source legacy schema unchanged.
+
+Preconverted PostgreSQL SQL must terminate every converted DDL and INSERT statement with a semicolon; otherwise the runner's quote-aware splitter can send multiple statements together and PostgreSQL fails at the next `CREATE`.
+
+**Why:** A large Hostinger import was parsed as only a handful of statements because converted definitions were joined with newlines but no terminators.
+
+**How to apply:** Make both the runtime converter and any generated `supabase-import.sql` emit one semicolon-terminated statement per table or INSERT while keeping transaction markers skippable by the runner.

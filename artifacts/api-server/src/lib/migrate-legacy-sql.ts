@@ -134,16 +134,17 @@ function convertCreateTable(statement: string): string {
     .replace(/\bcurrent_timestamp\(\)/gi, "CURRENT_TIMESTAMP")
     .replace(/\)\s*ENGINE=.*$/is, ")");
 
-  return `${sql}\n`;
+  return `${sql.trim()};\n`;
 }
 
 function convertInsert(statement: string): string {
-  return statement
+  return `${statement
     .replace(/^INSERT\s+IGNORE\s+INTO/i, "INSERT INTO")
     .replace(/^INSERT\s+INTO/i, "INSERT INTO")
     .replaceAll("`", '"')
     .replace(/'0000-00-00 00:00:00'/g, "NULL")
-    .replace(/'0000-00-00'/g, "NULL");
+    .replace(/'0000-00-00'/g, "NULL")
+    .trim()};`;
 }
 
 async function ensureAppTables(): Promise<void> {

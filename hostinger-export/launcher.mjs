@@ -294,6 +294,18 @@ function handleInstallRoute(req, res) {
   return false;
 }
 
+function isManagementPage(req) {
+  try {
+    const pathname = new URL(
+      req.url || "/",
+      `http://${req.headers.host || "localhost"}`,
+    ).pathname;
+    return pathname === "/panel" || pathname.startsWith("/panel/");
+  } catch {
+    return false;
+  }
+}
+
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -456,7 +468,11 @@ const server = http.createServer((req, res) => {
     proxyApi(req, res);
     return;
   }
-  if (installState.phase !== "ready" && req.headers.accept?.includes("text/html")) {
+  if (
+    installState.phase !== "ready" &&
+    req.headers.accept?.includes("text/html") &&
+    isManagementPage(req)
+  ) {
     void serveInstaller(res);
     return;
   }

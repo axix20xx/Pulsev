@@ -154,3 +154,17 @@ mtime_ms = 1788876877833
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/89d21378-0923-4028-8f97-ef288882cece/5a8f1947-5cb0-4036-b5f5-5883dc53bbcf"
 storage_version_token = "1788876891371949"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "3GNGAbYR2SP8lbHwTkOtM"
+uri = "file://exports/pulse-hostinger-new-sql-panel-showcase-flat-fixed.zip"
+type = "unspecified"
+title = "Hostinger Final Fixed — SQL Migration + Showcase Root"
+description = "نسخهٔ اصلاح‌شده شامل semicolon صحیح برای همهٔ CREATE/INSERTهای preconverted SQL، migration v2، root showcase، پنل /panel، installer /install و مسیر عمومی /sub است. archive با build checker، route test و unzip -t اعتبارسنجی شده است."
+logical_id = "45fac8b1-dec8-46fb-9ba7-39b87d397fd1"
+content_hash = "sha256:29b510bc2a05a9c6aaa34b420f3ee1de3d8439efa449e3354edfaf5fe7978138"
+size = 26230576
+mtime_ms = 1788877458518
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/45fac8b1-dec8-46fb-9ba7-39b87d397fd1/7a7ca624-bde7-4b12-a0b4-6eedf84cc1d9"
+storage_version_token = "1788877468446211"
+content_type = "application/octet-stream"
