@@ -32,3 +32,9 @@ Hostinger restarts must terminate the migration child process, and migration loc
 **Why:** A parent restart can otherwise leave an orphaned importer holding PostgreSQL’s advisory lock, causing every replacement process to wait forever before reporting progress.
 
 **How to apply:** Track and kill the migration child on shutdown, use retryable advisory-lock polling with a deadline, set a database connection timeout, and emit regular migration heartbeat logs.
+
+Legacy imports on Hostinger can preserve numeric IDs with different integer widths across related tables; service-creation SQL should normalize ID comparisons explicitly instead of relying on PostgreSQL implicit coercion.
+
+**Why:** A migrated Hostinger database returned `operator does not exist: integer = text` only when the quick-sale service creation path reached its ownership/customer lookups.
+
+**How to apply:** For compatibility-sensitive create-service joins and lookups, compare numeric identifiers through an explicit common representation and keep the source legacy schema unchanged.

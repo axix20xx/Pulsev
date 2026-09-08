@@ -2561,7 +2561,7 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
     const currentReseller = await client.query<{ total_gb: number; used_gb: number; per_gig_price: number; customer_price_per_gb: number }>(
       `SELECT total_gb::float8, used_gb::float8, COALESCE(per_gig_price, 0)::float8 AS per_gig_price,
               COALESCE(customer_price_per_gb, per_gig_price, 0)::float8 AS customer_price_per_gb
-       FROM resellers WHERE tg_id = $1 AND is_enabled = 1 LIMIT 1`,
+       FROM resellers WHERE tg_id::text = $1::text AND is_enabled = 1 LIMIT 1`,
       [ownerId],
     );
     if (req.auth?.role === "reseller") {
@@ -2581,9 +2581,10 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
 
     const customer = await client.query<{ id: number }>(
       req.auth?.role === "master_admin"
-        ? `SELECT id FROM reseller_customers WHERE phone = $1 ORDER BY id LIMIT 1`
+         ? `SELECT id FROM reseller_customers WHERE phone::text = $1::text ORDER BY id LIMIT 1`
         : `SELECT id FROM reseller_customers
-           WHERE phone = $1 AND (reseller_tg_id = $2 OR reseller_tg_id IS NULL)
+            WHERE phone::text = $1::text
+              AND (reseller_tg_id::text = $2::text OR reseller_tg_id IS NULL)
            ORDER BY id LIMIT 1`,
       req.auth?.role === "master_admin" ? [body.data.phone] : [body.data.phone, ownerId],
     );
@@ -2602,7 +2603,7 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
       await client.query(
         `UPDATE reseller_customers
          SET full_name = $1, reseller_tg_id = COALESCE(reseller_tg_id, $2)
-         WHERE id = $3`,
+          WHERE id::text = $3::text`,
         [body.data.customer_name, ownerId, customerId],
       );
     }
@@ -2742,7 +2743,7 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
          VALUES ($1, $2, 'service-created:' || $2::text, 'service',
                  'سرویس جدید آماده است',
                  'شناسه سرویس: ' || 'PULSE-' || LPAD($2::text, 6, '0') || ' · برای مشاهده جزئیات باز کنید',
-                 COALESCE((SELECT '/sub?t=' || token FROM reseller_sub_tokens WHERE service_id = $2 LIMIT 1),
+                  COALESCE((SELECT '/sub?t=' || token FROM reseller_sub_tokens WHERE service_id::text = $2::text LIMIT 1),
                           '/customers/' || $3::text),
                  'normal', NOW())
          ON CONFLICT (reseller_tg_id, event_key) DO UPDATE SET
@@ -2760,20 +2761,20 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
         svc.rain_username AS username, svc.label AS plan, 'پنل اصلی' AS panel,
         svc.status, svc.expire_at::date::text AS expires_at,
         svc.created_at::text AS created_at,
-        (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
-          (SELECT job.status FROM service_provision_jobs job WHERE job.service_id = svc.id ORDER BY job.updated_at DESC NULLS LAST, job.id DESC LIMIT 1) AS provision_status,
-          (SELECT job.last_error FROM service_provision_jobs job WHERE job.service_id = svc.id ORDER BY job.updated_at DESC NULLS LAST, job.id DESC LIMIT 1) AS provision_last_error,
-          (SELECT job.updated_at::text FROM service_provision_jobs job WHERE job.service_id = svc.id ORDER BY job.updated_at DESC NULLS LAST, job.id DESC LIMIT 1) AS provision_updated_at,
-          (SELECT request.cancel_service_status FROM service_action_requests request WHERE request.service_id = svc.id ORDER BY request.requested_at DESC, request.id DESC LIMIT 1) AS cancel_status,
-          (SELECT request.requested_at::text FROM service_action_requests request WHERE request.service_id = svc.id ORDER BY request.requested_at DESC, request.id DESC LIMIT 1) AS cancel_requested_at,
+         (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id::text = svc.id::text AND sale.action_type = 'renew') AS last_renewed_at,
+           (SELECT job.status FROM service_provision_jobs job WHERE job.service_id::text = svc.id::text ORDER BY job.updated_at DESC NULLS LAST, job.id DESC LIMIT 1) AS provision_status,
+           (SELECT job.last_error FROM service_provision_jobs job WHERE job.service_id::text = svc.id::text ORDER BY job.updated_at DESC NULLS LAST, job.id DESC LIMIT 1) AS provision_last_error,
+           (SELECT job.updated_at::text FROM service_provision_jobs job WHERE job.service_id::text = svc.id::text ORDER BY job.updated_at DESC NULLS LAST, job.id DESC LIMIT 1) AS provision_updated_at,
+           (SELECT request.cancel_service_status FROM service_action_requests request WHERE request.service_id::text = svc.id::text ORDER BY request.requested_at DESC, request.id DESC LIMIT 1) AS cancel_status,
+           (SELECT request.requested_at::text FROM service_action_requests request WHERE request.service_id::text = svc.id::text ORDER BY request.requested_at DESC, request.id DESC LIMIT 1) AS cancel_requested_at,
         (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
           svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
         svc.awg_client_id IS NOT NULL AS awg_ready,
            CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url,
            svc.awg_rx, svc.awg_tx, svc.awg_total, svc.awg_offset_bytes, svc.last_usage_updated_at
-       FROM reseller_services svc
-       JOIN reseller_customers c ON c.id = svc.customer_id
-       WHERE svc.id = $1`,
+        FROM reseller_services svc
+        JOIN reseller_customers c ON c.id::text = svc.customer_id::text
+        WHERE svc.id::text = $1::text`,
       [serviceId],
     );
      res.status(201).json(CreateServiceResponse.parse({
