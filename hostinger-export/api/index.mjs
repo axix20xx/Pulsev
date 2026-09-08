@@ -57938,16 +57938,18 @@ async function disableAwgClient(clientId) {
   }
 }
 async function replaceAwgClient(clientId) {
+  const replacement = await createAwgClient();
+  if (!replacement.clientId) {
+    return replacement;
+  }
   const deleted = await disableAwgClient(clientId);
   if (!deleted) {
     return {
-      configured: true,
-      clientId: null,
-      error: "\u062D\u0630\u0641 client \u0642\u0628\u0644\u06CC AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F"
+      ...replacement,
+      error: "client \u062C\u062F\u06CC\u062F \u0633\u0627\u062E\u062A\u0647 \u0634\u062F \u0627\u0645\u0627 \u062D\u0630\u0641 client \u0642\u0628\u0644\u06CC AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F"
     };
   }
-  await new Promise((resolve) => setTimeout(resolve, 2e3));
-  return createAwgClient();
+  return replacement;
 }
 async function recreateAwgClient(clientId) {
   try {

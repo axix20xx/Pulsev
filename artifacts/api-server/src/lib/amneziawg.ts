@@ -189,16 +189,18 @@ export async function replaceAwgClient(clientId: string): Promise<{
   clientId: string | null;
   error: string | null;
 }> {
+  const replacement = await createAwgClient();
+  if (!replacement.clientId) {
+    return replacement;
+  }
   const deleted = await disableAwgClient(clientId);
   if (!deleted) {
     return {
-      configured: true,
-      clientId: null,
-      error: "حذف client قبلی AmneziaWG انجام نشد",
+      ...replacement,
+      error: "client جدید ساخته شد اما حذف client قبلی AmneziaWG انجام نشد",
     };
   }
-  await new Promise((resolve) => setTimeout(resolve, 2_000));
-  return createAwgClient();
+  return replacement;
 }
 
 export async function recreateAwgClient(clientId: string): Promise<void> {
