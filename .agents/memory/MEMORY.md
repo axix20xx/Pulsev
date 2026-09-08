@@ -24,6 +24,7 @@
 - [ThreeUI integration](threeui-integration.md) — keep WebGL as a resilient visual enhancement with reduced-motion/fallback paths and package-scoped installation.
 - [Server entity cache boundary](server-entity-cache-boundary.md) — authenticated business records must not be restored from generic browser storage across account changes.
 - [Hostinger root bundle](hostinger-root-bundle.md) — flat Hostinger deployments must build the frontend with `BASE_PATH=/`, not the Replit artifact prefix.
+- [Hostinger orphan API process](hostinger-orphan-api.md) — after forced restarts, reuse a healthy internal API child instead of spawning a second process on the fixed internal port.
 - [Provider subscription feed](provider-subscription-feed.md) — public feeds must resolve through active Provider URLs; legacy token proxying is compatibility-only.
 - [Session guard and logout](session-guard-logout.md) — management UI must trust only server sessions; same-origin login and logout must survive proxy hosts and stale client caches.
 - [PasarGuard Provider contract](pasarguard-provider-contract.md) — rain_admin uses singular user routes; Group 1 reconciliation must preserve lifecycle shutdown safety.
