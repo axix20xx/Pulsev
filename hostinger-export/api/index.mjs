@@ -61027,9 +61027,12 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     res.status(400).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u062A\u0645\u062F\u06CC\u062F \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
     return;
   }
+  const serviceId = params.data.id;
+  let renewalPhase = "acquire-lock";
   const lifecycleLock = await pool.connect();
   await lifecycleLock.query("SELECT pg_advisory_lock(74421, $1)", [params.data.id]);
   try {
+    renewalPhase = "load-service";
     const owner = ownership("svc", req);
     const days = body.data.days ?? 30;
     const existing = await pool.query(
@@ -61047,6 +61050,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     let failedProviderKeys = [];
     let providerWarning = null;
     let awgWarning = null;
+    renewalPhase = "provision-providers";
     try {
       const provisioning = await provisionUser(
         current.username,
@@ -61078,6 +61082,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
       }
       throw error40;
     }
+    renewalPhase = "persist-renewal";
     const values = [days, gb, params.data.id];
     const client = await pool.connect();
     let result;
@@ -61186,6 +61191,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
       res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
       return;
     }
+    renewalPhase = "load-renewed-service";
     const fresh = await pool.query(
       `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
        svc.customer_id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
@@ -61203,7 +61209,20 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
      WHERE svc.id = $1`,
       [params.data.id]
     );
+    renewalPhase = "validate-response";
     res.json(RenewServiceResponse.parse(fresh.rows[0]));
+  } catch (error40) {
+    logger.error(
+      { err: error40, serviceId, phase: renewalPhase },
+      "Service renewal failed"
+    );
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: "\u062A\u0645\u062F\u06CC\u062F \u0633\u0631\u0648\u06CC\u0633 \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F",
+        code: "RENEWAL_FAILED",
+        phase: renewalPhase
+      });
+    }
   } finally {
     await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [params.data.id]).catch(() => void 0);
     lifecycleLock.release();

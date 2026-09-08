@@ -78,6 +78,7 @@ import {
   requestedSubscriptionFormat,
   toClashSubscription,
 } from "../lib/subscription-formats";
+import { logger } from "../lib/logger";
 
 const MASTER_ADMIN_COST_PER_GB = 2500;
 const resellerCostPerGbSql = (alias = "r") =>
@@ -2901,10 +2902,13 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     res.status(400).json({ error: "اطلاعات تمدید معتبر نیست" });
     return;
   }
+  const serviceId = params.data.id;
+  let renewalPhase = "acquire-lock";
   const lifecycleLock = await pool.connect();
   await lifecycleLock.query("SELECT pg_advisory_lock(74421, $1)", [params.data.id]);
   try {
-  const owner = ownership("svc", req);
+   renewalPhase = "load-service";
+   const owner = ownership("svc", req);
   const days = body.data.days ?? 30;
   const existing = await pool.query<{ username: string; gb: number; label: string; awg_client_id: string | null; reseller_tg_id: number }>(
     `SELECT rain_username AS username, gb::float8 AS gb, label, awg_client_id, reseller_tg_id
@@ -2921,6 +2925,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   let failedProviderKeys: string[] = [];
   let providerWarning: string | null = null;
    let awgWarning: string | null = null;
+   renewalPhase = "provision-providers";
   try {
     const provisioning = await provisionUser(
       current.username,
@@ -2957,7 +2962,8 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     }
     throw error;
   }
-  const values: unknown[] = [days, gb, params.data.id];
+   renewalPhase = "persist-renewal";
+   const values: unknown[] = [days, gb, params.data.id];
   const client = await pool.connect();
   let result;
   try {
@@ -3065,7 +3071,8 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     res.status(404).json({ error: "سرویس پیدا نشد" });
     return;
   }
-  const fresh = await pool.query(
+   renewalPhase = "load-renewed-service";
+   const fresh = await pool.query(
     `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
        svc.customer_id, COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
        svc.rain_username AS username, svc.label AS plan,
@@ -3082,7 +3089,20 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
      WHERE svc.id = $1`,
     [params.data.id],
   );
-  res.json(RenewServiceResponse.parse(fresh.rows[0]));
+   renewalPhase = "validate-response";
+   res.json(RenewServiceResponse.parse(fresh.rows[0]));
+  } catch (error) {
+   logger.error(
+     { err: error, serviceId, phase: renewalPhase },
+     "Service renewal failed",
+   );
+   if (!res.headersSent) {
+     res.status(500).json({
+       error: "تمدید سرویس انجام نشد",
+       code: "RENEWAL_FAILED",
+       phase: renewalPhase,
+     });
+   }
   } finally {
     await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [params.data.id]).catch(() => undefined);
     lifecycleLock.release();

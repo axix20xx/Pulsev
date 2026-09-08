@@ -182,3 +182,17 @@ mtime_ms = 1788880081662
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/472e1da4-03ab-4ce2-93af-bd167f68d891/7f08a658-949e-4774-bfba-89e073c1d8e9"
 storage_version_token = "1788880097314724"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Jh85EKb6o6G_drsmJLPXt"
+uri = "file://exports/pulse-hostinger-renewal-diagnostic-fixed.zip"
+type = "unspecified"
+title = "Hostinger Renewal Diagnostic Fix"
+description = "نسخهٔ جدید Hostinger با fallback امن AmneziaWG و logging مرحله‌ای تمدید. اگر 500 باقی بماند، لاگ دقیقاً phase شکست را نشان می‌دهد: load-service، provision-providers، persist-renewal، load-renewed-service یا validate-response."
+logical_id = "984814bf-7be8-4f56-ab16-a83659848560"
+content_hash = "sha256:648d5040a3953b2a776739c3806b53c1f14def1e1376b4b1f23a343701bbfaca"
+size = 26231302
+mtime_ms = 1788880496646
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/984814bf-7be8-4f56-ab16-a83659848560/95118858-03ab-4834-8432-eb164408b0fd"
+storage_version_token = "1788880508170263"
+content_type = "application/octet-stream"
