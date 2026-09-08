@@ -1,0 +1,469 @@
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+[migration] {"timestamp":"2026-09-08T09:41:22.111Z","level":"INFO","message":"Connecting to PostgreSQL for the legacy migration check..."}
+[migration] {"timestamp":"2026-09-08T09:41:24.129Z","level":"INFO","message":"Legacy migration lock acquired."}
+[migration] {"timestamp":"2026-09-08T09:41:26.349Z","level":"INFO","message":"PostgreSQL target: database=postgres, schema=public, user=postgres"}
+[migration] {"timestamp":"2026-09-08T09:41:27.399Z","level":"INFO","message":"Legacy SQL migration already completed."}
+[api] [09:41:28.300] [32mINFO[39m (865550): [36mCombined usage sync worker started[39m
+[api] [35mintervalMs[39m: 60000
+[api] [09:41:28.305] [32mINFO[39m (865550): [36mServer listening[39m
+[api] [35mport[39m: 3001
+[api] [09:41:30.691] [32mINFO[39m (865550): [36mService provisioning worker started[39m
+[api] [09:41:30.691] [32mINFO[39m (865550): [36mPasarGuard Group 1 reconciliation worker started[39m
+[api] [35mintervalMs[39m: 21600000
+[api] [09:41:31.342] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 1,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2077
+[api] [09:41:31.457] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 7,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 309
+[api] [09:41:32.286] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 2,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3019
+[api] [09:41:32.584] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 4,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3311
+[api] [09:41:33.284] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 10,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1266
+[api] [09:41:33.411] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 3,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4139
+[api] [09:41:33.491] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 8,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1475
+[api] [09:41:33.530] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 5,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4256
+[api] [09:41:33.531] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 9,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1514
+[api] [09:41:33.575] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 12,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1554
+[api] [09:41:33.603] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 6,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3252
+[api] [09:41:34.219] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 11,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2200
+[api] [09:41:45.397] [31mERROR[39m (865550): [36mUnhandled API request error[39m
+[api] [35mreq[39m: {
+[api] "id": 13,
+[api] "method": "POST",
+[api] "url": "/api/services"
+[api] }
+[api] err: {
+[api] "type": "DatabaseError2",
+[api] "message": "inconsistent types deduced for parameter $2",
+[api] "stack":
+[api] error: inconsistent types deduced for parameter $2
+[api] at file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a08063-eb65-7037-98b4-ffbf3a63a6c4/nodejs/api/index.mjs:32933:21
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a08063-eb65-7037-98b4-ffbf3a63a6c4/nodejs/api/index.mjs:60874:7
+[api] "length": 144,
+[api] "name": "error",
+[api] "severity": "ERROR",
+[api] "code": "42P08",
+[api] "detail": "text versus bigint",
+[api] "position": "152",
+[api] "file": "parse_param.c",
+[api] "line": "219",
+[api] "routine": "variable_coerce_param_hook"
+[api] }
+[api] [09:41:45.399] [32mINFO[39m (865550): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 13,
+[api] "method": "POST",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 500
+[api] }
+[api] [35mresponseTime[39m: 5682
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 500",
+[api] "stack":
+[api] Error: failed with status code 500
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a08063-eb65-7037-98b4-ffbf3a63a6c4/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a08063-eb65-7037-98b4-ffbf3a63a6c4/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [09:41:48.862] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 14,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 305
+[api] [09:41:50.356] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 15,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1251
+[api] [09:41:51.432] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 16,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2325
+[api] [09:41:51.711] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 19,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2599
+[api] [09:41:51.726] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 18,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2617
+[api] [09:41:51.928] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 17,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2819
+[api] [09:42:01.197] [31mERROR[39m (865550): [36mUnhandled API request error[39m
+[api] [35mreq[39m: {
+[api] "id": 20,
+[api] "method": "POST",
+[api] "url": "/api/services"
+[api] }
+[api] err: {
+[api] "type": "DatabaseError2",
+[api] "message": "inconsistent types deduced for parameter $2",
+[api] "stack":
+[api] error: inconsistent types deduced for parameter $2
+[api] at file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a08063-eb65-7037-98b4-ffbf3a63a6c4/nodejs/api/index.mjs:32933:21
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a08063-eb65-7037-98b4-ffbf3a63a6c4/nodejs/api/index.mjs:60874:7
+[api] "length": 144,
+[api] "name": "error",
+[api] "severity": "ERROR",
+[api] "code": "42P08",
+[api] "detail": "text versus bigint",
+[api] "position": "152",
+[api] "file": "parse_param.c",
+[api] "line": "219",
+[api] "routine": "variable_coerce_param_hook"
+[api] }
+[api] [09:42:01.198] [32mINFO[39m (865550): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 20,
+[api] "method": "POST",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 500
+[api] }
+[api] [35mresponseTime[39m: 5677
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 500",
+[api] "stack":
+[api] Error: failed with status code 500
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a08063-eb65-7037-98b4-ffbf3a63a6c4/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a08063-eb65-7037-98b4-ffbf3a63a6c4/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [09:42:08.415] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 21,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 614
+[api] [09:42:10.227] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 22,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2425
+[api] [09:42:10.250] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 23,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 614
+[api] [09:42:10.545] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 24,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 908
+[api] [09:42:20.103] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 25,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1014
+[api] [09:42:24.196] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 26,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2344
+[api] [09:42:24.733] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 27,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2544
+[api] [09:42:27.686] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 28,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 298
+[api] [09:42:28.546] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 29,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 629
+[api] [09:42:29.114] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 33,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1194
+[api] [09:42:29.142] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 31,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1223
+[api] [09:42:29.171] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 30,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1254
+[api] [09:42:30.329] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 32,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2409
+[api] [09:42:35.014] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 34,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 298
+[api] [09:42:35.623] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 36,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 905
+[api] [09:42:35.639] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 38,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 920
+[api] [09:42:35.927] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 37,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1209
+[api] [09:42:36.868] [32mINFO[39m (865550): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 35,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2152
