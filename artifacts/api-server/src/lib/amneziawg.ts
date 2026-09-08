@@ -67,6 +67,32 @@ async function request(
   };
 }
 
+async function confirmAwgClient(clientId: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    try {
+      const response = await request("GET", "/api/clients");
+      if (!response.configured || response.status < 200 || response.status >= 300) continue;
+      const payload = JSON.parse(response.text) as unknown;
+      const clients = Array.isArray(payload)
+        ? payload
+        : payload && typeof payload === "object" && Array.isArray((payload as { clients?: unknown }).clients)
+          ? (payload as { clients: unknown[] }).clients
+          : [];
+      if (clients.some((client) =>
+        client && typeof client === "object" && String((client as { id?: unknown }).id ?? "") === clientId
+      )) {
+        return true;
+      }
+    } catch {
+      // A failed reconciliation check should preserve the original create error.
+    }
+  }
+  return false;
+}
+
 export async function createAwgClient(): Promise<{
   configured: boolean;
   clientId: string | null;
@@ -83,6 +109,9 @@ export async function createAwgClient(): Promise<{
       };
     }
     if (response.status < 200 || response.status >= 300) {
+      if (response.status >= 500 && await confirmAwgClient(clientId)) {
+        return { configured: true, clientId, error: null };
+      }
       return {
         configured: true,
         clientId: null,
@@ -91,6 +120,9 @@ export async function createAwgClient(): Promise<{
     }
     return { configured: true, clientId, error: null };
   } catch {
+    if (await confirmAwgClient(clientId)) {
+      return { configured: true, clientId, error: null };
+    }
     return {
       configured: true,
       clientId: null,

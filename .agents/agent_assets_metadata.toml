@@ -392,3 +392,17 @@ mtime_ms = 1788888471676
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6cf7f878-dacc-499a-9d0e-0b550457cdb0/9a0aea11-adc6-4832-b766-a4a721220f68"
 storage_version_token = "1788888478233851"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "tDPDTSNcNHOrJSMX4qjq5"
+uri = "file://exports/pulse-hostinger-awg-500-reconciliation-fix.zip"
+type = "unspecified"
+title = "Pulse Hostinger — AWG HTTP 500 Reconciliation Fix"
+description = "When AWG returns HTTP 500 after committing a client, the app now confirms the exact UUID through GET /api/clients, saves it, and completes old or renewal jobs instead of retrying as failed."
+logical_id = "ee45b7e3-16e1-4d62-9126-ec1ea3a264f2"
+content_hash = "sha256:4263a005d82775447970bd536818db407f1fad3c2a6bed7b183aaacaf9d422da"
+size = 26230748
+mtime_ms = 1788888869264
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ee45b7e3-16e1-4d62-9126-ec1ea3a264f2/3e798d65-7664-457f-a6fe-7037c1ffb7fc"
+storage_version_token = "1788888883185025"
+content_type = "application/octet-stream"

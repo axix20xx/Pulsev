@@ -57831,6 +57831,24 @@ async function request2(method, endpoint, body) {
     text: await response.text()
   };
 }
+async function confirmAwgClient(clientId) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    try {
+      const response = await request2("GET", "/api/clients");
+      if (!response.configured || response.status < 200 || response.status >= 300) continue;
+      const payload = JSON.parse(response.text);
+      const clients = Array.isArray(payload) ? payload : payload && typeof payload === "object" && Array.isArray(payload.clients) ? payload.clients : [];
+      if (clients.some((client) => client && typeof client === "object" && String(client.id ?? "") === clientId)) {
+        return true;
+      }
+    } catch {
+    }
+  }
+  return false;
+}
 async function createAwgClient() {
   const clientId = randomUUID();
   try {
@@ -57843,6 +57861,9 @@ async function createAwgClient() {
       };
     }
     if (response.status < 200 || response.status >= 300) {
+      if (response.status >= 500 && await confirmAwgClient(clientId)) {
+        return { configured: true, clientId, error: null };
+      }
       return {
         configured: true,
         clientId: null,
@@ -57851,6 +57872,9 @@ async function createAwgClient() {
     }
     return { configured: true, clientId, error: null };
   } catch {
+    if (await confirmAwgClient(clientId)) {
+      return { configured: true, clientId, error: null };
+    }
     return {
       configured: true,
       clientId: null,
