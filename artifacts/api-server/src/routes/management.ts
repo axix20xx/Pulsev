@@ -2987,11 +2987,12 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
        WHERE username = $1`,
       [current.username],
     );
+    const ownerParam = values.length + 1;
     result = await client.query(
       `UPDATE reseller_services svc
        SET status = 'active',
            expire_at = NOW() + make_interval(days => $1::int),
-           gb = $2,
+           gb = $2::numeric,
            last_used_bytes = 0,
            last_total_bytes = ROUND($2::numeric * 1073741824),
            last_remaining_bytes = ROUND($2::numeric * 1073741824),
@@ -3006,7 +3007,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
             awg_offset_bytes = 0,
             lifecycle_version = lifecycle_version + 1,
            updated_at = NOW()
-        WHERE svc.id = $3 AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
+         WHERE svc.id = $3::bigint AND ${owner.sql.replace("$1", `$${ownerParam}::bigint`)}
         RETURNING svc.id, svc.lifecycle_version`,
       [...values, ...owner.params],
     );
