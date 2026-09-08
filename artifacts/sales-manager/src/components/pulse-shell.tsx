@@ -377,7 +377,11 @@ export function Shell({ children }: { children: ReactNode }) {
       </main>
 
       {/* Mobile Bottom Dock */}
-      {!open && <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-2xl border-t border-border/50 pb-safe pt-2 px-2 flex items-center justify-around shadow-[0_-8px_32px_rgba(0,0,0,0.05)]">
+      {!open && <nav className="pulse-mobile-dock md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-2xl border-t border-border/50 pb-safe pt-2 px-2 flex items-center justify-around shadow-[0_-8px_32px_rgba(0,0,0,0.05)]" aria-label="ناوبری موبایل">
+        <Link href={posNav.href} className={`mobile-quick-sale ${isNavActive(posNav.href) ? 'active' : ''}`} data-testid="mobile-quick-sale">
+          <span className="mobile-quick-sale-icon"><posNav.icon size={23} strokeWidth={2.8} /></span>
+          <span>فروش سریع</span>
+        </Link>
         {nav.map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${isNavActive(href) ? 'text-primary scale-110' : 'text-muted-foreground hover:text-foreground'}`}>
             <Icon size={20} strokeWidth={isNavActive(href) ? 2.5 : 2} />
