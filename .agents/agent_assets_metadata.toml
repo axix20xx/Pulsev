@@ -322,3 +322,17 @@ mtime_ms = 1788885196822
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/447d79ed-46f6-44be-95fe-e36c446af153/e857d991-51d6-469f-91f7-657de380799b"
 storage_version_token = "1788885203755144"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "1GCnji7bLEYUFSOvgOskP"
+uri = "file://exports/pulse-hostinger-renew-new-awg-client.zip"
+type = "unspecified"
+title = "Pulse Hostinger — Renewal Creates New AWG Client"
+description = "نسخهٔ نهایی که در تمدید، client قبلی AWG را حذف و یک UUID جدید مثل ساخت سرویس جدید ایجاد می‌کند. typecheck، build، syntax check و تست ZIP موفق بودند."
+logical_id = "6bd360eb-7921-4c61-bd66-4385ffb82dbe"
+content_hash = "sha256:aa33d29038ff7f6ec3521963abba333935edb594ccfb82eb7d81c91c048a5a89"
+size = 26230045
+mtime_ms = 1788886092513
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6bd360eb-7921-4c61-bd66-4385ffb82dbe/eb2af395-bf55-4cdd-8154-3aca6758ea65"
+storage_version_token = "1788886117992710"
+content_type = "application/octet-stream"

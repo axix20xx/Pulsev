@@ -31,4 +31,4 @@
 - [Public subscription visual boundary](public-sub-visual-boundary.md) — keep `/sub` presentation changes in a dedicated class namespace so management UI styling stays untouched.
 - [Service identity](service-identity.md) — use a stable display reference derived from the internal service ID across cards, notifications, and public subscription pages.
 - [Renewal SQL parameter types](renewal-sql-parameter-types.md) — keep renewal service and ownership placeholders distinct and explicitly typed to avoid PostgreSQL 42P08 failures.
-- [Legacy renewal sequence](legacy-renewal-sequence.md) — renewal resets usage, deletes the AWG client, waits two seconds, and recreates the same ID.
+- [Renewal AWG lifecycle](legacy-renewal-sequence.md) — renewal deletes the old AWG client and provisions a new UUID like a new service.

@@ -134,13 +134,20 @@ async function processProviderJob(job: ProvisionJob) {
 
 async function processAwgJob(job: ProvisionJob) {
   try {
-    const service = await pool.query<{ id: number }>(
-      "SELECT id FROM reseller_services WHERE id = $1 LIMIT 1",
+    const service = await pool.query<{ id: number; awg_client_id: string | null }>(
+      "SELECT id, awg_client_id FROM reseller_services WHERE id = $1 LIMIT 1",
       [job.service_id],
     );
     if (!service.rows[0]) {
       await completeJob(job.id);
       return;
+    }
+    if (service.rows[0].awg_client_id) {
+      const deleted = await disableAwgClient(service.rows[0].awg_client_id);
+      if (!deleted) {
+        await retryJob(job, "حذف client قبلی AmneziaWG انجام نشد");
+        return;
+      }
     }
     const awg = await createAwgClient();
     if (!awg.clientId) {

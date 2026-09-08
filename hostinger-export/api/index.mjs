@@ -61065,6 +61065,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     let providerWarning = null;
     let awgWarning = null;
     let awgUsageOffset = 0;
+    let replacementAwgClientId = null;
     renewalPhase = "renew-awg";
     try {
       await pool.query("DELETE FROM panel_usage_curr WHERE username = $1", [current.username]);
@@ -61108,7 +61109,15 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
           WHERE id = $2::bigint`,
           [awgUsageOffset, params.data.id]
         );
-        await recreateAwgClient(current.awg_client_id);
+        const deleted = await disableAwgClient(current.awg_client_id);
+        if (!deleted) {
+          throw new Error("\u062D\u0630\u0641 client \u0642\u0628\u0644\u06CC AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F");
+        }
+        const awg = await createAwgClient();
+        if (!awg.clientId) {
+          throw new Error(awg.error ?? "\u0633\u0627\u062E\u062A client \u062C\u062F\u06CC\u062F AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F");
+        }
+        replacementAwgClientId = awg.clientId;
       } catch (error40) {
         awgWarning = error40 instanceof Error ? error40.message.slice(0, 500) : "بازسازی AmneziaWG پس از تمدید انجام نشد";
       }
@@ -61139,7 +61148,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
       throw error40;
     }
     renewalPhase = "persist-renewal";
-    const values = [days, gb, params.data.id, awgUsageOffset];
+    const values = [days, gb, params.data.id, awgUsageOffset, replacementAwgClientId];
     const client = await pool.connect();
     let result;
     try {
@@ -61169,6 +61178,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
             awg_tx = 0,
             awg_total = 0,
             awg_offset_bytes = $4::bigint,
+            awg_client_id = COALESCE($5::text, awg_client_id),
             lifecycle_version = lifecycle_version + 1,
            updated_at = NOW()
          WHERE svc.id = $3::bigint AND ${owner.sql.replace("$1", `$${ownerParam}::bigint`)}
@@ -62256,12 +62266,19 @@ async function processProviderJob(job) {
 async function processAwgJob(job) {
   try {
     const service = await pool.query(
-      "SELECT id FROM reseller_services WHERE id = $1 LIMIT 1",
+      "SELECT id, awg_client_id FROM reseller_services WHERE id = $1 LIMIT 1",
       [job.service_id]
     );
     if (!service.rows[0]) {
       await completeJob(job.id);
       return;
+    }
+    if (service.rows[0].awg_client_id) {
+      const deleted = await disableAwgClient(service.rows[0].awg_client_id);
+      if (!deleted) {
+        await retryJob(job, "\u062D\u0630\u0641 client \u0642\u0628\u0644\u06CC AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F");
+        return;
+      }
     }
     const awg = await createAwgClient();
     if (!awg.clientId) {

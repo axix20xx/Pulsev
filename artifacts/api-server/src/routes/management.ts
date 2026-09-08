@@ -2925,8 +2925,9 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   const gb = body.data.gb ?? Number(current.gb);
   let failedProviderKeys: string[] = [];
   let providerWarning: string | null = null;
-   let awgWarning: string | null = null;
-   let awgUsageOffset = 0;
+  let awgWarning: string | null = null;
+  let awgUsageOffset = 0;
+  let replacementAwgClientId: string | null = null;
    renewalPhase = "renew-awg";
    try {
      await pool.query("DELETE FROM panel_usage_curr WHERE username = $1", [current.username]);
@@ -2972,7 +2973,15 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
           WHERE id = $2::bigint`,
          [awgUsageOffset, params.data.id],
        );
-       await recreateAwgClient(current.awg_client_id);
+        const deleted = await disableAwgClient(current.awg_client_id);
+        if (!deleted) {
+          throw new Error("حذف client قبلی AmneziaWG انجام نشد");
+        }
+        const awg = await createAwgClient();
+        if (!awg.clientId) {
+          throw new Error(awg.error ?? "ساخت client جدید AmneziaWG انجام نشد");
+        }
+        replacementAwgClientId = awg.clientId;
      } catch (error) {
        awgWarning =
          error instanceof Error
@@ -3008,7 +3017,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     throw error;
   }
    renewalPhase = "persist-renewal";
-    const values: unknown[] = [days, gb, params.data.id, awgUsageOffset];
+    const values: unknown[] = [days, gb, params.data.id, awgUsageOffset, replacementAwgClientId];
   const client = await pool.connect();
   let result;
   try {
@@ -3038,6 +3047,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
             awg_tx = 0,
             awg_total = 0,
             awg_offset_bytes = $4::bigint,
+            awg_client_id = COALESCE($5::text, awg_client_id),
             lifecycle_version = lifecycle_version + 1,
            updated_at = NOW()
          WHERE svc.id = $3::bigint AND ${owner.sql.replace("$1", `$${ownerParam}::bigint`)}
