@@ -60890,7 +60890,7 @@ router2.post("/services", requireAuth, async (req, res) => {
     await client.query("COMMIT");
     const fresh = await pool.query(
       `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
-        svc.customer_id, c.full_name AS customer_name,
+         svc.customer_id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC') AS customer_name,
         svc.rain_username AS username, svc.label AS plan, '\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC' AS panel,
         svc.status, svc.expire_at::date::text AS expires_at,
         svc.created_at::text AS created_at,
