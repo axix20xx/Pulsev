@@ -7,7 +7,10 @@ import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicRoot = path.join(root, "web");
+const panelRoot = path.join(publicRoot, "panel");
 const showcaseRoot = path.join(publicRoot, "showcase");
+const subscriptionRoot = path.join(publicRoot, "sub-app");
+const panelSubscriptionAssetsRoot = path.join(publicRoot, "panel-sub-assets");
 const installerPath = path.join(root, "installer.html");
 const publicPort = Number(process.env.PORT || 3000);
 const apiPort = Number(process.env.API_INTERNAL_PORT || publicPort + 1);
@@ -296,6 +299,7 @@ const contentTypes = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -393,9 +397,24 @@ async function serveWeb(req, res) {
     res.end("Bad request");
     return;
   }
+  const isPanelRoute = pathname === "/panel" || pathname.startsWith("/panel/");
   const isShowcaseRoute = pathname === "/showcase" || pathname.startsWith("/showcase/");
-  const appRoot = isShowcaseRoute ? showcaseRoot : publicRoot;
-  const appPathname = isShowcaseRoute ? pathname.slice("/showcase".length) || "/" : pathname;
+  const isSubscriptionRoute = pathname === "/sub" || pathname.startsWith("/sub/");
+  const isPanelSubscriptionAsset = pathname.startsWith("/panel-sub-assets/");
+  const appRoot = isPanelRoute
+    ? panelRoot
+    : isShowcaseRoute
+      ? showcaseRoot
+      : isSubscriptionRoute
+        ? subscriptionRoot
+        : isPanelSubscriptionAsset
+          ? publicRoot
+          : publicRoot;
+  const appPathname = isPanelRoute
+    ? pathname.slice("/panel".length) || "/"
+    : isShowcaseRoute
+      ? pathname.slice("/showcase".length) || "/"
+      : pathname;
   const requested = path.resolve(appRoot, `.${appPathname}`);
   if (!requested.startsWith(`${appRoot}${path.sep}`) && requested !== appRoot) {
     res.writeHead(403);

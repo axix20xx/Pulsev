@@ -140,3 +140,17 @@ mtime_ms = 1788874479681
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/7b74ed3c-5ece-43b3-b049-abefa994ab7b/727ef982-ec73-4828-8fe7-75e0d8062022"
 storage_version_token = "1788874491311670"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "2C1u6qrhboBH7d65_uf6b"
+uri = "file://exports/pulse-hostinger-new-sql-panel-showcase-flat.zip"
+type = "unspecified"
+title = "Hostinger Final — New SQL + Panel + Showcase"
+description = "ZIP نهایی برای Hostinger شامل dump SQL جدید، migration v2 برای users/customers/services/sales و تمام جدول‌های legacy، پنل در /panel، showcase در ریشه و /showcase، مسیر عمومی /sub، API و migration خودکار Supabase. archive با build checker و unzip -t اعتبارسنجی شده است."
+logical_id = "89d21378-0923-4028-8f97-ef288882cece"
+content_hash = "sha256:dc2583c858287eb4ebbc8f1c36285675689b7938067683578b6a82a829b179b1"
+size = 26230213
+mtime_ms = 1788876877833
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/89d21378-0923-4028-8f97-ef288882cece/5a8f1947-5cb0-4036-b5f5-5883dc53bbcf"
+storage_version_token = "1788876891371949"
+content_type = "application/octet-stream"

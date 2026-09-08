@@ -5,6 +5,18 @@ import { pool } from "@workspace/db";
 const dumpCandidates = [
   path.resolve(
     process.cwd(),
+    "attached_assets/u517065565_axinetreseller_14_1788876120268.sql",
+  ),
+  path.resolve(
+    process.cwd(),
+    "../attached_assets/u517065565_axinetreseller_14_1788876120268.sql",
+  ),
+  path.resolve(
+    process.cwd(),
+    "../../attached_assets/u517065565_axinetreseller_14_1788876120268.sql",
+  ),
+  path.resolve(
+    process.cwd(),
     "attached_assets/u517065565_axinetreseller_13_1788279271659.sql",
   ),
   path.resolve(
@@ -21,7 +33,7 @@ const defaultDump =
   dumpCandidates[0];
 const dumpPath = process.env.LEGACY_SQL_PATH ?? defaultDump;
 const preconvertedPath = process.env.SUPABASE_SQL_PATH;
-const migrationName = "axinetreseller-mysql-import-v1";
+const migrationName = "axinetreseller-mysql-import-v2";
 const migrationLockWaitMs = Math.max(
   30_000,
   Number(process.env.LEGACY_MIGRATION_LOCK_WAIT_MS ?? 10 * 60_000),
@@ -46,6 +58,11 @@ const legacyTableNames = [
   "user_panel_usages",
   "user_stats_cache",
 ];
+type MigrationClient = {
+  query: <T = any>(
+    ...args: any[]
+  ) => Promise<{ rows: T[]; rowCount: number | null }>;
+};
 
 function splitStatements(source: string): string[] {
   const statements: string[] = [];
@@ -196,6 +213,52 @@ async function existingLegacyTables(): Promise<string[]> {
   return result.rows.map((row) => row.tableName);
 }
 
+async function clearExistingLegacyTables(
+  client: MigrationClient,
+): Promise<void> {
+  const existing = await client.query<{ tableName: string }>(
+    `SELECT table_name AS "tableName"
+     FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = ANY($1::text[])`,
+    [legacyTableNames],
+  );
+  if (existing.rowCount === 0) return;
+
+  const quotedNames = existing.rows
+    .map((row: { tableName: string }) => `"${row.tableName.replaceAll('"', '""')}"`)
+    .join(", ");
+  await client.query(
+    `TRUNCATE TABLE ${quotedNames} RESTART IDENTITY CASCADE`,
+  );
+  console.info(
+    `Cleared ${existing.rowCount} existing legacy tables before importing the new backup.`,
+  );
+}
+
+async function logImportedRowCounts(
+  client: MigrationClient,
+): Promise<void> {
+  const result = await client.query<{
+    customers: string;
+    services: string;
+    sales: string;
+    resellers: string;
+  }>(
+    `SELECT
+       (SELECT COUNT(*)::text FROM reseller_customers) AS customers,
+       (SELECT COUNT(*)::text FROM reseller_services) AS services,
+       (SELECT COUNT(*)::text FROM reseller_sales_log) AS sales,
+       (SELECT COUNT(*)::text FROM resellers) AS resellers`,
+  );
+  const counts = result.rows[0];
+  if (counts) {
+    console.info(
+      `Imported legacy data counts: resellers=${counts.resellers}, customers=${counts.customers}, services=${counts.services}, sales=${counts.sales}`,
+    );
+  }
+}
+
 async function migrateWithLock(): Promise<void> {
   await logDatabaseTarget();
   await ensureAppTables();
@@ -242,6 +305,7 @@ async function migrateWithLock(): Promise<void> {
   try {
     await client.query("BEGIN");
     await client.query("SET standard_conforming_strings = off");
+    await clearExistingLegacyTables(client);
 
     if (preconvertedPath) {
       console.info(`Using preconverted Supabase SQL from ${importPath}`);
@@ -298,6 +362,7 @@ async function migrateWithLock(): Promise<void> {
         `SQL import did not create the expected tables: ${missingImportedTables.join(", ")}`,
       );
     }
+    await logImportedRowCounts(client);
 
     await client.query("COMMIT");
   } catch (error) {

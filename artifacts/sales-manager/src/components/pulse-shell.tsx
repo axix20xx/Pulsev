@@ -36,6 +36,15 @@ const posNav = { href: '/pos', label: 'پایانه فروش', icon: CreditCard 
 const operationsNav = { href: '/operations', label: 'مرکز عملیات', icon: Gauge };
 const smartNav = { href: '/insights', label: 'مرکز هوشمند', icon: Sparkles };
 
+const panelBasePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+const panelRelativePath = () => {
+  const pathname = window.location.pathname;
+  if (panelBasePath && pathname.startsWith(`${panelBasePath}/`)) {
+    return pathname.slice(panelBasePath.length) || '/';
+  }
+  return pathname;
+};
+
 export function Shell({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
   const [open, setOpen] = useState(false);
@@ -160,17 +169,20 @@ export function Shell({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const pathname = window.location.pathname;
-    if (isSignedOut && pathname !== '/login' && !pathname.startsWith('/sub')) {
+    const rawPathname = window.location.pathname;
+    const pathname = panelRelativePath();
+    const isPanelLogin = pathname === '/login';
+    const isSubscription = rawPathname === '/sub' || rawPathname.startsWith('/sub/');
+    if (isSignedOut && !isPanelLogin && !isSubscription) {
       navigate(`/login?next=${encodeURIComponent(`${pathname}${window.location.search}`)}`);
     }
-    if (session?.authenticated && pathname === '/login') {
+    if (session?.authenticated && isPanelLogin) {
       const requestedNext = new URLSearchParams(window.location.search).get('next');
       navigate(requestedNext?.startsWith('/services') ? requestedNext : '/');
     }
   }, [isSignedOut, location, navigate, session?.authenticated]);
 
-  if (window.location.pathname === '/login' || window.location.pathname.startsWith('/sub')) return <div className="min-h-[100dvh] bg-background text-foreground relative overflow-hidden">{children}</div>;
+  if (panelRelativePath() === '/login' || window.location.pathname.startsWith('/sub')) return <div className="min-h-[100dvh] bg-background text-foreground relative overflow-hidden">{children}</div>;
   if (sessionLoading || isSignedOut) return <div className="min-h-[100dvh] flex items-center justify-center bg-background text-foreground"><div className="text-center animate-pulse"><div className="pulse-mark large mx-auto mb-4 scale-150"><span /></div><p className="font-bold tracking-tight text-primary">در حال احراز هویت...</p></div></div>;
 
   return (

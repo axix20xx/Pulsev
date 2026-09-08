@@ -23661,6 +23661,18 @@ var db = drizzle(pool, { schema: schema_exports });
 var dumpCandidates = [
   path.resolve(
     process.cwd(),
+    "attached_assets/u517065565_axinetreseller_14_1788876120268.sql"
+  ),
+  path.resolve(
+    process.cwd(),
+    "../attached_assets/u517065565_axinetreseller_14_1788876120268.sql"
+  ),
+  path.resolve(
+    process.cwd(),
+    "../../attached_assets/u517065565_axinetreseller_14_1788876120268.sql"
+  ),
+  path.resolve(
+    process.cwd(),
     "attached_assets/u517065565_axinetreseller_13_1788279271659.sql"
   ),
   path.resolve(
@@ -23675,7 +23687,7 @@ var dumpCandidates = [
 var defaultDump = dumpCandidates.find((candidate) => fs.existsSync(candidate)) ?? dumpCandidates[0];
 var dumpPath = process.env.LEGACY_SQL_PATH ?? defaultDump;
 var preconvertedPath = process.env.SUPABASE_SQL_PATH;
-var migrationName = "axinetreseller-mysql-import-v1";
+var migrationName = "axinetreseller-mysql-import-v2";
 var migrationLockWaitMs = Math.max(
   3e4,
   Number(process.env.LEGACY_MIGRATION_LOCK_WAIT_MS ?? 10 * 6e4)
@@ -23813,6 +23825,38 @@ async function existingLegacyTables() {
   );
   return result.rows.map((row) => row.tableName);
 }
+async function clearExistingLegacyTables(client) {
+  const existing = await client.query(
+    `SELECT table_name AS "tableName"
+     FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = ANY($1::text[])`,
+    [legacyTableNames]
+  );
+  if (existing.rowCount === 0) return;
+  const quotedNames = existing.rows.map((row) => `"${row.tableName.replaceAll('"', '""')}"`).join(", ");
+  await client.query(
+    `TRUNCATE TABLE ${quotedNames} RESTART IDENTITY CASCADE`
+  );
+  console.info(
+    `Cleared ${existing.rowCount} existing legacy tables before importing the new backup.`
+  );
+}
+async function logImportedRowCounts(client) {
+  const result = await client.query(
+    `SELECT
+       (SELECT COUNT(*)::text FROM reseller_customers) AS customers,
+       (SELECT COUNT(*)::text FROM reseller_services) AS services,
+       (SELECT COUNT(*)::text FROM reseller_sales_log) AS sales,
+       (SELECT COUNT(*)::text FROM resellers) AS resellers`
+  );
+  const counts = result.rows[0];
+  if (counts) {
+    console.info(
+      `Imported legacy data counts: resellers=${counts.resellers}, customers=${counts.customers}, services=${counts.services}, sales=${counts.sales}`
+    );
+  }
+}
 async function migrateWithLock() {
   await logDatabaseTarget();
   await ensureAppTables();
@@ -23855,6 +23899,7 @@ async function migrateWithLock() {
   try {
     await client.query("BEGIN");
     await client.query("SET standard_conforming_strings = off");
+    await clearExistingLegacyTables(client);
     if (preconvertedPath) {
       console.info(`Using preconverted Supabase SQL from ${importPath}`);
       let executedStatements = 0;
@@ -23904,6 +23949,7 @@ async function migrateWithLock() {
         `SQL import did not create the expected tables: ${missingImportedTables.join(", ")}`
       );
     }
+    await logImportedRowCounts(client);
     await client.query("COMMIT");
   } catch (error40) {
     await client.query("ROLLBACK");

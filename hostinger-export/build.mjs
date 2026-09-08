@@ -5,7 +5,9 @@ const requiredFiles = [
   "launcher.mjs",
   "installer.html",
   "web/index.html",
+  "web/panel/index.html",
   "web/showcase/index.html",
+  "web/sub-app/index.html",
   "api/index.mjs",
   "api/lib/migrate-legacy-sql.mjs",
 ];
@@ -28,4 +30,18 @@ if (!/["']\/showcase\/assets\//.test(showcaseIndex)) {
   );
 }
 
-console.log(`Pulse production bundle verified (${requiredFiles.length} files, including showcase).`);
+const panelIndex = await readFile("web/panel/index.html", "utf8");
+if (!/["']\/panel\/assets\//.test(panelIndex)) {
+  throw new Error(
+    "Hostinger panel bundle must be built for /panel/, not the domain root.",
+  );
+}
+
+const subscriptionIndex = await readFile("web/sub-app/index.html", "utf8");
+if (!/["']\/panel-sub-assets\//.test(subscriptionIndex)) {
+  throw new Error(
+    "Hostinger subscription bundle must use its isolated asset path.",
+  );
+}
+
+console.log(`Pulse production bundle verified (${requiredFiles.length} files, including panel and showcase).`);
