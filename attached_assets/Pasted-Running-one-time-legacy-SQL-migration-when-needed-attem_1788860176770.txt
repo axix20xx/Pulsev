@@ -1,0 +1,311 @@
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+[migration] {"timestamp":"2026-09-08T09:34:42.757Z","level":"INFO","message":"Connecting to PostgreSQL for the legacy migration check..."}
+[migration] {"timestamp":"2026-09-08T09:34:44.806Z","level":"INFO","message":"Legacy migration lock acquired."}
+[migration] {"timestamp":"2026-09-08T09:34:46.821Z","level":"INFO","message":"PostgreSQL target: database=postgres, schema=public, user=postgres"}
+[migration] {"timestamp":"2026-09-08T09:34:47.758Z","level":"INFO","message":"Legacy SQL migration already completed."}
+[api] [09:34:48.658] [32mINFO[39m (292194): [36mCombined usage sync worker started[39m
+[api] [35mintervalMs[39m: 60000
+[api] [09:34:48.663] [32mINFO[39m (292194): [36mServer listening[39m
+[api] [35mport[39m: 3001
+[api] [09:34:51.012] [32mINFO[39m (292194): [36mService provisioning worker started[39m
+[api] [09:34:51.012] [32mINFO[39m (292194): [36mPasarGuard Group 1 reconciliation worker started[39m
+[api] [35mintervalMs[39m: 21600000
+[api] [09:34:51.882] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 1,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 309
+[api] [09:34:53.302] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 3,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 303
+[api] [09:34:54.457] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 5,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 983
+[api] [09:34:56.096] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 8,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2616
+[api] [09:34:56.422] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 6,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2947
+[api] [09:34:57.316] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 9,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3835
+[api] [09:34:57.376] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 11,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 299
+[api] [09:34:57.529] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 7,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4051
+[api] [09:34:58.158] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 12,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 939
+[api] [09:34:59.315] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 16,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 603
+[api] [09:34:59.777] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 14,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1066
+[api] [09:34:59.922] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 2,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/e7cfbcdd4a96db61378f91e933c793f6"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 8346
+[api] [09:35:00.083] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 17,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1370
+[api] [09:35:00.122] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 13,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1412
+[api] [09:35:00.844] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 15,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2132
+[api] [09:35:03.497] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 4,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/e7cfbcdd4a96db61378f91e933c793f6"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 10295
+[api] [09:35:05.987] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 10,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/e7cfbcdd4a96db61378f91e933c793f6"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 8911
+[api] [09:35:11.937] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 18,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 299
+[api] [09:35:13.400] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 19,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1224
+[api] [09:35:14.333] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 21,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2155
+[api] [09:35:14.554] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 20,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2377
+[api] [09:35:14.794] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 23,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2614
+[api] [09:35:14.808] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 22,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2629
+[api] [09:35:30.545] [31mERROR[39m (292194): [36mUnhandled API request error[39m
+[api] [35mreq[39m: {
+[api] "id": 24,
+[api] "method": "POST",
+[api] "url": "/api/services"
+[api] }
+[api] err: {
+[api] "type": "DatabaseError2",
+[api] "message": "operator does not exist: integer = text",
+[api] "stack":
+[api] error: operator does not exist: integer = text
+[api] at file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a0805e-7385-72b9-b89c-e4d02a212613/nodejs/api/index.mjs:32933:21
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a0805e-7385-72b9-b89c-e4d02a212613/nodejs/api/index.mjs:60873:7
+[api] "length": 200,
+[api] "name": "error",
+[api] "severity": "ERROR",
+[api] "code": "42883",
+[api] "hint": "No operator matches the given name and argument types. You might need to add explicit type casts.",
+[api] "position": "443",
+[api] "file": "parse_oper.c",
+[api] "line": "635",
+[api] "routine": "op_error"
+[api] }
+[api] [09:35:30.546] [32mINFO[39m (292194): [36mrequest errored[39m
+[api] [35mreq[39m: {
+[api] "id": 24,
+[api] "method": "POST",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 500
+[api] }
+[api] [35mresponseTime[39m: 5618
+[api] err: {
+[api] "type": "Error",
+[api] "message": "failed with status code 500",
+[api] "stack":
+[api] Error: failed with status code 500
+[api] at onResFinished (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a0805e-7385-72b9-b89c-e4d02a212613/nodejs/api/index.mjs:28536:45)
+[api] at ServerResponse.onResponseComplete (file:///home/u517065565/domains/darkslategray-rook-587953.hostingersite.com/hbuilds/versions/01a0805e-7385-72b9-b89c-e4d02a212613/nodejs/api/index.mjs:28586:18)
+[api] at ServerResponse.emit (node:events:536:35)
+[api] at onFinish (node:_http_outgoing:1031:10)
+[api] at callback (node:internal/streams/writable:766:21)
+[api] at afterWrite (node:internal/streams/writable:710:5)
+[api] at afterWriteTick (node:internal/streams/writable:696:10)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+[api] }
+[api] [09:35:33.851] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 25,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 990
+[api] [09:35:38.263] [32mINFO[39m (292194): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 26,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1054
