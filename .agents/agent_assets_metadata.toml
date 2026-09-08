@@ -266,3 +266,17 @@ mtime_ms = 1788882564414
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8b4bb356-7249-4ec4-a65b-beb383d71283/87242775-09d2-4dcb-8f3f-d475cb4e2732"
 storage_version_token = "1788882578746391"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "uPiqNTJYunSd9Aumsq_rh"
+uri = "file://exports/pulse-hostinger-final-startup-lock-fix.zip"
+type = "unspecified"
+title = "Final Hostinger Renewal Bundle"
+description = "Bundle نهایی: renewal سرویس قدیمی با AWG موفق شده، خطای PostgreSQL 42P08 رفع شده، و startup lock برای جلوگیری از اجرای هم‌زمان migration/API و EADDRINUSE اضافه شده است."
+logical_id = "ebf8aa9a-7e54-4b6b-9438-fee3aa67edde"
+content_hash = "sha256:204f51627ddc70a6e47860082b49e30ec1a25a727b6796630a533506e9c93f51"
+size = 26232117
+mtime_ms = 1788883152419
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ebf8aa9a-7e54-4b6b-9438-fee3aa67edde/0628b7b7-77d4-4059-bf9b-8daf8ae1ef5e"
+storage_version_token = "1788883191600018"
+content_type = "application/octet-stream"

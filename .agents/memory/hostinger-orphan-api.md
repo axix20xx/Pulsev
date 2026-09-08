@@ -7,4 +7,4 @@ When the Hostinger launcher is restarted forcefully, its previous API child can 
 
 **Why:** Multiple launchers can each complete the database migration check, but spawning a migration child before probing the existing API can exhaust Hostinger's process limit (`EAGAIN`), while a second API child can fail with `EADDRINUSE`.
 
-**How to apply:** Probe the internal API before starting migration or another child, keep the internal API port stable for the public proxy, retry transient `EAGAIN`, and only report the installer as ready when either the reused API or the owned child is active.
+**How to apply:** Probe the internal API before starting migration or another child, coordinate first boot with a short-lived filesystem lock, keep the internal API port stable for the public proxy, retry transient `EAGAIN`, and only report the installer as ready when either the reused API or the owned child is active.
