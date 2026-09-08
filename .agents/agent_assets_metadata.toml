@@ -406,3 +406,17 @@ mtime_ms = 1788888869264
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ee45b7e3-16e1-4d62-9126-ec1ea3a264f2/3e798d65-7664-457f-a6fe-7037c1ffb7fc"
 storage_version_token = "1788888883185025"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "sVEVX7VbIH2pVGEhSOsOu"
+uri = "file://exports/pulse-hostinger-stuck-job-recovery.zip"
+type = "unspecified"
+title = "Pulse Hostinger — Stuck Job Recovery Fix"
+description = "Recovers provisioning jobs left in در حال اجرا after a Worker restart when they have been inactive for more than 10 minutes, then safely requeues them for processing."
+logical_id = "274076bd-8d59-46d2-a4f3-b4c669b6d806"
+content_hash = "sha256:ddaece156f0c3920976581d25081d86d46eb23cb407ab1fcdcddc62bfc470cf3"
+size = 26230924
+mtime_ms = 1788889456484
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/274076bd-8d59-46d2-a4f3-b4c669b6d806/0456023d-00cd-4a51-8654-01c64f56e6fb"
+storage_version_token = "1788889461189061"
+content_type = "application/octet-stream"
