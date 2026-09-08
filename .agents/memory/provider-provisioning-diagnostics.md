@@ -14,3 +14,9 @@ Provider settings should offer an explicit live server-side connection test that
 **Why:** Credential-ready only proves encrypted values exist; it does not prove the Provider accepts them or that the production host can reach its API.
 
 **How to apply:** Test from the API server, show a safe status and timestamp in settings, never return credentials or raw upstream bodies, and preserve authentication errors over less-informative fallback endpoint failures.
+
+For the AWG server contract used by this workspace, a healthy authenticated list endpoint does not prove that client creation works: the Provider can return a deliberately generic HTTP 500 for both valid legacy ID formats and protocol versions.
+
+**Why:** A live probe reached `/health`, authenticated `/api/clients` successfully, and listed existing clients, while controlled creates still returned the Provider's generic internal error. The failure therefore belongs to the AWG host's peer/interface/storage path, not the panel payload.
+
+**How to apply:** Keep the panel's request contract unchanged until Provider logs identify the failing operation; inspect the AWG service logs for peer insertion, interface rebuild, storage, or interface-limit errors before changing IDs, endpoints, or protocol defaults.
