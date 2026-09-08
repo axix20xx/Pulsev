@@ -364,3 +364,17 @@ mtime_ms = 1788887177317
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3bb8e478-4f4e-4a34-997f-549e718f40ce/2edea627-08c5-42b3-9e46-994f48967ff6"
 storage_version_token = "1788887195896288"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "9lSjXgreAxtZXVRFszRV5"
+uri = "file://exports/pulse-hostinger-renew-old-awg-jobs-create-new.zip"
+type = "unspecified"
+title = "Pulse Hostinger — Old AWG Jobs Create New Clients"
+description = "نسخهٔ نهایی: تمدید و jobهای قدیمی AWG ابتدا با همان مسیر ساخت سرویس جدید client جدید می‌سازند، سپس client قبلی را حذف می‌کنند؛ اگر قبلی قبلاً حذف شده باشد، job متوقف نمی‌شود."
+logical_id = "21a1e277-243e-42e4-a183-60a85bedc86c"
+content_hash = "sha256:a8c5dd07fb6d6719bbae24fea748a2426aecaa79aff54119257c62277264086a"
+size = 26230242
+mtime_ms = 1788887748485
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/21a1e277-243e-42e4-a183-60a85bedc86c/1172634f-75dc-4ed1-a091-eb3f9ca72873"
+storage_version_token = "1788887786452532"
+content_type = "application/octet-stream"
