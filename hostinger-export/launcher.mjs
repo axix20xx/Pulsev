@@ -66,7 +66,7 @@ function pipeChildOutput(stream, source, onlyErrors = false) {
       const text = line.trim();
       if (!text) continue;
       console.log(`[${source}] ${text}`);
-      const safeError = /Panel management schema initialization failed|relation .* does not exist/i.test(text);
+      const safeError = /Panel management schema initialization failed|relation .* does not exist|Service renewal failed|RENEWAL_FAILED/i.test(text);
       const shouldRecord = !onlyErrors || source === "migration" || safeError;
       if (shouldRecord) {
         recordInstallLog(text, onlyErrors || safeError || /error|failed|missing|timeout/i.test(text) ? "error" : "info");

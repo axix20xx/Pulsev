@@ -196,3 +196,17 @@ mtime_ms = 1788880496646
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/984814bf-7be8-4f56-ab16-a83659848560/95118858-03ab-4834-8432-eb164408b0fd"
 storage_version_token = "1788880508170263"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "e4UUEQ-3zcq_pnEPjUh3z"
+uri = "file://exports/pulse-hostinger-renewal-final-diagnostic.zip"
+type = "unspecified"
+title = "Final Hostinger Renewal Diagnostic Bundle"
+description = "نسخهٔ نهایی شامل fallback خطای AmneziaWG، logging مرحله‌ای renewal، و ثبت خطاهای Service renewal failed در install log است. شامل API، panel، showcase، /sub و migration."
+logical_id = "90428753-5e47-4c22-9f6a-5534890870fc"
+content_hash = "sha256:bb801002cd084bb152a792ff62ef087e1d805013bbd8c13d6384d67ad6f5de09"
+size = 26231330
+mtime_ms = 1788880740999
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/90428753-5e47-4c22-9f6a-5534890870fc/65431a53-7c5a-4f00-8238-e95f75f5655a"
+storage_version_token = "1788880746856470"
+content_type = "application/octet-stream"
