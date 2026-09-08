@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicRoot = path.join(root, "web");
+const showcaseRoot = path.join(publicRoot, "showcase");
 const installerPath = path.join(root, "installer.html");
 const publicPort = Number(process.env.PORT || 3000);
 const apiPort = Number(process.env.API_INTERNAL_PORT || publicPort + 1);
@@ -392,8 +393,11 @@ async function serveWeb(req, res) {
     res.end("Bad request");
     return;
   }
-  const requested = path.resolve(publicRoot, `.${pathname}`);
-  if (!requested.startsWith(`${publicRoot}${path.sep}`) && requested !== publicRoot) {
+  const isShowcaseRoute = pathname === "/showcase" || pathname.startsWith("/showcase/");
+  const appRoot = isShowcaseRoute ? showcaseRoot : publicRoot;
+  const appPathname = isShowcaseRoute ? pathname.slice("/showcase".length) || "/" : pathname;
+  const requested = path.resolve(appRoot, `.${appPathname}`);
+  if (!requested.startsWith(`${appRoot}${path.sep}`) && requested !== appRoot) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
@@ -403,7 +407,7 @@ async function serveWeb(req, res) {
     const stat = await fs.stat(filePath);
     if (stat.isDirectory()) filePath = path.join(filePath, "index.html");
   } catch {
-    filePath = path.join(publicRoot, "index.html");
+    filePath = path.join(appRoot, "index.html");
   }
   try {
     const stat = await fs.stat(filePath);

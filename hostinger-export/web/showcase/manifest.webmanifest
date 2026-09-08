@@ -1,0 +1,25 @@
+{
+  "name": "morrow — digital gifts with a pulse",
+  "short_name": "morrow",
+  "description": "A beautifully presented digital gift card studio.",
+  "start_url": "/showcase/",
+  "scope": "/showcase/",
+  "display": "standalone",
+  "background_color": "#f5f1e9",
+  "theme_color": "#20242c",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/showcase/apple-touch-icon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/showcase/favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

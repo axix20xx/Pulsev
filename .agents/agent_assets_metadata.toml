@@ -126,3 +126,17 @@ mtime_ms = 1788874269834
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3bee0dd1-054d-4cfe-99b8-2517f3d39c39/0070b154-4ca7-4622-b4a3-36362d37124b"
 storage_version_token = "1788874276161585"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "CMz8F-WtoHUT6HYj8ChwE"
+uri = "file://exports/pulse-hostinger-supabase-showcase-flat.zip"
+type = "unspecified"
+title = "Pulse Hostinger Package — Panel + Showcase"
+description = "ZIP واحد برای Hostinger شامل پنل مدیریت و API روی /، showcase کارت هدیه روی /showcase، launcher با migration خودکار Supabase، legacy backup، و تنظیمات Node.js App. app.js در ریشهٔ package است و archive با build checker و unzip -t اعتبارسنجی شده است."
+logical_id = "7b74ed3c-5ece-43b3-b049-abefa994ab7b"
+content_hash = "sha256:9de1204e81bb8c20dc1a63fa1af996f36e5cc5e1bbd15aac954990b960b0e1b5"
+size = 25103420
+mtime_ms = 1788874479681
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/7b74ed3c-5ece-43b3-b049-abefa994ab7b/727ef982-ec73-4828-8fe7-75e0d8062022"
+storage_version_token = "1788874491311670"
+content_type = "application/octet-stream"

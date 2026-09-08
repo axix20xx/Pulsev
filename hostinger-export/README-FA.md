@@ -1,6 +1,6 @@
 # بستهٔ استقرار Pulse برای Hostinger + Supabase
 
-این بسته شامل frontend فعلی، API آمادهٔ production، launcher، dump کامل داده‌ها و import خودکار برای PostgreSQL است.
+این بسته شامل پنل فعلی، showcase مستقل gift card، API آمادهٔ production، launcher، dump کامل داده‌ها و import خودکار برای PostgreSQL است.
 
 ## قبل از شروع
 
@@ -26,6 +26,12 @@
    - **Node.js:** نسخهٔ ۲۰ یا بالاتر
 3. Environment Variables زیر را بسازید.
 4. برنامه را Restart کنید.
+
+پس از اجرای موفق:
+
+- پنل مدیریت روی مسیر `/` در دسترس است.
+- showcase کارت‌های هدیه روی مسیر `/showcase` در دسترس است.
+- مسیرهای showcase مانند `/showcase/login` و `/showcase/showcase` نیز توسط launcher به‌صورت SPA مدیریت می‌شوند.
 
 در صورت وجود مرحلهٔ Build در Hostinger، دستور `npm run build` را نگه دارید؛
 این بسته از قبل production build شده و این دستور کامل بودن فایل‌های runtime را

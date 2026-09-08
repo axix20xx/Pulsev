@@ -5,6 +5,7 @@ const requiredFiles = [
   "launcher.mjs",
   "installer.html",
   "web/index.html",
+  "web/showcase/index.html",
   "api/index.mjs",
   "api/lib/migrate-legacy-sql.mjs",
 ];
@@ -20,4 +21,11 @@ if (/["']\/sales-manager\//.test(webIndex)) {
   );
 }
 
-console.log(`Pulse production bundle verified (${requiredFiles.length} files).`);
+const showcaseIndex = await readFile("web/showcase/index.html", "utf8");
+if (!/["']\/showcase\/assets\//.test(showcaseIndex)) {
+  throw new Error(
+    "Hostinger showcase bundle must be built for /showcase/, not the Replit artifact path.",
+  );
+}
+
+console.log(`Pulse production bundle verified (${requiredFiles.length} files, including showcase).`);
