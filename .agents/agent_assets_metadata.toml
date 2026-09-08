@@ -280,3 +280,17 @@ mtime_ms = 1788883152419
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ebf8aa9a-7e54-4b6b-9438-fee3aa67edde/0628b7b7-77d4-4059-bf9b-8daf8ae1ef5e"
 storage_version_token = "1788883191600018"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "TKyzRjVe4H8cklV5dCXqx"
+uri = "file://exports/pulse-hostinger-awg-safe-retry-fix.zip"
+type = "unspecified"
+title = "Safe AWG Renewal Retry Fix"
+description = "Bundle نهایی برای renewal: client سالم حذف نمی‌شود، client قدیمی فقط بعد از ساخت موفق جایگزین حذف می‌شود، و متن واقعی response خطای AmneziaWG در job retry ثبت می‌شود."
+logical_id = "46fcc6f2-054d-4288-9f96-8c4f8849994d"
+content_hash = "sha256:e06c6d80701a02b912a949edf573d02451deca6f3450ddd7e014f34782166873"
+size = 26232618
+mtime_ms = 1788883777364
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/46fcc6f2-054d-4288-9f96-8c4f8849994d/5802856b-beff-4578-a55a-eead0d2d79d3"
+storage_version_token = "1788883791637473"
+content_type = "application/octet-stream"

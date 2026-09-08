@@ -32,3 +32,9 @@ Renewal notification SQL must not reuse one PostgreSQL parameter as both a bigin
 **Why:** PostgreSQL raises `42P08` (`inconsistent types deduced for parameter`) when a service ID parameter is used for `service_id` and directly constrained as text in the same prepared query.
 
 **How to apply:** Pass a separate string parameter for event-key formatting while keeping the numeric service ID parameter for bigint columns.
+
+During renewal, validate an existing AWG configuration before replacing the client.
+
+**Why:** Provider-side client creation can return HTTP 500 even though the existing client remains usable; deleting it first unnecessarily removes a working subscription path.
+
+**How to apply:** Preserve a usable client, create a replacement only when configuration is stale/unavailable, and never delete the old client until replacement creation succeeds.

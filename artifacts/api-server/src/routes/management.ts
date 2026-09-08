@@ -2947,15 +2947,24 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     failedProviderKeys = failed.map((result) => result.key);
     providerWarning = failed.map((result) => `${result.key}: ${result.detail}`).join(" · ") || null;
      if (current.awg_client_id) {
-       // Existing clients can be stale or already missing on AWG. Renewal
-       // uses the same fresh-client path as new service creation instead of
-       // trying to POST the old client ID again.
-       await disableAwgClient(current.awg_client_id);
-       const awg = await createAwgClient();
-       if (awg.clientId) {
-         replacementAwgClientId = awg.clientId;
-       } else {
-         awgWarning = awg.error ?? "AmneziaWG API is unavailable.";
+       // A healthy existing client does not need to be deleted and recreated
+       // for a renewal. Preserve it first; only stale/missing clients need a
+       // fresh create, which avoids unnecessary provider-side 500s.
+       let existingAwgIsUsable = false;
+       try {
+         await getAwgConfiguration(current.awg_client_id);
+         existingAwgIsUsable = true;
+       } catch {
+         // Fall through to stale-client replacement.
+       }
+       if (!existingAwgIsUsable) {
+         const awg = await createAwgClient();
+         if (awg.clientId) {
+           await disableAwgClient(current.awg_client_id);
+           replacementAwgClientId = awg.clientId;
+         } else {
+           awgWarning = awg.error ?? "AmneziaWG API is unavailable.";
+         }
        }
      }
   } catch (error) {
@@ -3002,7 +3011,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       [...values, ...owner.params],
     );
     const renewedVersion = Number(result.rows[0]?.lifecycle_version ?? 0);
-     if (current.awg_client_id && (replacementAwgClientId !== undefined || awgWarning)) {
+     if (current.awg_client_id && replacementAwgClientId !== undefined) {
        await client.query(
          `UPDATE reseller_services
           SET awg_client_id = $1,

@@ -13,6 +13,19 @@ export class AwgApiError extends Error {
   }
 }
 
+function responseError(status: number, text: string): string {
+  const raw = text.trim();
+  if (!raw) return `AmneziaWG returned HTTP ${status}`;
+  let detail = raw;
+  try {
+    const payload = JSON.parse(raw) as Record<string, unknown>;
+    detail = String(payload.detail ?? payload.error ?? payload.message ?? raw);
+  } catch {
+    // Keep the provider's plain-text response.
+  }
+  return `AmneziaWG returned HTTP ${status}: ${detail.replace(/\s+/g, " ").slice(0, 400)}`;
+}
+
 async function config(): Promise<AwgConfig | null> {
   const result = await pool.query<{ awg_api_url: string | null; awg_api_token: string | null }>(
     `SELECT awg_api_url, awg_api_token
@@ -73,7 +86,7 @@ export async function createAwgClient(): Promise<{
       return {
         configured: true,
         clientId: null,
-        error: `AmneziaWG returned HTTP ${response.status}`,
+        error: responseError(response.status, response.text),
       };
     }
     return { configured: true, clientId, error: null };
@@ -95,7 +108,7 @@ export async function getAwgConfiguration(clientId: string): Promise<string> {
     throw new AwgApiError("AmneziaWG API is not configured.");
   }
   if (response.status < 200 || response.status >= 300) {
-    throw new AwgApiError(`AmneziaWG returned HTTP ${response.status}`);
+    throw new AwgApiError(responseError(response.status, response.text));
   }
   if (!response.text.trim()) throw new AwgApiError("AmneziaWG returned an empty configuration.");
   return response.text;
@@ -119,7 +132,11 @@ export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; 
     if (candidate.status !== 404 && candidate.status !== 405) break;
   }
   if (!response || response.status < 200 || response.status >= 300) {
-    throw new AwgApiError(`AmneziaWG returned HTTP ${response?.status ?? 0}`);
+    throw new AwgApiError(
+      response
+        ? responseError(response.status, response.text)
+        : "AmneziaWG returned HTTP 0",
+    );
   }
   let payload: any;
   try {
@@ -176,6 +193,6 @@ export async function recreateAwgClient(clientId: string): Promise<void> {
   const response = await request("POST", "/api/clients", { id: clientId });
   if (!response.configured) throw new AwgApiError("AmneziaWG API is not configured.");
   if (response.status < 200 || response.status >= 300) {
-    throw new AwgApiError(`AmneziaWG returned HTTP ${response.status}`);
+    throw new AwgApiError(responseError(response.status, response.text));
   }
 }

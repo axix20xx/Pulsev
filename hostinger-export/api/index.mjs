@@ -57785,6 +57785,17 @@ var AwgApiError = class extends Error {
     this.name = "AwgApiError";
   }
 };
+function responseError(status, text2) {
+  const raw = text2.trim();
+  if (!raw) return `AmneziaWG returned HTTP ${status}`;
+  let detail = raw;
+  try {
+    const payload = JSON.parse(raw);
+    detail = String(payload.detail ?? payload.error ?? payload.message ?? raw);
+  } catch {
+  }
+  return `AmneziaWG returned HTTP ${status}: ${detail.replace(/\s+/g, " ").slice(0, 400)}`;
+}
 async function config2() {
   const result = await pool.query(
     `SELECT awg_api_url, awg_api_token
@@ -57835,7 +57846,7 @@ async function createAwgClient() {
       return {
         configured: true,
         clientId: null,
-        error: `AmneziaWG returned HTTP ${response.status}`
+        error: responseError(response.status, response.text)
       };
     }
     return { configured: true, clientId, error: null };
@@ -57856,7 +57867,7 @@ async function getAwgConfiguration(clientId) {
     throw new AwgApiError("AmneziaWG API is not configured.");
   }
   if (response.status < 200 || response.status >= 300) {
-    throw new AwgApiError(`AmneziaWG returned HTTP ${response.status}`);
+    throw new AwgApiError(responseError(response.status, response.text));
   }
   if (!response.text.trim()) throw new AwgApiError("AmneziaWG returned an empty configuration.");
   return response.text;
@@ -57879,7 +57890,9 @@ async function getAwgStats(clientId) {
     if (candidate.status !== 404 && candidate.status !== 405) break;
   }
   if (!response || response.status < 200 || response.status >= 300) {
-    throw new AwgApiError(`AmneziaWG returned HTTP ${response?.status ?? 0}`);
+    throw new AwgApiError(
+      response ? responseError(response.status, response.text) : "AmneziaWG returned HTTP 0"
+    );
   }
   let payload;
   try {
@@ -57932,7 +57945,7 @@ async function recreateAwgClient(clientId) {
   const response = await request2("POST", "/api/clients", { id: clientId });
   if (!response.configured) throw new AwgApiError("AmneziaWG API is not configured.");
   if (response.status < 200 || response.status >= 300) {
-    throw new AwgApiError(`AmneziaWG returned HTTP ${response.status}`);
+    throw new AwgApiError(responseError(response.status, response.text));
   }
 }
 
@@ -61070,12 +61083,20 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
       failedProviderKeys = failed.map((result2) => result2.key);
       providerWarning = failed.map((result2) => `${result2.key}: ${result2.detail}`).join(" \xB7 ") || null;
       if (current.awg_client_id) {
-        await disableAwgClient(current.awg_client_id);
-        const awg = await createAwgClient();
-        if (awg.clientId) {
-          replacementAwgClientId = awg.clientId;
-        } else {
-          awgWarning = awg.error ?? "AmneziaWG API is unavailable.";
+        let existingAwgIsUsable = false;
+        try {
+          await getAwgConfiguration(current.awg_client_id);
+          existingAwgIsUsable = true;
+        } catch {
+        }
+        if (!existingAwgIsUsable) {
+          const awg = await createAwgClient();
+          if (awg.clientId) {
+            await disableAwgClient(current.awg_client_id);
+            replacementAwgClientId = awg.clientId;
+          } else {
+            awgWarning = awg.error ?? "AmneziaWG API is unavailable.";
+          }
         }
       }
     } catch (error40) {
@@ -61122,7 +61143,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
         [...values, ...owner.params]
       );
       const renewedVersion = Number(result.rows[0]?.lifecycle_version ?? 0);
-      if (current.awg_client_id && (replacementAwgClientId !== void 0 || awgWarning)) {
+      if (current.awg_client_id && replacementAwgClientId !== void 0) {
         await client.query(
           `UPDATE reseller_services
           SET awg_client_id = $1,
