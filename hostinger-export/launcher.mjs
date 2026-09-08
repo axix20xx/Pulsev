@@ -11,6 +11,7 @@ const installerPath = path.join(root, "installer.html");
 const publicPort = Number(process.env.PORT || 3000);
 const apiPort = Number(process.env.API_INTERNAL_PORT || publicPort + 1);
 let api;
+let apiReady = false;
 let migrationProcess;
 let startupPromise;
 let shuttingDown = false;
@@ -86,6 +87,30 @@ function pipeChildOutput(stream, source, onlyErrors = false) {
 
 function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function probeApi() {
+  return new Promise((resolve) => {
+    const request = http.request(
+      {
+        hostname: "127.0.0.1",
+        port: apiPort,
+        path: "/api/auth/session",
+        method: "GET",
+        headers: { host: `127.0.0.1:${apiPort}` },
+      },
+      (response) => {
+        response.resume();
+        resolve(typeof response.statusCode === "number");
+      },
+    );
+    request.setTimeout(1_500, () => {
+      request.destroy();
+      resolve(false);
+    });
+    request.on("error", () => resolve(false));
+    request.end();
+  });
 }
 
 async function startApiInternal() {
@@ -171,24 +196,39 @@ async function startApiInternal() {
 
   installState.phase = "starting-api";
   installState.updatedAt = new Date().toISOString();
+  if (await probeApi()) {
+    // Hostinger can restart the public launcher while the previous API child
+    // survives briefly. Reuse that healthy local API instead of creating a
+    // second child that will fail with EADDRINUSE on API_INTERNAL_PORT.
+    apiReady = true;
+    installState.apiRunning = true;
+    installState.phase = "ready";
+    installState.updatedAt = new Date().toISOString();
+    recordInstallLog("API قبلی روی پورت داخلی فعال است؛ از همان process استفاده شد.");
+    return;
+  }
+
   api = spawn(process.execPath, [path.join(root, "api", "index.mjs")], {
     env: childEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
   pipeChildOutput(api.stdout, "api", true);
   pipeChildOutput(api.stderr, "api", true);
+  apiReady = true;
   installState.apiRunning = true;
   installState.phase = "ready";
   installState.updatedAt = new Date().toISOString();
   recordInstallLog("API آماده است؛ می‌توانید وارد پنل شوید.");
   api.on("error", (error) => {
     console.error("Could not start the API process:", error);
+    apiReady = false;
     installState.apiRunning = false;
     installState.phase = "error";
     installState.error = error.message;
     recordInstallLog(error.message, "error");
   });
   api.on("exit", (code, signal) => {
+    apiReady = false;
     installState.apiRunning = false;
     if (code !== 0 && installState.phase === "ready") {
       installState.phase = "error";
@@ -200,7 +240,7 @@ async function startApiInternal() {
 
 async function startApi() {
   if (shuttingDown) return;
-  if (api && !api.killed) return;
+  if (apiReady || (api && !api.killed)) return;
   if (startupPromise) return startupPromise;
   startupPromise = startApiInternal()
     .catch((error) => {
@@ -235,7 +275,7 @@ async function serveInstaller(res) {
 function handleInstallRoute(req, res) {
   const requestUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   if (requestUrl.pathname === "/install/status" && req.method === "GET") {
-    json(res, 200, { ...installState, apiRunning: Boolean(api && !api.killed) });
+    json(res, 200, { ...installState, apiRunning: apiReady || Boolean(api && !api.killed) });
     return true;
   }
   if (requestUrl.pathname === "/install/retry" && req.method === "POST") {

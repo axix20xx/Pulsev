@@ -1,0 +1,34 @@
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+Pulse Hostinger server listening on port 3000
+[migration] {"timestamp":"2026-09-08T10:47:45.920Z","level":"INFO","message":"Connecting to PostgreSQL for the legacy migration check..."}
+[migration] {"timestamp":"2026-09-08T10:47:47.966Z","level":"INFO","message":"Legacy migration lock acquired."}
+[migration] {"timestamp":"2026-09-08T10:47:50.011Z","level":"INFO","message":"PostgreSQL target: database=postgres, schema=public, user=postgres"}
+[migration] {"timestamp":"2026-09-08T10:47:51.023Z","level":"INFO","message":"Legacy SQL migration already completed."}
+[api] [10:47:51.923] [32mINFO[39m (2383380): [36mCombined usage sync worker started[39m
+[api] [35mintervalMs[39m: 60000
+[api] [10:47:51.929] [31mERROR[39m (2383380): [36mError listening on port[39m
+[api] err: {
+[api] "type": "Error",
+[api] "message": "listen EADDRINUSE: address already in use :::3001",
+[api] "stack":
+[api] Error: listen EADDRINUSE: address already in use :::3001
+[api] at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+[api] at listenInCluster (node:net:1965:12)
+[api] at Server.listen (node:net:2067:7)
+[api] at Function.listen (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a080a0-c2af-707e-b4ac-269ec9c0b595/nodejs/api/index.mjs:21333:28)
+[api] at file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a080a0-c2af-707e-b4ac-269ec9c0b595/nodejs/api/index.mjs:62341:13
+[api] at ModuleJob.run (node:internal/modules/esm/module_job:263:25)
+[api] at async ModuleLoader.import (node:internal/modules/esm/loader:540:24)
+[api] at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+[api] "code": "EADDRINUSE",
+[api] "errno": -98,
+[api] "syscall": "listen",
+[api] "address": "::",
+[api] "port": 3001
+[api] }
