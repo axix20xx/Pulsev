@@ -2740,10 +2740,10 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
       await client.query(
         `INSERT INTO reseller_notifications
           (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
-         VALUES ($1, $2, 'service-created:' || $2::text, 'service',
+         VALUES ($1, $2::bigint, 'service-created:' || ($2::bigint)::text, 'service',
                  'سرویس جدید آماده است',
-                 'شناسه سرویس: ' || 'PULSE-' || LPAD($2::text, 6, '0') || ' · برای مشاهده جزئیات باز کنید',
-                  COALESCE((SELECT '/sub?t=' || token FROM reseller_sub_tokens WHERE service_id::text = $2::text LIMIT 1),
+                 'شناسه سرویس: ' || 'PULSE-' || LPAD(($2::bigint)::text, 6, '0') || ' · برای مشاهده جزئیات باز کنید',
+                  COALESCE((SELECT '/sub?t=' || token FROM reseller_sub_tokens WHERE service_id::text = ($2::bigint)::text LIMIT 1),
                           '/customers/' || $3::text),
                  'normal', NOW())
          ON CONFLICT (reseller_tg_id, event_key) DO UPDATE SET

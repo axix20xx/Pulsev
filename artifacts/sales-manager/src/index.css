@@ -3018,6 +3018,12 @@ table td { font-size: 11px; }
 .sale-edit-payment small { color: hsl(var(--muted-foreground)); font-size: 11px; }
 .sale-edit-payment .toggle { flex: 0 0 auto; }
 .sale-edit-modal .modal-actions { display: flex; justify-content: flex-start; gap: 8px; margin-top: 22px; }
+.sale-payment-actions { display: flex; flex-wrap: wrap; gap: 5px; min-width: 158px; }
+.sale-payment-button { display: inline-flex; min-height: 28px; align-items: center; gap: 4px; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); padding: 0 7px; color: hsl(var(--muted-foreground)); font-size: 9px; font-weight: 800; white-space: nowrap; }
+.sale-payment-button.paid.selected { border-color: hsl(154 42% 45% / .42); background: hsl(154 40% 91%); color: hsl(154 42% 30%); }
+.sale-payment-button.unpaid.selected { border-color: hsl(31 64% 50% / .38); background: hsl(38 78% 92%); color: hsl(31 64% 37%); }
+.sale-payment-button:not(:disabled):hover { border-color: hsl(var(--primary) / .45); background: hsl(var(--primary) / .07); color: hsl(var(--primary)); }
+.sale-payment-button:disabled { cursor: default; opacity: 1; }
 .pulse-mobile-dock { min-height: 68px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 .pulse-mobile-dock .mobile-quick-sale { display: flex; min-width: 66px; min-height: 58px; flex-direction: column; align-items: center; justify-content: center; gap: 2px; margin-top: -18px; border: 3px solid hsl(var(--background)); border-radius: 19px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 10px 24px hsl(var(--primary) / .32); font-size: 10px; font-weight: 900; line-height: 1.1; transition: transform .18s ease, box-shadow .18s ease; }
 .pulse-mobile-dock .mobile-quick-sale:hover,
@@ -3028,6 +3034,16 @@ table td { font-size: 11px; }
   .pulse-mobile-dock { padding-right: 3px; padding-left: 3px; }
   .pulse-mobile-dock > a:not(.mobile-quick-sale) { padding: 7px 4px; }
   .pulse-mobile-dock .mobile-quick-sale { min-width: 60px; }
+}
+@media (max-width: 620px) {
+  .sale-edit-backdrop { align-items: stretch; padding: 0; }
+  .sale-edit-modal { display: flex; width: 100vw; height: 100dvh; max-height: 100dvh; flex-direction: column; overflow-y: auto; border: 0; border-radius: 0; padding: max(18px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom)); }
+  .sale-edit-modal .panel-heading { flex-shrink: 0; }
+  .sale-edit-modal .sale-edit-summary { flex-shrink: 0; }
+  .sale-edit-modal .field { flex-shrink: 0; }
+  .sale-edit-modal .sale-edit-payment { flex-shrink: 0; }
+  .sale-edit-modal .modal-actions { position: sticky; bottom: 0; margin-top: auto; padding-top: 18px; background: linear-gradient(hsl(42 33% 97% / 0), hsl(42 33% 97%) 22%); }
+  .sale-edit-modal .modal-actions .button { min-height: 46px; flex: 1; justify-content: center; }
 }
 
 .login-screen {

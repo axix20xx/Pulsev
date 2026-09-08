@@ -33,8 +33,8 @@ Hostinger restarts must terminate the migration child process, and migration loc
 
 **How to apply:** Track and kill the migration child on shutdown, use retryable advisory-lock polling with a deadline, set a database connection timeout, and emit regular migration heartbeat logs.
 
-Legacy imports on Hostinger can preserve numeric IDs with different integer widths across related tables; service-creation SQL should normalize ID comparisons explicitly instead of relying on PostgreSQL implicit coercion.
+Legacy imports on Hostinger can preserve numeric IDs with different integer widths across related tables; service-creation SQL needs explicit, consistent parameter typing.
 
-**Why:** A migrated Hostinger database returned `operator does not exist: integer = text` only when the quick-sale service creation path reached its ownership/customer lookups.
+**Why:** A migrated Hostinger database first returned `operator does not exist: integer = text`, then exposed PostgreSQL `42P08` when one parameter was reused as both text and bigint in the quick-sale notification query.
 
-**How to apply:** For compatibility-sensitive create-service joins and lookups, compare numeric identifiers through an explicit common representation and keep the source legacy schema unchanged.
+**How to apply:** For compatibility-sensitive create-service joins and lookups, use explicit casts and keep each bind parameter on one base type throughout a query; derive text values from that typed value and keep the source legacy schema unchanged.

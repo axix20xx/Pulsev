@@ -60874,10 +60874,10 @@ router2.post("/services", requireAuth, async (req, res) => {
       await client.query(
         `INSERT INTO reseller_notifications
           (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
-         VALUES ($1, $2, 'service-created:' || $2::text, 'service',
+         VALUES ($1, $2::bigint, 'service-created:' || ($2::bigint)::text, 'service',
                  '\u0633\u0631\u0648\u06CC\u0633 \u062C\u062F\u06CC\u062F \u0622\u0645\u0627\u062F\u0647 \u0627\u0633\u062A',
-                 '\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633: ' || 'PULSE-' || LPAD($2::text, 6, '0') || ' \xB7 \u0628\u0631\u0627\u06CC \u0645\u0634\u0627\u0647\u062F\u0647 \u062C\u0632\u0626\u06CC\u0627\u062A \u0628\u0627\u0632 \u06A9\u0646\u06CC\u062F',
-                  COALESCE((SELECT '/sub?t=' || token FROM reseller_sub_tokens WHERE service_id::text = $2::text LIMIT 1),
+                 '\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633: ' || 'PULSE-' || LPAD(($2::bigint)::text, 6, '0') || ' \xB7 \u0628\u0631\u0627\u06CC \u0645\u0634\u0627\u0647\u062F\u0647 \u062C\u0632\u0626\u06CC\u0627\u062A \u0628\u0627\u0632 \u06A9\u0646\u06CC\u062F',
+                  COALESCE((SELECT '/sub?t=' || token FROM reseller_sub_tokens WHERE service_id::text = ($2::bigint)::text LIMIT 1),
                           '/customers/' || $3::text),
                  'normal', NOW())
          ON CONFLICT (reseller_tg_id, event_key) DO UPDATE SET
