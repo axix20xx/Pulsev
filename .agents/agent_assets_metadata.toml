@@ -336,3 +336,17 @@ mtime_ms = 1788886092513
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6bd360eb-7921-4c61-bd66-4385ffb82dbe/eb2af395-bf55-4cdd-8154-3aca6758ea65"
 storage_version_token = "1788886117992710"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "u0cUOMNNNwWIsPrXLATv8"
+uri = "file://exports/pulse-hostinger-renew-no-hang.zip"
+type = "unspecified"
+title = "Pulse Hostinger — Renewal No-Hang Fix"
+description = "نسخهٔ Hostinger با جلوگیری از انتظار نامحدود قفل تمدید؛ در صورت تمدید هم‌زمان، پاسخ کنترل‌شدهٔ RENEWAL_IN_PROGRESS برمی‌گردد. build، syntax و ZIP validation موفق بودند."
+logical_id = "224dbea4-5ac1-4c80-8ec9-cb0da35a037a"
+content_hash = "sha256:b32bd7b376f6f73a8da727b859502d2030733fbfc89a099d2dad5f7484231dfb"
+size = 26230215
+mtime_ms = 1788886768017
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/224dbea4-5ac1-4c80-8ec9-cb0da35a037a/4c0bd7bd-69df-4494-bc2a-aaeb6c18c394"
+storage_version_token = "1788886778487756"
+content_type = "application/octet-stream"

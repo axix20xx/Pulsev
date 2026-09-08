@@ -61044,7 +61044,25 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
   const serviceId = params.data.id;
   let renewalPhase = "acquire-lock";
   const lifecycleLock = await pool.connect();
-  await lifecycleLock.query("SELECT pg_advisory_lock(74421, $1)", [params.data.id]);
+  let lockAcquired = false;
+  try {
+    const lockResult = await lifecycleLock.query(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [serviceId]
+    );
+    if (!lockResult.rows[0]?.locked) {
+      lifecycleLock.release();
+      res.status(409).json({
+        error: "\u062A\u0645\u062F\u06CC\u062F \u0647\u0645\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631 \u062D\u0627\u0644 \u0627\u0646\u062C\u0627\u0645 \u0627\u0633\u062A\u061B \u0686\u0646\u062F \u0644\u062D\u0638\u0647 \u0628\u0639\u062F \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F",
+        code: "RENEWAL_IN_PROGRESS"
+      });
+      return;
+    }
+    lockAcquired = true;
+  } catch (error40) {
+    lifecycleLock.release();
+    throw error40;
+  }
   try {
     renewalPhase = "load-service";
     const owner = ownership("svc", req);
@@ -61291,7 +61309,9 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
       });
     }
   } finally {
-    await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [params.data.id]).catch(() => void 0);
+    if (lockAcquired) {
+      await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [serviceId]).catch(() => void 0);
+    }
     lifecycleLock.release();
   }
 });

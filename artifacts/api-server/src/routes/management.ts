@@ -2906,7 +2906,25 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   const serviceId = params.data.id;
   let renewalPhase = "acquire-lock";
   const lifecycleLock = await pool.connect();
-  await lifecycleLock.query("SELECT pg_advisory_lock(74421, $1)", [params.data.id]);
+  let lockAcquired = false;
+  try {
+    const lockResult = await lifecycleLock.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [serviceId],
+    );
+    if (!lockResult.rows[0]?.locked) {
+      lifecycleLock.release();
+      res.status(409).json({
+        error: "تمدید همین سرویس در حال انجام است؛ چند لحظه بعد دوباره تلاش کنید",
+        code: "RENEWAL_IN_PROGRESS",
+      });
+      return;
+    }
+    lockAcquired = true;
+  } catch (error) {
+    lifecycleLock.release();
+    throw error;
+  }
   try {
    renewalPhase = "load-service";
    const owner = ownership("svc", req);
@@ -3160,7 +3178,9 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
      });
    }
   } finally {
-    await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [params.data.id]).catch(() => undefined);
+    if (lockAcquired) {
+      await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [serviceId]).catch(() => undefined);
+    }
     lifecycleLock.release();
   }
 });
