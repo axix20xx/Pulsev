@@ -39,6 +39,31 @@ const serviceHasRecentFailure = (service: Service) => {
   return !updatedAt || Date.now() - updatedAt <= 30 * 86_400_000;
 };
 const serviceHasCancellation = (service: Service) => service.status === 'Disabled' || service.cancelStatus === 'pending' || service.cancelStatus === 'approved';
+const describeApiError = (cause: unknown) => {
+  if (!cause || typeof cause !== 'object') return cause instanceof Error ? cause.message : 'تمدید انجام نشد.';
+  const error = cause as {
+    message?: unknown;
+    status?: unknown;
+    method?: unknown;
+    url?: unknown;
+    data?: unknown;
+  };
+  const data = error.data && typeof error.data === 'object' ? error.data as Record<string, unknown> : null;
+  const serverMessage = typeof data?.error === 'string' ? data.error : '';
+  const phase = typeof data?.phase === 'string' ? data.phase : '';
+  const request = typeof error.method === 'string' && typeof error.url === 'string'
+    ? `${error.method} ${error.url}`
+    : '';
+  const base = typeof error.message === 'string' && error.message
+    ? error.message
+    : serverMessage || `HTTP ${String(error.status ?? 'unknown')}`;
+  return [
+    base,
+    serverMessage && !base.includes(serverMessage) ? serverMessage : '',
+    phase ? `مرحله: ${phase}` : '',
+    request ? `درخواست: ${request}` : '',
+  ].filter(Boolean).join(' · ');
+};
 const mapCustomer = (item: any): Customer => ({ id: String(item.id), name: item.name ?? 'مشتری', phone: item.phone ?? 'ثبت نشده', email: item.email ?? 'ثبت نشده', activeServices: Number(item.active_services ?? 0), totalSpend: Number(item.total_spend ?? 0), lastPurchase: item.last_purchase ?? '' });
 type CustomerTab = 'active' | 'inactive';
 const CUSTOMER_PAGE_SIZE = 12;
@@ -1296,7 +1321,7 @@ function RenewWizard({ service, onClose, onRenew }: { service: Service; onClose:
     const timer = window.setInterval(() => setRenewSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, [submitting]);
-  const submit = async () => { setSubmitting(true); setError(''); try { const result = await onRenew(service, Number(days), Number(gb)); setRenewed(result); } catch (cause) { setError(cause instanceof Error ? cause.message : 'تمدید انجام نشد.'); } finally { setSubmitting(false); } };
+  const submit = async () => { setSubmitting(true); setError(''); try { const result = await onRenew(service, Number(days), Number(gb)); setRenewed(result); } catch (cause) { setError(describeApiError(cause)); } finally { setSubmitting(false); } };
   if (submitting) {
     const phase = renewSeconds < 2 ? 0 : renewSeconds < 7 ? 1 : renewSeconds < 13 ? 2 : 3;
     const phases = [

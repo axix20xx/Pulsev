@@ -210,3 +210,17 @@ mtime_ms = 1788880740999
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/90428753-5e47-4c22-9f6a-5534890870fc/65431a53-7c5a-4f00-8238-e95f75f5655a"
 storage_version_token = "1788880746856470"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "3kJnJ132f6OoEEeiYcuPJ"
+uri = "file://exports/pulse-hostinger-renewal-debug-ui.zip"
+type = "unspecified"
+title = "Hostinger Renewal Debug UI Bundle"
+description = "نسخهٔ جدید با fallback امن AWG، diagnostics سمت API، ثبت خطا در install log، و نمایش status/phase/URL خطای renewal مستقیماً داخل wizard پنل. شامل پنل build‌شده، API، showcase، /sub و migration."
+logical_id = "32504627-3c0e-4a4c-a388-89cfa2498036"
+content_hash = "sha256:678f50831eec0306eedeb1d152ec93f22fd1b332451cf318298bc556ece97194"
+size = 26231330
+mtime_ms = 1788881110126
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/32504627-3c0e-4a4c-a388-89cfa2498036/841b1547-fbcb-4102-a8b3-7dacb07e80f9"
+storage_version_token = "1788881117401564"
+content_type = "application/octet-stream"
