@@ -112,3 +112,17 @@ mtime_ms = 1788865904563
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5c87b3da-cce9-4b42-97ac-ac02beacb9d5/aa25f307-3fe9-4e59-9488-3c3df8eb37b8"
 storage_version_token = "1788865929121774"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "MORri8zB1LUoOaIAOlFCr"
+uri = "file://exports/gift-card-showcase-hostinger.zip"
+type = "unspecified"
+title = "Morrow Gift Card Showcase — Hostinger Package"
+description = "بستهٔ آمادهٔ آپلود به public_html شامل build استاتیک در ریشه، .htaccess برای routeهای /login و /showcase، manifest و آیکن‌های root، به‌همراه source کامل در webapp/. ZIP با unzip -t اعتبارسنجی شده است."
+logical_id = "3bee0dd1-054d-4cfe-99b8-2517f3d39c39"
+content_hash = "sha256:fa0becedab71d737284284ab21f4188c72dde14feea60e9d84660819c5f3754a"
+size = 225262
+mtime_ms = 1788874269834
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3bee0dd1-054d-4cfe-99b8-2517f3d39c39/0070b154-4ca7-4622-b4a3-36362d37124b"
+storage_version_token = "1788874276161585"
+content_type = "application/octet-stream"
