@@ -13,8 +13,11 @@ export type MobileSubscription = {
   remaining_gb?: number | null;
   usage_percent?: number | null;
   server?: string | null;
+  provider_name?: string | null;
   username?: string | null;
   subscription_url?: string | null;
+  provider_url?: string | null;
+  v2box_url?: string | null;
   public_url?: string | null;
   awg_url?: string | null;
   service_code?: string | null;

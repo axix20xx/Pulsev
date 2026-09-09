@@ -72,3 +72,27 @@
 @media (min-width: 760px) { .mobile-app { background: radial-gradient(circle at 10% 15%, #eaf0df 0, transparent 28%), var(--mobile-paper); }.mobile-bottom-nav { bottom: 18px; border: 1px solid var(--mobile-line); border-radius: 22px; box-shadow: 0 15px 40px rgba(23,56,58,.1); }.mobile-main { padding-bottom: 116px; }.mobile-auth-content { padding-bottom: 20px; }.mobile-auth-intro { padding-top: 12vh; } }
 @media (max-width: 390px) { .mobile-main { padding-right: 16px; padding-left: 16px; }.mobile-horizontal-scroll { margin-right: -16px; margin-left: -16px; padding-right: 16px; padding-left: 16px; }.mobile-access-grid { gap: 5px; }.mobile-access-action { font-size: 8px; }.mobile-detail-visual { gap: 13px; padding: 16px; }.mobile-usage-ring { width: 96px; height: 96px; }.mobile-usage-ring::before { width: 78px; height: 78px; } .mobile-install-hero { grid-template-columns: 108px 1fr; gap: 12px; margin-right: -16px; margin-left: -16px; padding-right: 16px; padding-left: 16px; } .mobile-install-phone { width: 101px; height: 174px; } .mobile-install-phone-screen { transform: scale(.9); } .mobile-install-copy h1 { font-size: 23px; } }
 @media (prefers-reduced-motion: reduce) { .mobile-install-phone, .mobile-install-tap, .mobile-install-step { animation: none; } }
+
+/* Mobile detail connections and safe-area overrides. */
+.mobile-bottom-nav { right: 12px; left: 12px; width: auto; max-width: 560px; transform: none; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mobile-nav-item { min-width: 0; }
+.mobile-connection-stack { display: grid; gap: 12px; }
+.mobile-provider-card, .mobile-awg-card { overflow: hidden; border: 1px solid var(--mobile-line); border-radius: 21px; background: var(--mobile-card); padding: 15px; }
+.mobile-provider-card { border-color: rgba(109,155,77,.35); background: linear-gradient(145deg, #fffefa 0%, #f0f6e5 100%); }
+.mobile-awg-card { background: var(--mobile-ink); color: #f5f8eb; }
+.mobile-connection-card-head { display: flex; align-items: center; gap: 11px; }
+.mobile-connection-card-head h3 { margin: 2px 0; font-size: 15px; }
+.mobile-connection-card-head p { margin: 0; color: var(--mobile-ink-soft); font-size: 9px; line-height: 1.7; }
+.mobile-awg-card .mobile-connection-card-head p { color: rgba(245,248,235,.58); }
+.mobile-connection-icon, .mobile-awg-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 auto; border-radius: 14px; background: var(--mobile-mint); color: var(--mobile-ink); }
+.mobile-awg-icon { background: rgba(185,220,128,.15); color: var(--mobile-mint); }
+.mobile-v2box-button { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 14px; border-radius: 13px; background: var(--mobile-ink); padding: 12px; color: var(--mobile-mint); font-size: 11px; font-weight: 800; text-decoration: none; }
+.mobile-connection-actions, .mobile-awg-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.mobile-connection-actions button, .mobile-awg-actions button, .mobile-awg-actions a { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 0; border: 0; border-radius: 11px; background: rgba(23,56,58,.07); padding: 9px 5px; color: var(--mobile-ink-soft); font: inherit; font-size: 9px; font-weight: 800; text-decoration: none; }
+.mobile-awg-actions { grid-template-columns: 1fr 1fr; }
+.mobile-awg-actions button, .mobile-awg-actions a { background: rgba(255,255,255,.1); color: #f5f8eb; }
+.mobile-connection-actions button:hover { background: #e5efd8; }
+@media (max-width: 390px) {
+  .mobile-bottom-nav { right: 8px; left: 8px; }
+  .mobile-connection-actions button, .mobile-awg-actions button, .mobile-awg-actions a { font-size: 8px; }
+}

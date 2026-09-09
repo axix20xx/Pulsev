@@ -68953,8 +68953,11 @@ var mapService = (req, row) => {
     usage_percent: totalBytes > 0 ? Math.min(100, Number((usedBytes / totalBytes * 100).toFixed(1))) : 0,
     customer_name: row.customer_name,
     server: row.panel || "V2Box",
+    provider_name: row.panel || "Provider \u0627\u0635\u0644\u06CC",
     username: row.username,
     subscription_url: subscriptionUrl2,
+    provider_url: subscriptionUrl2,
+    v2box_url: subscriptionUrl2 ? `v2box://install-sub?url=${encodeURIComponent(subscriptionUrl2)}&name=${encodeURIComponent(row.plan)}` : null,
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
     awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
     service_code: `PULSE-${String(row.id).padStart(6, "0")}`

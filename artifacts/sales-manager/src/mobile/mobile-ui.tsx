@@ -1,8 +1,8 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import {
-  Bell, ChevronLeft, Copy, Download, Home, Package, QrCode,
-  RefreshCw, Share2, ShieldCheck, UserRound, WifiOff, X, Check, LockKeyhole,
+  Bell, ChevronLeft, Copy, Download, ExternalLink, Home, Package, QrCode,
+  RefreshCw, Share2, ShieldCheck, UserRound, WifiOff, X, Check, LockKeyhole, Wifi,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { type MobileNotification, type MobileSubscription, faNumber, formatMobileDate, statusCopy } from './mobile-api';
@@ -84,13 +84,24 @@ export function UsageRing({ item }: { item: MobileSubscription }) {
 export function AccessActions({ item }: { item: MobileSubscription }) {
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState('');
-  const links = [
-    { label: 'لینک اشتراک', value: item.subscription_url || item.public_url, Icon: Copy, action: async (value: string) => { await navigator.clipboard?.writeText(value); setCopied('لینک اشتراک'); } },
-    { label: 'اشتراک‌گذاری', value: item.subscription_url || item.public_url, Icon: Share2, action: async (value: string) => { if (navigator.share) await navigator.share({ title: item.plan, url: value }); else { await navigator.clipboard?.writeText(value); setCopied('لینک اشتراک'); } } },
-    { label: 'کد QR', value: item.subscription_url || item.public_url, Icon: QrCode, action: async (value: string) => setQr(await QRCode.toDataURL(value, { margin: 2, width: 240, color: { dark: '#163d40', light: '#f7f6f0' } })) },
-    { label: 'دانلود', value: item.awg_url || item.subscription_url || item.public_url, Icon: Download, action: async (value: string) => { const anchor = document.createElement('a'); anchor.href = value; anchor.download = `${item.plan}-config`; anchor.target = '_blank'; anchor.click(); } },
-  ].filter((entry) => Boolean(entry.value));
-  return <><div className="mobile-access-grid">{links.map(({ label, value, Icon, action }) => <button key={label} className="mobile-access-action" onClick={() => action(value as string)}><Icon size={18} /><span>{label}</span></button>)}</div>{copied ? <div className="mobile-toast"><Check size={16} /> {copied} کپی شد</div> : null}{qr ? <div className="mobile-modal-backdrop" onClick={() => setQr('')}><div className="mobile-qr-modal" onClick={(event) => event.stopPropagation()}><button className="mobile-icon-button mobile-modal-close" onClick={() => setQr('')}><X size={18} /></button><p>اسکن کنید تا اشتراک اضافه شود</p><img src={qr} alt="کد QR اشتراک" /><small>{item.plan}</small></div></div> : null}</>;
+  const providerUrl = item.provider_url || item.subscription_url || item.public_url;
+  const v2boxUrl = item.v2box_url || (providerUrl ? `v2box://install-sub?url=${encodeURIComponent(providerUrl)}&name=${encodeURIComponent(item.plan)}` : '');
+  const copyValue = async (value: string, label: string) => { await navigator.clipboard?.writeText(value); setCopied(label); };
+  const shareValue = async (value: string) => { if (navigator.share) await navigator.share({ title: item.plan, url: value }); else await copyValue(value, 'لینک Provider'); };
+  const showQr = async (value: string) => setQr(await QRCode.toDataURL(value, { margin: 2, width: 240, color: { dark: '#163d40', light: '#f7f6f0' } }));
+  return <div className="mobile-connection-stack">
+    {providerUrl ? <section className="mobile-provider-card">
+      <div className="mobile-connection-card-head"><span className="mobile-connection-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">مسیر اتصال اصلی</span><h3>Providerها</h3><p>{item.provider_name || item.server || 'Provider اصلی'} · لینک اشتراک به‌روز</p></div></div>
+      <a className="mobile-v2box-button" href={v2boxUrl}><ExternalLink size={17} /> باز کردن مستقیم در V2Box</a>
+      <div className="mobile-connection-actions"><button onClick={() => void copyValue(providerUrl, 'لینک Provider')}><Copy size={15} /> کپی لینک</button><button onClick={() => void shareValue(providerUrl)}><Share2 size={15} /> اشتراک‌گذاری</button><button onClick={() => void showQr(providerUrl)}><QrCode size={15} /> QR</button></div>
+    </section> : null}
+    {item.awg_url ? <section className="mobile-awg-card">
+      <div className="mobile-connection-card-head"><span className="mobile-awg-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">اتصال اختصاصی</span><h3>AmneziaWG</h3><p>کانفیگ جداگانه برای اتصال پایدارتر</p></div></div>
+      <div className="mobile-awg-actions"><a href={item.awg_url} download><Download size={16} /> دانلود کانفیگ</a><button onClick={() => void copyValue(item.awg_url as string, 'لینک AmneziaWG')}><Copy size={15} /> کپی لینک</button></div>
+    </section> : null}
+    {copied ? <div className="mobile-toast mobile-toast-inline"><Check size={16} /> {copied} کپی شد</div> : null}
+    {qr ? <div className="mobile-modal-backdrop" onClick={() => setQr('')}><div className="mobile-qr-modal" onClick={(event) => event.stopPropagation()}><button className="mobile-icon-button mobile-modal-close" onClick={() => setQr('')}><X size={18} /></button><p>اسکن کنید تا اشتراک اضافه شود</p><img src={qr} alt="کد QR اشتراک" /><small>{item.plan}</small></div></div> : null}
+  </div>;
 }
 
 export function NotificationRow({ item, onRead }: { item: MobileNotification; onRead: () => void }) {

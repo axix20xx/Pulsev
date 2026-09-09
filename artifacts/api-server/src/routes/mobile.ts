@@ -221,8 +221,13 @@ const mapService = (req: Request, row: MobileServiceRow) => {
     usage_percent: totalBytes > 0 ? Math.min(100, Number((usedBytes / totalBytes * 100).toFixed(1))) : 0,
     customer_name: row.customer_name,
     server: row.panel || "V2Box",
+    provider_name: row.panel || "Provider اصلی",
     username: row.username,
     subscription_url: subscriptionUrl,
+    provider_url: subscriptionUrl,
+    v2box_url: subscriptionUrl
+      ? `v2box://install-sub?url=${encodeURIComponent(subscriptionUrl)}&name=${encodeURIComponent(row.plan)}`
+      : null,
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
     awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
     service_code: `PULSE-${String(row.id).padStart(6, "0")}`,
