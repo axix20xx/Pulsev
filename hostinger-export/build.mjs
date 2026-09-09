@@ -1,4 +1,4 @@
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 
 const requiredFiles = [
   "app.js",
@@ -44,6 +44,13 @@ if (!/["']\/mobile\/assets\//.test(mobileIndex)) {
     "Hostinger mobile bundle must be built for /mobile/, not /panel/ or the domain root.",
   );
 }
+
+const mobileManifestPath = "web/mobile/mobile/manifest.webmanifest";
+const mobileManifest = JSON.parse(await readFile(mobileManifestPath, "utf8"));
+mobileManifest.id = "/mobile";
+mobileManifest.start_url = "/mobile";
+mobileManifest.scope = "/mobile/";
+await writeFile(`${mobileManifestPath}`, `${JSON.stringify(mobileManifest, null, 2)}\n`, "utf8");
 
 const subscriptionIndex = await readFile("web/sub-app/index.html", "utf8");
 if (!/["']\/panel-sub-assets\//.test(subscriptionIndex)) {

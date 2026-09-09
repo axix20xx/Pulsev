@@ -5,8 +5,8 @@ self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {};
   event.waitUntil(self.registration.showNotification(data.title || 'پالس', {
     body: data.body || 'یک اعلان تازه برای شما آماده است.',
-    icon: '../favicon.svg',
-    badge: '../favicon.svg',
+    icon: './favicon.svg',
+    badge: './favicon.svg',
     dir: 'rtl',
     lang: 'fa',
     data: { href: data.href || './notifications' },
