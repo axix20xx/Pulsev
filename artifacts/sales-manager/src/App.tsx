@@ -60,10 +60,12 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 }
 
 function App() {
+  const configuredBase = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const routerBase = configuredBase.endsWith('/mobile') ? '' : configuredBase;
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+        <WouterRouter base={routerBase}>
           <Router />
         </WouterRouter>
         <Toaster />
