@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Route, Switch, useLocation, useParams } from 'wouter';
-import { ChevronLeft, LockKeyhole, LogOut, MoreHorizontal, Phone, RefreshCw, Settings, ShieldCheck, Smartphone } from 'lucide-react';
+import { ArrowDownToLine, ChevronLeft, Download, LockKeyhole, LogOut, MoreHorizontal, Phone, Plus, RefreshCw, Settings, Share2, ShieldCheck, Smartphone } from 'lucide-react';
 import { arrayFrom, faNumber, formatMobileDate, mobileRequest, objectFrom, type MobileDashboard, type MobileNotification, type MobileSettings, type MobileSubscription, useMobileFetch } from './mobile-api';
 import { AccessActions, BrandLockup, MobileFrame, MobileOfflineBanner, MobileState, NotificationRow, SubscriptionCard, UsageRing } from './mobile-ui';
 
@@ -74,7 +74,44 @@ function ProfilePage() {
   const [, setLocation] = useLocation();
   const logout = async () => { await mobileRequest('/api/mobile/auth/logout', { method: 'POST' }).catch(() => undefined); setLocation('/mobile/login'); };
   const name = session?.customer?.name || 'مشتری پالس';
-  return <MobileFrame title="پروفایل"><div className="mobile-profile-hero"><div className="mobile-profile-avatar">{name.slice(0, 1)}</div><span className="mobile-eyebrow">حساب مشتری</span><h1>{name}</h1><p>{session?.customer?.phone || 'اطلاعات تماس شما'}</p></div><div className="mobile-menu-card"><Link href="/mobile/settings" className="mobile-menu-row"><span className="mobile-menu-icon"><Settings size={18} /></span><span><strong>تنظیمات اعلان</strong><small>انتخاب کنید چه چیزهایی را دریافت کنید</small></span><ChevronLeft size={18} /></Link><a className="mobile-menu-row" href="mailto:support@example.com"><span className="mobile-menu-icon"><MoreHorizontal size={18} /></span><span><strong>پشتیبانی</strong><small>برای راهنمایی با ما در تماس باشید</small></span><ChevronLeft size={18} /></a></div><button className="mobile-logout" onClick={logout}><LogOut size={17} /> خروج از حساب</button></MobileFrame>;
+  return <MobileFrame title="پروفایل"><div className="mobile-profile-hero"><div className="mobile-profile-avatar">{name.slice(0, 1)}</div><span className="mobile-eyebrow">حساب مشتری</span><h1>{name}</h1><p>{session?.customer?.phone || 'اطلاعات تماس شما'}</p></div><div className="mobile-menu-card"><Link href="/mobile/install" className="mobile-menu-row"><span className="mobile-menu-icon"><Download size={18} /></span><span><strong>راهنمای نصب برنامه</strong><small>پالس را روی صفحهٔ اصلی گوشی اضافه کنید</small></span><ChevronLeft size={18} /></Link><Link href="/mobile/settings" className="mobile-menu-row"><span className="mobile-menu-icon"><Settings size={18} /></span><span><strong>تنظیمات اعلان</strong><small>انتخاب کنید چه چیزهایی را دریافت کنید</small></span><ChevronLeft size={18} /></Link><a className="mobile-menu-row" href="mailto:support@example.com"><span className="mobile-menu-icon"><MoreHorizontal size={18} /></span><span><strong>پشتیبانی</strong><small>برای راهنمایی با ما در تماس باشید</small></span><ChevronLeft size={18} /></a></div><button className="mobile-logout" onClick={logout}><LogOut size={17} /> خروج از حساب</button></MobileFrame>;
+}
+
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+};
+
+function InstallGuidePage() {
+  const [platform, setPlatform] = useState<'ios' | 'android'>(() => /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'android');
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  useEffect(() => {
+    const onBeforeInstall = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', onBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+  }, []);
+  const installNow = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+  };
+  const iosSteps = [
+    { icon: <Share2 size={18} />, title: 'صفحه را در Safari باز کنید', body: 'اگر لینک را داخل پیام‌رسان باز کرده‌اید، آن را با Safari به اشتراک بگذارید.' },
+    { icon: <Share2 size={18} />, title: 'دکمهٔ Share را بزنید', body: 'در نوار پایین Safari، آیکون مربع با فلش رو به بالا را انتخاب کنید.' },
+    { icon: <Plus size={18} />, title: 'Add to Home Screen را انتخاب کنید', body: 'در فهرست بازشده اسکرول کنید و گزینهٔ افزودن به صفحهٔ اصلی را بزنید.' },
+    { icon: <ArrowDownToLine size={18} />, title: 'Add را تأیید کنید', body: 'از این به بعد پالس مثل یک برنامهٔ مستقل روی صفحهٔ اصلی شماست.' },
+  ];
+  const androidSteps = [
+    { icon: <MoreHorizontal size={18} />, title: 'منوی Chrome را باز کنید', body: 'سه نقطهٔ بالای صفحه را بزنید و مطمئن شوید صفحه در Chrome باز است.' },
+    { icon: <Download size={18} />, title: 'Install app یا Add to Home screen را بزنید', body: 'نام گزینه با توجه به نسخهٔ Android و Chrome ممکن است کمی متفاوت باشد.' },
+    { icon: <Plus size={18} />, title: 'Install یا Add را تأیید کنید', body: 'Chrome میانبر پالس را روی صفحهٔ اصلی گوشی قرار می‌دهد.' },
+  ];
+  const steps = platform === 'ios' ? iosSteps : androidSteps;
+  return <MobileFrame title="راهنمای نصب" back><section className="mobile-install-hero"><div className="mobile-install-orbit mobile-install-orbit-one" /><div className="mobile-install-orbit mobile-install-orbit-two" /><div className="mobile-install-phone"><div className="mobile-install-phone-island" /><div className="mobile-install-phone-screen"><span className="mobile-install-screen-mark"><ShieldCheck size={20} /></span><strong>پالس</strong><small>فضای امن شما</small><i /></div><span className="mobile-install-tap"><ArrowDownToLine size={15} /></span></div><div className="mobile-install-copy"><span className="mobile-eyebrow">پالس همیشه نزدیک شما</span><h1>مثل یک برنامه<br /><em>روی گوشی‌تان.</em></h1><p>با نصب PWA، بدون جست‌وجوی دوبارهٔ لینک، سریع به سرویس‌ها و اعلان‌ها دسترسی دارید.</p></div></section><div className="mobile-install-tabs" role="tablist" aria-label="انتخاب نوع گوشی"><button className={platform === 'ios' ? 'is-active' : ''} onClick={() => setPlatform('ios')} role="tab" aria-selected={platform === 'ios'}>iPhone / iPad</button><button className={platform === 'android' ? 'is-active' : ''} onClick={() => setPlatform('android')} role="tab" aria-selected={platform === 'android'}>Android</button></div>{installPrompt && platform === 'android' ? <button className="mobile-install-native" onClick={installNow}><Download size={17} /> نصب مستقیم برنامه</button> : null}<section className="mobile-install-steps"><div className="mobile-section-head"><div><span className="mobile-eyebrow">فقط چند ثانیه</span><h2>{platform === 'ios' ? 'نصب در Safari' : 'نصب در Chrome'}</h2></div><span className="mobile-install-step-count">{faNumber(steps.length)} مرحله</span></div><div className="mobile-install-step-list">{steps.map((step, index) => <article className="mobile-install-step" key={step.title}><span className="mobile-install-step-number">{faNumber(index + 1)}</span><span className="mobile-install-step-icon">{step.icon}</span><div><strong>{step.title}</strong><p>{step.body}</p></div></article>)}</div></section><div className="mobile-install-note"><ShieldCheck size={17} /><p>بعد از نصب، پالس از صفحهٔ اصلی با حالت تمام‌صفحه باز می‌شود و اعلان‌های فعال سرویس را راحت‌تر دریافت می‌کنید.</p></div></MobileFrame>;
 }
 
 function SettingsPage() {
@@ -142,5 +179,5 @@ export function MobileApp() {
   }, [loading, session, location, setLocation]);
   if (loading) return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><ShieldCheck size={28} /></div><span>در حال آماده‌سازی فضای شما</span></div>;
   if (!session && location !== '/mobile/login') return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><ShieldCheck size={28} /></div><span>در حال انتقال به ورود</span></div>;
-  return <Switch><Route path="/mobile/login" component={LoginPage} /><Route path="/mobile/dashboard" component={MobileDashboardRoute} /><Route path="/mobile/subscriptions/:id" component={SubscriptionDetailPage} /><Route path="/mobile/subscriptions" component={SubscriptionsPage} /><Route path="/mobile/notifications" component={NotificationsPage} /><Route path="/mobile/profile" component={ProfilePage} /><Route path="/mobile/settings" component={SettingsPage} /><Route path="/mobile" component={session ? MobileDashboardRoute : LoginPage} /><Route component={LoginPage} /></Switch>;
+  return <Switch><Route path="/mobile/login" component={LoginPage} /><Route path="/mobile/dashboard" component={MobileDashboardRoute} /><Route path="/mobile/subscriptions/:id" component={SubscriptionDetailPage} /><Route path="/mobile/subscriptions" component={SubscriptionsPage} /><Route path="/mobile/notifications" component={NotificationsPage} /><Route path="/mobile/profile" component={ProfilePage} /><Route path="/mobile/install" component={InstallGuidePage} /><Route path="/mobile/settings" component={SettingsPage} /><Route path="/mobile" component={session ? MobileDashboardRoute : LoginPage} /><Route component={LoginPage} /></Switch>;
 }
