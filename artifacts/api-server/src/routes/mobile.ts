@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { createHash, randomBytes } from "node:crypto";
 import webpush from "web-push";
 import { pool } from "@workspace/db";
+import { consumeMobileOtp, issueMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
 
 const router: IRouter = Router();
 const mobileSessionCookie = "pulse_mobile_session";
@@ -144,8 +145,47 @@ const setMobileCookie = (res: Response, raw: string) => {
   });
 };
 
+const findCustomerByPhone = async (candidates: string[]) => {
+  return pool.query<{ customer_id: number; customer_name: string; phone: string; service_id: number }>(
+    `SELECT c.id AS customer_id, c.full_name AS customer_name, c.phone,
+            (SELECT svc.id FROM reseller_services svc
+             WHERE svc.customer_id = c.id
+             ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.id DESC
+             LIMIT 1) AS service_id
+      FROM reseller_customers c
+      WHERE regexp_replace(
+        translate(COALESCE(c.phone, ''), '۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'),
+        '[^0-9]', '', 'g'
+      ) = ANY($1::text[])
+      LIMIT 1`,
+    [candidates],
+  );
+};
+
 const clearMobileCookie = (res: Response) => {
   res.clearCookie(mobileSessionCookie, { httpOnly: true, sameSite: "lax", path: "/" });
+};
+
+const createMobileSession = async (
+  res: Response,
+  customerId: number,
+  customerName: string,
+  phone: string,
+  serviceId: number | null,
+) => {
+  const raw = randomBytes(32).toString("hex");
+  await pool.query(
+    `INSERT INTO mobile_sessions (id, customer_id, source_service_id, expires_at)
+     VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
+    [sessionHash(raw), customerId, serviceId ?? null],
+  );
+  await pool.query(
+    `INSERT INTO mobile_notification_preferences (customer_id)
+     VALUES ($1) ON CONFLICT (customer_id) DO NOTHING`,
+    [customerId],
+  );
+  setMobileCookie(res, raw);
+  res.json({ authenticated: true, customer: { id: String(customerId), name: customerName, phone } });
 };
 
 const attachMobileAuth = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
@@ -373,45 +413,53 @@ const phoneCandidates = (input: unknown) => {
   return [...candidates].filter((value) => value.length >= 8 && value.length <= 15);
 };
 
-router.post("/mobile/auth/phone", async (req, res): Promise<void> => {
-  await mobileReady;
+const normalizeMobileOtp = (input: unknown) =>
+  typeof input === "string"
+    ? input.trim().replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))).replace(/\D/g, "")
+    : "";
+
+router.post("/mobile/auth/otp/request", async (req, res): Promise<void> => {
+  await Promise.all([mobileReady, mobileOtpReady]);
   const candidates = phoneCandidates(req.body?.phone);
   if (!candidates.length) {
     res.status(400).json({ error: "شماره موبایل معتبر نیست." });
     return;
   }
-  const result = await pool.query<{ customer_id: number; customer_name: string; phone: string; service_id: number }>(
-    `SELECT c.id AS customer_id, c.full_name AS customer_name, c.phone,
-            (SELECT svc.id FROM reseller_services svc
-             WHERE svc.customer_id = c.id
-             ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.id DESC
-             LIMIT 1) AS service_id
-      FROM reseller_customers c
-      WHERE regexp_replace(
-        translate(COALESCE(c.phone, ''), '۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'),
-        '[^0-9]', '', 'g'
-      ) = ANY($1::text[])
-     LIMIT 1`,
-    [candidates],
-  );
+  const result = await findCustomerByPhone(candidates);
   const row = result.rows[0];
   if (!row) {
     res.status(404).json({ error: "برای این شماره موبایل مشتری یا سرویسی پیدا نشد." });
     return;
   }
-  const raw = randomBytes(32).toString("hex");
-  await pool.query(
-    `INSERT INTO mobile_sessions (id, customer_id, source_service_id, expires_at)
-     VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
-    [sessionHash(raw), row.customer_id, row.service_id ?? null],
-  );
-  await pool.query(
-    `INSERT INTO mobile_notification_preferences (customer_id)
-     VALUES ($1) ON CONFLICT (customer_id) DO NOTHING`,
-    [row.customer_id],
-  );
-  setMobileCookie(res, raw);
-  res.json({ authenticated: true, customer: { id: String(row.customer_id), name: row.customer_name, phone: row.phone } });
+  const challenge = await issueMobileOtp(row.customer_id, row.phone);
+  res.json({
+    challenge_id: challenge.challengeId,
+    expires_at: challenge.expiresAt,
+    customer: { name: row.customer_name, phone: row.phone },
+  });
+});
+
+router.post("/mobile/auth/otp/verify", async (req, res): Promise<void> => {
+  await Promise.all([mobileReady, mobileOtpReady]);
+  const candidates = phoneCandidates(req.body?.phone);
+  const challengeId = typeof req.body?.challenge_id === "string" ? req.body.challenge_id.trim() : "";
+  const otp = normalizeMobileOtp(req.body?.otp);
+  if (!candidates.length || !challengeId || otp.length !== 6) {
+    res.status(400).json({ error: "شماره موبایل و کد ورود معتبر وارد کنید." });
+    return;
+  }
+  const result = await findCustomerByPhone(candidates);
+  const row = result.rows[0];
+  if (!row) {
+    res.status(404).json({ error: "برای این شماره موبایل مشتری یا سرویسی پیدا نشد." });
+    return;
+  }
+  const verification = await consumeMobileOtp(challengeId, row.customer_id, row.phone, otp);
+  if (!verification.ok) {
+    res.status(401).json({ error: verification.reason });
+    return;
+  }
+  await createMobileSession(res, row.customer_id, row.customer_name, row.phone, row.service_id ?? null);
 });
 
 router.get("/mobile/auth/session", async (req, res): Promise<void> => {

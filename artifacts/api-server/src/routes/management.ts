@@ -76,6 +76,7 @@ import {
   replaceAwgClient,
 } from "../lib/amneziawg";
 import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
+import { issueMobileOtp } from "../lib/mobile-otp";
 import {
   requestedSubscriptionFormat,
   toClashSubscription,
@@ -3541,6 +3542,33 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
       sales: sales.rows,
     }),
   );
+});
+
+router.post("/customers/:id/mobile-otp", requireAuth, async (req, res): Promise<void> => {
+  const customerId = Number(req.params.id);
+  if (!Number.isSafeInteger(customerId) || customerId <= 0) {
+    res.status(400).json({ error: "شناسه مشتری معتبر نیست" });
+    return;
+  }
+  const owner = ownership("c", req);
+  const result = await pool.query<{ id: number; name: string; phone: string }>(
+    `SELECT c.id, c.full_name AS name, c.phone
+     FROM reseller_customers c
+     WHERE c.id = $1 AND ${owner.sql.replace("$1", "$2")}
+     LIMIT 1`,
+    [customerId, ...owner.params],
+  );
+  const customer = result.rows[0];
+  if (!customer) {
+    res.status(404).json({ error: "مشتری پیدا نشد" });
+    return;
+  }
+  const challenge = await issueMobileOtp(Number(customer.id), customer.phone);
+  res.json({
+    customer: { id: String(customer.id), name: customer.name, phone: customer.phone },
+    otp: challenge.otp,
+    expires_at: challenge.expiresAt,
+  });
 });
 
 router.get("/resellers", requireMasterAdmin, async (_req, res): Promise<void> => {

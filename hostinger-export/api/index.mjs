@@ -29932,7 +29932,7 @@ var require_utils5 = __commonJS({
     var nodeCrypto = __require("crypto");
     module.exports = {
       postgresMd5PasswordHash,
-      randomBytes: randomBytes5,
+      randomBytes: randomBytes6,
       deriveKey,
       sha256,
       hashByName,
@@ -29942,7 +29942,7 @@ var require_utils5 = __commonJS({
     var webCrypto = nodeCrypto.webcrypto || globalThis.crypto;
     var subtleCrypto = webCrypto.subtle;
     var textEncoder = new TextEncoder();
-    function randomBytes5(length) {
+    function randomBytes6(length) {
       return webCrypto.getRandomValues(Buffer.alloc(length));
     }
     async function md5(string4) {
@@ -64851,6 +64851,89 @@ function startUsageSyncWorker() {
   logger.info({ intervalMs: interval2 }, "Combined usage sync worker started");
 }
 
+// src/lib/mobile-otp.ts
+import { createHash as createHash3, randomBytes as randomBytes4, randomInt } from "node:crypto";
+var mobileOtpReady = pool.query(`
+  CREATE TABLE IF NOT EXISTS mobile_login_otps (
+    id TEXT PRIMARY KEY,
+    customer_id BIGINT NOT NULL,
+    phone TEXT NOT NULL,
+    otp_hash TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    attempts SMALLINT NOT NULL DEFAULT 0,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS mobile_login_otps_lookup_idx
+    ON mobile_login_otps (customer_id, phone, expires_at DESC);
+`);
+var hashOtp = (challengeId, otp) => createHash3("sha256").update(`${challengeId}:${otp}`).digest("hex");
+var issueMobileOtp = async (customerId2, phone) => {
+  await mobileOtpReady;
+  const challengeId = randomBytes4(24).toString("hex");
+  const otp = String(randomInt(1e5, 1e6));
+  const expiresAt = new Date(Date.now() + 5 * 6e4);
+  await pool.query(
+    `UPDATE mobile_login_otps
+     SET used_at = COALESCE(used_at, NOW())
+     WHERE customer_id = $1 AND phone = $2 AND used_at IS NULL`,
+    [customerId2, phone]
+  );
+  await pool.query(
+    `INSERT INTO mobile_login_otps (id, customer_id, phone, otp_hash, expires_at)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [challengeId, customerId2, phone, hashOtp(challengeId, otp), expiresAt]
+  );
+  return {
+    challengeId,
+    otp,
+    expiresAt: expiresAt.toISOString()
+  };
+};
+var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
+  await mobileOtpReady;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `SELECT id, otp_hash, attempts, expires_at, used_at
+       FROM mobile_login_otps
+       WHERE id = $1 AND customer_id = $2 AND phone = $3
+       FOR UPDATE`,
+      [challengeId, customerId2, phone]
+    );
+    const row = result.rows[0];
+    const valid = Boolean(row) && !row.used_at && Number(row.attempts) < 5 && new Date(row.expires_at).getTime() > Date.now() && hashOtp(challengeId, otp) === row.otp_hash;
+    if (!row) {
+      await client.query("ROLLBACK");
+      return { ok: false, reason: "\u06A9\u062F \u0648\u0631\u0648\u062F \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." };
+    }
+    if (!valid) {
+      await client.query(
+        `UPDATE mobile_login_otps
+         SET attempts = attempts + 1
+         WHERE id = $1`,
+        [challengeId]
+      );
+      await client.query("COMMIT");
+      return { ok: false, reason: "\u06A9\u062F \u0648\u0631\u0648\u062F \u0646\u0627\u062F\u0631\u0633\u062A \u06CC\u0627 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F\u0647 \u0627\u0633\u062A." };
+    }
+    await client.query(
+      `UPDATE mobile_login_otps
+       SET used_at = NOW()
+       WHERE id = $1`,
+      [challengeId]
+    );
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (error40) {
+    await client.query("ROLLBACK").catch(() => void 0);
+    throw error40;
+  } finally {
+    client.release();
+  }
+};
+
 // src/lib/subscription-formats.ts
 function decodeBase64(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -68299,6 +68382,32 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
     })
   );
 });
+router2.post("/customers/:id/mobile-otp", requireAuth, async (req, res) => {
+  const customerId2 = Number(req.params.id);
+  if (!Number.isSafeInteger(customerId2) || customerId2 <= 0) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0645\u0634\u062A\u0631\u06CC \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  const owner = ownership("c", req);
+  const result = await pool.query(
+    `SELECT c.id, c.full_name AS name, c.phone
+     FROM reseller_customers c
+     WHERE c.id = $1 AND ${owner.sql.replace("$1", "$2")}
+     LIMIT 1`,
+    [customerId2, ...owner.params]
+  );
+  const customer = result.rows[0];
+  if (!customer) {
+    res.status(404).json({ error: "\u0645\u0634\u062A\u0631\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+    return;
+  }
+  const challenge = await issueMobileOtp(Number(customer.id), customer.phone);
+  res.json({
+    customer: { id: String(customer.id), name: customer.name, phone: customer.phone },
+    otp: challenge.otp,
+    expires_at: challenge.expiresAt
+  });
+});
 router2.get("/resellers", requireMasterAdmin, async (_req, res) => {
   const result = await pool.query(
     `SELECT id, tg_id::float8 AS telegram_id, title, total_gb::float8 AS total_gb,
@@ -68793,10 +68902,10 @@ var management_default = router2;
 // src/routes/mobile.ts
 var import_express3 = __toESM(require_express2(), 1);
 var import_web_push = __toESM(require_src2(), 1);
-import { createHash as createHash3, randomBytes as randomBytes4 } from "node:crypto";
+import { createHash as createHash4, randomBytes as randomBytes5 } from "node:crypto";
 var router3 = (0, import_express3.Router)();
 var mobileSessionCookie = "pulse_mobile_session";
-var sessionHash2 = (value) => createHash3("sha256").update(value).digest("hex");
+var sessionHash2 = (value) => createHash4("sha256").update(value).digest("hex");
 var mobileReady = pool.query(`
   CREATE TABLE IF NOT EXISTS mobile_sessions (
     id TEXT PRIMARY KEY,
@@ -68891,8 +69000,39 @@ var setMobileCookie = (res, raw) => {
     path: "/"
   });
 };
+var findCustomerByPhone = async (candidates) => {
+  return pool.query(
+    `SELECT c.id AS customer_id, c.full_name AS customer_name, c.phone,
+            (SELECT svc.id FROM reseller_services svc
+             WHERE svc.customer_id = c.id
+             ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.id DESC
+             LIMIT 1) AS service_id
+      FROM reseller_customers c
+      WHERE regexp_replace(
+        translate(COALESCE(c.phone, ''), '\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669', '01234567890123456789'),
+        '[^0-9]', '', 'g'
+      ) = ANY($1::text[])
+      LIMIT 1`,
+    [candidates]
+  );
+};
 var clearMobileCookie = (res) => {
   res.clearCookie(mobileSessionCookie, { httpOnly: true, sameSite: "lax", path: "/" });
+};
+var createMobileSession = async (res, customerId2, customerName, phone, serviceId) => {
+  const raw = randomBytes5(32).toString("hex");
+  await pool.query(
+    `INSERT INTO mobile_sessions (id, customer_id, source_service_id, expires_at)
+     VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
+    [sessionHash2(raw), customerId2, serviceId ?? null]
+  );
+  await pool.query(
+    `INSERT INTO mobile_notification_preferences (customer_id)
+     VALUES ($1) ON CONFLICT (customer_id) DO NOTHING`,
+    [customerId2]
+  );
+  setMobileCookie(res, raw);
+  res.json({ authenticated: true, customer: { id: String(customerId2), name: customerName, phone } });
 };
 var attachMobileAuth = async (req, _res, next) => {
   const raw = req.cookies?.[mobileSessionCookie];
@@ -69088,45 +69228,48 @@ var phoneCandidates = (input) => {
   if (digits.startsWith("0")) candidates.add(`98${digits.slice(1)}`);
   return [...candidates].filter((value) => value.length >= 8 && value.length <= 15);
 };
-router3.post("/mobile/auth/phone", async (req, res) => {
-  await mobileReady;
+var normalizeMobileOtp = (input) => typeof input === "string" ? input.trim().replace(/[۰-۹]/g, (digit) => String("\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669".indexOf(digit))).replace(/\D/g, "") : "";
+router3.post("/mobile/auth/otp/request", async (req, res) => {
+  await Promise.all([mobileReady, mobileOtpReady]);
   const candidates = phoneCandidates(req.body?.phone);
   if (!candidates.length) {
     res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
     return;
   }
-  const result = await pool.query(
-    `SELECT c.id AS customer_id, c.full_name AS customer_name, c.phone,
-            (SELECT svc.id FROM reseller_services svc
-             WHERE svc.customer_id = c.id
-             ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.id DESC
-             LIMIT 1) AS service_id
-      FROM reseller_customers c
-      WHERE regexp_replace(
-        translate(COALESCE(c.phone, ''), '\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669', '01234567890123456789'),
-        '[^0-9]', '', 'g'
-      ) = ANY($1::text[])
-     LIMIT 1`,
-    [candidates]
-  );
+  const result = await findCustomerByPhone(candidates);
   const row = result.rows[0];
   if (!row) {
     res.status(404).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0634\u062A\u0631\u06CC \u06CC\u0627 \u0633\u0631\u0648\u06CC\u0633\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
     return;
   }
-  const raw = randomBytes4(32).toString("hex");
-  await pool.query(
-    `INSERT INTO mobile_sessions (id, customer_id, source_service_id, expires_at)
-     VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
-    [sessionHash2(raw), row.customer_id, row.service_id ?? null]
-  );
-  await pool.query(
-    `INSERT INTO mobile_notification_preferences (customer_id)
-     VALUES ($1) ON CONFLICT (customer_id) DO NOTHING`,
-    [row.customer_id]
-  );
-  setMobileCookie(res, raw);
-  res.json({ authenticated: true, customer: { id: String(row.customer_id), name: row.customer_name, phone: row.phone } });
+  const challenge = await issueMobileOtp(row.customer_id, row.phone);
+  res.json({
+    challenge_id: challenge.challengeId,
+    expires_at: challenge.expiresAt,
+    customer: { name: row.customer_name, phone: row.phone }
+  });
+});
+router3.post("/mobile/auth/otp/verify", async (req, res) => {
+  await Promise.all([mobileReady, mobileOtpReady]);
+  const candidates = phoneCandidates(req.body?.phone);
+  const challengeId = typeof req.body?.challenge_id === "string" ? req.body.challenge_id.trim() : "";
+  const otp = normalizeMobileOtp(req.body?.otp);
+  if (!candidates.length || !challengeId || otp.length !== 6) {
+    res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0648 \u06A9\u062F \u0648\u0631\u0648\u062F \u0645\u0639\u062A\u0628\u0631 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
+    return;
+  }
+  const result = await findCustomerByPhone(candidates);
+  const row = result.rows[0];
+  if (!row) {
+    res.status(404).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0634\u062A\u0631\u06CC \u06CC\u0627 \u0633\u0631\u0648\u06CC\u0633\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+    return;
+  }
+  const verification = await consumeMobileOtp(challengeId, row.customer_id, row.phone, otp);
+  if (!verification.ok) {
+    res.status(401).json({ error: verification.reason });
+    return;
+  }
+  await createMobileSession(res, row.customer_id, row.customer_name, row.phone, row.service_id ?? null);
 });
 router3.get("/mobile/auth/session", async (req, res) => {
   res.json(req.mobileAuth ? { authenticated: true, customer: { id: String(req.mobileAuth.customerId), name: req.mobileAuth.customerName, phone: req.mobileAuth.phone } } : { authenticated: false });

@@ -35,3 +35,4 @@
 - [AWG create reconciliation](awg-create-reconciliation.md) — a create request may return 500 after commit; confirm the exact UUID in the client list before retrying.
 - [Provisioning job leases](provisioning-job-leases.md) — worker heartbeats and stable AWG candidate UUIDs prevent stuck jobs and duplicate clients.
 - [PWA base paths](pwa-base-paths.md) — manifest and service-worker URLs must stay relative to the artifact base across Replit and Hostinger builds.
+- [Customer OTP delivery](customer-otp-delivery.md) — until an SMS provider is connected, generate a five-minute one-time code from the customer profile and hand it to the customer.

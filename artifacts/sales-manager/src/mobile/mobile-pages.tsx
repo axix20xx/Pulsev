@@ -22,6 +22,9 @@ function useSession() {
 
 function LoginPage() {
   const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [challengeId, setChallengeId] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const submit = async (event: React.FormEvent) => {
@@ -29,13 +32,19 @@ function LoginPage() {
     if (!phone.trim()) { setError('شماره موبایل خود را وارد کنید.'); return; }
     setPending(true); setError('');
     try {
-      await mobileRequest('/api/mobile/auth/phone', { method: 'POST', body: JSON.stringify({ phone: phone.trim() }) });
-      window.location.assign(`${import.meta.env.BASE_URL}mobile/dashboard`);
+      if (!challengeId) {
+        const result = await mobileRequest<{ challenge_id: string; expires_at: string }>('/api/mobile/auth/otp/request', { method: 'POST', body: JSON.stringify({ phone: phone.trim() }) });
+        setChallengeId(result.challenge_id);
+        setExpiresAt(result.expires_at);
+      } else {
+        await mobileRequest('/api/mobile/auth/otp/verify', { method: 'POST', body: JSON.stringify({ phone: phone.trim(), challenge_id: challengeId, otp }) });
+        window.location.assign(`${mobileAssetBaseUrl}dashboard`);
+      }
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'ورود انجام نشد. دوباره امتحان کنید.'); }
     finally { setPending(false); }
   };
-  return <div className="mobile-app mobile-auth" dir="rtl"><MobileOfflineBanner /><div className="mobile-auth-glow" /><main className="mobile-auth-content"><BrandLockup /><div className="mobile-auth-intro"><span className="mobile-eyebrow">فضای مشتری</span><h1>سرویس‌های شما،<br /><em>همیشه در دسترس.</em></h1><p>شماره موبایل خود را وارد کنید تا سرویس‌های مرتبط با آن را ببینید.</p></div><form className="mobile-auth-form" onSubmit={submit}><label htmlFor="mobile-phone">شماره موبایل</label><div className="mobile-input-wrap"><Phone size={18} /><input id="mobile-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="۰۹۱۲۱۲۳۴۵۶۷" autoComplete="tel" dir="ltr" /></div>{error ? <p className="mobile-form-error">{error}</p> : null}<button className="mobile-button mobile-button-primary" disabled={pending}>{pending ? <span className="mobile-button-loader" /> : null}{pending ? 'در حال نمایش سرویس‌ها…' : 'نمایش سرویس‌های من'}<ChevronLeft size={17} /></button></form><div className="mobile-auth-note"><ShieldCheck size={16} /><span>سرویس‌ها و تنظیمات اعلان شما در یک فضای ساده نمایش داده می‌شود.</span></div><Link className="mobile-auth-install-link" href="/mobile/install"><Download size={15} />راهنمای نصب پالس روی گوشی</Link></main><footer className="mobile-auth-footer">پالس شخصی · روشن، ساده، همیشه در دسترس</footer></div>;
+  return <div className="mobile-app mobile-auth" dir="rtl"><MobileOfflineBanner /><div className="mobile-auth-glow" /><main className="mobile-auth-content"><BrandLockup /><div className="mobile-auth-intro"><span className="mobile-eyebrow">فضای مشتری</span><h1>سرویس‌های شما،<br /><em>همیشه در دسترس.</em></h1><p>{challengeId ? 'کد یک‌بارمصرفی را که از فروشنده دریافت کرده‌اید وارد کنید.' : 'شماره موبایل خود را وارد کنید تا کد یک‌بارمصرف دریافت کنید.'}</p></div><form className="mobile-auth-form" onSubmit={submit}><label htmlFor="mobile-phone">شماره موبایل</label><div className="mobile-input-wrap"><Phone size={18} /><input id="mobile-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="۰۹۱۲۱۲۳۴۵۶۷" autoComplete="tel" dir="ltr" disabled={Boolean(challengeId)} /></div>{challengeId ? <><label htmlFor="mobile-otp">کد ورود یک‌بارمصرف</label><div className="mobile-input-wrap"><LockKeyhole size={18} /><input id="mobile-otp" type="tel" inputMode="numeric" value={otp} onChange={(event) => setOtp(event.target.value)} placeholder="۱۲۳۴۵۶" autoComplete="one-time-code" dir="ltr" maxLength={6} autoFocus /></div><small className="mobile-otp-expiry">اعتبار کد تا {new Intl.DateTimeFormat('fa-IR', { timeStyle: 'short', timeZone: 'Asia/Tehran' }).format(new Date(expiresAt))}</small></> : null}{error ? <p className="mobile-form-error">{error}</p> : null}<button className="mobile-button mobile-button-primary" disabled={pending}>{pending ? <span className="mobile-button-loader" /> : null}{pending ? 'در حال بررسی…' : challengeId ? 'ورود و نمایش سرویس‌ها' : 'دریافت کد ورود'}<ChevronLeft size={17} /></button>{challengeId ? <button type="button" className="mobile-button mobile-button-outline" onClick={() => { setChallengeId(''); setOtp(''); setError(''); }}>تغییر شماره</button> : null}</form><div className="mobile-auth-note"><ShieldCheck size={16} /><span>کد فقط یک‌بار مصرف است و پنج دقیقه اعتبار دارد.</span></div><Link className="mobile-auth-install-link" href="/mobile/install"><Download size={15} />راهنمای نصب پالس روی گوشی</Link></main><footer className="mobile-auth-footer">پالس شخصی · روشن، ساده، همیشه در دسترس</footer></div>;
 }
 
 function DashboardPage({ dashboard, reload }: { dashboard: MobileDashboard; reload: () => void }) {

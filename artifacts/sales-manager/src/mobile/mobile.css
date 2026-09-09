@@ -1,3 +1,4 @@
+ .mobile-otp-expiry { color: rgba(245,248,235,.48); font-size: 9px; }
 /* Private customer space: deliberately namespaced so the seller workspace remains untouched. */
 .mobile-app {
   --mobile-ink: #17383a;

@@ -476,3 +476,17 @@ mtime_ms = 1788950671243
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b6757313-f393-4435-9e10-af42e19c915c/a36c4484-d128-4c61-be9b-75b988c627b3"
 storage_version_token = "1788950731630893"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "ig_FgCLzT2IznsEuKScRb"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-otp.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle with customer OTP"
+description = "Production ZIP with the OTP customer login flow, refreshed /panel and /mobile bundles, updated API, manifest, service worker, and Hostinger launcher."
+logical_id = "f72dc51c-daa0-4a0b-ba26-e6805aa020c8"
+content_hash = "sha256:9c51edfc2c02887fcba0a50b08d6c5adceb96b66bfc3b05c92591763d178f7f9"
+size = 26767605
+mtime_ms = 1788958702196
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f72dc51c-daa0-4a0b-ba26-e6805aa020c8/3a9b77dc-2c2b-40b3-ae15-2214c3a68337"
+storage_version_token = "1788958742932042"
+content_type = "application/octet-stream"
