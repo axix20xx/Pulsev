@@ -480,10 +480,15 @@ async function serveWeb(req, res) {
     return;
   }
   const isPanelRoute = pathname === "/panel" || pathname.startsWith("/panel/");
+  const isMobileRoute = pathname === "/mobile" || pathname.startsWith("/mobile/");
+  const isMobileStaticAsset =
+    pathname === "/mobile/manifest.webmanifest" ||
+    pathname === "/mobile/sw.js" ||
+    pathname === "/mobile/favicon.svg";
   const isShowcaseRoute = pathname === "/showcase" || pathname.startsWith("/showcase/");
   const isSubscriptionRoute = pathname === "/sub" || pathname.startsWith("/sub/");
   const isPanelSubscriptionAsset = pathname.startsWith("/panel-sub-assets/");
-  const appRoot = isPanelRoute
+  const appRoot = isPanelRoute || isMobileRoute
     ? panelRoot
     : isShowcaseRoute
       ? showcaseRoot
@@ -494,6 +499,10 @@ async function serveWeb(req, res) {
           : publicRoot;
   const appPathname = isPanelRoute
     ? pathname.slice("/panel".length) || "/"
+    : isMobileRoute && isMobileStaticAsset
+      ? pathname
+      : isMobileRoute
+        ? "/"
     : isShowcaseRoute
       ? pathname.slice("/showcase".length) || "/"
       : pathname;
@@ -506,7 +515,15 @@ async function serveWeb(req, res) {
   let filePath = requested;
   try {
     const stat = await fs.stat(filePath);
-    if (stat.isDirectory()) filePath = path.join(filePath, "index.html");
+    if (stat.isDirectory()) {
+      const directoryIndex = path.join(filePath, "index.html");
+      try {
+        const directoryIndexStat = await fs.stat(directoryIndex);
+        filePath = directoryIndexStat.isFile() ? directoryIndex : path.join(appRoot, "index.html");
+      } catch {
+        filePath = path.join(appRoot, "index.html");
+      }
+    }
   } catch {
     filePath = path.join(appRoot, "index.html");
   }
