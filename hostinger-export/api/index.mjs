@@ -68852,20 +68852,35 @@ var mobileReady = pool.query(`
     system_enabled SMALLINT NOT NULL DEFAULT 1,
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   );
+  CREATE TABLE IF NOT EXISTS mobile_push_config (
+    id SMALLINT PRIMARY KEY CHECK (id = 1),
+    vapid_public_key TEXT NOT NULL,
+    vapid_private_key TEXT NOT NULL,
+    vapid_subject TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
 `);
-var tokenFromInput = (input) => {
-  if (typeof input !== "string") return null;
-  const value = input.trim();
-  if (/^[A-Za-z0-9_-]{12,256}$/.test(value)) return value;
-  try {
-    const parsed = new URL(value);
-    const queryToken = parsed.searchParams.get("t");
-    const pathToken = parsed.pathname.match(/\/(?:sub|subscription)\/([A-Za-z0-9_-]{12,256})/)?.[1];
-    const token = queryToken || pathToken;
-    return token && /^[A-Za-z0-9_-]{12,256}$/.test(token) ? token : null;
-  } catch {
-    return null;
-  }
+var mobileVapidReady = mobileReady.then(async () => {
+  const existing = await pool.query(
+    "SELECT vapid_public_key, vapid_private_key, vapid_subject FROM mobile_push_config WHERE id = 1"
+  );
+  if (existing.rows[0]) return;
+  const keys = import_web_push.default.generateVAPIDKeys();
+  await pool.query(
+    `INSERT INTO mobile_push_config (id, vapid_public_key, vapid_private_key, vapid_subject)
+     VALUES (1, $1, $2, $3)
+     ON CONFLICT (id) DO NOTHING`,
+    [keys.publicKey, keys.privateKey, "mailto:notifications@pulse.local"]
+  );
+});
+var getVapidConfig = async () => {
+  await mobileVapidReady;
+  const result = await pool.query(
+    "SELECT vapid_public_key, vapid_private_key, vapid_subject FROM mobile_push_config WHERE id = 1"
+  );
+  if (!result.rows[0]) throw new Error("Web Push configuration is unavailable");
+  return result.rows[0];
 };
 var setMobileCookie = (res, raw) => {
   res.cookie(mobileSessionCookie, raw, {
@@ -68961,20 +68976,15 @@ var listServices = async (req, customerId2) => {
   );
   return result.rows.map((row) => mapService(req, row));
 };
-var vapidReady = () => Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT);
-var vapidConfigured = false;
-var configureVapid = () => {
-  if (vapidConfigured || !vapidReady()) return;
-  import_web_push.default.setVapidDetails(
-    process.env.VAPID_SUBJECT,
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
-  vapidConfigured = true;
+var configuredVapidPublicKey = "";
+var configureVapid = (config3) => {
+  if (configuredVapidPublicKey === config3.vapid_public_key) return;
+  import_web_push.default.setVapidDetails(config3.vapid_subject, config3.vapid_public_key, config3.vapid_private_key);
+  configuredVapidPublicKey = config3.vapid_public_key;
 };
 var sendPush = async (customerId2, notification) => {
-  if (!vapidReady()) return;
-  configureVapid();
+  const config3 = await getVapidConfig();
+  configureVapid(config3);
   const result = await pool.query(
     `SELECT id, endpoint, p256dh, auth FROM mobile_push_subscriptions
      WHERE customer_id = $1 AND is_active = 1`,
@@ -69062,32 +69072,55 @@ var startMobileNotificationWorker = () => {
   setInterval(run, 30 * 60 * 1e3).unref();
 };
 router3.use(attachMobileAuth);
-router3.post("/mobile/auth/token", async (req, res) => {
+var normalizePhoneDigits = (input) => {
+  if (typeof input !== "string") return "";
+  return input.trim().replace(/[۰-۹]/g, (digit) => String("\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669".indexOf(digit))).replace(/\D/g, "");
+};
+var phoneCandidates = (input) => {
+  const digits = normalizePhoneDigits(input);
+  if (!digits) return [];
+  const candidates = /* @__PURE__ */ new Set([digits]);
+  if (digits.startsWith("0098")) candidates.add(`0${digits.slice(4)}`);
+  if (digits.startsWith("98")) candidates.add(`0${digits.slice(2)}`);
+  if (digits.startsWith("0")) candidates.add(`98${digits.slice(1)}`);
+  return [...candidates].filter((value) => value.length >= 8 && value.length <= 15);
+};
+router3.post("/mobile/auth/phone", async (req, res) => {
   await mobileReady;
-  const token = tokenFromInput(req.body?.token);
-  if (!token) {
-    res.status(400).json({ error: "\u0644\u06CC\u0646\u06A9 \u06CC\u0627 \u062A\u0648\u06A9\u0646 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+  const candidates = phoneCandidates(req.body?.phone);
+  if (!candidates.length) {
+    res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
     return;
   }
   const result = await pool.query(
-    `SELECT svc.customer_id, c.full_name AS customer_name, c.phone, svc.id AS service_id
-     FROM reseller_sub_tokens rst
-     JOIN reseller_services svc ON svc.id = rst.service_id
-     JOIN reseller_customers c ON c.id = svc.customer_id
-     WHERE rst.token = $1
+    `SELECT c.id AS customer_id, c.full_name AS customer_name, c.phone,
+            (SELECT svc.id FROM reseller_services svc
+             WHERE svc.customer_id = c.id
+             ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.id DESC
+             LIMIT 1) AS service_id
+      FROM reseller_customers c
+      WHERE regexp_replace(
+        translate(COALESCE(c.phone, ''), '\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669', '01234567890123456789'),
+        '[^0-9]', '', 'g'
+      ) = ANY($1::text[])
      LIMIT 1`,
-    [token]
+    [candidates]
   );
   const row = result.rows[0];
   if (!row) {
-    res.status(401).json({ error: "\u0627\u06CC\u0646 \u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F \u06CC\u0627 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F\u0647 \u0627\u0633\u062A." });
+    res.status(404).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0634\u062A\u0631\u06CC \u06CC\u0627 \u0633\u0631\u0648\u06CC\u0633\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
     return;
   }
   const raw = randomBytes4(32).toString("hex");
   await pool.query(
     `INSERT INTO mobile_sessions (id, customer_id, source_service_id, expires_at)
      VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
-    [sessionHash2(raw), row.customer_id, row.service_id]
+    [sessionHash2(raw), row.customer_id, row.service_id ?? null]
+  );
+  await pool.query(
+    `INSERT INTO mobile_notification_preferences (customer_id)
+     VALUES ($1) ON CONFLICT (customer_id) DO NOTHING`,
+    [row.customer_id]
   );
   setMobileCookie(res, raw);
   res.json({ authenticated: true, customer: { id: String(row.customer_id), name: row.customer_name, phone: row.phone } });
@@ -69189,13 +69222,14 @@ router3.patch("/mobile/settings", requireMobileAuth, async (req, res) => {
 });
 router3.get("/mobile/push/status", requireMobileAuth, async (req, res) => {
   await mobileReady;
+  const config3 = await getVapidConfig();
   const result = await pool.query(
     "SELECT COUNT(*)::int AS count FROM mobile_push_subscriptions WHERE customer_id = $1 AND is_active = 1",
     [req.mobileAuth.customerId]
   );
   res.json({
-    configured: vapidReady(),
-    vapid_public_key: process.env.VAPID_PUBLIC_KEY ?? null,
+    configured: true,
+    vapid_public_key: config3.vapid_public_key,
     subscribed: Number(result.rows[0]?.count ?? 0) > 0
   });
 });
@@ -69218,7 +69252,8 @@ router3.post("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
        device = EXCLUDED.device, platform = EXCLUDED.platform, is_active = 1, updated_at = NOW()`,
     [req.mobileAuth.customerId, endpoint, p256dh, auth, req.get("user-agent") || null, req.body?.device || null, req.body?.platform || null]
   );
-  res.json({ saved: true, vapid_public_key: process.env.VAPID_PUBLIC_KEY ?? null });
+  const config3 = await getVapidConfig();
+  res.json({ saved: true, vapid_public_key: config3.vapid_public_key });
 });
 router3.delete("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
   await mobileReady;
@@ -69236,7 +69271,7 @@ router3.post("/mobile/push/test", requireMobileAuth, async (req, res) => {
     body: "\u0627\u06CC\u0646 \u06CC\u06A9 \u0627\u0639\u0644\u0627\u0646 \u0622\u0632\u0645\u0627\u06CC\u0634\u06CC \u0628\u0631\u0627\u06CC \u062F\u0633\u062A\u06AF\u0627\u0647 \u0634\u0645\u0627\u0633\u062A.",
     href: "/mobile/notifications"
   });
-  res.json({ sent: Boolean(id), configured: vapidReady() });
+  res.json({ sent: Boolean(id), configured: true });
 });
 var mobile_default = router3;
 

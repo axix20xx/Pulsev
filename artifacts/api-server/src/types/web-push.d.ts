@@ -8,6 +8,7 @@ declare module "web-push" {
   };
 
   type WebPush = {
+    generateVAPIDKeys(): { publicKey: string; privateKey: string };
     setVapidDetails(subject: string, publicKey: string, privateKey: string): void;
     sendNotification(subscription: PushSubscription, payload: string): Promise<unknown>;
   };

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Route, Switch, useLocation, useParams } from 'wouter';
-import { ChevronLeft, LockKeyhole, LogOut, MoreHorizontal, RefreshCw, Settings, ShieldCheck, Smartphone } from 'lucide-react';
+import { ChevronLeft, LockKeyhole, LogOut, MoreHorizontal, Phone, RefreshCw, Settings, ShieldCheck, Smartphone } from 'lucide-react';
 import { arrayFrom, faNumber, formatMobileDate, mobileRequest, objectFrom, type MobileDashboard, type MobileNotification, type MobileSettings, type MobileSubscription, useMobileFetch } from './mobile-api';
 import { AccessActions, BrandLockup, MobileFrame, MobileOfflineBanner, MobileState, NotificationRow, SubscriptionCard, UsageRing } from './mobile-ui';
 
@@ -17,21 +17,21 @@ function useSession() {
 }
 
 function LoginPage() {
-  const [token, setToken] = useState('');
+  const [phone, setPhone] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!token.trim()) { setError('لینک یا توکن اشتراک را وارد کنید.'); return; }
+    if (!phone.trim()) { setError('شماره موبایل خود را وارد کنید.'); return; }
     setPending(true); setError('');
     try {
-      await mobileRequest('/api/mobile/auth/token', { method: 'POST', body: JSON.stringify({ token: token.trim() }) });
+      await mobileRequest('/api/mobile/auth/phone', { method: 'POST', body: JSON.stringify({ phone: phone.trim() }) });
       window.location.assign(`${import.meta.env.BASE_URL}mobile/dashboard`);
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'ورود انجام نشد. دوباره امتحان کنید.'); }
     finally { setPending(false); }
   };
-  return <div className="mobile-app mobile-auth" dir="rtl"><MobileOfflineBanner /><div className="mobile-auth-glow" /><main className="mobile-auth-content"><BrandLockup /><div className="mobile-auth-intro"><span className="mobile-eyebrow">فضای مشتری</span><h1>اتصال شما،<br /><em>ساده و مطمئن.</em></h1><p>برای دیدن وضعیت سرویس و مدیریت اشتراک‌ها، لینک یا توکن اشتراک خود را وارد کنید.</p></div><form className="mobile-auth-form" onSubmit={submit}><label htmlFor="mobile-token">لینک یا توکن اشتراک</label><div className="mobile-input-wrap"><LockKeyhole size={18} /><input id="mobile-token" value={token} onChange={(event) => setToken(event.target.value)} placeholder="https://… یا توکن شما" autoComplete="one-time-code" dir="ltr" /></div>{error ? <p className="mobile-form-error">{error}</p> : null}<button className="mobile-button mobile-button-primary" disabled={pending}>{pending ? <span className="mobile-button-loader" /> : null}{pending ? 'در حال بررسی…' : 'ورود به فضای من'}<ChevronLeft size={17} /></button></form><div className="mobile-auth-note"><ShieldCheck size={16} /><span>اطلاعات شما فقط برای نمایش وضعیت اشتراک استفاده می‌شود.</span></div></main><footer className="mobile-auth-footer">پالس شخصی · امن، روشن، همیشه در دسترس</footer></div>;
+  return <div className="mobile-app mobile-auth" dir="rtl"><MobileOfflineBanner /><div className="mobile-auth-glow" /><main className="mobile-auth-content"><BrandLockup /><div className="mobile-auth-intro"><span className="mobile-eyebrow">فضای مشتری</span><h1>سرویس‌های شما،<br /><em>همیشه در دسترس.</em></h1><p>شماره موبایل خود را وارد کنید تا سرویس‌های مرتبط با آن را ببینید.</p></div><form className="mobile-auth-form" onSubmit={submit}><label htmlFor="mobile-phone">شماره موبایل</label><div className="mobile-input-wrap"><Phone size={18} /><input id="mobile-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="۰۹۱۲۱۲۳۴۵۶۷" autoComplete="tel" dir="ltr" /></div>{error ? <p className="mobile-form-error">{error}</p> : null}<button className="mobile-button mobile-button-primary" disabled={pending}>{pending ? <span className="mobile-button-loader" /> : null}{pending ? 'در حال نمایش سرویس‌ها…' : 'نمایش سرویس‌های من'}<ChevronLeft size={17} /></button></form><div className="mobile-auth-note"><ShieldCheck size={16} /><span>سرویس‌ها و تنظیمات اعلان شما در یک فضای ساده نمایش داده می‌شود.</span></div></main><footer className="mobile-auth-footer">پالس شخصی · روشن، ساده، همیشه در دسترس</footer></div>;
 }
 
 function DashboardPage({ dashboard, reload }: { dashboard: MobileDashboard; reload: () => void }) {
