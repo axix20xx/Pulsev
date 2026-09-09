@@ -434,3 +434,17 @@ mtime_ms = 1788942878364
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/05ed128f-102c-4de0-994d-e8cc658fa724/683cd87a-449f-4637-8e12-2906f65f2f35"
 storage_version_token = "1788942890588738"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "yxECUjf7eGvfOcWBJ6KAd"
+uri = "file://exports/pulse-whole-app-upgrade.zip"
+type = "unspecified"
+title = "Pulse whole-app upgrade"
+description = "نسخهٔ Hostinger شامل چک‌لیست راه‌اندازی، عملیات گروهی سرویس‌ها، PWA و آخرین قابلیت‌های مدیریت پالس."
+logical_id = "86185b93-afbb-44d1-9bcc-7f90c9c387b4"
+content_hash = "sha256:91023ad916444406e8b4b51d9c1a283543fd9508286ce56c09a3f3cac72b59c4"
+size = 26238012
+mtime_ms = 1788943776215
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/86185b93-afbb-44d1-9bcc-7f90c9c387b4/77abddfc-2fad-4c2e-ba93-d1bf633e1297"
+storage_version_token = "1788943786916733"
+content_type = "application/octet-stream"

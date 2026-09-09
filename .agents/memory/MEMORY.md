@@ -34,3 +34,4 @@
 - [Renewal AWG lifecycle](legacy-renewal-sequence.md) — renewal deletes the old AWG client and provisions a new UUID like a new service.
 - [AWG create reconciliation](awg-create-reconciliation.md) — a create request may return 500 after commit; confirm the exact UUID in the client list before retrying.
 - [Provisioning job leases](provisioning-job-leases.md) — worker heartbeats and stable AWG candidate UUIDs prevent stuck jobs and duplicate clients.
+- [PWA base paths](pwa-base-paths.md) — manifest and service-worker URLs must stay relative to the artifact base across Replit and Hostinger builds.
