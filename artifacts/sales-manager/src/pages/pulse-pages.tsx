@@ -1916,7 +1916,7 @@ function CustomerDetailContent() {
   const customerServices = {
     length: visibleCustomerServices.length,
     map: (render: (service: Service) => ReactNode) => [
-       session?.role === 'reseller' ? <div className="customer-mobile-otp-action" key="customer-mobile-otp"><Button variant="secondary" onClick={() => void requestMobileOtp()} disabled={mobileOtpLoading}><KeyRound size={14} />{mobileOtpLoading ? 'در حال ساخت کد...' : mobileOtp ? 'ساخت کد تازه' : 'ساخت کد ورود موبایل'}</Button>{allCustomerServices[0] ? <Button variant="quiet" onClick={() => void copyTextToClipboard(customerWhatsAppMessage(allCustomerServices[0], Math.max(0, daysUntil(allCustomerServices[0].expiresAt))))}><Copy size={14} /> کپی پیام واتساپ</Button> : null}</div> : null,
+       (session?.role === 'reseller' || session?.role === 'master_admin') ? <div className="customer-mobile-otp-action" key="customer-mobile-otp"><Button variant="secondary" onClick={() => void requestMobileOtp()} disabled={mobileOtpLoading}><KeyRound size={14} />{mobileOtpLoading ? 'در حال ساخت کد...' : mobileOtp ? 'ساخت کد تازه' : 'ساخت کد ورود موبایل'}</Button>{allCustomerServices[0] ? <Button variant="quiet" onClick={() => void copyTextToClipboard(customerWhatsAppMessage(allCustomerServices[0], Math.max(0, daysUntil(allCustomerServices[0].expiresAt))))}><Copy size={14} /> کپی پیام واتساپ</Button> : null}</div> : null,
        <CustomerServiceControls key="customer-service-controls" services={allCustomerServices} tab={serviceTab} issueFilter={serviceIssueFilter} search={serviceSearch} onTabChange={setServiceTab} onIssueFilterChange={setServiceIssueFilter} onSearchChange={setServiceSearch} />,
       ...visibleCustomerServices.map(render),
     ],
@@ -1948,7 +1948,7 @@ function CustomerDetailContent() {
     return () => { active = false; };
   }, [numericId, session?.authenticated]);
    const requestMobileOtp = async () => {
-     if (session?.role !== 'reseller' || !numericId) return;
+     if (session?.role !== 'reseller' && session?.role !== 'master_admin' || !numericId) return;
      setMobileOtpLoading(true);
      try {
        const result = await generateCustomerMobileOtp(numericId);
