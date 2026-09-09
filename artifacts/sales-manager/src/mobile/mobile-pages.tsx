@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Route, Switch, useLocation, useParams } from 'wouter';
-import { ArrowDownToLine, ChevronLeft, Download, LockKeyhole, LogOut, MoreHorizontal, Phone, Plus, RefreshCw, Settings, Share2, ShieldCheck, Smartphone } from 'lucide-react';
+import { ArrowDownToLine, Check, ChevronLeft, Download, LockKeyhole, LogOut, MoreHorizontal, Phone, Plus, RefreshCw, Settings, Share2, ShieldCheck, Smartphone, X } from 'lucide-react';
 import { arrayFrom, faNumber, formatMobileDate, mobileRequest, objectFrom, type MobileDashboard, type MobileNotification, type MobileSettings, type MobileSubscription, useMobileFetch } from './mobile-api';
 import { AccessActions, BrandLockup, MobileFrame, MobileOfflineBanner, MobileState, NotificationRow, SubscriptionCard, UsageRing } from './mobile-ui';
 
@@ -31,7 +31,7 @@ function LoginPage() {
     catch (cause) { setError(cause instanceof Error ? cause.message : 'ورود انجام نشد. دوباره امتحان کنید.'); }
     finally { setPending(false); }
   };
-  return <div className="mobile-app mobile-auth" dir="rtl"><MobileOfflineBanner /><div className="mobile-auth-glow" /><main className="mobile-auth-content"><BrandLockup /><div className="mobile-auth-intro"><span className="mobile-eyebrow">فضای مشتری</span><h1>سرویس‌های شما،<br /><em>همیشه در دسترس.</em></h1><p>شماره موبایل خود را وارد کنید تا سرویس‌های مرتبط با آن را ببینید.</p></div><form className="mobile-auth-form" onSubmit={submit}><label htmlFor="mobile-phone">شماره موبایل</label><div className="mobile-input-wrap"><Phone size={18} /><input id="mobile-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="۰۹۱۲۱۲۳۴۵۶۷" autoComplete="tel" dir="ltr" /></div>{error ? <p className="mobile-form-error">{error}</p> : null}<button className="mobile-button mobile-button-primary" disabled={pending}>{pending ? <span className="mobile-button-loader" /> : null}{pending ? 'در حال نمایش سرویس‌ها…' : 'نمایش سرویس‌های من'}<ChevronLeft size={17} /></button></form><div className="mobile-auth-note"><ShieldCheck size={16} /><span>سرویس‌ها و تنظیمات اعلان شما در یک فضای ساده نمایش داده می‌شود.</span></div></main><footer className="mobile-auth-footer">پالس شخصی · روشن، ساده، همیشه در دسترس</footer></div>;
+  return <div className="mobile-app mobile-auth" dir="rtl"><MobileOfflineBanner /><div className="mobile-auth-glow" /><main className="mobile-auth-content"><BrandLockup /><div className="mobile-auth-intro"><span className="mobile-eyebrow">فضای مشتری</span><h1>سرویس‌های شما،<br /><em>همیشه در دسترس.</em></h1><p>شماره موبایل خود را وارد کنید تا سرویس‌های مرتبط با آن را ببینید.</p></div><form className="mobile-auth-form" onSubmit={submit}><label htmlFor="mobile-phone">شماره موبایل</label><div className="mobile-input-wrap"><Phone size={18} /><input id="mobile-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="۰۹۱۲۱۲۳۴۵۶۷" autoComplete="tel" dir="ltr" /></div>{error ? <p className="mobile-form-error">{error}</p> : null}<button className="mobile-button mobile-button-primary" disabled={pending}>{pending ? <span className="mobile-button-loader" /> : null}{pending ? 'در حال نمایش سرویس‌ها…' : 'نمایش سرویس‌های من'}<ChevronLeft size={17} /></button></form><div className="mobile-auth-note"><ShieldCheck size={16} /><span>سرویس‌ها و تنظیمات اعلان شما در یک فضای ساده نمایش داده می‌شود.</span></div><Link className="mobile-auth-install-link" href="/mobile/install"><Download size={15} />راهنمای نصب پالس روی گوشی</Link></main><footer className="mobile-auth-footer">پالس شخصی · روشن، ساده، همیشه در دسترس</footer></div>;
 }
 
 function DashboardPage({ dashboard, reload }: { dashboard: MobileDashboard; reload: () => void }) {
@@ -83,9 +83,16 @@ type InstallPromptEvent = Event & {
 };
 
 function InstallGuidePage() {
-  const [platform, setPlatform] = useState<'ios' | 'android'>(() => /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'android');
+  const isIosDevice = () => /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  const isSafariBrowser = () => /Safari/i.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(navigator.userAgent);
+  const [platform, setPlatform] = useState<'ios' | 'android'>(() => isIosDevice() ? 'ios' : 'android');
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [quickGuideOpen, setQuickGuideOpen] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isSafari, setIsSafari] = useState(false);
   useEffect(() => {
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
+    setIsSafari(isSafariBrowser());
     const onBeforeInstall = (event: Event) => {
       event.preventDefault();
       setInstallPrompt(event as InstallPromptEvent);
@@ -93,6 +100,14 @@ function InstallGuidePage() {
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
     return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall);
   }, []);
+  useEffect(() => {
+    if (!quickGuideOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setQuickGuideOpen(false); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', onKeyDown); };
+  }, [quickGuideOpen]);
   const installNow = async () => {
     if (!installPrompt) return;
     await installPrompt.prompt();
@@ -111,7 +126,22 @@ function InstallGuidePage() {
     { icon: <Plus size={18} />, title: 'Install یا Add را تأیید کنید', body: 'Chrome میانبر پالس را روی صفحهٔ اصلی گوشی قرار می‌دهد.' },
   ];
   const steps = platform === 'ios' ? iosSteps : androidSteps;
-  return <MobileFrame title="راهنمای نصب" back><section className="mobile-install-hero"><div className="mobile-install-orbit mobile-install-orbit-one" /><div className="mobile-install-orbit mobile-install-orbit-two" /><div className="mobile-install-phone"><div className="mobile-install-phone-island" /><div className="mobile-install-phone-screen"><span className="mobile-install-screen-mark"><ShieldCheck size={20} /></span><strong>پالس</strong><small>فضای امن شما</small><i /></div><span className="mobile-install-tap"><ArrowDownToLine size={15} /></span></div><div className="mobile-install-copy"><span className="mobile-eyebrow">پالس همیشه نزدیک شما</span><h1>مثل یک برنامه<br /><em>روی گوشی‌تان.</em></h1><p>با نصب PWA، بدون جست‌وجوی دوبارهٔ لینک، سریع به سرویس‌ها و اعلان‌ها دسترسی دارید.</p></div></section><div className="mobile-install-tabs" role="tablist" aria-label="انتخاب نوع گوشی"><button className={platform === 'ios' ? 'is-active' : ''} onClick={() => setPlatform('ios')} role="tab" aria-selected={platform === 'ios'}>iPhone / iPad</button><button className={platform === 'android' ? 'is-active' : ''} onClick={() => setPlatform('android')} role="tab" aria-selected={platform === 'android'}>Android</button></div>{installPrompt && platform === 'android' ? <button className="mobile-install-native" onClick={installNow}><Download size={17} /> نصب مستقیم برنامه</button> : null}<section className="mobile-install-steps"><div className="mobile-section-head"><div><span className="mobile-eyebrow">فقط چند ثانیه</span><h2>{platform === 'ios' ? 'نصب در Safari' : 'نصب در Chrome'}</h2></div><span className="mobile-install-step-count">{faNumber(steps.length)} مرحله</span></div><div className="mobile-install-step-list">{steps.map((step, index) => <article className="mobile-install-step" key={step.title}><span className="mobile-install-step-number">{faNumber(index + 1)}</span><span className="mobile-install-step-icon">{step.icon}</span><div><strong>{step.title}</strong><p>{step.body}</p></div></article>)}</div></section><div className="mobile-install-note"><ShieldCheck size={17} /><p>بعد از نصب، پالس از صفحهٔ اصلی با حالت تمام‌صفحه باز می‌شود و اعلان‌های فعال سرویس را راحت‌تر دریافت می‌کنید.</p></div></MobileFrame>;
+  const openQuickGuide = () => setQuickGuideOpen(true);
+  const closeQuickGuide = () => setQuickGuideOpen(false);
+  return <MobileFrame title="راهنمای نصب" back>
+    <section className="mobile-install-hero">
+      <div className="mobile-install-orbit mobile-install-orbit-one" /><div className="mobile-install-orbit mobile-install-orbit-two" />
+      <div className="mobile-install-phone"><div className="mobile-install-phone-island" /><div className="mobile-install-phone-screen"><span className="mobile-install-screen-mark"><ShieldCheck size={20} /></span><strong>پالس</strong><small>فضای امن شما</small><i /></div><span className="mobile-install-tap"><ArrowDownToLine size={15} /></span></div>
+      <div className="mobile-install-copy"><span className="mobile-eyebrow">پالس همیشه نزدیک شما</span><h1>مثل یک برنامه<br /><em>روی گوشی‌تان.</em></h1><p>با نصب PWA، بدون جست‌وجوی دوبارهٔ لینک، سریع به سرویس‌ها و اعلان‌ها دسترسی دارید.</p><button type="button" className="mobile-install-quick-button" onClick={openQuickGuide}><Smartphone size={16} /> راهنمای سریع نصب</button></div>
+    </section>
+    <div className="mobile-install-tabs" role="tablist" aria-label="انتخاب نوع گوشی"><button className={platform === 'ios' ? 'is-active' : ''} onClick={() => setPlatform('ios')} role="tab" aria-selected={platform === 'ios'}>iPhone / iPad</button><button className={platform === 'android' ? 'is-active' : ''} onClick={() => setPlatform('android')} role="tab" aria-selected={platform === 'android'}>Android</button></div>
+    {isStandalone ? <div className="mobile-install-already"><Check size={16} /><span>پالس همین حالا به‌صورت برنامه نصب شده است.</span></div> : null}
+    {!isStandalone && installPrompt && platform === 'android' ? <button className="mobile-install-native" onClick={installNow}><Download size={17} /> نصب مستقیم برنامه</button> : null}
+    {platform === 'ios' && !isSafari ? <div className="mobile-install-browser-note"><Share2 size={16} /><span>برای نصب روی iPhone، این صفحه را در Safari باز کنید؛ نصب از داخل پیام‌رسان‌ها یا Chrome انجام نمی‌شود.</span></div> : null}
+    <section className="mobile-install-steps"><div className="mobile-section-head"><div><span className="mobile-eyebrow">فقط چند ثانیه</span><h2>{platform === 'ios' ? 'نصب در Safari' : 'نصب در Chrome'}</h2></div><span className="mobile-install-step-count">{faNumber(steps.length)} مرحله</span></div><div className="mobile-install-step-list">{steps.map((step, index) => <article className="mobile-install-step" key={step.title}><span className="mobile-install-step-number">{faNumber(index + 1)}</span><span className="mobile-install-step-icon">{step.icon}</span><div><strong>{step.title}</strong><p>{step.body}</p></div></article>)}</div></section>
+    <div className="mobile-install-note"><ShieldCheck size={17} /><p>بعد از نصب، پالس از صفحهٔ اصلی با حالت تمام‌صفحه باز می‌شود و اعلان‌های فعال سرویس را راحت‌تر دریافت می‌کنید.</p></div>
+    {quickGuideOpen ? <div className="mobile-install-modal-backdrop" role="presentation" onClick={closeQuickGuide}><section className="mobile-install-modal" role="dialog" aria-modal="true" aria-labelledby="install-modal-title" onClick={(event) => event.stopPropagation()}><header className="mobile-install-modal-head"><div><span className="mobile-eyebrow">راهنمای مرحله‌به‌مرحله</span><h2 id="install-modal-title">{platform === 'ios' ? 'نصب روی iPhone' : 'نصب روی Android'}</h2></div><button type="button" className="mobile-icon-button" onClick={closeQuickGuide} aria-label="بستن راهنما"><X size={19} /></button></header>{platform === 'ios' && !isSafari ? <div className="mobile-install-modal-alert"><Share2 size={17} /><span>اول لینک را در Safari باز کنید.</span></div> : null}<div className="mobile-install-modal-steps">{steps.map((step, index) => <div className="mobile-install-modal-step" key={step.title}><span>{faNumber(index + 1)}</span><div><strong>{step.title}</strong><p>{step.body}</p></div></div>)}</div>{!isStandalone && installPrompt && platform === 'android' ? <button type="button" className="mobile-install-native" onClick={installNow}><Download size={17} /> نصب مستقیم برنامه</button> : null}<button type="button" className="mobile-install-modal-done" onClick={closeQuickGuide}><Check size={16} /> متوجه شدم</button></section></div> : null}
+  </MobileFrame>;
 }
 
 function SettingsPage() {
@@ -174,10 +204,11 @@ export function MobileApp() {
     document.documentElement.lang = 'fa'; document.documentElement.dir = 'rtl';
     return () => { if (manifest && previous) manifest.href = previous; document.documentElement.lang = 'en'; document.documentElement.dir = 'ltr'; };
   }, []);
+  const isPublicMobileRoute = location === '/mobile/login' || location === '/mobile/install';
   useEffect(() => {
-    if (!loading && !session && location !== '/mobile/login') setLocation('/mobile/login');
-  }, [loading, session, location, setLocation]);
+    if (!loading && !session && !isPublicMobileRoute) setLocation('/mobile/login');
+  }, [loading, session, isPublicMobileRoute, location, setLocation]);
   if (loading) return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><ShieldCheck size={28} /></div><span>در حال آماده‌سازی فضای شما</span></div>;
-  if (!session && location !== '/mobile/login') return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><ShieldCheck size={28} /></div><span>در حال انتقال به ورود</span></div>;
+  if (!session && !isPublicMobileRoute) return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><ShieldCheck size={28} /></div><span>در حال انتقال به ورود</span></div>;
   return <Switch><Route path="/mobile/login" component={LoginPage} /><Route path="/mobile/dashboard" component={MobileDashboardRoute} /><Route path="/mobile/subscriptions/:id" component={SubscriptionDetailPage} /><Route path="/mobile/subscriptions" component={SubscriptionsPage} /><Route path="/mobile/notifications" component={NotificationsPage} /><Route path="/mobile/profile" component={ProfilePage} /><Route path="/mobile/install" component={InstallGuidePage} /><Route path="/mobile/settings" component={SettingsPage} /><Route path="/mobile" component={session ? MobileDashboardRoute : LoginPage} /><Route component={LoginPage} /></Switch>;
 }

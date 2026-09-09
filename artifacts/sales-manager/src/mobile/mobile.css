@@ -198,3 +198,29 @@
   .mobile-nav-rebuilt-item { font-size: 9px; }
   .mobile-nav-rebuilt-icon { width: 56px; min-width: 56px; }
 }
+
+.mobile-install-quick-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; margin-top: 14px; border: 1px solid rgba(185,220,128,.45); border-radius: 13px; background: rgba(255,255,255,.08); padding: 10px 13px; color: #f5f8eb; font-size: 10px; font-weight: 800; transition: background .2s ease, transform .2s ease; }
+.mobile-install-quick-button:hover { background: rgba(185,220,128,.16); transform: translateY(-1px); }
+.mobile-install-already, .mobile-install-browser-note { display: flex; align-items: flex-start; gap: 8px; margin: 11px 0 -3px; border-radius: 15px; padding: 11px 12px; font-size: 10px; line-height: 1.8; }
+.mobile-install-already { background: #e7efd9; color: var(--mobile-mint-deep); }
+.mobile-install-browser-note { background: #f6ead0; color: #8c642b; }
+.mobile-install-already svg, .mobile-install-browser-note svg { flex: 0 0 auto; margin-top: 2px; }
+.mobile-install-modal-backdrop { position: fixed; z-index: 140; inset: 0; display: grid; align-items: end; justify-items: center; background: rgba(9, 29, 31, .52); padding: 16px 14px max(16px, env(safe-area-inset-bottom)); animation: mobile-install-modal-fade .24s ease both; }
+.mobile-install-modal { width: min(100%, 430px); max-height: min(86dvh, 720px); overflow: auto; overscroll-behavior: contain; border: 1px solid rgba(255,255,255,.72); border-radius: 26px; background: #fffefa; padding: 18px 15px 15px; box-shadow: 0 24px 70px rgba(0,0,0,.26); animation: mobile-install-modal-rise .34s cubic-bezier(.22, .8, .26, 1) both; }
+.mobile-install-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.mobile-install-modal-head h2 { margin: 4px 0 0; font-size: 19px; letter-spacing: -.035em; }
+.mobile-install-modal-head .mobile-icon-button { width: 36px; height: 36px; background: #edf1e9; }
+.mobile-install-modal-alert { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; border-radius: 13px; background: #f6ead0; padding: 10px 11px; color: #8c642b; font-size: 10px; font-weight: 700; }
+.mobile-install-modal-steps { display: grid; gap: 8px; }
+.mobile-install-modal-step { display: grid; grid-template-columns: 29px 1fr; align-items: start; gap: 9px; border: 1px solid var(--mobile-line); border-radius: 16px; background: #fbfcf7; padding: 11px 10px; }
+.mobile-install-modal-step > span { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 10px; background: #e6efd7; color: var(--mobile-mint-deep); font: 800 11px 'IBM Plex Mono', monospace; }
+.mobile-install-modal-step strong { display: block; margin: 1px 0 3px; color: var(--mobile-ink); font-size: 10px; }
+.mobile-install-modal-step p { margin: 0; color: var(--mobile-ink-soft); font-size: 9px; line-height: 1.8; }
+.mobile-install-modal .mobile-install-native { margin: 12px 0 0; }
+.mobile-install-modal-done { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 10px; border: 0; border-radius: 13px; background: var(--mobile-ink); padding: 12px; color: var(--mobile-mint); font-size: 11px; font-weight: 800; }
+@keyframes mobile-install-modal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mobile-install-modal-rise { from { opacity: 0; transform: translateY(28px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .mobile-install-modal-backdrop, .mobile-install-modal { animation: none; }
+  .mobile-install-quick-button { transition: none; }
+}
