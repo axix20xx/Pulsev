@@ -448,3 +448,17 @@ mtime_ms = 1788943776215
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/86185b93-afbb-44d1-9bcc-7f90c9c387b4/77abddfc-2fad-4c2e-ba93-d1bf633e1297"
 storage_version_token = "1788943786916733"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "NgxZb5qLW9P0gitFm6Tk6"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-pwa.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle with customer mobile PWA"
+description = "نسخهٔ به‌روز bundle برای Hostinger شامل پنل فروشندگان، بخش مشتری موبایل، API موبایل، manifest/service worker و تنظیمات VAPID نمونه است."
+logical_id = "63f71e17-9ca1-49c0-afe5-b964c71aebbd"
+content_hash = "sha256:b682f95a2123b92a2338c608ead6582ccdbff2360cb4a6d9f86a7f41186e823a"
+size = 26377960
+mtime_ms = 1788946557565
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/63f71e17-9ca1-49c0-afe5-b964c71aebbd/34b76176-7c57-443a-b468-12e7bb1e23b7"
+storage_version_token = "1788946569171757"
+content_type = "application/octet-stream"

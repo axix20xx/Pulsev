@@ -1,0 +1,15 @@
+{
+  "name": "پالس شخصی",
+  "short_name": "پالس",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f5ef",
+  "theme_color": "#17383a",
+  "description": "فضای امن مشتریان پالس برای مدیریت اشتراک VPN",
+  "icons": [
+    { "src": "../favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { startUsageSyncWorker } from "./lib/usage-sync";
+import { startMobileNotificationWorker } from "./routes/mobile";
 
 const app: Express = express();
 
@@ -108,5 +109,6 @@ app.use(
 );
 
 startUsageSyncWorker();
+startMobileNotificationWorker();
 
 export default app;

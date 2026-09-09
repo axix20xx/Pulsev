@@ -14,10 +14,14 @@ import { Shell } from '@/components/pulse-shell';
  import { ActionRequests, AdminSales, Connections, CustomerDetail, Customers, LoginPage, Monitoring, Overview, PointOfSale, PublicSubscription, PulseProvider, Reports, ResellerAccounting, Sales, Services, SettingsPage } from '@/pages/pulse-pages';
  import { SmartCenter } from '@/pages/smart-center';
  import { OperationsCenter } from '@/pages/operations-center';
+import { MobileApp } from '@/mobile/mobile-pages';
+import '@/mobile/mobile.css';
 
 const queryClient = new QueryClient();
 
 function Router() {
+  const [location] = useLocation();
+  if (location === '/mobile' || location.startsWith('/mobile/')) return <MobileApp />;
   return (
     // Keep a shared shell (sidebar, navbar) outside the boundary so it
     // survives a page crash.
