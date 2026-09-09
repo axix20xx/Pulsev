@@ -3545,6 +3545,10 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/customers/:id/mobile-otp", requireAuth, async (req, res): Promise<void> => {
+  if (req.auth?.role !== "reseller") {
+    res.status(403).json({ error: "فقط فروشنده می‌تواند کد ورود تازه بسازد." });
+    return;
+  }
   const customerId = Number(req.params.id);
   if (!Number.isSafeInteger(customerId) || customerId <= 0) {
     res.status(400).json({ error: "شناسه مشتری معتبر نیست" });
@@ -3567,7 +3571,7 @@ router.post("/customers/:id/mobile-otp", requireAuth, async (req, res): Promise<
   res.json({
     customer: { id: String(customer.id), name: customer.name, phone: customer.phone },
     otp: challenge.otp,
-    expires_at: challenge.expiresAt,
+    expires_at: null,
   });
 });
 

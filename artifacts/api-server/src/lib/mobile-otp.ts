@@ -7,14 +7,16 @@ export const mobileOtpReady = pool.query(`
     customer_id BIGINT NOT NULL,
     phone TEXT NOT NULL,
     otp_hash TEXT NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
+     expires_at TIMESTAMP,
     attempts SMALLINT NOT NULL DEFAULT 0,
     used_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   );
   CREATE INDEX IF NOT EXISTS mobile_login_otps_lookup_idx
     ON mobile_login_otps (customer_id, phone, expires_at DESC);
-`);
+ `).then(async () => {
+  await pool.query("ALTER TABLE mobile_login_otps ALTER COLUMN expires_at DROP NOT NULL").catch(() => undefined);
+});
 
 const hashOtp = (challengeId: string, otp: string) =>
   createHash("sha256").update(`${challengeId}:${otp}`).digest("hex");
@@ -22,8 +24,7 @@ const hashOtp = (challengeId: string, otp: string) =>
 export const issueMobileOtp = async (customerId: number, phone: string) => {
   await mobileOtpReady;
   const challengeId = randomBytes(24).toString("hex");
-  const otp = String(randomInt(100000, 1000000));
-  const expiresAt = new Date(Date.now() + 5 * 60_000);
+  const otp = String(randomInt(1000, 10000));
   await pool.query(
     `UPDATE mobile_login_otps
      SET used_at = COALESCE(used_at, NOW())
@@ -33,12 +34,12 @@ export const issueMobileOtp = async (customerId: number, phone: string) => {
   await pool.query(
     `INSERT INTO mobile_login_otps (id, customer_id, phone, otp_hash, expires_at)
      VALUES ($1, $2, $3, $4, $5)`,
-    [challengeId, customerId, phone, hashOtp(challengeId, otp), expiresAt],
+     [challengeId, customerId, phone, hashOtp(challengeId, otp), null],
   );
   return {
     challengeId,
     otp,
-    expiresAt: expiresAt.toISOString(),
+    expiresAt: null,
   };
 };
 
@@ -56,7 +57,7 @@ export const consumeMobileOtp = async (
       id: string;
       otp_hash: string;
       attempts: number;
-      expires_at: Date | string;
+      expires_at: Date | string | null;
       used_at: Date | string | null;
     }>(
       `SELECT id, otp_hash, attempts, expires_at, used_at
@@ -70,7 +71,6 @@ export const consumeMobileOtp = async (
       Boolean(row) &&
       !row.used_at &&
       Number(row.attempts) < 5 &&
-      new Date(row.expires_at).getTime() > Date.now() &&
       hashOtp(challengeId, otp) === row.otp_hash;
     if (!row) {
       await client.query("ROLLBACK");
@@ -84,7 +84,7 @@ export const consumeMobileOtp = async (
         [challengeId],
       );
       await client.query("COMMIT");
-      return { ok: false as const, reason: "کد ورود نادرست یا منقضی شده است." };
+      return { ok: false as const, reason: "کد ورود نادرست، مصرف‌شده یا بیش از حد تلاش‌شده است." };
     }
     await client.query(
       `UPDATE mobile_login_otps

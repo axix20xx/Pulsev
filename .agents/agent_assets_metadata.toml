@@ -490,3 +490,17 @@ mtime_ms = 1788958702196
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f72dc51c-daa0-4a0b-ba26-e6805aa020c8/3a9b77dc-2c2b-40b3-ae15-2214c3a68337"
 storage_version_token = "1788958742932042"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "f8QXPwqM13w6eCb9rbWiw"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-otp-final.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle — OTP and mobile PWA"
+description = "Production-ready Hostinger ZIP with the updated API, four-digit non-expiring reseller-issued OTP flow, independent /panel and /mobile frontend bundles, and Supabase migration assets."
+logical_id = "baf3e71b-743c-4574-9a13-dd094e37cfba"
+content_hash = "sha256:6e1c33fa0735ad86c312eb86e86966bc271bc234c6e8b163edb707d378a80ded"
+size = 26766265
+mtime_ms = 1788959257508
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/baf3e71b-743c-4574-9a13-dd094e37cfba/3376910a-98a1-470c-8a56-d38205e1fbbe"
+storage_version_token = "1788959291234589"
+content_type = "application/octet-stream"

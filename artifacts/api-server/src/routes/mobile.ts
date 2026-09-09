@@ -444,7 +444,7 @@ router.post("/mobile/auth/otp/verify", async (req, res): Promise<void> => {
   const candidates = phoneCandidates(req.body?.phone);
   const challengeId = typeof req.body?.challenge_id === "string" ? req.body.challenge_id.trim() : "";
   const otp = normalizeMobileOtp(req.body?.otp);
-  if (!candidates.length || !challengeId || otp.length !== 6) {
+   if (!candidates.length || !challengeId || otp.length !== 4) {
     res.status(400).json({ error: "شماره موبایل و کد ورود معتبر وارد کنید." });
     return;
   }
