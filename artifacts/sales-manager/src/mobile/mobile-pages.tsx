@@ -4,6 +4,10 @@ import { ArrowDownToLine, Check, ChevronLeft, Download, LockKeyhole, LogOut, Mor
 import { arrayFrom, faNumber, formatMobileDate, mobileRequest, objectFrom, type MobileDashboard, type MobileNotification, type MobileSettings, type MobileSubscription, useMobileFetch } from './mobile-api';
 import { AccessActions, BrandLockup, MobileFrame, MobileLogo, MobileOfflineBanner, MobileState, NotificationRow, SubscriptionCard, UsageRing } from './mobile-ui';
 
+const mobileAssetBaseUrl = import.meta.env.BASE_URL.endsWith('/mobile/')
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}mobile/`;
+
 function useSession() {
   const [session, setSession] = useState<{ customer?: { name: string; phone: string } } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -165,7 +169,7 @@ function SettingsPage() {
       if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('مرورگر شما از اعلان پوش پشتیبانی نمی‌کند.');
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') throw new Error('اجازه ارسال اعلان داده نشد.');
-      const registration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}mobile/sw.js`, { scope: `${import.meta.env.BASE_URL}mobile/` });
+      const registration = await navigator.serviceWorker.register(`${mobileAssetBaseUrl}sw.js`, { scope: mobileAssetBaseUrl });
        const setup = await mobileRequest<{ vapid_public_key?: string }>('/api/mobile/push/status');
       if (!setup.vapid_public_key) throw new Error('کلید اعلان از سرویس دریافت نشد.');
       const encodedKey = setup.vapid_public_key.replace(/-/g, '+').replace(/_/g, '/');
@@ -177,7 +181,7 @@ function SettingsPage() {
   };
   const disablePush = async () => {
     try {
-      const registration = await navigator.serviceWorker.getRegistration(`${import.meta.env.BASE_URL}mobile/`);
+      const registration = await navigator.serviceWorker.getRegistration(mobileAssetBaseUrl);
       const subscription = await registration?.pushManager.getSubscription();
       if (subscription) {
         await mobileRequest('/api/mobile/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: subscription.endpoint }) });
@@ -200,7 +204,7 @@ export function MobileApp() {
   useEffect(() => {
     const manifest = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
     const previous = manifest?.href;
-    if (manifest) manifest.href = `${import.meta.env.BASE_URL}mobile/manifest.webmanifest`;
+    if (manifest) manifest.href = `${mobileAssetBaseUrl}manifest.webmanifest`;
     const appIconHref = `${import.meta.env.BASE_URL}favicon.svg`;
     const iconLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="apple-touch-icon"]'));
     const previousIcons = iconLinks.map((link) => link.href);

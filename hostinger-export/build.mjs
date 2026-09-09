@@ -6,6 +6,7 @@ const requiredFiles = [
   "installer.html",
   "web/index.html",
   "web/panel/index.html",
+  "web/mobile/index.html",
   "web/showcase/index.html",
   "web/sub-app/index.html",
   "api/index.mjs",
@@ -34,6 +35,13 @@ const panelIndex = await readFile("web/panel/index.html", "utf8");
 if (!/["']\/panel\/assets\//.test(panelIndex)) {
   throw new Error(
     "Hostinger panel bundle must be built for /panel/, not the domain root.",
+  );
+}
+
+const mobileIndex = await readFile("web/mobile/index.html", "utf8");
+if (!/["']\/mobile\/assets\//.test(mobileIndex)) {
+  throw new Error(
+    "Hostinger mobile bundle must be built for /mobile/, not /panel/ or the domain root.",
   );
 }
 

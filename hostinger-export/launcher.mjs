@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicRoot = path.join(root, "web");
 const panelRoot = path.join(publicRoot, "panel");
+const mobileRoot = path.join(publicRoot, "mobile");
 const showcaseRoot = path.join(publicRoot, "showcase");
 const subscriptionRoot = path.join(publicRoot, "sub-app");
 const panelSubscriptionAssetsRoot = path.join(publicRoot, "panel-sub-assets");
@@ -479,6 +480,11 @@ async function serveWeb(req, res) {
     res.end("Bad request");
     return;
   }
+  if (pathname === "/panel/mobile" || pathname.startsWith("/panel/mobile/")) {
+    res.writeHead(302, { location: pathname.replace(/^\/panel\/mobile/, "/mobile") + requestUrl.search });
+    res.end();
+    return;
+  }
   const isPanelRoute = pathname === "/panel" || pathname.startsWith("/panel/");
   const isMobileRoute = pathname === "/mobile" || pathname.startsWith("/mobile/");
   const isMobileStaticAsset =
@@ -488,8 +494,10 @@ async function serveWeb(req, res) {
   const isShowcaseRoute = pathname === "/showcase" || pathname.startsWith("/showcase/");
   const isSubscriptionRoute = pathname === "/sub" || pathname.startsWith("/sub/");
   const isPanelSubscriptionAsset = pathname.startsWith("/panel-sub-assets/");
-  const appRoot = isPanelRoute || isMobileRoute
-    ? panelRoot
+  const appRoot = isMobileRoute
+    ? mobileRoot
+    : isPanelRoute
+      ? panelRoot
     : isShowcaseRoute
       ? showcaseRoot
       : isSubscriptionRoute
@@ -497,13 +505,13 @@ async function serveWeb(req, res) {
         : isPanelSubscriptionAsset
           ? publicRoot
           : publicRoot;
-  const appPathname = isPanelRoute
-    ? pathname.slice("/panel".length) || "/"
-    : isMobileRoute && isMobileStaticAsset
+  const appPathname = isMobileRoute
+    ? isMobileStaticAsset
       ? pathname
-      : isMobileRoute
-        ? "/"
-    : isShowcaseRoute
+      : pathname.slice("/mobile".length) || "/"
+    : isPanelRoute
+      ? pathname.slice("/panel".length) || "/"
+      : isShowcaseRoute
       ? pathname.slice("/showcase".length) || "/"
       : pathname;
   const requested = path.resolve(appRoot, `.${appPathname}`);
