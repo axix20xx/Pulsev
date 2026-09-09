@@ -44,15 +44,18 @@ const navItems = [
 
 export function MobileNav({ unread = 0 }: { unread?: number }) {
   const [location] = useLocation();
-  return <nav className="mobile-bottom-nav" aria-label="ناوبری اصلی">
-    {navItems.map(({ href, label, Icon }) => {
-      const active = location === href
-        || (href !== '/mobile/dashboard' && location.startsWith(href))
-        || (href === '/mobile/profile' && (location === '/mobile/settings' || location === '/mobile/install'));
-      return <Link href={href} aria-current={active ? 'page' : undefined} className={`mobile-nav-item ${active ? 'is-active' : ''}`} key={href}>
-        <span className="mobile-nav-icon"><Icon size={27} strokeWidth={2.15} aria-hidden="true" />{label === 'اعلان‌ها' && unread > 0 ? <b>{faNumber(unread)}</b> : null}</span><span className="mobile-nav-label">{label}</span>
-      </Link>;
-    })}
+  return <nav className="mobile-nav-rebuilt" aria-label="ناوبری اصلی">
+    <div className="mobile-nav-rebuilt-inner">
+      {navItems.map(({ href, label, Icon }) => {
+        const active = location === href
+          || (href !== '/mobile/dashboard' && location.startsWith(href))
+          || (href === '/mobile/profile' && (location === '/mobile/settings' || location === '/mobile/install'));
+        return <Link href={href} aria-current={active ? 'page' : undefined} className={`mobile-nav-rebuilt-item ${active ? 'is-active' : ''}`} key={href}>
+          <span className="mobile-nav-rebuilt-icon"><Icon aria-hidden="true" />{label === 'اعلان‌ها' && unread > 0 ? <b>{faNumber(unread)}</b> : null}</span>
+          <span className="mobile-nav-rebuilt-label">{label}</span>
+        </Link>;
+      })}
+    </div>
   </nav>;
 }
 
