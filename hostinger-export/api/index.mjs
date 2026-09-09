@@ -57849,8 +57849,8 @@ async function confirmAwgClient(clientId) {
   }
   return false;
 }
-async function createAwgClient() {
-  const clientId = randomUUID();
+async function createAwgClient(requestedClientId) {
+  const clientId = requestedClientId || randomUUID();
   try {
     const response = await request2("POST", "/api/clients", { id: clientId });
     if (!response.configured) {
@@ -57961,8 +57961,8 @@ async function disableAwgClient(clientId) {
     return false;
   }
 }
-async function replaceAwgClient(clientId) {
-  const replacement = await createAwgClient();
+async function replaceAwgClient(clientId, replacementClientId) {
+  const replacement = await createAwgClient(replacementClientId);
   if (!replacement.clientId) {
     return replacement;
   }
@@ -60617,6 +60617,43 @@ router2.get("/monitoring", requireAuth, async (req, res) => {
     jobs: jobs.rows
   });
 });
+router2.post("/monitoring/jobs/:id/retry", requireAuth, async (req, res) => {
+  const jobId = Number(req.params.id);
+  if (!Number.isInteger(jobId) || jobId < 1) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u062c\u0627\u0628 \u0646\u0627\u0645\u0639\u062a\u0628\u0631 \u0627\u0633\u062a." });
+    return;
+  }
+  const owner = ownership("svc", req);
+  const jobParam = owner.params.length + 1;
+  const result = await pool.query(
+    `UPDATE service_provision_jobs job
+     SET status = 'retrying',
+         last_error = '\u062a\u0644\u0627\u0634 \u062f\u0648\u0628\u0627\u0631\u0647 \u0628\u0647\u200c\u0635\u0648\u0631\u062a \u062f\u0633\u062a\u06cc \u062f\u0631 \u0635\u0641 \u0642\u0631\u0627\u0631 \u06af\u0631\u0641\u062a',
+         next_attempt_at = NOW(),
+         lease_owner = NULL,
+         lease_expires_at = NULL,
+         heartbeat_at = NULL,
+         updated_at = NOW(),
+         completed_at = NULL
+     WHERE job.id = $${jobParam}
+       AND (job.status IN ('pending', 'retrying')
+            OR (job.status = 'running' AND (
+              job.lease_expires_at < NOW()
+              OR (job.lease_expires_at IS NULL AND job.updated_at < NOW() - INTERVAL '10 minutes')
+            )))
+       AND EXISTS (
+         SELECT 1 FROM reseller_services svc
+         WHERE svc.id = job.service_id AND ${owner.sql}
+       )
+     RETURNING job.id`,
+    [...owner.params, jobId]
+  );
+  if (!result.rows[0]) {
+    res.status(404).json({ error: "\u0627\u06cc\u0646 \u062c\u0627\u0628 \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f \u06cc\u0627 \u0647\u0646\u0648\u0632 \u062f\u0631 \u062d\u0627\u0644 \u0627\u062c\u0631\u0627\u06cc \u0641\u0639\u0627\u0644 \u0627\u0633\u062a." });
+    return;
+  }
+  res.json({ ok: true, job_id: jobId });
+});
 router2.get("/pasarguard/connections", requireAuth, async (req, res) => {
   const owner = ownership("svc", req);
   const [remoteUsers, localUsers] = await Promise.all([
@@ -62218,13 +62255,16 @@ var app_default = app;
 var retryDelayMs = (attempts) => Math.min(15 * 6e4, 15e3 * 2 ** Math.min(Math.max(attempts - 1, 0), 6));
 var safeError2 = (error40) => (error40 instanceof Error ? error40.message : String(error40 || "\u062E\u0637\u0627\u06CC \u0646\u0627\u0645\u0634\u062E\u0635")).slice(0, 500);
 var providerFailure = (result) => `${result.key}: ${result.error ?? `HTTP ${result.status}`}`;
+var workerId = `hostinger:${process.pid}:${randomUUID()}`;
+var leaseDurationMs = 2 * 60 * 1e3;
+var heartbeatIntervalMs = 30 * 1e3;
 async function claimJob() {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const result = await client.query(
       `SELECT id, service_id, owner_tg_id, username, action, provider_keys, payload, attempts,
-              lifecycle_version
+               lifecycle_version, lease_owner
        FROM service_provision_jobs
        WHERE status IN ('pending', 'retrying')
          AND next_attempt_at <= NOW()
@@ -62239,10 +62279,12 @@ async function claimJob() {
     }
     const attempts = Number(row.attempts) + 1;
     await client.query(
-      `UPDATE service_provision_jobs
-       SET status = 'running', attempts = $1, updated_at = NOW()
-       WHERE id = $2`,
-      [attempts, row.id]
+       `UPDATE service_provision_jobs
+        SET status = 'running', attempts = $1, lease_owner = $2,
+            lease_expires_at = NOW() + ($3 * INTERVAL '1 millisecond'),
+            heartbeat_at = NOW(), updated_at = NOW()
+        WHERE id = $4`,
+       [attempts, workerId, leaseDurationMs, row.id]
     );
     await client.query("COMMIT");
     return {
@@ -62265,13 +62307,17 @@ async function retryJob(job, error40, providerKeys) {
          provider_keys = COALESCE($1::jsonb, provider_keys),
          last_error = $2,
          next_attempt_at = NOW() + ($3 * INTERVAL '1 millisecond'),
+          lease_owner = NULL,
+          lease_expires_at = NULL,
+          heartbeat_at = NULL,
          updated_at = NOW()
-     WHERE id = $4`,
+      WHERE id = $4 AND lease_owner = $5`,
     [
       providerKeys ? JSON.stringify(providerKeys) : null,
       error40.slice(0, 500),
       retryDelayMs(job.attempts),
-      job.id
+       job.id,
+       workerId
     ]
   );
   logger.warn(
@@ -62282,10 +62328,24 @@ async function retryJob(job, error40, providerKeys) {
 async function completeJob(jobId) {
   await pool.query(
     `UPDATE service_provision_jobs
-     SET status = 'completed', last_error = NULL, updated_at = NOW(), completed_at = NOW()
-     WHERE id = $1`,
-    [jobId]
+      SET status = 'completed', last_error = NULL, updated_at = NOW(), completed_at = NOW(),
+          lease_owner = NULL, lease_expires_at = NULL, heartbeat_at = NULL,
+          payload = payload - 'awg_client_candidate'
+      WHERE id = $1 AND lease_owner = $2`,
+    [jobId, workerId]
   );
+}
+async function saveAwgCandidate(job) {
+  const existing = typeof job.payload.awg_client_candidate === "string" ? job.payload.awg_client_candidate : randomUUID();
+  await pool.query(
+    `UPDATE service_provision_jobs
+     SET payload = payload || jsonb_build_object('awg_client_candidate', $1::text),
+         updated_at = NOW()
+     WHERE id = $2 AND status = 'running' AND lease_owner = $3`,
+    [existing, job.id, workerId]
+  );
+  job.payload.awg_client_candidate = existing;
+  return existing;
 }
 async function processProviderJob(job) {
   const payload = job.payload;
@@ -62327,7 +62387,8 @@ async function processAwgJob(job) {
       await completeJob(job.id);
       return;
     }
-    const awg = service.rows[0].awg_client_id ? await replaceAwgClient(service.rows[0].awg_client_id) : await createAwgClient();
+    const candidate = await saveAwgCandidate(job);
+    const awg = service.rows[0].awg_client_id ? await replaceAwgClient(service.rows[0].awg_client_id, candidate) : await createAwgClient(candidate);
     if (!awg.clientId) {
       await retryJob(job, awg.error ?? "AmneziaWG API is unavailable.");
       return;
@@ -62352,6 +62413,16 @@ async function processAwgJob(job) {
 }
 async function processOneJob(job) {
   const lockClient = await pool.connect();
+  const heartbeat = setInterval(() => {
+    void pool.query(
+      `UPDATE service_provision_jobs
+       SET heartbeat_at = NOW(),
+           lease_expires_at = NOW() + ($1 * INTERVAL '1 millisecond'),
+           updated_at = NOW()
+       WHERE id = $2 AND status = 'running' AND lease_owner = $3`,
+      [leaseDurationMs, job.id, workerId]
+    ).catch((error40) => logger.warn({ err: error40, jobId: job.id }, "Provisioning job heartbeat failed"));
+  }, heartbeatIntervalMs);
   try {
     await lockClient.query("SELECT pg_advisory_lock(74421, $1)", [job.service_id]);
     const service = await pool.query(
@@ -62371,6 +62442,7 @@ async function processOneJob(job) {
       await processAwgJob(job);
     }
   } finally {
+    clearInterval(heartbeat);
     await lockClient.query("SELECT pg_advisory_unlock(74421, $1)", [job.service_id]).catch(() => void 0);
     lockClient.release();
   }
@@ -62386,7 +62458,13 @@ async function tick() {
   }
 }
 function startProvisioningWorker() {
-  void pool.query(
+  const leaseMigration = pool.query(
+    `ALTER TABLE service_provision_jobs
+     ADD COLUMN IF NOT EXISTS lease_owner TEXT,
+     ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMP,
+     ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP`
+  );
+  void leaseMigration.then(() => pool.query(
     `UPDATE service_provision_jobs
      SET status = 'retrying',
          last_error = CASE
@@ -62394,11 +62472,17 @@ function startProvisioningWorker() {
            ELSE left('اجرای جاب با راه‌اندازی دوباره Worker قطع شد · ' || last_error, 500)
          END,
          next_attempt_at = NOW(),
-         updated_at = NOW(),
-         completed_at = NULL
+          updated_at = NOW(),
+          completed_at = NULL,
+          lease_owner = NULL,
+          lease_expires_at = NULL,
+          heartbeat_at = NULL
      WHERE status = 'running'
-       AND updated_at < NOW() - INTERVAL '10 minutes'`
-  ).then((result) => {
+        AND (
+          lease_expires_at < NOW()
+          OR (lease_expires_at IS NULL AND updated_at < NOW() - INTERVAL '10 minutes')
+        )`
+  )).then((result) => {
     if (result.rowCount) {
       logger.warn({ jobsRecovered: result.rowCount }, "Recovered stale running provisioning jobs");
     }

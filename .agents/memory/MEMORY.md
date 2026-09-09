@@ -33,3 +33,4 @@
 - [Renewal SQL parameter types](renewal-sql-parameter-types.md) — keep renewal service and ownership placeholders distinct and explicitly typed to avoid PostgreSQL 42P08 failures.
 - [Renewal AWG lifecycle](legacy-renewal-sequence.md) — renewal deletes the old AWG client and provisions a new UUID like a new service.
 - [AWG create reconciliation](awg-create-reconciliation.md) — a create request may return 500 after commit; confirm the exact UUID in the client list before retrying.
+- [Provisioning job leases](provisioning-job-leases.md) — worker heartbeats and stable AWG candidate UUIDs prevent stuck jobs and duplicate clients.

@@ -1481,6 +1481,7 @@ type MonitoringJob = {
   last_error?: string | null;
   next_attempt_at?: string | null;
   updated_at?: string | null;
+  lease_expires_at?: string | null;
   completed_at?: string | null;
   customer_name: string;
   plan: string;
@@ -1581,6 +1582,7 @@ function MonitoringContent() {
   const [data, setData] = useState<{ summary: { pending: number; running: number; completed: number; total: number }; jobs: MonitoringJob[] }>({ summary: { pending: 0, running: 0, completed: 0, total: 0 }, jobs: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [retryingJob, setRetryingJob] = useState<number | null>(null);
   const loadMonitoring = async () => {
     try {
       const response = await fetch('/api/monitoring', { credentials: 'include' });
@@ -1598,6 +1600,23 @@ function MonitoringContent() {
     const timer = window.setInterval(() => void loadMonitoring(), 10_000);
     return () => window.clearInterval(timer);
   }, []);
+  const retryJob = async (jobId: number) => {
+    setRetryingJob(jobId);
+    setError('');
+    try {
+      const response = await fetch(`/api/monitoring/jobs/${jobId}/retry`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || 'تلاش دوباره انجام نشد.');
+      await loadMonitoring();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تلاش دوباره انجام نشد.');
+    } finally {
+      setRetryingJob(null);
+    }
+  };
   const number = (value: number) => new Intl.NumberFormat('fa-IR').format(Number(value || 0));
   return <><PageHeader eyebrow="کنترل عملیاتی" title="مانیتورینگ ساخت سرویس" description="تلاش‌های Providerها و AmneziaWG را لحظه‌به‌لحظه پیگیری کنید." action={<Button variant="secondary" onClick={() => { setLoading(true); void loadMonitoring(); }} disabled={loading} testId="button-refresh-monitoring"><RefreshCw size={15} className={loading ? 'spin' : ''} /> بروزرسانی</Button>} />
     {error && <div className="notice danger"><Activity size={15} /> {error}</div>}
@@ -1608,7 +1627,7 @@ function MonitoringContent() {
       <div className="monitoring-metric"><span className="monitoring-metric-icon"><Server size={17} /></span><div><small>کل jobها</small><strong>{number(data.summary.total)}</strong></div></div>
     </section>
     <section className="panel-card monitoring-card"><div className="panel-heading"><div><p className="eyebrow">صف ساخت</p><h2 className="section-title">وضعیت همه تلاش‌ها</h2></div><span className="soft-badge">بروزرسانی خودکار · ۱۰ ثانیه</span></div>
-      {loading && !data.jobs.length ? <div className="monitoring-empty"><RefreshCw size={18} className="spin" /><p>در حال دریافت وضعیت...</p></div> : !data.jobs.length ? <div className="monitoring-empty"><Check size={18} /><p>هنوز job ساختی ثبت نشده است.</p><small>بعد از ساخت سرویس، وضعیت Providerهای ناموفق و AWG اینجا نمایش داده می‌شود.</small></div> : <div className="monitoring-table-wrap"><table className="monitoring-table"><thead><tr><th>سرویس</th><th>منبع</th><th>وضعیت</th><th>تلاش</th><th>آخرین خطا</th><th>آخرین بروزرسانی</th></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id}><td><strong>{job.plan || 'سرویس'}</strong><small>{job.customer_name} · <span dir="ltr">{job.username}</span></small></td><td><span className="monitoring-source">{job.action === 'awg' ? 'AmneziaWG' : job.provider_keys.join('، ') || 'Providerها'}</span></td><td><span className={`monitoring-status ${job.status}`}><span />{monitoringStatus(job.status)}</span></td><td>{number(job.attempts)}</td><td className="monitoring-error" title={job.last_error || ''}>{job.last_error || '—'}</td><td>{job.updated_at ? dateTimeLabel(job.updated_at) : '—'}</td></tr>)}</tbody></table></div>}
+       {loading && !data.jobs.length ? <div className="monitoring-empty"><RefreshCw size={18} className="spin" /><p>در حال دریافت وضعیت...</p></div> : !data.jobs.length ? <div className="monitoring-empty"><Check size={18} /><p>هنوز job ساختی ثبت نشده است.</p><small>بعد از ساخت سرویس، وضعیت Providerهای ناموفق و AWG اینجا نمایش داده می‌شود.</small></div> : <div className="monitoring-table-wrap"><table className="monitoring-table"><thead><tr><th>سرویس</th><th>منبع</th><th>وضعیت</th><th>تلاش</th><th>آخرین خطا</th><th>آخرین بروزرسانی</th><th>اقدام</th></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id}><td><strong>{job.plan || 'سرویس'}</strong><small>{job.customer_name} · <span dir="ltr">{job.username}</span></small></td><td><span className="monitoring-source">{job.action === 'awg' ? 'AmneziaWG' : job.provider_keys.join('، ') || 'Providerها'}</span></td><td><span className={`monitoring-status ${job.status}`}><span />{monitoringStatus(job.status)}</span></td><td>{number(job.attempts)}</td><td className="monitoring-error" title={job.last_error || ''}>{job.last_error || '—'}</td><td>{job.updated_at ? dateTimeLabel(job.updated_at) : '—'}</td><td>{job.status !== 'completed' && <Button variant="quiet" onClick={() => void retryJob(job.id)} disabled={retryingJob === job.id} testId={`button-retry-job-${job.id}`}><RefreshCw size={12} className={retryingJob === job.id ? 'spin' : ''} /> تلاش دوباره</Button>}</td></tr>)}</tbody></table></div>}
     </section>
   </>;
 }

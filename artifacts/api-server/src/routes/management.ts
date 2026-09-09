@@ -217,6 +217,10 @@ export const managementReady = pool
      );
       ALTER TABLE service_provision_jobs
         ADD COLUMN IF NOT EXISTS lifecycle_version INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE service_provision_jobs
+        ADD COLUMN IF NOT EXISTS lease_owner TEXT,
+        ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP;
       UPDATE service_provision_jobs job
         SET lifecycle_version = svc.lifecycle_version
         FROM reseller_services svc
@@ -2417,6 +2421,44 @@ router.get("/monitoring", requireAuth, async (req, res): Promise<void> => {
     summary: summary.rows[0] ?? { pending: 0, running: 0, completed: 0, total: 0 },
     jobs: jobs.rows,
   });
+});
+
+router.post("/monitoring/jobs/:id/retry", requireAuth, async (req, res): Promise<void> => {
+  const jobId = Number(req.params.id);
+  if (!Number.isInteger(jobId) || jobId < 1) {
+    res.status(400).json({ error: "شناسه جاب نامعتبر است." });
+    return;
+  }
+  const owner = ownership("svc", req);
+  const jobParam = owner.params.length + 1;
+  const result = await pool.query(
+    `UPDATE service_provision_jobs job
+     SET status = 'retrying',
+         last_error = 'تلاش دوباره به‌صورت دستی در صف قرار گرفت',
+         next_attempt_at = NOW(),
+         lease_owner = NULL,
+         lease_expires_at = NULL,
+         heartbeat_at = NULL,
+         updated_at = NOW(),
+         completed_at = NULL
+     WHERE job.id = $${jobParam}
+       AND (job.status IN ('pending', 'retrying')
+            OR (job.status = 'running' AND (
+              job.lease_expires_at < NOW()
+              OR (job.lease_expires_at IS NULL AND job.updated_at < NOW() - INTERVAL '10 minutes')
+            )))
+       AND EXISTS (
+         SELECT 1 FROM reseller_services svc
+         WHERE svc.id = job.service_id AND ${owner.sql}
+       )
+     RETURNING job.id`,
+    [...owner.params, jobId],
+  );
+  if (!result.rows[0]) {
+    res.status(404).json({ error: "این جاب پیدا نشد یا هنوز در حال اجرای فعال است." });
+    return;
+  }
+  res.json({ ok: true, job_id: jobId });
 });
 
 router.get("/pasarguard/connections", requireAuth, async (req, res): Promise<void> => {

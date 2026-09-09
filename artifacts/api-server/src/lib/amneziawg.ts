@@ -93,12 +93,12 @@ async function confirmAwgClient(clientId: string): Promise<boolean> {
   return false;
 }
 
-export async function createAwgClient(): Promise<{
+export async function createAwgClient(requestedClientId?: string): Promise<{
   configured: boolean;
   clientId: string | null;
   error: string | null;
 }> {
-  const clientId = randomUUID();
+  const clientId = requestedClientId || randomUUID();
   try {
     const response = await request("POST", "/api/clients", { id: clientId });
     if (!response.configured) {
@@ -216,12 +216,12 @@ export async function disableAwgClient(clientId: string): Promise<boolean> {
   }
 }
 
-export async function replaceAwgClient(clientId: string): Promise<{
+export async function replaceAwgClient(clientId: string, replacementClientId?: string): Promise<{
   configured: boolean;
   clientId: string | null;
   error: string | null;
 }> {
-  const replacement = await createAwgClient();
+  const replacement = await createAwgClient(replacementClientId);
   if (!replacement.clientId) {
     return replacement;
   }

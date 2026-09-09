@@ -420,3 +420,17 @@ mtime_ms = 1788889456484
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/274076bd-8d59-46d2-a4f3-b4c669b6d806/0456023d-00cd-4a51-8654-01c64f56e6fb"
 storage_version_token = "1788889461189061"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "-rXb9Vr2S-6zWZNrieZCc"
+uri = "file://exports/pulse-hostinger-job-reliability-suite.zip"
+type = "unspecified"
+title = "Pulse Hostinger — Job Reliability Suite"
+description = "Adds worker leases and heartbeats, automatic recovery of stale jobs, stable AWG UUIDs across retries, and an ownership-scoped manual Retry action in Monitoring."
+logical_id = "05ed128f-102c-4de0-994d-e8cc658fa724"
+content_hash = "sha256:ed89fd04a72f1400ec9c0b3634624930a0bd0432e65250dc1b4fef2e7700d99e"
+size = 26231837
+mtime_ms = 1788942878364
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/05ed128f-102c-4de0-994d-e8cc658fa724/683cd87a-449f-4637-8e12-2906f65f2f35"
+storage_version_token = "1788942890588738"
+content_type = "application/octet-stream"

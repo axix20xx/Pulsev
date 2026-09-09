@@ -5,6 +5,8 @@ import {
 } from "./rain";
 import { createAwgClient, disableAwgClient, replaceAwgClient } from "./amneziawg";
 import { logger } from "./logger";
+import { hostname } from "node:os";
+import { randomUUID } from "node:crypto";
 
 type ProvisionJob = {
   id: number;
@@ -16,7 +18,12 @@ type ProvisionJob = {
   payload: Record<string, unknown>;
   attempts: number;
   lifecycle_version: number;
+  lease_owner: string | null;
 };
+
+const workerId = `${hostname()}:${process.pid}:${randomUUID()}`;
+const leaseDurationMs = 2 * 60_000;
+const heartbeatIntervalMs = 30_000;
 
 const retryDelayMs = (attempts: number) =>
   Math.min(15 * 60_000, 15_000 * 2 ** Math.min(Math.max(attempts - 1, 0), 6));
@@ -33,7 +40,7 @@ async function claimJob(): Promise<ProvisionJob | null> {
     await client.query("BEGIN");
     const result = await client.query<ProvisionJob & { provider_keys: unknown; payload: unknown }>(
       `SELECT id, service_id, owner_tg_id, username, action, provider_keys, payload, attempts,
-              lifecycle_version
+               lifecycle_version, lease_owner
        FROM service_provision_jobs
        WHERE status IN ('pending', 'retrying')
          AND next_attempt_at <= NOW()
@@ -49,9 +56,11 @@ async function claimJob(): Promise<ProvisionJob | null> {
     const attempts = Number(row.attempts) + 1;
     await client.query(
       `UPDATE service_provision_jobs
-       SET status = 'running', attempts = $1, updated_at = NOW()
-       WHERE id = $2`,
-      [attempts, row.id],
+       SET status = 'running', attempts = $1, lease_owner = $2,
+           lease_expires_at = NOW() + ($3 * INTERVAL '1 millisecond'),
+           heartbeat_at = NOW(), updated_at = NOW()
+       WHERE id = $4`,
+       [attempts, workerId, leaseDurationMs, row.id],
     );
     await client.query("COMMIT");
     return {
@@ -75,13 +84,17 @@ async function retryJob(job: ProvisionJob, error: string, providerKeys?: string[
          provider_keys = COALESCE($1::jsonb, provider_keys),
          last_error = $2,
          next_attempt_at = NOW() + ($3 * INTERVAL '1 millisecond'),
+          lease_owner = NULL,
+          lease_expires_at = NULL,
+          heartbeat_at = NULL,
          updated_at = NOW()
-     WHERE id = $4`,
+      WHERE id = $4 AND lease_owner = $5`,
     [
       providerKeys ? JSON.stringify(providerKeys) : null,
       error.slice(0, 500),
       retryDelayMs(job.attempts),
       job.id,
+      workerId,
     ],
   );
   logger.warn(
@@ -93,10 +106,27 @@ async function retryJob(job: ProvisionJob, error: string, providerKeys?: string[
 async function completeJob(jobId: number) {
   await pool.query(
     `UPDATE service_provision_jobs
-     SET status = 'completed', last_error = NULL, updated_at = NOW(), completed_at = NOW()
-     WHERE id = $1`,
-    [jobId],
+      SET status = 'completed', last_error = NULL, updated_at = NOW(), completed_at = NOW(),
+          lease_owner = NULL, lease_expires_at = NULL, heartbeat_at = NULL,
+          payload = payload - 'awg_client_candidate'
+      WHERE id = $1 AND lease_owner = $2`,
+    [jobId, workerId],
   );
+}
+
+async function saveAwgCandidate(job: ProvisionJob): Promise<string> {
+  const existing = typeof job.payload.awg_client_candidate === "string"
+    ? job.payload.awg_client_candidate
+    : randomUUID();
+  await pool.query(
+    `UPDATE service_provision_jobs
+     SET payload = payload || jsonb_build_object('awg_client_candidate', $1::text),
+         updated_at = NOW()
+     WHERE id = $2 AND status = 'running' AND lease_owner = $3`,
+    [existing, job.id, workerId],
+  );
+  job.payload.awg_client_candidate = existing;
+  return existing;
 }
 
 async function processProviderJob(job: ProvisionJob) {
@@ -142,9 +172,10 @@ async function processAwgJob(job: ProvisionJob) {
       await completeJob(job.id);
       return;
     }
+    const candidate = await saveAwgCandidate(job);
     const awg = service.rows[0].awg_client_id
-      ? await replaceAwgClient(service.rows[0].awg_client_id)
-      : await createAwgClient();
+      ? await replaceAwgClient(service.rows[0].awg_client_id, candidate)
+      : await createAwgClient(candidate);
     if (!awg.clientId) {
       await retryJob(job, awg.error ?? "AmneziaWG API is unavailable.");
       return;
@@ -170,6 +201,16 @@ async function processAwgJob(job: ProvisionJob) {
 
 async function processOneJob(job: ProvisionJob) {
   const lockClient = await pool.connect();
+  const heartbeat = setInterval(() => {
+    void pool.query(
+      `UPDATE service_provision_jobs
+       SET heartbeat_at = NOW(),
+           lease_expires_at = NOW() + ($1 * INTERVAL '1 millisecond'),
+           updated_at = NOW()
+       WHERE id = $2 AND status = 'running' AND lease_owner = $3`,
+      [leaseDurationMs, job.id, workerId],
+    ).catch((error) => logger.warn({ err: error, jobId: job.id }, "Provisioning job heartbeat failed"));
+  }, heartbeatIntervalMs);
   try {
     await lockClient.query("SELECT pg_advisory_lock(74421, $1)", [job.service_id]);
     const service = await pool.query(
@@ -189,6 +230,7 @@ async function processOneJob(job: ProvisionJob) {
       await processAwgJob(job);
     }
   } finally {
+    clearInterval(heartbeat);
     await lockClient.query("SELECT pg_advisory_unlock(74421, $1)", [job.service_id]).catch(() => undefined);
     lockClient.release();
   }
@@ -206,7 +248,13 @@ async function tick() {
 }
 
 export function startProvisioningWorker() {
-  void pool.query(
+  const leaseMigration = pool.query(
+    `ALTER TABLE service_provision_jobs
+     ADD COLUMN IF NOT EXISTS lease_owner TEXT,
+     ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMP,
+     ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP`,
+  );
+  void leaseMigration.then(() => pool.query(
     `UPDATE service_provision_jobs
      SET status = 'retrying',
          last_error = CASE
@@ -215,10 +263,16 @@ export function startProvisioningWorker() {
          END,
          next_attempt_at = NOW(),
          updated_at = NOW(),
-         completed_at = NULL
+         completed_at = NULL,
+         lease_owner = NULL,
+         lease_expires_at = NULL,
+         heartbeat_at = NULL
      WHERE status = 'running'
-       AND updated_at < NOW() - INTERVAL '10 minutes'`,
-  ).then((result) => {
+       AND (
+         lease_expires_at < NOW()
+         OR (lease_expires_at IS NULL AND updated_at < NOW() - INTERVAL '10 minutes')
+       )`,
+   )).then((result) => {
     if (result.rowCount) {
       logger.warn({ jobsRecovered: result.rowCount }, "Recovered stale running provisioning jobs");
     }
@@ -258,7 +312,7 @@ export function startProvisioningWorker() {
            AND active_job.action = 'awg'
            AND active_job.status IN ('pending', 'running', 'retrying')
        )`,
-   ).then((result) => {
+    ).then((result) => {
      if (result.rowCount) {
        logger.info({ jobsRequeued: result.rowCount }, "Requeued old AWG jobs");
      }
