@@ -205,8 +205,8 @@
 .mobile-install-already { background: #e7efd9; color: var(--mobile-mint-deep); }
 .mobile-install-browser-note { background: #f6ead0; color: #8c642b; }
 .mobile-install-already svg, .mobile-install-browser-note svg { flex: 0 0 auto; margin-top: 2px; }
-.mobile-install-modal-backdrop { position: fixed; z-index: 140; inset: 0; display: grid; align-items: end; justify-items: center; background: rgba(9, 29, 31, .52); padding: 16px 14px max(16px, env(safe-area-inset-bottom)); animation: mobile-install-modal-fade .24s ease both; }
-.mobile-install-modal { width: min(100%, 430px); max-height: min(86dvh, 720px); overflow: auto; overscroll-behavior: contain; border: 1px solid rgba(255,255,255,.72); border-radius: 26px; background: #fffefa; padding: 18px 15px 15px; box-shadow: 0 24px 70px rgba(0,0,0,.26); animation: mobile-install-modal-rise .34s cubic-bezier(.22, .8, .26, 1) both; }
+.mobile-install-modal-backdrop { position: fixed; z-index: 140; inset: 0; display: grid; align-items: stretch; justify-items: stretch; background: rgba(9, 29, 31, .52); padding: 0; animation: mobile-install-modal-fade .24s ease both; }
+.mobile-install-modal { width: 100%; max-width: none; height: 100%; max-height: none; min-height: 100dvh; overflow: auto; overscroll-behavior: contain; border: 0; border-radius: 0; background: #fffefa; padding: max(18px, env(safe-area-inset-top)) 15px max(18px, env(safe-area-inset-bottom)); box-shadow: none; animation: mobile-install-modal-rise .34s cubic-bezier(.22, .8, .26, 1) both; }
 .mobile-install-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .mobile-install-modal-head h2 { margin: 4px 0 0; font-size: 19px; letter-spacing: -.035em; }
 .mobile-install-modal-head .mobile-icon-button { width: 36px; height: 36px; background: #edf1e9; }
@@ -218,6 +218,7 @@
 .mobile-install-modal-step p { margin: 0; color: var(--mobile-ink-soft); font-size: 9px; line-height: 1.8; }
 .mobile-install-modal .mobile-install-native { margin: 12px 0 0; }
 .mobile-install-modal-done { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 10px; border: 0; border-radius: 13px; background: var(--mobile-ink); padding: 12px; color: var(--mobile-mint); font-size: 11px; font-weight: 800; }
+.mobile-auth-install-link { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 15px auto 0; border-bottom: 1px solid rgba(185,220,128,.45); padding: 4px 2px; color: var(--mobile-mint); font-size: 10px; font-weight: 800; text-decoration: none; }
 @keyframes mobile-install-modal-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes mobile-install-modal-rise { from { opacity: 0; transform: translateY(28px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) {

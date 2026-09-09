@@ -128,7 +128,7 @@ function InstallGuidePage() {
   const steps = platform === 'ios' ? iosSteps : androidSteps;
   const openQuickGuide = () => setQuickGuideOpen(true);
   const closeQuickGuide = () => setQuickGuideOpen(false);
-  return <MobileFrame title="راهنمای نصب" back>
+  return <MobileFrame title="راهنمای نصب" back noNav>
     <section className="mobile-install-hero">
       <div className="mobile-install-orbit mobile-install-orbit-one" /><div className="mobile-install-orbit mobile-install-orbit-two" />
       <div className="mobile-install-phone"><div className="mobile-install-phone-island" /><div className="mobile-install-phone-screen"><span className="mobile-install-screen-mark"><ShieldCheck size={20} /></span><strong>پالس</strong><small>فضای امن شما</small><i /></div><span className="mobile-install-tap"><ArrowDownToLine size={15} /></span></div>
