@@ -1,0 +1,748 @@
+PROJECT TYPE: WEBAPP / PWA — USER MOBILE PANEL
+
+I already have a fully working website/backend for my VPN and subscription management system, including the existing admin panel, users, subscriptions, VPN accounts, and backend logic.
+
+DO NOT rebuild the existing admin panel.
+DO NOT redesign or break the existing VPN/subscription backend.
+DO NOT duplicate existing admin functionality unnecessarily.
+
+I only want you to build a completely separate user-facing PWA/mobile panel at /mobile.
+
+The /mobile area must be isolated from the admin panel and must have its own authentication, navigation, UI, subscription views, and notification system.
+
+⸻
+
+1. /mobile USER AREA
+
+Create:
+
+/mobile
+/mobile/login
+/mobile/dashboard
+/mobile/subscriptions
+/mobile/subscriptions/{id}
+/mobile/profile
+/mobile/notifications
+/mobile/settings
+
+The /mobile interface is ONLY for normal users.
+
+Users must NEVER see:
+
+* Admin dashboard
+* Admin navigation
+* Server management
+* VPN server configuration
+* User management
+* Pricing configuration
+* Subscription management tools
+* System settings
+* Administrative APIs
+
+Use the existing authentication/user database if available.
+
+Do NOT create a second user database.
+
+⸻
+
+2. RESPONSIVE PWA
+
+The /mobile application must be designed primarily for:
+
+* iPhone
+* iPad
+* Android
+* Mobile Safari
+* Chrome mobile
+
+But it must also work beautifully on desktop.
+
+The mobile experience should feel like a native premium iOS application, not a traditional website.
+
+Use:
+
+* Safe-area support
+* env(safe-area-inset-top)
+* env(safe-area-inset-bottom)
+* Large touch targets
+* Smooth transitions
+* Bottom navigation
+* Native-feeling cards
+* Bottom sheets
+* Modal sheets
+* Skeleton loading
+* Pull-to-refresh style interaction where appropriate
+* Haptic-like visual feedback
+* Smooth page transitions
+
+Avoid the generic:
+
+* Bootstrap dashboard look
+* Square cards everywhere
+* Excessive borders
+* Huge rectangular buttons
+* Old-fashioned sidebar
+* Desktop UI squeezed onto mobile
+
+⸻
+
+3. USER DASHBOARD
+
+Create a premium mobile dashboard.
+
+Top section:
+
+سلام، [User Name]
+وضعیت سرویس
+
+Show the user’s active subscription prominently.
+
+Example:
+
+Premium VPN
+فعال
+تا ۲۸ روز دیگر
+[████████████░░]
+مصرف:
+42.8 GB / 100 GB
+
+Show:
+
+* Active subscription
+* Remaining days
+* Remaining traffic
+* Total traffic
+* Usage percentage
+* Expiration date
+* Account status
+* VPN connection/account information where appropriate
+
+If the user has multiple subscriptions, show them as a horizontal swipeable card stack.
+
+⸻
+
+4. SUBSCRIPTIONS
+
+Create /mobile/subscriptions.
+
+This page must retrieve the user’s subscriptions from the EXISTING backend.
+
+Do not create fake/demo subscription data.
+
+Each subscription should show:
+
+* Product/package name
+* Status
+* Start date
+* Expiration date
+* Remaining days
+* Traffic
+* Used traffic
+* Remaining traffic
+* Server/location if appropriate
+* Subscription link if already supported by backend
+* VPN configuration/access information if already available
+
+Statuses:
+
+فعال
+منقضی شده
+در انتظار
+لغو شده
+
+Use visually distinct status indicators.
+
+⸻
+
+5. SUBSCRIPTION DETAILS
+
+Create:
+
+/mobile/subscriptions/{id}
+
+Show a detailed but clean mobile interface.
+
+Sections:
+
+Service
+
+* Plan
+* Status
+* Expiration
+* Remaining days
+
+Traffic
+
+Visual usage ring/progress indicator.
+
+Example:
+
+42.8 GB
+مصرف شده
+57.2 GB
+باقی مانده
+
+Access
+
+If the existing backend provides:
+
+* Subscription URL
+* VPN configuration
+* QR code
+* Server
+* Protocol
+* Username
+* Password
+
+display them securely.
+
+Include:
+
+کپی لینک
+اشتراک‌گذاری
+نمایش QR
+دانلود کانفیگ
+
+Only show fields that actually exist in the current backend.
+
+⸻
+
+6. USER NOTIFICATION SYSTEM
+
+Implement a complete notification center:
+
+/mobile/notifications
+
+Users should be able to see:
+
+* Subscription expiring
+* Subscription expired
+* Traffic nearly exhausted
+* Payment successful
+* Subscription renewed
+* New subscription
+* System announcements
+* Important account notifications
+
+Notification states:
+
+خوانده نشده
+خوانده شده
+
+Allow:
+
+علامت‌گذاری به‌عنوان خوانده‌شده
+همه را خوانده‌شده کن
+
+Show unread count on the notification icon.
+
+⸻
+
+7. iOS WEB PUSH NOTIFICATIONS
+
+This is extremely important.
+
+Implement standard Web Push using the Push API + Service Worker + VAPID.
+
+Do NOT require Firebase unless the existing architecture absolutely requires it.
+
+Do NOT use a paid notification service.
+
+Use:
+
+Web Push API
+Service Worker
+VAPID
+
+The system must work with iOS/iPadOS PWA Web Push.
+
+Create:
+
+/mobile/sw.js
+
+and the required push subscription logic.
+
+The user should have a notification settings interface:
+
+اعلان‌ها
+اعلان‌های سرویس       ON/OFF
+اعلان تمدید           ON/OFF
+اعلان انقضا            ON/OFF
+اعلان مصرف            ON/OFF
+اعلان‌های سیستم       ON/OFF
+
+⸻
+
+8. PUSH SUBSCRIPTION DATABASE
+
+Create a dedicated table for push subscriptions associated with the existing user.
+
+Example:
+
+push_subscriptions
+id
+user_id
+endpoint
+p256dh
+auth
+user_agent
+device
+platform
+is_active
+created_at
+updated_at
+last_used_at
+
+Do NOT store push subscriptions globally without a user relationship.
+
+A single user may have multiple devices.
+
+Example:
+
+User
+ ├── iPhone
+ ├── iPad
+ └── Desktop
+
+Each device can have its own push subscription.
+
+Allow users to remove/revoke a device subscription.
+
+⸻
+
+9. PUSH PERMISSION UX
+
+Do NOT immediately display the browser permission prompt when the page loads.
+
+Instead show an elegant explanation first:
+
+فعال‌سازی اعلان‌ها
+از وضعیت سرویس، تمدید و زمان انقضای
+اشتراک خود مطلع شوید.
+[فعال‌سازی اعلان‌ها]
+
+After the user taps the button, request notification permission.
+
+Handle:
+
+granted
+denied
+default
+
+correctly.
+
+If permission has already been denied, show appropriate instructions instead of repeatedly requesting permission.
+
+⸻
+
+10. SERVICE WORKER
+
+Implement proper service-worker handling.
+
+It must support:
+
+push
+notificationclick
+install
+activate
+
+When a push notification arrives, display:
+
+* Persian title
+* Persian body
+* Appropriate icon
+* Badge where supported
+* Deep link
+
+Example:
+
+اشتراک شما در حال اتمام است
+اشتراک شما فقط ۲ روز دیگر اعتبار دارد.
+[مشاهده اشتراک]
+
+When the user taps the notification, open:
+
+/mobile/subscriptions/{id}
+
+or the relevant notification destination.
+
+⸻
+
+11. BACKEND PUSH API
+
+Create secure backend endpoints such as:
+
+POST /api/mobile/push/subscribe
+POST /api/mobile/push/unsubscribe
+GET  /api/mobile/push/status
+POST /api/mobile/push/test
+
+All endpoints must authenticate the currently logged-in user.
+
+A user must NEVER be able to subscribe/unsubscribe another user’s device.
+
+Validate all incoming push subscription data.
+
+⸻
+
+12. ADMIN SEPARATION
+
+The existing admin panel must remain separate.
+
+Example:
+
+/admin
+
+Existing admin system.
+
+/mobile
+
+New user application.
+
+The user application must enforce authorization server-side.
+
+Do NOT rely only on frontend route hiding.
+
+If a normal user manually visits:
+
+/admin
+
+they must not gain access.
+
+Likewise, /mobile must never expose admin APIs.
+
+⸻
+
+13. USE EXISTING BACKEND DATA
+
+Before writing new backend logic:
+
+INSPECT THE EXISTING PROJECT.
+
+Find:
+
+* User model
+* Authentication
+* Subscription model
+* VPN account model
+* Traffic/usage data
+* Expiration logic
+* Existing API endpoints
+* Existing subscription URLs
+* Existing notification mechanisms
+* Database schema
+* Existing roles/permissions
+
+Reuse them.
+
+Do NOT create duplicate tables for users/subscriptions if equivalent tables already exist.
+
+If an existing API already provides subscription information, consume it instead of creating a duplicate implementation.
+
+⸻
+
+14. SECURITY
+
+Implement:
+
+* Authentication
+* Authorization
+* CSRF protection where applicable
+* Rate limiting
+* Input validation
+* Secure push subscription storage
+* Server-side user ownership checks
+* No sensitive information in frontend source
+* No VAPID private key in frontend
+* No admin API credentials in frontend
+* HTTPS requirement for push functionality
+
+The VAPID private key must remain server-side.
+
+Use environment variables:
+
+VAPID_PUBLIC_KEY
+VAPID_PRIVATE_KEY
+VAPID_SUBJECT
+
+Never hard-code private credentials.
+
+⸻
+
+15. NOTIFICATION ENGINE
+
+Create reusable backend notification functions.
+
+For example:
+
+sendPushNotification(userId, notification)
+
+Support:
+
+title
+body
+url
+icon
+badge
+subscription_id
+notification_type
+
+Notification types:
+
+subscription_expiring
+subscription_expired
+traffic_warning
+payment_success
+subscription_renewed
+system
+
+The notification engine should automatically target all active push subscriptions belonging to the user.
+
+If one device subscription fails or becomes invalid, mark/deactivate that subscription rather than breaking notification delivery to other devices.
+
+⸻
+
+16. AUTOMATIC NOTIFICATIONS
+
+Integrate with the EXISTING subscription/expiration system.
+
+Examples:
+
+7 days before expiration
+
+اشتراک شما رو به اتمام است
+۷ روز تا پایان اشتراک شما باقی مانده است.
+
+2 days before expiration
+
+یادآوری تمدید اشتراک
+اشتراک شما ۲ روز دیگر منقضی می‌شود.
+
+Expiration
+
+اشتراک منقضی شد
+برای ادامه استفاده، اشتراک خود را تمدید کنید.
+
+Traffic 80%
+
+مصرف اینترنت
+۸۰٪ حجم اشتراک شما مصرف شده است.
+
+Traffic 90%
+
+هشدار مصرف
+۹۰٪ حجم اشتراک شما مصرف شده است.
+
+Do not send duplicate notifications repeatedly.
+
+Implement a notification/event log or another reliable deduplication mechanism.
+
+⸻
+
+17. PWA MANIFEST
+
+Create a proper:
+
+manifest.webmanifest
+
+with:
+
+* App name
+* Short name
+* Icons
+* Theme color
+* Background color
+* display: standalone
+* Appropriate start URL
+* Mobile-friendly configuration
+
+The PWA should be installable from mobile Safari.
+
+⸻
+
+18. MOBILE NAVIGATION
+
+Use a premium bottom navigation:
+
+خانه
+اشتراک‌ها
+اعلان‌ها
+پروفایل
+
+Do NOT use a traditional desktop sidebar on mobile.
+
+The notification tab should display an unread badge.
+
+⸻
+
+19. DESIGN DIRECTION
+
+I want the result to feel like a premium native iOS application.
+
+Reference principles:
+
+* Apple Human Interface Guidelines
+* Modern fintech apps
+* Premium VPN apps
+* Native iOS spacing
+* Large typography
+* Soft depth
+* Subtle glass effects
+* Fluid animations
+* Gesture-friendly interactions
+* Excellent dark/light mode
+
+Do NOT copy Apple’s UI exactly.
+
+Create an original visual language.
+
+Use:
+
+* rounded cards with varied hierarchy
+* large numbers for important metrics
+* subtle gradients
+* animated usage rings
+* micro-interactions
+* smooth transitions
+* bottom sheets
+* floating action elements where appropriate
+
+Avoid making every component a rectangle.
+
+⸻
+
+20. RTL / PERSIAN
+
+The entire user panel must support Persian RTL properly.
+
+Use:
+
+<html dir="rtl" lang="fa">
+
+Typography must support Persian correctly.
+
+Numbers can use a clean readable numeral system consistently throughout the UI.
+
+Dates should be displayed in a user-friendly Persian format where appropriate.
+
+⸻
+
+21. DESKTOP RESPONSIVENESS
+
+Although this is primarily a mobile PWA, desktop must also look intentional.
+
+Do NOT simply stretch the mobile UI across the entire screen.
+
+On large screens:
+
+* Center the application
+* Use an appropriate max-width
+* Create responsive multi-column layouts where useful
+* Maintain premium spacing
+* Preserve the mobile application’s visual hierarchy
+
+⸻
+
+22. PERFORMANCE
+
+Optimize for mobile networks.
+
+Use:
+
+* Lazy loading
+* API caching where safe
+* Skeleton states
+* Optimized assets
+* Minimal JavaScript
+* Service worker caching for appropriate static assets
+* Avoid unnecessary API requests
+
+The dashboard should feel fast even on a slower mobile connection.
+
+⸻
+
+23. ERROR STATES
+
+Every API request needs proper states:
+
+Loading
+Success
+Empty
+Error
+Offline
+Unauthorized
+Expired session
+
+Do not leave users staring at blank screens.
+
+Create polished Persian error messages.
+
+⸻
+
+24. OFFLINE / CONNECTION STATE
+
+Detect network state.
+
+When offline:
+
+اتصال اینترنت برقرار نیست
+اطلاعات نمایش‌داده‌شده ممکن است آخرین اطلاعات ذخیره‌شده باشد.
+
+When connection returns, refresh relevant data.
+
+⸻
+
+25. FINAL REQUIREMENT
+
+Before finishing:
+
+1. Inspect the existing codebase.
+2. Identify the existing authentication system.
+3. Identify existing user/subscription/VPN models.
+4. Identify existing APIs.
+5. Build /mobile on top of the existing architecture.
+6. Do not duplicate existing business logic.
+7. Do not break /admin.
+8. Implement PWA.
+9. Implement Service Worker.
+10. Implement Web Push + VAPID.
+11. Implement per-user/per-device push subscriptions.
+12. Implement notification center.
+13. Implement notification preferences.
+14. Implement automatic subscription notifications.
+15. Test iOS Safari/PWA behavior.
+16. Test Android.
+17. Test desktop.
+18. Test authorization/security.
+19. Test expired/invalid push subscriptions.
+20. Test multiple devices for one user.
+
+IMPORTANT: Do not stop after creating the UI.
+
+The final implementation must be a working end-to-end system:
+
+User
+ ↓
+/mobile
+ ↓
+Existing authentication
+ ↓
+Existing subscription/VPN data
+ ↓
+Push permission
+ ↓
+Push subscription
+ ↓
+Database
+ ↓
+Backend notification engine
+ ↓
+VAPID Web Push
+ ↓
+iPhone PWA notification
+ ↓
+Tap notification
+ ↓
+/mobile/subscriptions/{id}
+
+Build the entire experience as a production-ready feature, not a mockup.
