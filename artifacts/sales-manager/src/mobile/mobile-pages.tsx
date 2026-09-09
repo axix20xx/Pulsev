@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Route, Switch, useLocation, useParams } from 'wouter';
 import { ArrowDownToLine, Check, ChevronLeft, Download, LockKeyhole, LogOut, MoreHorizontal, Phone, Plus, RefreshCw, Settings, Share2, ShieldCheck, Smartphone, X } from 'lucide-react';
 import { arrayFrom, faNumber, formatMobileDate, mobileRequest, objectFrom, type MobileDashboard, type MobileNotification, type MobileSettings, type MobileSubscription, useMobileFetch } from './mobile-api';
-import { AccessActions, BrandLockup, MobileFrame, MobileOfflineBanner, MobileState, NotificationRow, SubscriptionCard, UsageRing } from './mobile-ui';
+import { AccessActions, BrandLockup, MobileFrame, MobileLogo, MobileOfflineBanner, MobileState, NotificationRow, SubscriptionCard, UsageRing } from './mobile-ui';
 
 function useSession() {
   const [session, setSession] = useState<{ customer?: { name: string; phone: string } } | null>(null);
@@ -131,7 +131,7 @@ function InstallGuidePage() {
   return <MobileFrame title="راهنمای نصب" back noNav>
     <section className="mobile-install-hero">
       <div className="mobile-install-orbit mobile-install-orbit-one" /><div className="mobile-install-orbit mobile-install-orbit-two" />
-      <div className="mobile-install-phone"><div className="mobile-install-phone-island" /><div className="mobile-install-phone-screen"><span className="mobile-install-screen-mark"><ShieldCheck size={20} /></span><strong>پالس</strong><small>فضای امن شما</small><i /></div><span className="mobile-install-tap"><ArrowDownToLine size={15} /></span></div>
+      <div className="mobile-install-phone"><div className="mobile-install-phone-island" /><div className="mobile-install-phone-screen"><span className="mobile-install-screen-mark"><MobileLogo /></span><strong>پالس</strong><small>فضای امن شما</small><i /></div><span className="mobile-install-tap"><ArrowDownToLine size={15} /></span></div>
       <div className="mobile-install-copy"><span className="mobile-eyebrow">پالس همیشه نزدیک شما</span><h1>مثل یک برنامه<br /><em>روی گوشی‌تان.</em></h1><p>با نصب PWA، بدون جست‌وجوی دوبارهٔ لینک، سریع به سرویس‌ها و اعلان‌ها دسترسی دارید.</p><button type="button" className="mobile-install-quick-button" onClick={openQuickGuide}><Smartphone size={16} /> راهنمای سریع نصب</button></div>
     </section>
     <div className="mobile-install-tabs" role="tablist" aria-label="انتخاب نوع گوشی"><button className={platform === 'ios' ? 'is-active' : ''} onClick={() => setPlatform('ios')} role="tab" aria-selected={platform === 'ios'}>iPhone / iPad</button><button className={platform === 'android' ? 'is-active' : ''} onClick={() => setPlatform('android')} role="tab" aria-selected={platform === 'android'}>Android</button></div>
@@ -201,8 +201,12 @@ export function MobileApp() {
     const manifest = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
     const previous = manifest?.href;
     if (manifest) manifest.href = `${import.meta.env.BASE_URL}mobile/manifest.webmanifest`;
+    const appIconHref = `${import.meta.env.BASE_URL}favicon.svg`;
+    const iconLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="apple-touch-icon"]'));
+    const previousIcons = iconLinks.map((link) => link.href);
+    iconLinks.forEach((link) => { link.href = appIconHref; });
     document.documentElement.lang = 'fa'; document.documentElement.dir = 'rtl';
-    return () => { if (manifest && previous) manifest.href = previous; document.documentElement.lang = 'en'; document.documentElement.dir = 'ltr'; };
+    return () => { if (manifest && previous) manifest.href = previous; iconLinks.forEach((link, index) => { link.href = previousIcons[index]; }); document.documentElement.lang = 'en'; document.documentElement.dir = 'ltr'; };
   }, []);
   const isPublicMobileRoute = location === '/mobile/login' || location === '/mobile/install' || location === '/mobile/';
   useEffect(() => {
@@ -212,7 +216,7 @@ export function MobileApp() {
     }
     if (!loading && !session && !isPublicMobileRoute) setLocation('/mobile/login');
   }, [loading, session, isPublicMobileRoute, location, setLocation]);
-  if (loading) return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><ShieldCheck size={28} /></div><span>در حال آماده‌سازی فضای شما</span></div>;
-  if (!session && !isPublicMobileRoute) return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><ShieldCheck size={28} /></div><span>در حال انتقال به ورود</span></div>;
+  if (loading) return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><MobileLogo /></div><span>در حال آماده‌سازی فضای شما</span></div>;
+  if (!session && !isPublicMobileRoute) return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><MobileLogo /></div><span>در حال انتقال به ورود</span></div>;
   return <Switch><Route path="/mobile/login" component={LoginPage} /><Route path="/mobile/dashboard" component={MobileDashboardRoute} /><Route path="/mobile/subscriptions/:id" component={SubscriptionDetailPage} /><Route path="/mobile/subscriptions" component={SubscriptionsPage} /><Route path="/mobile/notifications" component={NotificationsPage} /><Route path="/mobile/profile" component={ProfilePage} /><Route path="/mobile/install" component={InstallGuidePage} /><Route path="/mobile/settings" component={SettingsPage} /><Route path="/mobile" component={session ? MobileDashboardRoute : LoginPage} /><Route component={LoginPage} /></Switch>;
 }

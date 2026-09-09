@@ -7,6 +7,8 @@ import {
 import QRCode from 'qrcode';
 import { type MobileNotification, type MobileSubscription, faNumber, formatMobileDate, statusCopy } from './mobile-api';
 
+const mobileLogoSrc = `${import.meta.env.BASE_URL}favicon.svg`;
+
 export function MobileOfflineBanner() {
   const [online, setOnline] = useState(() => navigator.onLine);
   useEffect(() => {
@@ -29,7 +31,7 @@ export function MobileState({ loading, error, empty, onRetry, children }: { load
 export function MobileTopbar({ title, back = false, action }: { title?: string; back?: boolean; action?: ReactNode }) {
   const [, setLocation] = useLocation();
   return <header className="mobile-topbar">
-    {back ? <button className="mobile-icon-button" aria-label="بازگشت" onClick={() => window.history.length > 1 ? window.history.back() : setLocation('/mobile/dashboard')}><ChevronLeft size={21} /></button> : <div className="mobile-brand-mark"><ShieldCheck size={19} /></div>}
+    {back ? <button className="mobile-icon-button" aria-label="بازگشت" onClick={() => window.history.length > 1 ? window.history.back() : setLocation('/mobile/dashboard')}><ChevronLeft size={21} /></button> : <div className="mobile-brand-mark"><img src={mobileLogoSrc} alt="لوگوی پالس" /></div>}
     <div className="mobile-topbar-title">{title || 'پالس شخصی'}</div>
     <div className="mobile-topbar-action">{action}</div>
   </header>;
@@ -64,7 +66,11 @@ export function MobileFrame({ children, unread, title, back, action, noNav = fal
 }
 
 export function BrandLockup() {
-  return <div className="mobile-lockup"><span className="mobile-brand-mark"><ShieldCheck size={23} /></span><span><strong>پالس</strong><small>فضای امن شما</small></span></div>;
+  return <div className="mobile-lockup"><span className="mobile-brand-mark"><img src={mobileLogoSrc} alt="لوگوی پالس" /></span><span><strong>پالس</strong><small>فضای امن شما</small></span></div>;
+}
+
+export function MobileLogo({ className = '' }: { className?: string }) {
+  return <img className={`mobile-logo-image ${className}`} src={mobileLogoSrc} alt="لوگوی پالس" />;
 }
 
 export function SubscriptionCard({ item, compact = false, onCopy }: { item: MobileSubscription; compact?: boolean; onCopy?: (value: string) => void }) {

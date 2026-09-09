@@ -225,3 +225,6 @@
   .mobile-install-modal-backdrop, .mobile-install-modal { animation: none; }
   .mobile-install-quick-button { transition: none; }
 }
+
+.mobile-brand-mark img { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: contain; }
+.mobile-logo-image { display: block; width: 100%; height: 100%; object-fit: contain; }
