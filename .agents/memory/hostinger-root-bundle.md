@@ -1,10 +1,10 @@
 ---
 name: Hostinger root bundle
-description: Hostinger's flat launcher serves the frontend at the domain root.
+description: Hostinger serves separate admin and customer frontend bundles at /panel and /mobile.
 ---
 
-Hostinger production bundles must be built with `BASE_PATH=/`; the flat launcher serves `web/index.html` at `/`, not under the Replit artifact prefix.
+Hostinger production exports must build each routed frontend for its actual public base: `/panel` for admin/reseller and `/mobile` for the customer PWA. The launcher must route those paths to separate bundle roots.
 
-**Why:** Reusing the Replit `/sales-manager` build makes asset URLs point to `/sales-manager/assets/...`, which the Hostinger launcher does not serve and can produce a blank page after navigation.
+**Why:** Reusing one `/panel` build for `/mobile` makes Wouter, assets, manifest, and service-worker scopes point at the admin app. Old service workers can then keep serving the panel login even after the server route is corrected.
 
-**How to apply:** Build the Hostinger frontend separately with `PORT` plus `BASE_PATH=/`, and run the export validator before attaching the ZIP.
+**How to apply:** Build/copy the frontend twice with `PORT` plus `BASE_PATH=/panel/` and `BASE_PATH=/mobile/`; route `/panel` and `/mobile` to their matching roots, serve the mobile manifest/SW inside the mobile scope, and migrate stale registrations outside `/mobile/` before reload.

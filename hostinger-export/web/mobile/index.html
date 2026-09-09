@@ -20,6 +20,23 @@
         manifest.rel = 'manifest';
         manifest.href = isMobile ? base + 'mobile/manifest.webmanifest' : 'manifest.webmanifest';
         document.head.appendChild(manifest);
+        if (isMobile && 'serviceWorker' in navigator) {
+          try {
+            var migrationKey = 'pulse-mobile-sw-migration-v2';
+            if (!sessionStorage.getItem(migrationKey)) {
+              var mobileScope = base + 'mobile/';
+              navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                var stale = registrations.filter(function (registration) {
+                  return new URL(registration.scope).pathname !== mobileScope;
+                });
+                if (!stale.length) return;
+                sessionStorage.setItem(migrationKey, '1');
+                return Promise.all(stale.map(function (registration) { return registration.unregister(); }))
+                  .then(function () { window.location.reload(); });
+              }).catch(function () {});
+            }
+          } catch (error) {}
+        }
       })();
     </script>
     <meta name="robots" content="index, follow" />
