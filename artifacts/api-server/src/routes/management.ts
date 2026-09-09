@@ -1737,6 +1737,7 @@ router.get("/sales", requireAuth, async (req, res): Promise<void> => {
        s.service_id,
        COALESCE(svc.label, 'سرویس حذف‌شده') AS service_name,
        COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel,
+        s.gb_amount::float8 AS gb_amount,
        ${req.auth?.role === "master_admin" ? `(${saleAmountToAdminSql()}) * s.gb_amount` : `COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})`}::float8 AS amount,
         (COALESCE(s.created_at, NOW()) AT TIME ZONE 'Asia/Tehran')::date::text AS date,
        COALESCE(s.is_paid, 0) = 1 AS paid,

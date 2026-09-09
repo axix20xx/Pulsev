@@ -5,6 +5,7 @@ export type Sale = {
   resellerName?: string;
   serviceName: string;
   panel: string;
+  gbAmount?: number;
   amount: number;
   date: string;
   paid: boolean;

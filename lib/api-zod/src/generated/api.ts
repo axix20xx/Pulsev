@@ -150,6 +150,7 @@ export const ListSalesResponseItem = zod.object({
   "service_id": zod.number(),
   "service_name": zod.string(),
   "panel": zod.string(),
+   "gb_amount": zod.number(),
   "amount": zod.number(),
   "date": zod.string(),
   "paid": zod.boolean(),
