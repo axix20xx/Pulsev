@@ -43,6 +43,22 @@ export const issueMobileOtp = async (customerId: number, phone: string) => {
   };
 };
 
+export const findActiveMobileOtp = async (customerId: number, phone: string) => {
+  await mobileOtpReady;
+  const result = await pool.query<{ id: string }>(
+    `SELECT id
+     FROM mobile_login_otps
+     WHERE customer_id = $1
+       AND phone = $2
+       AND used_at IS NULL
+       AND attempts < 5
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [customerId, phone],
+  );
+  return result.rows[0]?.id ?? null;
+};
+
 export const consumeMobileOtp = async (
   challengeId: string,
   customerId: number,
@@ -87,9 +103,9 @@ export const consumeMobileOtp = async (
       return { ok: false as const, reason: "کد ورود نادرست، مصرف‌شده یا بیش از حد تلاش‌شده است." };
     }
     await client.query(
-      `UPDATE mobile_login_otps
-       SET used_at = NOW()
-       WHERE id = $1`,
+       `UPDATE mobile_login_otps
+        SET used_at = NOW()
+        WHERE id = $1 AND used_at IS NULL`,
       [challengeId],
     );
     await client.query("COMMIT");

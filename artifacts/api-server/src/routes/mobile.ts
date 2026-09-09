@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { createHash, randomBytes } from "node:crypto";
 import webpush from "web-push";
 import { pool } from "@workspace/db";
-import { consumeMobileOtp, issueMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
+import { consumeMobileOtp, findActiveMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
 
 const router: IRouter = Router();
 const mobileSessionCookie = "pulse_mobile_session";
@@ -431,10 +431,14 @@ router.post("/mobile/auth/otp/request", async (req, res): Promise<void> => {
     res.status(404).json({ error: "برای این شماره موبایل مشتری یا سرویسی پیدا نشد." });
     return;
   }
-  const challenge = await issueMobileOtp(row.customer_id, row.phone);
+  const challengeId = await findActiveMobileOtp(row.customer_id, row.phone);
+  if (!challengeId) {
+    res.status(409).json({ error: "کد ورود را از فروشنده یا مدیر اصلی دریافت کنید." });
+    return;
+  }
   res.json({
-    challenge_id: challenge.challengeId,
-    expires_at: challenge.expiresAt,
+    challenge_id: challengeId,
+    expires_at: null,
     customer: { name: row.customer_name, phone: row.phone },
   });
 });

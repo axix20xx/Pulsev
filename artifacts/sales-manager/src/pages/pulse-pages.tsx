@@ -1900,6 +1900,7 @@ function CustomerDetailContent() {
   const [serviceSearch, setServiceSearch] = useState('');
    const [mobileOtp, setMobileOtp] = useState('');
    const [mobileOtpLoading, setMobileOtpLoading] = useState(false);
+   const mobileOtpAutoIssuedRef = useRef<number | null>(null);
   useEffect(() => {
     setServiceTab('active');
      setServiceIssueFilter('all');
@@ -1960,6 +1961,12 @@ function CustomerDetailContent() {
        setMobileOtpLoading(false);
      }
    };
+   useEffect(() => {
+     const canIssue = session?.role === 'reseller' || session?.role === 'master_admin';
+     if (!customer || !canIssue || !numericId || mobileOtpAutoIssuedRef.current === numericId) return;
+     mobileOtpAutoIssuedRef.current = numericId;
+     void requestMobileOtp();
+   }, [customer, numericId, session?.role]);
    const refreshActionRequests = async () => {
      if (session?.role !== 'reseller') {
        setActionRequests([]);
