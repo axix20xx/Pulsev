@@ -10,7 +10,18 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="پالس" />
-    <link rel="manifest" href="manifest.webmanifest" />
+    <script>
+      (function () {
+        var path = window.location.pathname;
+        var mobileIndex = path.indexOf('/mobile');
+        var isMobile = mobileIndex >= 0 && (path.length === mobileIndex + 7 || path.charAt(mobileIndex + 7) === '/');
+        var base = isMobile ? path.slice(0, mobileIndex + 1) : '';
+        var manifest = document.createElement('link');
+        manifest.rel = 'manifest';
+        manifest.href = isMobile ? base + 'mobile/manifest.webmanifest' : 'manifest.webmanifest';
+        document.head.appendChild(manifest);
+      })();
+    </script>
     <meta name="robots" content="index, follow" />
     <meta property="og:title" content="مرکز فروش پالس" />
     <meta property="og:description" content="مدیریت مشتری، سرویس، فروش و تمدید VPN در یک مرکز کنترل فارسی." />
