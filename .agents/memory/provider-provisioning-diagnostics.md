@@ -20,3 +20,9 @@ For the AWG server contract used by this workspace, a healthy authenticated list
 **Why:** A live probe reached `/health`, authenticated `/api/clients` successfully, and listed existing clients, while controlled creates still returned the Provider's generic internal error. The failure therefore belongs to the AWG host's peer/interface/storage path, not the panel payload.
 
 **How to apply:** Keep the panel's request contract unchanged until Provider logs identify the failing operation; inspect the AWG service logs for peer insertion, interface rebuild, storage, or interface-limit errors before changing IDs, endpoints, or protocol defaults.
+
+The AWG host can return only a generic HTTP 500 to Pulse while its own logs reveal allocator exhaustion, such as `no available IPs in subnet 10.0.0.0/24`.
+
+**Why:** Renewal creates the replacement peer before removing the old one, so a full client subnet blocks every retry even though the Pulse listener and database are healthy.
+
+**How to apply:** Free verified orphan/disabled peers or expand the AWG client subnet on the Provider host before retrying renewal; do not switch renewal to delete-first just to mask capacity exhaustion.
