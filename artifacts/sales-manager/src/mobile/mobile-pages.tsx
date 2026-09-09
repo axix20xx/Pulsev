@@ -204,8 +204,12 @@ export function MobileApp() {
     document.documentElement.lang = 'fa'; document.documentElement.dir = 'rtl';
     return () => { if (manifest && previous) manifest.href = previous; document.documentElement.lang = 'en'; document.documentElement.dir = 'ltr'; };
   }, []);
-  const isPublicMobileRoute = location === '/mobile/login' || location === '/mobile/install';
+  const isPublicMobileRoute = location === '/mobile/login' || location === '/mobile/install' || location === '/mobile/';
   useEffect(() => {
+    if (location === '/mobile/') {
+      setLocation('/mobile');
+      return;
+    }
     if (!loading && !session && !isPublicMobileRoute) setLocation('/mobile/login');
   }, [loading, session, isPublicMobileRoute, location, setLocation]);
   if (loading) return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><ShieldCheck size={28} /></div><span>در حال آماده‌سازی فضای شما</span></div>;
