@@ -50,7 +50,7 @@ export function MobileNav({ unread = 0 }: { unread?: number }) {
         || (href !== '/mobile/dashboard' && location.startsWith(href))
         || (href === '/mobile/profile' && (location === '/mobile/settings' || location === '/mobile/install'));
       return <Link href={href} aria-current={active ? 'page' : undefined} className={`mobile-nav-item ${active ? 'is-active' : ''}`} key={href}>
-        <span className="mobile-nav-icon"><Icon size={19} />{label === 'اعلان‌ها' && unread > 0 ? <b>{faNumber(unread)}</b> : null}</span><span>{label}</span>
+        <span className="mobile-nav-icon"><Icon size={27} strokeWidth={2.15} aria-hidden="true" />{label === 'اعلان‌ها' && unread > 0 ? <b>{faNumber(unread)}</b> : null}</span><span className="mobile-nav-label">{label}</span>
       </Link>;
     })}
   </nav>;
