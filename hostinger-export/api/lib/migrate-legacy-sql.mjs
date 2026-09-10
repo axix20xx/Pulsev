@@ -23653,7 +23653,15 @@ if (!process.env.DATABASE_URL) {
 var configuredConnectionTimeout = Number(process.env.DATABASE_CONNECT_TIMEOUT_MS ?? 15e3);
 var pool = new Pool3({
   connectionString: process.env.DATABASE_URL,
+  max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+  idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT_MS ?? 3e4),
+  maxLifetimeSeconds: Number(process.env.DATABASE_MAX_LIFETIME_SECONDS ?? 300),
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 1e4,
   connectionTimeoutMillis: Number.isFinite(configuredConnectionTimeout) && configuredConnectionTimeout > 0 ? configuredConnectionTimeout : 15e3
+});
+pool.on("error", (error40) => {
+  console.error("[db] idle PostgreSQL client error", error40);
 });
 var db = drizzle(pool, { schema: schema_exports });
 

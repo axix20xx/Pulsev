@@ -26021,7 +26021,7 @@ var require_wait = __commonJS({
   "../../node_modules/.pnpm/thread-stream@3.1.0/node_modules/thread-stream/lib/wait.js"(exports, module) {
     "use strict";
     var MAX_TIMEOUT = 1e3;
-    function wait(state, index, expected, timeout, done) {
+    function wait2(state, index, expected, timeout, done) {
       const max = Date.now() + timeout;
       let current = Atomics.load(state, index);
       if (current === expected) {
@@ -26070,7 +26070,7 @@ var require_wait = __commonJS({
       };
       check2(1);
     }
-    module.exports = { wait, waitDiff };
+    module.exports = { wait: wait2, waitDiff };
   }
 });
 
@@ -26096,7 +26096,7 @@ var require_thread_stream = __commonJS({
     var { Worker } = __require("worker_threads");
     var { join } = __require("path");
     var { pathToFileURL } = __require("url");
-    var { wait } = require_wait();
+    var { wait: wait2 } = require_wait();
     var {
       WRITE_INDEX,
       READ_INDEX
@@ -26325,7 +26325,7 @@ var require_thread_stream = __commonJS({
           return;
         }
         const writeIndex = Atomics.load(this[kImpl].state, WRITE_INDEX);
-        wait(this[kImpl].state, READ_INDEX, writeIndex, Infinity, (err, res) => {
+        wait2(this[kImpl].state, READ_INDEX, writeIndex, Infinity, (err, res) => {
           if (err) {
             destroy(this, err);
             process.nextTick(cb, err);
@@ -29932,7 +29932,7 @@ var require_utils5 = __commonJS({
     var nodeCrypto = __require("crypto");
     module.exports = {
       postgresMd5PasswordHash,
-      randomBytes: randomBytes6,
+      randomBytes: randomBytes7,
       deriveKey,
       sha256,
       hashByName,
@@ -29942,7 +29942,7 @@ var require_utils5 = __commonJS({
     var webCrypto = nodeCrypto.webcrypto || globalThis.crypto;
     var subtleCrypto = webCrypto.subtle;
     var textEncoder = new TextEncoder();
-    function randomBytes6(length) {
+    function randomBytes7(length) {
       return webCrypto.getRandomValues(Buffer.alloc(length));
     }
     async function md5(string4) {
@@ -44532,6 +44532,7 @@ var ListSalesResponseItem = objectType({
   "service_id": numberType(),
   "service_name": stringType(),
   "panel": stringType(),
+  "gb_amount": numberType(),
   "amount": numberType(),
   "date": stringType(),
   "paid": booleanType(),
@@ -45063,7 +45064,8 @@ router.get("/healthz", (_req, res) => {
 var health_default = router;
 
 // src/routes/management.ts
-var import_express2 = __toESM(require_express2(), 1);
+var import_express3 = __toESM(require_express2(), 1);
+import { randomBytes as randomBytes6 } from "node:crypto";
 
 // ../../node_modules/.pnpm/pg@8.22.0/node_modules/pg/esm/index.mjs
 var import_lib = __toESM(require_lib5(), 1);
@@ -63522,7 +63524,15 @@ if (!process.env.DATABASE_URL) {
 var configuredConnectionTimeout = Number(process.env.DATABASE_CONNECT_TIMEOUT_MS ?? 15e3);
 var pool = new Pool3({
   connectionString: process.env.DATABASE_URL,
+  max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+  idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT_MS ?? 3e4),
+  maxLifetimeSeconds: Number(process.env.DATABASE_MAX_LIFETIME_SECONDS ?? 300),
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 1e4,
   connectionTimeoutMillis: Number.isFinite(configuredConnectionTimeout) && configuredConnectionTimeout > 0 ? configuredConnectionTimeout : 15e3
+});
+pool.on("error", (error40) => {
+  console.error("[db] idle PostgreSQL client error", error40);
 });
 var db = drizzle(pool, { schema: schema_exports });
 
@@ -63538,6 +63548,38 @@ var MASTER_ADMIN_TELEGRAM_ID = Number(
 );
 var sessionCookie = "pulse_session";
 var sessionHash = (value) => createHash("sha256").update(value).digest("hex");
+var transientDatabaseCodes = /* @__PURE__ */ new Set([
+  "08000",
+  "08001",
+  "08003",
+  "08004",
+  "08006",
+  "08007",
+  "57P01",
+  "57P02",
+  "57P03",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT"
+]);
+var isTransientDatabaseError = (error40) => {
+  if (!error40 || typeof error40 !== "object") return false;
+  const candidate = error40;
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+  return transientDatabaseCodes.has(code) || message.includes("connection terminated") || message.includes("connection timeout") || message.includes("connect econnreset");
+};
+var wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+var readWithDatabaseRetry = async (query, values) => {
+  const execute = () => pool.query(query, values);
+  try {
+    return await execute();
+  } catch (error40) {
+    if (!isTransientDatabaseError(error40)) throw error40;
+    await wait(250);
+    return execute();
+  }
+};
 function telegramAuthConfigured() {
   return Boolean(process.env.TELEGRAM_BOT_TOKEN);
 }
@@ -63546,7 +63588,7 @@ async function resolveTelegramIdAccess(telegramId) {
   if (telegramId === MASTER_ADMIN_TELEGRAM_ID) {
     return { role: "master_admin", resellerId: null, title: "\u0645\u062F\u06CC\u0631 \u0627\u0635\u0644\u06CC" };
   }
-  const result = await pool.query(
+  const result = await readWithDatabaseRetry(
     `SELECT id, title
      FROM resellers
      WHERE tg_id = $1 AND is_enabled = 1
@@ -63600,7 +63642,7 @@ function clearSessionCookie(res) {
 async function getAuthContext(req) {
   const rawId = req.cookies?.[sessionCookie];
   if (typeof rawId !== "string" || !rawId) return null;
-  const result = await pool.query(
+  const result = await readWithDatabaseRetry(
     `SELECT
        session.telegram_id AS "telegramId",
        session.role,
@@ -64859,20 +64901,21 @@ var mobileOtpReady = pool.query(`
     customer_id BIGINT NOT NULL,
     phone TEXT NOT NULL,
     otp_hash TEXT NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
+     expires_at TIMESTAMP,
     attempts SMALLINT NOT NULL DEFAULT 0,
     used_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   );
   CREATE INDEX IF NOT EXISTS mobile_login_otps_lookup_idx
     ON mobile_login_otps (customer_id, phone, expires_at DESC);
-`);
+ `).then(async () => {
+  await pool.query("ALTER TABLE mobile_login_otps ALTER COLUMN expires_at DROP NOT NULL").catch(() => void 0);
+});
 var hashOtp = (challengeId, otp) => createHash3("sha256").update(`${challengeId}:${otp}`).digest("hex");
 var issueMobileOtp = async (customerId2, phone) => {
   await mobileOtpReady;
   const challengeId = randomBytes4(24).toString("hex");
-  const otp = String(randomInt(1e5, 1e6));
-  const expiresAt = new Date(Date.now() + 5 * 6e4);
+  const otp = String(randomInt(1e3, 1e4));
   await pool.query(
     `UPDATE mobile_login_otps
      SET used_at = COALESCE(used_at, NOW())
@@ -64882,13 +64925,28 @@ var issueMobileOtp = async (customerId2, phone) => {
   await pool.query(
     `INSERT INTO mobile_login_otps (id, customer_id, phone, otp_hash, expires_at)
      VALUES ($1, $2, $3, $4, $5)`,
-    [challengeId, customerId2, phone, hashOtp(challengeId, otp), expiresAt]
+    [challengeId, customerId2, phone, hashOtp(challengeId, otp), null]
   );
   return {
     challengeId,
     otp,
-    expiresAt: expiresAt.toISOString()
+    expiresAt: null
   };
+};
+var findActiveMobileOtp = async (customerId2, phone) => {
+  await mobileOtpReady;
+  const result = await pool.query(
+    `SELECT id
+     FROM mobile_login_otps
+     WHERE customer_id = $1
+       AND phone = $2
+       AND used_at IS NULL
+       AND attempts < 5
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [customerId2, phone]
+  );
+  return result.rows[0]?.id ?? null;
 };
 var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
   await mobileOtpReady;
@@ -64902,11 +64960,27 @@ var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
        FOR UPDATE`,
       [challengeId, customerId2, phone]
     );
-    const row = result.rows[0];
-    const valid = Boolean(row) && !row.used_at && Number(row.attempts) < 5 && new Date(row.expires_at).getTime() > Date.now() && hashOtp(challengeId, otp) === row.otp_hash;
+    let row = result.rows[0];
+    let valid = Boolean(row) && Number(row.attempts) < 5 && !row.used_at && hashOtp(challengeId, otp) === row.otp_hash;
     if (!row) {
       await client.query("ROLLBACK");
       return { ok: false, reason: "\u06A9\u062F \u0648\u0631\u0648\u062F \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." };
+    }
+    if (!valid) {
+      const latest = await client.query(
+        `SELECT id, otp_hash, attempts, expires_at, used_at
+         FROM mobile_login_otps
+         WHERE customer_id = $1 AND phone = $2 AND used_at IS NULL AND attempts < 5
+         ORDER BY created_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [customerId2, phone]
+      );
+      const latestRow = latest.rows[0];
+      if (latestRow && latestRow.id !== row.id && hashOtp(latestRow.id, otp) === latestRow.otp_hash) {
+        row = latestRow;
+        valid = true;
+      }
     }
     if (!valid) {
       await client.query(
@@ -64916,13 +64990,13 @@ var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
         [challengeId]
       );
       await client.query("COMMIT");
-      return { ok: false, reason: "\u06A9\u062F \u0648\u0631\u0648\u062F \u0646\u0627\u062F\u0631\u0633\u062A \u06CC\u0627 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F\u0647 \u0627\u0633\u062A." };
+      return { ok: false, reason: "\u06A9\u062F \u0648\u0631\u0648\u062F \u0646\u0627\u062F\u0631\u0633\u062A \u06CC\u0627 \u0628\u06CC\u0634 \u0627\u0632 \u062D\u062F \u062A\u0644\u0627\u0634\u200C\u0634\u062F\u0647 \u0627\u0633\u062A." };
     }
     await client.query(
       `UPDATE mobile_login_otps
-       SET used_at = NOW()
-       WHERE id = $1`,
-      [challengeId]
+        SET attempts = 0
+        WHERE id = $1`,
+      [row.id]
     );
     await client.query("COMMIT");
     return { ok: true };
@@ -64933,6 +65007,612 @@ var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
     client.release();
   }
 };
+
+// src/routes/mobile.ts
+var import_express2 = __toESM(require_express2(), 1);
+var import_web_push = __toESM(require_src2(), 1);
+import { createHash as createHash4, randomBytes as randomBytes5 } from "node:crypto";
+var router2 = (0, import_express2.Router)();
+var mobileSessionCookie = "pulse_mobile_session";
+var sessionHash2 = (value) => createHash4("sha256").update(value).digest("hex");
+var mobileReady = pool.query(`
+  CREATE TABLE IF NOT EXISTS mobile_sessions (
+    id TEXT PRIMARY KEY,
+    customer_id BIGINT NOT NULL,
+    source_service_id BIGINT,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    last_seen_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS mobile_sessions_customer_idx
+    ON mobile_sessions (customer_id, expires_at DESC);
+  CREATE TABLE IF NOT EXISTS mobile_push_subscriptions (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT NOT NULL,
+    endpoint TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    user_agent TEXT,
+    device TEXT,
+    platform TEXT,
+    is_active SMALLINT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    last_used_at TIMESTAMP
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS mobile_push_endpoint_idx
+    ON mobile_push_subscriptions (endpoint);
+  CREATE INDEX IF NOT EXISTS mobile_push_customer_idx
+    ON mobile_push_subscriptions (customer_id, is_active);
+  CREATE TABLE IF NOT EXISTS mobile_notifications (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT NOT NULL,
+    service_id BIGINT,
+    event_key TEXT NOT NULL,
+    notification_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    href TEXT,
+    tone TEXT NOT NULL DEFAULT 'normal',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    read_at TIMESTAMP
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS mobile_notifications_event_idx
+    ON mobile_notifications (customer_id, event_key);
+  CREATE INDEX IF NOT EXISTS mobile_notifications_inbox_idx
+    ON mobile_notifications (customer_id, read_at, created_at DESC);
+  CREATE TABLE IF NOT EXISTS mobile_notification_preferences (
+    customer_id BIGINT PRIMARY KEY,
+    service_enabled SMALLINT NOT NULL DEFAULT 1,
+    renewal_enabled SMALLINT NOT NULL DEFAULT 1,
+    expiry_enabled SMALLINT NOT NULL DEFAULT 1,
+    usage_enabled SMALLINT NOT NULL DEFAULT 1,
+    system_enabled SMALLINT NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS mobile_push_config (
+    id SMALLINT PRIMARY KEY CHECK (id = 1),
+    vapid_public_key TEXT NOT NULL,
+    vapid_private_key TEXT NOT NULL,
+    vapid_subject TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+`);
+var defaultVapidSubject = "https://vinte.peppernopepper.com";
+var getVapidSubject = () => {
+  const configured = process.env.VAPID_SUBJECT?.trim() || process.env.PUBLIC_APP_URL?.trim();
+  if (configured?.startsWith("https://") || configured?.startsWith("mailto:")) return configured;
+  return defaultVapidSubject;
+};
+var mobileVapidReady = mobileReady.then(async () => {
+  const existing = await pool.query(
+    "SELECT vapid_public_key, vapid_private_key, vapid_subject FROM mobile_push_config WHERE id = 1"
+  );
+  if (existing.rows[0]) {
+    if (existing.rows[0].vapid_subject.endsWith(".local") || existing.rows[0].vapid_subject.includes("@localhost")) {
+      await pool.query("UPDATE mobile_push_config SET vapid_subject = $1, updated_at = NOW() WHERE id = 1", [getVapidSubject()]);
+    }
+    return;
+  }
+  const keys = import_web_push.default.generateVAPIDKeys();
+  await pool.query(
+    `INSERT INTO mobile_push_config (id, vapid_public_key, vapid_private_key, vapid_subject)
+     VALUES (1, $1, $2, $3)
+     ON CONFLICT (id) DO NOTHING`,
+    [keys.publicKey, keys.privateKey, getVapidSubject()]
+  );
+});
+var getVapidConfig = async () => {
+  await mobileVapidReady;
+  const result = await pool.query(
+    "SELECT vapid_public_key, vapid_private_key, vapid_subject FROM mobile_push_config WHERE id = 1"
+  );
+  if (!result.rows[0]) throw new Error("Web Push configuration is unavailable");
+  return result.rows[0];
+};
+var setMobileCookie = (res, raw) => {
+  res.cookie(mobileSessionCookie, raw, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 30 * 24 * 60 * 60 * 1e3,
+    path: "/"
+  });
+};
+var findCustomerByPhone = async (candidates) => {
+  return pool.query(
+    `SELECT c.id AS customer_id, c.full_name AS customer_name, c.phone,
+            (SELECT svc.id FROM reseller_services svc
+             WHERE svc.customer_id = c.id
+             ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.id DESC
+             LIMIT 1) AS service_id
+      FROM reseller_customers c
+      WHERE regexp_replace(
+        translate(COALESCE(c.phone, ''), '\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669', '01234567890123456789'),
+        '[^0-9]', '', 'g'
+      ) = ANY($1::text[])
+      LIMIT 1`,
+    [candidates]
+  );
+};
+var clearMobileCookie = (res) => {
+  res.clearCookie(mobileSessionCookie, { httpOnly: true, sameSite: "lax", path: "/" });
+};
+var createMobileSession = async (res, customerId2, customerName, phone, serviceId) => {
+  const raw = randomBytes5(32).toString("hex");
+  await pool.query(
+    `INSERT INTO mobile_sessions (id, customer_id, source_service_id, expires_at)
+     VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
+    [sessionHash2(raw), customerId2, serviceId ?? null]
+  );
+  await pool.query(
+    `INSERT INTO mobile_notification_preferences (customer_id)
+     VALUES ($1) ON CONFLICT (customer_id) DO NOTHING`,
+    [customerId2]
+  );
+  setMobileCookie(res, raw);
+  res.json({ authenticated: true, customer: { id: String(customerId2), name: customerName, phone } });
+};
+var attachMobileAuth = async (req, _res, next) => {
+  const raw = req.cookies?.[mobileSessionCookie];
+  if (typeof raw !== "string" || !raw) {
+    next();
+    return;
+  }
+  const result = await pool.query(
+    `SELECT c.id AS "customerId", c.full_name AS "customerName", c.phone
+     FROM mobile_sessions session
+     JOIN reseller_customers c ON c.id = session.customer_id
+     WHERE session.id = $1 AND session.expires_at > NOW()
+     LIMIT 1`,
+    [sessionHash2(raw)]
+  );
+  if (result.rows[0]) {
+    req.mobileAuth = {
+      customerId: Number(result.rows[0].customerId),
+      customerName: result.rows[0].customerName,
+      phone: result.rows[0].phone
+    };
+    await pool.query("UPDATE mobile_sessions SET last_seen_at = NOW() WHERE id = $1", [sessionHash2(raw)]);
+  }
+  next();
+};
+var requireMobileAuth = (req, res, next) => {
+  if (!req.mobileAuth) {
+    res.status(401).json({ error: "\u0628\u0631\u0627\u06CC \u0645\u0634\u0627\u0647\u062F\u0647\u0654 \u062D\u0633\u0627\u0628 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0648\u0627\u0631\u062F \u0634\u0648\u06CC\u062F." });
+    return;
+  }
+  next();
+};
+var originPath = (req, pathname) => {
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+  return `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}${pathname}`;
+};
+var asIso = (value) => value ? new Date(value).toISOString() : null;
+var mapService = (req, row) => {
+  const totalBytes = Number(row.last_total_bytes ?? 0) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
+  const remainingBytes = row.last_remaining_bytes !== null && row.last_remaining_bytes !== void 0 ? Math.max(0, Number(row.last_remaining_bytes)) : Math.max(0, totalBytes - usedBytes);
+  const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+  const daysRemaining = expiresAt ? Math.ceil((expiresAt - Date.now()) / 864e5) : null;
+  const status = row.status === "disabled" ? "cancelled" : expiresAt > 0 && expiresAt <= Date.now() ? "expired" : row.status === "pending" ? "pending" : "active";
+  const token = row.subscription_token;
+  const subscriptionUrl2 = token ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/feed`) : null;
+  return {
+    id: String(row.id),
+    plan: row.plan,
+    status,
+    started_at: asIso(row.created_at),
+    expires_at: asIso(row.expires_at),
+    remaining_days: daysRemaining === null ? null : Math.max(0, daysRemaining),
+    total_gb: Number((totalBytes / 1024 ** 3).toFixed(2)),
+    used_gb: Number((usedBytes / 1024 ** 3).toFixed(2)),
+    remaining_gb: Number((remainingBytes / 1024 ** 3).toFixed(2)),
+    usage_percent: totalBytes > 0 ? Math.min(100, Number((usedBytes / totalBytes * 100).toFixed(1))) : 0,
+    customer_name: row.customer_name,
+    server: row.panel || "V2Box",
+    provider_name: row.panel || "Provider \u0627\u0635\u0644\u06CC",
+    username: row.username,
+    subscription_url: subscriptionUrl2,
+    provider_url: subscriptionUrl2,
+    v2box_url: subscriptionUrl2 ? `v2box://install-sub?url=${encodeURIComponent(subscriptionUrl2)}&name=${encodeURIComponent(row.plan)}` : null,
+    public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
+    awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
+    service_code: `PULSE-${String(row.id).padStart(6, "0")}`
+  };
+};
+var listServices = async (req, customerId2) => {
+  const result = await pool.query(
+    `SELECT svc.id, svc.customer_id, c.full_name AS customer_name, c.phone,
+            svc.label AS plan, svc.status, svc.created_at, svc.expire_at AS expires_at,
+            svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
+            svc.last_remaining_bytes, rst.token AS subscription_token,
+            svc.awg_client_id, COALESCE(svc.falco_system_name, 'V2Box') AS panel
+     FROM reseller_services svc
+     JOIN reseller_customers c ON c.id = svc.customer_id
+     LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
+     WHERE svc.customer_id = $1
+     ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.expire_at DESC NULLS LAST, svc.id DESC`,
+    [customerId2]
+  );
+  return result.rows.map((row) => mapService(req, row));
+};
+var configuredVapidPublicKey = "";
+var configureVapid = (config3) => {
+  if (configuredVapidPublicKey === config3.vapid_public_key) return;
+  import_web_push.default.setVapidDetails(config3.vapid_subject, config3.vapid_public_key, config3.vapid_private_key);
+  configuredVapidPublicKey = config3.vapid_public_key;
+};
+var sendPush = async (customerId2, notification) => {
+  const config3 = await getVapidConfig();
+  configureVapid(config3);
+  const result = await pool.query(
+    `SELECT id, endpoint, p256dh, auth FROM mobile_push_subscriptions
+     WHERE customer_id = $1 AND is_active = 1`,
+    [customerId2]
+  );
+  const outcomes = await Promise.all(result.rows.map(async (subscription) => {
+    try {
+      await import_web_push.default.sendNotification(
+        { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
+        JSON.stringify({ title: notification.title, body: notification.body, url: notification.href || "/mobile", tone: notification.tone })
+      );
+      await pool.query("UPDATE mobile_push_subscriptions SET last_used_at = NOW() WHERE id = $1", [subscription.id]);
+      return { sent: true, failed: false, deactivated: false, error: "" };
+    } catch (error40) {
+      const statusCode = error40 && typeof error40 === "object" && "statusCode" in error40 ? Number(error40.statusCode) : 0;
+      const responseBody = error40 && typeof error40 === "object" && "body" in error40 && typeof error40.body === "string" ? error40.body : "";
+      const badJwtToken = responseBody.includes("BadJwtToken");
+      if (statusCode === 404 || statusCode === 410 || badJwtToken) {
+        await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE id = $1", [subscription.id]);
+      }
+      logger.warn({ customerId: customerId2, subscriptionId: subscription.id, statusCode, responseBody: responseBody.slice(0, 300) }, "Mobile Push delivery failed");
+      return {
+        sent: false,
+        failed: true,
+        deactivated: statusCode === 404 || statusCode === 410 || badJwtToken,
+        error: badJwtToken ? "JWT \u0627\u0639\u0644\u0627\u0646 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A\u061B \u0627\u0639\u0644\u0627\u0646 \u0627\u06CC\u0646 \u062F\u0633\u062A\u06AF\u0627\u0647 \u0628\u0627\u06CC\u062F \u062F\u0648\u0628\u0627\u0631\u0647 \u0641\u0639\u0627\u0644 \u0634\u0648\u062F" : statusCode === 404 || statusCode === 410 ? "\u0627\u0634\u062A\u0631\u0627\u06A9 Push \u0645\u0646\u0642\u0636\u06CC \u06CC\u0627 \u062D\u0630\u0641 \u0634\u062F\u0647 \u0627\u0633\u062A" : statusCode === 401 || statusCode === 403 ? "\u0627\u062D\u0631\u0627\u0632 \u0647\u0648\u06CC\u062A VAPID \u062A\u0648\u0633\u0637 \u0633\u0631\u0648\u06CC\u0633 Push \u0631\u062F \u0634\u062F" : statusCode ? `HTTP ${statusCode}` : "\u062E\u0637\u0627\u06CC \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u0633\u0631\u0648\u06CC\u0633 Push"
+      };
+    }
+  }));
+  return {
+    activeDevices: result.rows.length,
+    attempted: outcomes.length,
+    sent: outcomes.filter((item) => item.sent).length,
+    failed: outcomes.filter((item) => item.failed).length,
+    deactivated: outcomes.filter((item) => item.deactivated).length,
+    errors: [...new Set(outcomes.map((item) => item.error).filter(Boolean))]
+  };
+};
+var notificationPreference = (type) => {
+  if (type === "subscription_expiring" || type === "subscription_expired") return "expiry_enabled";
+  if (type === "traffic_warning") return "usage_enabled";
+  if (type === "subscription_renewed") return "renewal_enabled";
+  if (type === "service_status") return "service_enabled";
+  return "system_enabled";
+};
+var createNotification = async (input) => {
+  const preferenceKey = notificationPreference(input.type);
+  const preference = await pool.query(
+    `SELECT ${preferenceKey} FROM mobile_notification_preferences WHERE customer_id = $1`,
+    [input.customerId]
+  );
+  if (preference.rows[0] && Number(preference.rows[0][preferenceKey] ?? 1) !== 1) return { id: null };
+  const inserted = await pool.query(
+    `INSERT INTO mobile_notifications
+       (customer_id, service_id, event_key, notification_type, title, body, href, tone)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (customer_id, event_key) DO NOTHING
+     RETURNING id`,
+    [input.customerId, input.serviceId ?? null, input.eventKey, input.type, input.title, input.body, input.href ?? null, input.tone ?? "normal"]
+  );
+  if (!inserted.rows[0]) return { id: null };
+  const delivery = await sendPush(input.customerId, { title: input.title, body: input.body, href: input.href ?? null, tone: input.tone ?? "normal" });
+  return { id: inserted.rows[0].id, delivery };
+};
+var sendMobileNotification = async (input) => {
+  await mobileReady;
+  const eventId = randomBytes5(12).toString("hex");
+  let deliveredToInbox = 0;
+  let activeDevices = 0;
+  let pushAttempted = 0;
+  let pushSent = 0;
+  let pushFailed = 0;
+  let pushDeactivated = 0;
+  const pushErrors = /* @__PURE__ */ new Set();
+  for (const customerId2 of [...new Set(input.customerIds)]) {
+    const inserted = await pool.query(
+      `INSERT INTO mobile_notifications
+         (customer_id, service_id, event_key, notification_type, title, body, href, tone)
+       VALUES ($1, NULL, $2, 'admin_message', $3, $4, $5, $6)
+       ON CONFLICT (customer_id, event_key) DO NOTHING
+       RETURNING id`,
+      [customerId2, `admin:${eventId}:${customerId2}`, input.title, input.body, input.href ?? "/mobile/notifications", input.tone ?? "normal"]
+    );
+    if (inserted.rows[0]) {
+      deliveredToInbox += 1;
+      const delivery = await sendPush(customerId2, {
+        title: input.title,
+        body: input.body,
+        href: input.href ?? "/mobile/notifications",
+        tone: input.tone ?? "normal"
+      });
+      activeDevices += delivery.activeDevices;
+      pushAttempted += delivery.attempted;
+      pushSent += delivery.sent;
+      pushFailed += delivery.failed;
+      pushDeactivated += delivery.deactivated;
+      delivery.errors.forEach((error40) => pushErrors.add(error40));
+    }
+  }
+  return {
+    deliveredToInbox,
+    targetCount: new Set(input.customerIds).size,
+    activeDevices,
+    pushAttempted,
+    pushSent,
+    pushFailed,
+    pushDeactivated,
+    pushErrors: [...pushErrors]
+  };
+};
+var runMobileNotificationSweep = async () => {
+  await mobileReady;
+  const result = await pool.query(
+    `SELECT svc.id, svc.customer_id, c.full_name AS customer_name, c.phone,
+            svc.label AS plan, svc.status, svc.created_at, svc.expire_at AS expires_at,
+            svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
+            svc.last_remaining_bytes, rst.token AS subscription_token,
+            svc.awg_client_id, NULL::text AS panel
+     FROM reseller_services svc
+     JOIN reseller_customers c ON c.id = svc.customer_id
+     LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
+     WHERE svc.status <> 'disabled'`
+  );
+  for (const row of result.rows) {
+    const serviceUrl = `/mobile/subscriptions/${row.id}`;
+    const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+    const days = expiresAt ? Math.ceil((expiresAt - Date.now()) / 864e5) : null;
+    const total = Number(row.last_total_bytes ?? 0) > 0 ? Number(row.last_total_bytes) : Number(row.limit_gb ?? 0) * 1024 ** 3;
+    const used = Math.max(0, Number(row.last_used_bytes ?? 0));
+    const percent = total > 0 ? used / total * 100 : 0;
+    if (days !== null && days < 0) {
+      await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:expired`, type: "subscription_expired", title: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F", body: "\u0628\u0631\u0627\u06CC \u0627\u062F\u0627\u0645\u0647\u0654 \u0627\u0633\u062A\u0641\u0627\u062F\u0647\u060C \u0627\u0634\u062A\u0631\u0627\u06A9 \u062E\u0648\u062F \u0631\u0627 \u062A\u0645\u062F\u06CC\u062F \u06A9\u0646\u06CC\u062F.", href: serviceUrl, tone: "danger" });
+    } else if (days !== null && days <= 2) {
+      await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:expiry-2`, type: "subscription_expiring", title: "\u06CC\u0627\u062F\u0622\u0648\u0631\u06CC \u062A\u0645\u062F\u06CC\u062F \u0627\u0634\u062A\u0631\u0627\u06A9", body: `\u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 ${days} \u0631\u0648\u0632 \u062F\u06CC\u06AF\u0631 \u0645\u0646\u0642\u0636\u06CC \u0645\u06CC\u200C\u0634\u0648\u062F.`, href: serviceUrl, tone: "warning" });
+    } else if (days !== null && days <= 7) {
+      await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:expiry-7`, type: "subscription_expiring", title: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0631\u0648 \u0628\u0647 \u0627\u062A\u0645\u0627\u0645 \u0627\u0633\u062A", body: `\u06F7 \u0631\u0648\u0632 \u062A\u0627 \u067E\u0627\u06CC\u0627\u0646 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0628\u0627\u0642\u06CC \u0645\u0627\u0646\u062F\u0647 \u0627\u0633\u062A.`, href: serviceUrl, tone: "warning" });
+    }
+    if (percent >= 90) {
+      await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:usage-90`, type: "traffic_warning", title: "\u0647\u0634\u062F\u0627\u0631 \u0645\u0635\u0631\u0641", body: "\u06F9\u06F0\u066A \u062D\u062C\u0645 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0645\u0635\u0631\u0641 \u0634\u062F\u0647 \u0627\u0633\u062A.", href: serviceUrl, tone: "danger" });
+    } else if (percent >= 80) {
+      await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:usage-80`, type: "traffic_warning", title: "\u0645\u0635\u0631\u0641 \u0627\u06CC\u0646\u062A\u0631\u0646\u062A", body: "\u06F8\u06F0\u066A \u062D\u062C\u0645 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0645\u0635\u0631\u0641 \u0634\u062F\u0647 \u0627\u0633\u062A.", href: serviceUrl, tone: "warning" });
+    }
+  }
+};
+var startMobileNotificationWorker = () => {
+  const run = () => void runMobileNotificationSweep().catch(() => void 0);
+  void mobileReady.then(run);
+  setInterval(run, 30 * 60 * 1e3).unref();
+};
+router2.use(attachMobileAuth);
+var normalizePhoneDigits = (input) => {
+  if (typeof input !== "string") return "";
+  return input.trim().replace(/[۰-۹]/g, (digit) => String("\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669".indexOf(digit))).replace(/\D/g, "");
+};
+var phoneCandidates = (input) => {
+  const digits = normalizePhoneDigits(input);
+  if (!digits) return [];
+  const candidates = /* @__PURE__ */ new Set([digits]);
+  if (digits.startsWith("0098")) candidates.add(`0${digits.slice(4)}`);
+  if (digits.startsWith("98")) candidates.add(`0${digits.slice(2)}`);
+  if (digits.startsWith("0")) candidates.add(`98${digits.slice(1)}`);
+  return [...candidates].filter((value) => value.length >= 8 && value.length <= 15);
+};
+var normalizeMobileOtp = (input) => typeof input === "string" ? input.trim().replace(/[۰-۹]/g, (digit) => String("\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669".indexOf(digit))).replace(/\D/g, "") : "";
+router2.post("/mobile/auth/otp/request", async (req, res) => {
+  await Promise.all([mobileReady, mobileOtpReady]);
+  const candidates = phoneCandidates(req.body?.phone);
+  if (!candidates.length) {
+    res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  const result = await findCustomerByPhone(candidates);
+  const row = result.rows[0];
+  if (!row) {
+    res.status(404).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0634\u062A\u0631\u06CC \u06CC\u0627 \u0633\u0631\u0648\u06CC\u0633\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+    return;
+  }
+  const challengeId = await findActiveMobileOtp(row.customer_id, row.phone);
+  if (!challengeId) {
+    res.status(409).json({ error: "\u06A9\u062F \u0648\u0631\u0648\u062F \u0631\u0627 \u0627\u0632 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u06CC\u0627 \u0645\u062F\u06CC\u0631 \u0627\u0635\u0644\u06CC \u062F\u0631\u06CC\u0627\u0641\u062A \u06A9\u0646\u06CC\u062F." });
+    return;
+  }
+  res.json({
+    challenge_id: challengeId,
+    expires_at: null,
+    customer: { name: row.customer_name, phone: row.phone }
+  });
+});
+router2.post("/mobile/auth/otp/verify", async (req, res) => {
+  await Promise.all([mobileReady, mobileOtpReady]);
+  const candidates = phoneCandidates(req.body?.phone);
+  const challengeId = typeof req.body?.challenge_id === "string" ? req.body.challenge_id.trim() : "";
+  const otp = normalizeMobileOtp(req.body?.otp);
+  if (!candidates.length || !challengeId || otp.length !== 4) {
+    res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0648 \u06A9\u062F \u0648\u0631\u0648\u062F \u0645\u0639\u062A\u0628\u0631 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
+    return;
+  }
+  const result = await findCustomerByPhone(candidates);
+  const row = result.rows[0];
+  if (!row) {
+    res.status(404).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0634\u062A\u0631\u06CC \u06CC\u0627 \u0633\u0631\u0648\u06CC\u0633\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+    return;
+  }
+  const verification = await consumeMobileOtp(challengeId, row.customer_id, row.phone, otp);
+  if (!verification.ok) {
+    res.status(401).json({ error: verification.reason });
+    return;
+  }
+  await createMobileSession(res, row.customer_id, row.customer_name, row.phone, row.service_id ?? null);
+});
+router2.get("/mobile/auth/session", async (req, res) => {
+  res.json(req.mobileAuth ? { authenticated: true, customer: { id: String(req.mobileAuth.customerId), name: req.mobileAuth.customerName, phone: req.mobileAuth.phone } } : { authenticated: false });
+});
+router2.post("/mobile/auth/logout", async (req, res) => {
+  const raw = req.cookies?.[mobileSessionCookie];
+  if (typeof raw === "string" && raw) await pool.query("DELETE FROM mobile_sessions WHERE id = $1", [sessionHash2(raw)]);
+  clearMobileCookie(res);
+  res.sendStatus(204);
+});
+router2.get("/mobile/dashboard", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  const subscriptions = await listServices(req, req.mobileAuth.customerId);
+  const notifications = await pool.query(
+    `SELECT id, notification_type AS type, title, body, href, tone, created_at, read_at
+     FROM mobile_notifications WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 5`,
+    [req.mobileAuth.customerId]
+  );
+  const unread = await pool.query(
+    "SELECT COUNT(*)::int AS count FROM mobile_notifications WHERE customer_id = $1 AND read_at IS NULL",
+    [req.mobileAuth.customerId]
+  );
+  res.json({
+    customer: { id: String(req.mobileAuth.customerId), name: req.mobileAuth.customerName, phone: req.mobileAuth.phone },
+    subscriptions,
+    notifications: notifications.rows,
+    unread_count: Number(unread.rows[0]?.count ?? 0)
+  });
+});
+router2.get("/mobile/subscriptions", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  res.json(await listServices(req, req.mobileAuth.customerId));
+});
+router2.get("/mobile/subscriptions/:id", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647\u0654 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  const services = await listServices(req, req.mobileAuth.customerId);
+  const service = services.find((item) => item.id === String(id));
+  if (!service) {
+    res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+    return;
+  }
+  res.json(service);
+});
+router2.get("/mobile/notifications", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  const result = await pool.query(
+    `SELECT id, notification_type AS type, title, body, href, tone, created_at, read_at
+     FROM mobile_notifications WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 100`,
+    [req.mobileAuth.customerId]
+  );
+  res.json(result.rows);
+});
+router2.patch("/mobile/notifications/:id/read", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  await pool.query("UPDATE mobile_notifications SET read_at = COALESCE(read_at, NOW()) WHERE id = $1 AND customer_id = $2", [Number(req.params.id), req.mobileAuth.customerId]);
+  res.sendStatus(204);
+});
+router2.post("/mobile/notifications/read-all", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  await pool.query("UPDATE mobile_notifications SET read_at = NOW() WHERE customer_id = $1 AND read_at IS NULL", [req.mobileAuth.customerId]);
+  res.sendStatus(204);
+});
+router2.get("/mobile/settings", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  const result = await pool.query(
+    `INSERT INTO mobile_notification_preferences (customer_id)
+     VALUES ($1) ON CONFLICT (customer_id) DO UPDATE SET customer_id = EXCLUDED.customer_id
+     RETURNING service_enabled, renewal_enabled, expiry_enabled, usage_enabled, system_enabled`,
+    [req.mobileAuth.customerId]
+  );
+  res.json(result.rows[0]);
+});
+router2.patch("/mobile/settings", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  const body = req.body ?? {};
+  const values = ["service_enabled", "renewal_enabled", "expiry_enabled", "usage_enabled", "system_enabled"].map((key) => body[key] === void 0 ? null : Boolean(body[key]) ? 1 : 0);
+  await pool.query(
+    `INSERT INTO mobile_notification_preferences
+       (customer_id, service_enabled, renewal_enabled, expiry_enabled, usage_enabled, system_enabled)
+     VALUES ($1, COALESCE($2, 1), COALESCE($3, 1), COALESCE($4, 1), COALESCE($5, 1), COALESCE($6, 1))
+     ON CONFLICT (customer_id) DO UPDATE SET
+       service_enabled = COALESCE($2, mobile_notification_preferences.service_enabled),
+       renewal_enabled = COALESCE($3, mobile_notification_preferences.renewal_enabled),
+       expiry_enabled = COALESCE($4, mobile_notification_preferences.expiry_enabled),
+       usage_enabled = COALESCE($5, mobile_notification_preferences.usage_enabled),
+       system_enabled = COALESCE($6, mobile_notification_preferences.system_enabled),
+       updated_at = NOW()`,
+    [req.mobileAuth.customerId, ...values]
+  );
+  res.json({ saved: true });
+});
+router2.get("/mobile/push/status", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  const config3 = await getVapidConfig();
+  const result = await pool.query(
+    "SELECT COUNT(*)::int AS count FROM mobile_push_subscriptions WHERE customer_id = $1 AND is_active = 1",
+    [req.mobileAuth.customerId]
+  );
+  res.json({
+    configured: true,
+    vapid_public_key: config3.vapid_public_key,
+    subscribed: Number(result.rows[0]?.count ?? 0) > 0
+  });
+});
+router2.post("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  const subscription = req.body?.subscription ?? req.body;
+  const endpoint = typeof subscription?.endpoint === "string" ? subscription.endpoint.trim() : "";
+  const p256dh = typeof subscription?.keys?.p256dh === "string" ? subscription.keys.p256dh.trim() : "";
+  const auth = typeof subscription?.keys?.auth === "string" ? subscription.keys.auth.trim() : "";
+  if (!endpoint.startsWith("https://") || endpoint.length > 2048 || !p256dh || !auth || p256dh.length > 512 || auth.length > 512) {
+    res.status(400).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0627\u0639\u0644\u0627\u0646 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  await pool.query(
+    `INSERT INTO mobile_push_subscriptions
+       (customer_id, endpoint, p256dh, auth, user_agent, device, platform, is_active, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 1, NOW())
+     ON CONFLICT (endpoint) DO UPDATE SET customer_id = EXCLUDED.customer_id,
+       p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, user_agent = EXCLUDED.user_agent,
+       device = EXCLUDED.device, platform = EXCLUDED.platform, is_active = 1, updated_at = NOW()`,
+    [req.mobileAuth.customerId, endpoint, p256dh, auth, req.get("user-agent") || null, req.body?.device || null, req.body?.platform || null]
+  );
+  const config3 = await getVapidConfig();
+  res.json({ saved: true, vapid_public_key: config3.vapid_public_key });
+});
+router2.delete("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  const endpoint = typeof req.body?.endpoint === "string" ? req.body.endpoint.trim() : "";
+  await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE endpoint = $1 AND customer_id = $2", [endpoint, req.mobileAuth.customerId]);
+  res.sendStatus(204);
+});
+router2.post("/mobile/push/test", requireMobileAuth, async (req, res) => {
+  await mobileReady;
+  const result = await createNotification({
+    customerId: req.mobileAuth.customerId,
+    eventKey: `manual:test:${randomBytes5(12).toString("hex")}`,
+    type: "system",
+    title: "\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627\u06CC \u067E\u0627\u0644\u0633 \u0641\u0639\u0627\u0644 \u0627\u0633\u062A",
+    body: "\u0627\u06CC\u0646 \u06CC\u06A9 \u0627\u0639\u0644\u0627\u0646 \u0622\u0632\u0645\u0627\u06CC\u0634\u06CC \u0628\u0631\u0627\u06CC \u062F\u0633\u062A\u06AF\u0627\u0647 \u0634\u0645\u0627\u0633\u062A.",
+    href: "/mobile/notifications"
+  });
+  const delivery = result.delivery ?? { activeDevices: 0, attempted: 0, sent: 0, failed: 0, deactivated: 0, errors: [] };
+  res.json({
+    ...delivery,
+    sent: delivery.sent > 0,
+    inboxSaved: Boolean(result.id),
+    configured: true
+  });
+});
+var mobile_default = router2;
 
 // src/lib/subscription-formats.ts
 function decodeBase64(value) {
@@ -65168,8 +65848,197 @@ function toClashSubscription(body) {
 var MASTER_ADMIN_COST_PER_GB = 2500;
 var resellerCostPerGbSql = (alias = "r") => `CASE WHEN ${alias}.tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${alias}.per_gig_price, 0) END`;
 var saleAmountToAdminSql = (saleAlias = "s", resellerAlias = "r") => `CASE WHEN ${saleAlias}.reseller_tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${resellerAlias}.per_gig_price, 0) END`;
-var router2 = (0, import_express2.Router)();
-router2.use(attachAuth);
+var router3 = (0, import_express3.Router)();
+router3.use(attachAuth);
+router3.get("/admin/notification-recipients", requireMasterAdmin, async (req, res) => {
+  await Promise.all([managementReady, mobileReady]);
+  const kind = req.query.kind === "reseller" ? "reseller" : "customer";
+  const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
+  const limitRaw = Number(req.query.limit);
+  const limit = Number.isSafeInteger(limitRaw) ? Math.min(Math.max(limitRaw, 1), 30) : 20;
+  if (kind === "reseller") {
+    const params2 = [];
+    const conditions2 = [`r.tg_id <> ${MASTER_ADMIN_TELEGRAM_ID}`];
+    if (search) {
+      params2.push(`%${search}%`);
+      conditions2.push(`(COALESCE(r.title, '') ILIKE $${params2.length} OR r.tg_id::text ILIKE $${params2.length})`);
+    }
+    params2.push(limit);
+    const result2 = await pool.query(
+      `SELECT r.tg_id::float8 AS id,
+              COALESCE(NULLIF(r.title, ''), '\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ' || r.tg_id::text) AS name,
+              r.tg_id::float8 AS telegram_id,
+              COALESCE(r.enabled, TRUE) AS enabled
+       FROM resellers r
+       WHERE ${conditions2.join(" AND ")}
+       ORDER BY COALESCE(NULLIF(r.title, ''), '\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ' || r.tg_id::text)
+       LIMIT $${params2.length}`,
+      params2
+    );
+    res.json({ kind, items: result2.rows });
+    return;
+  }
+  const params = [];
+  const conditions = ["TRUE"];
+  if (search) {
+    params.push(`%${search}%`);
+    const searchIndex = params.length;
+    const digits = search.replace(/[۰-۹]/g, (digit) => String("\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669".indexOf(digit))).replace(/\D/g, "");
+    params.push(digits ? `%${digits}%` : "__no_phone_match__");
+    const phoneIndex = params.length;
+    conditions.push(`(
+      COALESCE(c.full_name, '') ILIKE $${searchIndex}
+      OR regexp_replace(translate(COALESCE(c.phone, ''), '\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669', '01234567890123456789'), '[^0-9]', '', 'g') LIKE $${phoneIndex}
+    )`);
+  }
+  params.push(limit);
+  const result = await pool.query(
+    `SELECT c.id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u0628\u062F\u0648\u0646 \u0646\u0627\u0645') AS name, c.phone,
+            COALESCE(push.active_devices, 0)::int AS active_devices
+     FROM reseller_customers c
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS active_devices
+       FROM mobile_push_subscriptions mps
+       WHERE mps.customer_id = c.id AND mps.is_active = 1
+     ) push ON TRUE
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY COALESCE(push.active_devices, 0) DESC, c.id DESC
+     LIMIT $${params.length}`,
+    params
+  );
+  res.json({ kind, items: result.rows });
+});
+router3.get("/admin/notification-status", requireMasterAdmin, async (req, res) => {
+  await Promise.all([managementReady, mobileReady]);
+  const kind = req.query.kind === "reseller" ? "reseller" : "customer";
+  const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
+  const limitRaw = Number(req.query.limit);
+  const limit = Number.isSafeInteger(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 50;
+  const params = [];
+  const conditions = [];
+  if (kind === "reseller") {
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(COALESCE(r.title, '') ILIKE $${params.length} OR r.tg_id::text ILIKE $${params.length})`);
+    }
+    params.push(limit);
+    const result2 = await pool.query(
+      `SELECT r.tg_id::float8 AS id,
+              COALESCE(NULLIF(r.title, ''), '\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ' || r.tg_id::text) AS name,
+              r.tg_id::float8 AS telegram_id,
+              COALESCE(r.enabled, TRUE) AS enabled,
+              TRUE AS notification_enabled,
+              0::int AS active_devices,
+              'panel' AS channel
+       FROM resellers r
+       WHERE r.tg_id <> ${MASTER_ADMIN_TELEGRAM_ID} ${conditions.length ? `AND ${conditions.join(" AND ")}` : ""}
+       ORDER BY notification_enabled DESC, name
+       LIMIT $${params.length}`,
+      params
+    );
+    res.json({ kind, items: result2.rows });
+    return;
+  }
+  if (search) {
+    params.push(`%${search}%`);
+    const searchIndex = params.length;
+    const digits = search.replace(/[۰-۹]/g, (digit) => String("\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669".indexOf(digit))).replace(/\D/g, "");
+    params.push(digits ? `%${digits}%` : "__no_phone_match__");
+    const phoneIndex = params.length;
+    conditions.push(`(
+      COALESCE(c.full_name, '') ILIKE $${searchIndex}
+      OR regexp_replace(translate(COALESCE(c.phone, ''), '\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669', '01234567890123456789'), '[^0-9]', '', 'g') LIKE $${phoneIndex}
+    )`);
+  }
+  params.push(limit);
+  const result = await pool.query(
+    `SELECT c.id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u0628\u062F\u0648\u0646 \u0646\u0627\u0645') AS name, c.phone,
+            COALESCE(push.active_devices, 0)::int AS active_devices,
+            COALESCE(pref.system_enabled, 1) = 1 AS notification_enabled,
+            CASE WHEN COALESCE(pref.system_enabled, 1) = 1 AND COALESCE(push.active_devices, 0) > 0
+                 THEN 'ready' ELSE 'not_ready' END AS status,
+            'web_push' AS channel
+     FROM reseller_customers c
+     LEFT JOIN mobile_notification_preferences pref ON pref.customer_id = c.id
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS active_devices
+       FROM mobile_push_subscriptions mps
+       WHERE mps.customer_id = c.id AND mps.is_active = 1
+     ) push ON TRUE
+     WHERE ${conditions.length ? conditions.join(" AND ") : "TRUE"}
+     ORDER BY COALESCE(push.active_devices, 0) DESC, c.id DESC
+     LIMIT $${params.length}`,
+    params
+  );
+  res.json({ kind, items: result.rows });
+});
+router3.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res) => {
+  await Promise.all([managementReady, mobileReady]);
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+  const kind = req.body?.recipient_type === "reseller" ? "reseller" : "customer";
+  const target = req.body?.target === "all" ? "all" : "recipient";
+  const recipientId = Number(req.body?.recipient_id ?? req.body?.customer_id);
+  if (!title || title.length > 120 || !body || body.length > 4e3) {
+    res.status(400).json({ error: "\u0639\u0646\u0648\u0627\u0646 \u0648 \u0645\u062A\u0646 \u0627\u0639\u0644\u0627\u0646 \u0631\u0627 \u06A9\u0627\u0645\u0644 \u0648 \u062F\u0631 \u0627\u0646\u062F\u0627\u0632\u0647 \u0645\u062C\u0627\u0632 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
+    return;
+  }
+  if (target !== "all" && (!Number.isSafeInteger(recipientId) || recipientId <= 0)) {
+    res.status(400).json({ error: "\u0645\u062E\u0627\u0637\u0628 \u0645\u0634\u062E\u0635\u200C\u0634\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  if (kind === "customer") {
+    const recipients2 = target === "recipient" ? await pool.query("SELECT id FROM reseller_customers WHERE id = $1 LIMIT 1", [recipientId]) : await pool.query("SELECT id FROM reseller_customers ORDER BY id");
+    if (target === "recipient" && !recipients2.rows[0]) {
+      res.status(404).json({ error: "\u0645\u0634\u062A\u0631\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+      return;
+    }
+    const result = await sendMobileNotification({
+      customerIds: recipients2.rows.map((row) => Number(row.id)),
+      title,
+      body,
+      href: "/mobile/notifications",
+      tone: "normal"
+    });
+    res.json({ sent: true, kind, ...result });
+    return;
+  }
+  const recipients = target === "recipient" ? await pool.query(
+    `SELECT tg_id::float8 AS id FROM resellers
+       WHERE tg_id = $1 AND tg_id <> ${MASTER_ADMIN_TELEGRAM_ID} LIMIT 1`,
+    [recipientId]
+  ) : await pool.query(
+    `SELECT tg_id::float8 AS id FROM resellers WHERE tg_id <> ${MASTER_ADMIN_TELEGRAM_ID} ORDER BY tg_id`
+  );
+  if (target === "recipient" && !recipients.rows[0]) {
+    res.status(404).json({ error: "\u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+    return;
+  }
+  const eventId = randomBytes6(12).toString("hex");
+  let deliveredToInbox = 0;
+  for (const row of recipients.rows) {
+    const inserted = await pool.query(
+      `INSERT INTO reseller_notifications
+         (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
+       VALUES ($1, NULL, $2, 'admin_message', $3, $4, '/notifications', 'normal', NOW())
+       ON CONFLICT (reseller_tg_id, event_key) DO NOTHING`,
+      [Number(row.id), `admin:${eventId}:${row.id}`, title, body]
+    );
+    deliveredToInbox += inserted.rowCount ?? 0;
+  }
+  res.json({
+    sent: true,
+    kind,
+    targetCount: recipients.rows.length,
+    deliveredToInbox,
+    activeDevices: 0,
+    pushAttempted: 0,
+    pushSent: 0,
+    pushFailed: 0,
+    pushDeactivated: 0,
+    pushErrors: []
+  });
+});
 var managementReady = pool.query(`
     CREATE TABLE IF NOT EXISTS panel_configs (
       key TEXT PRIMARY KEY,
@@ -65395,7 +66264,7 @@ var managementReady = pool.query(`
   console.error("Panel management schema initialization failed", error40);
   throw error40;
 });
-router2.use(async (_req, _res, next) => {
+router3.use(async (_req, _res, next) => {
   try {
     await managementReady;
     next();
@@ -65477,10 +66346,10 @@ var ownership = (alias, req) => req.auth?.role === "master_admin" ? { sql: "TRUE
   sql: `${alias}.reseller_tg_id = $1`,
   params: [req.auth?.telegramId]
 };
-router2.get("/auth/session", async (req, res) => {
+router3.get("/auth/session", async (req, res) => {
   res.json(sessionResponse(req.auth ? req.auth : null));
 });
-router2.post("/auth/telegram", async (req, res) => {
+router3.post("/auth/telegram", async (req, res) => {
   if (!telegramAuthConfigured()) {
     res.status(503).json({ error: "Telegram authentication is not configured" });
     return;
@@ -65518,7 +66387,7 @@ router2.post("/auth/telegram", async (req, res) => {
     })
   );
 });
-router2.post("/auth/telegram-id", async (req, res) => {
+router3.post("/auth/telegram-id", async (req, res) => {
   const parsed = LoginWithTelegramIdBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -65551,7 +66420,7 @@ router2.post("/auth/telegram-id", async (req, res) => {
     })
   );
 });
-router2.post("/auth/logout", async (req, res) => {
+router3.post("/auth/logout", async (req, res) => {
   const rawId = req.cookies?.pulse_session;
   if (typeof rawId === "string" && rawId) {
     await pool.query("DELETE FROM web_sessions WHERE id = $1", [
@@ -65561,7 +66430,7 @@ router2.post("/auth/logout", async (req, res) => {
   clearSessionCookie(res);
   res.sendStatus(204);
 });
-router2.get("/public/subscription/:token", async (req, res) => {
+router3.get("/public/subscription/:token", async (req, res) => {
   const token = String(req.params.token ?? "").trim();
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     res.status(404).json({ error: "\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -65645,7 +66514,7 @@ router2.get("/public/subscription/:token", async (req, res) => {
     announcement: { ...announcement, service_code: serviceCode }
   });
 });
-router2.get("/public/subscription/:token/feed", async (req, res) => {
+router3.get("/public/subscription/:token/feed", async (req, res) => {
   const token = String(req.params.token ?? "").trim();
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     res.status(404).send("Invalid subscription token");
@@ -65814,7 +66683,7 @@ router2.get("/public/subscription/:token/feed", async (req, res) => {
   res.setHeader("content-type", upstreamContentType || "text/plain; charset=utf-8");
   res.send(body);
 });
-router2.get("/public/subscription/:token/awg", async (req, res) => {
+router3.get("/public/subscription/:token/awg", async (req, res) => {
   const token = String(req.params.token ?? "").trim();
   const result = await pool.query(
     `SELECT svc.awg_client_id, svc.rain_username AS username, svc.status,
@@ -65854,7 +66723,7 @@ router2.get("/public/subscription/:token/awg", async (req, res) => {
     throw error40;
   }
 });
-router2.get("/panels", requireMasterAdmin, async (_req, res) => {
+router3.get("/panels", requireMasterAdmin, async (_req, res) => {
   const result = await pool.query(
     `SELECT p.key, p.kind, p.api_base, p.is_enabled = 1 AS enabled,
             p.username_secret, p.password_secret, p.api_key_secret,
@@ -65882,7 +66751,7 @@ router2.get("/panels", requireMasterAdmin, async (_req, res) => {
     }))
   );
 });
-router2.post("/panels/:key/test", requireMasterAdmin, async (req, res) => {
+router3.post("/panels/:key/test", requireMasterAdmin, async (req, res) => {
   const key = String(req.params.key ?? "").trim();
   if (!/^[a-z0-9_-]{2,64}$/.test(key)) {
     res.status(400).json({ ok: false, detail: "Provider key is invalid." });
@@ -65914,7 +66783,7 @@ function isProviderApiBase(value) {
 function credentialValue(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
-router2.post("/panels", requireMasterAdmin, async (req, res) => {
+router3.post("/panels", requireMasterAdmin, async (req, res) => {
   const body = req.body ?? {};
   const key = typeof body.key === "string" ? body.key.trim() : "";
   const kind = body.kind;
@@ -65957,11 +66826,11 @@ router2.post("/panels", requireMasterAdmin, async (req, res) => {
     throw error40;
   }
 });
-router2.get("/providers/available", requireAuth, async (_req, res) => {
+router3.get("/providers/available", requireAuth, async (_req, res) => {
   await managementReady;
   res.json(await listAvailablePanels());
 });
-router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
+router3.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
   const key = String(req.params.key ?? "").trim();
   const body = req.body ?? {};
   const requestedKind = body.kind === void 0 ? void 0 : typeof body.kind === "string" ? body.kind.trim().toLowerCase() : body.kind;
@@ -66000,7 +66869,7 @@ router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
   }
   res.json(result.rows[0]);
 });
-router2.delete("/panels/:key", requireMasterAdmin, async (req, res) => {
+router3.delete("/panels/:key", requireMasterAdmin, async (req, res) => {
   const key = String(req.params.key ?? "").trim();
   if (!/^[a-z0-9_-]{2,64}$/.test(key)) {
     res.status(400).json({ error: "\u06A9\u0644\u06CC\u062F Provider \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -66013,7 +66882,7 @@ router2.delete("/panels/:key", requireMasterAdmin, async (req, res) => {
   }
   res.json({ deleted: true, key });
 });
-router2.post("/panels/:key/assignments", requireMasterAdmin, async (req, res) => {
+router3.post("/panels/:key/assignments", requireMasterAdmin, async (req, res) => {
   const key = String(req.params.key ?? "").trim();
   const telegramId = Number(req.body?.reseller_tg_id);
   if (!/^[a-z0-9_-]{2,64}$/.test(key) || !Number.isSafeInteger(telegramId) || telegramId <= 0 || typeof req.body?.assigned !== "boolean") {
@@ -66040,7 +66909,7 @@ router2.post("/panels/:key/assignments", requireMasterAdmin, async (req, res) =>
   }
   res.json({ panel_key: key, reseller_tg_id: telegramId, assigned: req.body.assigned });
 });
-router2.get("/dashboard", requireAuth, async (req, res) => {
+router3.get("/dashboard", requireAuth, async (req, res) => {
   const owner = ownership("s", req);
   const serviceOwner = ownership("svc", req);
   const customerOwner = ownership("c", req);
@@ -66206,7 +67075,7 @@ router2.get("/dashboard", requireAuth, async (req, res) => {
     })
   );
 });
-router2.get("/notifications", requireAuth, async (req, res) => {
+router3.get("/notifications", requireAuth, async (req, res) => {
   if (req.auth?.role !== "reseller") {
     res.json([]);
     return;
@@ -66360,7 +67229,7 @@ router2.get("/notifications", requireAuth, async (req, res) => {
   );
   res.json(result.rows);
 });
-router2.post("/notifications/read-all", requireAuth, async (req, res) => {
+router3.post("/notifications/read-all", requireAuth, async (req, res) => {
   if (req.auth?.role === "reseller") {
     await pool.query(
       "UPDATE reseller_notifications SET read_at = COALESCE(read_at, NOW()) WHERE reseller_tg_id = $1",
@@ -66369,7 +67238,7 @@ router2.post("/notifications/read-all", requireAuth, async (req, res) => {
   }
   res.status(204).end();
 });
-router2.post("/notifications/:id/read", requireAuth, async (req, res) => {
+router3.post("/notifications/:id/read", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (req.auth?.role !== "reseller" || !Number.isSafeInteger(id) || id <= 0) {
     res.status(400).json({ error: "\u0627\u0639\u0644\u0627\u0646 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -66381,7 +67250,7 @@ router2.post("/notifications/:id/read", requireAuth, async (req, res) => {
   );
   res.status(204).end();
 });
-router2.get("/sales-summary", requireAuth, async (req, res) => {
+router3.get("/sales-summary", requireAuth, async (req, res) => {
   const range = requestedDateRange(req, 0);
   if (!range.from || !range.to || range.from > range.to) {
     res.status(400).json({ error: "\u0628\u0627\u0632\u0647 \u062A\u0627\u0631\u06CC\u062E \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -66579,7 +67448,7 @@ router2.get("/sales-summary", requireAuth, async (req, res) => {
     reseller_payment_history: resellerPaymentHistory.rows
   });
 });
-router2.get("/reports", requireAuth, async (req, res) => {
+router3.get("/reports", requireAuth, async (req, res) => {
   if (req.auth?.role !== "master_admin") {
     res.status(403).json({ error: "\u06AF\u0632\u0627\u0631\u0634 \u06A9\u0627\u0645\u0644 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0645\u062F\u06CC\u0631 \u0627\u0635\u0644\u06CC \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0627\u0633\u062A" });
     return;
@@ -66642,7 +67511,7 @@ router2.get("/reports", requireAuth, async (req, res) => {
     reseller_credit_sales: resellerCredits
   });
 });
-router2.get("/sales", requireAuth, async (req, res) => {
+router3.get("/sales", requireAuth, async (req, res) => {
   const parsed = ListSalesQueryParams.parse(req.query);
   const owner = ownership("s", req);
   const params = [...owner.params];
@@ -66674,6 +67543,7 @@ router2.get("/sales", requireAuth, async (req, res) => {
        s.service_id,
        COALESCE(svc.label, '\u0633\u0631\u0648\u06CC\u0633 \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS service_name,
        COALESCE(svc.falco_system_name, '\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC') AS panel,
+        s.gb_amount::float8 AS gb_amount,
        ${req.auth?.role === "master_admin" ? `(${saleAmountToAdminSql()}) * s.gb_amount` : `COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql()})`}::float8 AS amount,
         (COALESCE(s.created_at, NOW()) AT TIME ZONE 'Asia/Tehran')::date::text AS date,
        COALESCE(s.is_paid, 0) = 1 AS paid,
@@ -66689,7 +67559,7 @@ router2.get("/sales", requireAuth, async (req, res) => {
   );
   res.json(ListSalesResponse.parse(result.rows));
 });
-router2.get("/admin/sales", requireMasterAdmin, async (req, res) => {
+router3.get("/admin/sales", requireMasterAdmin, async (req, res) => {
   const parsed = ListAdminSalesQueryParams.parse(req.query);
   const params = [];
   const conditions = [];
@@ -66753,7 +67623,7 @@ router2.get("/admin/sales", requireMasterAdmin, async (req, res) => {
   );
   res.json(ListAdminSalesResponse.parse(result.rows));
 });
-router2.delete("/admin/sales/:id", requireMasterAdmin, async (req, res) => {
+router3.delete("/admin/sales/:id", requireMasterAdmin, async (req, res) => {
   const parsed = DeleteAdminSaleParams.safeParse(req.params);
   if (!parsed.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0641\u0631\u0648\u0634 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -66766,7 +67636,7 @@ router2.delete("/admin/sales/:id", requireMasterAdmin, async (req, res) => {
   }
   res.status(204).end();
 });
-router2.get("/service-action-requests", requireAuth, async (req, res) => {
+router3.get("/service-action-requests", requireAuth, async (req, res) => {
   await managementReady;
   const params = [];
   const owner = req.auth?.role === "master_admin" ? "TRUE" : (params.push(Number(req.auth?.telegramId)), `request.reseller_tg_id = $${params.length}`);
@@ -66803,7 +67673,7 @@ router2.get("/service-action-requests", requireAuth, async (req, res) => {
   );
   res.json(result.rows);
 });
-router2.post("/services/:id/cancellation-request", requireAuth, async (req, res) => {
+router3.post("/services/:id/cancellation-request", requireAuth, async (req, res) => {
   await managementReady;
   if (req.auth?.role !== "reseller") {
     res.status(403).json({ error: "\u0641\u0642\u0637 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u062F \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062B\u0628\u062A \u06A9\u0646\u062F" });
@@ -66877,7 +67747,7 @@ router2.post("/services/:id/cancellation-request", requireAuth, async (req, res)
   });
   res.status(201).json({ id: created.rows[0].id });
 });
-router2.post("/sales/:id/action-request", requireAuth, async (req, res) => {
+router3.post("/sales/:id/action-request", requireAuth, async (req, res) => {
   await managementReady;
   if (req.auth?.role !== "reseller") {
     res.status(403).json({ error: "\u0641\u0642\u0637 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u062F \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062B\u0628\u062A \u06A9\u0646\u062F" });
@@ -66919,7 +67789,7 @@ router2.post("/sales/:id/action-request", requireAuth, async (req, res) => {
   await recordAudit(req, "sale_log_removal_requested", "sale", saleId, { request_id: created.rows[0].id });
   res.status(201).json({ id: created.rows[0].id });
 });
-router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res) => {
+router3.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res) => {
   await managementReady;
   const requestId = Number(req.params.id);
   const cancelDecision = req.body?.cancel_service;
@@ -67008,7 +67878,7 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
   });
   res.json({ ok: true });
 });
-router2.patch("/sales/:id", requireAuth, async (req, res) => {
+router3.patch("/sales/:id", requireAuth, async (req, res) => {
   const params = UpdateSaleParams.safeParse(req.params);
   const body = UpdateSaleBody.safeParse(req.body);
   if (!params.success || !body.success) {
@@ -67063,7 +67933,7 @@ router2.patch("/sales/:id", requireAuth, async (req, res) => {
   );
   res.json(UpdateSaleResponse.parse(fresh.rows[0]));
 });
-router2.get("/search", requireAuth, async (req, res) => {
+router3.get("/search", requireAuth, async (req, res) => {
   const parsed = SearchWorkspaceQueryParams.parse(req.query);
   const search = String(parsed.search ?? "").trim();
   if (!search) {
@@ -67174,7 +68044,7 @@ router2.get("/search", requireAuth, async (req, res) => {
   );
   res.json(SearchWorkspaceResponse.parse(result.rows));
 });
-router2.patch("/reseller-credit-sales/:id", requireMasterAdmin, async (req, res) => {
+router3.patch("/reseller-credit-sales/:id", requireMasterAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const isPaid = req.body?.is_paid;
   if (!Number.isSafeInteger(id) || id <= 0 || typeof isPaid !== "boolean") {
@@ -67199,7 +68069,7 @@ router2.patch("/reseller-credit-sales/:id", requireMasterAdmin, async (req, res)
   }
   res.json(result.rows[0]);
 });
-router2.post("/reseller-settlement-payments", requireMasterAdmin, async (req, res) => {
+router3.post("/reseller-settlement-payments", requireMasterAdmin, async (req, res) => {
   const resellerTgId = Number(req.body?.reseller_tg_id);
   const amount = Number(req.body?.amount);
   const paymentDate = req.body?.payment_date === void 0 ? tehranIsoDate(/* @__PURE__ */ new Date()) : String(req.body.payment_date);
@@ -67270,7 +68140,7 @@ router2.post("/reseller-settlement-payments", requireMasterAdmin, async (req, re
     client.release();
   }
 });
-router2.get("/monitoring", requireAuth, async (req, res) => {
+router3.get("/monitoring", requireAuth, async (req, res) => {
   const owner = ownership("svc", req);
   const [summary, jobs] = await Promise.all([
     pool.query(
@@ -67316,7 +68186,7 @@ router2.get("/monitoring", requireAuth, async (req, res) => {
     jobs: jobs.rows
   });
 });
-router2.post("/monitoring/jobs/:id/retry", requireAuth, async (req, res) => {
+router3.post("/monitoring/jobs/:id/retry", requireAuth, async (req, res) => {
   const jobId = Number(req.params.id);
   if (!Number.isInteger(jobId) || jobId < 1) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u062C\u0627\u0628 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A." });
@@ -67353,7 +68223,7 @@ router2.post("/monitoring/jobs/:id/retry", requireAuth, async (req, res) => {
   }
   res.json({ ok: true, job_id: jobId });
 });
-router2.get("/pasarguard/connections", requireAuth, async (req, res) => {
+router3.get("/pasarguard/connections", requireAuth, async (req, res) => {
   const owner = ownership("svc", req);
   const [remoteUsers, localUsers] = await Promise.all([
     listPasarguardConnectionUsers(req.auth?.telegramId, req.auth?.role),
@@ -67375,7 +68245,7 @@ router2.get("/pasarguard/connections", requireAuth, async (req, res) => {
   }).filter((user) => Boolean(user));
   res.json({ generated_at: (/* @__PURE__ */ new Date()).toISOString(), users });
 });
-router2.get("/services", requireAuth, async (req, res) => {
+router3.get("/services", requireAuth, async (req, res) => {
   const parsed = ListServicesQueryParams.parse(req.query);
   const owner = ownership("svc", req);
   const params = [...owner.params];
@@ -67480,7 +68350,7 @@ router2.get("/services", requireAuth, async (req, res) => {
   );
   res.json(ListServicesResponse.parse(result.rows));
 });
-router2.post("/services", requireAuth, async (req, res) => {
+router3.post("/services", requireAuth, async (req, res) => {
   const body = CreateServiceBody.safeParse(req.body ?? {});
   if (!body.success) {
     res.status(400).json({ error: "\u0645\u0634\u062E\u0635\u0627\u062A \u0645\u0634\u062A\u0631\u06CC \u0648 \u0628\u0633\u062A\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -67714,7 +68584,7 @@ router2.post("/services", requireAuth, async (req, res) => {
     client.release();
   }
 });
-router2.patch("/services/:id", requireAuth, async (req, res) => {
+router3.patch("/services/:id", requireAuth, async (req, res) => {
   const params = UpdateServiceParams.safeParse(req.params);
   const body = UpdateServiceBody.safeParse(req.body);
   if (!params.success || !body.success) {
@@ -67808,7 +68678,7 @@ router2.patch("/services/:id", requireAuth, async (req, res) => {
   );
   res.json(UpdateServiceResponse.parse(fresh.rows[0]));
 });
-router2.post("/services/:id/renew", requireAuth, async (req, res) => {
+router3.post("/services/:id/renew", requireAuth, async (req, res) => {
   const params = RenewServiceParams.safeParse(req.params);
   const body = RenewServiceBody.safeParse(req.body ?? {});
   if (!params.success || !body.success) {
@@ -68085,7 +68955,7 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     lifecycleLock.release();
   }
 });
-router2.post("/services/:id/awg", requireAuth, async (req, res) => {
+router3.post("/services/:id/awg", requireAuth, async (req, res) => {
   const params = UpdateServiceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -68133,7 +69003,7 @@ router2.post("/services/:id/awg", requireAuth, async (req, res) => {
   );
   res.status(201).json({ awg_ready: true, awg_config_url: `/api/services/${params.data.id}/awg/config` });
 });
-router2.get("/services/:id/awg/config", requireAuth, async (req, res) => {
+router3.get("/services/:id/awg/config", requireAuth, async (req, res) => {
   const params = UpdateServiceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -68165,7 +69035,7 @@ router2.get("/services/:id/awg/config", requireAuth, async (req, res) => {
     throw error40;
   }
 });
-router2.post("/services/:id/reset-token", requireAuth, async (req, res) => {
+router3.post("/services/:id/reset-token", requireAuth, async (req, res) => {
   const params = UpdateServiceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -68203,7 +69073,7 @@ router2.post("/services/:id/reset-token", requireAuth, async (req, res) => {
     client.release();
   }
 });
-router2.get("/customers", requireAuth, async (req, res) => {
+router3.get("/customers", requireAuth, async (req, res) => {
   const parsed = ListCustomersQueryParams.parse(req.query);
   const owner = ownership("c", req);
   const params = [...owner.params];
@@ -68260,7 +69130,7 @@ router2.get("/customers", requireAuth, async (req, res) => {
   res.setHeader("X-Total-Pages", String(Math.max(1, Math.ceil(total / parsed.limit))));
   res.json(ListCustomersResponse.parse(result.rows));
 });
-router2.get("/customers/:id", requireAuth, async (req, res) => {
+router3.get("/customers/:id", requireAuth, async (req, res) => {
   const parsed = GetCustomerParams.safeParse(req.params);
   if (!parsed.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0645\u0634\u062A\u0631\u06CC \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -68382,7 +69252,11 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
     })
   );
 });
-router2.post("/customers/:id/mobile-otp", requireAuth, async (req, res) => {
+router3.post("/customers/:id/mobile-otp", requireAuth, async (req, res) => {
+  if (req.auth?.role !== "reseller" && req.auth?.role !== "master_admin") {
+    res.status(403).json({ error: "\u0641\u0642\u0637 \u0645\u062F\u06CC\u0631 \u0627\u0635\u0644\u06CC \u06CC\u0627 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u062F \u06A9\u062F \u0648\u0631\u0648\u062F \u062A\u0627\u0632\u0647 \u0628\u0633\u0627\u0632\u062F." });
+    return;
+  }
   const customerId2 = Number(req.params.id);
   if (!Number.isSafeInteger(customerId2) || customerId2 <= 0) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0645\u0634\u062A\u0631\u06CC \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -68405,10 +69279,10 @@ router2.post("/customers/:id/mobile-otp", requireAuth, async (req, res) => {
   res.json({
     customer: { id: String(customer.id), name: customer.name, phone: customer.phone },
     otp: challenge.otp,
-    expires_at: challenge.expiresAt
+    expires_at: null
   });
 });
-router2.get("/resellers", requireMasterAdmin, async (_req, res) => {
+router3.get("/resellers", requireMasterAdmin, async (_req, res) => {
   const result = await pool.query(
     `SELECT id, tg_id::float8 AS telegram_id, title, total_gb::float8 AS total_gb,
        used_gb::float8 AS used_gb,
@@ -68420,7 +69294,7 @@ router2.get("/resellers", requireMasterAdmin, async (_req, res) => {
   );
   res.json(ListResellersResponse.parse(result.rows));
 });
-router2.patch("/resellers/:id", requireMasterAdmin, async (req, res) => {
+router3.patch("/resellers/:id", requireMasterAdmin, async (req, res) => {
   const params = UpdateResellerParams.safeParse(req.params);
   const body = UpdateResellerBody.safeParse(req.body);
   if (!params.success || !body.success) {
@@ -68453,7 +69327,7 @@ router2.patch("/resellers/:id", requireMasterAdmin, async (req, res) => {
   }
   res.json(UpdateResellerResponse.parse(result.rows[0]));
 });
-router2.post("/reseller-credit-sales", requireMasterAdmin, async (req, res) => {
+router3.post("/reseller-credit-sales", requireMasterAdmin, async (req, res) => {
   const resellerId = Number(req.body?.reseller_id);
   const gbAmount = Number(req.body?.gb_amount);
   const unitPrice = Number(req.body?.unit_price);
@@ -68512,7 +69386,7 @@ var customerId = (req) => {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 };
 var customerAccess = (req, id) => req.auth?.role === "master_admin" ? { sql: "c.id = $1", params: [id] } : { sql: "c.id = $1 AND c.reseller_tg_id = $2", params: [id, req.auth?.telegramId] };
-router2.get("/customers/:id/crm", requireAuth, async (req, res) => {
+router3.get("/customers/:id/crm", requireAuth, async (req, res) => {
   await managementReady;
   const id = customerId(req);
   if (id === null) {
@@ -68572,7 +69446,7 @@ router2.get("/customers/:id/crm", requireAuth, async (req, res) => {
     }
   });
 });
-router2.post("/customers/:id/tags", requireAuth, async (req, res) => {
+router3.post("/customers/:id/tags", requireAuth, async (req, res) => {
   await managementReady;
   const id = customerId(req);
   const tag = typeof req.body?.tag === "string" ? req.body.tag.trim() : "";
@@ -68593,7 +69467,7 @@ router2.post("/customers/:id/tags", requireAuth, async (req, res) => {
   await recordAudit(req, "tag_added", "customer", id, { tag });
   res.status(201).json({ tag });
 });
-router2.delete("/customers/:id/tags/:tag", requireAuth, async (req, res) => {
+router3.delete("/customers/:id/tags/:tag", requireAuth, async (req, res) => {
   await managementReady;
   const id = customerId(req);
   const tag = String(req.params.tag ?? "").trim();
@@ -68618,7 +69492,7 @@ router2.delete("/customers/:id/tags/:tag", requireAuth, async (req, res) => {
   await recordAudit(req, "tag_removed", "customer", id, { tag });
   res.json({ tag });
 });
-router2.post("/customers/:id/notes", requireAuth, async (req, res) => {
+router3.post("/customers/:id/notes", requireAuth, async (req, res) => {
   await managementReady;
   const id = customerId(req);
   const note = typeof req.body?.note === "string" ? req.body.note.trim() : "";
@@ -68640,7 +69514,7 @@ router2.post("/customers/:id/notes", requireAuth, async (req, res) => {
   await recordAudit(req, "note_added", "customer", id, { note });
   res.status(201).json(result.rows[0]);
 });
-router2.get("/admin/audit", requireMasterAdmin, async (req, res) => {
+router3.get("/admin/audit", requireMasterAdmin, async (req, res) => {
   await managementReady;
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 100));
   const result = await pool.query(
@@ -68650,7 +69524,7 @@ router2.get("/admin/audit", requireMasterAdmin, async (req, res) => {
   );
   res.json(result.rows);
 });
-router2.get("/command-center", requireAuth, async (req, res) => {
+router3.get("/command-center", requireAuth, async (req, res) => {
   await managementReady;
   const master = req.auth.role === "master_admin";
   const owner = master ? "TRUE" : "svc.reseller_tg_id = $1";
@@ -68747,7 +69621,7 @@ router2.get("/command-center", requireAuth, async (req, res) => {
   const financeSummary = finance.rows[0] ?? {};
   res.json({ role: "master_admin", summary: { ...resellerSummary, month_income: financeSummary.month_income ?? 0, month_profit: financeSummary.month_profit ?? 0, unpaid_amount: financeSummary.unpaid_income ?? 0 }, provider_health: providerHealth, reseller_health: resellerHealth.rows, finance: { ...financeSummary, month_profit: financeSummary.month_profit ?? 0 }, recent_activity: activity.rows });
 });
-router2.get("/insights", requireAuth, async (req, res) => {
+router3.get("/insights", requireAuth, async (req, res) => {
   await managementReady;
   const master = req.auth.role === "master_admin";
   const ownerParam = master ? [] : [req.auth.telegramId];
@@ -68897,529 +69771,7 @@ router2.get("/insights", requireAuth, async (req, res) => {
     reports: { packages: packageReport.rows, best_periods: periodReport.rows }
   });
 });
-var management_default = router2;
-
-// src/routes/mobile.ts
-var import_express3 = __toESM(require_express2(), 1);
-var import_web_push = __toESM(require_src2(), 1);
-import { createHash as createHash4, randomBytes as randomBytes5 } from "node:crypto";
-var router3 = (0, import_express3.Router)();
-var mobileSessionCookie = "pulse_mobile_session";
-var sessionHash2 = (value) => createHash4("sha256").update(value).digest("hex");
-var mobileReady = pool.query(`
-  CREATE TABLE IF NOT EXISTS mobile_sessions (
-    id TEXT PRIMARY KEY,
-    customer_id BIGINT NOT NULL,
-    source_service_id BIGINT,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_seen_at TIMESTAMP NOT NULL DEFAULT NOW()
-  );
-  CREATE INDEX IF NOT EXISTS mobile_sessions_customer_idx
-    ON mobile_sessions (customer_id, expires_at DESC);
-  CREATE TABLE IF NOT EXISTS mobile_push_subscriptions (
-    id BIGSERIAL PRIMARY KEY,
-    customer_id BIGINT NOT NULL,
-    endpoint TEXT NOT NULL,
-    p256dh TEXT NOT NULL,
-    auth TEXT NOT NULL,
-    user_agent TEXT,
-    device TEXT,
-    platform TEXT,
-    is_active SMALLINT NOT NULL DEFAULT 1,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_used_at TIMESTAMP
-  );
-  CREATE UNIQUE INDEX IF NOT EXISTS mobile_push_endpoint_idx
-    ON mobile_push_subscriptions (endpoint);
-  CREATE INDEX IF NOT EXISTS mobile_push_customer_idx
-    ON mobile_push_subscriptions (customer_id, is_active);
-  CREATE TABLE IF NOT EXISTS mobile_notifications (
-    id BIGSERIAL PRIMARY KEY,
-    customer_id BIGINT NOT NULL,
-    service_id BIGINT,
-    event_key TEXT NOT NULL,
-    notification_type TEXT NOT NULL,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL,
-    href TEXT,
-    tone TEXT NOT NULL DEFAULT 'normal',
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    read_at TIMESTAMP
-  );
-  CREATE UNIQUE INDEX IF NOT EXISTS mobile_notifications_event_idx
-    ON mobile_notifications (customer_id, event_key);
-  CREATE INDEX IF NOT EXISTS mobile_notifications_inbox_idx
-    ON mobile_notifications (customer_id, read_at, created_at DESC);
-  CREATE TABLE IF NOT EXISTS mobile_notification_preferences (
-    customer_id BIGINT PRIMARY KEY,
-    service_enabled SMALLINT NOT NULL DEFAULT 1,
-    renewal_enabled SMALLINT NOT NULL DEFAULT 1,
-    expiry_enabled SMALLINT NOT NULL DEFAULT 1,
-    usage_enabled SMALLINT NOT NULL DEFAULT 1,
-    system_enabled SMALLINT NOT NULL DEFAULT 1,
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-  );
-  CREATE TABLE IF NOT EXISTS mobile_push_config (
-    id SMALLINT PRIMARY KEY CHECK (id = 1),
-    vapid_public_key TEXT NOT NULL,
-    vapid_private_key TEXT NOT NULL,
-    vapid_subject TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-  );
-`);
-var mobileVapidReady = mobileReady.then(async () => {
-  const existing = await pool.query(
-    "SELECT vapid_public_key, vapid_private_key, vapid_subject FROM mobile_push_config WHERE id = 1"
-  );
-  if (existing.rows[0]) return;
-  const keys = import_web_push.default.generateVAPIDKeys();
-  await pool.query(
-    `INSERT INTO mobile_push_config (id, vapid_public_key, vapid_private_key, vapid_subject)
-     VALUES (1, $1, $2, $3)
-     ON CONFLICT (id) DO NOTHING`,
-    [keys.publicKey, keys.privateKey, "mailto:notifications@pulse.local"]
-  );
-});
-var getVapidConfig = async () => {
-  await mobileVapidReady;
-  const result = await pool.query(
-    "SELECT vapid_public_key, vapid_private_key, vapid_subject FROM mobile_push_config WHERE id = 1"
-  );
-  if (!result.rows[0]) throw new Error("Web Push configuration is unavailable");
-  return result.rows[0];
-};
-var setMobileCookie = (res, raw) => {
-  res.cookie(mobileSessionCookie, raw, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 30 * 24 * 60 * 60 * 1e3,
-    path: "/"
-  });
-};
-var findCustomerByPhone = async (candidates) => {
-  return pool.query(
-    `SELECT c.id AS customer_id, c.full_name AS customer_name, c.phone,
-            (SELECT svc.id FROM reseller_services svc
-             WHERE svc.customer_id = c.id
-             ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.id DESC
-             LIMIT 1) AS service_id
-      FROM reseller_customers c
-      WHERE regexp_replace(
-        translate(COALESCE(c.phone, ''), '\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669', '01234567890123456789'),
-        '[^0-9]', '', 'g'
-      ) = ANY($1::text[])
-      LIMIT 1`,
-    [candidates]
-  );
-};
-var clearMobileCookie = (res) => {
-  res.clearCookie(mobileSessionCookie, { httpOnly: true, sameSite: "lax", path: "/" });
-};
-var createMobileSession = async (res, customerId2, customerName, phone, serviceId) => {
-  const raw = randomBytes5(32).toString("hex");
-  await pool.query(
-    `INSERT INTO mobile_sessions (id, customer_id, source_service_id, expires_at)
-     VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
-    [sessionHash2(raw), customerId2, serviceId ?? null]
-  );
-  await pool.query(
-    `INSERT INTO mobile_notification_preferences (customer_id)
-     VALUES ($1) ON CONFLICT (customer_id) DO NOTHING`,
-    [customerId2]
-  );
-  setMobileCookie(res, raw);
-  res.json({ authenticated: true, customer: { id: String(customerId2), name: customerName, phone } });
-};
-var attachMobileAuth = async (req, _res, next) => {
-  const raw = req.cookies?.[mobileSessionCookie];
-  if (typeof raw !== "string" || !raw) {
-    next();
-    return;
-  }
-  const result = await pool.query(
-    `SELECT c.id AS "customerId", c.full_name AS "customerName", c.phone
-     FROM mobile_sessions session
-     JOIN reseller_customers c ON c.id = session.customer_id
-     WHERE session.id = $1 AND session.expires_at > NOW()
-     LIMIT 1`,
-    [sessionHash2(raw)]
-  );
-  if (result.rows[0]) {
-    req.mobileAuth = {
-      customerId: Number(result.rows[0].customerId),
-      customerName: result.rows[0].customerName,
-      phone: result.rows[0].phone
-    };
-    await pool.query("UPDATE mobile_sessions SET last_seen_at = NOW() WHERE id = $1", [sessionHash2(raw)]);
-  }
-  next();
-};
-var requireMobileAuth = (req, res, next) => {
-  if (!req.mobileAuth) {
-    res.status(401).json({ error: "\u0628\u0631\u0627\u06CC \u0645\u0634\u0627\u0647\u062F\u0647\u0654 \u062D\u0633\u0627\u0628 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0648\u0627\u0631\u062F \u0634\u0648\u06CC\u062F." });
-    return;
-  }
-  next();
-};
-var originPath = (req, pathname) => {
-  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
-  return `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}${pathname}`;
-};
-var asIso = (value) => value ? new Date(value).toISOString() : null;
-var mapService = (req, row) => {
-  const totalBytes = Number(row.last_total_bytes ?? 0) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
-  const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
-  const remainingBytes = row.last_remaining_bytes !== null && row.last_remaining_bytes !== void 0 ? Math.max(0, Number(row.last_remaining_bytes)) : Math.max(0, totalBytes - usedBytes);
-  const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
-  const daysRemaining = expiresAt ? Math.ceil((expiresAt - Date.now()) / 864e5) : null;
-  const status = row.status === "disabled" ? "cancelled" : expiresAt > 0 && expiresAt <= Date.now() ? "expired" : row.status === "pending" ? "pending" : "active";
-  const token = row.subscription_token;
-  const subscriptionUrl2 = token ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/feed`) : null;
-  return {
-    id: String(row.id),
-    plan: row.plan,
-    status,
-    started_at: asIso(row.created_at),
-    expires_at: asIso(row.expires_at),
-    remaining_days: daysRemaining === null ? null : Math.max(0, daysRemaining),
-    total_gb: Number((totalBytes / 1024 ** 3).toFixed(2)),
-    used_gb: Number((usedBytes / 1024 ** 3).toFixed(2)),
-    remaining_gb: Number((remainingBytes / 1024 ** 3).toFixed(2)),
-    usage_percent: totalBytes > 0 ? Math.min(100, Number((usedBytes / totalBytes * 100).toFixed(1))) : 0,
-    customer_name: row.customer_name,
-    server: row.panel || "V2Box",
-    provider_name: row.panel || "Provider \u0627\u0635\u0644\u06CC",
-    username: row.username,
-    subscription_url: subscriptionUrl2,
-    provider_url: subscriptionUrl2,
-    v2box_url: subscriptionUrl2 ? `v2box://install-sub?url=${encodeURIComponent(subscriptionUrl2)}&name=${encodeURIComponent(row.plan)}` : null,
-    public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
-    awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
-    service_code: `PULSE-${String(row.id).padStart(6, "0")}`
-  };
-};
-var listServices = async (req, customerId2) => {
-  const result = await pool.query(
-    `SELECT svc.id, svc.customer_id, c.full_name AS customer_name, c.phone,
-            svc.label AS plan, svc.status, svc.created_at, svc.expire_at AS expires_at,
-            svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
-            svc.last_remaining_bytes, rst.token AS subscription_token,
-            svc.awg_client_id, COALESCE(svc.falco_system_name, 'V2Box') AS panel
-     FROM reseller_services svc
-     JOIN reseller_customers c ON c.id = svc.customer_id
-     LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
-     WHERE svc.customer_id = $1
-     ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.expire_at DESC NULLS LAST, svc.id DESC`,
-    [customerId2]
-  );
-  return result.rows.map((row) => mapService(req, row));
-};
-var configuredVapidPublicKey = "";
-var configureVapid = (config3) => {
-  if (configuredVapidPublicKey === config3.vapid_public_key) return;
-  import_web_push.default.setVapidDetails(config3.vapid_subject, config3.vapid_public_key, config3.vapid_private_key);
-  configuredVapidPublicKey = config3.vapid_public_key;
-};
-var sendPush = async (customerId2, notification) => {
-  const config3 = await getVapidConfig();
-  configureVapid(config3);
-  const result = await pool.query(
-    `SELECT id, endpoint, p256dh, auth FROM mobile_push_subscriptions
-     WHERE customer_id = $1 AND is_active = 1`,
-    [customerId2]
-  );
-  await Promise.all(result.rows.map(async (subscription) => {
-    try {
-      await import_web_push.default.sendNotification(
-        { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
-        JSON.stringify({ title: notification.title, body: notification.body, url: notification.href || "/mobile", tone: notification.tone })
-      );
-      await pool.query("UPDATE mobile_push_subscriptions SET last_used_at = NOW() WHERE id = $1", [subscription.id]);
-    } catch (error40) {
-      const statusCode = error40 && typeof error40 === "object" && "statusCode" in error40 ? Number(error40.statusCode) : 0;
-      if (statusCode === 404 || statusCode === 410) {
-        await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE id = $1", [subscription.id]);
-      }
-    }
-  }));
-};
-var notificationPreference = (type) => {
-  if (type === "subscription_expiring" || type === "subscription_expired") return "expiry_enabled";
-  if (type === "traffic_warning") return "usage_enabled";
-  if (type === "subscription_renewed") return "renewal_enabled";
-  if (type === "service_status") return "service_enabled";
-  return "system_enabled";
-};
-var createNotification = async (input) => {
-  const preferenceKey = notificationPreference(input.type);
-  const preference = await pool.query(
-    `SELECT ${preferenceKey} FROM mobile_notification_preferences WHERE customer_id = $1`,
-    [input.customerId]
-  );
-  if (preference.rows[0] && Number(preference.rows[0][preferenceKey] ?? 1) !== 1) return null;
-  const inserted = await pool.query(
-    `INSERT INTO mobile_notifications
-       (customer_id, service_id, event_key, notification_type, title, body, href, tone)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     ON CONFLICT (customer_id, event_key) DO NOTHING
-     RETURNING id`,
-    [input.customerId, input.serviceId ?? null, input.eventKey, input.type, input.title, input.body, input.href ?? null, input.tone ?? "normal"]
-  );
-  if (inserted.rows[0]) {
-    await sendPush(input.customerId, { title: input.title, body: input.body, href: input.href ?? null, tone: input.tone ?? "normal" });
-  }
-  return inserted.rows[0]?.id ?? null;
-};
-var runMobileNotificationSweep = async () => {
-  await mobileReady;
-  const result = await pool.query(
-    `SELECT svc.id, svc.customer_id, c.full_name AS customer_name, c.phone,
-            svc.label AS plan, svc.status, svc.created_at, svc.expire_at AS expires_at,
-            svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
-            svc.last_remaining_bytes, rst.token AS subscription_token,
-            svc.awg_client_id, NULL::text AS panel
-     FROM reseller_services svc
-     JOIN reseller_customers c ON c.id = svc.customer_id
-     LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
-     WHERE svc.status <> 'disabled'`
-  );
-  for (const row of result.rows) {
-    const serviceUrl = `/mobile/subscriptions/${row.id}`;
-    const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
-    const days = expiresAt ? Math.ceil((expiresAt - Date.now()) / 864e5) : null;
-    const total = Number(row.last_total_bytes ?? 0) > 0 ? Number(row.last_total_bytes) : Number(row.limit_gb ?? 0) * 1024 ** 3;
-    const used = Math.max(0, Number(row.last_used_bytes ?? 0));
-    const percent = total > 0 ? used / total * 100 : 0;
-    if (days !== null && days < 0) {
-      await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:expired`, type: "subscription_expired", title: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F", body: "\u0628\u0631\u0627\u06CC \u0627\u062F\u0627\u0645\u0647\u0654 \u0627\u0633\u062A\u0641\u0627\u062F\u0647\u060C \u0627\u0634\u062A\u0631\u0627\u06A9 \u062E\u0648\u062F \u0631\u0627 \u062A\u0645\u062F\u06CC\u062F \u06A9\u0646\u06CC\u062F.", href: serviceUrl, tone: "danger" });
-    } else if (days !== null && days <= 2) {
-      await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:expiry-2`, type: "subscription_expiring", title: "\u06CC\u0627\u062F\u0622\u0648\u0631\u06CC \u062A\u0645\u062F\u06CC\u062F \u0627\u0634\u062A\u0631\u0627\u06A9", body: `\u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 ${days} \u0631\u0648\u0632 \u062F\u06CC\u06AF\u0631 \u0645\u0646\u0642\u0636\u06CC \u0645\u06CC\u200C\u0634\u0648\u062F.`, href: serviceUrl, tone: "warning" });
-    } else if (days !== null && days <= 7) {
-      await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:expiry-7`, type: "subscription_expiring", title: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0631\u0648 \u0628\u0647 \u0627\u062A\u0645\u0627\u0645 \u0627\u0633\u062A", body: `\u06F7 \u0631\u0648\u0632 \u062A\u0627 \u067E\u0627\u06CC\u0627\u0646 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0628\u0627\u0642\u06CC \u0645\u0627\u0646\u062F\u0647 \u0627\u0633\u062A.`, href: serviceUrl, tone: "warning" });
-    }
-    if (percent >= 90) {
-      await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:usage-90`, type: "traffic_warning", title: "\u0647\u0634\u062F\u0627\u0631 \u0645\u0635\u0631\u0641", body: "\u06F9\u06F0\u066A \u062D\u062C\u0645 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0645\u0635\u0631\u0641 \u0634\u062F\u0647 \u0627\u0633\u062A.", href: serviceUrl, tone: "danger" });
-    } else if (percent >= 80) {
-      await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:usage-80`, type: "traffic_warning", title: "\u0645\u0635\u0631\u0641 \u0627\u06CC\u0646\u062A\u0631\u0646\u062A", body: "\u06F8\u06F0\u066A \u062D\u062C\u0645 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0645\u0635\u0631\u0641 \u0634\u062F\u0647 \u0627\u0633\u062A.", href: serviceUrl, tone: "warning" });
-    }
-  }
-};
-var startMobileNotificationWorker = () => {
-  const run = () => void runMobileNotificationSweep().catch(() => void 0);
-  void mobileReady.then(run);
-  setInterval(run, 30 * 60 * 1e3).unref();
-};
-router3.use(attachMobileAuth);
-var normalizePhoneDigits = (input) => {
-  if (typeof input !== "string") return "";
-  return input.trim().replace(/[۰-۹]/g, (digit) => String("\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669".indexOf(digit))).replace(/\D/g, "");
-};
-var phoneCandidates = (input) => {
-  const digits = normalizePhoneDigits(input);
-  if (!digits) return [];
-  const candidates = /* @__PURE__ */ new Set([digits]);
-  if (digits.startsWith("0098")) candidates.add(`0${digits.slice(4)}`);
-  if (digits.startsWith("98")) candidates.add(`0${digits.slice(2)}`);
-  if (digits.startsWith("0")) candidates.add(`98${digits.slice(1)}`);
-  return [...candidates].filter((value) => value.length >= 8 && value.length <= 15);
-};
-var normalizeMobileOtp = (input) => typeof input === "string" ? input.trim().replace(/[۰-۹]/g, (digit) => String("\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669".indexOf(digit))).replace(/\D/g, "") : "";
-router3.post("/mobile/auth/otp/request", async (req, res) => {
-  await Promise.all([mobileReady, mobileOtpReady]);
-  const candidates = phoneCandidates(req.body?.phone);
-  if (!candidates.length) {
-    res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
-    return;
-  }
-  const result = await findCustomerByPhone(candidates);
-  const row = result.rows[0];
-  if (!row) {
-    res.status(404).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0634\u062A\u0631\u06CC \u06CC\u0627 \u0633\u0631\u0648\u06CC\u0633\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
-    return;
-  }
-  const challenge = await issueMobileOtp(row.customer_id, row.phone);
-  res.json({
-    challenge_id: challenge.challengeId,
-    expires_at: challenge.expiresAt,
-    customer: { name: row.customer_name, phone: row.phone }
-  });
-});
-router3.post("/mobile/auth/otp/verify", async (req, res) => {
-  await Promise.all([mobileReady, mobileOtpReady]);
-  const candidates = phoneCandidates(req.body?.phone);
-  const challengeId = typeof req.body?.challenge_id === "string" ? req.body.challenge_id.trim() : "";
-  const otp = normalizeMobileOtp(req.body?.otp);
-  if (!candidates.length || !challengeId || otp.length !== 6) {
-    res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0648 \u06A9\u062F \u0648\u0631\u0648\u062F \u0645\u0639\u062A\u0628\u0631 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
-    return;
-  }
-  const result = await findCustomerByPhone(candidates);
-  const row = result.rows[0];
-  if (!row) {
-    res.status(404).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0634\u062A\u0631\u06CC \u06CC\u0627 \u0633\u0631\u0648\u06CC\u0633\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
-    return;
-  }
-  const verification = await consumeMobileOtp(challengeId, row.customer_id, row.phone, otp);
-  if (!verification.ok) {
-    res.status(401).json({ error: verification.reason });
-    return;
-  }
-  await createMobileSession(res, row.customer_id, row.customer_name, row.phone, row.service_id ?? null);
-});
-router3.get("/mobile/auth/session", async (req, res) => {
-  res.json(req.mobileAuth ? { authenticated: true, customer: { id: String(req.mobileAuth.customerId), name: req.mobileAuth.customerName, phone: req.mobileAuth.phone } } : { authenticated: false });
-});
-router3.post("/mobile/auth/logout", async (req, res) => {
-  const raw = req.cookies?.[mobileSessionCookie];
-  if (typeof raw === "string" && raw) await pool.query("DELETE FROM mobile_sessions WHERE id = $1", [sessionHash2(raw)]);
-  clearMobileCookie(res);
-  res.sendStatus(204);
-});
-router3.get("/mobile/dashboard", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  const subscriptions = await listServices(req, req.mobileAuth.customerId);
-  const notifications = await pool.query(
-    `SELECT id, notification_type AS type, title, body, href, tone, created_at, read_at
-     FROM mobile_notifications WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 5`,
-    [req.mobileAuth.customerId]
-  );
-  const unread = await pool.query(
-    "SELECT COUNT(*)::int AS count FROM mobile_notifications WHERE customer_id = $1 AND read_at IS NULL",
-    [req.mobileAuth.customerId]
-  );
-  res.json({
-    customer: { id: String(req.mobileAuth.customerId), name: req.mobileAuth.customerName, phone: req.mobileAuth.phone },
-    subscriptions,
-    notifications: notifications.rows,
-    unread_count: Number(unread.rows[0]?.count ?? 0)
-  });
-});
-router3.get("/mobile/subscriptions", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  res.json(await listServices(req, req.mobileAuth.customerId));
-});
-router3.get("/mobile/subscriptions/:id", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  const id = Number(req.params.id);
-  if (!Number.isSafeInteger(id) || id <= 0) {
-    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647\u0654 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
-    return;
-  }
-  const services = await listServices(req, req.mobileAuth.customerId);
-  const service = services.find((item) => item.id === String(id));
-  if (!service) {
-    res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
-    return;
-  }
-  res.json(service);
-});
-router3.get("/mobile/notifications", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  const result = await pool.query(
-    `SELECT id, notification_type AS type, title, body, href, tone, created_at, read_at
-     FROM mobile_notifications WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 100`,
-    [req.mobileAuth.customerId]
-  );
-  res.json(result.rows);
-});
-router3.patch("/mobile/notifications/:id/read", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  await pool.query("UPDATE mobile_notifications SET read_at = COALESCE(read_at, NOW()) WHERE id = $1 AND customer_id = $2", [Number(req.params.id), req.mobileAuth.customerId]);
-  res.sendStatus(204);
-});
-router3.post("/mobile/notifications/read-all", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  await pool.query("UPDATE mobile_notifications SET read_at = NOW() WHERE customer_id = $1 AND read_at IS NULL", [req.mobileAuth.customerId]);
-  res.sendStatus(204);
-});
-router3.get("/mobile/settings", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  const result = await pool.query(
-    `INSERT INTO mobile_notification_preferences (customer_id)
-     VALUES ($1) ON CONFLICT (customer_id) DO UPDATE SET customer_id = EXCLUDED.customer_id
-     RETURNING service_enabled, renewal_enabled, expiry_enabled, usage_enabled, system_enabled`,
-    [req.mobileAuth.customerId]
-  );
-  res.json(result.rows[0]);
-});
-router3.patch("/mobile/settings", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  const body = req.body ?? {};
-  const values = ["service_enabled", "renewal_enabled", "expiry_enabled", "usage_enabled", "system_enabled"].map((key) => body[key] === void 0 ? null : Boolean(body[key]) ? 1 : 0);
-  await pool.query(
-    `INSERT INTO mobile_notification_preferences
-       (customer_id, service_enabled, renewal_enabled, expiry_enabled, usage_enabled, system_enabled)
-     VALUES ($1, COALESCE($2, 1), COALESCE($3, 1), COALESCE($4, 1), COALESCE($5, 1), COALESCE($6, 1))
-     ON CONFLICT (customer_id) DO UPDATE SET
-       service_enabled = COALESCE($2, mobile_notification_preferences.service_enabled),
-       renewal_enabled = COALESCE($3, mobile_notification_preferences.renewal_enabled),
-       expiry_enabled = COALESCE($4, mobile_notification_preferences.expiry_enabled),
-       usage_enabled = COALESCE($5, mobile_notification_preferences.usage_enabled),
-       system_enabled = COALESCE($6, mobile_notification_preferences.system_enabled),
-       updated_at = NOW()`,
-    [req.mobileAuth.customerId, ...values]
-  );
-  res.json({ saved: true });
-});
-router3.get("/mobile/push/status", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  const config3 = await getVapidConfig();
-  const result = await pool.query(
-    "SELECT COUNT(*)::int AS count FROM mobile_push_subscriptions WHERE customer_id = $1 AND is_active = 1",
-    [req.mobileAuth.customerId]
-  );
-  res.json({
-    configured: true,
-    vapid_public_key: config3.vapid_public_key,
-    subscribed: Number(result.rows[0]?.count ?? 0) > 0
-  });
-});
-router3.post("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  const subscription = req.body?.subscription ?? req.body;
-  const endpoint = typeof subscription?.endpoint === "string" ? subscription.endpoint.trim() : "";
-  const p256dh = typeof subscription?.keys?.p256dh === "string" ? subscription.keys.p256dh.trim() : "";
-  const auth = typeof subscription?.keys?.auth === "string" ? subscription.keys.auth.trim() : "";
-  if (!endpoint.startsWith("https://") || endpoint.length > 2048 || !p256dh || !auth || p256dh.length > 512 || auth.length > 512) {
-    res.status(400).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0627\u0639\u0644\u0627\u0646 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
-    return;
-  }
-  await pool.query(
-    `INSERT INTO mobile_push_subscriptions
-       (customer_id, endpoint, p256dh, auth, user_agent, device, platform, is_active, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 1, NOW())
-     ON CONFLICT (endpoint) DO UPDATE SET customer_id = EXCLUDED.customer_id,
-       p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, user_agent = EXCLUDED.user_agent,
-       device = EXCLUDED.device, platform = EXCLUDED.platform, is_active = 1, updated_at = NOW()`,
-    [req.mobileAuth.customerId, endpoint, p256dh, auth, req.get("user-agent") || null, req.body?.device || null, req.body?.platform || null]
-  );
-  const config3 = await getVapidConfig();
-  res.json({ saved: true, vapid_public_key: config3.vapid_public_key });
-});
-router3.delete("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  const endpoint = typeof req.body?.endpoint === "string" ? req.body.endpoint.trim() : "";
-  await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE endpoint = $1 AND customer_id = $2", [endpoint, req.mobileAuth.customerId]);
-  res.sendStatus(204);
-});
-router3.post("/mobile/push/test", requireMobileAuth, async (req, res) => {
-  await mobileReady;
-  const id = await createNotification({
-    customerId: req.mobileAuth.customerId,
-    eventKey: `manual:test:${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16)}`,
-    type: "system",
-    title: "\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627\u06CC \u067E\u0627\u0644\u0633 \u0641\u0639\u0627\u0644 \u0627\u0633\u062A",
-    body: "\u0627\u06CC\u0646 \u06CC\u06A9 \u0627\u0639\u0644\u0627\u0646 \u0622\u0632\u0645\u0627\u06CC\u0634\u06CC \u0628\u0631\u0627\u06CC \u062F\u0633\u062A\u06AF\u0627\u0647 \u0634\u0645\u0627\u0633\u062A.",
-    href: "/mobile/notifications"
-  });
-  res.json({ sent: Boolean(id), configured: true });
-});
-var mobile_default = router3;
+var management_default = router3;
 
 // src/routes/index.ts
 var router4 = (0, import_express4.Router)();
