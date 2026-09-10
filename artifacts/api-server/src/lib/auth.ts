@@ -34,6 +34,50 @@ const sessionCookie = "pulse_session";
 const sessionHash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 
+const transientDatabaseCodes = new Set([
+  "08000",
+  "08001",
+  "08003",
+  "08004",
+  "08006",
+  "08007",
+  "57P01",
+  "57P02",
+  "57P03",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+]);
+
+const isTransientDatabaseError = (error: unknown) => {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+  return transientDatabaseCodes.has(code)
+    || message.includes("connection terminated")
+    || message.includes("connection timeout")
+    || message.includes("connect econnreset");
+};
+
+const wait = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+const readWithDatabaseRetry = async <T>(
+  query: string,
+  values: unknown[],
+) => {
+  const execute = () =>
+    pool.query(query, values) as unknown as Promise<{ rows: T[] }>;
+  try {
+    return await execute();
+  } catch (error) {
+    if (!isTransientDatabaseError(error)) throw error;
+    await wait(250);
+    return execute();
+  }
+};
+
 export function telegramAuthConfigured(): boolean {
   return Boolean(process.env.TELEGRAM_BOT_TOKEN);
 }
@@ -45,7 +89,7 @@ export async function resolveTelegramIdAccess(
   if (telegramId === MASTER_ADMIN_TELEGRAM_ID) {
     return { role: "master_admin", resellerId: null, title: "مدیر اصلی" };
   }
-  const result = await pool.query<{ id: number; title: string | null }>(
+  const result = await readWithDatabaseRetry<{ id: number; title: string | null }>(
     `SELECT id, title
      FROM resellers
      WHERE tg_id = $1 AND is_enabled = 1
@@ -118,7 +162,7 @@ export function clearSessionCookie(res: Response): void {
 export async function getAuthContext(req: Request): Promise<AuthContext | null> {
   const rawId = req.cookies?.[sessionCookie];
   if (typeof rawId !== "string" || !rawId) return null;
-  const result = await pool.query<AuthContext & { enabled: boolean | null }>(
+  const result = await readWithDatabaseRetry<AuthContext & { enabled: boolean | null }>(
     `SELECT
        session.telegram_id AS "telegramId",
        session.role,
