@@ -217,8 +217,6 @@ function SettingsPage() {
   ];
   const update = async (key: keyof MobileSettings) => { if (!settings) return; const next = { ...settings, [key]: !settings[key] }; setSettings(next); await mobileRequest('/api/mobile/settings', { method: 'PATCH', body: JSON.stringify({ [key]: next[key] }) }).catch(() => setSettings(settings)); };
   const enablePush = async () => {
-    setPushState('explaining');
-    if (!window.confirm('برای دریافت یادآوری‌های مهم، اجازه ارسال اعلان را در مرحله بعد تأیید کنید.')) { setPushState('idle'); return; }
     setPushState('working');
     try {
       await activateMobilePush();
