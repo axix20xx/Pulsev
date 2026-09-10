@@ -11,4 +11,12 @@ export interface RenewServiceInput {
   days?: number;
   /** @minimum 0 */
   gb?: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  sell_price?: number | null;
+  is_paid?: boolean;
+  /** @maxLength 128 */
+  request_id?: string;
 }

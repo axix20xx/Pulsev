@@ -150,7 +150,6 @@ export const ListSalesResponseItem = zod.object({
   "service_id": zod.number(),
   "service_name": zod.string(),
   "panel": zod.string(),
-   "gb_amount": zod.number(),
   "amount": zod.number(),
   "date": zod.string(),
   "paid": zod.boolean(),
@@ -608,11 +607,19 @@ export const RenewServiceParams = zod.object({
 
 export const renewServiceBodyGbMin = 0;
 
+export const renewServiceBodySellPriceMin = 0;
+
+export const renewServiceBodyIsPaidDefault = true;
+export const renewServiceBodyRequestIdMax = 128;
+
 
 
 export const RenewServiceBody = zod.object({
   "days": zod.number().min(1).optional(),
-  "gb": zod.number().min(renewServiceBodyGbMin).optional()
+  "gb": zod.number().min(renewServiceBodyGbMin).optional(),
+  "sell_price": zod.number().min(renewServiceBodySellPriceMin).nullish(),
+  "is_paid": zod.boolean().default(renewServiceBodyIsPaidDefault),
+  "request_id": zod.string().max(renewServiceBodyRequestIdMax).optional()
 })
 
 export const RenewServiceResponse = zod.object({

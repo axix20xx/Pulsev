@@ -362,6 +362,11 @@ export const managementReady = pool
        ON reseller_customer_notes (customer_id, reseller_tg_id, created_at DESC);
      CREATE INDEX IF NOT EXISTS reseller_audit_log_created_idx
        ON reseller_audit_log (created_at DESC);
+      ALTER TABLE reseller_sales_log
+        ADD COLUMN IF NOT EXISTS renewal_request_id TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS reseller_sales_log_renewal_request_idx
+        ON reseller_sales_log (renewal_request_id)
+        WHERE renewal_request_id IS NOT NULL;
      ALTER TABLE resellers
        ADD COLUMN IF NOT EXISTS customer_price_per_gb NUMERIC(14,2);
      UPDATE resellers
@@ -3178,9 +3183,11 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
    renewalPhase = "load-service";
    const owner = ownership("svc", req);
   const days = body.data.days ?? 30;
-  const existing = await pool.query<{ username: string; gb: number; label: string; awg_client_id: string | null; reseller_tg_id: number }>(
-    `SELECT rain_username AS username, gb::float8 AS gb, label, awg_client_id, reseller_tg_id
-     FROM reseller_services svc
+   const existing = await pool.query<{ username: string; gb: number; label: string; awg_client_id: string | null; reseller_tg_id: number; customer_price_per_gb: number }>(
+     `SELECT rain_username AS username, gb::float8 AS gb, label, awg_client_id, reseller_tg_id,
+             COALESCE(r.customer_price_per_gb, r.per_gig_price, 0)::float8 AS customer_price_per_gb
+      FROM reseller_services svc
+      LEFT JOIN resellers r ON r.tg_id = svc.reseller_tg_id
      WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
     [params.data.id, ...owner.params],
   );
@@ -3190,6 +3197,45 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     return;
   }
   const gb = body.data.gb ?? Number(current.gb);
+   const customerPricePerGb = Number(current.customer_price_per_gb ?? 0);
+   if (req.auth?.role === "reseller" && body.data.sell_price == null && customerPricePerGb <= 0) {
+     res.status(400).json({ error: "قیمت فروش به مشتری را وارد کنید" });
+     return;
+   }
+   const sellPrice = body.data.sell_price ?? gb * customerPricePerGb;
+   const renewalRequestId = body.data.request_id?.trim() || null;
+   if (renewalRequestId) {
+     const duplicate = await pool.query(
+       `SELECT 1
+        FROM reseller_sales_log sale
+        WHERE sale.service_id = $1
+          AND sale.action_type = 'renew'
+          AND sale.renewal_request_id = $2
+        LIMIT 1`,
+       [serviceId, renewalRequestId],
+     );
+     if (duplicate.rows[0]) {
+       const fresh = await pool.query(
+         `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+            svc.customer_id, COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
+            svc.rain_username AS username, svc.label AS plan,
+            COALESCE(svc.falco_system_name, 'پنل اصلی') AS panel, svc.status,
+            svc.expire_at::date::text AS expires_at,
+            svc.created_at::text AS created_at,
+            (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
+            (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
+            svc.gb::float8 AS limit_gb, svc.admin_notes AS note, svc.subscription_url,
+            svc.awg_client_id IS NOT NULL AS awg_ready,
+            CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url
+          FROM reseller_services svc
+          LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+          WHERE svc.id = $1`,
+         [serviceId],
+       );
+       res.json(RenewServiceResponse.parse(fresh.rows[0]));
+       return;
+     }
+   }
   let failedProviderKeys: string[] = [];
   let providerWarning: string | null = null;
   let awgWarning: string | null = null;
@@ -3317,7 +3363,12 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
         RETURNING svc.id, svc.lifecycle_version`,
       [...values, ...owner.params],
     );
-    const renewedVersion = Number(result.rows[0]?.lifecycle_version ?? 0);
+     if (!result.rows[0]) {
+       await client.query("ROLLBACK");
+       res.status(404).json({ error: "سرویس پیدا نشد" });
+       return;
+     }
+     const renewedVersion = Number(result.rows[0].lifecycle_version ?? 0);
     if (renewedVersion > 0) {
       await client.query(
         `UPDATE service_provision_jobs
@@ -3365,6 +3416,32 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
          [current.reseller_tg_id, params.data.id, renewedVersion, String(params.data.id)],
       );
     }
+     await client.query("SELECT pg_advisory_xact_lock(hashtext('pulse_sales_log'))");
+     await client.query("SELECT pg_advisory_xact_lock(hashtext('pulse_sales_log'))");
+     const saleNext = await client.query<{ id: number }>(
+       "SELECT COALESCE(MAX(id), 0) + 1 AS id FROM reseller_sales_log",
+     );
+     await client.query(
+       `INSERT INTO reseller_sales_log
+        (id, reseller_tg_id, service_id, action_type, gb_amount, days_amount, created_at, custom_sell_price, is_paid, renewal_request_id)
+        VALUES ($1, $2, $3, 'renew', $4, $5, NOW(), $6, $7, $8)`,
+       [
+         Number(saleNext.rows[0].id),
+         current.reseller_tg_id,
+         params.data.id,
+         gb,
+         days,
+         sellPrice,
+         body.data.is_paid ? 1 : 0,
+         renewalRequestId,
+       ],
+     );
+     if (req.auth?.role === "reseller") {
+       await client.query(
+         "UPDATE resellers SET used_gb = used_gb + $1, updated_at = NOW() WHERE tg_id = $2",
+         [gb, current.reseller_tg_id],
+       );
+     }
     if ((awgWarning || !current.awg_client_id) && renewedVersion > 0) {
       await client.query(
         `INSERT INTO service_provision_jobs
@@ -3385,10 +3462,6 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
     throw error;
   } finally {
     client.release();
-  }
-  if (!result.rows[0]) {
-    res.status(404).json({ error: "سرویس پیدا نشد" });
-    return;
   }
    renewalPhase = "load-renewed-service";
    const fresh = await pool.query(

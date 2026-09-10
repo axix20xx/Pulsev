@@ -1,0 +1,20 @@
+{
+  "name": "مرکز فروش پالس",
+  "short_name": "پالس",
+  "description": "مدیریت مشتری، سرویس، فروش و تمدید VPN",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": ".",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7fafc",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

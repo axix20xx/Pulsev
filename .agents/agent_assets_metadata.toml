@@ -609,3 +609,18 @@ uri = "file://exports/pulse-whole-app-upgrade-mobile-otp-push-autodetect-mobile-
 type = "unspecified"
 title = "Pulse Hostinger bundle — mobile modal fix"
 description = "بستهٔ کامل Hostinger شامل اصلاح modal موبایل و حذف window.confirm مشکل‌ساز در Safari/PWA، به‌همراه OTP آخرین کد فعال، Push auto-detection، اصلاح VAPID اپل، پنل، موبایل و API."
+logical_id = "6bd77512-257e-4928-8df8-bb23ce6334fd"
+
+[[outputs]]
+id = "hUPoi4yt7PADvjvAjSUyE"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-otp-push-autodetect-mobile-modal-fix-renewal-sales-log.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle — renewal sales log fix"
+description = "Updated production bundle with renewal sales-log creation, payment fields, retry-safe renewal request IDs, current API build, and separate /panel/ and /mobile/ frontend builds."
+logical_id = "2e5bc92d-91ae-4944-b321-d30da319e67d"
+content_hash = "sha256:a304de7c91fa25f326b750396ef8bf60209883e4a1f91f5e04049fd2d05403cb"
+size = 26817339
+mtime_ms = 1789052278519
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2e5bc92d-91ae-4944-b321-d30da319e67d/c2fba6c4-8aa9-45cf-a1c9-452f2046263b"
+storage_version_token = "1789052288702040"
+content_type = "application/octet-stream"
