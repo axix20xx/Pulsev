@@ -351,6 +351,38 @@ const createNotification = async (input: { customerId: number; serviceId?: numbe
   return inserted.rows[0]?.id ?? null;
 };
 
+export const sendMobileNotification = async (input: {
+  customerIds: number[];
+  title: string;
+  body: string;
+  href?: string | null;
+  tone?: string;
+}) => {
+  await mobileReady;
+  const eventId = randomBytes(12).toString("hex");
+  let deliveredToInbox = 0;
+  for (const customerId of [...new Set(input.customerIds)]) {
+    const inserted = await pool.query<{ id: number }>(
+      `INSERT INTO mobile_notifications
+         (customer_id, service_id, event_key, notification_type, title, body, href, tone)
+       VALUES ($1, NULL, $2, 'admin_message', $3, $4, $5, $6)
+       ON CONFLICT (customer_id, event_key) DO NOTHING
+       RETURNING id`,
+      [customerId, `admin:${eventId}:${customerId}`, input.title, input.body, input.href ?? "/mobile/notifications", input.tone ?? "normal"],
+    );
+    if (inserted.rows[0]) {
+      deliveredToInbox += 1;
+      await sendPush(customerId, {
+        title: input.title,
+        body: input.body,
+        href: input.href ?? "/mobile/notifications",
+        tone: input.tone ?? "normal",
+      });
+    }
+  }
+  return { deliveredToInbox, targetCount: new Set(input.customerIds).size };
+};
+
 export const runMobileNotificationSweep = async (): Promise<void> => {
   await mobileReady;
   const result = await pool.query<MobileServiceRow>(

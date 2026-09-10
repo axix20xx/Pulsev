@@ -77,6 +77,7 @@ import {
 } from "../lib/amneziawg";
 import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
 import { issueMobileOtp } from "../lib/mobile-otp";
+import { sendMobileNotification } from "./mobile";
 import {
   requestedSubscriptionFormat,
   toClashSubscription,
@@ -91,6 +92,36 @@ const saleAmountToAdminSql = (saleAlias = "s", resellerAlias = "r") =>
 
 const router: IRouter = Router();
 router.use(attachAuth);
+
+router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res): Promise<void> => {
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+  const target = req.body?.target === "customer" ? "customer" : "all";
+  const customerId = Number(req.body?.customer_id);
+  if (!title || title.length > 120 || !body || body.length > 4000) {
+    res.status(400).json({ error: "عنوان و متن اعلان را کامل و در اندازه مجاز وارد کنید." });
+    return;
+  }
+  if (target === "customer" && (!Number.isSafeInteger(customerId) || customerId <= 0)) {
+    res.status(400).json({ error: "مشتری مشخص‌شده معتبر نیست." });
+    return;
+  }
+  const recipients = target === "customer"
+    ? await pool.query<{ id: number }>("SELECT id FROM reseller_customers WHERE id = $1 LIMIT 1", [customerId])
+    : await pool.query<{ id: number }>("SELECT id FROM reseller_customers ORDER BY id");
+  if (target === "customer" && !recipients.rows[0]) {
+    res.status(404).json({ error: "مشتری پیدا نشد." });
+    return;
+  }
+  const result = await sendMobileNotification({
+    customerIds: recipients.rows.map((row) => Number(row.id)),
+    title,
+    body,
+    href: "/mobile/notifications",
+    tone: "normal",
+  });
+  res.json({ sent: true, ...result });
+});
 
 export const managementReady = pool
   .query(`

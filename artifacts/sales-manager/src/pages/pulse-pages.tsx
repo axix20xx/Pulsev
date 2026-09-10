@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, createContext, useContext, useId, useRef, type ReactNode, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Activity, ArrowUpLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Copy, CreditCard, Download, ExternalLink, Filter, Gauge, Globe2, History, KeyRound, Lock, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Tag, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
+import { Activity, ArrowUpLeft, Bell, CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Copy, CreditCard, Download, ExternalLink, Filter, Gauge, Globe2, History, KeyRound, Lock, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Tag, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import QRCode from 'qrcode';
 import { Link, useLocation, useParams } from 'wouter';
@@ -2570,9 +2570,56 @@ export function PublicSubscription() {
   return <div className="public-sub-route"><PublicSubscriptionContentV2 /></div>;
 }
 
+function AdminMobileNotificationComposer({ customers }: { customers: Customer[] }) {
+  const [target, setTarget] = useState<'all' | 'customer'>('all');
+  const [customerId, setCustomerId] = useState('');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [error, setError] = useState('');
+  const send = async (event: FormEvent) => {
+    event.preventDefault();
+    setSending(true);
+    setFeedback('');
+    setError('');
+    try {
+      const response = await fetch('/api/admin/mobile-notifications', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target, customer_id: target === 'customer' ? Number(customerId) : undefined, title, body }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || 'ارسال اعلان انجام نشد.');
+      setFeedback(`اعلان برای ${numberFa(Number(result.targetCount), 0)} مشتری در مرکز اعلان ثبت شد و برای دستگاه‌های فعال ارسال شد.`);
+      setTitle('');
+      setBody('');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ارسال اعلان انجام نشد.');
+    } finally {
+      setSending(false);
+    }
+  };
+  return <section className="panel-card">
+    <div className="settings-heading"><div className="settings-symbol"><Bell size={17} /></div><div><h2 className="section-title">ارسال اعلان به مشتریان</h2><p className="text-sm text-muted-foreground">مدیر اصلی می‌تواند پیام سفارشی را برای همه مشتریان یا یک مشتری مشخص در مرکز اعلان و Web Push ارسال کند.</p></div></div>
+    <form className="mt-5 space-y-4" onSubmit={send}>
+      <div className="form-grid">
+        <label className="field"><span>مخاطب</span><select value={target} onChange={(event) => setTarget(event.target.value as 'all' | 'customer')}><option value="all">همه مشتریان</option><option value="customer">یک مشتری مشخص</option></select></label>
+        {target === 'customer' ? <label className="field"><span>انتخاب مشتری</span><select required value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">انتخاب کنید</option>{customers.map((customer) => <option value={customer.id} key={customer.id}>{customer.name} · {customer.phone}</option>)}</select></label> : null}
+      </div>
+      <Field label="عنوان اعلان" value={title} onChange={setTitle} placeholder="مثلاً اطلاعیه پشتیبانی" />
+      <label className="field"><span>متن پیام</span><textarea required maxLength={4000} rows={5} value={body} onChange={(event) => setBody(event.target.value)} placeholder="متن اعلان را برای مشتری بنویسید." /></label>
+      {error ? <div className="login-error">{error}</div> : null}
+      {feedback ? <div className="notice"><Bell size={15} /><span>{feedback}</span></div> : null}
+      <Button type="submit" disabled={sending || !title.trim() || !body.trim() || (target === 'customer' && !customerId)}>{sending ? <><RefreshCw size={14} className="spin" /> در حال ارسال...</> : <><Bell size={14} /> ارسال اعلان</>}</Button>
+    </form>
+  </section>;
+}
+
 function SettingsPageContent() {
-  const { session, resellers } = usePulse();
-  return <><LegacySettingsPage />{session?.role === 'master_admin' && <AdminPricing resellers={resellers} />}</>;
+  const { session, resellers, customers } = usePulse();
+  return <><LegacySettingsPage />{session?.role === 'master_admin' && <><AdminMobileNotificationComposer customers={customers} /><AdminPricing resellers={resellers} /></>}</>;
 }
 
 export function SettingsPage() {
