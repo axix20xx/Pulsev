@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bell, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, Wifi, X, LogOut, ShieldAlert, Check, Sparkles, Copy, Search } from 'lucide-react';
+import { Activity, BarChart3, Bell, BellRing, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, Wifi, X, LogOut, ShieldAlert, Check, Sparkles, Copy, Search, Send } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -35,6 +35,8 @@ const resellerAccountingNav = { href: '/reseller-accounting', label: 'حسابد
 const posNav = { href: '/pos', label: 'پایانه فروش', icon: CreditCard };
 const operationsNav = { href: '/operations', label: 'مرکز عملیات', icon: Gauge };
 const smartNav = { href: '/insights', label: 'مرکز هوشمند', icon: Sparkles };
+const notificationStatusNav = { href: '/notification-status', label: 'وضعیت اعلان‌ها', icon: BellRing };
+const notificationSendNav = { href: '/notification-send', label: 'ارسال پیام', icon: Send };
 
 const panelBasePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const panelRelativePath = () => {
@@ -240,6 +242,14 @@ export function Shell({ children }: { children: ReactNode }) {
               <Settings size={18} strokeWidth={isNavActive('/settings') ? 2.5 : 2} className={`transition-transform duration-300 ${isNavActive('/settings') ? 'scale-110' : 'group-hover:scale-110 text-muted-foreground'}`} />
               <span className="text-sm font-semibold tracking-tight">تنظیمات</span>
             </Link>
+            {session?.role === 'master_admin' && <>
+              <Link href={notificationStatusNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(notificationStatusNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
+                <notificationStatusNav.icon size={18} strokeWidth={isNavActive(notificationStatusNav.href) ? 2.5 : 2} /><span className="text-sm font-semibold tracking-tight">{notificationStatusNav.label}</span>
+              </Link>
+              <Link href={notificationSendNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(notificationSendNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
+                <notificationSendNav.icon size={18} strokeWidth={isNavActive(notificationSendNav.href) ? 2.5 : 2} /><span className="text-sm font-semibold tracking-tight">{notificationSendNav.label}</span>
+              </Link>
+            </>}
           </nav>
         </div>
 

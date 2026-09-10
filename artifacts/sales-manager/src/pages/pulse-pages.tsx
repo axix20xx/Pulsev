@@ -2618,8 +2618,8 @@ function AdminMobileNotificationComposer({ customers }: { customers: Customer[] 
 }
 
 function SettingsPageContent() {
-  const { session, resellers, customers } = usePulse();
-  return <><LegacySettingsPage />{session?.role === 'master_admin' && <><AdminMobileNotificationComposer customers={customers} /><AdminPricing resellers={resellers} /></>}</>;
+  const { session, resellers } = usePulse();
+  return <><LegacySettingsPage />{session?.role === 'master_admin' && <AdminPricing resellers={resellers} />}</>;
 }
 
 export function SettingsPage() {

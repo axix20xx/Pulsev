@@ -41,7 +41,7 @@ type MobileServiceRow = {
   panel: string | null;
 };
 
-const mobileReady = pool.query(`
+export const mobileReady = pool.query(`
   CREATE TABLE IF NOT EXISTS mobile_sessions (
     id TEXT PRIMARY KEY,
     customer_id BIGINT NOT NULL,
@@ -298,7 +298,16 @@ const configureVapid = (config: VapidConfig) => {
   configuredVapidPublicKey = config.vapid_public_key;
 };
 
-const sendPush = async (customerId: number, notification: { title: string; body: string; href: string | null; tone: string }) => {
+type PushDeliveryResult = {
+  activeDevices: number;
+  attempted: number;
+  sent: number;
+  failed: number;
+  deactivated: number;
+  errors: string[];
+};
+
+const sendPush = async (customerId: number, notification: { title: string; body: string; href: string | null; tone: string }): Promise<PushDeliveryResult> => {
   const config = await getVapidConfig();
   configureVapid(config);
   const result = await pool.query<{ id: number; endpoint: string; p256dh: string; auth: string }>(
@@ -306,20 +315,35 @@ const sendPush = async (customerId: number, notification: { title: string; body:
      WHERE customer_id = $1 AND is_active = 1`,
     [customerId],
   );
-  await Promise.all(result.rows.map(async (subscription) => {
+  const outcomes = await Promise.all(result.rows.map(async (subscription) => {
     try {
       await webpush.sendNotification(
         { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
         JSON.stringify({ title: notification.title, body: notification.body, url: notification.href || "/mobile", tone: notification.tone }),
       );
       await pool.query("UPDATE mobile_push_subscriptions SET last_used_at = NOW() WHERE id = $1", [subscription.id]);
+      return { sent: true, failed: false, deactivated: false, error: "" };
     } catch (error) {
       const statusCode = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) : 0;
       if (statusCode === 404 || statusCode === 410) {
         await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE id = $1", [subscription.id]);
       }
+      return {
+        sent: false,
+        failed: true,
+        deactivated: statusCode === 404 || statusCode === 410,
+        error: statusCode ? `HTTP ${statusCode}` : "خطای ارتباط با سرویس Push",
+      };
     }
   }));
+  return {
+    activeDevices: result.rows.length,
+    attempted: outcomes.length,
+    sent: outcomes.filter((item) => item.sent).length,
+    failed: outcomes.filter((item) => item.failed).length,
+    deactivated: outcomes.filter((item) => item.deactivated).length,
+    errors: [...new Set(outcomes.map((item) => item.error).filter(Boolean))],
+  };
 };
 
 const notificationPreference = (type: string) => {
@@ -361,6 +385,12 @@ export const sendMobileNotification = async (input: {
   await mobileReady;
   const eventId = randomBytes(12).toString("hex");
   let deliveredToInbox = 0;
+  let activeDevices = 0;
+  let pushAttempted = 0;
+  let pushSent = 0;
+  let pushFailed = 0;
+  let pushDeactivated = 0;
+  const pushErrors = new Set<string>();
   for (const customerId of [...new Set(input.customerIds)]) {
     const inserted = await pool.query<{ id: number }>(
       `INSERT INTO mobile_notifications
@@ -372,15 +402,30 @@ export const sendMobileNotification = async (input: {
     );
     if (inserted.rows[0]) {
       deliveredToInbox += 1;
-      await sendPush(customerId, {
+      const delivery = await sendPush(customerId, {
         title: input.title,
         body: input.body,
         href: input.href ?? "/mobile/notifications",
         tone: input.tone ?? "normal",
       });
+      activeDevices += delivery.activeDevices;
+      pushAttempted += delivery.attempted;
+      pushSent += delivery.sent;
+      pushFailed += delivery.failed;
+      pushDeactivated += delivery.deactivated;
+      delivery.errors.forEach((error) => pushErrors.add(error));
     }
   }
-  return { deliveredToInbox, targetCount: new Set(input.customerIds).size };
+  return {
+    deliveredToInbox,
+    targetCount: new Set(input.customerIds).size,
+    activeDevices,
+    pushAttempted,
+    pushSent,
+    pushFailed,
+    pushDeactivated,
+    pushErrors: [...pushErrors],
+  };
 };
 
 export const runMobileNotificationSweep = async (): Promise<void> => {

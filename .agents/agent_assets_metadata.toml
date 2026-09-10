@@ -532,3 +532,17 @@ mtime_ms = 1789032798550
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/7e3bbd81-aef3-4a71-9a9f-d66eb6a5d383/76ff6ecc-db53-4e35-be3e-85e83422c197"
 storage_version_token = "1789032825947672"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "7_NOZl5dqFcgg6iyg6Z4D"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-notifications-pages.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle — notification status and messaging pages"
+description = "بستهٔ کامل Hostinger شامل صفحهٔ وضعیت اعلان مشتریان و فروشندگان، صفحهٔ جداگانهٔ ارسال پیام، جست‌وجوی Ajax، گزارش واقعی موفقیت یا شکست Web Push، و ارسال اعلان داخلی برای فروشندگان."
+logical_id = "8c7b7929-64c5-41b5-8f5a-d1eb61a81c18"
+content_hash = "sha256:407639a39eb60a7232e260b8bc986bff2132945660b8a222c029b559b9311700"
+size = 26783488
+mtime_ms = 1789033751658
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8c7b7929-64c5-41b5-8f5a-d1eb61a81c18/918d677d-e8d0-40e7-9bb7-7ba0e550afa9"
+storage_version_token = "1789033783667803"
+content_type = "application/octet-stream"

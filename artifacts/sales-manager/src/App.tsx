@@ -15,6 +15,7 @@ import { Shell } from '@/components/pulse-shell';
  import { SmartCenter } from '@/pages/smart-center';
  import { OperationsCenter } from '@/pages/operations-center';
 import { MobileApp } from '@/mobile/mobile-pages';
+import { NotificationSendPage, NotificationStatusPage } from '@/pages/notification-pages';
 import '@/mobile/mobile.css';
 
 const queryClient = new QueryClient();
@@ -45,6 +46,8 @@ function Router() {
              <Route path="/connections" component={Connections} />
              <Route path="/operations" component={OperationsCenter} />
              <Route path="/insights" component={SmartCenter} />
+             <Route path="/notification-status" component={NotificationStatusPage} />
+             <Route path="/notification-send" component={NotificationSendPage} />
             <Route path="/settings" component={SettingsPage} />
             <Route component={NotFound} />
           </Switch>

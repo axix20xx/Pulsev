@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
+import { randomBytes } from "node:crypto";
 import {
   GetAuthSessionResponse,
   GetCustomerParams,
@@ -77,7 +78,7 @@ import {
 } from "../lib/amneziawg";
 import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
 import { issueMobileOtp } from "../lib/mobile-otp";
-import { sendMobileNotification } from "./mobile";
+import { mobileReady, sendMobileNotification } from "./mobile";
 import {
   requestedSubscriptionFormat,
   toClashSubscription,
@@ -93,34 +94,206 @@ const saleAmountToAdminSql = (saleAlias = "s", resellerAlias = "r") =>
 const router: IRouter = Router();
 router.use(attachAuth);
 
+router.get("/admin/notification-recipients", requireMasterAdmin, async (req, res): Promise<void> => {
+  await Promise.all([managementReady, mobileReady]);
+  const kind = req.query.kind === "reseller" ? "reseller" : "customer";
+  const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
+  const limitRaw = Number(req.query.limit);
+  const limit = Number.isSafeInteger(limitRaw) ? Math.min(Math.max(limitRaw, 1), 30) : 20;
+  if (kind === "reseller") {
+    const params: unknown[] = [];
+    const conditions = [`r.tg_id <> ${MASTER_ADMIN_TELEGRAM_ID}`];
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(COALESCE(r.title, '') ILIKE $${params.length} OR r.tg_id::text ILIKE $${params.length})`);
+    }
+    params.push(limit);
+    const result = await pool.query(
+      `SELECT r.tg_id::float8 AS id,
+              COALESCE(NULLIF(r.title, ''), 'فروشنده ' || r.tg_id::text) AS name,
+              r.tg_id::float8 AS telegram_id,
+              COALESCE(r.enabled, TRUE) AS enabled
+       FROM resellers r
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY COALESCE(NULLIF(r.title, ''), 'فروشنده ' || r.tg_id::text)
+       LIMIT $${params.length}`,
+      params,
+    );
+    res.json({ kind, items: result.rows });
+    return;
+  }
+  const params: unknown[] = [];
+  const conditions = ["TRUE"];
+  if (search) {
+    params.push(`%${search}%`);
+    const searchIndex = params.length;
+    const digits = search
+      .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+      .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+      .replace(/\D/g, "");
+    params.push(digits ? `%${digits}%` : "__no_phone_match__");
+    const phoneIndex = params.length;
+    conditions.push(`(
+      COALESCE(c.full_name, '') ILIKE $${searchIndex}
+      OR regexp_replace(translate(COALESCE(c.phone, ''), '۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'), '[^0-9]', '', 'g') LIKE $${phoneIndex}
+    )`);
+  }
+  params.push(limit);
+  const result = await pool.query(
+    `SELECT c.id, COALESCE(c.full_name, 'مشتری بدون نام') AS name, c.phone,
+            COALESCE(push.active_devices, 0)::int AS active_devices
+     FROM reseller_customers c
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS active_devices
+       FROM mobile_push_subscriptions mps
+       WHERE mps.customer_id = c.id AND mps.is_active = 1
+     ) push ON TRUE
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY COALESCE(push.active_devices, 0) DESC, c.id DESC
+     LIMIT $${params.length}`,
+    params,
+  );
+  res.json({ kind, items: result.rows });
+});
+
+router.get("/admin/notification-status", requireMasterAdmin, async (req, res): Promise<void> => {
+  await Promise.all([managementReady, mobileReady]);
+  const kind = req.query.kind === "reseller" ? "reseller" : "customer";
+  const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
+  const limitRaw = Number(req.query.limit);
+  const limit = Number.isSafeInteger(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 50;
+  const params: unknown[] = [];
+  const conditions: string[] = [];
+  if (kind === "reseller") {
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(COALESCE(r.title, '') ILIKE $${params.length} OR r.tg_id::text ILIKE $${params.length})`);
+    }
+    params.push(limit);
+    const result = await pool.query(
+      `SELECT r.tg_id::float8 AS id,
+              COALESCE(NULLIF(r.title, ''), 'فروشنده ' || r.tg_id::text) AS name,
+              r.tg_id::float8 AS telegram_id,
+              COALESCE(r.enabled, TRUE) AS enabled,
+              TRUE AS notification_enabled,
+              0::int AS active_devices,
+              'panel' AS channel
+       FROM resellers r
+       WHERE r.tg_id <> ${MASTER_ADMIN_TELEGRAM_ID} ${conditions.length ? `AND ${conditions.join(" AND ")}` : ""}
+       ORDER BY notification_enabled DESC, name
+       LIMIT $${params.length}`,
+      params,
+    );
+    res.json({ kind, items: result.rows });
+    return;
+  }
+  if (search) {
+    params.push(`%${search}%`);
+    const searchIndex = params.length;
+    const digits = search
+      .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+      .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+      .replace(/\D/g, "");
+    params.push(digits ? `%${digits}%` : "__no_phone_match__");
+    const phoneIndex = params.length;
+    conditions.push(`(
+      COALESCE(c.full_name, '') ILIKE $${searchIndex}
+      OR regexp_replace(translate(COALESCE(c.phone, ''), '۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'), '[^0-9]', '', 'g') LIKE $${phoneIndex}
+    )`);
+  }
+  params.push(limit);
+  const result = await pool.query(
+    `SELECT c.id, COALESCE(c.full_name, 'مشتری بدون نام') AS name, c.phone,
+            COALESCE(push.active_devices, 0)::int AS active_devices,
+            COALESCE(pref.system_enabled, 1) = 1 AS notification_enabled,
+            CASE WHEN COALESCE(pref.system_enabled, 1) = 1 AND COALESCE(push.active_devices, 0) > 0
+                 THEN 'ready' ELSE 'not_ready' END AS status,
+            'web_push' AS channel
+     FROM reseller_customers c
+     LEFT JOIN mobile_notification_preferences pref ON pref.customer_id = c.id
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS active_devices
+       FROM mobile_push_subscriptions mps
+       WHERE mps.customer_id = c.id AND mps.is_active = 1
+     ) push ON TRUE
+     WHERE ${conditions.length ? conditions.join(" AND ") : "TRUE"}
+     ORDER BY COALESCE(push.active_devices, 0) DESC, c.id DESC
+     LIMIT $${params.length}`,
+    params,
+  );
+  res.json({ kind, items: result.rows });
+});
+
 router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res): Promise<void> => {
+  await Promise.all([managementReady, mobileReady]);
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
-  const target = req.body?.target === "customer" ? "customer" : "all";
-  const customerId = Number(req.body?.customer_id);
+  const kind = req.body?.recipient_type === "reseller" ? "reseller" : "customer";
+  const target = req.body?.target === "all" ? "all" : "recipient";
+  const recipientId = Number(req.body?.recipient_id ?? req.body?.customer_id);
   if (!title || title.length > 120 || !body || body.length > 4000) {
     res.status(400).json({ error: "عنوان و متن اعلان را کامل و در اندازه مجاز وارد کنید." });
     return;
   }
-  if (target === "customer" && (!Number.isSafeInteger(customerId) || customerId <= 0)) {
-    res.status(400).json({ error: "مشتری مشخص‌شده معتبر نیست." });
+  if (target !== "all" && (!Number.isSafeInteger(recipientId) || recipientId <= 0)) {
+    res.status(400).json({ error: "مخاطب مشخص‌شده معتبر نیست." });
     return;
   }
-  const recipients = target === "customer"
-    ? await pool.query<{ id: number }>("SELECT id FROM reseller_customers WHERE id = $1 LIMIT 1", [customerId])
-    : await pool.query<{ id: number }>("SELECT id FROM reseller_customers ORDER BY id");
-  if (target === "customer" && !recipients.rows[0]) {
-    res.status(404).json({ error: "مشتری پیدا نشد." });
+  if (kind === "customer") {
+    const recipients = target === "recipient"
+      ? await pool.query<{ id: number }>("SELECT id FROM reseller_customers WHERE id = $1 LIMIT 1", [recipientId])
+      : await pool.query<{ id: number }>("SELECT id FROM reseller_customers ORDER BY id");
+    if (target === "recipient" && !recipients.rows[0]) {
+      res.status(404).json({ error: "مشتری پیدا نشد." });
+      return;
+    }
+    const result = await sendMobileNotification({
+      customerIds: recipients.rows.map((row) => Number(row.id)),
+      title,
+      body,
+      href: "/mobile/notifications",
+      tone: "normal",
+    });
+    res.json({ sent: true, kind, ...result });
     return;
   }
-  const result = await sendMobileNotification({
-    customerIds: recipients.rows.map((row) => Number(row.id)),
-    title,
-    body,
-    href: "/mobile/notifications",
-    tone: "normal",
+  const recipients = target === "recipient"
+    ? await pool.query<{ id: number }>(
+      `SELECT tg_id::float8 AS id FROM resellers
+       WHERE tg_id = $1 AND tg_id <> ${MASTER_ADMIN_TELEGRAM_ID} LIMIT 1`,
+      [recipientId],
+    )
+    : await pool.query<{ id: number }>(
+      `SELECT tg_id::float8 AS id FROM resellers WHERE tg_id <> ${MASTER_ADMIN_TELEGRAM_ID} ORDER BY tg_id`,
+    );
+  if (target === "recipient" && !recipients.rows[0]) {
+    res.status(404).json({ error: "فروشنده پیدا نشد." });
+    return;
+  }
+  const eventId = randomBytes(12).toString("hex");
+  let deliveredToInbox = 0;
+  for (const row of recipients.rows) {
+    const inserted = await pool.query(
+      `INSERT INTO reseller_notifications
+         (reseller_tg_id, service_id, event_key, kind, title, detail, href, tone, created_at)
+       VALUES ($1, NULL, $2, 'admin_message', $3, $4, '/notifications', 'normal', NOW())
+       ON CONFLICT (reseller_tg_id, event_key) DO NOTHING`,
+      [Number(row.id), `admin:${eventId}:${row.id}`, title, body],
+    );
+    deliveredToInbox += inserted.rowCount ?? 0;
+  }
+  res.json({
+    sent: true,
+    kind,
+    targetCount: recipients.rows.length,
+    deliveredToInbox,
+    activeDevices: 0,
+    pushAttempted: 0,
+    pushSent: 0,
+    pushFailed: 0,
+    pushDeactivated: 0,
+    pushErrors: [],
   });
-  res.json({ sent: true, ...result });
 });
 
 export const managementReady = pool

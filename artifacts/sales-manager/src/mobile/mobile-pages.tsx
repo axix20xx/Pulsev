@@ -1,12 +1,34 @@
 import { useEffect, useState } from 'react';
 import { Link, Route, Switch, useLocation, useParams } from 'wouter';
-import { ArrowDownToLine, Check, ChevronLeft, Download, LockKeyhole, LogOut, MoreHorizontal, Phone, Plus, RefreshCw, Settings, Share2, ShieldCheck, Smartphone, X } from 'lucide-react';
+import { ArrowDownToLine, Bell, Check, ChevronLeft, Download, LockKeyhole, LogOut, MoreHorizontal, Phone, Plus, RefreshCw, Settings, Share2, ShieldCheck, Smartphone, X } from 'lucide-react';
 import { arrayFrom, faNumber, formatMobileDate, mobileRequest, objectFrom, type MobileDashboard, type MobileNotification, type MobileSettings, type MobileSubscription, useMobileFetch } from './mobile-api';
 import { AccessActions, BrandLockup, MobileFrame, MobileLogo, MobileOfflineBanner, MobileState, NotificationRow, SubscriptionCard, UsageRing } from './mobile-ui';
 
 const mobileAssetBaseUrl = import.meta.env.BASE_URL.endsWith('/mobile/')
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}mobile/`;
+
+const activateMobilePush = async () => {
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    throw new Error('مرورگر شما از اعلان پوش پشتیبانی نمی‌کند.');
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') throw new Error('اجازهٔ ارسال اعلان داده نشد. از تنظیمات مرورگر اجازهٔ اعلان را فعال کنید.');
+  const registration = await navigator.serviceWorker.register(`${mobileAssetBaseUrl}sw.js`, { scope: mobileAssetBaseUrl });
+  const setup = await mobileRequest<{ vapid_public_key?: string }>('/api/mobile/push/status');
+  if (!setup.vapid_public_key) throw new Error('کلید اعلان از سرویس دریافت نشد.');
+  const encodedKey = setup.vapid_public_key.replace(/-/g, '+').replace(/_/g, '/');
+  const key = Uint8Array.from(atob(encodedKey.padEnd(Math.ceil(encodedKey.length / 4) * 4, '=')), (char) => char.charCodeAt(0));
+  const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  await mobileRequest('/api/mobile/push/subscribe', {
+    method: 'POST',
+    body: JSON.stringify({
+      subscription,
+      device: navigator.userAgent,
+      platform: /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'web',
+    }),
+  });
+};
 
 function useSession() {
   const [session, setSession] = useState<{ customer?: { name: string; phone: string } } | null>(null);
@@ -173,16 +195,7 @@ function SettingsPage() {
     if (!window.confirm('برای دریافت یادآوری‌های مهم، اجازه ارسال اعلان را در مرحله بعد تأیید کنید.')) { setPushState('idle'); return; }
     setPushState('working');
     try {
-      if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('مرورگر شما از اعلان پوش پشتیبانی نمی‌کند.');
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') throw new Error('اجازه ارسال اعلان داده نشد.');
-      const registration = await navigator.serviceWorker.register(`${mobileAssetBaseUrl}sw.js`, { scope: mobileAssetBaseUrl });
-       const setup = await mobileRequest<{ vapid_public_key?: string }>('/api/mobile/push/status');
-      if (!setup.vapid_public_key) throw new Error('کلید اعلان از سرویس دریافت نشد.');
-      const encodedKey = setup.vapid_public_key.replace(/-/g, '+').replace(/_/g, '/');
-      const key = Uint8Array.from(atob(encodedKey.padEnd(Math.ceil(encodedKey.length / 4) * 4, '=')), (char) => char.charCodeAt(0));
-      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-      await mobileRequest('/api/mobile/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription, device: navigator.userAgent, platform: /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'web' }) });
+      await activateMobilePush();
       setPushState('enabled');
     } catch { setPushState('error'); }
   };
@@ -198,6 +211,60 @@ function SettingsPage() {
   };
   const testPush = async () => { await mobileRequest('/api/mobile/push/test', { method: 'POST' }).catch(() => undefined); };
   return <MobileFrame title="تنظیمات" back><div className="mobile-page-heading"><span className="mobile-eyebrow">کنترل‌های شخصی</span><h1>تنظیمات اعلان</h1><p>فقط پیام‌هایی را دریافت کنید که برایتان مهم‌اند.</p></div><MobileState loading={loading} error={error} onRetry={reload}>{settings ? <><div className="mobile-settings-card">{items.map(({ key, title, detail }) => <div className="mobile-setting-row" key={key}><span><strong>{title}</strong><small>{detail}</small></span><button className={`mobile-switch ${settings[key] ? 'is-on' : ''}`} role="switch" aria-checked={settings[key]} onClick={() => update(key)}><i /></button></div>)}</div><div className="mobile-push-card"><div className="mobile-push-icon"><Smartphone size={20} /></div><div><h2>اعلان روی دستگاه</h2><p>با فعال‌سازی، پایان اشتراک و تغییرات مهم را حتی بیرون از برنامه از دست نمی‌دهید.</p>{pushState === 'enabled' ? <><span className="mobile-push-success">اعلان‌ها فعال هستند</span><div className="mobile-push-actions"><button className="mobile-push-link" onClick={testPush}>ارسال اعلان آزمایشی</button><button className="mobile-push-link is-danger" onClick={disablePush}>غیرفعال‌سازی</button></div></> : pushState === 'error' ? <><span className="mobile-form-error">فعال‌سازی انجام نشد. دوباره امتحان کنید.</span><button className="mobile-button mobile-button-dark" onClick={enablePush}>تلاش دوباره</button></> : <button className="mobile-button mobile-button-dark" onClick={enablePush}>{pushState === 'working' ? 'در حال فعال‌سازی…' : 'فعال‌سازی اعلان‌ها'}</button>}</div></div></> : null}</MobileState></MobileFrame>;
+}
+
+function MobilePushPrompt({ customerKey }: { customerKey: string }) {
+  const [open, setOpen] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState('');
+  const storageKey = `pulse-push-prompt-dismissed:${customerKey || 'customer'}`;
+
+  useEffect(() => {
+    if (sessionStorage.getItem(storageKey) === '1') return;
+    let active = true;
+    mobileRequest<{ subscribed?: boolean }>('/api/mobile/push/status')
+      .then((status) => {
+        if (active && !status.subscribed) setOpen(true);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [storageKey]);
+
+  const dismiss = () => {
+    sessionStorage.setItem(storageKey, '1');
+    setOpen(false);
+  };
+  const enable = async () => {
+    setWorking(true);
+    setError('');
+    try {
+      await activateMobilePush();
+      setOpen(false);
+      sessionStorage.setItem(storageKey, '1');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'فعال‌سازی اعلان انجام نشد.');
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  if (!open) return null;
+  return <div className="mobile-push-prompt-backdrop" role="presentation">
+    <section className="mobile-push-prompt" role="dialog" aria-modal="true" aria-labelledby="mobile-push-prompt-title" dir="rtl">
+      <button type="button" className="mobile-icon-button mobile-push-prompt-close" onClick={dismiss} aria-label="بستن"><X size={17} /></button>
+      <div className="mobile-push-prompt-icon"><Bell size={22} /></div>
+      <span className="mobile-eyebrow">برای ارتباط سریع‌تر</span>
+      <h2 id="mobile-push-prompt-title">اعلان‌های پالس را فعال کنید</h2>
+      <p>با فعال‌سازی اعلان، پیام‌های مهم سرویس، یادآوری تمدید و اطلاعیه‌های پشتیبانی را حتی بیرون از پنل دریافت می‌کنید.</p>
+      {error ? <div className="mobile-push-prompt-error"><AlertTriangleIcon />{error}</div> : null}
+      <button type="button" className="mobile-button mobile-button-primary" onClick={() => void enable()} disabled={working}>{working ? <><span className="mobile-button-loader" /> در حال فعال‌سازی…</> : <><Bell size={16} /> فعال‌سازی اعلان‌ها</>}</button>
+      <button type="button" className="mobile-push-prompt-later" onClick={dismiss}>بعداً</button>
+    </section>
+  </div>;
+}
+
+function AlertTriangleIcon() {
+  return <span className="mobile-push-prompt-alert-icon">!</span>;
 }
 
 function MobileDashboardRoute() {
@@ -229,5 +296,8 @@ export function MobileApp() {
   }, [loading, session, isPublicMobileRoute, location, setLocation]);
   if (loading) return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><MobileLogo /></div><span>در حال آماده‌سازی فضای شما</span></div>;
   if (!session && !isPublicMobileRoute) return <div className="mobile-app mobile-loading" dir="rtl"><div className="mobile-loading-mark"><MobileLogo /></div><span>در حال انتقال به ورود</span></div>;
-  return <Switch><Route path="/mobile/login" component={LoginPage} /><Route path="/mobile/dashboard" component={MobileDashboardRoute} /><Route path="/mobile/subscriptions/:id" component={SubscriptionDetailPage} /><Route path="/mobile/subscriptions" component={SubscriptionsPage} /><Route path="/mobile/notifications" component={NotificationsPage} /><Route path="/mobile/profile" component={ProfilePage} /><Route path="/mobile/install" component={InstallGuidePage} /><Route path="/mobile/settings" component={SettingsPage} /><Route path="/mobile" component={session ? MobileDashboardRoute : LoginPage} /><Route component={LoginPage} /></Switch>;
+  return <>
+    <Switch><Route path="/mobile/login" component={LoginPage} /><Route path="/mobile/dashboard" component={MobileDashboardRoute} /><Route path="/mobile/subscriptions/:id" component={SubscriptionDetailPage} /><Route path="/mobile/subscriptions" component={SubscriptionsPage} /><Route path="/mobile/notifications" component={NotificationsPage} /><Route path="/mobile/profile" component={ProfilePage} /><Route path="/mobile/install" component={InstallGuidePage} /><Route path="/mobile/settings" component={SettingsPage} /><Route path="/mobile" component={session ? MobileDashboardRoute : LoginPage} /><Route component={LoginPage} /></Switch>
+    {session && !isPublicMobileRoute ? <MobilePushPrompt customerKey={session.customer?.phone || 'customer'} /> : null}
+  </>;
 }
