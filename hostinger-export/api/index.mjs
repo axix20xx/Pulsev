@@ -65481,7 +65481,7 @@ var sendMobileNotification = async (input) => {
                        ELSE GREATEST(svc.last_remaining_bytes, 0) / 1073741824.0 END AS remaining_gb
            FROM reseller_customers c
            LEFT JOIN LATERAL (
-             SELECT expire_at, gb, last_remaining_bytes
+              SELECT label, expire_at, gb, last_remaining_bytes
              FROM reseller_services
              WHERE customer_id = c.id
              ORDER BY CASE WHEN status <> 'disabled' THEN 0 ELSE 1 END, expire_at DESC NULLS LAST, id DESC
