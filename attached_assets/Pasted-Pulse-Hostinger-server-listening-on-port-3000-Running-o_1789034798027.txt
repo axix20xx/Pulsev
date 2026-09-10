@@ -1,0 +1,162 @@
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+[migration] {"timestamp":"2026-09-10T10:05:57.087Z","level":"INFO","message":"Connecting to PostgreSQL for the legacy migration check..."}
+Pulse Hostinger server listening on port 3000
+[migration] {"timestamp":"2026-09-10T10:05:59.139Z","level":"INFO","message":"Legacy migration lock acquired."}
+Pulse Hostinger server listening on port 3000
+[migration] {"timestamp":"2026-09-10T10:06:01.167Z","level":"INFO","message":"PostgreSQL target: database=postgres, schema=public, user=postgres"}
+[migration] {"timestamp":"2026-09-10T10:06:02.260Z","level":"INFO","message":"Legacy SQL migration already completed."}
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+[api] [10:06:03.155] [32mINFO[39m (1002003): [36mCombined usage sync worker started[39m
+[api] [35mintervalMs[39m: 60000
+[api] [10:06:03.161] [32mINFO[39m (1002003): [36mServer listening[39m
+[api] [35mport[39m: 3001
+[api] [10:06:05.503] [32mINFO[39m (1002003): [36mService provisioning worker started[39m
+[api] [10:06:05.503] [32mINFO[39m (1002003): [36mPasarGuard Group 1 reconciliation worker started[39m
+[api] [35mintervalMs[39m: 21600000
+[api] [10:06:05.802] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 1,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2074
+[api] [10:06:06.042] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 3,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2308
+[api] [10:06:06.441] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 2,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2707
+[api] [10:06:06.442] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 5,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2705
+[api] [10:06:06.714] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 6,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2006
+[api] [10:06:07.193] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 7,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 301
+[api] [10:06:07.605] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 4,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3870
+[api] [10:06:07.797] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 8,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 905
+[api] [10:06:07.810] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 10,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 916
+[api] [10:06:07.819] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 12,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 924
+[api] [10:06:08.129] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 11,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1235
+[api] [10:06:09.430] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 9,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2537
+[api] [10:06:13.277] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 13,
+[api] "method": "GET",
+[api] "url": "/api/admin/notification-recipients"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 613
+Legacy migration is still running (15s elapsed, attempt 1/3)...
+[api] [10:06:19.736] [33mWARN[39m (1002003): [36mMobile Push delivery failed[39m
+[api] [35mcustomerId[39m: 648
+[api] [35msubscriptionId[39m: "1"
+[api] [35mstatusCode[39m: 403
+[api] [35mresponseBody[39m: "{\"reason\":\"BadJwtToken\"}"
+[api] [10:06:19.736] [32mINFO[39m (1002003): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 14,
+[api] "method": "POST",
+[api] "url": "/api/admin/mobile-notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1953
