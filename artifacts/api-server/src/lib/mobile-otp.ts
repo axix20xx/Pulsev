@@ -82,14 +82,37 @@ export const consumeMobileOtp = async (
        FOR UPDATE`,
       [challengeId, customerId, phone],
     );
-    const row = result.rows[0];
-    const valid =
+    let row = result.rows[0];
+    let valid =
       Boolean(row) &&
       Number(row.attempts) < 5 &&
+      !row.used_at &&
       hashOtp(challengeId, otp) === row.otp_hash;
     if (!row) {
       await client.query("ROLLBACK");
       return { ok: false as const, reason: "کد ورود پیدا نشد." };
+    }
+    if (!valid) {
+      const latest = await client.query<{
+        id: string;
+        otp_hash: string;
+        attempts: number;
+        expires_at: Date | string | null;
+        used_at: Date | string | null;
+      }>(
+        `SELECT id, otp_hash, attempts, expires_at, used_at
+         FROM mobile_login_otps
+         WHERE customer_id = $1 AND phone = $2 AND used_at IS NULL AND attempts < 5
+         ORDER BY created_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [customerId, phone],
+      );
+      const latestRow = latest.rows[0];
+      if (latestRow && latestRow.id !== row.id && hashOtp(latestRow.id, otp) === latestRow.otp_hash) {
+        row = latestRow;
+        valid = true;
+      }
     }
     if (!valid) {
       await client.query(
@@ -105,7 +128,7 @@ export const consumeMobileOtp = async (
        `UPDATE mobile_login_otps
         SET attempts = 0
         WHERE id = $1`,
-      [challengeId],
+      [row.id],
     );
     await client.query("COMMIT");
     return { ok: true as const };

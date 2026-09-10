@@ -38,3 +38,9 @@ Apple Web Push rejects local VAPID subjects such as `mailto:notifications@pulse.
 **Why:** iOS Safari/PWA uses Apple Push Service, which requires a valid public-domain URL or email-style VAPID subject; Android/FCM can appear healthy while iOS fails.
 
 **How to apply:** Use a configurable production `VAPID_SUBJECT`, migrate existing `.local` subjects at startup, and deactivate subscriptions that return `BadJwtToken` so the customer can re-register with the current key.
+
+The mobile client should auto-detect an existing Service Worker PushSubscription and sync it before deciding to show the activation prompt.
+
+**Why:** A PWA can already have browser permission and a device subscription while the app's server-side status is stale; prompting again is confusing and can create duplicate registration attempts.
+
+**How to apply:** Check `getRegistration(...).pushManager.getSubscription()` on authenticated entry and settings load, resync an existing subscription, and show the prompt only when no subscription exists.

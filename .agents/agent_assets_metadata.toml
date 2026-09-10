@@ -588,3 +588,17 @@ mtime_ms = 1789034899489
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b2b6d460-e782-46a1-8f33-d05f6e57cbc4/f47ba09c-50d4-4b1d-ac0a-afec0cc3aee6"
 storage_version_token = "1789034916365171"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "V0lQooe57ZhX7OHAAYZIK"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-otp-push-autodetect.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle — OTP fallback and Push auto-detection"
+description = "بستهٔ نهایی شامل پذیرش آخرین OTP فعال ساخته‌شده از پنل، حفظ دائمی بودن OTP تا ساخت کد جدید، تشخیص خودکار subscription فعال PWA و جلوگیری از نمایش دوبارهٔ modal فعال‌سازی اعلان."
+logical_id = "347471ff-9713-4a29-841c-e59a3a53708e"
+content_hash = "sha256:5cc4fc320402b01fee99e90187b8bb5e31c091f94d6cf7eb729b22d7debbd7b3"
+size = 26786979
+mtime_ms = 1789035850033
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/347471ff-9713-4a29-841c-e59a3a53708e/b6b12e96-6db1-45b0-9035-a224ceb756c6"
+storage_version_token = "1789035871910180"
+content_type = "application/octet-stream"

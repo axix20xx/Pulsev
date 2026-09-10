@@ -30,6 +30,23 @@ const activateMobilePush = async () => {
   });
 };
 
+const getMobilePushSubscription = async () => {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+  const registration = await navigator.serviceWorker.getRegistration(mobileAssetBaseUrl);
+  return registration?.pushManager.getSubscription() ?? null;
+};
+
+const syncMobilePushSubscription = async (subscription: PushSubscription) => {
+  await mobileRequest('/api/mobile/push/subscribe', {
+    method: 'POST',
+    body: JSON.stringify({
+      subscription,
+      device: navigator.userAgent,
+      platform: /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'web',
+    }),
+  });
+};
+
 function useSession() {
   const [session, setSession] = useState<{ customer?: { name: string; phone: string } } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -183,6 +200,13 @@ function SettingsPage() {
   const [pushState, setPushState] = useState<'idle' | 'explaining' | 'working' | 'enabled' | 'error'>('idle');
   const [pushTestState, setPushTestState] = useState<'idle' | 'working' | 'success' | 'error'>('idle');
   const [pushTestMessage, setPushTestMessage] = useState('');
+  useEffect(() => {
+    let active = true;
+    getMobilePushSubscription().then((subscription) => {
+      if (active && subscription) setPushState('enabled');
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
   useEffect(() => { if (data) setSettings(objectFrom<MobileSettings>(data, 'settings')); }, [data]);
   const items: { key: keyof MobileSettings; title: string; detail: string }[] = [
     { key: 'service_enabled', title: 'تغییر وضعیت سرویس', detail: 'وقتی اتصال شما فعال یا غیرفعال شود' },
@@ -240,8 +264,13 @@ function MobilePushPrompt({ customerKey }: { customerKey: string }) {
   useEffect(() => {
     if (sessionStorage.getItem(storageKey) === '1') return;
     let active = true;
-    mobileRequest<{ subscribed?: boolean }>('/api/mobile/push/status')
-      .then((status) => {
+    getMobilePushSubscription()
+      .then(async (subscription) => {
+        if (subscription) {
+          await syncMobilePushSubscription(subscription);
+          return;
+        }
+        const status = await mobileRequest<{ subscribed?: boolean }>('/api/mobile/push/status');
         if (active && !status.subscribed) setOpen(true);
       })
       .catch(() => undefined);
