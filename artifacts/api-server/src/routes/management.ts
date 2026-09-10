@@ -296,7 +296,65 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
   });
 });
 
-export const managementReady = pool
+ async function backfillMissingCreateSales(): Promise<void> {
+   const client = await pool.connect();
+   try {
+     await client.query("BEGIN");
+     await client.query("SELECT pg_advisory_xact_lock(hashtext('pulse_sales_log'))");
+     const result = await client.query(
+       `WITH missing AS (
+          SELECT
+            svc.id AS service_id,
+            svc.reseller_tg_id,
+            svc.gb,
+            svc.days,
+            svc.created_at,
+            ROW_NUMBER() OVER (ORDER BY svc.id) - 1 AS row_offset
+          FROM reseller_services svc
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM reseller_sales_log sale
+            WHERE sale.service_id = svc.id
+              AND sale.action_type = 'create'
+          )
+        ),
+        next_id AS (
+          SELECT COALESCE(MAX(id), 0) + 1 AS first_id
+          FROM reseller_sales_log
+        )
+        INSERT INTO reseller_sales_log
+          (id, reseller_tg_id, service_id, action_type, gb_amount, days_amount,
+           created_at, custom_sell_price, is_paid)
+        SELECT
+          next_id.first_id + missing.row_offset,
+          missing.reseller_tg_id,
+          missing.service_id,
+          'create',
+          missing.gb,
+          missing.days,
+          missing.created_at,
+          NULL,
+          0
+        FROM missing
+        CROSS JOIN next_id
+        RETURNING service_id`,
+     );
+     await client.query("COMMIT");
+     if (result.rowCount) {
+       logger.info(
+         { count: result.rowCount, serviceIds: result.rows.map((row) => Number(row.service_id)) },
+         "Backfilled missing legacy create sales",
+       );
+     }
+   } catch (error) {
+     await client.query("ROLLBACK").catch(() => undefined);
+     throw error;
+   } finally {
+     client.release();
+   }
+ }
+
+ export const managementReady = pool
   .query(`
     CREATE TABLE IF NOT EXISTS panel_configs (
       key TEXT PRIMARY KEY,
@@ -524,7 +582,8 @@ export const managementReady = pool
       DELETE FROM panel_configs
         WHERE key IN ('xxpanel', 'fibrpanel', 'falcon')
   `)
-  .catch((error) => {
+   .then(() => backfillMissingCreateSales())
+   .catch((error) => {
     console.error("Panel management schema initialization failed", error);
     throw error;
   });
