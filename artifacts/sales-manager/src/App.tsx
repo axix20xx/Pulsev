@@ -22,6 +22,7 @@ const queryClient = new QueryClient();
 
 function Router() {
   const [location] = useLocation();
+  if (location === '/mobile/sub' || location.startsWith('/mobile/sub/')) return <PublicSubscription />;
   if (location === '/mobile' || location.startsWith('/mobile/')) return <MobileApp />;
   return (
     // Keep a shared shell (sidebar, navbar) outside the boundary so it

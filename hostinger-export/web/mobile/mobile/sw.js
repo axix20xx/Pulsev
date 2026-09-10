@@ -21,7 +21,18 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const rawHref = event.notification.data?.href || '/mobile/notifications';
-  const href = new URL(String(rawHref).replace(/^\/mobile/, './'), self.registration.scope).href;
+  const parsedHref = new URL(String(rawHref), self.registration.scope);
+  // A notification is received by the customer PWA, so open the public
+  // subscription screen inside the installed app instead of navigating to a
+  // root path that the /mobile artifact cannot render.
+  if (parsedHref.pathname === '/sub') {
+    const mobileSubscription = new URL('./sub', self.registration.scope);
+    mobileSubscription.search = parsedHref.search;
+    parsedHref.href = mobileSubscription.href;
+  } else if (parsedHref.pathname.startsWith('/mobile')) {
+    parsedHref.pathname = parsedHref.pathname.replace(/^\/mobile/, new URL('./', self.registration.scope).pathname.replace(/\/$/, ''));
+  }
+  const href = parsedHref.href;
   const notificationId = event.notification.data?.notification_id;
   event.waitUntil(Promise.all([
     notificationId

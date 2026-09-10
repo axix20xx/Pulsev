@@ -62,6 +62,19 @@ type NotificationSubscription = {
   renew_url?: string | null;
 };
 
+const builtInNotificationTemplates: NotificationTemplate[] = [
+  { id: 'builtin-new-subscription', name: 'اشتراک جدید', title: 'اشتراک شما آماده است', body: 'سلام {{customer_name}}، اشتراک {{service_name}} شما آماده استفاده است.\nلینک اشتراک: {{subscription_link}}', href: '{{subscription_link}}', action_label: 'باز کردن اشتراک' },
+  { id: 'builtin-renewal-complete', name: 'تمدید انجام شد', title: 'تمدید اشتراک انجام شد', body: 'سلام {{customer_name}}، اشتراک {{service_name}} با موفقیت تمدید شد.\nلینک جدید: {{subscription_link}}', href: '{{subscription_link}}', action_label: 'مشاهده اشتراک' },
+  { id: 'builtin-link-resend', name: 'ارسال مجدد لینک', title: 'لینک اشتراک شما', body: 'لینک اشتراک {{service_name}} برای شما:\n{{subscription_link}}', href: '{{subscription_link}}', action_label: 'باز کردن لینک' },
+  { id: 'builtin-expiring-soon', name: 'نزدیک انقضا', title: 'اشتراک شما به‌زودی منقضی می‌شود', body: 'سلام {{customer_name}}، فقط {{remaining_gb}} گیگ از اشتراک شما باقی مانده است. لطفاً برای تمدید اقدام کنید.\n{{renewal_link}}', href: '{{renewal_link}}', action_label: 'تمدید اشتراک' },
+  { id: 'builtin-expired', name: 'منقضی شده', title: 'اشتراک شما منقضی شده است', body: 'اشتراک {{service_name}} شما منقضی شده است. برای فعال‌سازی دوباره با فروشنده تماس بگیرید.', href: '/mobile/renew', action_label: 'تمدید اشتراک' },
+  { id: 'builtin-low-traffic', name: 'حجم کم', title: 'حجم اشتراک رو به پایان است', body: 'سلام {{customer_name}}، حجم باقی‌مانده اشتراک شما {{remaining_gb}} گیگ است.\nبرای تمدید: {{renewal_link}}', href: '{{renewal_link}}', action_label: 'تمدید' },
+  { id: 'builtin-payment-reminder', name: 'یادآوری پرداخت', title: 'یادآوری پرداخت اشتراک', body: 'سلام {{customer_name}}، پرداخت اشتراک {{service_name}} هنوز ثبت نشده است. لطفاً با فروشنده هماهنگ کنید.', href: '/mobile/notifications', action_label: 'مشاهده اعلان‌ها' },
+  { id: 'builtin-qr-ready', name: 'QR آماده', title: 'QR اشتراک شما آماده است', body: 'برای اتصال سریع، QR اختصاصی اشتراک {{service_name}} را باز کنید.\n{{qr_link}}', href: '{{qr_link}}', action_label: 'نمایش QR' },
+  { id: 'builtin-awg-ready', name: 'AWG آماده', title: 'کانفیگ AmneziaWG آماده است', body: 'فایل AmneziaWG اشتراک {{service_name}} آماده دانلود است.\n{{subscription_link}}', href: '{{subscription_link}}', action_label: 'دریافت کانفیگ' },
+  { id: 'builtin-provider-status', name: 'وضعیت Provider', title: 'اطلاعیه وضعیت سرویس', body: 'سلام {{customer_name}}، وضعیت Provider بررسی شد و سرویس شما در حال پایش است. در صورت نیاز از لینک زیر استفاده کنید.\n{{subscription_link}}', href: '{{subscription_link}}', action_label: 'مشاهده وضعیت' },
+];
+
 const audienceOptions = [
   ['recipient', 'یک مشتری مشخص'],
   ['all', 'همه مشتریان'],
@@ -310,6 +323,7 @@ export function NotificationSendPage() {
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState('');
+  const availableTemplates = [...builtInNotificationTemplates, ...templates.filter((item) => !builtInNotificationTemplates.some((builtIn) => builtIn.name === item.name))];
 
   const loadTemplates = async () => {
     try {
@@ -393,19 +407,37 @@ export function NotificationSendPage() {
   }, [selected?.id, session?.role, target]);
 
   const selectedSubscription = subscriptions.find((item) => String(item.id) === subscriptionId) || null;
+  const selectedTemplate = availableTemplates.find((item) => String(item.id) === templateId) || null;
+  const subscriptionLinkFor = (type: 'public' | 'qr' | 'feed' | 'awg' | 'renew', item: NotificationSubscription | null) => {
+    if (!item) return '';
+    if (type === 'public') return item.public_url || '';
+    if (type === 'qr') return item.qr_url || '';
+    if (type === 'feed') return item.subscription_url || '';
+    if (type === 'awg') return item.awg_url || '';
+    return item.renew_url || '';
+  };
+  const templateSubscriptionType = (value?: string | null): 'public' | 'qr' | 'renew' | null => {
+    if (value === '{{subscription_link}}') return 'public';
+    if (value === '{{qr_link}}') return 'qr';
+    if (value === '{{renewal_link}}') return 'renew';
+    return null;
+  };
   useEffect(() => {
     if (!selectedSubscription || !attachSubscription) return;
-    const link = subscriptionLinkType === 'public'
-      ? selectedSubscription.public_url
-      : subscriptionLinkType === 'qr'
-        ? selectedSubscription.qr_url
-        : subscriptionLinkType === 'feed'
-          ? selectedSubscription.subscription_url
-          : subscriptionLinkType === 'awg'
-            ? selectedSubscription.awg_url
-            : selectedSubscription.renew_url;
+    const templateType = templateSubscriptionType(selectedTemplate?.href);
+    const activeType = templateType || subscriptionLinkType;
+    const link = subscriptionLinkFor(activeType, selectedSubscription);
+    if (templateType && selectedTemplate) {
+      setBody(selectedTemplate.body
+        .replace(/\{\{\s*subscription_link\s*\}\}/gi, link)
+        .replace(/\{\{\s*qr_link\s*\}\}/gi, selectedSubscription.qr_url || '')
+        .replace(/\{\{\s*renewal_link\s*\}\}/gi, selectedSubscription.renew_url || '')
+        .replace(/\{\{\s*service_name\s*\}\}/gi, selectedSubscription.plan)
+        .replace(/\{\{\s*remaining_gb\s*\}\}/gi, String(selectedSubscription.remaining_gb ?? '')));
+      if (activeType !== subscriptionLinkType) setSubscriptionLinkType(activeType);
+    }
     if (link) setHref(link);
-  }, [attachSubscription, selectedSubscription, subscriptionLinkType]);
+  }, [attachSubscription, selectedSubscription, selectedTemplate, subscriptionLinkType]);
 
   const hrefError = attachSubscription && href.trim() && !href.trim().startsWith('/') && !/^https:\/\//i.test(href.trim())
     ? 'لینک باید داخلی باشد یا با https:// شروع شود.'
@@ -443,6 +475,7 @@ export function NotificationSendPage() {
       setAttachSubscription(true);
       setActionLabel('');
       setScheduledAt('');
+      setTemplateId('');
       setSelected(null);
       setSearch('');
     } catch (cause) {
@@ -454,11 +487,18 @@ export function NotificationSendPage() {
 
   const applyTemplate = (id: string) => {
     setTemplateId(id);
-    const template = templates.find((item) => String(item.id) === id);
+    const template = availableTemplates.find((item) => String(item.id) === id);
     if (!template) return;
     setTitle(template.title);
     setBody(template.body);
-    setHref(template.href || '');
+    const templateType = templateSubscriptionType(template.href);
+    setAttachSubscription(Boolean(template.href));
+    if (templateType) {
+      setSubscriptionLinkType(templateType);
+      setHref(subscriptionLinkFor(templateType, selectedSubscription) || '');
+    } else {
+      setHref(template.href || '');
+    }
     setActionLabel(template.action_label || '');
   };
 
@@ -487,6 +527,10 @@ export function NotificationSendPage() {
 
   const deleteTemplate = async () => {
     if (!templateId) return;
+    if (String(templateId).startsWith('builtin-')) {
+      setTemplateId('');
+      return;
+    }
     const response = await fetch(`/api/admin/notification-templates/${encodeURIComponent(templateId)}`, { method: 'DELETE', credentials: 'include' });
     if (response.ok) {
       setTemplateId('');
@@ -505,8 +549,8 @@ export function NotificationSendPage() {
           <div className="field"><span>زمان ارسال</span><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /><small className="text-[11px] text-muted-foreground">اختیاری؛ زمان تهران</small></div>
         </div>
          {target === 'recipient' ? <div className="field mt-5"><span>جست‌وجوی مشتری</span><div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={selected ? selected.name : search} onChange={(event) => { setSelected(null); setSearch(event.target.value); setError(''); }} placeholder="حداقل دو حرف از نام یا شماره موبایل" /></div>{loading ? <p className="mt-2 text-xs text-muted-foreground">در حال جست‌وجو...</p> : results.length > 0 ? <div className="mt-2 list-stack rounded-xl border border-border/60 p-1">{results.map((item) => <button type="button" key={String(item.id)} className="panel-row w-full text-right hover:bg-muted/40" onClick={() => { setSelected(item); setResults([]); }}><div className="avatar avatar-sage">م</div><div className="min-w-0 flex-1"><strong className="block truncate">{item.name}</strong><span className="text-xs text-muted-foreground" dir="ltr">{item.phone || '—'}</span></div><span className="text-xs text-muted-foreground">{faNumber(item.active_devices)} دستگاه</span></button>)}</div> : search.trim().length >= 2 && !selected ? <p className="mt-2 text-xs text-muted-foreground">مشتری پیدا نشد.</p> : null}{selected ? <div className="notice mt-3"><Check size={15} /><span>مخاطب انتخاب‌شده: <strong>{selected.name}</strong></span><button type="button" className="mr-auto text-xs underline" onClick={() => { setSelected(null); setSearch(''); }}>تغییر</button></div> : null}<div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4"><div className="flex items-center gap-2 text-sm font-bold"><Link2 size={15} />اشتراک اختصاصی مشتری</div><label className="mt-3 flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={attachSubscription} onChange={(event) => { const enabled = event.target.checked; setAttachSubscription(enabled); if (!enabled) setHref(''); }} /><span>ارسال لینک subscription همراه پیام</span></label>{!attachSubscription ? <p className="mt-2 text-xs text-muted-foreground">حالت پیام معمولی فعال است؛ هیچ لینک subscription یا QR به پیام اضافه نمی‌شود.</p> : subscriptionLoading ? <p className="mt-2 text-xs text-muted-foreground">در حال دریافت اشتراک‌ها...</p> : subscriptions.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">برای این مشتری subscription قابل ارسال پیدا نشد.</p> : <div className="mt-3 grid gap-3 md:grid-cols-2"><label className="field"><span>انتخاب subscription</span><select value={subscriptionId} onChange={(event) => setSubscriptionId(event.target.value)}>{subscriptions.map((item) => <option key={String(item.id)} value={String(item.id)}>{item.plan} · {faNumber(item.remaining_gb)}GB باقی‌مانده · {item.status}</option>)}</select></label><label className="field"><span>لینک ارسالی</span><select value={subscriptionLinkType} onChange={(event) => setSubscriptionLinkType(event.target.value as typeof subscriptionLinkType)}><option value="public">صفحه اشتراک</option><option value="qr">صفحه QR اشتراک</option><option value="feed">لینک اتصال / Feed</option><option value="awg" disabled={!selectedSubscription?.awg_url}>کانفیگ AmneziaWG</option><option value="renew">تمدید همین سرویس</option></select></label></div>}{attachSubscription && selectedSubscription ? <p className="mt-3 text-[11px] text-muted-foreground" dir="ltr">{href}</p> : null}</div></div> : <div className="notice mt-5"><Sparkles size={15} /><span>{audienceLoading ? 'در حال محاسبه مخاطبان...' : `${audience?.label || audienceOptions.find(([key]) => key === target)?.[1] || 'مخاطبان'}؛ ${faNumber(audience?.count)} مشتری`}</span></div>}
-         <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
-           <label className="field"><span>Template آماده</span><select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">بدون template</option>{templates.map((template) => <option key={String(template.id)} value={String(template.id)}>{template.name}</option>)}</select></label>
+          <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
+            <label className="field"><span>Template آماده</span><select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">بدون template</option>{availableTemplates.map((template) => <option key={String(template.id)} value={String(template.id)}>{template.name}</option>)}</select></label>
            <div className="flex items-end gap-2"><input className="min-w-0 flex-1" value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="نام template جدید" /><button className="button button-secondary" type="button" onClick={() => void saveTemplate()} disabled={savingTemplate || !templateName.trim()}><Save size={14} /> ذخیره</button>{templateId ? <button className="icon-button" type="button" onClick={() => void deleteTemplate()} aria-label="حذف template"><Trash2 size={15} /></button> : null}</div>
          </div>
           <p className="mt-2 text-xs text-muted-foreground">متغیرهای قابل استفاده: <code>{'{{customer_name}}'}</code>، <code>{'{{service_name}}'}</code>، <code>{'{{expiry_date}}'}</code>، <code>{'{{remaining_gb}}'}</code>، <code>{'{{subscription_link}}'}</code>، <code>{'{{qr_link}}'}</code>، <code>{'{{renewal_link}}'}</code></p>
