@@ -112,8 +112,10 @@ export const mobileReady = pool.query(`
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
-    last_error TEXT
+    last_error TEXT,
+    personalize SMALLINT NOT NULL DEFAULT 1
   );
+  ALTER TABLE notification_campaigns ADD COLUMN IF NOT EXISTS personalize SMALLINT NOT NULL DEFAULT 1;
   CREATE INDEX IF NOT EXISTS notification_campaigns_status_idx
     ON notification_campaigns (status, scheduled_at);
   CREATE TABLE IF NOT EXISTS notification_campaign_recipients (
@@ -572,6 +574,7 @@ export const sendMobileNotification = async (input: {
   href?: string | null;
   actionLabel?: string | null;
   tone?: string;
+  personalize?: boolean;
 }) => {
   await mobileReady;
   const eventId = randomBytes(12).toString("hex");
@@ -583,6 +586,39 @@ export const sendMobileNotification = async (input: {
   let pushDeactivated = 0;
   const pushErrors = new Set<string>();
   for (const customerId of [...new Set(input.customerIds)]) {
+    const profile = input.personalize
+      ? (await pool.query<{ name: string; phone: string | null; expires_at: string | null; remaining_gb: number | null }>(
+          `SELECT COALESCE(c.full_name, 'مشتری') AS name, c.phone,
+                  svc.expire_at::text AS expires_at,
+                  CASE WHEN svc.last_remaining_bytes IS NULL THEN svc.gb::float8
+                       ELSE GREATEST(svc.last_remaining_bytes, 0) / 1073741824.0 END AS remaining_gb
+           FROM reseller_customers c
+           LEFT JOIN LATERAL (
+             SELECT expire_at, gb, last_remaining_bytes
+             FROM reseller_services
+             WHERE customer_id = c.id
+             ORDER BY CASE WHEN status <> 'disabled' THEN 0 ELSE 1 END, expire_at DESC NULLS LAST, id DESC
+             LIMIT 1
+           ) svc ON TRUE
+           WHERE c.id = $1
+           LIMIT 1`,
+          [customerId],
+        )).rows[0] ?? null
+      : null;
+    const variables: Record<string, string> = {
+      customer_name: profile?.name || "مشتری",
+      name: profile?.name || "مشتری",
+      phone: profile?.phone || "",
+      expiry_date: profile?.expires_at ? new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeZone: "Asia/Tehran" }).format(new Date(profile.expires_at)) : "",
+      remaining_gb: profile?.remaining_gb == null ? "" : Number(profile.remaining_gb).toFixed(2),
+      service_link: "/mobile",
+      renewal_link: "/mobile",
+    };
+    const render = (value: string | null | undefined) => String(value ?? "").replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_, key: string) => variables[key.toLowerCase()] ?? "");
+    const renderedTitle = render(input.title);
+    const renderedBody = render(input.body);
+    const renderedHref = render(input.href ?? "/mobile/notifications");
+    const renderedActionLabel = render(input.actionLabel ?? "");
     const recipient = input.campaignId
       ? await pool.query(
           `INSERT INTO notification_campaign_recipients (campaign_id, customer_id, inbox_status)
@@ -602,9 +638,9 @@ export const sendMobileNotification = async (input: {
         customerId,
         input.campaignId ?? null,
         `admin:${eventId}:${customerId}`,
-        input.title,
-        input.body,
-        input.href ?? "/mobile/notifications",
+         renderedTitle,
+         renderedBody,
+         renderedHref,
         input.tone ?? "normal",
       ],
     );
@@ -621,10 +657,10 @@ export const sendMobileNotification = async (input: {
       const delivery = await sendPush(customerId, {
         id: inserted.rows[0].id,
         campaignId: input.campaignId ?? null,
-        title: input.title,
-        body: input.body,
-        href: input.href ?? "/mobile/notifications",
-        actionLabel: input.actionLabel ?? null,
+         title: renderedTitle,
+         body: renderedBody,
+         href: renderedHref,
+         actionLabel: renderedActionLabel || null,
         tone: input.tone ?? "normal",
       });
       activeDevices += delivery.activeDevices;
@@ -676,11 +712,12 @@ export const runScheduledNotificationCampaigns = async (): Promise<void> => {
     href: string | null;
     action_label: string | null;
     tone: string;
+    personalize: number;
   }>(
     `UPDATE notification_campaigns
      SET status = 'sending', started_at = COALESCE(started_at, NOW())
      WHERE status = 'scheduled' AND scheduled_at <= NOW()
-     RETURNING id, title, body, href, action_label, tone`,
+     RETURNING id, title, body, href, action_label, tone, personalize`,
   );
   for (const campaign of claimed.rows) {
     try {
@@ -700,6 +737,7 @@ export const runScheduledNotificationCampaigns = async (): Promise<void> => {
         href: campaign.href,
         actionLabel: campaign.action_label,
         tone: campaign.tone,
+        personalize: campaign.personalize === 1,
       });
       await pool.query(
         `UPDATE notification_campaigns

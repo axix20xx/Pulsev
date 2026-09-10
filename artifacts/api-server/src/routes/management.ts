@@ -94,6 +94,103 @@ const saleAmountToAdminSql = (saleAlias = "s", resellerAlias = "r") =>
 const router: IRouter = Router();
 router.use(attachAuth);
 
+const campaignTargets = new Set(["all", "recipient", "expiring_3d", "expiring_7d", "expired", "low_traffic", "no_push", "unpaid"]);
+
+const notificationHref = (value: unknown) => {
+  const input = typeof value === "string" ? value.trim() : "";
+  if (!input) return "/mobile/notifications";
+  if (input.startsWith("/") && !input.startsWith("//")) return input.slice(0, 500);
+  return /^https:\/\//i.test(input) ? input.slice(0, 500) : null;
+};
+
+const resolveCampaignAudience = async (target: string, recipientId?: number) => {
+  if (target === "recipient") {
+    const result = await pool.query<{ id: number }>(
+      "SELECT id FROM reseller_customers WHERE id = $1 LIMIT 1",
+      [recipientId],
+    );
+    return result.rows.map((row) => Number(row.id));
+  }
+  const predicates: Record<string, string> = {
+    all: "TRUE",
+    expiring_3d: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at BETWEEN NOW() AND NOW() + INTERVAL '3 days')",
+    expiring_7d: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at BETWEEN NOW() AND NOW() + INTERVAL '7 days')",
+    expired: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at < NOW())",
+    low_traffic: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.gb > 0 AND COALESCE(svc.last_remaining_bytes, svc.gb * 1073741824) <= svc.gb * 1073741824 * 0.2)",
+    no_push: "NOT EXISTS (SELECT 1 FROM mobile_push_subscriptions mps WHERE mps.customer_id = c.id AND mps.is_active = 1)",
+    unpaid: "EXISTS (SELECT 1 FROM reseller_sales_log sale JOIN reseller_services svc ON svc.id = sale.service_id WHERE svc.customer_id = c.id AND COALESCE(sale.is_paid, 0) = 0)",
+  };
+  const predicate = predicates[target] || predicates.all;
+  const result = await pool.query<{ id: number }>(`SELECT c.id FROM reseller_customers c WHERE ${predicate} ORDER BY c.id`);
+  return result.rows.map((row) => Number(row.id));
+};
+
+const campaignTargetLabel = (target: string) => ({
+  all: "همه مشتریان",
+  recipient: "مشتری مشخص",
+  expiring_3d: "در حال انقضا تا ۳ روز",
+  expiring_7d: "در حال انقضا تا ۷ روز",
+  expired: "منقضی‌شده‌ها",
+  low_traffic: "حجم باقی‌مانده کم",
+  no_push: "بدون دستگاه Push",
+  unpaid: "دارای پرداخت معوق",
+}[target] || "مخاطبان انتخاب‌شده");
+
+router.get("/admin/notification-audience", requireMasterAdmin, async (req, res): Promise<void> => {
+  await Promise.all([managementReady, mobileReady]);
+  const target = typeof req.query.target === "string" && campaignTargets.has(req.query.target) ? req.query.target : "all";
+  const recipientId = Number(req.query.recipient_id);
+  const ids = await resolveCampaignAudience(target, Number.isSafeInteger(recipientId) ? recipientId : undefined);
+  const sample = ids.length
+    ? await pool.query(
+        `SELECT id, COALESCE(full_name, 'مشتری بدون نام') AS name, phone
+         FROM reseller_customers WHERE id = ANY($1::bigint[]) ORDER BY id LIMIT 8`,
+        [ids],
+      )
+    : { rows: [] };
+  res.json({ target, label: campaignTargetLabel(target), count: ids.length, sample: sample.rows });
+});
+
+router.get("/admin/notification-templates", requireMasterAdmin, async (req, res): Promise<void> => {
+  await mobileReady;
+  const result = await pool.query(
+    `SELECT id, name, notification_type, title, body, href, action_label, tone, created_at, updated_at
+     FROM notification_templates ORDER BY updated_at DESC, id DESC LIMIT 100`,
+  );
+  res.json({ items: result.rows });
+});
+
+router.post("/admin/notification-templates", requireMasterAdmin, async (req, res): Promise<void> => {
+  await mobileReady;
+  const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 120) : "";
+  const title = typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 120) : "";
+  const body = typeof req.body?.body === "string" ? req.body.body.trim().slice(0, 4000) : "";
+  const href = notificationHref(req.body?.href);
+  const actionLabel = typeof req.body?.action_label === "string" ? req.body.action_label.trim().slice(0, 80) : null;
+  if (!name || !title || !body || href === null) {
+    res.status(400).json({ error: "نام template، عنوان و متن را کامل وارد کنید." });
+    return;
+  }
+  const result = await pool.query(
+    `INSERT INTO notification_templates (name, title, body, href, action_label, tone, updated_at)
+     VALUES ($1, $2, $3, $4, $5, 'normal', NOW())
+     RETURNING id, name, title, body, href, action_label, tone, created_at, updated_at`,
+    [name, title, body, href, actionLabel],
+  );
+  res.status(201).json(result.rows[0]);
+});
+
+router.delete("/admin/notification-templates/:id", requireMasterAdmin, async (req, res): Promise<void> => {
+  await mobileReady;
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "شناسه template معتبر نیست." });
+    return;
+  }
+  await pool.query("DELETE FROM notification_templates WHERE id = $1", [id]);
+  res.json({ deleted: true });
+});
+
 router.get("/admin/notification-recipients", requireMasterAdmin, async (req, res): Promise<void> => {
   await Promise.all([managementReady, mobileReady]);
   const kind = req.query.kind === "reseller" ? "reseller" : "customer";
@@ -231,41 +328,33 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
   const name = typeof req.body?.name === "string" && req.body.name.trim()
     ? req.body.name.trim().slice(0, 160)
     : title.slice(0, 160);
-  const hrefInput = typeof req.body?.href === "string" ? req.body.href.trim() : "";
-  const href = !hrefInput
-    ? "/mobile/notifications"
-    : hrefInput.startsWith("/") && !hrefInput.startsWith("//")
-      ? hrefInput.slice(0, 500)
-      : /^https:\/\//i.test(hrefInput)
-        ? hrefInput.slice(0, 500)
-        : null;
+  const href = notificationHref(req.body?.href);
   const actionLabel = typeof req.body?.action_label === "string" ? req.body.action_label.trim().slice(0, 80) : null;
   const scheduledInput = typeof req.body?.scheduled_at === "string" ? req.body.scheduled_at.trim() : "";
   const scheduledAt = scheduledInput ? new Date(scheduledInput) : null;
   const isScheduled = Boolean(scheduledAt && !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() > Date.now() + 5000);
   const kind = req.body?.recipient_type === "reseller" ? "reseller" : "customer";
-  const target = req.body?.target === "all" ? "all" : "recipient";
+  const requestedTarget = typeof req.body?.target === "string" ? req.body.target : "recipient";
+  const target = campaignTargets.has(requestedTarget) ? requestedTarget : "recipient";
   const recipientId = Number(req.body?.recipient_id ?? req.body?.customer_id);
   if (!title || title.length > 120 || !body || body.length > 4000 || href === null) {
     res.status(400).json({ error: "عنوان و متن اعلان را کامل و در اندازه مجاز وارد کنید." });
     return;
   }
-  if (target !== "all" && (!Number.isSafeInteger(recipientId) || recipientId <= 0)) {
+  if (target === "recipient" && (!Number.isSafeInteger(recipientId) || recipientId <= 0)) {
     res.status(400).json({ error: "مخاطب مشخص‌شده معتبر نیست." });
     return;
   }
   if (kind === "customer") {
-    const recipients = target === "recipient"
-      ? await pool.query<{ id: number }>("SELECT id FROM reseller_customers WHERE id = $1 LIMIT 1", [recipientId])
-      : await pool.query<{ id: number }>("SELECT id FROM reseller_customers ORDER BY id");
-    if (target === "recipient" && !recipients.rows[0]) {
+    const recipientIds = await resolveCampaignAudience(target, Number.isSafeInteger(recipientId) ? recipientId : undefined);
+    if (target === "recipient" && !recipientIds[0]) {
       res.status(404).json({ error: "مشتری پیدا نشد." });
       return;
     }
     const campaign = await pool.query<{ id: number }>(
       `INSERT INTO notification_campaigns
-         (name, notification_type, title, body, href, action_label, tone, audience_type, status, scheduled_at, created_by, started_at)
-       VALUES ($1, 'admin_message', $2, $3, $4, $5, 'normal', 'customers', $6, $7, $8, CASE WHEN $6 = 'sending' THEN NOW() ELSE NULL END)
+         (name, notification_type, title, body, href, action_label, tone, audience_type, status, scheduled_at, created_by, started_at, personalize)
+       VALUES ($1, 'admin_message', $2, $3, $4, $5, 'normal', $6, $7, $8, $9, CASE WHEN $7 = 'sending' THEN NOW() ELSE NULL END, 1)
        RETURNING id`,
       [
         name,
@@ -273,19 +362,20 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
         body,
         href,
         actionLabel,
+        target,
         isScheduled ? "scheduled" : "sending",
         isScheduled ? scheduledAt : null,
         req.auth?.telegramId ?? null,
       ],
     );
     const campaignId = Number(campaign.rows[0].id);
-    if (recipients.rows.length) {
+    if (recipientIds.length) {
       await pool.query(
         `INSERT INTO notification_campaign_recipients (campaign_id, customer_id)
          SELECT $1, recipient.customer_id
          FROM UNNEST($2::bigint[]) AS recipient(customer_id)
          ON CONFLICT (campaign_id, customer_id) DO NOTHING`,
-        [campaignId, recipients.rows.map((row) => Number(row.id))],
+         [campaignId, recipientIds],
       );
     }
     if (isScheduled) {
@@ -294,19 +384,20 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
         scheduled: true,
         campaignId,
         kind,
-        targetCount: recipients.rows.length,
+         targetCount: recipientIds.length,
         scheduledAt: scheduledAt?.toISOString(),
       });
       return;
     }
     const result = await sendMobileNotification({
       campaignId,
-      customerIds: recipients.rows.map((row) => Number(row.id)),
+      customerIds: recipientIds,
       title,
       body,
       href,
       actionLabel,
       tone: "normal",
+      personalize: true,
     });
     await pool.query(
       `UPDATE notification_campaigns SET status = 'completed', completed_at = NOW() WHERE id = $1`,
@@ -360,7 +451,7 @@ router.get("/admin/notification-campaigns", requireMasterAdmin, async (req, res)
   const limit = Number.isSafeInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 30;
   const result = await pool.query(
     `SELECT c.id, c.name, c.notification_type, c.title, c.body, c.href, c.action_label,
-            c.tone, c.audience_type, c.status, c.scheduled_at, c.created_by,
+            c.tone, c.audience_type, c.audience_type AS target, c.status, c.scheduled_at, c.created_by,
             c.created_at, c.started_at, c.completed_at, c.last_error,
             COUNT(DISTINCT cr.id)::int AS target_count,
             COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status IN ('saved', 'push_accepted', 'push_failed', 'inbox_only'))::int AS inbox_saved,

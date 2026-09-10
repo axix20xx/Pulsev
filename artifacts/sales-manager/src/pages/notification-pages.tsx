@@ -13,9 +13,12 @@ import {
   MousePointerClick,
   RefreshCw,
   RotateCcw,
+  Save,
+  Sparkles,
   Search,
   Send,
   Smartphone,
+  Trash2,
   Users,
   XCircle,
 } from 'lucide-react';
@@ -34,6 +37,26 @@ type Recipient = {
 type StatusItem = Recipient & {
   status?: 'ready' | 'not_ready' | string;
 };
+
+type NotificationTemplate = {
+  id: number | string;
+  name: string;
+  title: string;
+  body: string;
+  href?: string | null;
+  action_label?: string | null;
+};
+
+const audienceOptions = [
+  ['recipient', 'یک مشتری مشخص'],
+  ['all', 'همه مشتریان'],
+  ['expiring_3d', 'در حال انقضا تا ۳ روز'],
+  ['expiring_7d', 'در حال انقضا تا ۷ روز'],
+  ['expired', 'منقضی‌شده‌ها'],
+  ['low_traffic', 'حجم باقی‌مانده کمتر از ۲۰٪'],
+  ['no_push', 'بدون دستگاه Push فعال'],
+  ['unpaid', 'دارای پرداخت معوق'],
+] as const;
 
 type Campaign = {
   id: number | string;
@@ -248,10 +271,16 @@ export function NotificationStatusPage() {
 
 export function NotificationSendPage() {
   const { session } = usePulse();
-  const [target, setTarget] = useState<'all' | 'recipient'>('recipient');
+  const [target, setTarget] = useState<(typeof audienceOptions)[number][0]>('recipient');
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<Recipient[]>([]);
   const [selected, setSelected] = useState<Recipient | null>(null);
+  const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
+  const [templateId, setTemplateId] = useState('');
+  const [templateName, setTemplateName] = useState('');
+  const [audience, setAudience] = useState<{ label?: string; count?: number; sample?: Recipient[] } | null>(null);
+  const [audienceLoading, setAudienceLoading] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [href, setHref] = useState('');
@@ -261,6 +290,40 @@ export function NotificationSendPage() {
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState('');
+
+  const loadTemplates = async () => {
+    try {
+      const response = await fetch('/api/admin/notification-templates', { credentials: 'include' });
+      const result = await response.json().catch(() => null);
+      if (response.ok) setTemplates(Array.isArray(result?.items) ? result.items : []);
+    } catch {
+      // Templates are an enhancement; sending remains available if this request fails.
+    }
+  };
+
+  useEffect(() => {
+    if (session?.role === 'master_admin') void loadTemplates();
+  }, [session?.role]);
+
+  useEffect(() => {
+    if (session?.role !== 'master_admin' || target === 'recipient') {
+      setAudience(null);
+      return;
+    }
+    const controller = new AbortController();
+    setAudienceLoading(true);
+    fetch(`/api/admin/notification-audience?target=${encodeURIComponent(target)}`, { credentials: 'include', signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(errorText(result, 'مخاطبان دریافت نشدند.'));
+        setAudience(result);
+      })
+      .catch((cause) => {
+        if (!(cause instanceof DOMException && cause.name === 'AbortError')) setError(cause instanceof Error ? cause.message : 'مخاطبان دریافت نشدند.');
+      })
+      .finally(() => setAudienceLoading(false));
+    return () => controller.abort();
+  }, [session?.role, target]);
 
   useEffect(() => {
     if (session?.role !== 'master_admin' || target !== 'recipient' || search.trim().length < 2 || selected) {
@@ -330,23 +393,70 @@ export function NotificationSendPage() {
     }
   };
 
+  const applyTemplate = (id: string) => {
+    setTemplateId(id);
+    const template = templates.find((item) => String(item.id) === id);
+    if (!template) return;
+    setTitle(template.title);
+    setBody(template.body);
+    setHref(template.href || '');
+    setActionLabel(template.action_label || '');
+  };
+
+  const saveTemplate = async () => {
+    if (!templateName.trim() || !title.trim() || !body.trim() || hrefError) return;
+    setSavingTemplate(true);
+    setError('');
+    try {
+      const response = await fetch('/api/admin/notification-templates', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: templateName.trim(), title: title.trim(), body: body.trim(), href: href.trim(), action_label: actionLabel.trim() }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(errorText(result, 'ذخیره template انجام نشد.'));
+      setTemplateName('');
+      await loadTemplates();
+      setTemplateId(String(result?.id || ''));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ذخیره template انجام نشد.');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const deleteTemplate = async () => {
+    if (!templateId) return;
+    const response = await fetch(`/api/admin/notification-templates/${encodeURIComponent(templateId)}`, { method: 'DELETE', credentials: 'include' });
+    if (response.ok) {
+      setTemplateId('');
+      await loadTemplates();
+    }
+  };
+
   if (session?.role !== 'master_admin') return <NotificationPageFrame><AdminOnlyNotice /></NotificationPageFrame>;
   return (
     <NotificationPageFrame>
       <PageHeader eyebrow="پیام‌رسانی مشتریان" title="ارسال اعلان" description="یک پیام عملیاتی برای یک مشتری یا کل مشتریان آماده کنید و نتیجه واقعی ارسال را ببینید." action={<Link className="button button-secondary" href="/notification-analytics"><BarChart3 size={15} /> گزارش کمپین‌ها</Link>} />
       <NotificationNav active="send" />
       <form className="panel-card mt-5 max-w-5xl" onSubmit={send}>
-        <div className="grid gap-5 md:grid-cols-2">
-          <label className="field"><span>دامنه ارسال</span><select value={target} onChange={(event) => { setTarget(event.target.value as 'all' | 'recipient'); setSelected(null); setResults([]); }}><option value="recipient">یک مشتری مشخص</option><option value="all">همه مشتریان</option></select></label>
+         <div className="grid gap-5 md:grid-cols-2">
+           <label className="field"><span>دامنه ارسال</span><select value={target} onChange={(event) => { setTarget(event.target.value as (typeof audienceOptions)[number][0]); setSelected(null); setResults([]); }} aria-label="مخاطبان کمپین">{audienceOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           <div className="field"><span>زمان ارسال</span><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /><small className="text-[11px] text-muted-foreground">اختیاری؛ زمان تهران</small></div>
         </div>
-        {target === 'recipient' ? <div className="field mt-5"><span>جست‌وجوی مشتری</span><div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={selected ? selected.name : search} onChange={(event) => { setSelected(null); setSearch(event.target.value); setError(''); }} placeholder="حداقل دو حرف از نام یا شماره موبایل" /></div>{loading ? <p className="mt-2 text-xs text-muted-foreground">در حال جست‌وجو...</p> : results.length > 0 ? <div className="mt-2 list-stack rounded-xl border border-border/60 p-1">{results.map((item) => <button type="button" key={String(item.id)} className="panel-row w-full text-right hover:bg-muted/40" onClick={() => { setSelected(item); setResults([]); }}><div className="avatar avatar-sage">م</div><div className="min-w-0 flex-1"><strong className="block truncate">{item.name}</strong><span className="text-xs text-muted-foreground" dir="ltr">{item.phone || '—'}</span></div><span className="text-xs text-muted-foreground">{faNumber(item.active_devices)} دستگاه</span></button>)}</div> : search.trim().length >= 2 && !selected ? <p className="mt-2 text-xs text-muted-foreground">مشتری پیدا نشد.</p> : null}{selected ? <div className="notice mt-3"><Check size={15} /><span>مخاطب انتخاب‌شده: <strong>{selected.name}</strong></span><button type="button" className="mr-auto text-xs underline" onClick={() => { setSelected(null); setSearch(''); }}>تغییر</button></div> : null}</div> : <div className="notice mt-5"><Users size={15} /><span>پیام برای همه مشتریان ارسال می‌شود.</span></div>}
-        <div className="mt-5 grid gap-5 md:grid-cols-2">
+         {target === 'recipient' ? <div className="field mt-5"><span>جست‌وجوی مشتری</span><div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={selected ? selected.name : search} onChange={(event) => { setSelected(null); setSearch(event.target.value); setError(''); }} placeholder="حداقل دو حرف از نام یا شماره موبایل" /></div>{loading ? <p className="mt-2 text-xs text-muted-foreground">در حال جست‌وجو...</p> : results.length > 0 ? <div className="mt-2 list-stack rounded-xl border border-border/60 p-1">{results.map((item) => <button type="button" key={String(item.id)} className="panel-row w-full text-right hover:bg-muted/40" onClick={() => { setSelected(item); setResults([]); }}><div className="avatar avatar-sage">م</div><div className="min-w-0 flex-1"><strong className="block truncate">{item.name}</strong><span className="text-xs text-muted-foreground" dir="ltr">{item.phone || '—'}</span></div><span className="text-xs text-muted-foreground">{faNumber(item.active_devices)} دستگاه</span></button>)}</div> : search.trim().length >= 2 && !selected ? <p className="mt-2 text-xs text-muted-foreground">مشتری پیدا نشد.</p> : null}{selected ? <div className="notice mt-3"><Check size={15} /><span>مخاطب انتخاب‌شده: <strong>{selected.name}</strong></span><button type="button" className="mr-auto text-xs underline" onClick={() => { setSelected(null); setSearch(''); }}>تغییر</button></div> : null}</div> : <div className="notice mt-5"><Sparkles size={15} /><span>{audienceLoading ? 'در حال محاسبه مخاطبان...' : `${audience?.label || audienceOptions.find(([key]) => key === target)?.[1] || 'مخاطبان'}؛ ${faNumber(audience?.count)} مشتری`}</span></div>}
+         <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
+           <label className="field"><span>Template آماده</span><select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">بدون template</option>{templates.map((template) => <option key={String(template.id)} value={String(template.id)}>{template.name}</option>)}</select></label>
+           <div className="flex items-end gap-2"><input className="min-w-0 flex-1" value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="نام template جدید" /><button className="button button-secondary" type="button" onClick={() => void saveTemplate()} disabled={savingTemplate || !templateName.trim()}><Save size={14} /> ذخیره</button>{templateId ? <button className="icon-button" type="button" onClick={() => void deleteTemplate()} aria-label="حذف template"><Trash2 size={15} /></button> : null}</div>
+         </div>
+         <p className="mt-2 text-xs text-muted-foreground">متغیرهای قابل استفاده: <code>{'{{customer_name}}'}</code>، <code>{'{{expiry_date}}'}</code>، <code>{'{{remaining_gb}}'}</code>، <code>{'{{renewal_link}}'}</code></p>
+         <div className="mt-5 grid gap-5 md:grid-cols-2">
           <label className="field"><span>عنوان اعلان</span><input required maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="مثلاً اختلال کوتاه‌مدت در سرویس" /></label>
           <label className="field"><span>برچسب دکمه</span><input maxLength={40} value={actionLabel} onChange={(event) => setActionLabel(event.target.value)} placeholder="مثلاً مشاهده جزئیات" /></label>
         </div>
         <label className="field mt-5"><span>متن پیام</span><textarea required maxLength={4000} rows={6} value={body} onChange={(event) => setBody(event.target.value)} placeholder="متن دقیق و قابل اقدام پیام را بنویسید." /></label>
-        <label className="field mt-5"><span>لینک داخلی یا HTTPS</span><div className="relative"><Link2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={href} onChange={(event) => setHref(event.target.value)} placeholder="/services یا https://..." /></div>{hrefError ? <small className="text-xs text-destructive">{hrefError}</small> : null}</label>
+         <label className="field mt-5"><span>لینک داخلی یا HTTPS</span><select value="" onChange={(event) => { if (event.target.value) setHref(event.target.value); }}><option value="">لینک سریع انتخاب کنید...</option><option value="/mobile">داشبورد مشتری</option><option value="/mobile/notifications">صندوق اعلان‌ها</option><option value="/mobile/services">سرویس‌های من</option><option value="/mobile/renew">تمدید سرویس</option></select><div className="relative mt-2"><Link2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={href} onChange={(event) => setHref(event.target.value)} placeholder="/services یا https://..." /></div>{hrefError ? <small className="text-xs text-destructive">{hrefError}</small> : null}</label>
         {error ? <div className="login-error mt-4">{error}</div> : null}
         {feedback ? <SendSummary result={feedback} /> : null}
         <div className="mt-5 flex flex-wrap items-center gap-3"><button className="button button-primary" type="submit" disabled={sending || !title.trim() || !body.trim() || Boolean(hrefError) || (target === 'recipient' && !selected)}>{sending ? <><RefreshCw size={14} className="spin" /> در حال ثبت...</> : <><Send size={14} /> {scheduledAt ? 'زمان‌بندی اعلان' : 'ثبت و ارسال اعلان'}</>}</button><span className="text-xs text-muted-foreground"><Smartphone size={13} className="inline ml-1" />تحویل Web Push جداگانه در گزارش ثبت می‌شود.</span></div>

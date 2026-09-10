@@ -652,3 +652,17 @@ mtime_ms = 1789056253949
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f9f3c3a0-75c3-4250-a020-eb8d8aaacb5a/34ce97dd-97df-4ec7-a7a3-fe0182a4959e"
 storage_version_token = "1789056286544819"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "L9xjnuEiJMvkKvZV6g2Sw"
+uri = "file://exports/pulse-whole-app-notification-center-full-hostinger.zip"
+type = "unspecified"
+title = "Pulse full notification center Hostinger ZIP"
+description = "Corrected Hostinger bundle with fresh /panel and /mobile frontend assets, campaign sending, smart audience rules, reusable templates, personalization variables, deep links, scheduling, retry, per-device delivery logs, open/click tracking, and analytics."
+logical_id = "4fc84a8d-46d8-4b9d-bfa6-9eb23dca487a"
+content_hash = "sha256:0e1baed6e0fe07cfb64bec8d25a09d4ff29abb467a26d770ee86c3bd2be14d0f"
+size = 26839648
+mtime_ms = 1789056973341
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4fc84a8d-46d8-4b9d-bfa6-9eb23dca487a/f9067a68-c55a-4909-8944-4b258b3b04a0"
+storage_version_token = "1789057014652217"
+content_type = "application/octet-stream"

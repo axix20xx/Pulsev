@@ -65090,8 +65090,10 @@ var mobileReady = pool.query(`
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
-    last_error TEXT
+    last_error TEXT,
+    personalize SMALLINT NOT NULL DEFAULT 1
   );
+  ALTER TABLE notification_campaigns ADD COLUMN IF NOT EXISTS personalize SMALLINT NOT NULL DEFAULT 1;
   CREATE INDEX IF NOT EXISTS notification_campaigns_status_idx
     ON notification_campaigns (status, scheduled_at);
   CREATE TABLE IF NOT EXISTS notification_campaign_recipients (
@@ -65472,6 +65474,37 @@ var sendMobileNotification = async (input) => {
   let pushDeactivated = 0;
   const pushErrors = /* @__PURE__ */ new Set();
   for (const customerId2 of [...new Set(input.customerIds)]) {
+    const profile = input.personalize ? (await pool.query(
+      `SELECT COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC') AS name, c.phone,
+                  svc.expire_at::text AS expires_at,
+                  CASE WHEN svc.last_remaining_bytes IS NULL THEN svc.gb::float8
+                       ELSE GREATEST(svc.last_remaining_bytes, 0) / 1073741824.0 END AS remaining_gb
+           FROM reseller_customers c
+           LEFT JOIN LATERAL (
+             SELECT expire_at, gb, last_remaining_bytes
+             FROM reseller_services
+             WHERE customer_id = c.id
+             ORDER BY CASE WHEN status <> 'disabled' THEN 0 ELSE 1 END, expire_at DESC NULLS LAST, id DESC
+             LIMIT 1
+           ) svc ON TRUE
+           WHERE c.id = $1
+           LIMIT 1`,
+      [customerId2]
+    )).rows[0] ?? null : null;
+    const variables = {
+      customer_name: profile?.name || "\u0645\u0634\u062A\u0631\u06CC",
+      name: profile?.name || "\u0645\u0634\u062A\u0631\u06CC",
+      phone: profile?.phone || "",
+      expiry_date: profile?.expires_at ? new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeZone: "Asia/Tehran" }).format(new Date(profile.expires_at)) : "",
+      remaining_gb: profile?.remaining_gb == null ? "" : Number(profile.remaining_gb).toFixed(2),
+      service_link: "/mobile",
+      renewal_link: "/mobile"
+    };
+    const render = (value) => String(value ?? "").replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_, key) => variables[key.toLowerCase()] ?? "");
+    const renderedTitle = render(input.title);
+    const renderedBody = render(input.body);
+    const renderedHref = render(input.href ?? "/mobile/notifications");
+    const renderedActionLabel = render(input.actionLabel ?? "");
     const recipient = input.campaignId ? await pool.query(
       `INSERT INTO notification_campaign_recipients (campaign_id, customer_id, inbox_status)
            VALUES ($1, $2, 'queued')
@@ -65489,9 +65522,9 @@ var sendMobileNotification = async (input) => {
         customerId2,
         input.campaignId ?? null,
         `admin:${eventId}:${customerId2}`,
-        input.title,
-        input.body,
-        input.href ?? "/mobile/notifications",
+        renderedTitle,
+        renderedBody,
+        renderedHref,
         input.tone ?? "normal"
       ]
     );
@@ -65508,10 +65541,10 @@ var sendMobileNotification = async (input) => {
       const delivery = await sendPush(customerId2, {
         id: inserted.rows[0].id,
         campaignId: input.campaignId ?? null,
-        title: input.title,
-        body: input.body,
-        href: input.href ?? "/mobile/notifications",
-        actionLabel: input.actionLabel ?? null,
+        title: renderedTitle,
+        body: renderedBody,
+        href: renderedHref,
+        actionLabel: renderedActionLabel || null,
         tone: input.tone ?? "normal"
       });
       activeDevices += delivery.activeDevices;
@@ -65559,7 +65592,7 @@ var runScheduledNotificationCampaigns = async () => {
     `UPDATE notification_campaigns
      SET status = 'sending', started_at = COALESCE(started_at, NOW())
      WHERE status = 'scheduled' AND scheduled_at <= NOW()
-     RETURNING id, title, body, href, action_label, tone`
+     RETURNING id, title, body, href, action_label, tone, personalize`
   );
   for (const campaign of claimed.rows) {
     try {
@@ -65578,7 +65611,8 @@ var runScheduledNotificationCampaigns = async () => {
         body: campaign.body,
         href: campaign.href,
         actionLabel: campaign.action_label,
-        tone: campaign.tone
+        tone: campaign.tone,
+        personalize: campaign.personalize === 1
       });
       await pool.query(
         `UPDATE notification_campaigns
@@ -66148,6 +66182,93 @@ var resellerCostPerGbSql = (alias = "r") => `CASE WHEN ${alias}.tg_id = ${MASTER
 var saleAmountToAdminSql = (saleAlias = "s", resellerAlias = "r") => `CASE WHEN ${saleAlias}.reseller_tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${resellerAlias}.per_gig_price, 0) END`;
 var router3 = (0, import_express3.Router)();
 router3.use(attachAuth);
+var campaignTargets = /* @__PURE__ */ new Set(["all", "recipient", "expiring_3d", "expiring_7d", "expired", "low_traffic", "no_push", "unpaid"]);
+var notificationHref = (value) => {
+  const input = typeof value === "string" ? value.trim() : "";
+  if (!input) return "/mobile/notifications";
+  if (input.startsWith("/") && !input.startsWith("//")) return input.slice(0, 500);
+  return /^https:\/\//i.test(input) ? input.slice(0, 500) : null;
+};
+var resolveCampaignAudience = async (target, recipientId) => {
+  if (target === "recipient") {
+    const result2 = await pool.query(
+      "SELECT id FROM reseller_customers WHERE id = $1 LIMIT 1",
+      [recipientId]
+    );
+    return result2.rows.map((row) => Number(row.id));
+  }
+  const predicates = {
+    all: "TRUE",
+    expiring_3d: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at BETWEEN NOW() AND NOW() + INTERVAL '3 days')",
+    expiring_7d: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at BETWEEN NOW() AND NOW() + INTERVAL '7 days')",
+    expired: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at < NOW())",
+    low_traffic: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.gb > 0 AND COALESCE(svc.last_remaining_bytes, svc.gb * 1073741824) <= svc.gb * 1073741824 * 0.2)",
+    no_push: "NOT EXISTS (SELECT 1 FROM mobile_push_subscriptions mps WHERE mps.customer_id = c.id AND mps.is_active = 1)",
+    unpaid: "EXISTS (SELECT 1 FROM reseller_sales_log sale JOIN reseller_services svc ON svc.id = sale.service_id WHERE svc.customer_id = c.id AND COALESCE(sale.is_paid, 0) = 0)"
+  };
+  const predicate = predicates[target] || predicates.all;
+  const result = await pool.query(`SELECT c.id FROM reseller_customers c WHERE ${predicate} ORDER BY c.id`);
+  return result.rows.map((row) => Number(row.id));
+};
+var campaignTargetLabel = (target) => ({
+  all: "\u0647\u0645\u0647 \u0645\u0634\u062A\u0631\u06CC\u0627\u0646",
+  recipient: "\u0645\u0634\u062A\u0631\u06CC \u0645\u0634\u062E\u0635",
+  expiring_3d: "\u062F\u0631 \u062D\u0627\u0644 \u0627\u0646\u0642\u0636\u0627 \u062A\u0627 \u06F3 \u0631\u0648\u0632",
+  expiring_7d: "\u062F\u0631 \u062D\u0627\u0644 \u0627\u0646\u0642\u0636\u0627 \u062A\u0627 \u06F7 \u0631\u0648\u0632",
+  expired: "\u0645\u0646\u0642\u0636\u06CC\u200C\u0634\u062F\u0647\u200C\u0647\u0627",
+  low_traffic: "\u062D\u062C\u0645 \u0628\u0627\u0642\u06CC\u200C\u0645\u0627\u0646\u062F\u0647 \u06A9\u0645",
+  no_push: "\u0628\u062F\u0648\u0646 \u062F\u0633\u062A\u06AF\u0627\u0647 Push",
+  unpaid: "\u062F\u0627\u0631\u0627\u06CC \u067E\u0631\u062F\u0627\u062E\u062A \u0645\u0639\u0648\u0642"
+})[target] || "\u0645\u062E\u0627\u0637\u0628\u0627\u0646 \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0634\u062F\u0647";
+router3.get("/admin/notification-audience", requireMasterAdmin, async (req, res) => {
+  await Promise.all([managementReady, mobileReady]);
+  const target = typeof req.query.target === "string" && campaignTargets.has(req.query.target) ? req.query.target : "all";
+  const recipientId = Number(req.query.recipient_id);
+  const ids = await resolveCampaignAudience(target, Number.isSafeInteger(recipientId) ? recipientId : void 0);
+  const sample = ids.length ? await pool.query(
+    `SELECT id, COALESCE(full_name, '\u0645\u0634\u062A\u0631\u06CC \u0628\u062F\u0648\u0646 \u0646\u0627\u0645') AS name, phone
+         FROM reseller_customers WHERE id = ANY($1::bigint[]) ORDER BY id LIMIT 8`,
+    [ids]
+  ) : { rows: [] };
+  res.json({ target, label: campaignTargetLabel(target), count: ids.length, sample: sample.rows });
+});
+router3.get("/admin/notification-templates", requireMasterAdmin, async (req, res) => {
+  await mobileReady;
+  const result = await pool.query(
+    `SELECT id, name, notification_type, title, body, href, action_label, tone, created_at, updated_at
+     FROM notification_templates ORDER BY updated_at DESC, id DESC LIMIT 100`
+  );
+  res.json({ items: result.rows });
+});
+router3.post("/admin/notification-templates", requireMasterAdmin, async (req, res) => {
+  await mobileReady;
+  const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 120) : "";
+  const title = typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 120) : "";
+  const body = typeof req.body?.body === "string" ? req.body.body.trim().slice(0, 4e3) : "";
+  const href = notificationHref(req.body?.href);
+  const actionLabel = typeof req.body?.action_label === "string" ? req.body.action_label.trim().slice(0, 80) : null;
+  if (!name || !title || !body || href === null) {
+    res.status(400).json({ error: "\u0646\u0627\u0645 template\u060C \u0639\u0646\u0648\u0627\u0646 \u0648 \u0645\u062A\u0646 \u0631\u0627 \u06A9\u0627\u0645\u0644 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
+    return;
+  }
+  const result = await pool.query(
+    `INSERT INTO notification_templates (name, title, body, href, action_label, tone, updated_at)
+     VALUES ($1, $2, $3, $4, $5, 'normal', NOW())
+     RETURNING id, name, title, body, href, action_label, tone, created_at, updated_at`,
+    [name, title, body, href, actionLabel]
+  );
+  res.status(201).json(result.rows[0]);
+});
+router3.delete("/admin/notification-templates/:id", requireMasterAdmin, async (req, res) => {
+  await mobileReady;
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 template \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  await pool.query("DELETE FROM notification_templates WHERE id = $1", [id]);
+  res.json({ deleted: true });
+});
 router3.get("/admin/notification-recipients", requireMasterAdmin, async (req, res) => {
   await Promise.all([managementReady, mobileReady]);
   const kind = req.query.kind === "reseller" ? "reseller" : "customer";
@@ -66275,33 +66396,33 @@ router3.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res)
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
   const name = typeof req.body?.name === "string" && req.body.name.trim() ? req.body.name.trim().slice(0, 160) : title.slice(0, 160);
-  const hrefInput = typeof req.body?.href === "string" ? req.body.href.trim() : "";
-  const href = !hrefInput ? "/mobile/notifications" : hrefInput.startsWith("/") && !hrefInput.startsWith("//") ? hrefInput.slice(0, 500) : /^https:\/\//i.test(hrefInput) ? hrefInput.slice(0, 500) : null;
+  const href = notificationHref(req.body?.href);
   const actionLabel = typeof req.body?.action_label === "string" ? req.body.action_label.trim().slice(0, 80) : null;
   const scheduledInput = typeof req.body?.scheduled_at === "string" ? req.body.scheduled_at.trim() : "";
   const scheduledAt = scheduledInput ? new Date(scheduledInput) : null;
   const isScheduled = Boolean(scheduledAt && !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() > Date.now() + 5e3);
   const kind = req.body?.recipient_type === "reseller" ? "reseller" : "customer";
-  const target = req.body?.target === "all" ? "all" : "recipient";
+  const requestedTarget = typeof req.body?.target === "string" ? req.body.target : "recipient";
+  const target = campaignTargets.has(requestedTarget) ? requestedTarget : "recipient";
   const recipientId = Number(req.body?.recipient_id ?? req.body?.customer_id);
   if (!title || title.length > 120 || !body || body.length > 4e3 || href === null) {
     res.status(400).json({ error: "\u0639\u0646\u0648\u0627\u0646 \u0648 \u0645\u062A\u0646 \u0627\u0639\u0644\u0627\u0646 \u0631\u0627 \u06A9\u0627\u0645\u0644 \u0648 \u062F\u0631 \u0627\u0646\u062F\u0627\u0632\u0647 \u0645\u062C\u0627\u0632 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
     return;
   }
-  if (target !== "all" && (!Number.isSafeInteger(recipientId) || recipientId <= 0)) {
+  if (target === "recipient" && (!Number.isSafeInteger(recipientId) || recipientId <= 0)) {
     res.status(400).json({ error: "\u0645\u062E\u0627\u0637\u0628 \u0645\u0634\u062E\u0635\u200C\u0634\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
     return;
   }
   if (kind === "customer") {
-    const recipients2 = target === "recipient" ? await pool.query("SELECT id FROM reseller_customers WHERE id = $1 LIMIT 1", [recipientId]) : await pool.query("SELECT id FROM reseller_customers ORDER BY id");
-    if (target === "recipient" && !recipients2.rows[0]) {
+    const recipientIds = await resolveCampaignAudience(target, Number.isSafeInteger(recipientId) ? recipientId : void 0);
+    if (target === "recipient" && !recipientIds[0]) {
       res.status(404).json({ error: "\u0645\u0634\u062A\u0631\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
       return;
     }
     const campaign = await pool.query(
       `INSERT INTO notification_campaigns
-         (name, notification_type, title, body, href, action_label, tone, audience_type, status, scheduled_at, created_by, started_at)
-       VALUES ($1, 'admin_message', $2, $3, $4, $5, 'normal', 'customers', $6, $7, $8, CASE WHEN $6 = 'sending' THEN NOW() ELSE NULL END)
+         (name, notification_type, title, body, href, action_label, tone, audience_type, status, scheduled_at, created_by, started_at, personalize)
+       VALUES ($1, 'admin_message', $2, $3, $4, $5, 'normal', $6, $7, $8, $9, CASE WHEN $7 = 'sending' THEN NOW() ELSE NULL END, 1)
        RETURNING id`,
       [
         name,
@@ -66309,19 +66430,20 @@ router3.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res)
         body,
         href,
         actionLabel,
+        target,
         isScheduled ? "scheduled" : "sending",
         isScheduled ? scheduledAt : null,
         req.auth?.telegramId ?? null
       ]
     );
     const campaignId = Number(campaign.rows[0].id);
-    if (recipients2.rows.length) {
+    if (recipientIds.length) {
       await pool.query(
         `INSERT INTO notification_campaign_recipients (campaign_id, customer_id)
          SELECT $1, recipient.customer_id
          FROM UNNEST($2::bigint[]) AS recipient(customer_id)
          ON CONFLICT (campaign_id, customer_id) DO NOTHING`,
-        [campaignId, recipients2.rows.map((row) => Number(row.id))]
+        [campaignId, recipientIds]
       );
     }
     if (isScheduled) {
@@ -66330,19 +66452,20 @@ router3.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res)
         scheduled: true,
         campaignId,
         kind,
-        targetCount: recipients2.rows.length,
+        targetCount: recipientIds.length,
         scheduledAt: scheduledAt?.toISOString()
       });
       return;
     }
     const result = await sendMobileNotification({
       campaignId,
-      customerIds: recipients2.rows.map((row) => Number(row.id)),
+      customerIds: recipientIds,
       title,
       body,
       href,
       actionLabel,
-      tone: "normal"
+      tone: "normal",
+      personalize: true
     });
     await pool.query(
       `UPDATE notification_campaigns SET status = 'completed', completed_at = NOW() WHERE id = $1`,
@@ -66393,7 +66516,7 @@ router3.get("/admin/notification-campaigns", requireMasterAdmin, async (req, res
   const limit = Number.isSafeInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 30;
   const result = await pool.query(
     `SELECT c.id, c.name, c.notification_type, c.title, c.body, c.href, c.action_label,
-            c.tone, c.audience_type, c.status, c.scheduled_at, c.created_by,
+            c.tone, c.audience_type, c.audience_type AS target, c.status, c.scheduled_at, c.created_by,
             c.created_at, c.started_at, c.completed_at, c.last_error,
             COUNT(DISTINCT cr.id)::int AS target_count,
             COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status IN ('saved', 'push_accepted', 'push_failed', 'inbox_only'))::int AS inbox_saved,
