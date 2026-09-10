@@ -574,3 +574,17 @@ mtime_ms = 1789034594693
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/35046acb-4677-49ac-8197-810130107ef3/1d1a3188-d02e-41c7-bfd7-87bea31fb43a"
 storage_version_token = "1789034619337697"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "hupcMdHOXXNvk67MFB_FJ"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-push-apple-vapid-fix.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle — Apple Push BadJwtToken fix"
+description = "بستهٔ نهایی با VAPID subject معتبر برای Apple Web Push، migration خودکار subjectهای .local، غیرفعال‌سازی subscriptionهای BadJwtToken، و diagnostics کامل ارسال Push."
+logical_id = "b2b6d460-e782-46a1-8f33-d05f6e57cbc4"
+content_hash = "sha256:a5910aa11c611d744631fd2a1bcac1e517bce4a606653612bfd3ce12e8d29579"
+size = 26786496
+mtime_ms = 1789034899489
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b2b6d460-e782-46a1-8f33-d05f6e57cbc4/f47ba09c-50d4-4b1d-ac0a-afec0cc3aee6"
+storage_version_token = "1789034916365171"
+content_type = "application/octet-stream"

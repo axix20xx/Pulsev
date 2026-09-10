@@ -32,3 +32,9 @@ The Push test endpoint must use a unique event key and return delivery metrics; 
 **Why:** Minute-based idempotency prevented repeated tests from actually sending, while swallowed Web Push provider errors made failed delivery look successful.
 
 **How to apply:** Return active-device, attempted, sent, failed, deactivated, and safe error fields to the mobile client, and log the provider status/body server-side without exposing credentials or subscription secrets.
+
+Apple Web Push rejects local VAPID subjects such as `mailto:notifications@pulse.local` with HTTP 403 `BadJwtToken`.
+
+**Why:** iOS Safari/PWA uses Apple Push Service, which requires a valid public-domain URL or email-style VAPID subject; Android/FCM can appear healthy while iOS fails.
+
+**How to apply:** Use a configurable production `VAPID_SUBJECT`, migrate existing `.local` subjects at startup, and deactivate subscriptions that return `BadJwtToken` so the customer can re-register with the current key.

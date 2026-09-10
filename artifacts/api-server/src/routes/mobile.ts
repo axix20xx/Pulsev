@@ -113,17 +113,29 @@ type VapidConfig = {
   vapid_subject: string;
 };
 
+const defaultVapidSubject = "https://vinte.peppernopepper.com";
+const getVapidSubject = () => {
+  const configured = process.env.VAPID_SUBJECT?.trim() || process.env.PUBLIC_APP_URL?.trim();
+  if (configured?.startsWith("https://") || configured?.startsWith("mailto:")) return configured;
+  return defaultVapidSubject;
+};
+
 const mobileVapidReady = mobileReady.then(async () => {
   const existing = await pool.query<VapidConfig>(
     "SELECT vapid_public_key, vapid_private_key, vapid_subject FROM mobile_push_config WHERE id = 1",
   );
-  if (existing.rows[0]) return;
+  if (existing.rows[0]) {
+    if (existing.rows[0].vapid_subject.endsWith(".local") || existing.rows[0].vapid_subject.includes("@localhost")) {
+      await pool.query("UPDATE mobile_push_config SET vapid_subject = $1, updated_at = NOW() WHERE id = 1", [getVapidSubject()]);
+    }
+    return;
+  }
   const keys = webpush.generateVAPIDKeys();
   await pool.query(
     `INSERT INTO mobile_push_config (id, vapid_public_key, vapid_private_key, vapid_subject)
      VALUES (1, $1, $2, $3)
      ON CONFLICT (id) DO NOTHING`,
-    [keys.publicKey, keys.privateKey, "mailto:notifications@pulse.local"],
+    [keys.publicKey, keys.privateKey, getVapidSubject()],
   );
 });
 
@@ -327,15 +339,18 @@ const sendPush = async (customerId: number, notification: { title: string; body:
     } catch (error) {
       const statusCode = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) : 0;
       const responseBody = error && typeof error === "object" && "body" in error && typeof error.body === "string" ? error.body : "";
-      if (statusCode === 404 || statusCode === 410) {
+      const badJwtToken = responseBody.includes("BadJwtToken");
+      if (statusCode === 404 || statusCode === 410 || badJwtToken) {
         await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE id = $1", [subscription.id]);
       }
       logger.warn({ customerId, subscriptionId: subscription.id, statusCode, responseBody: responseBody.slice(0, 300) }, "Mobile Push delivery failed");
       return {
         sent: false,
         failed: true,
-        deactivated: statusCode === 404 || statusCode === 410,
-        error: statusCode === 404 || statusCode === 410
+        deactivated: statusCode === 404 || statusCode === 410 || badJwtToken,
+        error: badJwtToken
+          ? "JWT اعلان معتبر نیست؛ اعلان این دستگاه باید دوباره فعال شود"
+          : statusCode === 404 || statusCode === 410
           ? "اشتراک Push منقضی یا حذف شده است"
           : statusCode === 401 || statusCode === 403
             ? "احراز هویت VAPID توسط سرویس Push رد شد"
