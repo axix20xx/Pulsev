@@ -105,6 +105,7 @@ const generateCustomerMobileOtp = async (id: number) => {
   if (!response.ok) throw new Error(body?.error || 'کد ورود ساخته نشد.');
   return body as { otp: string; expires_at: null; customer: { phone: string } };
 };
+type MobileOtpAccess = { phone?: string | null; otp?: string | null };
 const mobilePortalUrl = () => new URL('/mobile', window.location.origin).toString();
 const subscriptionSecret = (service: Service) => {
   const raw = service.publicSubscriptionUrl ?? service.subscriptionUrl ?? '';
@@ -114,10 +115,13 @@ const subscriptionSecret = (service: Service) => {
     return 'در لینک اشتراک درج شده است';
   }
 };
-const customerWhatsAppMessage = (service: Service, days: number) => `سلام ${service.customerName}، سرویس ${service.plan} شما آماده است.
+const customerWhatsAppMessage = (service: Service, days: number, access: MobileOtpAccess = {}) => `سلام ${service.customerName}، سرویس ${service.plan} شما آماده است.
 
 ورود به پالس:
 ${mobilePortalUrl()}
+
+شماره موبایل ورود: ${access.phone || 'همان شماره ثبت‌شده برای سرویس'}
+کد ورود موبایل (دائمی): ${access.otp || 'از فروشنده یا مدیر اصلی دریافت کنید'}
 
 نام کاربری سرویس: ${service.username}
 رمز سرویس (توکن اشتراک): ${subscriptionSecret(service)}
@@ -940,6 +944,8 @@ function PointOfSaleContent() {
   const [form, setForm] = useState({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', sellPrice: '', isPaid: true });
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [created, setCreated] = useState<Service | null>(null);
+  const [mobileOtp, setMobileOtp] = useState('');
+  const [mobileOtpPhone, setMobileOtpPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [creationSeconds, setCreationSeconds] = useState(0);
   const [error, setError] = useState('');
@@ -960,7 +966,7 @@ function PointOfSaleContent() {
     { gb: 100, days: 90, label: 'حرفه‌ای' },
   ];
   const projectedExpiry = new Date(Date.now() + Number(form.days || 0) * 86_400_000).toISOString();
-  const message = created ? customerWhatsAppMessage(created, Number(form.days)) : '';
+  const message = created ? customerWhatsAppMessage(created, Number(form.days), { phone: mobileOtpPhone || form.phone, otp: mobileOtp }) : '';
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (normalize(form.phone).length < 10 || !form.customerName.trim() || Number(form.gb) <= 0 || Number(form.days) <= 0) {
@@ -979,6 +985,14 @@ function PointOfSaleContent() {
         sell_price: form.sellPrice !== '' ? Number(form.sellPrice) : isReseller && tariffPrice > 0 ? tariffPrice : null,
         is_paid: form.isPaid,
       });
+       try {
+         const mobileAccess = await generateCustomerMobileOtp(Number(service.customerId));
+         setMobileOtp(mobileAccess.otp);
+         setMobileOtpPhone(mobileAccess.customer.phone);
+       } catch {
+         setMobileOtp('');
+         setMobileOtpPhone(form.phone);
+       }
       setCreated(service);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'ثبت فروش و ساخت سرویس انجام نشد.');
@@ -997,6 +1011,8 @@ function PointOfSaleContent() {
   }, [submitting]);
   const reset = () => {
     setCreated(null);
+    setMobileOtp('');
+    setMobileOtpPhone('');
     setForm({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', sellPrice: '', isPaid: true });
     setSelectedCustomerId(null);
     setError('');
@@ -1156,6 +1172,8 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
   const { createService, customers, services, session } = usePulse();
   const [form, setForm] = useState({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', sellPrice: '', isPaid: true });
   const [created, setCreated] = useState<Service | null>(null);
+  const [mobileOtp, setMobileOtp] = useState('');
+  const [mobileOtpPhone, setMobileOtpPhone] = useState('');
   const [step, setStep] = useState(1);
   const [providers, setProviders] = useState<any[]>([]);
   const [providersLoading, setProvidersLoading] = useState(true);
@@ -1219,7 +1237,15 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
         sell_price: form.sellPrice !== '' ? Number(form.sellPrice) : isReseller && lockedSellPrice > 0 ? lockedSellPrice : null,
         is_paid: form.isPaid,
       });
-      setCreated(service);
+       try {
+         const mobileAccess = await generateCustomerMobileOtp(Number(service.customerId));
+         setMobileOtp(mobileAccess.otp);
+         setMobileOtpPhone(mobileAccess.customer.phone);
+       } catch {
+         setMobileOtp('');
+         setMobileOtpPhone(form.phone);
+       }
+       setCreated(service);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'ساخت سرویس انجام نشد.');
     } finally {
@@ -1228,7 +1254,8 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
   };
   if (created) {
     const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl;
-     return <Overlay title="سرویس با موفقیت ساخته شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{created.customerName}</h3><p dir="ltr">@{created.username}</p><p>سرویس روی همه Providerهای آماده و AmneziaWG ساخته و همگام شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک آمادهٔ استفاده است</strong><span>QR را اسکن کنید یا لینک را برای مشتری کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => void copyTextToClipboard(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(created)}><ExternalLink size={15} /> افزودن به V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl}><Wifi size={15} /> دانلود AmneziaWG</a>}</div></>}<div className="pos-message-card mt-5"><div className="panel-heading"><div><p className="eyebrow">پیام آماده واتساپ</p><h3 className="section-title">تحویل اطلاعات به مشتری</h3></div><Button variant="secondary" onClick={() => void copyTextToClipboard(customerWhatsAppMessage(created, Number(form.days)))}><Copy size={14} /> کپی پیام</Button></div><textarea readOnly value={customerWhatsAppMessage(created, Number(form.days))} aria-label="پیام آماده واتساپ برای مشتری" /></div><Button className="mt-5 w-full justify-center" onClick={onClose}>تمام</Button></div></Overlay>;
+    const message = customerWhatsAppMessage(created, Number(form.days), { phone: mobileOtpPhone || form.phone, otp: mobileOtp });
+     return <Overlay title="سرویس با موفقیت ساخته شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{created.customerName}</h3><p dir="ltr">@{created.username}</p><p>سرویس روی همه Providerهای آماده و AmneziaWG ساخته و همگام شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک آمادهٔ استفاده است</strong><span>QR را اسکن کنید یا لینک را برای مشتری کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => void copyTextToClipboard(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(created)}><ExternalLink size={15} /> افزودن به V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl}><Wifi size={15} /> دانلود AmneziaWG</a>}</div></>}<div className="pos-message-card mt-5"><div className="panel-heading"><div><p className="eyebrow">پیام آماده واتساپ</p><h3 className="section-title">تحویل اطلاعات به مشتری</h3></div><Button variant="secondary" onClick={() => void copyTextToClipboard(message)}><Copy size={14} /> کپی پیام</Button></div><textarea readOnly value={message} aria-label="پیام آماده واتساپ برای مشتری" /></div><Button className="mt-5 w-full justify-center" onClick={onClose}>تمام</Button></div></Overlay>;
   }
   if (submitting) {
     const phase = creationSeconds < 2 ? 0 : creationSeconds < 7 ? 1 : creationSeconds < 13 ? 2 : 3;
@@ -1297,6 +1324,8 @@ function LegacyServiceModal({ onClose }: { onClose: () => void }) {
   const { createService, customers, services, session } = usePulse();
   const [form, setForm] = useState({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', sellPrice: '', isPaid: true });
   const [created, setCreated] = useState<Service | null>(null);
+  const [mobileOtp, setMobileOtp] = useState('');
+  const [mobileOtpPhone, setMobileOtpPhone] = useState('');
   const [step, setStep] = useState(1);
   const [providers, setProviders] = useState<any[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -1331,6 +1360,14 @@ function LegacyServiceModal({ onClose }: { onClose: () => void }) {
     setError('');
     try {
       const service = await createService({ customer_name: form.customerName.trim(), phone: form.phone.trim(), label: form.label.trim(), gb: Number(form.gb), days: Number(form.days), sell_price: form.sellPrice !== '' ? Number(form.sellPrice) : isReseller && lockedSellPrice > 0 ? lockedSellPrice : null, is_paid: form.isPaid });
+       try {
+         const mobileAccess = await generateCustomerMobileOtp(Number(service.customerId));
+         setMobileOtp(mobileAccess.otp);
+         setMobileOtpPhone(mobileAccess.customer.phone);
+       } catch {
+         setMobileOtp('');
+         setMobileOtpPhone(form.phone);
+       }
       setCreated(service);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'پنل Rain سرویس را ایجاد نکرد.');
@@ -1338,7 +1375,7 @@ function LegacyServiceModal({ onClose }: { onClose: () => void }) {
       setSubmitting(false);
     }
   };
-   if (created) { const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl; const message = customerWhatsAppMessage(created, Number(form.days)); return <Overlay title="سرویس با موفقیت ساخته شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{created.customerName}</h3><p dir="ltr">@{created.username}</p><p>کاربر روی همه Providerهای آماده ساخته شد و AmneziaWG همگام‌سازی شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک آمادهٔ اسکن است</strong><span>QR را با دوربین موبایل مشتری اسکن کنید یا لینک را کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => void copyTextToClipboard(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(created)}><ExternalLink size={15} /> افزودن به V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl}><Wifi size={15} /> دانلود AmneziaWG</a>}</div></>}<div className="pos-message-card mt-5"><div className="panel-heading"><div><p className="eyebrow">پیام آماده واتساپ</p><h3 className="section-title">تحویل اطلاعات به مشتری</h3></div><Button variant="secondary" onClick={() => void copyTextToClipboard(message)}><Copy size={14} /> کپی پیام</Button></div><textarea readOnly value={message} aria-label="پیام آماده واتساپ برای مشتری" /></div><Button className="mt-5 w-full justify-center" onClick={onClose}>تمام</Button></div></Overlay>; }
+   if (created) { const publicUrl = created.publicSubscriptionUrl ?? created.subscriptionUrl; const message = customerWhatsAppMessage(created, Number(form.days), { phone: mobileOtpPhone || form.phone, otp: mobileOtp }); return <Overlay title="سرویس با موفقیت ساخته شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{created.customerName}</h3><p dir="ltr">@{created.username}</p><p>کاربر روی همه Providerهای آماده ساخته شد و AmneziaWG همگام‌سازی شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک آمادهٔ اسکن است</strong><span>QR را با دوربین موبایل مشتری اسکن کنید یا لینک را کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => void copyTextToClipboard(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(created)}><ExternalLink size={15} /> افزودن به V2Box</a>{created.awgConfigUrl && <a className="button button-secondary" href={created.awgConfigUrl}><Wifi size={15} /> دانلود AmneziaWG</a>}</div></>}<div className="pos-message-card mt-5"><div className="panel-heading"><div><p className="eyebrow">پیام آماده واتساپ</p><h3 className="section-title">تحویل اطلاعات به مشتری</h3></div><Button variant="secondary" onClick={() => void copyTextToClipboard(message)}><Copy size={14} /> کپی پیام</Button></div><textarea readOnly value={message} aria-label="پیام آماده واتساپ برای مشتری" /></div><Button className="mt-5 w-full justify-center" onClick={onClose}>تمام</Button></div></Overlay>; }
   const canContinue = step === 1 ? Boolean(form.customerName.trim() && normalizedPhone(form.phone).length >= 10) : step === 2 ? Number(form.gb) > 0 && Number(form.days) > 0 : providers.length > 0;
   return <Overlay title="ساخت سرویس جدید" onClose={onClose} fullScreen><form onSubmit={submit} className="wizard-shell"><div className="wizard-progress">{['پیدا کردن مشتری', 'بسته و تاریخ', 'تأیید نهایی'].map((label, index) => <div className={step >= index + 1 ? 'active' : ''} key={label}><span>{index + 1}</span><strong>{label}</strong></div>)}</div><div className="wizard-content">{step === 1 && <div className="wizard-step"><div className="wizard-kicker"><span className="wizard-step-number">۰۱</span><span>شروع سریع</span></div><h3>برای چه کسی سرویس می‌سازیم؟</h3><p className="wizard-lede">شماره موبایل را وارد کنید؛ مشتری موجود را هوشمند پیدا می‌کنیم یا همین‌جا مشتری تازه می‌سازیم.</p><div className="finder-card"><div className="finder-icon"><Phone size={22} /></div><div className="finder-copy"><strong>جست‌وجوی سریع با موبایل</strong><span>جست‌وجو با شماره یا نام هم امکان‌پذیر است</span></div><span className="finder-live"><i /> زنده</span></div><label className="finder-input"><Phone size={18} /><input autoFocus inputMode="tel" dir="ltr" value={form.phone} placeholder="۰۹۱۲۱۲۳۴۵۶۷" onChange={(event) => { setForm({ ...form, phone: event.target.value }); setSelectedCustomerId(null); }} /><span>موبایل</span></label>{customerMatches.length > 0 && <div className="finder-results"><p>مشتری‌های پیدا شده</p>{customerMatches.map((customer) => <button type="button" className={`finder-result ${selectedCustomerId === customer.id ? 'selected' : ''}`} key={customer.id} onClick={() => { setSelectedCustomerId(customer.id); setForm({ ...form, customerName: customer.name, phone: customer.phone }); }}><Avatar name={customer.name} color="teal" /><span><strong>{customer.name}</strong><small dir="ltr">{customer.phone}</small></span><Check size={16} /></button>)}</div>}{form.phone && !customerMatches.length && normalizedPhone(form.phone).length >= 10 && <div className="finder-empty"><UserPlus size={17} /><span>مشتری جدید؛ مشخصات را تکمیل کنید.</span></div>}<div className="form-grid finder-details"><Field label="نام مشتری" value={form.customerName} onChange={(customerName) => { setForm({ ...form, customerName }); setSelectedCustomerId(null); }} placeholder="نام و نام خانوادگی" /><Field label="عنوان سرویس" value={form.label} onChange={(label) => setForm({ ...form, label })} placeholder="مثلاً سرویس ویژه" /></div></div>}{step === 2 && <div className="wizard-step"><div className="wizard-kicker"><span className="wizard-step-number">۰۲</span><span>تنظیم دسترسی</span></div><h3>بسته و تاریخ را انتخاب کنید</h3><p className="wizard-lede">حجم را دقیق وارد کنید و مدت سرویس را با پیشنهاد داده‌محور از سابقه مشتری سریع‌تر انتخاب کنید.</p>{smartSuggestion && <div className="smart-suggestion"><div className="smart-suggestion-icon"><Sparkles size={16} /></div><div><strong>پیشنهاد هوشمند</strong><span>بر اساس {smartSuggestion.historyCount} سرویس قبلی این مشتری: {smartSuggestion.gb} گیگ · {smartSuggestion.days} روز</span></div><button type="button" onClick={() => setForm({ ...form, gb: String(smartSuggestion.gb), days: String(smartSuggestion.days) })}>استفاده</button></div>}<div className="form-grid"><Field label="حجم (گیگابایت)" type="number" value={form.gb} onChange={(gb) => setForm({ ...form, gb })} /><label className="field"><span>مدت سفارشی (روز)</span><input type="number" min="1" value={form.days} onChange={(event) => setForm({ ...form, days: event.target.value })} /></label></div><div className="quick-date-block"><div className="quick-date-heading"><CalendarDays size={16} /><span>انتخاب سریع تاریخ انقضا</span></div><div className="quick-date-grid">{dateOptions.map((option) => <button type="button" key={option.days} className={Number(form.days) === option.days ? 'selected' : ''} onClick={() => setForm({ ...form, days: String(option.days) })}><strong>{option.label}</strong><small>{dateLabel(new Date(Date.now() + option.days * 86_400_000).toISOString())}</small></button>)}</div></div><div className="expiry-preview"><CalendarDays size={17} /><div><span>تاریخ انقضای تقریبی</span><strong>{dateLabel(projectedExpiry)}</strong></div><em>{form.days} روز</em></div></div>}{step === 3 && <div className="wizard-step"><div className="wizard-kicker"><span className="wizard-step-number">۰۳</span><span>آماده ساخت</span></div><h3>همه‌چیز آماده است</h3><p className="wizard-lede">با تأیید شما، سرویس هم‌زمان روی همه پنل‌های V2Box آماده و کلاینت AmneziaWG ساخته می‌شود.</p><div className="wizard-summary"><div><span>مشتری</span><strong>{form.customerName}</strong><small dir="ltr">{form.phone}</small></div><div><span>بسته</span><strong>{form.gb} گیگابایت</strong><small>{form.days} روز · {dateLabel(projectedExpiry)}</small></div><div className="summary-wide"><span>مقصد ساخت</span><strong>{providers.map((provider) => provider.key).join('، ') || 'پنل‌های آماده'} + AmneziaWG</strong><small>بدون نیاز به انتخاب دستی؛ همه credentialهای آماده استفاده می‌شوند.</small></div><div><span>ثبت پرداخت</span><button type="button" className={`toggle ${form.isPaid ? 'on' : ''}`} onClick={() => setForm({ ...form, isPaid: !form.isPaid })}><span /></button></div></div><label className="field mt-5"><span>قیمت دلخواه فروش به مشتری (تومان)</span><input type="number" min="0" value={form.sellPrice} placeholder={isReseller && lockedSellPrice > 0 ? `پیشنهادی: ${numberFa(lockedSellPrice, 0)}` : 'برای ثبت در دفتر مالی'} onChange={(event) => setForm({ ...form, sellPrice: event.target.value })} /></label>{isReseller && <p className="text-xs text-muted-foreground mt-2">در صورت خالی گذاشتن، قیمت پیشنهادی مدیر اعمال می‌شود؛ هزینه خرید شما جدا باقی می‌ماند.</p>}{error && <div className="login-error mt-5">{error}</div>}</div>}</div><div className="wizard-footer"><Button variant="secondary" disabled={step === 1 || submitting} onClick={() => setStep((value) => Math.max(1, value - 1))}>مرحله قبل</Button>{step < 3 ? <Button disabled={!canContinue} onClick={() => setStep((value) => Math.min(3, value + 1))}>ادامه <ChevronLeft size={15} /></Button> : <Button type="submit" disabled={submitting || !providers.length} testId="button-save-service">{submitting ? <><RefreshCw size={15} className="spin" /> ساخت روی همه پنل‌ها و AWG...</> : <><Check size={15} /> ساخت نهایی سرویس</>}</Button>}</div></form></Overlay>;
 }
@@ -1351,6 +1388,8 @@ function RenewWizard({ service, onClose, onRenew }: { service: Service; onClose:
   const [submitting, setSubmitting] = useState(false);
   const [renewSeconds, setRenewSeconds] = useState(0);
   const [renewed, setRenewed] = useState<Service | null>(null);
+  const [mobileOtp, setMobileOtp] = useState('');
+  const [mobileOtpPhone, setMobileOtpPhone] = useState('');
   const [error, setError] = useState('');
   const gbOptions = [10, 30, 50, 100];
   const dateOptions = [{ days: 7, label: '۷ روز' }, { days: 30, label: '۳۰ روز' }, { days: 60, label: '۶۰ روز' }, { days: 90, label: '۹۰ روز' }, { days: 180, label: '۶ ماه' }];
@@ -1366,7 +1405,7 @@ function RenewWizard({ service, onClose, onRenew }: { service: Service; onClose:
     const timer = window.setInterval(() => setRenewSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, [submitting]);
-  const submit = async () => { setSubmitting(true); setError(''); try { const result = await onRenew(service, Number(days), Number(gb)); setRenewed(result); } catch (cause) { setError(describeApiError(cause)); } finally { setSubmitting(false); } };
+  const submit = async () => { setSubmitting(true); setError(''); try { const result = await onRenew(service, Number(days), Number(gb)); try { const mobileAccess = await generateCustomerMobileOtp(Number(result.customerId)); setMobileOtp(mobileAccess.otp); setMobileOtpPhone(mobileAccess.customer.phone); } catch { setError('تمدید انجام شد؛ ساخت کد ورود موبایل را از صفحه مشتری انجام دهید.'); } setRenewed(result); } catch (cause) { setError(describeApiError(cause)); } finally { setSubmitting(false); } };
   if (submitting) {
     const phase = renewSeconds < 2 ? 0 : renewSeconds < 7 ? 1 : renewSeconds < 13 ? 2 : 3;
     const phases = [
@@ -1379,7 +1418,8 @@ function RenewWizard({ service, onClose, onRenew }: { service: Service; onClose:
   }
   if (renewed) {
     const publicUrl = renewed.publicSubscriptionUrl ?? renewed.subscriptionUrl;
-    return <Overlay title="تمدید با موفقیت انجام شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{renewed.customerName}</h3><p dir="ltr">@{renewed.username}</p><p>بسته روی تمام Providerهای آماده تمدید و کانفیگ جدید AmneziaWG ساخته شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک جدید آمادهٔ اسکن است</strong><span>QR را اسکن کنید یا لینک را برای مشتری کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => void copyTextToClipboard(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(renewed)}><ExternalLink size={15} /> افزودن به V2Box</a>{renewed.awgConfigUrl && <a className="button button-secondary" href={renewed.awgConfigUrl} download={`pulse-${renewed.username}.conf`}><Download size={15} /> دانلود AWG جدید</a>}</div></>}</div></Overlay>;
+    const message = customerWhatsAppMessage(renewed, Number(days), { phone: mobileOtpPhone, otp: mobileOtp });
+    return <Overlay title="تمدید با موفقیت انجام شد" onClose={onClose} fullScreen><div className="service-success wizard-success"><div className="success-check"><Check size={28} /></div><h3>{renewed.customerName}</h3><p dir="ltr">@{renewed.username}</p><p>بسته روی تمام Providerهای آماده تمدید و کانفیگ جدید AmneziaWG ساخته شد.</p>{publicUrl && <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl} /><div className="subscription-share-copy"><strong>اشتراک جدید آمادهٔ اسکن است</strong><span>QR را اسکن کنید یا لینک را برای مشتری کپی کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => void copyTextToClipboard(publicUrl)}><Copy size={15} /> کپی لینک</button><a className="button button-primary" href={v2boxUrl(renewed)}><ExternalLink size={15} /> افزودن به V2Box</a>{renewed.awgConfigUrl && <a className="button button-secondary" href={renewed.awgConfigUrl} download={`pulse-${renewed.username}.conf`}><Download size={15} /> دانلود AWG جدید</a>}</div></>}<div className="pos-message-card mt-5"><div className="panel-heading"><div><p className="eyebrow">پیام آماده واتساپ تمدید</p><h3 className="section-title">ارسال اطلاعات جدید به مشتری</h3></div><Button variant="secondary" onClick={() => void copyTextToClipboard(message)}><Copy size={14} /> کپی پیام واتساپ</Button></div><textarea readOnly value={message} aria-label="پیام آماده واتساپ تمدید" /></div></div></Overlay>;
   }
   return <Overlay title="تمدید سرویس" onClose={onClose} fullScreen><div className="wizard-shell">
     <div className="wizard-progress">{['حجم و تاریخ', 'Providerها', 'تأیید'].map((label, index) => <div className={step >= index + 1 ? 'active' : ''} key={label}><span>{index + 1}</span><strong>{label}</strong></div>)}</div>
@@ -1917,7 +1957,7 @@ function CustomerDetailContent() {
   const customerServices = {
     length: visibleCustomerServices.length,
     map: (render: (service: Service) => ReactNode) => [
-       (session?.role === 'reseller' || session?.role === 'master_admin') ? <div className="customer-mobile-otp-action" key="customer-mobile-otp"><Button variant="secondary" onClick={() => void requestMobileOtp()} disabled={mobileOtpLoading}><KeyRound size={14} />{mobileOtpLoading ? 'در حال ساخت کد...' : mobileOtp ? 'ساخت کد تازه' : 'ساخت کد ورود موبایل'}</Button>{allCustomerServices[0] ? <Button variant="quiet" onClick={() => void copyTextToClipboard(customerWhatsAppMessage(allCustomerServices[0], Math.max(0, daysUntil(allCustomerServices[0].expiresAt))))}><Copy size={14} /> کپی پیام واتساپ</Button> : null}</div> : null,
+       (session?.role === 'reseller' || session?.role === 'master_admin') ? <div className="customer-mobile-otp-action" key="customer-mobile-otp"><Button variant="secondary" onClick={() => void requestMobileOtp()} disabled={mobileOtpLoading}><KeyRound size={14} />{mobileOtpLoading ? 'در حال ساخت کد...' : mobileOtp ? 'ساخت کد تازه' : 'ساخت کد ورود موبایل'}</Button>{allCustomerServices[0] ? <Button variant="quiet" onClick={() => void copyTextToClipboard(customerWhatsAppMessage(allCustomerServices[0], Math.max(0, daysUntil(allCustomerServices[0].expiresAt)), { phone: customer?.phone, otp: mobileOtp }))}><Copy size={14} /> کپی پیام واتساپ</Button> : null}</div> : null,
        <CustomerServiceControls key="customer-service-controls" services={allCustomerServices} tab={serviceTab} issueFilter={serviceIssueFilter} search={serviceSearch} onTabChange={setServiceTab} onIssueFilterChange={setServiceIssueFilter} onSearchChange={setServiceSearch} />,
       ...visibleCustomerServices.map(render),
     ],
@@ -1954,7 +1994,7 @@ function CustomerDetailContent() {
      try {
        const result = await generateCustomerMobileOtp(numericId);
        setMobileOtp(result.otp);
-       setNotice(`کد ورود ۴ رقمی مشتری ساخته شد: ${result.otp} · این کد منقضی نمی‌شود و فقط یک‌بار قابل استفاده است.`);
+       setNotice(`کد ورود ۴ رقمی مشتری ساخته شد: ${result.otp} · این کد دائمی است و تا زمان ساخت کد جدید قابل استفاده است.`);
      } catch (cause) {
        setNotice(cause instanceof Error ? cause.message : 'ساخت کد ورود انجام نشد.');
      } finally {

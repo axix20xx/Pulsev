@@ -504,3 +504,17 @@ mtime_ms = 1789028734258
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/baf3e71b-743c-4574-9a13-dd094e37cfba/e597fa90-02d3-4ab5-acde-c11d273894a6"
 storage_version_token = "1789028751240033"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "n0SAInD82Gq-I4HOemQCf"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-otp-permanent.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle — permanent mobile OTP"
+description = "بستهٔ کامل Hostinger شامل API، پنل /panel و PWA مشتری /mobile با OTP دائمی و پیام کامل واتساپ برای ساخت، تمدید و کپی پیام."
+logical_id = "57874443-4073-4e63-a8dc-2e8006a14c67"
+content_hash = "sha256:690547bde42d1d527d96c103cffe8125b8bbffe13e038b95cb0876ec3fbe93be"
+size = 26770916
+mtime_ms = 1789032599402
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/57874443-4073-4e63-a8dc-2e8006a14c67/8f8ea3b5-f9d8-46ab-b245-3888b6ae9ee4"
+storage_version_token = "1789032631028420"
+content_type = "application/octet-stream"

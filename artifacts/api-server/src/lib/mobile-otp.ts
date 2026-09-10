@@ -85,7 +85,6 @@ export const consumeMobileOtp = async (
     const row = result.rows[0];
     const valid =
       Boolean(row) &&
-      !row.used_at &&
       Number(row.attempts) < 5 &&
       hashOtp(challengeId, otp) === row.otp_hash;
     if (!row) {
@@ -100,12 +99,12 @@ export const consumeMobileOtp = async (
         [challengeId],
       );
       await client.query("COMMIT");
-      return { ok: false as const, reason: "کد ورود نادرست، مصرف‌شده یا بیش از حد تلاش‌شده است." };
+      return { ok: false as const, reason: "کد ورود نادرست یا بیش از حد تلاش‌شده است." };
     }
     await client.query(
        `UPDATE mobile_login_otps
-        SET used_at = NOW()
-        WHERE id = $1 AND used_at IS NULL`,
+        SET attempts = 0
+        WHERE id = $1`,
       [challengeId],
     );
     await client.query("COMMIT");
