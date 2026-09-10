@@ -602,3 +602,10 @@ mtime_ms = 1789035850033
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/347471ff-9713-4a29-841c-e59a3a53708e/b6b12e96-6db1-45b0-9035-a224ceb756c6"
 storage_version_token = "1789035871910180"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "kSCssrp3hqIbQau6FpSwV"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-otp-push-autodetect-mobile-modal-fix.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle — mobile modal fix"
+description = "بستهٔ کامل Hostinger شامل اصلاح modal موبایل و حذف window.confirm مشکل‌ساز در Safari/PWA، به‌همراه OTP آخرین کد فعال، Push auto-detection، اصلاح VAPID اپل، پنل، موبایل و API."
