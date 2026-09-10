@@ -587,8 +587,8 @@ export const sendMobileNotification = async (input: {
   const pushErrors = new Set<string>();
   for (const customerId of [...new Set(input.customerIds)]) {
     const profile = input.personalize
-      ? (await pool.query<{ name: string; phone: string | null; expires_at: string | null; remaining_gb: number | null }>(
-          `SELECT COALESCE(c.full_name, 'مشتری') AS name, c.phone,
+      ? (await pool.query<{ name: string; phone: string | null; plan: string | null; expires_at: string | null; remaining_gb: number | null }>(
+          `SELECT COALESCE(c.full_name, 'مشتری') AS name, c.phone, svc.label AS plan,
                   svc.expire_at::text AS expires_at,
                   CASE WHEN svc.last_remaining_bytes IS NULL THEN svc.gb::float8
                        ELSE GREATEST(svc.last_remaining_bytes, 0) / 1073741824.0 END AS remaining_gb
@@ -609,10 +609,13 @@ export const sendMobileNotification = async (input: {
       customer_name: profile?.name || "مشتری",
       name: profile?.name || "مشتری",
       phone: profile?.phone || "",
+      service_name: profile?.plan || "اشتراک",
       expiry_date: profile?.expires_at ? new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeZone: "Asia/Tehran" }).format(new Date(profile.expires_at)) : "",
       remaining_gb: profile?.remaining_gb == null ? "" : Number(profile.remaining_gb).toFixed(2),
       service_link: "/mobile",
       renewal_link: "/mobile",
+      subscription_link: input.href || "/mobile/notifications",
+      qr_link: input.href || "/mobile/notifications",
     };
     const render = (value: string | null | undefined) => String(value ?? "").replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_, key: string) => variables[key.toLowerCase()] ?? "");
     const renderedTitle = render(input.title);

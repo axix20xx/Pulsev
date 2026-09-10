@@ -65475,7 +65475,7 @@ var sendMobileNotification = async (input) => {
   const pushErrors = /* @__PURE__ */ new Set();
   for (const customerId2 of [...new Set(input.customerIds)]) {
     const profile = input.personalize ? (await pool.query(
-      `SELECT COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC') AS name, c.phone,
+      `SELECT COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC') AS name, c.phone, svc.label AS plan,
                   svc.expire_at::text AS expires_at,
                   CASE WHEN svc.last_remaining_bytes IS NULL THEN svc.gb::float8
                        ELSE GREATEST(svc.last_remaining_bytes, 0) / 1073741824.0 END AS remaining_gb
@@ -65495,10 +65495,13 @@ var sendMobileNotification = async (input) => {
       customer_name: profile?.name || "\u0645\u0634\u062A\u0631\u06CC",
       name: profile?.name || "\u0645\u0634\u062A\u0631\u06CC",
       phone: profile?.phone || "",
+      service_name: profile?.plan || "\u0627\u0634\u062A\u0631\u0627\u06A9",
       expiry_date: profile?.expires_at ? new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeZone: "Asia/Tehran" }).format(new Date(profile.expires_at)) : "",
       remaining_gb: profile?.remaining_gb == null ? "" : Number(profile.remaining_gb).toFixed(2),
       service_link: "/mobile",
-      renewal_link: "/mobile"
+      renewal_link: "/mobile",
+      subscription_link: input.href || "/mobile/notifications",
+      qr_link: input.href || "/mobile/notifications"
     };
     const render = (value) => String(value ?? "").replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_, key) => variables[key.toLowerCase()] ?? "");
     const renderedTitle = render(input.title);
@@ -66231,6 +66234,42 @@ router3.get("/admin/notification-audience", requireMasterAdmin, async (req, res)
     [ids]
   ) : { rows: [] };
   res.json({ target, label: campaignTargetLabel(target), count: ids.length, sample: sample.rows });
+});
+router3.get("/admin/notification-subscriptions", requireMasterAdmin, async (req, res) => {
+  await Promise.all([managementReady, mobileReady]);
+  const customerId2 = Number(req.query.customer_id);
+  if (!Number.isSafeInteger(customerId2) || customerId2 <= 0) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0645\u0634\u062A\u0631\u06CC \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  const result = await pool.query(
+    `SELECT svc.id, COALESCE(svc.label, '\u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u062F\u0648\u0646 \u0646\u0627\u0645') AS plan, svc.status,
+            svc.expire_at::text AS expires_at, svc.gb::float8 AS limit_gb,
+            (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
+            GREATEST(COALESCE(svc.last_remaining_bytes, svc.gb * 1073741824), 0) / 1073741824.0 AS remaining_gb,
+            rst.token, svc.awg_client_id
+     FROM reseller_services svc
+     LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
+     WHERE svc.customer_id = $1
+     ORDER BY CASE WHEN svc.status <> 'disabled' THEN 0 ELSE 1 END, svc.expire_at DESC NULLS LAST, svc.id DESC`,
+    [customerId2]
+  );
+  res.json({
+    items: result.rows.map((row) => ({
+      id: row.id,
+      plan: row.plan,
+      status: row.status,
+      expires_at: row.expires_at,
+      limit_gb: Number(row.limit_gb || 0),
+      used_gb: Number(Number(row.used_gb || 0).toFixed(2)),
+      remaining_gb: Number(Number(row.remaining_gb || 0).toFixed(2)),
+      public_url: row.token ? `/sub?t=${encodeURIComponent(row.token)}` : null,
+      qr_url: row.token ? `/sub?t=${encodeURIComponent(row.token)}&qr=1` : null,
+      subscription_url: row.token ? `/api/public/subscription/${encodeURIComponent(row.token)}/feed` : null,
+      awg_url: row.token && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(row.token)}/awg` : null,
+      renew_url: `/login?next=${encodeURIComponent(`/services?renew=${row.id}`)}`
+    }))
+  });
 });
 router3.get("/admin/notification-templates", requireMasterAdmin, async (req, res) => {
   await mobileReady;

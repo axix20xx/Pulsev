@@ -666,3 +666,17 @@ mtime_ms = 1789056973341
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4fc84a8d-46d8-4b9d-bfa6-9eb23dca487a/f9067a68-c55a-4909-8944-4b258b3b04a0"
 storage_version_token = "1789057014652217"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "RA9xbf2Xyc48tO4nvhhNO"
+uri = "file://exports/pulse-whole-app-notification-center-subscription-qr-full.zip"
+type = "unspecified"
+title = "Pulse notification and subscription QR Hostinger ZIP"
+description = "Final Hostinger bundle with customer subscription selection, exact subscription/public/feed/AWG/renewal links, QR deep links that open the subscription QR modal, reusable templates, smart audiences, personalization, scheduling, retry, delivery logs, and analytics."
+logical_id = "ec2f3b4d-21b4-4a33-a77c-905b1765c7e7"
+content_hash = "sha256:70d0966b6768693172786fa77bcf4d7667eb0110e2dde7d032e371cbf193dc70"
+size = 26842600
+mtime_ms = 1789057985354
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ec2f3b4d-21b4-4a33-a77c-905b1765c7e7/faa91fb3-809c-47b5-be38-fc77a92716ad"
+storage_version_token = "1789058026533181"
+content_type = "application/octet-stream"

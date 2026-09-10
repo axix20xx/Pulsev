@@ -50,3 +50,9 @@ Campaign analytics must keep inbox persistence, Push-provider acceptance, and cu
 **Why:** Web Push can accept a request without proving that a phone displayed it, while inbox delivery can succeed when no device is active; collapsing these states creates misleading delivery reports.
 
 **How to apply:** Campaign summaries should expose target/inbox/accepted/failed/deactivated/opened/clicked counts, and retry/failure views should retain provider status and safe error details per device.
+
+When sending a customer message, the admin flow should resolve the customer’s owned subscription before offering a link or QR action; public subscription links and QR routes must stay token-scoped.
+
+**Why:** A generic dashboard link is not enough for support and renewal workflows, and choosing a token without an ownership-bound lookup risks sending the wrong customer’s subscription.
+
+**How to apply:** Offer page, QR-page, feed, AWG, and renewal links from the selected service record, and make QR deep links open the QR view for that exact token.

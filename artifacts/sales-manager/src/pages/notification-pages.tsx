@@ -47,6 +47,21 @@ type NotificationTemplate = {
   action_label?: string | null;
 };
 
+type NotificationSubscription = {
+  id: number | string;
+  plan: string;
+  status: string;
+  expires_at?: string | null;
+  limit_gb?: number;
+  used_gb?: number;
+  remaining_gb?: number;
+  public_url?: string | null;
+  qr_url?: string | null;
+  subscription_url?: string | null;
+  awg_url?: string | null;
+  renew_url?: string | null;
+};
+
 const audienceOptions = [
   ['recipient', 'یک مشتری مشخص'],
   ['all', 'همه مشتریان'],
@@ -275,6 +290,10 @@ export function NotificationSendPage() {
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<Recipient[]>([]);
   const [selected, setSelected] = useState<Recipient | null>(null);
+  const [subscriptions, setSubscriptions] = useState<NotificationSubscription[]>([]);
+  const [subscriptionId, setSubscriptionId] = useState('');
+  const [subscriptionLinkType, setSubscriptionLinkType] = useState<'public' | 'qr' | 'feed' | 'awg' | 'renew'>('public');
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [templateId, setTemplateId] = useState('');
   const [templateName, setTemplateName] = useState('');
@@ -348,6 +367,44 @@ export function NotificationSendPage() {
     }, 250);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [search, selected, session?.role, target]);
+
+  useEffect(() => {
+    if (session?.role !== 'master_admin' || target !== 'recipient' || !selected?.id) {
+      setSubscriptions([]);
+      setSubscriptionId('');
+      return;
+    }
+    const controller = new AbortController();
+    setSubscriptionLoading(true);
+    fetch(`/api/admin/notification-subscriptions?customer_id=${encodeURIComponent(String(selected.id))}`, { credentials: 'include', signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(errorText(result, 'اشتراک‌های مشتری دریافت نشد.'));
+        const items = Array.isArray(result?.items) ? result.items as NotificationSubscription[] : [];
+        setSubscriptions(items);
+        setSubscriptionId((current) => current && items.some((item) => String(item.id) === current) ? current : items[0] ? String(items[0].id) : '');
+      })
+      .catch((cause) => {
+        if (!(cause instanceof DOMException && cause.name === 'AbortError')) setError(cause instanceof Error ? cause.message : 'اشتراک‌های مشتری دریافت نشد.');
+      })
+      .finally(() => setSubscriptionLoading(false));
+    return () => controller.abort();
+  }, [selected?.id, session?.role, target]);
+
+  const selectedSubscription = subscriptions.find((item) => String(item.id) === subscriptionId) || null;
+  useEffect(() => {
+    if (!selectedSubscription) return;
+    const link = subscriptionLinkType === 'public'
+      ? selectedSubscription.public_url
+      : subscriptionLinkType === 'qr'
+        ? selectedSubscription.qr_url
+        : subscriptionLinkType === 'feed'
+          ? selectedSubscription.subscription_url
+          : subscriptionLinkType === 'awg'
+            ? selectedSubscription.awg_url
+            : selectedSubscription.renew_url;
+    if (link) setHref(link);
+  }, [selectedSubscription, subscriptionLinkType]);
 
   const hrefError = href.trim() && !href.trim().startsWith('/') && !/^https:\/\//i.test(href.trim())
     ? 'لینک باید داخلی باشد یا با https:// شروع شود.'
@@ -445,12 +502,12 @@ export function NotificationSendPage() {
            <label className="field"><span>دامنه ارسال</span><select value={target} onChange={(event) => { setTarget(event.target.value as (typeof audienceOptions)[number][0]); setSelected(null); setResults([]); }} aria-label="مخاطبان کمپین">{audienceOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           <div className="field"><span>زمان ارسال</span><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /><small className="text-[11px] text-muted-foreground">اختیاری؛ زمان تهران</small></div>
         </div>
-         {target === 'recipient' ? <div className="field mt-5"><span>جست‌وجوی مشتری</span><div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={selected ? selected.name : search} onChange={(event) => { setSelected(null); setSearch(event.target.value); setError(''); }} placeholder="حداقل دو حرف از نام یا شماره موبایل" /></div>{loading ? <p className="mt-2 text-xs text-muted-foreground">در حال جست‌وجو...</p> : results.length > 0 ? <div className="mt-2 list-stack rounded-xl border border-border/60 p-1">{results.map((item) => <button type="button" key={String(item.id)} className="panel-row w-full text-right hover:bg-muted/40" onClick={() => { setSelected(item); setResults([]); }}><div className="avatar avatar-sage">م</div><div className="min-w-0 flex-1"><strong className="block truncate">{item.name}</strong><span className="text-xs text-muted-foreground" dir="ltr">{item.phone || '—'}</span></div><span className="text-xs text-muted-foreground">{faNumber(item.active_devices)} دستگاه</span></button>)}</div> : search.trim().length >= 2 && !selected ? <p className="mt-2 text-xs text-muted-foreground">مشتری پیدا نشد.</p> : null}{selected ? <div className="notice mt-3"><Check size={15} /><span>مخاطب انتخاب‌شده: <strong>{selected.name}</strong></span><button type="button" className="mr-auto text-xs underline" onClick={() => { setSelected(null); setSearch(''); }}>تغییر</button></div> : null}</div> : <div className="notice mt-5"><Sparkles size={15} /><span>{audienceLoading ? 'در حال محاسبه مخاطبان...' : `${audience?.label || audienceOptions.find(([key]) => key === target)?.[1] || 'مخاطبان'}؛ ${faNumber(audience?.count)} مشتری`}</span></div>}
+         {target === 'recipient' ? <div className="field mt-5"><span>جست‌وجوی مشتری</span><div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={selected ? selected.name : search} onChange={(event) => { setSelected(null); setSearch(event.target.value); setError(''); }} placeholder="حداقل دو حرف از نام یا شماره موبایل" /></div>{loading ? <p className="mt-2 text-xs text-muted-foreground">در حال جست‌وجو...</p> : results.length > 0 ? <div className="mt-2 list-stack rounded-xl border border-border/60 p-1">{results.map((item) => <button type="button" key={String(item.id)} className="panel-row w-full text-right hover:bg-muted/40" onClick={() => { setSelected(item); setResults([]); }}><div className="avatar avatar-sage">م</div><div className="min-w-0 flex-1"><strong className="block truncate">{item.name}</strong><span className="text-xs text-muted-foreground" dir="ltr">{item.phone || '—'}</span></div><span className="text-xs text-muted-foreground">{faNumber(item.active_devices)} دستگاه</span></button>)}</div> : search.trim().length >= 2 && !selected ? <p className="mt-2 text-xs text-muted-foreground">مشتری پیدا نشد.</p> : null}{selected ? <div className="notice mt-3"><Check size={15} /><span>مخاطب انتخاب‌شده: <strong>{selected.name}</strong></span><button type="button" className="mr-auto text-xs underline" onClick={() => { setSelected(null); setSearch(''); }}>تغییر</button></div> : null}<div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4"><div className="flex items-center gap-2 text-sm font-bold"><Link2 size={15} />اشتراک اختصاصی مشتری</div>{subscriptionLoading ? <p className="mt-2 text-xs text-muted-foreground">در حال دریافت اشتراک‌ها...</p> : subscriptions.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">برای این مشتری subscription قابل ارسال پیدا نشد.</p> : <div className="mt-3 grid gap-3 md:grid-cols-2"><label className="field"><span>انتخاب subscription</span><select value={subscriptionId} onChange={(event) => setSubscriptionId(event.target.value)}>{subscriptions.map((item) => <option key={String(item.id)} value={String(item.id)}>{item.plan} · {faNumber(item.remaining_gb)}GB باقی‌مانده · {item.status}</option>)}</select></label><label className="field"><span>لینک ارسالی</span><select value={subscriptionLinkType} onChange={(event) => setSubscriptionLinkType(event.target.value as typeof subscriptionLinkType)}><option value="public">صفحه اشتراک</option><option value="qr">صفحه QR اشتراک</option><option value="feed">لینک اتصال / Feed</option><option value="awg" disabled={!selectedSubscription?.awg_url}>کانفیگ AmneziaWG</option><option value="renew">تمدید همین سرویس</option></select></label></div>}{selectedSubscription ? <p className="mt-3 text-[11px] text-muted-foreground" dir="ltr">{href}</p> : null}</div></div> : <div className="notice mt-5"><Sparkles size={15} /><span>{audienceLoading ? 'در حال محاسبه مخاطبان...' : `${audience?.label || audienceOptions.find(([key]) => key === target)?.[1] || 'مخاطبان'}؛ ${faNumber(audience?.count)} مشتری`}</span></div>}
          <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
            <label className="field"><span>Template آماده</span><select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">بدون template</option>{templates.map((template) => <option key={String(template.id)} value={String(template.id)}>{template.name}</option>)}</select></label>
            <div className="flex items-end gap-2"><input className="min-w-0 flex-1" value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="نام template جدید" /><button className="button button-secondary" type="button" onClick={() => void saveTemplate()} disabled={savingTemplate || !templateName.trim()}><Save size={14} /> ذخیره</button>{templateId ? <button className="icon-button" type="button" onClick={() => void deleteTemplate()} aria-label="حذف template"><Trash2 size={15} /></button> : null}</div>
          </div>
-         <p className="mt-2 text-xs text-muted-foreground">متغیرهای قابل استفاده: <code>{'{{customer_name}}'}</code>، <code>{'{{expiry_date}}'}</code>، <code>{'{{remaining_gb}}'}</code>، <code>{'{{renewal_link}}'}</code></p>
+          <p className="mt-2 text-xs text-muted-foreground">متغیرهای قابل استفاده: <code>{'{{customer_name}}'}</code>، <code>{'{{service_name}}'}</code>، <code>{'{{expiry_date}}'}</code>، <code>{'{{remaining_gb}}'}</code>، <code>{'{{subscription_link}}'}</code>، <code>{'{{qr_link}}'}</code>، <code>{'{{renewal_link}}'}</code></p>
          <div className="mt-5 grid gap-5 md:grid-cols-2">
           <label className="field"><span>عنوان اعلان</span><input required maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="مثلاً اختلال کوتاه‌مدت در سرویس" /></label>
           <label className="field"><span>برچسب دکمه</span><input maxLength={40} value={actionLabel} onChange={(event) => setActionLabel(event.target.value)} placeholder="مثلاً مشاهده جزئیات" /></label>

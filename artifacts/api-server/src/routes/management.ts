@@ -151,6 +151,53 @@ router.get("/admin/notification-audience", requireMasterAdmin, async (req, res):
   res.json({ target, label: campaignTargetLabel(target), count: ids.length, sample: sample.rows });
 });
 
+router.get("/admin/notification-subscriptions", requireMasterAdmin, async (req, res): Promise<void> => {
+  await Promise.all([managementReady, mobileReady]);
+  const customerId = Number(req.query.customer_id);
+  if (!Number.isSafeInteger(customerId) || customerId <= 0) {
+    res.status(400).json({ error: "شناسه مشتری معتبر نیست." });
+    return;
+  }
+  const result = await pool.query<{
+    id: number;
+    plan: string;
+    status: string;
+    expires_at: string | null;
+    limit_gb: number;
+    used_gb: number;
+    remaining_gb: number;
+    token: string | null;
+    awg_client_id: string | null;
+  }>(
+    `SELECT svc.id, COALESCE(svc.label, 'اشتراک بدون نام') AS plan, svc.status,
+            svc.expire_at::text AS expires_at, svc.gb::float8 AS limit_gb,
+            (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
+            GREATEST(COALESCE(svc.last_remaining_bytes, svc.gb * 1073741824), 0) / 1073741824.0 AS remaining_gb,
+            rst.token, svc.awg_client_id
+     FROM reseller_services svc
+     LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
+     WHERE svc.customer_id = $1
+     ORDER BY CASE WHEN svc.status <> 'disabled' THEN 0 ELSE 1 END, svc.expire_at DESC NULLS LAST, svc.id DESC`,
+    [customerId],
+  );
+  res.json({
+    items: result.rows.map((row) => ({
+      id: row.id,
+      plan: row.plan,
+      status: row.status,
+      expires_at: row.expires_at,
+      limit_gb: Number(row.limit_gb || 0),
+      used_gb: Number(Number(row.used_gb || 0).toFixed(2)),
+      remaining_gb: Number(Number(row.remaining_gb || 0).toFixed(2)),
+      public_url: row.token ? `/sub?t=${encodeURIComponent(row.token)}` : null,
+      qr_url: row.token ? `/sub?t=${encodeURIComponent(row.token)}&qr=1` : null,
+      subscription_url: row.token ? `/api/public/subscription/${encodeURIComponent(row.token)}/feed` : null,
+      awg_url: row.token && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(row.token)}/awg` : null,
+      renew_url: `/login?next=${encodeURIComponent(`/services?renew=${row.id}`)}`,
+    })),
+  });
+});
+
 router.get("/admin/notification-templates", requireMasterAdmin, async (req, res): Promise<void> => {
   await mobileReady;
   const result = await pool.query(

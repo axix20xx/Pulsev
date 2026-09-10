@@ -2399,6 +2399,7 @@ function PublicSubscriptionContentV2() {
   const [shared, setShared] = useState(false);
   const [awgOpen, setAwgOpen] = useState(false);
   const [connectState, setConnectState] = useState<string | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
 
   useEffect(() => {
     const detected = detectClientOS();
@@ -2418,6 +2419,7 @@ function PublicSubscriptionContentV2() {
         hasLoaded = true;
         setData(result);
         setState('ready');
+        if (new URLSearchParams(window.location.search).get('qr') === '1') setQrOpen(true);
       })
       .catch(() => { if (active && !hasLoaded) setState('error'); });
     void load();
@@ -2517,6 +2519,7 @@ function PublicSubscriptionContentV2() {
   if (state === 'error') return <div className="public-sub-v3 public-sub-state" dir="rtl"><motion.div {...pageMotion} className="public-sub-error-card"><div className="public-sub-v3-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="public-sub-error-icon"><ShieldCheck size={27} /></div><p className="public-sub-kicker">دسترسی اشتراک</p><h1>لینک نامعتبر است</h1><p>ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="public-sub-button primary">بازگشت به پالس</a></motion.div></div>;
 
   return (
+    <>
     <div className={`public-sub-v3 ${statusTone}`} dir="rtl">
       <div className="public-sub-orb public-sub-orb-one" />
       <div className="public-sub-orb public-sub-orb-two" />
@@ -2568,6 +2571,8 @@ function PublicSubscriptionContentV2() {
         <footer className="public-sub-footer-v3"><ShieldCheck size={16} /><span>این صفحه ایمن و اختصاصی است. لینک اشتراک را فقط با دستگاه‌های شخصی خود به اشتراک بگذارید.</span><div className="public-sub-qr-v3"><SubscriptionQr url={pageUrl} /></div></footer>
       </main>
     </div>
+    {qrOpen && data && pageUrl ? <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/55 p-5" role="dialog" aria-modal="true" onClick={() => setQrOpen(false)}><div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl" onClick={(event) => event.stopPropagation()}><button type="button" className="mb-4 rounded-full border px-3 py-1 text-xs" onClick={() => setQrOpen(false)}>بستن</button><h2 className="text-lg font-extrabold text-slate-900">QR اشتراک</h2><p className="mt-2 text-xs text-slate-500">این کد را با برنامهٔ VPN اسکن کنید.</p><div className="mt-4 flex justify-center"><SubscriptionQr url={pageUrl} /></div><p className="mt-3 break-all text-[10px] text-slate-500" dir="ltr">{pageUrl}</p></div></div> : null}
+    </>
   );
 }
 
