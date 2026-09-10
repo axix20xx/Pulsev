@@ -228,10 +228,25 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
   await Promise.all([managementReady, mobileReady]);
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+  const name = typeof req.body?.name === "string" && req.body.name.trim()
+    ? req.body.name.trim().slice(0, 160)
+    : title.slice(0, 160);
+  const hrefInput = typeof req.body?.href === "string" ? req.body.href.trim() : "";
+  const href = !hrefInput
+    ? "/mobile/notifications"
+    : hrefInput.startsWith("/") && !hrefInput.startsWith("//")
+      ? hrefInput.slice(0, 500)
+      : /^https:\/\//i.test(hrefInput)
+        ? hrefInput.slice(0, 500)
+        : null;
+  const actionLabel = typeof req.body?.action_label === "string" ? req.body.action_label.trim().slice(0, 80) : null;
+  const scheduledInput = typeof req.body?.scheduled_at === "string" ? req.body.scheduled_at.trim() : "";
+  const scheduledAt = scheduledInput ? new Date(scheduledInput) : null;
+  const isScheduled = Boolean(scheduledAt && !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() > Date.now() + 5000);
   const kind = req.body?.recipient_type === "reseller" ? "reseller" : "customer";
   const target = req.body?.target === "all" ? "all" : "recipient";
   const recipientId = Number(req.body?.recipient_id ?? req.body?.customer_id);
-  if (!title || title.length > 120 || !body || body.length > 4000) {
+  if (!title || title.length > 120 || !body || body.length > 4000 || href === null) {
     res.status(400).json({ error: "عنوان و متن اعلان را کامل و در اندازه مجاز وارد کنید." });
     return;
   }
@@ -247,14 +262,57 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
       res.status(404).json({ error: "مشتری پیدا نشد." });
       return;
     }
+    const campaign = await pool.query<{ id: number }>(
+      `INSERT INTO notification_campaigns
+         (name, notification_type, title, body, href, action_label, tone, audience_type, status, scheduled_at, created_by, started_at)
+       VALUES ($1, 'admin_message', $2, $3, $4, $5, 'normal', 'customers', $6, $7, $8, CASE WHEN $6 = 'sending' THEN NOW() ELSE NULL END)
+       RETURNING id`,
+      [
+        name,
+        title,
+        body,
+        href,
+        actionLabel,
+        isScheduled ? "scheduled" : "sending",
+        isScheduled ? scheduledAt : null,
+        req.auth?.telegramId ?? null,
+      ],
+    );
+    const campaignId = Number(campaign.rows[0].id);
+    if (recipients.rows.length) {
+      await pool.query(
+        `INSERT INTO notification_campaign_recipients (campaign_id, customer_id)
+         SELECT $1, recipient.customer_id
+         FROM UNNEST($2::bigint[]) AS recipient(customer_id)
+         ON CONFLICT (campaign_id, customer_id) DO NOTHING`,
+        [campaignId, recipients.rows.map((row) => Number(row.id))],
+      );
+    }
+    if (isScheduled) {
+      res.json({
+        sent: true,
+        scheduled: true,
+        campaignId,
+        kind,
+        targetCount: recipients.rows.length,
+        scheduledAt: scheduledAt?.toISOString(),
+      });
+      return;
+    }
     const result = await sendMobileNotification({
+      campaignId,
       customerIds: recipients.rows.map((row) => Number(row.id)),
       title,
       body,
-      href: "/mobile/notifications",
+      href,
+      actionLabel,
       tone: "normal",
     });
-    res.json({ sent: true, kind, ...result });
+    await pool.query(
+      `UPDATE notification_campaigns SET status = 'completed', completed_at = NOW() WHERE id = $1`,
+      [campaignId],
+    );
+    res.json({ sent: true, scheduled: false, campaignId, kind, ...result });
     return;
   }
   const recipients = target === "recipient"
@@ -294,6 +352,139 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
     pushDeactivated: 0,
     pushErrors: [],
   });
+});
+
+router.get("/admin/notification-campaigns", requireMasterAdmin, async (req, res): Promise<void> => {
+  await Promise.all([managementReady, mobileReady]);
+  const requestedLimit = Number(req.query.limit);
+  const limit = Number.isSafeInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 30;
+  const result = await pool.query(
+    `SELECT c.id, c.name, c.notification_type, c.title, c.body, c.href, c.action_label,
+            c.tone, c.audience_type, c.status, c.scheduled_at, c.created_by,
+            c.created_at, c.started_at, c.completed_at, c.last_error,
+            COUNT(DISTINCT cr.id)::int AS target_count,
+            COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status IN ('saved', 'push_accepted', 'push_failed', 'inbox_only'))::int AS inbox_saved,
+            COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'accepted')::int AS push_accepted,
+            COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'failed')::int AS push_failed,
+            COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'deactivated')::int AS deactivated_devices,
+            COUNT(DISTINCT cr.id) FILTER (WHERE cr.opened_at IS NOT NULL)::int AS opened,
+            COUNT(DISTINCT cr.id) FILTER (WHERE cr.clicked_at IS NOT NULL)::int AS clicked
+     FROM notification_campaigns c
+     LEFT JOIN notification_campaign_recipients cr ON cr.campaign_id = c.id
+     LEFT JOIN notification_delivery_attempts da ON da.campaign_id = c.id
+     GROUP BY c.id
+     ORDER BY c.created_at DESC
+     LIMIT $1`,
+    [limit],
+  );
+  res.json({ items: result.rows });
+});
+
+router.get("/admin/notification-analytics", requireMasterAdmin, async (req, res): Promise<void> => {
+  await Promise.all([managementReady, mobileReady]);
+  const campaignId = Number(req.query.campaign_id);
+  const params: unknown[] = [];
+  const campaignWhere = Number.isSafeInteger(campaignId) && campaignId > 0 ? "WHERE c.id = $1" : "";
+  if (campaignWhere) params.push(campaignId);
+  const summary = await pool.query(
+    `SELECT
+       COUNT(DISTINCT c.id)::int AS campaigns,
+       COUNT(DISTINCT cr.id)::int AS target_count,
+       COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status IN ('saved', 'push_accepted', 'push_failed', 'inbox_only'))::int AS inbox_saved,
+       COUNT(DISTINCT da.id)::int AS push_attempted,
+       COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'accepted')::int AS push_accepted,
+       COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'failed')::int AS push_failed,
+       COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'deactivated')::int AS deactivated_devices,
+       COUNT(DISTINCT cr.id) FILTER (WHERE cr.opened_at IS NOT NULL)::int AS opened,
+       COUNT(DISTINCT cr.id) FILTER (WHERE cr.clicked_at IS NOT NULL)::int AS clicked
+     FROM notification_campaigns c
+     LEFT JOIN notification_campaign_recipients cr ON cr.campaign_id = c.id
+     LEFT JOIN notification_delivery_attempts da ON da.campaign_id = c.id
+     ${campaignWhere}`,
+    params,
+  );
+  const daily = await pool.query(
+    `SELECT TO_CHAR(DATE_TRUNC('day', c.created_at), 'YYYY-MM-DD') AS day,
+            COUNT(DISTINCT c.id)::int AS campaigns,
+            COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'accepted')::int AS push_accepted,
+            COUNT(DISTINCT cr.id) FILTER (WHERE cr.opened_at IS NOT NULL)::int AS opened,
+            COUNT(DISTINCT cr.id) FILTER (WHERE cr.clicked_at IS NOT NULL)::int AS clicked
+     FROM notification_campaigns c
+     LEFT JOIN notification_campaign_recipients cr ON cr.campaign_id = c.id
+     LEFT JOIN notification_delivery_attempts da ON da.campaign_id = c.id
+     ${campaignWhere}
+     GROUP BY DATE_TRUNC('day', c.created_at)
+     ORDER BY day DESC
+     LIMIT 30`,
+    params,
+  );
+  res.json({ summary: summary.rows[0] ?? {}, daily: daily.rows });
+});
+
+router.get("/admin/notification-campaigns/:id/logs", requireMasterAdmin, async (req, res): Promise<void> => {
+  await Promise.all([managementReady, mobileReady]);
+  const campaignId = Number(req.params.id);
+  if (!Number.isSafeInteger(campaignId) || campaignId <= 0) {
+    res.status(400).json({ error: "شناسه کمپین معتبر نیست" });
+    return;
+  }
+  const result = await pool.query(
+    `SELECT COALESCE(da.id, cr.id) AS id,
+            cr.customer_id,
+            COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
+            c.phone,
+            COALESCE(da.status, cr.inbox_status) AS status,
+            cr.inbox_status,
+            cr.inbox_saved_at,
+            cr.opened_at,
+            cr.clicked_at,
+            da.subscription_id,
+            da.status AS push_status,
+            da.provider_status_code,
+            da.provider_message AS failure_reason,
+            da.attempted_at,
+            da.accepted_at,
+            da.failed_at,
+            da.deactivated_at
+     FROM notification_campaign_recipients cr
+     LEFT JOIN reseller_customers c ON c.id = cr.customer_id
+     LEFT JOIN notification_delivery_attempts da
+       ON da.campaign_id = cr.campaign_id AND da.customer_id = cr.customer_id
+     WHERE cr.campaign_id = $1
+     ORDER BY COALESCE(da.attempted_at, cr.created_at) DESC
+     LIMIT 500`,
+    [campaignId],
+  );
+  res.json({ items: result.rows });
+});
+
+router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async (req, res): Promise<void> => {
+  await Promise.all([managementReady, mobileReady]);
+  const campaignId = Number(req.params.id);
+  if (!Number.isSafeInteger(campaignId) || campaignId <= 0) {
+    res.status(400).json({ error: "شناسه کمپین معتبر نیست" });
+    return;
+  }
+  const campaign = await pool.query<{ title: string; body: string; href: string | null; action_label: string | null; tone: string }>(
+    `SELECT title, body, href, action_label, tone FROM notification_campaigns WHERE id = $1 LIMIT 1`,
+    [campaignId],
+  );
+  if (!campaign.rows[0]) {
+    res.status(404).json({ error: "کمپین پیدا نشد" });
+    return;
+  }
+  const recipients = await pool.query<{ customer_id: number }>(
+    `SELECT customer_id
+     FROM notification_campaign_recipients
+     WHERE campaign_id = $1 AND inbox_status IN ('push_failed', 'failed', 'inbox_only')`,
+    [campaignId],
+  );
+  const result = await sendMobileNotification({
+    campaignId,
+    customerIds: recipients.rows.map((row) => Number(row.customer_id)),
+    ...campaign.rows[0],
+  });
+  res.json({ retried: true, campaignId, ...result });
 });
 
  async function backfillMissingCreateSales(): Promise<void> {

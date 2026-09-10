@@ -37,6 +37,7 @@ const operationsNav = { href: '/operations', label: 'مرکز عملیات', ico
 const smartNav = { href: '/insights', label: 'مرکز هوشمند', icon: Sparkles };
 const notificationStatusNav = { href: '/notification-status', label: 'وضعیت اعلان‌ها', icon: BellRing };
 const notificationSendNav = { href: '/notification-send', label: 'ارسال پیام', icon: Send };
+const notificationAnalyticsNav = { href: '/notification-analytics', label: 'تحلیل اعلان‌ها', icon: BarChart3 };
 
 const panelBasePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const panelRelativePath = () => {
@@ -248,6 +249,9 @@ export function Shell({ children }: { children: ReactNode }) {
               </Link>
               <Link href={notificationSendNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(notificationSendNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
                 <notificationSendNav.icon size={18} strokeWidth={isNavActive(notificationSendNav.href) ? 2.5 : 2} /><span className="text-sm font-semibold tracking-tight">{notificationSendNav.label}</span>
+              </Link>
+              <Link href={notificationAnalyticsNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(notificationAnalyticsNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
+                <notificationAnalyticsNav.icon size={18} strokeWidth={isNavActive(notificationAnalyticsNav.href) ? 2.5 : 2} /><span className="text-sm font-semibold tracking-tight">{notificationAnalyticsNav.label}</span>
               </Link>
             </>}
           </nav>

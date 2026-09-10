@@ -44,3 +44,9 @@ The mobile client should auto-detect an existing Service Worker PushSubscription
 **Why:** A PWA can already have browser permission and a device subscription while the app's server-side status is stale; prompting again is confusing and can create duplicate registration attempts.
 
 **How to apply:** Check `getRegistration(...).pushManager.getSubscription()` on authenticated entry and settings load, resync an existing subscription, and show the prompt only when no subscription exists.
+
+Campaign analytics must keep inbox persistence, Push-provider acceptance, and customer engagement as separate outcomes. Record each device attempt independently and treat open/click as the only customer-confirmed engagement signals.
+
+**Why:** Web Push can accept a request without proving that a phone displayed it, while inbox delivery can succeed when no device is active; collapsing these states creates misleading delivery reports.
+
+**How to apply:** Campaign summaries should expose target/inbox/accepted/failed/deactivated/opened/clicked counts, and retry/failure views should retain provider status and safe error details per device.

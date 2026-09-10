@@ -1,40 +1,200 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { AlertTriangle, Bell, Check, CheckCircle2, RefreshCw, Search, Send, Smartphone, Users, UserRound } from 'lucide-react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  AlertTriangle,
+  BarChart3,
+  Bell,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  Clock3,
+  ExternalLink,
+  Eye,
+  Link2,
+  MousePointerClick,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  Send,
+  Smartphone,
+  Users,
+  XCircle,
+} from 'lucide-react';
 import { Link } from 'wouter';
 import { PageHeader } from '@/components/pulse-shell';
 import { usePulse } from './pulse-pages';
 
-type RecipientKind = 'customer' | 'reseller';
 type Recipient = {
   id: number | string;
   name: string;
   phone?: string | null;
-  telegram_id?: number | string | null;
   active_devices?: number;
-  enabled?: boolean;
-};
-type StatusItem = Recipient & {
   notification_enabled?: boolean;
-  status?: 'ready' | 'not_ready';
-  channel?: string;
 };
 
-const faNumber = (value: number) => new Intl.NumberFormat('fa-IR').format(Number(value || 0));
-const kindLabel = (kind: RecipientKind) => kind === 'customer' ? 'مشتری' : 'فروشنده';
-const errorText = (value: unknown, fallback: string) => value && typeof value === 'object' && 'error' in value && typeof value.error === 'string' ? value.error : fallback;
+type StatusItem = Recipient & {
+  status?: 'ready' | 'not_ready' | string;
+};
+
+type Campaign = {
+  id: number | string;
+  name?: string | null;
+  title?: string | null;
+  body?: string | null;
+  href?: string | null;
+  action_label?: string | null;
+  target?: string | null;
+  recipient_type?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  scheduled_at?: string | null;
+  sent_at?: string | null;
+  target_count?: number | null;
+  accepted?: number | null;
+  failed?: number | null;
+  deactivated?: number | null;
+  opened?: number | null;
+  clicked?: number | null;
+  [key: string]: unknown;
+};
+
+type AnalyticsSummary = Record<string, unknown> & {
+  total?: number;
+  target_count?: number;
+  accepted?: number;
+  sent?: number;
+  failed?: number;
+  deactivated?: number;
+  opened?: number;
+  clicked?: number;
+  delivered?: number;
+  pending?: number;
+};
+
+type AnalyticsPoint = Record<string, unknown> & {
+  date?: string;
+  day?: string;
+  total?: number;
+  accepted?: number;
+  failed?: number;
+  opened?: number;
+  clicked?: number;
+};
+
+type DeliveryLog = Record<string, unknown> & {
+  id?: number | string;
+  customer_name?: string | null;
+  recipient_name?: string | null;
+  phone?: string | null;
+  status?: string | null;
+  failure_reason?: string | null;
+  created_at?: string | null;
+  accepted_at?: string | null;
+  opened_at?: string | null;
+  clicked_at?: string | null;
+};
+
+const faNumber = (value: unknown) => new Intl.NumberFormat('fa-IR').format(Number(value || 0));
+const errorText = (value: unknown, fallback: string) =>
+  value && typeof value === 'object' && 'error' in value && typeof value.error === 'string' ? value.error : fallback;
+
+const dateLabel = (value: unknown) => {
+  if (!value || typeof value !== 'string') return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tehran' }).format(parsed);
+};
+
+const asNumber = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
+const firstNumber = (source: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) if (source[key] !== undefined && source[key] !== null) return asNumber(source[key]);
+  return 0;
+};
+const maybeNumber = (source: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null && Number.isFinite(Number(source[key]))) return Number(source[key]);
+  }
+  return null;
+};
+
+const statusText = (value: unknown) => {
+  const labels: Record<string, string> = {
+    accepted: 'پذیرفته شد',
+    sent: 'ارسال شد',
+    delivered: 'تحویل شد',
+    failed: 'ناموفق',
+    deactivated: 'دستگاه غیرفعال',
+    pending: 'در انتظار',
+    scheduled: 'زمان‌بندی‌شده',
+    processing: 'در حال پردازش',
+    completed: 'تکمیل‌شده',
+    inbox_only: 'فقط در inbox',
+    push_accepted: 'Push پذیرفته شد',
+    push_failed: 'Push ناموفق',
+    duplicate: 'تکراری',
+  };
+  return typeof value === 'string' ? labels[value] || value : '—';
+};
+
+const statusTone = (value: unknown) => {
+  if (value === 'failed' || value === 'deactivated') return 'status-pill-danger';
+  if (value === 'pending' || value === 'scheduled' || value === 'processing') return 'status-pill-warning';
+  return 'status-pill-success';
+};
+
+const tehranDateTimeToIso = (value: string) => {
+  if (!value) return undefined;
+  return new Date(`${value}:00+03:30`).toISOString();
+};
 
 function AdminOnlyNotice() {
-  return <div className="empty-state"><div className="empty-symbol"><AlertTriangle size={19} /></div><p className="font-bold">دسترسی فقط برای مدیر اصلی</p><p className="mt-1 max-w-xs text-sm text-muted-foreground">مدیریت اعلان‌های سراسری برای فروشندگان عادی فعال نیست.</p></div>;
+  return (
+    <div className="empty-state">
+      <div className="empty-symbol"><AlertTriangle size={19} /></div>
+      <p className="font-bold">دسترسی فقط برای مدیر اصلی</p>
+      <p className="mt-1 max-w-xs text-sm text-muted-foreground">مدیریت اعلان‌های مشتریان برای فروشندگان عادی فعال نیست.</p>
+    </div>
+  );
 }
 
-function NotificationPageFrame({ children }: { children: React.ReactNode }) {
+function NotificationPageFrame({ children }: { children: ReactNode }) {
   return <div className="pulse-surface pulse-surface-notifications min-h-[100dvh] p-5 md:p-8">{children}</div>;
+}
+
+function NotificationNav({ active }: { active: 'send' | 'status' | 'analytics' }) {
+  const links = [
+    { key: 'send' as const, href: '/notification-send', label: 'ارسال پیام', icon: Send },
+    { key: 'status' as const, href: '/notification-status', label: 'آمادگی دستگاه‌ها', icon: Smartphone },
+    { key: 'analytics' as const, href: '/notification-analytics', label: 'تحلیل و گزارش', icon: BarChart3 },
+  ];
+  return (
+    <nav className="mt-5 flex max-w-full gap-2 overflow-x-auto pb-1" aria-label="مدیریت اعلان">
+      {links.map(({ key, href, label, icon: Icon }) => (
+        <Link key={key} href={href} className={`button whitespace-nowrap ${active === key ? 'button-primary' : 'button-secondary'}`}>
+          <Icon size={15} />{label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+function StatTile({ label, value, icon: Icon, tone = 'default' }: { label: string; value: unknown; icon: typeof Bell; tone?: 'default' | 'success' | 'danger' | 'warning' }) {
+  return (
+    <div className="panel-card flex items-center gap-3 p-4">
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone === 'success' ? 'bg-emerald-500/10 text-emerald-600' : tone === 'danger' ? 'bg-destructive/10 text-destructive' : tone === 'warning' ? 'bg-amber-500/10 text-amber-600' : 'bg-primary/10 text-primary'}`}>
+        <Icon size={18} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
+        <strong className="mt-1 block text-xl tracking-tight">{typeof value === 'number' ? faNumber(value) : value === null || value === undefined ? '—' : String(value)}</strong>
+      </div>
+    </div>
+  );
 }
 
 export function NotificationStatusPage() {
   const { session } = usePulse();
-  const [kind, setKind] = useState<RecipientKind>('customer');
   const [search, setSearch] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
   const [items, setItems] = useState<StatusItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -46,7 +206,7 @@ export function NotificationStatusPage() {
       setLoading(true);
       setError('');
       try {
-        const params = new URLSearchParams({ kind, limit: '100' });
+        const params = new URLSearchParams({ kind: 'customer', limit: '100' });
         if (search.trim()) params.set('search', search.trim());
         const response = await fetch(`/api/admin/notification-status?${params.toString()}`, { credentials: 'include', signal: controller.signal });
         const result = await response.json().catch(() => null);
@@ -59,107 +219,108 @@ export function NotificationStatusPage() {
         setLoading(false);
       }
     }, 220);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [kind, search, session?.role]);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [refreshKey, search, session?.role]);
 
   if (session?.role !== 'master_admin') return <NotificationPageFrame><AdminOnlyNotice /></NotificationPageFrame>;
-  return <NotificationPageFrame>
-    <PageHeader
-      eyebrow="مدیریت Push"
-      title="وضعیت اعلان کاربران"
-      description="ببینید کدام مشتری‌ها دستگاه فعال برای Push دارند و اعلان سیستمی آن‌ها روشن است."
-      action={<Link className="button button-primary" href="/notification-send"><Send size={15} /> ارسال پیام</Link>}
-    />
-    <div className="panel-card mt-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="segmented-control">
-          <button type="button" className={kind === 'customer' ? 'active' : ''} onClick={() => setKind('customer')}><Users size={15} /> مشتریان</button>
-          <button type="button" className={kind === 'reseller' ? 'active' : ''} onClick={() => setKind('reseller')}><UserRound size={15} /> فروشندگان</button>
+  return (
+    <NotificationPageFrame>
+      <PageHeader eyebrow="مدیریت Push" title="آمادگی دستگاه‌های مشتریان" description="پیش از ارسال، ببینید هر مشتری دستگاه فعال برای دریافت اعلان دارد یا نه." action={<Link className="button button-primary" href="/notification-send"><Send size={15} /> ارسال پیام</Link>} />
+      <NotificationNav active="status" />
+      <div className="panel-card mt-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-bold">دستگاه‌های ثبت‌شده</p>
+            <p className="mt-1 text-xs text-muted-foreground">این وضعیت از داده واقعی مشتریان خوانده می‌شود؛ تعداد دستگاه، تضمین تحویل نیست.</p>
+          </div>
+          <label className="field min-w-0 md:min-w-[280px]"><span>جست‌وجوی مشتری</span><div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="نام یا شماره موبایل" /></div></label>
         </div>
-        <label className="field min-w-[260px]"><span>جست‌وجو</span><div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={kind === 'customer' ? 'نام یا شماره موبایل' : 'نام یا شناسه تلگرام'} /></div></label>
+        {error ? <div className="login-error mt-5 flex items-center justify-between gap-3"><span>{error}</span><button className="button button-secondary" type="button" onClick={() => setRefreshKey((value) => value + 1)}>تلاش دوباره</button></div> : null}
+        {loading ? <div className="empty-state py-14"><RefreshCw size={20} className="spin" /><p className="mt-3 text-sm">در حال دریافت وضعیت...</p></div> : items.length === 0 ? <div className="empty-state py-14"><Bell size={20} /><p className="mt-3 text-sm">مشتری مطابق جست‌وجو پیدا نشد.</p></div> : (
+          <div className="mt-5 overflow-x-auto"><table className="data-table w-full"><thead><tr><th>مشتری</th><th>کانال</th><th>وضعیت دریافت</th><th>دستگاه فعال</th></tr></thead><tbody>
+            {items.map((item) => <tr key={String(item.id)}><td><div className="font-bold">{item.name}</div><div className="text-xs text-muted-foreground" dir="ltr">{item.phone || '—'}</div></td><td><span className="status-pill"><Smartphone size={13} /> Web Push</span></td><td>{item.notification_enabled === false ? <span className="status-pill status-pill-danger"><XCircle size={13} /> خاموش</span> : <span className={item.status === 'ready' ? 'status-pill status-pill-success' : 'status-pill status-pill-warning'}>{item.status === 'ready' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}{item.status === 'ready' ? 'آماده دریافت' : 'بدون دستگاه فعال'}</span>}</td><td><strong>{faNumber(item.active_devices)}</strong></td></tr>)}
+          </tbody></table></div>
+        )}
       </div>
-      {error ? <div className="login-error mt-5">{error}</div> : null}
-      {loading ? <div className="empty-state py-14"><RefreshCw size={20} className="spin" /><p className="mt-3 text-sm">در حال دریافت وضعیت...</p></div> : items.length === 0 ? <div className="empty-state py-14"><Bell size={20} /><p className="mt-3 text-sm">موردی پیدا نشد.</p></div> : <div className="mt-5 overflow-x-auto"><table className="data-table w-full"><thead><tr><th>کاربر</th><th>کانال</th><th>وضعیت اعلان</th><th>دستگاه فعال</th></tr></thead><tbody>{items.map((item) => <tr key={`${kind}-${item.id}`}><td><div className="font-bold">{item.name}</div><div className="text-xs text-muted-foreground" dir="ltr">{kind === 'customer' ? item.phone || '—' : `Telegram ID: ${item.telegram_id || item.id}`}</div></td><td><span className="status-pill">{kind === 'customer' ? <><Smartphone size={13} /> Web Push</> : <><Bell size={13} /> مرکز پنل</>}</span></td><td>{kind === 'customer' ? item.notification_enabled ? <span className={item.status === 'ready' ? 'status-pill status-pill-success' : 'status-pill status-pill-warning'}>{item.status === 'ready' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}{item.status === 'ready' ? 'آماده دریافت' : 'بدون دستگاه فعال'}</span> : <span className="status-pill status-pill-danger">خاموش</span> : <span className={item.enabled === false ? 'status-pill status-pill-warning' : 'status-pill status-pill-success'}>{item.enabled === false ? 'فروشنده غیرفعال' : 'فعال'}</span>}</td><td>{kind === 'customer' ? <strong>{faNumber(Number(item.active_devices ?? 0))}</strong> : <span className="text-muted-foreground">اعلان داخلی</span>}</td></tr>)}</tbody></table></div>}
-    </div>
-  </NotificationPageFrame>;
+    </NotificationPageFrame>
+  );
 }
 
 export function NotificationSendPage() {
   const { session } = usePulse();
-  const [kind, setKind] = useState<RecipientKind>('customer');
   const [target, setTarget] = useState<'all' | 'recipient'>('recipient');
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<Recipient[]>([]);
   const [selected, setSelected] = useState<Recipient | null>(null);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [href, setHref] = useState('');
+  const [actionLabel, setActionLabel] = useState('');
+  const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [feedback, setFeedback] = useState('');
+  const [feedback, setFeedback] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (session?.role !== 'master_admin' || target !== 'recipient' || search.trim().length < 2) {
+    if (session?.role !== 'master_admin' || target !== 'recipient' || search.trim().length < 2 || selected) {
       setResults([]);
       return;
     }
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setLoading(true);
+      setError('');
       try {
-        const params = new URLSearchParams({ kind, search: search.trim(), limit: '20' });
+        const params = new URLSearchParams({ kind: 'customer', search: search.trim(), limit: '20' });
         const response = await fetch(`/api/admin/notification-recipients?${params.toString()}`, { credentials: 'include', signal: controller.signal });
         const result = await response.json().catch(() => null);
-        if (!response.ok) throw new Error(errorText(result, 'جست‌وجو انجام نشد.'));
+        if (!response.ok) throw new Error(errorText(result, 'جست‌وجوی مشتری انجام نشد.'));
         setResults(Array.isArray(result?.items) ? result.items : []);
       } catch (cause) {
-        if (!(cause instanceof DOMException && cause.name === 'AbortError')) setError(cause instanceof Error ? cause.message : 'جست‌وجو انجام نشد.');
+        if (!(cause instanceof DOMException && cause.name === 'AbortError')) setError(cause instanceof Error ? cause.message : 'جست‌وجوی مشتری انجام نشد.');
       } finally {
         setLoading(false);
       }
     }, 250);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [kind, search, target, session?.role]);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [search, selected, session?.role, target]);
 
-  const changeKind = (next: RecipientKind) => {
-    setKind(next);
-    setSelected(null);
-    setSearch('');
-    setResults([]);
-  };
+  const hrefError = href.trim() && !href.trim().startsWith('/') && !/^https:\/\//i.test(href.trim())
+    ? 'لینک باید داخلی باشد یا با https:// شروع شود.'
+    : '';
 
   const send = async (event: FormEvent) => {
     event.preventDefault();
+    if (hrefError) return;
     setSending(true);
-    setFeedback('');
+    setFeedback(null);
     setError('');
     try {
       const response = await fetch('/api/admin/mobile-notifications', {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ recipient_type: kind, target, recipient_id: target === 'recipient' ? Number(selected?.id) : undefined, title, body }),
+        body: JSON.stringify({
+          name: title.trim(),
+          recipient_type: 'customer',
+          target,
+          ...(target === 'recipient' ? { recipient_id: Number(selected?.id) } : {}),
+          title: title.trim(),
+          body: body.trim(),
+          href: href.trim() || undefined,
+          action_label: actionLabel.trim() || undefined,
+          scheduled_at: scheduledAt ? tehranDateTimeToIso(scheduledAt) : undefined,
+        }),
       });
       const result = await response.json().catch(() => null);
       if (!response.ok) throw new Error(errorText(result, 'ارسال اعلان انجام نشد.'));
-      if (kind === 'customer') {
-        const pushSummary = Number(result.pushSent) > 0
-          ? `${faNumber(Number(result.pushSent))} دستگاه Push پیام را دریافت کرد`
-          : Number(result.activeDevices) === 0
-            ? 'هیچ دستگاه Push فعالی برای مخاطب ثبت نشده است'
-            : `${faNumber(Number(result.pushFailed))} ارسال Push ناموفق بود`;
-        setFeedback(`پیام برای ${faNumber(Number(result.targetCount))} مشتری در inbox ثبت شد؛ ${pushSummary}.`);
-      } else {
-        setFeedback(`پیام برای ${faNumber(Number(result.targetCount))} فروشنده در مرکز اعلان پنل ثبت شد.`);
-      }
+      setFeedback(result && typeof result === 'object' ? result : {});
       setTitle('');
       setBody('');
+      setHref('');
+      setActionLabel('');
+      setScheduledAt('');
       setSelected(null);
       setSearch('');
     } catch (cause) {
@@ -170,19 +331,157 @@ export function NotificationSendPage() {
   };
 
   if (session?.role !== 'master_admin') return <NotificationPageFrame><AdminOnlyNotice /></NotificationPageFrame>;
-  return <NotificationPageFrame>
-    <PageHeader eyebrow="پیام‌رسانی" title="ارسال پیام اعلان" description="مخاطب را با جست‌وجوی لحظه‌ای پیدا کنید یا پیام را برای همهٔ همان گروه بفرستید." action={<Link className="button button-secondary" href="/notification-status"><Bell size={15} /> وضعیت اعلان‌ها</Link>} />
-    <form className="panel-card mt-6 max-w-4xl" onSubmit={send}>
-      <div className="grid gap-5 md:grid-cols-2">
-        <div className="field"><span>نوع مخاطب</span><div className="segmented-control"><button type="button" className={kind === 'customer' ? 'active' : ''} onClick={() => changeKind('customer')}><Users size={15} /> مشتری</button><button type="button" className={kind === 'reseller' ? 'active' : ''} onClick={() => changeKind('reseller')}><UserRound size={15} /> فروشنده</button></div></div>
-        <label className="field"><span>دامنه ارسال</span><select value={target} onChange={(event) => { setTarget(event.target.value as 'all' | 'recipient'); setSelected(null); setResults([]); }}><option value="recipient">یک {kindLabel(kind)} مشخص</option><option value="all">همهٔ {kind === 'customer' ? 'مشتریان' : 'فروشندگان'}</option></select></label>
+  return (
+    <NotificationPageFrame>
+      <PageHeader eyebrow="پیام‌رسانی مشتریان" title="ارسال اعلان" description="یک پیام عملیاتی برای یک مشتری یا کل مشتریان آماده کنید و نتیجه واقعی ارسال را ببینید." action={<Link className="button button-secondary" href="/notification-analytics"><BarChart3 size={15} /> گزارش کمپین‌ها</Link>} />
+      <NotificationNav active="send" />
+      <form className="panel-card mt-5 max-w-5xl" onSubmit={send}>
+        <div className="grid gap-5 md:grid-cols-2">
+          <label className="field"><span>دامنه ارسال</span><select value={target} onChange={(event) => { setTarget(event.target.value as 'all' | 'recipient'); setSelected(null); setResults([]); }}><option value="recipient">یک مشتری مشخص</option><option value="all">همه مشتریان</option></select></label>
+          <div className="field"><span>زمان ارسال</span><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /><small className="text-[11px] text-muted-foreground">اختیاری؛ زمان تهران</small></div>
+        </div>
+        {target === 'recipient' ? <div className="field mt-5"><span>جست‌وجوی مشتری</span><div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={selected ? selected.name : search} onChange={(event) => { setSelected(null); setSearch(event.target.value); setError(''); }} placeholder="حداقل دو حرف از نام یا شماره موبایل" /></div>{loading ? <p className="mt-2 text-xs text-muted-foreground">در حال جست‌وجو...</p> : results.length > 0 ? <div className="mt-2 list-stack rounded-xl border border-border/60 p-1">{results.map((item) => <button type="button" key={String(item.id)} className="panel-row w-full text-right hover:bg-muted/40" onClick={() => { setSelected(item); setResults([]); }}><div className="avatar avatar-sage">م</div><div className="min-w-0 flex-1"><strong className="block truncate">{item.name}</strong><span className="text-xs text-muted-foreground" dir="ltr">{item.phone || '—'}</span></div><span className="text-xs text-muted-foreground">{faNumber(item.active_devices)} دستگاه</span></button>)}</div> : search.trim().length >= 2 && !selected ? <p className="mt-2 text-xs text-muted-foreground">مشتری پیدا نشد.</p> : null}{selected ? <div className="notice mt-3"><Check size={15} /><span>مخاطب انتخاب‌شده: <strong>{selected.name}</strong></span><button type="button" className="mr-auto text-xs underline" onClick={() => { setSelected(null); setSearch(''); }}>تغییر</button></div> : null}</div> : <div className="notice mt-5"><Users size={15} /><span>پیام برای همه مشتریان ارسال می‌شود.</span></div>}
+        <div className="mt-5 grid gap-5 md:grid-cols-2">
+          <label className="field"><span>عنوان اعلان</span><input required maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="مثلاً اختلال کوتاه‌مدت در سرویس" /></label>
+          <label className="field"><span>برچسب دکمه</span><input maxLength={40} value={actionLabel} onChange={(event) => setActionLabel(event.target.value)} placeholder="مثلاً مشاهده جزئیات" /></label>
+        </div>
+        <label className="field mt-5"><span>متن پیام</span><textarea required maxLength={4000} rows={6} value={body} onChange={(event) => setBody(event.target.value)} placeholder="متن دقیق و قابل اقدام پیام را بنویسید." /></label>
+        <label className="field mt-5"><span>لینک داخلی یا HTTPS</span><div className="relative"><Link2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={href} onChange={(event) => setHref(event.target.value)} placeholder="/services یا https://..." /></div>{hrefError ? <small className="text-xs text-destructive">{hrefError}</small> : null}</label>
+        {error ? <div className="login-error mt-4">{error}</div> : null}
+        {feedback ? <SendSummary result={feedback} /> : null}
+        <div className="mt-5 flex flex-wrap items-center gap-3"><button className="button button-primary" type="submit" disabled={sending || !title.trim() || !body.trim() || Boolean(hrefError) || (target === 'recipient' && !selected)}>{sending ? <><RefreshCw size={14} className="spin" /> در حال ثبت...</> : <><Send size={14} /> {scheduledAt ? 'زمان‌بندی اعلان' : 'ثبت و ارسال اعلان'}</>}</button><span className="text-xs text-muted-foreground"><Smartphone size={13} className="inline ml-1" />تحویل Web Push جداگانه در گزارش ثبت می‌شود.</span></div>
+      </form>
+    </NotificationPageFrame>
+  );
+}
+
+function SendSummary({ result }: { result: Record<string, unknown> }) {
+  const targetCount = maybeNumber(result, ['targetCount', 'target_count', 'audience', 'audience_count']);
+  const activeDevices = maybeNumber(result, ['activeDevices', 'active_devices']);
+  const pushSent = maybeNumber(result, ['pushSent', 'push_sent', 'push_accepted', 'accepted', 'sent']);
+  const pushFailed = maybeNumber(result, ['pushFailed', 'push_failed', 'failed']);
+  const displayNumber = (value: number | null) => value === null ? '—' : faNumber(value);
+  return (
+    <div className="notice mt-4 block">
+      <div className="flex items-center gap-2 font-bold"><CheckCircle2 size={16} /> اعلان ثبت شد</div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <div><span className="block text-[11px] text-muted-foreground">مخاطب ثبت‌شده</span><strong>{displayNumber(targetCount)}{targetCount === null ? '' : ' مشتری'}</strong></div>
+        <div><span className="block text-[11px] text-muted-foreground">دستگاه فعال</span><strong>{displayNumber(activeDevices)}</strong></div>
+        <div><span className="block text-[11px] text-muted-foreground">پذیرفته / ناموفق</span><strong>{displayNumber(pushSent)} / {displayNumber(pushFailed)}</strong></div>
       </div>
-      {target === 'recipient' ? <div className="field mt-5"><span>جست‌وجوی Ajax {kindLabel(kind)}</span><div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={selected ? selected.name : search} onChange={(event) => { setSelected(null); setSearch(event.target.value); setError(''); }} placeholder={kind === 'customer' ? 'حداقل دو حرف از نام یا شماره را وارد کنید' : 'نام یا شناسه تلگرام فروشنده'} /></div>{loading ? <p className="mt-2 text-xs text-muted-foreground">در حال جست‌وجو...</p> : results.length > 0 ? <div className="mt-2 list-stack border border-border/60 rounded-xl p-1">{results.map((item) => <button type="button" key={String(item.id)} className="panel-row w-full text-right hover:bg-muted/40" onClick={() => { setSelected(item); setResults([]); }}><div className="avatar avatar-sage">{kind === 'customer' ? 'م' : 'ف'}</div><div className="min-w-0 flex-1"><strong className="block truncate">{item.name}</strong><span className="text-xs text-muted-foreground" dir="ltr">{kind === 'customer' ? item.phone : `Telegram ID: ${item.telegram_id || item.id}`}</span></div>{kind === 'customer' ? <span className="text-xs text-muted-foreground">{faNumber(Number(item.active_devices ?? 0))} دستگاه</span> : null}</button>)}</div> : search.trim().length >= 2 && !selected ? <p className="mt-2 text-xs text-muted-foreground">مخاطبی پیدا نشد.</p> : null}{selected ? <div className="notice mt-3"><Check size={15} /><span>مخاطب انتخاب‌شده: <strong>{selected.name}</strong></span><button type="button" className="mr-auto text-xs underline" onClick={() => setSelected(null)}>تغییر</button></div> : null}</div> : <div className="notice mt-5"><Users size={15} /><span>پیام برای همهٔ {kind === 'customer' ? 'مشتریان' : 'فروشندگان'} ارسال می‌شود.</span></div>}
-      <label className="field mt-5"><span>عنوان اعلان</span><input required maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="مثلاً اطلاعیه پشتیبانی" /></label>
-      <label className="field mt-5"><span>متن پیام</span><textarea required maxLength={4000} rows={6} value={body} onChange={(event) => setBody(event.target.value)} placeholder="متن پیام را بنویسید." /></label>
-      {error ? <div className="login-error mt-4">{error}</div> : null}
-      {feedback ? <div className="notice mt-4"><CheckCircle2 size={15} /><span>{feedback}</span></div> : null}
-      <div className="mt-5 flex flex-wrap items-center gap-3"><button className="button button-primary" type="submit" disabled={sending || !title.trim() || !body.trim() || (target === 'recipient' && !selected)}>{sending ? <><RefreshCw size={14} className="spin" /> در حال ارسال...</> : <><Send size={14} /> ارسال پیام</>}</button><span className="text-xs text-muted-foreground"><Smartphone size={13} className="inline ml-1" />برای مشتری: inbox + Web Push · برای فروشنده: مرکز اعلان پنل</span></div>
-    </form>
-  </NotificationPageFrame>;
+      {typeof result.scheduled_at === 'string' || typeof result.scheduledAt === 'string' ? <p className="mt-3 text-xs text-muted-foreground">زمان ارسال: {dateLabel(result.scheduled_at || result.scheduledAt)}</p> : null}
+    </div>
+  );
+}
+
+export function NotificationAnalyticsPage() {
+  const { session } = usePulse();
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [daily, setDaily] = useState<AnalyticsPoint[]>([]);
+  const [logs, setLogs] = useState<DeliveryLog[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [error, setError] = useState('');
+  const [detailError, setDetailError] = useState('');
+
+  const selectedCampaign = useMemo(() => campaigns.find((campaign) => String(campaign.id) === selectedId) || null, [campaigns, selectedId]);
+
+  const loadCampaigns = async () => {
+    setLoadingCampaigns(true);
+    setError('');
+    try {
+      const response = await fetch('/api/admin/notification-campaigns?limit=30', { credentials: 'include' });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(errorText(result, 'سابقه کمپین‌ها دریافت نشد.'));
+      const items = Array.isArray(result?.items) ? result.items : [];
+      setCampaigns(items);
+      setSelectedId((current) => current && items.some((item: Campaign) => String(item.id) === current) ? current : items[0] ? String(items[0].id) : '');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'سابقه کمپین‌ها دریافت نشد.');
+    } finally {
+      setLoadingCampaigns(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session?.role !== 'master_admin') return;
+    void loadCampaigns();
+  }, [session?.role]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setSummary(null);
+      setDaily([]);
+      setLogs([]);
+      return;
+    }
+    const controller = new AbortController();
+    setLoadingDetail(true);
+    setDetailError('');
+    Promise.all([
+      fetch(`/api/admin/notification-analytics?campaign_id=${encodeURIComponent(selectedId)}`, { credentials: 'include', signal: controller.signal }),
+      fetch(`/api/admin/notification-campaigns/${encodeURIComponent(selectedId)}/logs`, { credentials: 'include', signal: controller.signal }),
+    ]).then(async ([analyticsResponse, logsResponse]) => {
+      const analyticsResult = await analyticsResponse.json().catch(() => null);
+      const logsResult = await logsResponse.json().catch(() => null);
+      if (!analyticsResponse.ok) throw new Error(errorText(analyticsResult, 'تحلیل کمپین دریافت نشد.'));
+      if (!logsResponse.ok) throw new Error(errorText(logsResult, 'گزارش تحویل دریافت نشد.'));
+      setSummary(analyticsResult?.summary && typeof analyticsResult.summary === 'object' ? analyticsResult.summary : {});
+      setDaily(Array.isArray(analyticsResult?.daily) ? analyticsResult.daily : []);
+      setLogs(Array.isArray(logsResult?.items) ? logsResult.items : []);
+    }).catch((cause) => {
+      if (!(cause instanceof DOMException && cause.name === 'AbortError')) setDetailError(cause instanceof Error ? cause.message : 'جزئیات کمپین دریافت نشد.');
+    }).finally(() => setLoadingDetail(false));
+    return () => controller.abort();
+  }, [selectedId]);
+
+  const retry = async () => {
+    if (!selectedId) return;
+    setRetrying(true);
+    setDetailError('');
+    try {
+      const response = await fetch(`/api/admin/notification-campaigns/${encodeURIComponent(selectedId)}/retry`, { method: 'POST', credentials: 'include' });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(errorText(result, 'تلاش مجدد انجام نشد.'));
+      await loadCampaigns();
+      setSummary(result && typeof result === 'object' ? result : summary);
+    } catch (cause) {
+      setDetailError(cause instanceof Error ? cause.message : 'تلاش مجدد انجام نشد.');
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  if (session?.role !== 'master_admin') return <NotificationPageFrame><AdminOnlyNotice /></NotificationPageFrame>;
+  const total = summary ? maybeNumber(summary, ['total', 'target_count', 'audience']) : null;
+  return (
+    <NotificationPageFrame>
+      <PageHeader eyebrow="مرکز کنترل اعلان" title="تحلیل و گزارش کمپین‌ها" description="تعداد ثبت‌شده کافی نیست؛ وضعیت پذیرش، شکست، غیرفعال‌شدن دستگاه و رفتار کاربر را جداگانه ببینید." action={<Link className="button button-primary" href="/notification-send"><Send size={15} /> کمپین جدید</Link>} />
+      <NotificationNav active="analytics" />
+      {error ? <div className="login-error mt-5 flex items-center justify-between gap-3"><span>{error}</span><button className="button button-secondary" type="button" onClick={() => void loadCampaigns()}>تلاش دوباره</button></div> : null}
+      <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(220px,0.7fr)_minmax(0,2fr)]">
+        <section className="panel-card min-w-0">
+          <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">سابقه کمپین‌ها</p><p className="mt-1 text-xs text-muted-foreground">{faNumber(campaigns.length)} کمپین اخیر</p></div><button className="icon-button" type="button" onClick={() => void loadCampaigns()} aria-label="به‌روزرسانی"><RefreshCw size={16} className={loadingCampaigns ? 'spin' : ''} /></button></div>
+          {loadingCampaigns ? <div className="empty-state py-12"><RefreshCw size={19} className="spin" /><p className="mt-3 text-xs">در حال دریافت سابقه...</p></div> : campaigns.length === 0 ? <div className="empty-state py-12"><Bell size={19} /><p className="mt-3 text-xs">هنوز کمپینی ثبت نشده است.</p><Link className="button button-secondary mt-4" href="/notification-send">ارسال اولین پیام</Link></div> : <div className="mt-4 space-y-2">{campaigns.map((campaign) => <button type="button" key={String(campaign.id)} onClick={() => setSelectedId(String(campaign.id))} className={`w-full rounded-xl border p-3 text-right transition-colors ${String(campaign.id) === selectedId ? 'border-primary bg-primary/5' : 'border-border/60 hover:bg-muted/40'}`}><div className="flex items-start justify-between gap-2"><strong className="line-clamp-2 text-sm">{campaign.title || campaign.name || 'اعلان بدون عنوان'}</strong><ChevronLeft size={15} className="mt-0.5 shrink-0 text-muted-foreground" /></div><div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground"><span>{dateLabel(campaign.created_at || campaign.scheduled_at)}</span><span className={`status-pill ${statusTone(campaign.status)}`}>{statusText(campaign.status)}</span></div></button>)}</div>}
+        </section>
+        <section className="min-w-0">
+          {!selectedCampaign ? <div className="panel-card empty-state min-h-[320px]"><BarChart3 size={24} /><p className="mt-3 text-sm font-bold">یک کمپین را انتخاب کنید</p><p className="mt-1 text-xs text-muted-foreground">جزئیات تحویل و رفتار مشتری اینجا نمایش داده می‌شود.</p></div> : <>
+            <div className="panel-card">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="eyebrow text-primary">جزئیات کمپین</p><h2 className="mt-1 text-xl font-extrabold">{selectedCampaign.title || selectedCampaign.name || 'اعلان بدون عنوان'}</h2><p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{selectedCampaign.body || 'متن کمپین در دسترس نیست.'}</p></div><div className="flex shrink-0 gap-2">{selectedCampaign.href ? <a className="icon-button" href={selectedCampaign.href} target="_blank" rel="noreferrer" aria-label="باز کردن لینک"><ExternalLink size={16} /></a> : null}<button className="button button-secondary" type="button" onClick={() => void retry()} disabled={retrying}><RotateCcw size={14} className={retrying ? 'spin' : ''} /> تلاش مجدد</button></div></div>
+              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span><Clock3 size={13} className="ml-1 inline" />{dateLabel(selectedCampaign.scheduled_at || selectedCampaign.created_at)}</span>{selectedCampaign.action_label ? <span><MousePointerClick size={13} className="ml-1 inline" />{selectedCampaign.action_label}</span> : null}<span>{selectedCampaign.target === 'all' ? 'همه مشتریان' : 'مخاطب مشخص'}</span></div>
+            </div>
+            {detailError ? <div className="login-error mt-4">{detailError}</div> : null}
+            {loadingDetail ? <div className="panel-card mt-4 empty-state py-14"><RefreshCw size={20} className="spin" /><p className="mt-3 text-sm">در حال دریافت شواهد تحویل...</p></div> : <>
+              <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-5"><StatTile label="مخاطب" value={total} icon={Users} /><StatTile label="پذیرفته‌شده" value={maybeNumber(summary || {}, ['push_accepted', 'accepted', 'sent', 'delivered'])} icon={CheckCircle2} tone="success" /><StatTile label="ناموفق" value={maybeNumber(summary || {}, ['push_failed', 'failed'])} icon={XCircle} tone="danger" /><StatTile label="غیرفعال‌شده" value={maybeNumber(summary || {}, ['deactivated_devices', 'deactivated'])} icon={Smartphone} tone="warning" /><StatTile label="باز / کلیک" value={summary ? `${maybeNumber(summary, ['opened']) === null ? '—' : faNumber(maybeNumber(summary, ['opened']) as number)} / ${maybeNumber(summary, ['clicked']) === null ? '—' : faNumber(maybeNumber(summary, ['clicked']) as number)}` : '—'} icon={Eye} /></div>
+               <div className="panel-card mt-4"><div className="flex items-center justify-between"><div><p className="text-sm font-bold">روند روزانه</p><p className="mt-1 text-xs text-muted-foreground">فقط روزهایی نمایش داده می‌شوند که API داده برگرداند.</p></div><BarChart3 size={18} className="text-primary" /></div>{daily.length === 0 ? <div className="empty-state py-10"><p className="text-xs">داده روزانه‌ای برای این کمپین وجود ندارد.</p></div> : <div className="mt-4 overflow-x-auto"><table className="data-table w-full"><thead><tr><th>روز</th><th>مخاطب</th><th>پذیرفته</th><th>ناموفق</th><th>باز / کلیک</th></tr></thead><tbody>{daily.map((point, index) => <tr key={`${point.date || point.day || index}`}><td dir="ltr">{String(point.date || point.day || '—')}</td><td>{faNumber(firstNumber(point, ['total', 'target_count']))}</td><td>{faNumber(firstNumber(point, ['push_accepted', 'accepted', 'sent', 'delivered']))}</td><td>{faNumber(firstNumber(point, ['push_failed', 'failed']))}</td><td>{faNumber(firstNumber(point, ['opened']))} / {faNumber(firstNumber(point, ['clicked']))}</td></tr>)}</tbody></table></div>}</div>
+              <div className="panel-card mt-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">لاگ تحویل به مشتریان</p><p className="mt-1 text-xs text-muted-foreground">هر ردیف یک شاهد از نتیجه تلاش ارسال است.</p></div><span className="status-pill"><Bell size={13} />{faNumber(logs.length)} رکورد</span></div>{logs.length === 0 ? <div className="empty-state py-10"><p className="text-xs">لاگ تحویلی برای این کمپین ثبت نشده است.</p></div> : <div className="mt-4 overflow-x-auto"><table className="data-table w-full"><thead><tr><th>مشتری</th><th>وضعیت</th><th>پذیرش</th><th>باز / کلیک</th><th>جزئیات</th></tr></thead><tbody>{logs.map((log, index) => <tr key={String(log.id || index)}><td><strong>{log.customer_name || log.recipient_name || 'مشتری'}</strong><div className="text-xs text-muted-foreground" dir="ltr">{log.phone || '—'}</div></td><td><span className={`status-pill ${statusTone(log.status)}`}>{log.status === 'accepted' ? <Check size={13} /> : log.status === 'failed' ? <XCircle size={13} /> : <Clock3 size={13} />}{statusText(log.status)}</span></td><td className="text-xs">{dateLabel(log.accepted_at || log.created_at)}</td><td className="text-xs">{log.opened_at ? `باز ${dateLabel(log.opened_at)}` : 'باز نشده'}<br />{log.clicked_at ? `کلیک ${dateLabel(log.clicked_at)}` : 'کلیک نشده'}</td><td className="max-w-[220px] text-xs text-muted-foreground">{String(log.failure_reason || '—')}</td></tr>)}</tbody></table></div>}</div>
+            </>}
+          </>}
+        </section>
+      </div>
+    </NotificationPageFrame>
+  );
 }

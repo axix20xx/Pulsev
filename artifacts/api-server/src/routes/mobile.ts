@@ -75,6 +75,7 @@ export const mobileReady = pool.query(`
     id BIGSERIAL PRIMARY KEY,
     customer_id BIGINT NOT NULL,
     service_id BIGINT,
+    campaign_id BIGINT,
     event_key TEXT NOT NULL,
     notification_type TEXT NOT NULL,
     title TEXT NOT NULL,
@@ -82,12 +83,94 @@ export const mobileReady = pool.query(`
     href TEXT,
     tone TEXT NOT NULL DEFAULT 'normal',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    read_at TIMESTAMP
+    read_at TIMESTAMP,
+    opened_at TIMESTAMP,
+    clicked_at TIMESTAMP
   );
+  ALTER TABLE mobile_notifications ADD COLUMN IF NOT EXISTS campaign_id BIGINT;
+  ALTER TABLE mobile_notifications ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP;
+  ALTER TABLE mobile_notifications ADD COLUMN IF NOT EXISTS clicked_at TIMESTAMP;
   CREATE UNIQUE INDEX IF NOT EXISTS mobile_notifications_event_idx
     ON mobile_notifications (customer_id, event_key);
   CREATE INDEX IF NOT EXISTS mobile_notifications_inbox_idx
     ON mobile_notifications (customer_id, read_at, created_at DESC);
+  CREATE INDEX IF NOT EXISTS mobile_notifications_campaign_idx
+    ON mobile_notifications (campaign_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS notification_campaigns (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    notification_type TEXT NOT NULL DEFAULT 'admin_message',
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    href TEXT,
+    action_label TEXT,
+    tone TEXT NOT NULL DEFAULT 'normal',
+    audience_type TEXT NOT NULL DEFAULT 'customers',
+    status TEXT NOT NULL DEFAULT 'sending',
+    scheduled_at TIMESTAMP,
+    created_by BIGINT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    last_error TEXT
+  );
+  CREATE INDEX IF NOT EXISTS notification_campaigns_status_idx
+    ON notification_campaigns (status, scheduled_at);
+  CREATE TABLE IF NOT EXISTS notification_campaign_recipients (
+    id BIGSERIAL PRIMARY KEY,
+    campaign_id BIGINT NOT NULL REFERENCES notification_campaigns(id) ON DELETE CASCADE,
+    customer_id BIGINT NOT NULL,
+    inbox_status TEXT NOT NULL DEFAULT 'queued',
+    inbox_saved_at TIMESTAMP,
+    opened_at TIMESTAMP,
+    clicked_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (campaign_id, customer_id)
+  );
+  CREATE INDEX IF NOT EXISTS notification_campaign_recipients_customer_idx
+    ON notification_campaign_recipients (customer_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS notification_delivery_attempts (
+    id BIGSERIAL PRIMARY KEY,
+    campaign_id BIGINT,
+    notification_id BIGINT,
+    customer_id BIGINT NOT NULL,
+    subscription_id BIGINT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'attempted',
+    provider_status_code INTEGER,
+    provider_message TEXT,
+    attempted_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    accepted_at TIMESTAMP,
+    failed_at TIMESTAMP,
+    deactivated_at TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS notification_delivery_campaign_idx
+    ON notification_delivery_attempts (campaign_id, attempted_at DESC);
+  CREATE INDEX IF NOT EXISTS notification_delivery_customer_idx
+    ON notification_delivery_attempts (customer_id, attempted_at DESC);
+  CREATE TABLE IF NOT EXISTS notification_clicks (
+    id BIGSERIAL PRIMARY KEY,
+    campaign_id BIGINT,
+    notification_id BIGINT,
+    customer_id BIGINT NOT NULL,
+    event_type TEXT NOT NULL,
+    href TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS notification_clicks_campaign_idx
+    ON notification_clicks (campaign_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS notification_templates (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    notification_type TEXT NOT NULL DEFAULT 'admin_message',
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    href TEXT,
+    action_label TEXT,
+    tone TEXT NOT NULL DEFAULT 'normal',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
   CREATE TABLE IF NOT EXISTS mobile_notification_preferences (
     customer_id BIGINT PRIMARY KEY,
     service_enabled SMALLINT NOT NULL DEFAULT 1,
@@ -320,7 +403,18 @@ type PushDeliveryResult = {
   errors: string[];
 };
 
-const sendPush = async (customerId: number, notification: { title: string; body: string; href: string | null; tone: string }): Promise<PushDeliveryResult> => {
+const sendPush = async (
+  customerId: number,
+  notification: {
+    id?: number | null;
+    campaignId?: number | null;
+    title: string;
+    body: string;
+    href: string | null;
+    actionLabel?: string | null;
+    tone: string;
+  },
+): Promise<PushDeliveryResult> => {
   const config = await getVapidConfig();
   configureVapid(config);
   const result = await pool.query<{ id: number; endpoint: string; p256dh: string; auth: string }>(
@@ -329,12 +423,37 @@ const sendPush = async (customerId: number, notification: { title: string; body:
     [customerId],
   );
   const outcomes = await Promise.all(result.rows.map(async (subscription) => {
+    const attempt = await pool.query<{ id: number }>(
+      `INSERT INTO notification_delivery_attempts
+         (campaign_id, notification_id, customer_id, subscription_id, status)
+       VALUES ($1, $2, $3, $4, 'attempted')
+       RETURNING id`,
+      [notification.campaignId ?? null, notification.id ?? null, customerId, subscription.id],
+    );
+    const attemptId = attempt.rows[0]?.id;
     try {
       await webpush.sendNotification(
         { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
-        JSON.stringify({ title: notification.title, body: notification.body, url: notification.href || "/mobile", tone: notification.tone }),
+        JSON.stringify({
+          title: notification.title,
+          body: notification.body,
+          url: notification.href || "/mobile",
+          href: notification.href || "/mobile",
+          tone: notification.tone,
+          action_label: notification.actionLabel || null,
+          notification_id: notification.id ?? null,
+          campaign_id: notification.campaignId ?? null,
+        }),
       );
       await pool.query("UPDATE mobile_push_subscriptions SET last_used_at = NOW() WHERE id = $1", [subscription.id]);
+      if (attemptId) {
+        await pool.query(
+          `UPDATE notification_delivery_attempts
+           SET status = 'accepted', accepted_at = NOW(), provider_status_code = 201
+           WHERE id = $1`,
+          [attemptId],
+        );
+      }
       return { sent: true, failed: false, deactivated: false, error: "" };
     } catch (error) {
       const statusCode = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) : 0;
@@ -342,6 +461,24 @@ const sendPush = async (customerId: number, notification: { title: string; body:
       const badJwtToken = responseBody.includes("BadJwtToken");
       if (statusCode === 404 || statusCode === 410 || badJwtToken) {
         await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE id = $1", [subscription.id]);
+      }
+      if (attemptId) {
+        await pool.query(
+          `UPDATE notification_delivery_attempts
+           SET status = $2,
+               failed_at = NOW(),
+               deactivated_at = CASE WHEN $3 THEN NOW() ELSE NULL END,
+               provider_status_code = NULLIF($4, 0),
+               provider_message = $5
+           WHERE id = $1`,
+          [
+            attemptId,
+            statusCode === 404 || statusCode === 410 || badJwtToken ? "deactivated" : "failed",
+            statusCode === 404 || statusCode === 410 || badJwtToken,
+            statusCode,
+            responseBody.slice(0, 500),
+          ],
+        );
       }
       logger.warn({ customerId, subscriptionId: subscription.id, statusCode, responseBody: responseBody.slice(0, 300) }, "Mobile Push delivery failed");
       return {
@@ -378,7 +515,18 @@ const notificationPreference = (type: string) => {
   return "system_enabled";
 };
 
-const createNotification = async (input: { customerId: number; serviceId?: number | null; eventKey: string; type: string; title: string; body: string; href?: string | null; tone?: string }): Promise<{ id: number | null; delivery?: PushDeliveryResult }> => {
+const createNotification = async (input: {
+  customerId: number;
+  serviceId?: number | null;
+  campaignId?: number | null;
+  eventKey: string;
+  type: string;
+  title: string;
+  body: string;
+  href?: string | null;
+  actionLabel?: string | null;
+  tone?: string;
+}): Promise<{ id: number | null; delivery?: PushDeliveryResult }> => {
   const preferenceKey = notificationPreference(input.type);
   const preference = await pool.query<Record<string, number>>(
     `SELECT ${preferenceKey} FROM mobile_notification_preferences WHERE customer_id = $1`,
@@ -387,22 +535,42 @@ const createNotification = async (input: { customerId: number; serviceId?: numbe
   if (preference.rows[0] && Number(preference.rows[0][preferenceKey] ?? 1) !== 1) return { id: null };
   const inserted = await pool.query<{ id: number }>(
     `INSERT INTO mobile_notifications
-       (customer_id, service_id, event_key, notification_type, title, body, href, tone)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (customer_id, service_id, campaign_id, event_key, notification_type, title, body, href, tone)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (customer_id, event_key) DO NOTHING
      RETURNING id`,
-    [input.customerId, input.serviceId ?? null, input.eventKey, input.type, input.title, input.body, input.href ?? null, input.tone ?? "normal"],
+    [
+      input.customerId,
+      input.serviceId ?? null,
+      input.campaignId ?? null,
+      input.eventKey,
+      input.type,
+      input.title,
+      input.body,
+      input.href ?? null,
+      input.tone ?? "normal",
+    ],
   );
   if (!inserted.rows[0]) return { id: null };
-  const delivery = await sendPush(input.customerId, { title: input.title, body: input.body, href: input.href ?? null, tone: input.tone ?? "normal" });
+  const delivery = await sendPush(input.customerId, {
+    id: inserted.rows[0].id,
+    campaignId: input.campaignId ?? null,
+    title: input.title,
+    body: input.body,
+    href: input.href ?? null,
+    actionLabel: input.actionLabel ?? null,
+    tone: input.tone ?? "normal",
+  });
   return { id: inserted.rows[0].id, delivery };
 };
 
 export const sendMobileNotification = async (input: {
   customerIds: number[];
+  campaignId?: number | null;
   title: string;
   body: string;
   href?: string | null;
+  actionLabel?: string | null;
   tone?: string;
 }) => {
   await mobileReady;
@@ -415,20 +583,48 @@ export const sendMobileNotification = async (input: {
   let pushDeactivated = 0;
   const pushErrors = new Set<string>();
   for (const customerId of [...new Set(input.customerIds)]) {
+    const recipient = input.campaignId
+      ? await pool.query(
+          `INSERT INTO notification_campaign_recipients (campaign_id, customer_id, inbox_status)
+           VALUES ($1, $2, 'queued')
+           ON CONFLICT (campaign_id, customer_id) DO UPDATE SET updated_at = NOW()
+           RETURNING id`,
+          [input.campaignId, customerId],
+        )
+      : null;
     const inserted = await pool.query<{ id: number }>(
       `INSERT INTO mobile_notifications
-         (customer_id, service_id, event_key, notification_type, title, body, href, tone)
-       VALUES ($1, NULL, $2, 'admin_message', $3, $4, $5, $6)
+         (customer_id, service_id, campaign_id, event_key, notification_type, title, body, href, tone)
+       VALUES ($1, NULL, $2, $3, 'admin_message', $4, $5, $6, $7)
        ON CONFLICT (customer_id, event_key) DO NOTHING
        RETURNING id`,
-      [customerId, `admin:${eventId}:${customerId}`, input.title, input.body, input.href ?? "/mobile/notifications", input.tone ?? "normal"],
+      [
+        customerId,
+        input.campaignId ?? null,
+        `admin:${eventId}:${customerId}`,
+        input.title,
+        input.body,
+        input.href ?? "/mobile/notifications",
+        input.tone ?? "normal",
+      ],
     );
     if (inserted.rows[0]) {
       deliveredToInbox += 1;
+      if (input.campaignId && recipient?.rows[0]) {
+        await pool.query(
+          `UPDATE notification_campaign_recipients
+           SET inbox_status = 'saved', inbox_saved_at = NOW(), updated_at = NOW()
+           WHERE id = $1`,
+          [recipient.rows[0].id],
+        );
+      }
       const delivery = await sendPush(customerId, {
+        id: inserted.rows[0].id,
+        campaignId: input.campaignId ?? null,
         title: input.title,
         body: input.body,
         href: input.href ?? "/mobile/notifications",
+        actionLabel: input.actionLabel ?? null,
         tone: input.tone ?? "normal",
       });
       activeDevices += delivery.activeDevices;
@@ -437,6 +633,26 @@ export const sendMobileNotification = async (input: {
       pushFailed += delivery.failed;
       pushDeactivated += delivery.deactivated;
       delivery.errors.forEach((error) => pushErrors.add(error));
+      if (input.campaignId) {
+        await pool.query(
+          `UPDATE notification_campaign_recipients
+           SET inbox_status = CASE
+                 WHEN $2::int > 0 THEN 'push_accepted'
+                 WHEN $3::int > 0 THEN 'push_failed'
+                 ELSE 'inbox_only'
+               END,
+               updated_at = NOW()
+           WHERE campaign_id = $1 AND customer_id = $4`,
+          [input.campaignId, delivery.sent, delivery.failed, customerId],
+        );
+      }
+    } else if (input.campaignId) {
+      await pool.query(
+        `UPDATE notification_campaign_recipients
+         SET inbox_status = 'duplicate', updated_at = NOW()
+         WHERE campaign_id = $1 AND customer_id = $2`,
+        [input.campaignId, customerId],
+      );
     }
   }
   return {
@@ -449,6 +665,58 @@ export const sendMobileNotification = async (input: {
     pushDeactivated,
     pushErrors: [...pushErrors],
   };
+};
+
+export const runScheduledNotificationCampaigns = async (): Promise<void> => {
+  await mobileReady;
+  const claimed = await pool.query<{
+    id: number;
+    title: string;
+    body: string;
+    href: string | null;
+    action_label: string | null;
+    tone: string;
+  }>(
+    `UPDATE notification_campaigns
+     SET status = 'sending', started_at = COALESCE(started_at, NOW())
+     WHERE status = 'scheduled' AND scheduled_at <= NOW()
+     RETURNING id, title, body, href, action_label, tone`,
+  );
+  for (const campaign of claimed.rows) {
+    try {
+      const recipients = await pool.query<{ customer_id: number }>(
+        `SELECT customer_id
+         FROM notification_campaign_recipients
+         WHERE campaign_id = $1
+           AND inbox_status IN ('queued', 'failed')
+         ORDER BY id`,
+        [campaign.id],
+      );
+      await sendMobileNotification({
+        campaignId: campaign.id,
+        customerIds: recipients.rows.map((row) => Number(row.customer_id)),
+        title: campaign.title,
+        body: campaign.body,
+        href: campaign.href,
+        actionLabel: campaign.action_label,
+        tone: campaign.tone,
+      });
+      await pool.query(
+        `UPDATE notification_campaigns
+         SET status = 'completed', completed_at = NOW()
+         WHERE id = $1`,
+        [campaign.id],
+      );
+    } catch (error) {
+      await pool.query(
+        `UPDATE notification_campaigns
+         SET status = 'failed', completed_at = NOW(), last_error = $2
+         WHERE id = $1`,
+        [campaign.id, error instanceof Error ? error.message.slice(0, 500) : "ارسال کمپین ناموفق بود"],
+      );
+      logger.error({ campaignId: campaign.id, error }, "Scheduled notification campaign failed");
+    }
+  }
 };
 
 export const runMobileNotificationSweep = async (): Promise<void> => {
@@ -488,11 +756,71 @@ export const runMobileNotificationSweep = async (): Promise<void> => {
 
 export const startMobileNotificationWorker = () => {
   const run = () => void runMobileNotificationSweep().catch(() => undefined);
+  const runCampaigns = () => void runScheduledNotificationCampaigns().catch((error) => {
+    logger.error({ error }, "Scheduled notification worker failed");
+  });
   void mobileReady.then(run);
+  void mobileReady.then(runCampaigns);
   setInterval(run, 30 * 60 * 1000).unref();
+  setInterval(runCampaigns, 60 * 1000).unref();
 };
 
 router.use(attachMobileAuth);
+
+router.post("/mobile/notifications/:id/track", async (req, res): Promise<void> => {
+  await mobileReady;
+  if (!req.mobileAuth) {
+    res.status(401).json({ error: "ورود مشتری لازم است" });
+    return;
+  }
+  const notificationId = Number(req.params.id);
+  const eventType = req.body?.event === "click" ? "click" : "open";
+  if (!Number.isSafeInteger(notificationId) || notificationId <= 0) {
+    res.status(400).json({ error: "شناسه اعلان معتبر نیست" });
+    return;
+  }
+  const notification = await pool.query<{ id: number; campaign_id: number | null; href: string | null }>(
+    `SELECT id, campaign_id, href
+     FROM mobile_notifications
+     WHERE id = $1 AND customer_id = $2
+     LIMIT 1`,
+    [notificationId, req.mobileAuth.customerId],
+  );
+  if (!notification.rows[0]) {
+    res.status(404).json({ error: "اعلان پیدا نشد" });
+    return;
+  }
+  if (eventType === "click") {
+    await pool.query(
+      `UPDATE mobile_notifications
+       SET clicked_at = COALESCE(clicked_at, NOW()),
+           opened_at = COALESCE(opened_at, NOW()),
+           read_at = COALESCE(read_at, NOW())
+       WHERE id = $1`,
+      [notificationId],
+    );
+  } else {
+    await pool.query(
+      `UPDATE mobile_notifications
+       SET opened_at = COALESCE(opened_at, NOW())
+       WHERE id = $1`,
+      [notificationId],
+    );
+  }
+  await pool.query(
+    `UPDATE notification_campaign_recipients
+     SET ${eventType === "click" ? "clicked_at = COALESCE(clicked_at, NOW()), opened_at = COALESCE(opened_at, NOW())" : "opened_at = COALESCE(opened_at, NOW())"},
+         updated_at = NOW()
+     WHERE campaign_id = $1 AND customer_id = $2`,
+    [notification.rows[0].campaign_id, req.mobileAuth.customerId],
+  );
+  await pool.query(
+    `INSERT INTO notification_clicks (campaign_id, notification_id, customer_id, event_type, href)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [notification.rows[0].campaign_id, notificationId, req.mobileAuth.customerId, eventType, notification.rows[0].href],
+  );
+  res.json({ tracked: true, event: eventType });
+});
 
 const normalizePhoneDigits = (input: unknown) => {
   if (typeof input !== "string") return "";

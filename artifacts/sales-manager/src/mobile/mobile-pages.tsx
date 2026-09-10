@@ -91,6 +91,7 @@ function DashboardPage({ dashboard, reload }: { dashboard: MobileDashboard; relo
   const preview = dashboard.notifications.slice(0, 2);
   const copyLink = async (value: string) => { await navigator.clipboard?.writeText(value); setCopied(true); window.setTimeout(() => setCopied(false), 2200); };
   const openNotification = async (item: MobileNotification) => {
+    await mobileRequest(`/api/mobile/notifications/${item.id}/track`, { method: 'POST', body: JSON.stringify({ event: 'click' }) }).catch(() => undefined);
     if (!item.read_at) await mobileRequest(`/api/mobile/notifications/${item.id}/read`, { method: 'PATCH' }).catch(() => undefined);
     setLocation(item.href || '/mobile/notifications');
   };
