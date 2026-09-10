@@ -181,6 +181,8 @@ function SettingsPage() {
   const { data, loading, error, reload } = useMobileFetch<unknown>('/api/mobile/settings');
   const [settings, setSettings] = useState<MobileSettings | null>(null);
   const [pushState, setPushState] = useState<'idle' | 'explaining' | 'working' | 'enabled' | 'error'>('idle');
+  const [pushTestState, setPushTestState] = useState<'idle' | 'working' | 'success' | 'error'>('idle');
+  const [pushTestMessage, setPushTestMessage] = useState('');
   useEffect(() => { if (data) setSettings(objectFrom<MobileSettings>(data, 'settings')); }, [data]);
   const items: { key: keyof MobileSettings; title: string; detail: string }[] = [
     { key: 'service_enabled', title: 'تغییر وضعیت سرویس', detail: 'وقتی اتصال شما فعال یا غیرفعال شود' },
@@ -209,8 +211,24 @@ function SettingsPage() {
       }
     } finally { setPushState('idle'); }
   };
-  const testPush = async () => { await mobileRequest('/api/mobile/push/test', { method: 'POST' }).catch(() => undefined); };
-  return <MobileFrame title="تنظیمات" back><div className="mobile-page-heading"><span className="mobile-eyebrow">کنترل‌های شخصی</span><h1>تنظیمات اعلان</h1><p>فقط پیام‌هایی را دریافت کنید که برایتان مهم‌اند.</p></div><MobileState loading={loading} error={error} onRetry={reload}>{settings ? <><div className="mobile-settings-card">{items.map(({ key, title, detail }) => <div className="mobile-setting-row" key={key}><span><strong>{title}</strong><small>{detail}</small></span><button className={`mobile-switch ${settings[key] ? 'is-on' : ''}`} role="switch" aria-checked={settings[key]} onClick={() => update(key)}><i /></button></div>)}</div><div className="mobile-push-card"><div className="mobile-push-icon"><Smartphone size={20} /></div><div><h2>اعلان روی دستگاه</h2><p>با فعال‌سازی، پایان اشتراک و تغییرات مهم را حتی بیرون از برنامه از دست نمی‌دهید.</p>{pushState === 'enabled' ? <><span className="mobile-push-success">اعلان‌ها فعال هستند</span><div className="mobile-push-actions"><button className="mobile-push-link" onClick={testPush}>ارسال اعلان آزمایشی</button><button className="mobile-push-link is-danger" onClick={disablePush}>غیرفعال‌سازی</button></div></> : pushState === 'error' ? <><span className="mobile-form-error">فعال‌سازی انجام نشد. دوباره امتحان کنید.</span><button className="mobile-button mobile-button-dark" onClick={enablePush}>تلاش دوباره</button></> : <button className="mobile-button mobile-button-dark" onClick={enablePush}>{pushState === 'working' ? 'در حال فعال‌سازی…' : 'فعال‌سازی اعلان‌ها'}</button>}</div></div></> : null}</MobileState></MobileFrame>;
+  const testPush = async () => {
+    setPushTestState('working');
+    setPushTestMessage('');
+    try {
+      const result = await mobileRequest<{ sent?: boolean; activeDevices?: number; failed?: number; errors?: string[] }>('/api/mobile/push/test', { method: 'POST' });
+      if (result.sent) {
+        setPushTestState('success');
+        setPushTestMessage('اعلان آزمایشی ارسال شد.');
+      } else {
+        setPushTestState('error');
+        setPushTestMessage(result.activeDevices ? (result.errors?.join('، ') || 'ارسال Push ناموفق بود.') : 'برای این حساب دستگاه Push فعالی ثبت نشده است.');
+      }
+    } catch (cause) {
+      setPushTestState('error');
+      setPushTestMessage(cause instanceof Error ? cause.message : 'ارسال اعلان آزمایشی ناموفق بود.');
+    }
+  };
+  return <MobileFrame title="تنظیمات" back><div className="mobile-page-heading"><span className="mobile-eyebrow">کنترل‌های شخصی</span><h1>تنظیمات اعلان</h1><p>فقط پیام‌هایی را دریافت کنید که برایتان مهم‌اند.</p></div><MobileState loading={loading} error={error} onRetry={reload}>{settings ? <><div className="mobile-settings-card">{items.map(({ key, title, detail }) => <div className="mobile-setting-row" key={key}><span><strong>{title}</strong><small>{detail}</small></span><button className={`mobile-switch ${settings[key] ? 'is-on' : ''}`} role="switch" aria-checked={settings[key]} onClick={() => update(key)}><i /></button></div>)}</div><div className="mobile-push-card"><div className="mobile-push-icon"><Smartphone size={20} /></div><div><h2>اعلان روی دستگاه</h2><p>با فعال‌سازی، پایان اشتراک و تغییرات مهم را حتی بیرون از برنامه از دست نمی‌دهید.</p>{pushState === 'enabled' ? <><span className="mobile-push-success">اعلان‌ها فعال هستند</span><div className="mobile-push-actions"><button className="mobile-push-link" onClick={() => void testPush()} disabled={pushTestState === 'working'}>{pushTestState === 'working' ? 'در حال ارسال…' : 'ارسال اعلان آزمایشی'}</button><button className="mobile-push-link is-danger" onClick={disablePush}>غیرفعال‌سازی</button></div>{pushTestMessage ? <span className={`mobile-push-test-result ${pushTestState}`}>{pushTestMessage}</span> : null}</> : pushState === 'error' ? <><span className="mobile-form-error">فعال‌سازی انجام نشد. دوباره امتحان کنید.</span><button className="mobile-button mobile-button-dark" onClick={enablePush}>تلاش دوباره</button></> : <button className="mobile-button mobile-button-dark" onClick={enablePush}>{pushState === 'working' ? 'در حال فعال‌سازی…' : 'فعال‌سازی اعلان‌ها'}</button>}</div></div></> : null}</MobileState></MobileFrame>;
 }
 
 function MobilePushPrompt({ customerKey }: { customerKey: string }) {

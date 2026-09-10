@@ -560,3 +560,17 @@ mtime_ms = 1789033892373
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/644c13a5-139d-4369-9011-47ba8f96e027/b5b84640-7b35-453a-9607-b5133928e57e"
 storage_version_token = "1789033940213511"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "_JAEW8AGhqo2s7UqhUdqw"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-push-diagnostics.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle — Push diagnostics and reliable test delivery"
+description = "بستهٔ به‌روزشده شامل تست Push با event key یکتا، گزارش activeDevices و sent/failed، نمایش خطای واقعی در تنظیمات مشتری، و ثبت خطای provider در لاگ سرور."
+logical_id = "35046acb-4677-49ac-8197-810130107ef3"
+content_hash = "sha256:ecc4f31963565c97f1860face892358a6a6ea1f1b6c75c80746d65327ca5f96f"
+size = 26785976
+mtime_ms = 1789034594693
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/35046acb-4677-49ac-8197-810130107ef3/1d1a3188-d02e-41c7-bfd7-87bea31fb43a"
+storage_version_token = "1789034619337697"
+content_type = "application/octet-stream"

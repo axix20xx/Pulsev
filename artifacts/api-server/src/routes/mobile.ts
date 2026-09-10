@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import webpush from "web-push";
 import { pool } from "@workspace/db";
 import { consumeMobileOtp, findActiveMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 const mobileSessionCookie = "pulse_mobile_session";
@@ -325,14 +326,22 @@ const sendPush = async (customerId: number, notification: { title: string; body:
       return { sent: true, failed: false, deactivated: false, error: "" };
     } catch (error) {
       const statusCode = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) : 0;
+      const responseBody = error && typeof error === "object" && "body" in error && typeof error.body === "string" ? error.body : "";
       if (statusCode === 404 || statusCode === 410) {
         await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE id = $1", [subscription.id]);
       }
+      logger.warn({ customerId, subscriptionId: subscription.id, statusCode, responseBody: responseBody.slice(0, 300) }, "Mobile Push delivery failed");
       return {
         sent: false,
         failed: true,
         deactivated: statusCode === 404 || statusCode === 410,
-        error: statusCode ? `HTTP ${statusCode}` : "خطای ارتباط با سرویس Push",
+        error: statusCode === 404 || statusCode === 410
+          ? "اشتراک Push منقضی یا حذف شده است"
+          : statusCode === 401 || statusCode === 403
+            ? "احراز هویت VAPID توسط سرویس Push رد شد"
+            : statusCode
+              ? `HTTP ${statusCode}`
+              : "خطای ارتباط با سرویس Push",
       };
     }
   }));
@@ -354,13 +363,13 @@ const notificationPreference = (type: string) => {
   return "system_enabled";
 };
 
-const createNotification = async (input: { customerId: number; serviceId?: number | null; eventKey: string; type: string; title: string; body: string; href?: string | null; tone?: string }) => {
+const createNotification = async (input: { customerId: number; serviceId?: number | null; eventKey: string; type: string; title: string; body: string; href?: string | null; tone?: string }): Promise<{ id: number | null; delivery?: PushDeliveryResult }> => {
   const preferenceKey = notificationPreference(input.type);
   const preference = await pool.query<Record<string, number>>(
     `SELECT ${preferenceKey} FROM mobile_notification_preferences WHERE customer_id = $1`,
     [input.customerId],
   );
-  if (preference.rows[0] && Number(preference.rows[0][preferenceKey] ?? 1) !== 1) return null;
+  if (preference.rows[0] && Number(preference.rows[0][preferenceKey] ?? 1) !== 1) return { id: null };
   const inserted = await pool.query<{ id: number }>(
     `INSERT INTO mobile_notifications
        (customer_id, service_id, event_key, notification_type, title, body, href, tone)
@@ -369,10 +378,9 @@ const createNotification = async (input: { customerId: number; serviceId?: numbe
      RETURNING id`,
     [input.customerId, input.serviceId ?? null, input.eventKey, input.type, input.title, input.body, input.href ?? null, input.tone ?? "normal"],
   );
-  if (inserted.rows[0]) {
-    await sendPush(input.customerId, { title: input.title, body: input.body, href: input.href ?? null, tone: input.tone ?? "normal" });
-  }
-  return inserted.rows[0]?.id ?? null;
+  if (!inserted.rows[0]) return { id: null };
+  const delivery = await sendPush(input.customerId, { title: input.title, body: input.body, href: input.href ?? null, tone: input.tone ?? "normal" });
+  return { id: inserted.rows[0].id, delivery };
 };
 
 export const sendMobileNotification = async (input: {
@@ -694,15 +702,21 @@ router.delete("/mobile/push/subscribe", requireMobileAuth, async (req, res): Pro
 
 router.post("/mobile/push/test", requireMobileAuth, async (req, res): Promise<void> => {
   await mobileReady;
-  const id = await createNotification({
+  const result = await createNotification({
     customerId: req.mobileAuth!.customerId,
-    eventKey: `manual:test:${new Date().toISOString().slice(0, 16)}`,
+    eventKey: `manual:test:${randomBytes(12).toString("hex")}`,
     type: "system",
     title: "اعلان‌های پالس فعال است",
     body: "این یک اعلان آزمایشی برای دستگاه شماست.",
     href: "/mobile/notifications",
   });
-  res.json({ sent: Boolean(id), configured: true });
+  const delivery = result.delivery ?? { activeDevices: 0, attempted: 0, sent: 0, failed: 0, deactivated: 0, errors: [] };
+  res.json({
+    ...delivery,
+    sent: delivery.sent > 0,
+    inboxSaved: Boolean(result.id),
+    configured: true,
+  });
 });
 
 export default router;

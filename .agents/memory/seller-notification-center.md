@@ -26,3 +26,9 @@ The customer mobile shell should check Push subscription status after authentica
 **Why:** Customers often enter the PWA without ever visiting notification settings, so waiting for an opt-in buried in settings makes admin messages appear broken even when the backend is working.
 
 **How to apply:** Do not prompt on public/login routes, keep dismissal scoped to the current customer session, and preserve a settings fallback for retries or browser permission recovery.
+
+The Push test endpoint must use a unique event key and return delivery metrics; an HTTP 200 from the endpoint only means the request was handled, not that a device received the notification.
+
+**Why:** Minute-based idempotency prevented repeated tests from actually sending, while swallowed Web Push provider errors made failed delivery look successful.
+
+**How to apply:** Return active-device, attempted, sent, failed, deactivated, and safe error fields to the mobile client, and log the provider status/body server-side without exposing credentials or subscription secrets.
