@@ -1,0 +1,4713 @@
+[api] [13:48:15.930] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 65,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1036
+[api] [13:48:43.763] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 66,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2204
+[api] [13:48:44.009] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 67,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2342
+[api] [13:48:45.838] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 68,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 943
+[api] [13:49:15.831] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 69,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 935
+[api] [13:49:27.085] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 70,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2201
+[api] [13:49:27.260] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 71,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2341
+[api] [13:49:45.886] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 72,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 981
+[api] [13:50:05.523] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 73,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2198
+[api] [13:50:05.676] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 74,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2331
+[api] [13:50:15.947] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 75,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1045
+[api] [13:50:31.521] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 673
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [13:50:45.333] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 76,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2247
+[api] [13:50:45.529] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 77,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2432
+[api] [13:50:45.986] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 78,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1081
+[api] [13:51:15.881] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 79,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 980
+[api] [13:51:21.063] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 80,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2229
+[api] [13:51:21.241] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 81,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2377
+[api] [13:51:46.009] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 82,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1101
+[api] [13:52:02.426] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 83,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2236
+[api] [13:52:03.750] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 84,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2423
+[api] [13:52:15.929] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 85,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1028
+[api] [13:52:40.053] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 88,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2208
+[api] [13:52:40.188] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 87,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2345
+[api] [13:52:47.209] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 90,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 945
+[api] [13:52:49.949] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 86,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/18e67adb32c14d38e31dc56c600d142c/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 12823
+[api] [13:52:50.637] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 89,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/18e67adb32c14d38e31dc56c600d142c/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 12550
+[api] [13:53:12.936] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 91,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2247
+[api] [13:53:13.075] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 92,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2374
+[api] [13:53:15.888] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 93,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 982
+[api] [13:53:45.873] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 94,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 960
+[api] [13:53:48.964] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 95,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3850
+[api] [13:53:49.165] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 96,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4037
+[api] [13:54:01.248] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 789
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [13:54:09.295] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 795
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [13:54:15.918] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 97,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1009
+[api] [13:54:23.450] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 98,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2182
+[api] [13:54:23.673] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 99,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2398
+[api] [13:54:46.116] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 100,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 962
+[api] [13:54:58.231] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 101,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2204
+[api] [13:54:58.403] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 102,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2375
+[api] [13:55:15.907] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 103,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 995
+[api] [13:55:31.712] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 104,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2189
+[api] [13:55:31.888] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 105,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2329
+[api] [13:55:40.045] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 880
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [13:55:45.858] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 106,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 950
+[api] [13:55:57.615] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 884
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [13:56:04.655] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 107,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2171
+[api] [13:56:04.829] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 108,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2338
+[api] [13:56:15.924] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 109,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1018
+[api] [13:56:29.816] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 910
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [13:56:40.038] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 111,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2533
+[api] [13:56:40.147] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 110,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2643
+[api] [13:56:45.880] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 112,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 974
+[api] [13:57:15.399] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 113,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2536
+[api] [13:57:15.473] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 114,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2610
+[api] [13:57:16.070] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 115,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1156
+[api] [13:57:46.067] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 116,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1160
+[api] [13:57:48.595] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 117,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2467
+[api] [13:57:48.771] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 118,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2630
+[api] [13:58:16.046] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 119,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1131
+[api] [13:58:23.640] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 120,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2587
+[api] [13:58:25.756] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 121,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4687
+[api] [13:58:46.102] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 122,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1188
+[api] [13:58:57.268] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 123,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2551
+[api] [13:59:05.555] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 124,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2791
+[api] [13:59:16.073] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 125,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1159
+[api] [13:59:41.463] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 126,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2589
+[api] [13:59:41.669] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 127,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2681
+[api] [13:59:46.037] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 128,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1132
+[api] [14:00:16.046] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 131,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1138
+[api] [14:00:17.151] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 129,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2592
+[api] [14:00:19.168] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 130,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4607
+[api] [14:00:46.608] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 132,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1190
+[api] [14:00:51.367] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 133,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2551
+[api] [14:00:52.572] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 134,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2692
+[api] [14:01:16.080] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 135,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1168
+[api] [14:01:26.654] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 137,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2712
+[api] [14:01:26.921] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 138,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2978
+[api] [14:01:29.882] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 136,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/cnMzN18xZDdjYTEsMTc2OTgwMDk3Ngw3PN1n4CSV/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 13886
+[api] [14:01:46.067] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 139,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1147
+[api] [14:01:53.966] [32mINFO[39m (615834): [36mCombined usage sync completed[39m
+[api] [35mservices[39m: 160
+[api] [14:01:59.968] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 140,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2733
+[api] [14:02:00.065] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 141,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2545
+[api] [14:02:16.112] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 142,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1196
+[api] [14:02:34.962] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 143,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4797
+[api] [14:02:35.302] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 144,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4957
+[api] [14:02:46.093] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 145,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1187
+[api] [14:03:08.559] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 146,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2662
+[api] [14:03:10.604] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 147,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4545
+[api] [14:03:16.059] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 148,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1157
+[api] [14:03:41.456] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 149,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2728
+[api] [14:03:43.887] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 150,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2533
+[api] [14:03:46.038] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 151,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1137
+[api] [14:04:15.075] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 152,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2679
+[api] [14:04:16.108] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 153,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1198
+[api] [14:04:17.524] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 154,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2502
+[api] [14:04:46.446] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 155,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1539
+[api] [14:04:48.951] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 156,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3723
+[api] [14:04:51.699] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 157,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2648
+[api] [14:05:16.067] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 158,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1159
+[api] [14:05:21.784] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 159,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2695
+[api] [14:05:25.787] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 160,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2545
+[api] [14:05:46.099] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 161,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1167
+[api] [14:05:48.081] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 673
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:05:54.822] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 162,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2768
+[api] [14:06:00.317] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 163,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2572
+[api] [14:06:16.023] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 164,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1113
+[api] [14:06:27.665] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 165,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2635
+[api] [14:06:34.117] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 166,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2577
+[api] [14:06:46.035] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 167,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1136
+[api] [14:07:00.585] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 168,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2715
+[api] [14:07:08.942] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 169,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2544
+[api] [14:07:16.019] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 170,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1110
+[api] [14:07:33.970] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 171,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2681
+[api] [14:07:44.121] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 172,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2569
+[api] [14:07:46.024] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 173,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1124
+[api] [14:08:07.600] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 174,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2693
+[api] [14:08:16.065] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 175,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1155
+[api] [14:08:21.994] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 176,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2554
+[api] [14:08:40.449] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 177,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2700
+[api] [14:08:46.084] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 178,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1177
+[api] [14:09:03.066] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 179,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2630
+[api] [14:09:13.306] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 180,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2685
+[api] [14:09:16.009] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 181,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1101
+[api] [14:09:41.978] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 182,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2611
+[api] [14:09:46.043] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 184,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1135
+[api] [14:09:46.243] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 183,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2697
+[api] [14:10:07.528] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 789
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:10:13.458] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 795
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:10:16.075] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 186,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1155
+[api] [14:10:17.052] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 185,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2617
+[api] [14:10:19.108] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 187,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2712
+[api] [14:10:46.088] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 188,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1170
+[api] [14:10:50.088] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 189,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2533
+[api] [14:10:52.780] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 190,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2682
+[api] [14:11:16.053] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 191,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1134
+[api] [14:11:22.916] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 192,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2588
+[api] [14:11:26.402] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 193,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2747
+[api] [14:11:46.103] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 194,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1184
+[api] [14:11:56.777] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 195,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2645
+[api] [14:11:58.003] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 880
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:11:59.227] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 196,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2680
+[api] [14:12:14.242] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 884
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:12:16.383] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 197,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1181
+[api] [14:12:30.100] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 198,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2663
+[api] [14:12:33.163] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 199,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2826
+[api] [14:12:46.118] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 200,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1202
+[api] [14:12:47.246] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 910
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:13:04.180] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 201,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2630
+[api] [14:13:05.982] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 202,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2676
+[api] [14:13:16.071] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 203,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1161
+[api] [14:13:37.860] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 204,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2582
+[api] [14:13:40.832] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 205,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4671
+[api] [14:13:46.039] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 206,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1129
+[api] [14:14:12.986] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 207,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2576
+[api] [14:14:15.620] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 208,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4635
+[api] [14:14:16.065] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 209,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1152
+[api] [14:14:46.248] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 210,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1327
+[api] [14:14:50.669] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 211,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4456
+[api] [14:14:50.911] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 212,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4693
+[api] [14:15:16.204] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 213,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1292
+[api] [14:15:35.485] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 214,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4573
+[api] [14:15:35.738] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 215,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4689
+[api] [14:15:46.112] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 216,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1199
+[api] [14:16:16.758] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 217,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2527
+[api] [14:16:16.865] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 219,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1956
+[api] [14:16:16.929] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 218,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2697
+[api] [14:16:21.693] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 880
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async syncServiceUsageById (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64853:3)
+[api] at async file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:66540:5
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:16:25.231] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 220,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/49a6b115c33c00638acbc19a3b36267a/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 9185
+[api] [14:16:27.229] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 880
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async syncServiceUsageById (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64853:3)
+[api] at async file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:66540:5
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:16:30.517] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 221,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/49a6b115c33c00638acbc19a3b36267a/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 10479
+[api] [14:16:36.304] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 880
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async syncServiceUsageById (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64853:3)
+[api] at async file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:66540:5
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:16:39.528] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 222,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/49a6b115c33c00638acbc19a3b36267a/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 8918
+[api] [14:16:46.022] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 223,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1107
+[api] [14:16:55.015] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 225,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2672
+[api] [14:16:55.218] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 224,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2879
+[api] [14:17:16.079] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 226,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1173
+[api] [14:17:28.190] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 227,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2697
+[api] [14:17:34.678] [32mINFO[39m (615834): [36mCombined usage sync completed[39m
+[api] [35mservices[39m: 160
+[api] [14:17:36.488] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 228,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2633
+[api] [14:17:46.810] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 229,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1193
+[api] [14:17:49.810] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 230,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 359
+[api] [14:17:50.559] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 234,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1102
+[api] [14:17:50.583] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 233,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1126
+[api] [14:17:52.018] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 231,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 2564
+[api] [14:17:52.210] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 232,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2754
+[api] [14:18:17.547] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 235,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1184
+[api] [14:18:46.810] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 236,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1170
+[api] [14:20:13.023] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 237,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1146
+[api] [14:21:05.526] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 673
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:21:13.695] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 238,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 3060
+[api] [14:22:12.152] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 239,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 359
+[api] [14:22:12.690] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 240,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 370
+[api] [14:22:14.217] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 246,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1203
+[api] [14:22:15.303] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 244,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 2981
+[api] [14:22:15.522] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 245,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 3199
+[api] [14:22:15.898] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 241,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3577
+[api] [14:22:16.122] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 242,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 3800
+[api] [14:22:16.424] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 248,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1120
+[api] [14:22:17.020] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 243,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4698
+[api] [14:22:17.025] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 247,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 2807
+[api] [14:23:11.862] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 249,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1240
+[api] [14:24:14.672] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 789
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:24:20.477] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 795
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:26:02.104] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 880
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:26:17.582] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 884
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:26:47.685] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 910
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:31:36.280] [32mINFO[39m (615834): [36mCombined usage sync completed[39m
+[api] [35mservices[39m: 160
+[api] [14:32:56.250] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 250,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 356
+[api] [14:32:56.949] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 256,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 699
+[api] [14:32:57.085] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 257,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 361
+[api] [14:32:58.213] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 251,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 2318
+[api] [14:32:58.920] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 261,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1675
+[api] [14:32:58.933] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 258,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1690
+[api] [14:32:59.285] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 262,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2040
+[api] [14:32:59.317] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 254,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 3418
+[api] [14:32:59.564] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 260,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2320
+[api] [14:32:59.682] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 253,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3784
+[api] [14:32:59.991] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 252,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 4095
+[api] [14:33:00.237] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 259,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2994
+[api] [14:33:00.296] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 263,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3049
+[api] [14:33:00.562] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 264,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1640
+[api] [14:33:00.659] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 265,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1724
+[api] [14:33:00.862] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 255,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4962
+[api] [14:35:07.462] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 673
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:37:08.993] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 266,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 374
+[api] [14:37:10.543] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 268,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1149
+[api] [14:37:10.895] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 273,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 351
+[api] [14:37:12.229] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 271,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2832
+[api] [14:37:12.649] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 269,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3254
+[api] [14:37:12.829] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 267,
+[api] "method": "GET",
+[api] "url": "/api/pasarguard/connections"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3436
+[api] [14:37:13.793] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 270,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4397
+[api] [14:37:13.904] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 272,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4506
+[api] [14:37:17.197] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 275,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 627
+[api] [14:37:19.018] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 274,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2449
+[api] [14:38:13.181] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 789
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:38:19.023] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 795
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:38:52.069] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 276,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/5f9c01bb176a656a673174fc221a11a6/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 9527
+[api] [14:39:59.061] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 880
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:40:14.618] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 884
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:40:42.195] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 910
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:41:47.778] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 277,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 318
+[api] [14:41:51.138] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 282,
+[api] "method": "GET",
+[api] "url": "/api/service-action-requests"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 2511
+[api] [14:41:51.466] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 279,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 2840
+[api] [14:41:51.533] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 280,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 2906
+[api] [14:41:51.740] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 281,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 3113
+[api] [14:41:52.084] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 278,
+[api] "method": "GET",
+[api] "url": "/api/customers/328"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3462
+[api] [14:41:52.108] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 284,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 969
+[api] [14:41:53.309] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 283,
+[api] "method": "GET",
+[api] "url": "/api/customers/328/crm"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 4681
+[api] [14:41:53.680] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 286,
+[api] "method": "POST",
+[api] "url": "/api/customers/328/mobile-otp"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1234
+[api] [14:41:53.941] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 285,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2474
+[api] [14:42:06.929] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 287,
+[api] "method": "GET",
+[api] "url": "/api/search"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 682
+[api] [14:42:07.450] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 288,
+[api] "method": "GET",
+[api] "url": "/api/search"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 682
+[api] [14:42:07.611] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 289,
+[api] "method": "GET",
+[api] "url": "/api/search"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 665
+[api] [14:42:08.213] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 290,
+[api] "method": "GET",
+[api] "url": "/api/search"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 659
+[api] [14:42:12.181] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 294,
+[api] "method": "GET",
+[api] "url": "/api/service-action-requests"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 640
+[api] [14:42:12.470] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 292,
+[api] "method": "GET",
+[api] "url": "/api/customers/431/crm"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 935
+[api] [14:42:12.750] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 293,
+[api] "method": "POST",
+[api] "url": "/api/customers/431/mobile-otp"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1215
+[api] [14:42:14.610] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 291,
+[api] "method": "GET",
+[api] "url": "/api/customers/431"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3076
+[api] [14:42:19.620] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 295,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 988
+[api] [14:42:23.327] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 296,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 888
+[api] [14:42:27.134] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 297,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2179
+[api] [14:42:44.387] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 298,
+[api] "method": "GET",
+[api] "url": "/api/providers/available"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 607
+[api] [14:42:49.609] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 299,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 979
+[api] [14:42:52.113] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 300,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 304
+[api] [14:42:53.360] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 305,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 311
+[api] [14:42:53.961] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 301,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 914
+[api] [14:42:54.318] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 306,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1268
+[api] [14:42:54.567] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 304,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1518
+[api] [14:42:54.875] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 307,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1514
+[api] [14:42:55.251] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 308,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1784
+[api] [14:42:55.398] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 302,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2350
+[api] [14:42:55.616] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 303,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2567
+[api] [14:42:55.747] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 309,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1785
+[api] [14:43:02.895] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 310,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2217
+[api] [14:43:03.768] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 311,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 304
+[api] [14:43:04.432] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 317,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 311
+[api] [14:43:04.736] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 315,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 616
+[api] [14:43:05.054] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 316,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 933
+[api] [14:43:05.362] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 318,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 929
+[api] [14:43:05.369] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 314,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1249
+[api] [14:43:05.597] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 312,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1479
+[api] [14:43:05.670] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 319,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 933
+[api] [14:43:05.671] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 313,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1552
+[api] [14:43:14.614] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 321,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 304
+[api] [14:43:15.432] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 322,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 304
+[api] [14:43:15.752] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 325,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 622
+[api] [14:43:16.058] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 326,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 928
+[api] [14:43:16.073] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 324,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 943
+[api] [14:43:16.419] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 327,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1288
+[api] [14:43:16.653] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 328,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1220
+[api] [14:43:16.679] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 330,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 620
+[api] [14:43:17.319] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 323,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2190
+[api] [14:43:17.320] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 329,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1567
+[api] [14:43:19.578] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 331,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 952
+[api] [14:43:21.649] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 332,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 309
+[api] [14:43:21.666] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 320,
+[api] "method": "POST",
+[api] "url": "/api/services/525/renew"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 8675
+[api] [14:43:22.397] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 333,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 612
+[api] [14:43:22.729] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 334,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 943
+[api] [14:43:23.005] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 342,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 888
+[api] [14:43:23.029] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 337,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1242
+[api] [14:43:23.357] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 338,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1241
+[api] [14:43:23.633] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 343,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1515
+[api] [14:43:23.658] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 336,
+[api] "method": "GET",
+[api] "url": "/api/customers/431"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1871
+[api] [14:43:23.887] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 340,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1770
+[api] [14:43:23.921] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 339,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1804
+[api] [14:43:23.997] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 335,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2210
+[api] [14:43:24.262] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 344,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1236
+[api] [14:43:24.272] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 345,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 914
+[api] [14:43:25.218] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 341,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3101
+[api] [14:43:32.930] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 346,
+[api] "method": "POST",
+[api] "url": "/api/customers/431/mobile-otp"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1223
+[api] [14:43:36.008] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 347,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 0
+[api] [14:43:38.971] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 349,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 316
+[api] [14:43:39.595] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 350,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 310
+[api] [14:43:39.898] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 351,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 612
+[api] [14:43:39.983] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 352,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 697
+[api] [14:43:40.525] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 353,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1238
+[api] [14:43:40.527] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 356,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 628
+[api] [14:43:41.134] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 355,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1538
+[api] [14:43:41.140] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 357,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1156
+[api] [14:43:41.140] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 348,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/00f9e35a510c71d1d015c34f97c4d9cf"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 5131
+[api] [14:43:41.828] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 354,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2541
+[api] [14:43:47.666] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 358,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 309
+[api] [14:43:48.545] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 360,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 311
+[api] [14:43:49.156] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 364,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 920
+[api] [14:43:49.184] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 359,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 950
+[api] [14:43:49.338] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 363,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1102
+[api] [14:43:49.808] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 365,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1262
+[api] [14:43:50.105] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 367,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 948
+[api] [14:43:50.184] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 366,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1553
+[api] [14:43:50.560] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 362,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2325
+[api] [14:43:50.766] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 361,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2531
+[api] [14:43:54.108] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 368,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 847
+[api] [14:43:55.060] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 369,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 0
+[api] [14:43:56.292] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 370,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 938
+[api] [14:44:00.243] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 371,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 623
+[api] [14:44:00.249] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 372,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 629
+[api] [14:44:04.002] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 373,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2178
+[api] [14:44:04.248] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 374,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 911
+[api] [14:44:04.266] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 375,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 928
+[api] [14:44:04.345] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 378,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1006
+[api] [14:44:04.575] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 381,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 309
+[api] [14:44:04.579] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 376,
+[api] "method": "GET",
+[api] "url": "/api/customers/637"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1241
+[api] [14:44:04.939] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 379,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 933
+[api] [14:44:04.951] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 380,
+[api] "method": "GET",
+[api] "url": "/api/search"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 702
+[api] [14:44:05.570] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 377,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2231
+[api] [14:44:07.246] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 384,
+[api] "method": "GET",
+[api] "url": "/api/service-action-requests"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 629
+[api] [14:44:07.564] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 386,
+[api] "method": "GET",
+[api] "url": "/api/customers/431/crm"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 946
+[api] [14:44:07.836] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 385,
+[api] "method": "GET",
+[api] "url": "/api/customers/431"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1218
+[api] [14:44:07.986] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 387,
+[api] "method": "POST",
+[api] "url": "/api/customers/431/mobile-otp"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1368
+[api] [14:44:12.706] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 382,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/00f9e35a510c71d1d015c34f97c4d9cf/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 7316
+[api] [14:44:14.443] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 383,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/00f9e35a510c71d1d015c34f97c4d9cf"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 8444
+[api] [14:44:14.730] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 389,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 957
+[api] [14:44:18.850] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 390,
+[api] "method": "GET",
+[api] "url": "/api/services/525/awg/config"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 924
+[api] [14:44:19.091] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 388,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/00f9e35a510c71d1d015c34f97c4d9cf/feed"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 10353
+[api] [14:44:19.588] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 391,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 958
+[api] [14:44:24.233] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 392,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1
+[api] [14:44:25.806] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 394,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 971
+[api] [14:44:26.591] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 395,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 311
+[api] [14:44:27.400] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 401,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 323
+[api] [14:44:27.686] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 397,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 611
+[api] [14:44:28.040] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 398,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 964
+[api] [14:44:28.322] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 396,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1247
+[api] [14:44:28.353] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 399,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1277
+[api] [14:44:28.657] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 402,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1256
+[api] [14:44:28.777] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 403,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1090
+[api] [14:44:29.819] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 400,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2743
+[api] [14:44:29.897] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 393,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/00f9e35a510c71d1d015c34f97c4d9cf"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 5664
+[api] [14:44:36.621] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 404,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 932
+[api] [14:44:36.799] [32mINFO[39m (615834): [36mCombined usage sync completed[39m
+[api] [35mservices[39m: 160
+[api] [14:44:44.961] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 406,
+[api] "method": "POST",
+[api] "url": "/api/auth/logout"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 204
+[api] }
+[api] [35mresponseTime[39m: 622
+[api] [14:44:46.038] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 407,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 0
+[api] [14:44:46.262] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 405,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2319
+[api] [14:44:49.658] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 408,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 1025
+[api] [14:44:54.084] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 409,
+[api] "method": "POST",
+[api] "url": "/api/auth/telegram-id"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 627
+[api] [14:44:54.938] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 410,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 311
+[api] [14:44:55.276] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 412,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 643
+[api] [14:44:55.576] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 415,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 942
+[api] [14:44:55.864] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 414,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1230
+[api] [14:44:55.901] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 411,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1269
+[api] [14:44:57.132] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 413,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2499
+[api] [14:44:57.279] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 417,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 610
+[api] [14:44:57.306] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 416,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 637
+[api] [14:44:57.617] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 418,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 920
+[api] [14:45:07.668] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 419,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 310
+[api] [14:45:07.994] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 424,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 634
+[api] [14:45:08.295] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 423,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 935
+[api] [14:45:08.587] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 420,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1228
+[api] [14:45:08.906] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 422,
+[api] "method": "GET",
+[api] "url": "/api/customers/431"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1547
+[api] [14:45:09.840] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 421,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2481
+[api] [14:45:10.014] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 425,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 938
+[api] [14:45:19.611] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 426,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 967
+[api] [14:45:20.980] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 427,
+[api] "method": "POST",
+[api] "url": "/api/auth/logout"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 204
+[api] }
+[api] [35mresponseTime[39m: 611
+[api] [14:45:22.527] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 428,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1
+[api] [14:45:25.615] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 429,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1
+[api] [14:45:30.215] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 431,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 926
+[api] [14:45:31.461] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 430,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2172
+[api] [14:45:36.925] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 432,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1
+[api] [14:45:39.876] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 433,
+[api] "method": "POST",
+[api] "url": "/api/auth/telegram-id"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 305
+[api] [14:45:40.638] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 434,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 304
+[api] [14:45:40.663] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 435,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 305
+[api] [14:45:40.978] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 436,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 610
+[api] [14:45:41.299] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 439,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 929
+[api] [14:45:41.310] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 437,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 941
+[api] [14:45:41.617] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 440,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 978
+[api] [14:45:42.908] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 438,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2539
+[api] [14:45:45.703] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 442,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 311
+[api] [14:45:46.756] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 446,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 913
+[api] [14:45:46.783] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 445,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 941
+[api] [14:45:46.795] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 447,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 951
+[api] [14:45:47.077] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 444,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1235
+[api] [14:45:47.682] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 448,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 925
+[api] [14:45:48.313] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 443,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2472
+[api] [14:45:49.585] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 449,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 949
+[api] [14:45:51.118] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 441,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/53fb437bd731e0539e1a5d5ffa736acc"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 5726
+[api] [14:45:51.951] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 451,
+[api] "method": "GET",
+[api] "url": "/api/customers/29/crm"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 927
+[api] [14:45:52.249] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 452,
+[api] "method": "POST",
+[api] "url": "/api/customers/29/mobile-otp"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1225
+[api] [14:45:52.260] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 450,
+[api] "method": "GET",
+[api] "url": "/api/customers/29"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1237
+[api] [14:45:54.669] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 454,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 0
+[api] [14:45:57.007] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 455,
+[api] "method": "GET",
+[api] "url": "/api/providers/available"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 622
+[api] [14:45:59.505] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 453,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/00f9e35a510c71d1d015c34f97c4d9cf"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4837
+[api] [14:46:01.833] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 457,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 933
+[api] [14:46:07.337] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 456,
+[api] "method": "POST",
+[api] "url": "/api/services/972/renew"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 7179
+[api] [14:46:08.664] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 460,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 738
+[api] [14:46:09.143] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 459,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1217
+[api] [14:46:09.147] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 461,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1221
+[api] [14:46:09.481] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 462,
+[api] "method": "GET",
+[api] "url": "/api/customers/29"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1554
+[api] [14:46:10.433] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 458,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2508
+[api] [14:46:10.540] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 463,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 305
+[api] [14:46:13.353] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 464,
+[api] "method": "POST",
+[api] "url": "/api/customers/29/mobile-otp"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1240
+[api] [14:46:16.811] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 466,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 972
+[api] [14:46:17.230] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 468,
+[api] "method": "GET",
+[api] "url": "/api/sales-summary"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 717
+[api] [14:46:17.348] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 467,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 836
+[api] [14:46:18.058] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 470,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1166
+[api] [14:46:19.290] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 469,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2413
+[api] [14:46:19.600] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 471,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 964
+[api] [14:46:20.886] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 465,
+[api] "method": "GET",
+[api] "url": "/api/public/subscription/53fb437bd731e0539e1a5d5ffa736acc"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 5485
+[api] [14:46:23.046] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 472,
+[api] "method": "GET",
+[api] "url": "/api/reports"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 934
+[api] [14:46:27.440] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 473,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2263
+[api] [14:46:34.203] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 474,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 837
+[api] [14:46:49.644] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 475,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 994
+[api] [14:46:57.060] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 477,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 310
+[api] [14:46:57.370] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 482,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 309
+[api] [14:46:57.993] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 478,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1050
+[api] [14:46:58.241] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 479,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1296
+[api] [14:46:59.089] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 476,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2339
+[api] [14:46:59.662] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 480,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 2717
+[api] [14:47:00.997] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 481,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4051
+[api] [14:47:01.654] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 483,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1936
+[api] [14:47:05.448] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 484,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 946
+[api] [14:47:06.642] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 485,
+[api] "method": "GET",
+[api] "url": "/api/auth/session"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 306
+[api] [14:47:06.953] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 490,
+[api] "method": "GET",
+[api] "url": "/api/resellers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 615
+[api] [14:47:07.246] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 486,
+[api] "method": "GET",
+[api] "url": "/api/sales"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 909
+[api] [14:47:07.287] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 488,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 950
+[api] [14:47:07.581] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 487,
+[api] "method": "GET",
+[api] "url": "/api/customers"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1244
+[api] [14:47:07.950] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 489,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 1612
+[api] [14:47:19.620] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 491,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 974
+[api] [14:47:42.621] [33mWARN[39m (615834): [36mAWG usage sync skipped[39m
+[api] [35mserviceId[39m: 673
+[api] err: {
+[api] "type": "AwgApiError",
+[api] "message": "AmneziaWG returned HTTP 404: 404 page not found",
+[api] "stack":
+[api] AwgApiError: AmneziaWG returned HTTP 404: 404 page not found
+[api] at getAwgStats (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64571:11)
+[api] at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[api] at async syncServiceUnlocked (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64719:21)
+[api] at async syncService (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64833:24)
+[api] at async runUsageSync (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a08b08-2f5c-736a-8de8-5c5c4fdde9f4/nodejs/api/index.mjs:64873:9)
+[api] "name": "AwgApiError"
+[api] }
+[api] [14:47:46.818] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 494,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 313
+[api] [14:47:49.283] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 492,
+[api] "method": "GET",
+[api] "url": "/api/services"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 3862
+[api] [14:47:49.610] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 493,
+[api] "method": "GET",
+[api] "url": "/api/dashboard"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 200
+[api] }
+[api] [35mresponseTime[39m: 4071
+[api] [14:47:49.631] [32mINFO[39m (615834): [36mrequest completed[39m
+[api] [35mreq[39m: {
+[api] "id": 495,
+[api] "method": "GET",
+[api] "url": "/api/notifications"
+[api] }
+[api] [35mres[39m: {
+[api] "statusCode": 304
+[api] }
+[api] [35mresponseTime[39m: 981
