@@ -20,3 +20,9 @@ Customer Push and reseller panel notifications intentionally remain separate del
 **Why:** A message can be safely stored in the inbox even when a device subscription is missing or expired; treating those as one success flag previously made failed Push delivery invisible.
 
 **How to apply:** For customers, expose active device count and push sent/failed counts. For resellers, write to the existing owner-scoped panel notification inbox and do not claim Web Push delivery unless reseller device subscriptions are added.
+
+The customer mobile shell should check Push subscription status after authentication and offer an explicit, dismissible activation prompt; settings and the prompt must share the same activation flow.
+
+**Why:** Customers often enter the PWA without ever visiting notification settings, so waiting for an opt-in buried in settings makes admin messages appear broken even when the backend is working.
+
+**How to apply:** Do not prompt on public/login routes, keep dismissal scoped to the current customer session, and preserve a settings fallback for retries or browser permission recovery.

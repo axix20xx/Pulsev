@@ -546,3 +546,17 @@ mtime_ms = 1789033751658
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8c7b7929-64c5-41b5-8f5a-d1eb61a81c18/918d677d-e8d0-40e7-9bb7-7ba0e550afa9"
 storage_version_token = "1789033783667803"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "kAZvfrasM8hRv9X8vqs_x"
+uri = "file://exports/pulse-whole-app-upgrade-mobile-push-prompt.zip"
+type = "unspecified"
+title = "Pulse Hostinger bundle — push activation prompt"
+description = "بستهٔ کامل Hostinger با modal فعال‌سازی اعلان هنگام ورود مشتری به PWA، فعال‌سازی مشترک با صفحه تنظیمات، وضعیت subscription و پشتیبانی از dismiss در همان session."
+logical_id = "644c13a5-139d-4369-9011-47ba8f96e027"
+content_hash = "sha256:e8407a2c2e480d50745fa13a32cb3c0083a9d82963d40afe7ee5c907bacaf88e"
+size = 26785042
+mtime_ms = 1789033892373
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/644c13a5-139d-4369-9011-47ba8f96e027/b5b84640-7b35-453a-9607-b5133928e57e"
+storage_version_token = "1789033940213511"
+content_type = "application/octet-stream"
