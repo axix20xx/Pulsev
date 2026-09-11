@@ -708,3 +708,17 @@ mtime_ms = 1789137635459
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b4507b32-6e41-4164-9191-78a2559394fa/2c0c8394-f1b5-4e8e-bb5d-309b6af608f5"
 storage_version_token = "1789137652387439"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "KWNMhRguZ_14BVm_pfLAP"
+uri = "file://exports/pulse-hostinger-log-retention-fix.zip"
+type = "unspecified"
+title = "Pulse Hostinger log-retention fix"
+description = "Final Hostinger bundle with bounded installer logs, filtered API output, warning/error deduplication, warn-level production logging, automatic API recovery, and migration protections."
+logical_id = "516580be-e337-4b13-bdf5-7320e4c097c7"
+content_hash = "sha256:ee18b19e70e5a358644044eac3de400380181cbb54d186c1055879fda11f6330"
+size = 26854126
+mtime_ms = 1789137732267
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/516580be-e337-4b13-bdf5-7320e4c097c7/e9892dcb-b789-43ce-9420-c15b8ba4b3f4"
+storage_version_token = "1789137814988534"
+content_type = "application/octet-stream"
