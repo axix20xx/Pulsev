@@ -680,3 +680,17 @@ mtime_ms = 1789059524465
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ec2f3b4d-21b4-4a33-a77c-905b1765c7e7/4f79a075-4c2d-4425-9d38-1222c680a5c2"
 storage_version_token = "1789059574118287"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "t5eMPPX5p07fWwe6ukKZ1"
+uri = "file://exports/pulse-hostinger-api-auto-restart-migration-fix.zip"
+type = "unspecified"
+title = "Pulse Hostinger API auto-restart fix"
+description = "Hostinger bundle with one-time migration protection, API health checks, automatic API restart with backoff after unexpected exits, orphan-process reuse, installer fallback protection, and validated PostgreSQL import SQL."
+logical_id = "bf36b5bc-872a-4533-944b-262d864bc855"
+content_hash = "sha256:0064a8745b7e3aa8d080f880bb462a1db8bd303f093b09197e7946ab1623fa52"
+size = 26853361
+mtime_ms = 1789137514087
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/bf36b5bc-872a-4533-944b-262d864bc855/4ef93887-8911-4cc4-a199-af4340972e80"
+storage_version_token = "1789137532384897"
+content_type = "application/octet-stream"

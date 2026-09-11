@@ -18,8 +18,12 @@ const publicPort = Number(process.env.PORT || 3000);
 const apiPort = Number(process.env.API_INTERNAL_PORT || publicPort + 1);
 let api;
 let apiReady = false;
+let apiWasReady = false;
 let migrationProcess;
 let startupPromise;
+let apiRestartTimer;
+let apiRestartAttempt = 0;
+let migrationChecked = false;
 let shuttingDown = false;
 const installState = {
   phase: "starting",
@@ -95,6 +99,10 @@ function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function isChildRunning(child) {
+  return Boolean(child && child.exitCode === null && child.signalCode === null);
+}
+
 function probeApi() {
   return new Promise((resolve) => {
     const request = http.request(
@@ -120,11 +128,41 @@ function probeApi() {
 }
 
 function reuseHealthyApi() {
+  api = undefined;
   apiReady = true;
+  apiWasReady = true;
+  apiRestartAttempt = 0;
   installState.apiRunning = true;
   installState.phase = "ready";
+  installState.error = null;
   installState.updatedAt = new Date().toISOString();
   recordInstallLog("API قبلی روی پورت داخلی فعال است؛ از همان process استفاده شد.");
+}
+
+async function waitForApi(child, timeoutMs = 30_000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await probeApi()) return true;
+    if (!isChildRunning(child)) return false;
+    await wait(500);
+  }
+  return await probeApi();
+}
+
+function scheduleApiRestart(reason) {
+  if (shuttingDown || apiRestartTimer) return;
+  apiRestartAttempt = Math.min(apiRestartAttempt + 1, 6);
+  const delayMs = Math.min(5_000 * apiRestartAttempt, 30_000);
+  recordInstallLog(
+    `API موقتاً متوقف شد؛ تلاش خودکار برای راه‌اندازی مجدد در ${Math.round(delayMs / 1000)} ثانیه انجام می‌شود.`,
+    "error",
+  );
+  if (reason) console.error(reason);
+  apiRestartTimer = setTimeout(() => {
+    apiRestartTimer = undefined;
+    void startApi();
+  }, delayMs);
+  apiRestartTimer.unref();
 }
 
 async function acquireStartupLock() {
@@ -190,7 +228,7 @@ async function startApiInternal() {
   const legacySqlPath = path.join(root, "legacy", "legacy.sql");
   const supabaseSqlPath = path.join(root, "supabase-import.sql");
 
-  if (shouldMigrate) {
+   if (shouldMigrate && !migrationChecked) {
     installState.phase = "migrating";
     installState.error = null;
     installState.progress = { current: 0, total: 0 };
@@ -270,6 +308,9 @@ async function startApiInternal() {
       );
       await wait(Math.min(3_000 * attempt, 9_000));
     }
+    migrationChecked = true;
+   } else if (!shouldMigrate) {
+     migrationChecked = true;
   }
 
   if (await probeApi()) {
@@ -280,18 +321,16 @@ async function startApiInternal() {
     return;
   }
 
-  api = spawn(process.execPath, [path.join(root, "api", "index.mjs")], {
+  const child = spawn(process.execPath, [path.join(root, "api", "index.mjs")], {
     env: childEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  pipeChildOutput(api.stdout, "api", true);
-  pipeChildOutput(api.stderr, "api", true);
-  apiReady = true;
-  installState.apiRunning = true;
-  installState.phase = "ready";
-  installState.updatedAt = new Date().toISOString();
-  recordInstallLog("API آماده است؛ می‌توانید وارد پنل شوید.");
-  api.on("error", (error) => {
+  api = child;
+  pipeChildOutput(child.stdout, "api", true);
+  pipeChildOutput(child.stderr, "api", true);
+  let spawnError;
+  child.once("error", (error) => {
+    spawnError = error;
     console.error("Could not start the API process:", error);
     apiReady = false;
     installState.apiRunning = false;
@@ -299,15 +338,33 @@ async function startApiInternal() {
     installState.error = error.message;
     recordInstallLog(error.message, "error");
   });
-  api.on("exit", (code, signal) => {
+  child.once("exit", (code, signal) => {
+    if (api === child) api = undefined;
     apiReady = false;
     installState.apiRunning = false;
-    if (code !== 0 && installState.phase === "ready") {
-      installState.phase = "error";
-      installState.error = `API stopped (${code ?? signal})`;
+    const status = code === 0 ? `signal ${signal || "unknown"}` : `exit code ${code ?? signal}`;
+    if (!shuttingDown) {
+      installState.phase = apiWasReady ? "degraded" : "error";
+      installState.error = `API stopped (${status})`;
       recordInstallLog(installState.error, "error");
+      if (apiWasReady) scheduleApiRestart(installState.error);
     }
   });
+  const healthy = await waitForApi(child);
+  if (!healthy) {
+    const detail = spawnError?.message || "API process did not become healthy before the startup timeout.";
+    if (isChildRunning(child)) child.kill("SIGTERM");
+    if (api === child) api = undefined;
+    throw new Error(detail);
+  }
+  apiReady = true;
+  apiWasReady = true;
+  apiRestartAttempt = 0;
+  installState.apiRunning = true;
+  installState.phase = "ready";
+  installState.error = null;
+  installState.updatedAt = new Date().toISOString();
+  recordInstallLog("API آماده است؛ می‌توانید وارد پنل شوید.");
   } finally {
     await releaseStartupLock(startupLock);
   }
@@ -315,7 +372,12 @@ async function startApiInternal() {
 
 async function startApi() {
   if (shuttingDown) return;
-  if (apiReady || (api && !api.killed)) return;
+  if (apiReady) {
+    if (isChildRunning(api) || await probeApi()) return;
+    apiReady = false;
+    installState.apiRunning = false;
+  }
+  if (isChildRunning(api)) return;
   if (startupPromise) return startupPromise;
   startupPromise = startApiInternal()
     .catch((error) => {
@@ -327,6 +389,9 @@ async function startApi() {
     })
     .finally(() => {
       startupPromise = undefined;
+      if (!shuttingDown && !apiReady && !isChildRunning(api)) {
+        scheduleApiRestart(installState.error || "API startup failed");
+      }
     });
   return startupPromise;
 }
@@ -350,7 +415,7 @@ async function serveInstaller(res) {
 function handleInstallRoute(req, res) {
   const requestUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   if (requestUrl.pathname === "/install/status" && req.method === "GET") {
-    json(res, 200, { ...installState, apiRunning: apiReady || Boolean(api && !api.killed) });
+    json(res, 200, { ...installState, apiRunning: apiReady || isChildRunning(api) });
     return true;
   }
   if (requestUrl.pathname === "/install/retry" && req.method === "POST") {
@@ -410,6 +475,7 @@ function proxyApi(req, res) {
     },
   );
   upstream.on("error", () => {
+    void startApi();
     if (!res.headersSent) {
       res.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
     }
@@ -564,6 +630,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (
+    !apiWasReady &&
     installState.phase !== "ready" &&
     req.headers.accept?.includes("text/html") &&
     isManagementPage(req)
