@@ -201,7 +201,10 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="flex items-center justify-between px-6 pt-8 pb-4">
           <Link href="/" className="flex items-center gap-3 transition-transform hover:scale-[1.02]" data-testid="link-logo">
             <span className="pulse-mark shadow-lg shadow-primary/20"><span /></span>
-            <span className="font-display text-[22px] font-extrabold tracking-[-.05em] bg-clip-text text-transparent bg-gradient-to-l from-foreground to-foreground/70">پالس</span>
+            <span className="flex flex-col leading-none">
+              <span className="font-display text-[22px] font-extrabold tracking-[-.05em] bg-clip-text text-transparent bg-gradient-to-l from-foreground to-foreground/70">پالس</span>
+              <span className="pulse-brand-subtitle mt-1 text-[9px] font-medium tracking-[.14em] text-muted-foreground">CONTROL CENTER</span>
+            </span>
           </Link>
           <button className="icon-button md:hidden rounded-full hover:bg-foreground/5 text-muted-foreground" onClick={() => setOpen(false)} aria-label="بستن منو"><X size={18} /></button>
         </div>
@@ -346,6 +349,13 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 mr-auto">
+            <button type="button" className="pulse-account-chip hidden sm:flex items-center gap-2 rounded-xl px-2 py-1.5 text-right transition-colors" onClick={() => setOpen(true)} aria-label="باز کردن حساب کاربری">
+              <Avatar name={name} color="teal" />
+              <span className="hidden lg:flex flex-col items-start leading-tight">
+                <strong className="max-w-[120px] truncate text-[11px]">{name}</strong>
+                <small className="text-[9px] text-muted-foreground">{session?.role === 'master_admin' ? 'مدیر اصلی' : 'فروشنده'}</small>
+              </span>
+            </button>
             <button className={`icon-button relative rounded-full w-10 h-10 transition-colors ${topbarPanel === 'notifications' ? 'bg-primary/10 text-primary' : 'hover:bg-foreground/5 text-muted-foreground'}`} onClick={() => { setTopbarPanel((c) => c === 'notifications' ? null : 'notifications'); void loadNotifications(); }} aria-label="اعلان‌ها">
               <Bell size={18} />
               {unreadNotifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-destructive border-2 border-background" />}

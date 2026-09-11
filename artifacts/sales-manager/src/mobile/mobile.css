@@ -230,3 +230,141 @@
 
 .mobile-brand-mark img { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: contain; }
 .mobile-logo-image { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+/* Pulse mobile customer layer: same signal blue as the seller workspace,
+   while retaining the compact card language customers already know. */
+.mobile-app {
+  --mobile-ink: #172536;
+  --mobile-ink-soft: #5b6c7c;
+  --mobile-mint: #2d8ce8;
+  --mobile-mint-deep: #1766b5;
+  --mobile-paper: #f3f6f9;
+  --mobile-card: #fbfcfd;
+  --mobile-line: #dce4eb;
+  --mobile-coral: #d86b55;
+  background: var(--mobile-paper);
+  color: var(--mobile-ink);
+}
+.mobile-app .mobile-brand-mark {
+  background: var(--mobile-ink);
+  color: #8edff1;
+}
+.mobile-app .mobile-topbar {
+  background: color-mix(in srgb, var(--mobile-paper) 93%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--mobile-line) 72%, transparent);
+}
+.mobile-app .mobile-icon-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.mobile-app .mobile-sub-card,
+.mobile-app .mobile-detail-visual {
+  background: #172536;
+  box-shadow: 0 18px 38px rgba(23, 37, 54, .15);
+}
+.mobile-app .mobile-sub-card::before {
+  border-color: rgba(45, 140, 232, .28);
+  box-shadow: 0 0 0 24px rgba(45, 140, 232, .055), 0 0 0 48px rgba(45, 140, 232, .035);
+}
+.mobile-app .mobile-status {
+  background: rgba(45, 140, 232, .14);
+  color: #8edff1;
+}
+.mobile-app .mobile-status.status-expired,
+.mobile-app .mobile-status.status-cancelled {
+  background: rgba(216, 107, 85, .16);
+  color: #f1a18d;
+}
+.mobile-app .mobile-status.status-pending {
+  background: rgba(231, 164, 65, .15);
+  color: #f0c777;
+}
+.mobile-app .mobile-status i { background: currentColor; }
+.mobile-app .mobile-sub-copy { color: #8edff1; border-bottom-color: rgba(142, 223, 241, .5); }
+.mobile-app .mobile-sub-card-meta strong em,
+.mobile-app .mobile-progress-label b { color: #8edff1; }
+.mobile-app .mobile-progress i { background: #2d8ce8; }
+.mobile-app .mobile-text-link { color: var(--mobile-mint-deep); }
+.mobile-app .mobile-avatar,
+.mobile-app .mobile-profile-avatar {
+  border-color: #d9edf7;
+  background: var(--mobile-ink);
+  color: #8edff1;
+}
+.mobile-app .mobile-bottom-nav {
+  right: 0;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: 0;
+  width: 100%;
+  max-width: none;
+  border-color: rgba(210, 222, 232, .96);
+  border-radius: 25px 25px 0 0;
+  background: rgba(251, 252, 253, .96);
+  box-shadow: 0 -10px 28px rgba(23, 37, 54, .12);
+  padding: 8px max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-bottom));
+}
+.mobile-app .mobile-nav-item {
+  min-height: 57px;
+  color: #748394;
+}
+.mobile-app .mobile-nav-item.is-active { color: var(--mobile-ink); }
+.mobile-app .mobile-nav-item.is-active .mobile-nav-icon {
+  background: #dcefff;
+  color: var(--mobile-mint-deep);
+  box-shadow: inset 0 -2px 0 rgba(23, 102, 181, .1);
+}
+.mobile-app .mobile-nav-icon b { border-color: var(--mobile-card); background: var(--mobile-coral); }
+.mobile-app .mobile-stat-strip { border-bottom-color: var(--mobile-line); }
+.mobile-app .mobile-stat-strip span,
+.mobile-app .mobile-section-head p,
+.mobile-app .mobile-greeting p { color: var(--mobile-ink-soft); }
+.mobile-app .mobile-empty-hero,
+.mobile-app .mobile-push-card,
+.mobile-app .mobile-install-note,
+.mobile-app .mobile-install-already {
+  background: #e1f0fb;
+}
+.mobile-app .mobile-access-action:hover {
+  border-color: var(--mobile-mint-deep);
+  background: #edf7fd;
+}
+.mobile-app .mobile-button-primary {
+  background: var(--mobile-mint);
+  color: #f8fbfd;
+  box-shadow: 0 8px 18px rgba(45, 140, 232, .2);
+}
+.mobile-app .mobile-button-dark,
+.mobile-app .mobile-install-modal-done {
+  background: var(--mobile-ink);
+  color: #8edff1;
+}
+.mobile-app .mobile-input-wrap:focus-within { border-color: #8edff1; }
+.mobile-app .mobile-install-hero,
+.mobile-app .mobile-auth { background: var(--mobile-ink); }
+.mobile-app .mobile-install-copy .mobile-eyebrow,
+.mobile-app .mobile-auth-intro .mobile-eyebrow { color: #8edff1; }
+.mobile-app .mobile-install-copy h1 em,
+.mobile-app .mobile-auth-intro h1 em { color: #8edff1; }
+.mobile-app .mobile-install-native { background: var(--mobile-mint); color: #f8fbfd; }
+.mobile-app .mobile-install-step-icon { background: var(--mobile-ink); color: #8edff1; }
+.mobile-app .mobile-install-step-number { background: #e1f0fb; color: var(--mobile-mint-deep); }
+.mobile-app .mobile-offline { background: #7f4539; }
+.mobile-app .mobile-main {
+  width: 100%;
+  overflow-x: hidden;
+}
+.mobile-app input,
+.mobile-app textarea,
+.mobile-app select { max-width: 100%; }
+@media (max-width: 359px) {
+  .mobile-app .mobile-main { padding-right: 14px; padding-left: 14px; }
+  .mobile-app .mobile-horizontal-scroll { margin-right: -14px; margin-left: -14px; padding-right: 14px; padding-left: 14px; }
+  .mobile-app .mobile-sub-card { padding-right: 16px; padding-left: 16px; }
+  .mobile-app .mobile-sub-card-title h3 { font-size: 20px; }
+  .mobile-app .mobile-detail-visual { gap: 10px; padding: 14px; }
+  .mobile-app .mobile-usage-ring { width: 88px; height: 88px; }
+  .mobile-app .mobile-usage-ring::before { width: 72px; height: 72px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-app * { scroll-behavior: auto !important; }
+}
