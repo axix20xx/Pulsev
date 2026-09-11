@@ -694,3 +694,17 @@ mtime_ms = 1789137514087
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/bf36b5bc-872a-4533-944b-262d864bc855/4ef93887-8911-4cc4-a199-af4340972e80"
 storage_version_token = "1789137532384897"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "NevlYUhdL5hwrYsuX8kvV"
+uri = "file://exports/pulse-hostinger-log-quota-api-fix.zip"
+type = "unspecified"
+title = "Pulse Hostinger log-limit API fix"
+description = "Hostinger bundle that filters routine API request logs, defaults production logging to warnings, preserves important errors, and includes the API auto-restart and migration protections."
+logical_id = "b4507b32-6e41-4164-9191-78a2559394fa"
+content_hash = "sha256:eeafe18bedf9b30ae2763a04e2c1571bff659a5b5cf524d1bb9dbfbd6732ca9b"
+size = 26853555
+mtime_ms = 1789137635459
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b4507b32-6e41-4164-9191-78a2559394fa/2c0c8394-f1b5-4e8e-bb5d-309b6af608f5"
+storage_version_token = "1789137652387439"
+content_type = "application/octet-stream"

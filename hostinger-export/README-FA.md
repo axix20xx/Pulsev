@@ -47,6 +47,9 @@
 NODE_ENV=production
 PORT=3000
 API_INTERNAL_PORT=3001
+LOG_LEVEL=warn
+# جلوگیری از تکرار مداوم یک warning/error در log ها
+LOG_DEDUP_INTERVAL_MS=60000
 DATABASE_URL=postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require
 # باید با SESSION_SECRETای که credentialهای Provider با آن ذخیره شده‌اند یکسان باشد.
 # اگر secret قبلی در دسترس نیست، یک مقدار طولانی جدید بگذارید و بعد از ورود،
@@ -104,6 +107,18 @@ RAIN_GROUP_SYNC_INTERVAL_MS=21600000
 است. این worker به‌طور پیش‌فرض هر ۶ ساعت اجرا می‌شود، Group 1 را با حفظ
 گروه‌های قبلی اضافه می‌کند و فقط وضعیت/group را تغییر می‌دهد؛ حجم، تاریخ و
 مصرف کاربران قبلی بازنویسی نمی‌شود.
+
+### مدیریت log ها در Hostinger
+
+launcher لاگ‌های داخلی وضعیت نصب را به آخرین ۸۰ مورد محدود می‌کند، لاگ‌های معمولی
+درخواست‌های API را در production چاپ نمی‌کند و پیام‌های تکراری warning/error را
+در بازهٔ `LOG_DEDUP_INTERVAL_MS` دوباره چاپ نمی‌کند. این کار جلوی پرشدن دوبارهٔ
+سهمیهٔ log را می‌گیرد.
+
+لاگ‌هایی که خود Hostinger در پنل Node.js نگه می‌دارد متعلق به سرویس Hostinger
+هستند و از داخل برنامه نباید با حذف فایل‌های ناشناخته پاک شوند. بعد از deploy این
+نسخه، log قدیمی را یک‌بار از پنل Hostinger با گزینهٔ Clear/Delete logs پاک کنید؛
+پس از آن خروجی عادی برنامه دیگر نباید سهمیه را سریع پر کند.
 
 در تمدید سرویس PasarGuard، API پس از ثبت حجم و تاریخ جدید، مصرف قبلی کاربر را
 از مسیر رسمی reset می‌کند. این reset فقط برای تمدید اجرا می‌شود و provisioning

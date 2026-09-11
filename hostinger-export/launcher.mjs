@@ -25,6 +25,11 @@ let apiRestartTimer;
 let apiRestartAttempt = 0;
 let migrationChecked = false;
 let shuttingDown = false;
+const forwardedLogAt = new Map();
+const logDeduplicationMs = Math.max(
+  5_000,
+  Number(process.env.LOG_DEDUP_INTERVAL_MS || 60_000),
+);
 const installState = {
   phase: "starting",
   attempt: 0,
@@ -60,6 +65,19 @@ function recordInstallLog(message, kind = "info") {
   installState.updatedAt = new Date().toISOString();
 }
 
+function shouldForwardLog(source, text) {
+  const now = Date.now();
+  const key = `${source}:${text}`;
+  const previous = forwardedLogAt.get(key);
+  forwardedLogAt.set(key, now);
+  if (forwardedLogAt.size > 500) {
+    for (const [storedKey, storedAt] of forwardedLogAt) {
+      if (now - storedAt > logDeduplicationMs) forwardedLogAt.delete(storedKey);
+    }
+  }
+  return previous === undefined || now - previous >= logDeduplicationMs;
+}
+
 function pipeChildOutput(stream, source, onlyErrors = false) {
   if (!stream) return;
   let buffer = "";
@@ -71,9 +89,17 @@ function pipeChildOutput(stream, source, onlyErrors = false) {
     for (const line of lines) {
       const text = line.trim();
       if (!text) continue;
-      console.log(`[${source}] ${text}`);
+      const importantApiLog =
+        source !== "api" ||
+        !onlyErrors ||
+        /"level"\s*:\s*(?:40|50|60)|\b(?:warn|error|fatal|failed|exception|unhandled|assertion|EADDRINUSE|EAGAIN)\b/i.test(
+          text,
+        );
+      if (importantApiLog && shouldForwardLog(source, text)) {
+        console.log(`[${source}] ${text}`);
+      }
       const safeError = /Panel management schema initialization failed|relation .* does not exist|Service renewal failed|RENEWAL_FAILED/i.test(text);
-      const shouldRecord = !onlyErrors || source === "migration" || safeError;
+      const shouldRecord = !onlyErrors || source === "migration" || safeError || importantApiLog;
       if (shouldRecord) {
         recordInstallLog(text, onlyErrors || safeError || /error|failed|missing|timeout/i.test(text) ? "error" : "info");
       }
@@ -87,8 +113,16 @@ function pipeChildOutput(stream, source, onlyErrors = false) {
   stream.on("end", () => {
     const text = buffer.trim();
     if (text) {
-      console.log(`[${source}] ${text}`);
-      if (!onlyErrors || source === "migration" || /Panel management schema initialization failed|relation .* does not exist/i.test(text)) {
+      const importantApiLog =
+        source !== "api" ||
+        !onlyErrors ||
+        /"level"\s*:\s*(?:40|50|60)|\b(?:warn|error|fatal|failed|exception|unhandled|assertion|EADDRINUSE|EAGAIN)\b/i.test(
+          text,
+        );
+      if (importantApiLog && shouldForwardLog(source, text)) {
+        console.log(`[${source}] ${text}`);
+      }
+      if (!onlyErrors || source === "migration" || importantApiLog || /Panel management schema initialization failed|relation .* does not exist/i.test(text)) {
         recordInstallLog(text, "error");
       }
     }
@@ -204,6 +238,9 @@ async function startApiInternal() {
   const childEnv = {
     ...process.env,
     NODE_ENV: process.env.NODE_ENV || "production",
+    // Hostinger has a finite application-log quota. Keep normal request
+    // completion logs out of production by default; warnings/errors remain.
+    LOG_LEVEL: process.env.LOG_LEVEL || "warn",
     PORT: String(apiPort),
   };
   installState.phase = "starting-api";

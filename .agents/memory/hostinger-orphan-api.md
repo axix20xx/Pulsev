@@ -14,3 +14,9 @@ The launcher must distinguish a child that has exited from one that was explicit
 **Why:** Hostinger can terminate the API after startup, and treating an exited child as alive prevents recovery while the management route sees a non-ready phase and sends users to installation.
 
 **How to apply:** Use `exitCode`/`signalCode` for liveness, wait for the internal health endpoint before declaring ready, schedule bounded restarts, and gate the installer only until the launcher has never reached a healthy API state.
+
+Hostinger has a finite application-log quota; production launchers must not forward routine API request-completion logs, and the API log level should default to warnings/errors.
+
+**Why:** Pino HTTP emits one info log per request, and forwarding every line through the launcher can fill Hostinger's log allowance and make the hosting process appear to fail.
+
+**How to apply:** Default the child API to `LOG_LEVEL=warn`, filter API stdout in the launcher to warnings/errors/startup failures, and keep migration output available only while migration is running.
