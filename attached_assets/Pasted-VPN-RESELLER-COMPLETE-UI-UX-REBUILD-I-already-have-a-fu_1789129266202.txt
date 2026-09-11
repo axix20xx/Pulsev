@@ -1,0 +1,987 @@
+VPN RESELLER — COMPLETE UI/UX REBUILD
+
+I already have a functioning VPN reseller application/backend.
+
+Your job is to completely redesign the UI/UX without breaking the existing functionality, APIs, database, authentication, subscription logic or VPN management logic.
+
+The design must be applied to the ENTIRE application, not just the homepage.
+
+Use the previously provided visual reference as the design-quality reference.
+
+⸻
+
+CRITICAL WORKFLOW — CANVAS FIRST
+
+STEP 1 — DO NOT CODE THE FINAL UI YET
+
+First create the complete redesigned application as a Canvas visual prototype.
+
+Map the entire product experience in Canvas before implementing it.
+
+Create Canvas screens for:
+
+1. Customer Dashboard
+2. VPN Subscription List
+3. Subscription Detail
+4. Purchase VPN
+5. Server Selection
+6. Configuration / Connection
+7. Traffic & Expiration
+8. Renewal
+9. Order History
+10. Payment
+11. Profile
+12. Notifications
+13. Support
+14. Referral
+15. Mobile Dashboard
+16. Mobile Subscription Detail
+17. Mobile Purchase Flow
+18. Admin Dashboard
+19. Admin Customers
+20. Admin Subscriptions
+21. Admin Servers
+22. Admin Products / Plans
+23. Admin Orders
+24. Admin Payments
+25. Admin Analytics
+26. Admin Settings
+
+The Canvas must establish the complete design language before production implementation.
+
+⸻
+
+STEP 2 — BUILD THE DESIGN SYSTEM
+
+Create one unified design system.
+
+Do NOT create separate unrelated screens.
+
+Every screen must share:
+
+* typography
+* spacing
+* colors
+* cards
+* buttons
+* navigation
+* status indicators
+* animations
+* shadows
+* radius
+* iconography
+* responsive behavior
+
+⸻
+
+STEP 3 — APPLY THE CANVAS DESIGN TO THE WHOLE APPLICATION
+
+After the Canvas design is complete:
+
+Apply the exact design system to the existing application.
+
+Do not redesign one page independently.
+
+Refactor the existing UI into reusable components.
+
+Do not replace working backend functionality.
+
+⸻
+
+COMPONENT LIBRARIES
+
+Use real component libraries.
+
+1. shadcn/ui — FOUNDATION
+
+Use shadcn/ui for:
+
+* Button
+* Input
+* Select
+* Combobox
+* Tabs
+* Dialog
+* Sheet
+* Drawer
+* Dropdown
+* Tooltip
+* Popover
+* Command
+* Accordion
+* Badge
+* Progress
+* Slider
+* Switch
+* Checkbox
+* Radio
+* Calendar
+* Data Table
+* Pagination
+* Form
+* Skeleton
+* Toast
+* Breadcrumb
+
+Heavily customize the visual appearance.
+
+Do NOT leave default shadcn styling.
+
+⸻
+
+2. Aceternity UI — PREMIUM VISUAL COMPONENTS
+
+Use selectively for:
+
+* premium hero
+* animated backgrounds
+* spotlight effects
+* bento layouts
+* floating cards
+* card hover effects
+* text reveal
+* moving borders
+* parallax
+* premium navigation
+
+Do not overuse effects.
+
+⸻
+
+3. Magic UI — MICRO INTERACTIONS
+
+Use selectively for:
+
+* Number Ticker
+* Magic Card
+* Shine Border
+* Border Beam
+* Marquee
+* Shimmer Button
+* Blur Fade
+* animated statistics
+
+Especially useful for:
+
+* bandwidth statistics
+* active subscriptions
+* revenue
+* server statistics
+* dashboard KPIs
+
+⸻
+
+4. React Bits — CREATIVE INTERACTIONS
+
+Use selectively for:
+
+* animated typography
+* interactive cards
+* hover effects
+* scroll animations
+* cursor effects
+* animated content sections
+
+Do not use an animation merely because it looks impressive.
+
+⸻
+
+VPN DESIGN LANGUAGE
+
+The visual identity should communicate:
+
+Fast
+Reliable
+Secure
+Premium
+Technical
+Modern
+Simple
+
+Do NOT make it look like a hacker website.
+
+Avoid:
+
+* excessive neon
+* matrix effects
+* cyberpunk graphics
+* excessive glowing borders
+* generic VPN templates
+* excessive glassmorphism
+* giant shields everywhere
+* random gradients
+
+Use a sophisticated technology aesthetic.
+
+⸻
+
+COLOR SYSTEM
+
+Primary:
+
+* deep graphite
+* clean white
+* cool gray
+
+Accent:
+
+* electric blue / cyan
+
+Status:
+
+* green = connected / active
+* orange = expiring / warning
+* red = disconnected / error
+
+Use color primarily to communicate system status.
+
+⸻
+
+TYPOGRAPHY
+
+Use:
+
+Vazirmatn
+
+The application should be Persian RTL.
+
+Use clear hierarchy:
+
+* dashboard headline
+* section heading
+* subscription title
+* price
+* metadata
+* technical information
+
+Numbers must be extremely readable.
+
+⸻
+
+GLOBAL APPLICATION SHELL
+
+Create a premium application shell.
+
+Desktop:
+
+Sidebar
+
+* داشبورد
+* سرویس‌های من
+* خرید سرویس
+* تمدید
+* سرورها
+* مصرف اینترنت
+* سفارش‌ها
+* کیف پول
+* دعوت دوستان
+* پشتیبانی
+* اعلان‌ها
+* تنظیمات
+
+Top Bar
+
+* page title
+* search
+* notifications
+* user avatar
+* account menu
+
+Sidebar should be collapsible.
+
+⸻
+
+CUSTOMER DASHBOARD
+
+Create a premium VPN control center.
+
+Top:
+
+سلام، [نام کاربر]
+
+Then KPI cards:
+
+* سرویس‌های فعال
+* حجم باقی‌مانده
+* روزهای باقی‌مانده
+* وضعیت اتصال
+
+Main subscription card:
+
+سرویس فعال
+
+Display:
+
+* plan
+* server
+* protocol
+* remaining traffic
+* expiration
+* connection status
+
+Use a beautiful circular or linear usage indicator.
+
+Example:
+
+۷۲٪ حجم باقی مانده
+
+Status:
+
+فعال
+
+⸻
+
+SUBSCRIPTION CARD
+
+Create a distinctive VPN subscription card.
+
+Include:
+
+* server flag
+* server name
+* plan name
+* connection status
+* traffic remaining
+* expiration
+* copy configuration
+* QR code
+* renew
+* manage
+
+Use visual hierarchy rather than putting everything into small boxes.
+
+⸻
+
+SERVER COMPONENT
+
+Create a premium server-selection component.
+
+Each server:
+
+* country flag
+* country
+* city
+* latency
+* load
+* status
+* protocol
+* recommended badge
+
+Example:
+
+🇬🇧 London
+
+24 ms
+
+Load:
+
+32%
+
+Status:
+
+Available
+
+Use real-time-style visual indicators.
+
+⸻
+
+SERVER MAP / DISCOVERY
+
+Create an optional visual server discovery experience.
+
+Show server locations as elegant nodes.
+
+Interaction:
+
+* hover
+* select
+* latency
+* load
+
+Do NOT make it look like a hacker dashboard.
+
+⸻
+
+PURCHASE FLOW
+
+Create a premium subscription purchasing flow.
+
+Step 1:
+
+انتخاب سرویس
+
+Step 2:
+
+انتخاب حجم
+
+Step 3:
+
+انتخاب مدت
+
+Step 4:
+
+انتخاب سرور
+
+Step 5:
+
+پرداخت
+
+Plans should be displayed using sophisticated pricing cards.
+
+Include:
+
+* traffic
+* duration
+* server availability
+* price
+* discount
+* recommended badge
+
+⸻
+
+TRAFFIC COMPONENT
+
+Create a beautiful traffic visualization.
+
+Display:
+
+مصرف شده
+
+باقی‌مانده
+
+کل حجم
+
+Use:
+
+* radial progress
+* progress bars
+* small usage chart
+
+Keep it extremely readable.
+
+⸻
+
+EXPIRATION COMPONENT
+
+Create an expiration timeline.
+
+Example:
+
+۱۲ روز باقی‌مانده
+
+Visual states:
+
+Active → Warning → Expired
+
+Do not rely only on color.
+
+⸻
+
+RENEWAL
+
+Create an elegant renewal flow.
+
+Show:
+
+Current service
+
+↓
+
+Select renewal period
+
+↓
+
+Price
+
+↓
+
+Payment
+
+↓
+
+Success
+
+⸻
+
+CONFIGURATION COMPONENT
+
+Create a dedicated configuration interface.
+
+Display:
+
+* server
+* protocol
+* configuration status
+* device count
+* configuration download
+* QR code
+* copy configuration
+
+Buttons:
+
+کپی کانفیگ
+
+نمایش QR
+
+دریافت کانفیگ
+
+راهنمای اتصال
+
+⸻
+
+DEVICE MANAGEMENT
+
+Create a device-management component.
+
+Show:
+
+* device name
+* platform
+* last activity
+* status
+
+Actions:
+
+* view
+* revoke
+* disconnect
+
+Use confirmation dialogs for destructive actions.
+
+⸻
+
+ORDER HISTORY
+
+Use a professional RTL data table.
+
+Columns:
+
+* شماره سفارش
+* سرویس
+* مبلغ
+* تاریخ
+* وضعیت
+* جزئیات
+
+Use status badges.
+
+⸻
+
+PAYMENT
+
+Create:
+
+* payment summary
+* payment method
+* invoice
+* transaction status
+* success state
+* failed state
+
+Create polished success/error experiences.
+
+⸻
+
+NOTIFICATIONS
+
+Create a notification center.
+
+Types:
+
+* سرویس فعال شد
+* تمدید موفق
+* نزدیک شدن به پایان سرویس
+* اتمام حجم
+* پرداخت موفق
+* پرداخت ناموفق
+* اطلاعیه سیستم
+
+Use icons + status + timestamps.
+
+⸻
+
+REFERRAL
+
+Create a referral dashboard.
+
+Show:
+
+* referral code
+* referral link
+* successful referrals
+* rewards
+* total earnings
+
+Include copy button and share actions.
+
+⸻
+
+SUPPORT
+
+Create a modern support center.
+
+Components:
+
+* FAQ
+* support tickets
+* ticket status
+* conversation
+* create ticket
+
+Use a clean chat/ticket interface.
+
+⸻
+
+MOBILE EXPERIENCE
+
+Mobile must be designed independently.
+
+Bottom navigation:
+
+خانه
+
+سرویس‌ها
+
+خرید
+
+اعلان‌ها
+
+حساب
+
+Use:
+
+* bottom sheets
+* sticky CTAs
+* swipeable cards
+* full-screen purchase flow
+* compact statistics
+* large touch targets
+
+The mobile app should feel close to a native premium application.
+
+⸻
+
+ADMIN PANEL
+
+Create a completely different but related visual system for administration.
+
+Use:
+
+* dark sidebar
+* clean workspace
+* KPI cards
+* data tables
+* charts
+* command palette
+* filters
+* drawers
+* modals
+
+Admin navigation:
+
+داشبورد
+
+کاربران
+
+سرویس‌ها
+
+فروش
+
+سفارش‌ها
+
+پرداخت‌ها
+
+سرورها
+
+پلن‌ها
+
+ترافیک
+
+کدهای تخفیف
+
+سیستم ارجاع
+
+پشتیبانی
+
+اعلان‌ها
+
+گزارش‌ها
+
+تنظیمات
+
+⸻
+
+ADMIN DASHBOARD
+
+KPIs:
+
+* فروش امروز
+* فروش ماه
+* کاربران فعال
+* سرویس‌های فعال
+* سرورهای آنلاین
+* ترافیک مصرفی
+* سفارش‌های امروز
+* درآمد
+
+Charts:
+
+* revenue
+* subscriptions
+* active users
+* server load
+* traffic consumption
+
+Use Recharts.
+
+Use Magic UI Number Ticker selectively.
+
+⸻
+
+ADMIN SERVER MANAGEMENT
+
+Create a sophisticated server management interface.
+
+Each server:
+
+* country
+* city
+* IP/identifier
+* protocol
+* status
+* CPU
+* RAM
+* bandwidth
+* load
+* active users
+* uptime
+
+Status:
+
+Online
+
+Warning
+
+Offline
+
+Use visual status indicators.
+
+⸻
+
+ADMIN CUSTOMER MANAGEMENT
+
+Customer table:
+
+* customer
+* active services
+* total spending
+* expiration
+* status
+* last activity
+
+Customer detail drawer:
+
+* profile
+* subscriptions
+* payments
+* orders
+* devices
+* activity
+
+⸻
+
+ADMIN SUBSCRIPTION MANAGEMENT
+
+Show:
+
+* subscription ID
+* customer
+* plan
+* server
+* traffic
+* expiration
+* status
+
+Actions:
+
+* view
+* renew
+* suspend
+* activate
+* change server
+
+⸻
+
+ADMIN PLAN BUILDER
+
+Create a visual plan builder.
+
+Fields:
+
+* plan name
+* traffic
+* duration
+* price
+* available servers
+* protocol
+* devices
+* status
+
+Preview the customer-facing pricing card while editing.
+
+⸻
+
+DESIGN SYSTEM COMPONENTS
+
+Create reusable components:
+
+AppShell
+Sidebar
+TopBar
+MobileNavigation
+PageHeader
+StatCard
+SubscriptionCard
+ServerCard
+ServerStatus
+TrafficMeter
+UsageChart
+ExpirationIndicator
+PricingCard
+PurchaseStepper
+ConfigurationCard
+QRCodePanel
+DeviceCard
+OrderTable
+PaymentCard
+NotificationItem
+ReferralCard
+SupportTicket
+DataTable
+FilterBar
+CommandPalette
+Modal
+Drawer
+BottomSheet
+Toast
+Skeleton
+EmptyState
+ErrorState
+
+⸻
+
+RESPONSIVE DESIGN
+
+Support:
+
+* 320px
+* 375px
+* 390px
+* 430px
+* 768px
+* 1024px
+* 1280px
+* 1440px
+* 1920px
+
+Large desktop should use the available space intelligently.
+
+Do not stretch content excessively.
+
+Use fluid layouts.
+
+⸻
+
+ANIMATION SYSTEM
+
+Use Framer Motion as the primary animation system.
+
+Animations:
+
+* page transitions
+* card hover
+* number transitions
+* progress animation
+* drawer transitions
+* modal transitions
+* subscription activation
+* purchase success
+* server status transitions
+
+Motion must feel:
+
+fast + precise + premium
+
+⸻
+
+MOST IMPORTANT REQUIREMENT
+
+The reference design quality must be applied to the whole VPN reseller application.
+
+Do not redesign only:
+
+* login
+* dashboard
+* homepage
+
+Every page must belong to the same design system.
+
+The final result should feel like one carefully designed premium application.
+
+⸻
+
+FINAL WORKFLOW
+
+Follow this exact order:
+
+1. Analyze existing application
+
+↓
+
+2. Analyze provided visual reference
+
+↓
+
+3. Create complete Canvas prototype
+
+↓
+
+4. Build the آرایه/VPN design system
+
+↓
+
+5. Build reusable components
+
+↓
+
+6. Apply components to every customer page
+
+↓
+
+7. Apply components to every admin page
+
+↓
+
+8. Test desktop
+
+↓
+
+9. Test mobile
+
+↓
+
+10. Fix visual inconsistencies
+
+↓
+
+11. Only then consider the UI redesign complete
+
+Do not skip the Canvas stage.
+
+Do not start by randomly modifying individual pages.
+
+Canvas first. Complete design system second. Production implementation third.
+
+Most importantly:
+
+Preserve all existing VPN reseller functionality. Change the experience and visual system, not the underlying business logic.
