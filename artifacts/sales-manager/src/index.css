@@ -3367,6 +3367,76 @@ table td { font-size: 11px; }
 .public-sub-v3 .public-sub-quick-action { background:var(--sub-navy); }
 .public-sub-v3 .public-sub-copy-action, .public-sub-v3 .public-sub-install-action { border:1px solid var(--sub-line); background:var(--sub-surface-2); color:var(--sub-ink); }
 
+/* Final light audit for the public subscription route. */
+html body #root .public-sub-route { background:#eef5f4 !important; color:#142d3b !important; }
+html body #root .public-sub-v3 {
+  --sub-bg:#eef5f4 !important; --sub-surface:#ffffff !important; --sub-surface-2:#e7f0ef !important;
+  --sub-ink:#142d3b !important; --sub-muted:#5e7780 !important; --sub-line:#cbdeda !important;
+  --sub-teal:#087f83 !important; --sub-teal-deep:#0a586c !important; --sub-teal-soft:#c9eee5 !important;
+  --sub-navy:#12364b !important; background:linear-gradient(180deg,#f8fcfb 0%,#eef5f4 52%,#e5efee 100%) !important; color:#142d3b !important;
+}
+html body #root .public-sub-v3 .public-sub-v3-brand strong,
+html body #root .public-sub-v3 .public-sub-v3-brand small,
+html body #root .public-sub-v3 .public-sub-card-heading h2,
+html body #root .public-sub-v3 .public-sub-section-heading h2,
+html body #root .public-sub-v3 .public-sub-detail-row strong,
+html body #root .public-sub-v3 .public-sub-app-copy strong,
+html body #root .public-sub-v3 .public-sub-usage-summary strong,
+html body #root .public-sub-v3 .public-sub-loading-copy strong,
+html body #root .public-sub-v3 .public-sub-error-card h1 { color:#142d3b !important; }
+html body #root .public-sub-v3 .public-sub-secure-chip,
+html body #root .public-sub-v3 .public-sub-icon-button,
+html body #root .public-sub-v3 .public-sub-surface,
+html body #root .public-sub-v3 .public-sub-status-card,
+html body #root .public-sub-v3 .public-sub-connections-card,
+html body #root .public-sub-v3 .public-sub-share-card,
+html body #root .public-sub-v3 .public-sub-app-item { border-color:#cbdeda !important; background:#ffffff !important; color:#142d3b !important; }
+html body #root .public-sub-v3 .public-sub-usage-module { border-color:#cbdeda !important; background:linear-gradient(135deg,#ffffff,#e7f3f1) !important; }
+html body #root .public-sub-v3 .public-sub-usage-ring-center { background:#ffffff !important; }
+html body #root .public-sub-v3 .public-sub-platforms,
+html body #root .public-sub-v3 .public-sub-copy-action,
+html body #root .public-sub-v3 .public-sub-install-action,
+html body #root .public-sub-v3 .public-sub-qr-button { border-color:#cbdeda !important; background:#e7f0ef !important; color:#142d3b !important; }
+html body #root .public-sub-v3 .public-sub-platforms button { color:#5e7780 !important; }
+html body #root .public-sub-v3 .public-sub-platforms button.active { color:#ffffff !important; background:#087f83 !important; }
+html body #root .public-sub-v3 .public-sub-platform-pill { background:#087f83 !important; }
+html body #root .public-sub-v3 .public-sub-app-icon { background:#d9f1ed !important; color:#087f83 !important; }
+html body #root .public-sub-v3 .public-sub-app-copy p,
+html body #root .public-sub-v3 .public-sub-loading-copy span,
+html body #root .public-sub-v3 .public-sub-error-card > p:not(.public-sub-kicker),
+html body #root .public-sub-v3 .public-sub-share-copy span { color:#5e7780 !important; }
+html body #root .public-sub-v3 .public-sub-app-copy small,
+html body #root .public-sub-v3 .public-sub-kicker { color:#087f83 !important; }
+html body #root .public-sub-v3 .public-sub-app-actions > .public-sub-quick-action,
+html body #root .public-sub-v3 .public-sub-hero-action.primary,
+html body #root .public-sub-v3 .public-sub-button.primary,
+html body #root .public-sub-v3 .public-sub-copy-link { border-color:#0a586c !important; background:#0a586c !important; color:#ffffff !important; text-shadow:none !important; }
+html body #root .public-sub-v3 .public-sub-app-actions > .public-sub-copy-action,
+html body #root .public-sub-v3 .public-sub-app-actions > .public-sub-install-action,
+html body #root .public-sub-v3 .public-sub-hero-action.secondary { border:1px solid #cbdeda !important; background:#e7f0ef !important; color:#142d3b !important; }
+html body #root .public-sub-v3 .public-sub-loading-card,
+html body #root .public-sub-v3 .public-sub-error-card { border-color:#cbdeda !important; background:#ffffff !important; color:#142d3b !important; }
+html body #root .public-sub-v3 .public-sub-loading-bar { background:#dfecea !important; }
+html body #root .public-sub-v3 .public-sub-error-icon { background:#ffe3df !important; color:#a34c42 !important; }
+html body #root .public-sub-v3 .public-sub-awg-card { border-color:#d8c9b4 !important; background:#fbf7ef !important; color:#443b31 !important; }
+html body #root .public-sub-v3 .public-sub-awg-heading h2,
+html body #root .public-sub-v3 .public-sub-awg-heading p:last-child,
+html body #root .public-sub-v3 .public-sub-awg-body p,
+html body #root .public-sub-v3 .public-sub-awg-unavailable p,
+html body #root .public-sub-v3 .public-sub-awg-divider,
+html body #root .public-sub-v3 .public-sub-awg-platform strong { color:#443b31 !important; }
+html body #root .public-sub-v3 .public-sub-awg-trigger,
+html body #root .public-sub-v3 .public-sub-awg-action,
+html body #root .public-sub-v3 .public-sub-awg-unavailable,
+html body #root .public-sub-v3 .public-sub-awg-platform { border-color:#d8c9b4 !important; background:#fffaf1 !important; color:#443b31 !important; }
+html body #root .public-sub-v3 .public-sub-awg-action.primary { border-color:#0b6c72 !important; background:#0b6c72 !important; color:#ffffff !important; }
+html body #root .public-sub-v3 .public-sub-awg-platform small { color:#806f5d !important; }
+html body #root .public-sub-v3 .public-sub-awg-divider { border-color:#d8c9b4 !important; }
+html body #root .public-sub-v3 .public-sub-awg-divider a,
+html body #root .public-sub-v3 .public-sub-awg-platform > svg { color:#087f83 !important; }
+html body #root .public-sub-qr-dialog { border-color:#cbdeda !important; background:#ffffff !important; color:#142d3b !important; }
+html body #root .public-sub-qr-close { border-color:#cbdeda !important; background:#eef5f4 !important; color:#315967 !important; }
+
 /* Final dark/public-sub cascade: this must stay after the legacy v3 layers. */
 html body #root .public-sub-route { background:#eef5f4 !important; }
 html body #root .public-sub-v3 {
