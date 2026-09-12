@@ -67,7 +67,11 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 
 function App() {
   const configuredBase = import.meta.env.BASE_URL.replace(/\/$/, '');
-  const routerBase = configuredBase.endsWith('/mobile') ? '' : configuredBase;
+  const routerBase =
+    configuredBase.endsWith('/mobile') ||
+    configuredBase.endsWith('/panel-sub-assets')
+      ? ''
+      : configuredBase;
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

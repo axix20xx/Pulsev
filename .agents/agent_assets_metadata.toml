@@ -750,3 +750,17 @@ mtime_ms = 1789223717721
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/599ef51b-7997-4052-bd8a-5398df6107c3/2f8c682a-180f-49be-aca0-5af1af0f0e58"
 storage_version_token = "1789223735131193"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "zs76sIkCUh80uSEUyCwgK"
+uri = "file://exports/pulse-hostinger-sub-mobile-redesign-fixed.zip"
+type = "unspecified"
+title = "Pulse Hostinger — fixed /sub bundle"
+description = "نسخهٔ اصلاح‌شدهٔ Hostinger با رفع blank screen در /sub؛ router عمومی اکنون مستقل از مسیر assetهای /panel-sub-assets resolve می‌شود. Typecheck، build، validation و unzip test موفق بودند. SHA-256: f68ea9ff51653f2354eb7b501ba2fa3ed0f20fd798d7d67cfd1e490f76412e14"
+logical_id = "2f3c9bde-238d-420f-9bd5-06deb43433e1"
+content_hash = "sha256:f68ea9ff51653f2354eb7b501ba2fa3ed0f20fd798d7d67cfd1e490f76412e14"
+size = 27275562
+mtime_ms = 1789224490898
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2f3c9bde-238d-420f-9bd5-06deb43433e1/8124ee92-9bab-47f0-970b-475939ccb743"
+storage_version_token = "1789224560859066"
+content_type = "application/octet-stream"
