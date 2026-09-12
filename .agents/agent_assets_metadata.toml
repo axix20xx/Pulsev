@@ -764,3 +764,17 @@ mtime_ms = 1789224490898
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2f3c9bde-238d-420f-9bd5-06deb43433e1/8124ee92-9bab-47f0-970b-475939ccb743"
 storage_version_token = "1789224560859066"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "VAoiTFygm186CK3K5cEj1"
+uri = "file://exports/pulse-hostinger-sub-awg-redesign.zip"
+type = "unspecified"
+title = "Pulse Hostinger — /sub AmneziaWG redesign"
+description = "بستهٔ production شامل بازطراحی خوانای /sub، کارت AmneziaWG با وضعیت کانفیگ واقعی، دانلود رسمی iOS و Android و Windows، و alternativeهای مستند macOS و Linux. Typecheck، build، validation و unzip test موفق بودند. SHA-256: 29284a269f60ca426ef6aff565dcbb00f22afb0eb43de6728798c3572f320cfa"
+logical_id = "ac7bb287-ee18-4748-aa5f-a02c495ed095"
+content_hash = "sha256:29284a269f60ca426ef6aff565dcbb00f22afb0eb43de6728798c3572f320cfa"
+size = 27292445
+mtime_ms = 1789225381093
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ac7bb287-ee18-4748-aa5f-a02c495ed095/bb423fcc-a6b4-4958-bd83-1094244c390d"
+storage_version_token = "1789225395459915"
+content_type = "application/octet-stream"
