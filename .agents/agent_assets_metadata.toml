@@ -778,3 +778,17 @@ mtime_ms = 1789225381093
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ac7bb287-ee18-4748-aa5f-a02c495ed095/bb423fcc-a6b4-4958-bd83-1094244c390d"
 storage_version_token = "1789225395459915"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "NAtiU4kzBMGCuBOLD_JWc"
+uri = "file://exports/pulse-hostinger-mobile-logo-fixed.zip"
+type = "unspecified"
+title = "Pulse Hostinger — fixed mobile webapp logo"
+description = "بستهٔ اصلاح‌شدهٔ mobile PWA با مسیر icon صریح برای /mobile، PNGهای 192 و 512، Apple Touch Icon، manifest به‌روزشده و کد فعلی /sub. Typecheck، build، icon path checks، preview و unzip test موفق بودند. SHA-256: a9770d49ed9f2e4a53a3275b2ec7e74cc26fbec3df76e896a0138287ec064798"
+logical_id = "8b42adfd-c455-4ce7-bfe6-07f2d82c73c6"
+content_hash = "sha256:a9770d49ed9f2e4a53a3275b2ec7e74cc26fbec3df76e896a0138287ec064798"
+size = 27849231
+mtime_ms = 1789225543257
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8b42adfd-c455-4ce7-bfe6-07f2d82c73c6/39b2beb2-bbb6-46f1-820d-3e12e610388d"
+storage_version_token = "1789225571688595"
+content_type = "application/octet-stream"

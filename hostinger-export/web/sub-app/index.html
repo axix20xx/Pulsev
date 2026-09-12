@@ -20,6 +20,14 @@
         manifest.rel = 'manifest';
         manifest.href = isMobile ? base + 'mobile/manifest.webmanifest' : 'manifest.webmanifest';
         document.head.appendChild(manifest);
+        var mobileIconHref = isMobile ? base + 'mobile/favicon.svg' : 'favicon.svg';
+        var mobileTouchIconHref = isMobile ? base + 'mobile/apple-touch-icon.png' : 'apple-touch-icon.png';
+        document.querySelectorAll('link[rel="icon"]').forEach(function (link) {
+          link.href = mobileIconHref;
+        });
+        document.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function (link) {
+          link.href = mobileTouchIconHref;
+        });
         if (isMobile && 'serviceWorker' in navigator) {
           try {
             var migrationKey = 'pulse-mobile-sw-migration-v2';
@@ -51,7 +59,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/panel-sub-assets/assets/index-C5PjxZ5j.js"></script>
+    <script type="module" crossorigin src="/panel-sub-assets/assets/index-Bww5-8kZ.js"></script>
     <link rel="stylesheet" crossorigin href="/panel-sub-assets/assets/index-DBPRFcUH.css">
   </head>
   <body>

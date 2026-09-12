@@ -326,10 +326,13 @@ export function MobileApp() {
     const manifest = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
     const previous = manifest?.href;
     if (manifest) manifest.href = `${mobileAssetBaseUrl}manifest.webmanifest`;
-    const appIconHref = `${import.meta.env.BASE_URL}favicon.svg`;
     const iconLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="apple-touch-icon"]'));
     const previousIcons = iconLinks.map((link) => link.href);
-    iconLinks.forEach((link) => { link.href = appIconHref; });
+    const appIconHref = `${mobileAssetBaseUrl}favicon.svg`;
+    const appTouchIconHref = `${mobileAssetBaseUrl}apple-touch-icon.png`;
+    iconLinks.forEach((link) => {
+      link.href = link.rel === 'apple-touch-icon' ? appTouchIconHref : appIconHref;
+    });
     document.documentElement.lang = 'fa'; document.documentElement.dir = 'rtl';
     return () => { if (manifest && previous) manifest.href = previous; iconLinks.forEach((link, index) => { link.href = previousIcons[index]; }); document.documentElement.lang = 'en'; document.documentElement.dir = 'ltr'; };
   }, []);
