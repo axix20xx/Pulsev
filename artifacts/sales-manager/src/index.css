@@ -3366,6 +3366,161 @@ table td { font-size: 11px; }
 .public-sub-v3 .public-sub-quick-action, .public-sub-v3 .public-sub-copy-action, .public-sub-v3 .public-sub-install-action { min-height:38px; border-radius:10px; padding-inline:11px; font-size:10px; font-weight:800; }
 .public-sub-v3 .public-sub-quick-action { background:var(--sub-navy); }
 .public-sub-v3 .public-sub-copy-action, .public-sub-v3 .public-sub-install-action { border:1px solid var(--sub-line); background:var(--sub-surface-2); color:var(--sub-ink); }
+
+/* Final dark/public-sub cascade: this must stay after the legacy v3 layers. */
+html body #root .public-sub-route { background:#081b2b !important; }
+html body #root .public-sub-v3 {
+  --sub-bg:#081b2b !important;
+  --sub-surface:#102a3b !important;
+  --sub-surface-2:#163548 !important;
+  --sub-ink:#e7f5f4 !important;
+  --sub-muted:#a4bdc2 !important;
+  --sub-line:#2c4e5a !important;
+  --sub-teal:#68d7c7 !important;
+  --sub-teal-soft:#184d53 !important;
+  --sub-navy:#d7f5ee !important;
+  background:radial-gradient(circle at 90% -4%,rgba(72,209,190,.14),transparent 36%),linear-gradient(180deg,#081b2b,#0a2233) !important;
+  color:#e7f5f4 !important;
+}
+html body #root .public-sub-v3 .public-sub-secure-chip,
+html body #root .public-sub-v3 .public-sub-icon-button,
+html body #root .public-sub-v3 .public-sub-surface,
+html body #root .public-sub-v3 .public-sub-status-card,
+html body #root .public-sub-v3 .public-sub-connections-card,
+html body #root .public-sub-v3 .public-sub-share-card,
+html body #root .public-sub-v3 .public-sub-app-item {
+  border-color:#2c4e5a !important;
+  background:#102a3b !important;
+  color:#e7f5f4 !important;
+}
+html body #root .public-sub-v3 .public-sub-platforms,
+html body #root .public-sub-v3 .public-sub-copy-action,
+html body #root .public-sub-v3 .public-sub-install-action,
+html body #root .public-sub-v3 .public-sub-qr-button {
+  border-color:#2c4e5a !important;
+  background:#163548 !important;
+  color:#e7f5f4 !important;
+}
+html body #root .public-sub-v3 .public-sub-card-heading h2,
+html body #root .public-sub-v3 .public-sub-section-heading h2,
+html body #root .public-sub-v3 .public-sub-detail-row strong,
+html body #root .public-sub-v3 .public-sub-app-copy strong,
+html body #root .public-sub-v3 .public-sub-usage-summary strong {
+  color:#e7f5f4 !important;
+}
+html body #root .public-sub-v3 .public-sub-usage-ring-center { background:#102a3b !important; }
+html body #root .public-sub-v3 .public-sub-app-icon { background:#174f55 !important; color:#68d7c7 !important; }
+html body #root .public-sub-v3 .public-sub-loading-card,
+html body #root .public-sub-v3 .public-sub-error-card {
+  border-color:#2c4e5a !important;
+  background:#102a3b !important;
+  color:#e7f5f4 !important;
+}
+html body #root .public-sub-v3 .public-sub-loading-copy strong,
+html body #root .public-sub-v3 .public-sub-error-card h1 { color:#e7f5f4 !important; }
+html body #root .public-sub-v3 .public-sub-loading-copy span,
+html body #root .public-sub-v3 .public-sub-error-card > p:not(.public-sub-kicker) { color:#a4bdc2 !important; }
+html body #root .public-sub-v3 .public-sub-error-icon { background:#4b2d35 !important; color:#ffaaa4 !important; }
+html body #root .public-sub-v3 .public-sub-loading-bar { background:#24505a !important; }
+html body #root .public-sub-v3 .public-sub-button.primary { background:#68d7c7 !important; color:#08212f !important; }
+html body #root .public-sub-v3 .public-sub-awg-card { border-color:#7c674d !important; background:#252d2c !important; color:#f3eee5 !important; }
+html body #root .public-sub-v3 .public-sub-awg-trigger,
+html body #root .public-sub-v3 .public-sub-awg-action,
+html body #root .public-sub-v3 .public-sub-awg-unavailable,
+html body #root .public-sub-v3 .public-sub-awg-platform {
+  border-color:#766651 !important;
+  background:#303836 !important;
+  color:#f3eee5 !important;
+}
+html body #root .public-sub-v3 .public-sub-awg-heading h2,
+html body #root .public-sub-v3 .public-sub-awg-heading p:last-child,
+html body #root .public-sub-v3 .public-sub-awg-body p,
+html body #root .public-sub-v3 .public-sub-awg-unavailable p,
+html body #root .public-sub-v3 .public-sub-awg-divider,
+html body #root .public-sub-v3 .public-sub-awg-platform strong { color:#f3eee5 !important; }
+html body #root .public-sub-v3 .public-sub-awg-platform small { color:#d0c4b5 !important; }
+html body #root .public-sub-v3 .public-sub-awg-divider { border-color:#766651 !important; }
+html body #root .public-sub-v3 .public-sub-awg-divider a,
+html body #root .public-sub-v3 .public-sub-awg-platform > svg { color:#82dfd0 !important; }
+html body #root .public-sub-qr-dialog { border-color:#2c4e5a !important; background:#102a3b !important; color:#e7f5f4 !important; }
+html body #root .public-sub-v3 .public-sub-app-shell { width:min(calc(100% - 24px),1040px); margin-inline:auto; }
+html body #root .public-sub-v3 .public-sub-app-item { grid-template-columns:40px minmax(0,1fr); align-items:start; }
+html body #root .public-sub-v3 .public-sub-app-copy { min-width:0; }
+html body #root .public-sub-v3 .public-sub-app-copy p { display:-webkit-box; overflow:hidden; white-space:normal; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
+html body #root .public-sub-v3 .public-sub-app-actions { display:grid; grid-column:1/-1; width:100%; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin-top:3px; }
+html body #root .public-sub-v3 .public-sub-app-actions > * { width:100%; min-width:0; padding-inline:7px; }
+html body #root .public-sub-v3 .public-sub-share-copy,
+html body #root .public-sub-v3 .public-sub-footer-copy { min-width:0; }
+html body #root .public-sub-v3 .public-sub-share-copy span { max-width:100%; }
+@media (max-width:620px) {
+  html body #root .public-sub-v3 .public-sub-overview-grid { grid-template-columns:minmax(0,1fr) !important; }
+  html body #root .public-sub-v3 .public-sub-usage-ring-row { flex-wrap:wrap; }
+}
+.public-sub-route { background:#081b2b; }
+.public-sub-v3 {
+  --sub-bg:#081b2b;
+  --sub-surface:#102a3b;
+  --sub-surface-2:#163548;
+  --sub-ink:#e7f5f4;
+  --sub-muted:#a4bdc2;
+  --sub-line:#2c4e5a;
+  --sub-teal:#68d7c7;
+  --sub-teal-soft:#184d53;
+  --sub-navy:#d7f5ee;
+  background:radial-gradient(circle at 90% -4%,rgba(72,209,190,.14),transparent 36%),linear-gradient(180deg,#081b2b,#0a2233);
+  color:var(--sub-ink);
+}
+.public-sub-v3::before { opacity:.12; }
+.public-sub-v3 .public-sub-v3-brand strong,
+.public-sub-v3 .public-sub-v3-brand small,
+.public-sub-v3 .public-sub-card-heading h2,
+.public-sub-v3 .public-sub-section-heading h2,
+.public-sub-v3 .public-sub-detail-row strong,
+.public-sub-v3 .public-sub-app-copy strong,
+.public-sub-v3 .public-sub-usage-summary strong { color:var(--sub-ink); }
+.public-sub-v3 .public-sub-secure-chip,
+.public-sub-v3 .public-sub-icon-button,
+.public-sub-v3 .public-sub-surface,
+.public-sub-v3 .public-sub-status-card,
+.public-sub-v3 .public-sub-connections-card,
+.public-sub-v3 .public-sub-share-card,
+.public-sub-v3 .public-sub-app-item {
+  border-color:var(--sub-line);
+  background:rgba(16,42,59,.94);
+  color:var(--sub-ink);
+}
+.public-sub-v3 .public-sub-icon-button,
+.public-sub-v3 .public-sub-copy-action,
+.public-sub-v3 .public-sub-install-action,
+.public-sub-v3 .public-sub-platforms,
+.public-sub-v3 .public-sub-qr-button {
+  border-color:var(--sub-line);
+  background:var(--sub-surface-2);
+  color:var(--sub-ink);
+}
+.public-sub-v3 .public-sub-usage-module { border-color:var(--sub-line); background:linear-gradient(135deg,#102b42,#143847); }
+.public-sub-v3 .public-sub-usage-ring-center { background:#102a3b; }
+.public-sub-v3 .public-sub-app-icon { background:#174f55; color:var(--sub-teal); }
+.public-sub-v3 .public-sub-awg-card { border-color:#7c674d; background:#252d2c; color:#f3eee5; }
+.public-sub-v3 .public-sub-awg-heading h2,
+.public-sub-v3 .public-sub-awg-heading p:last-child,
+.public-sub-v3 .public-sub-awg-body p,
+.public-sub-v3 .public-sub-awg-unavailable p,
+.public-sub-v3 .public-sub-awg-divider,
+.public-sub-v3 .public-sub-awg-platform strong { color:#f3eee5; }
+.public-sub-v3 .public-sub-awg-trigger,
+.public-sub-v3 .public-sub-awg-action,
+.public-sub-v3 .public-sub-awg-unavailable,
+.public-sub-v3 .public-sub-awg-platform {
+  border-color:#766651;
+  background:#303836;
+  color:#f3eee5;
+}
+.public-sub-v3 .public-sub-awg-platform small { color:#d0c4b5; }
+.public-sub-v3 .public-sub-awg-divider { border-color:#766651; }
+.public-sub-v3 .public-sub-awg-divider a,
+.public-sub-v3 .public-sub-awg-platform > svg { color:#82dfd0; }
+.public-sub-qr-dialog { border-color:var(--sub-line); background:#102a3b; color:var(--sub-ink); }
 @media (max-width: 620px) {
   .sale-edit-backdrop { align-items: stretch; padding: 0; }
   .sale-edit-modal { display: flex; width: 100vw; height: 100dvh; max-height: 100dvh; flex-direction: column; overflow-y: auto; border: 0; border-radius: 0; padding: max(18px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom)); }
@@ -5173,6 +5328,80 @@ body { color: hsl(var(--foreground)); }
   .public-sub-qr-dialog { border-color:#2c4e5a; background:#102a3b; color:#e7f5f4; }
 }
 @media (prefers-reduced-motion:reduce) { .public-sub-v3 *, .public-sub-v3 *::before, .public-sub-v3 *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; } }
+
+/* /sub is a dark customer-facing surface on every device. Keep this scoped to
+   the public route so the seller/master-admin workspace keeps its own theme. */
+.public-sub-route { background: #081b2b; }
+.public-sub-v3 {
+  --sub-bg: #081b2b;
+  --sub-surface: #102a3b;
+  --sub-surface-2: #163548;
+  --sub-ink: #e7f5f4;
+  --sub-muted: #a4bdc2;
+  --sub-line: #2c4e5a;
+  --sub-teal: #68d7c7;
+  --sub-teal-soft: #184d53;
+  --sub-navy: #d7f5ee;
+  background: radial-gradient(circle at 90% -4%, rgba(72,209,190,.14), transparent 36%), linear-gradient(180deg, #081b2b, #0a2233);
+  color: var(--sub-ink);
+}
+.public-sub-v3::before { opacity: .12; }
+.public-sub-v3 .public-sub-v3-brand strong, .public-sub-v3 .public-sub-v3-brand small { color: var(--sub-ink); }
+.public-sub-v3 .public-sub-secure-chip, .public-sub-v3 .public-sub-icon-button,
+.public-sub-v3 .public-sub-surface, .public-sub-v3 .public-sub-status-card,
+.public-sub-v3 .public-sub-connections-card, .public-sub-v3 .public-sub-share-card {
+  border-color: var(--sub-line);
+  background: rgba(16,42,59,.92);
+  color: var(--sub-ink);
+}
+.public-sub-v3 .public-sub-card-heading h2, .public-sub-v3 .public-sub-section-heading h2,
+.public-sub-v3 .public-sub-detail-row strong, .public-sub-v3 .public-sub-app-copy strong,
+.public-sub-v3 .public-sub-usage-summary strong { color: var(--sub-ink); }
+.public-sub-v3 .public-sub-usage-ring-center { background: #102a3b; }
+.public-sub-v3 .public-sub-platforms, .public-sub-v3 .public-sub-copy-action,
+.public-sub-v3 .public-sub-install-action { border-color: var(--sub-line); background: var(--sub-surface-2); color: var(--sub-ink); }
+.public-sub-v3 .public-sub-app-item { border-color: var(--sub-line); background: #102a3b; }
+.public-sub-v3 .public-sub-app-icon { background: #174f55; color: var(--sub-teal); }
+.public-sub-v3 .public-sub-awg-card { border-color: #7c674d; background: #252d2c; color: #f3eee5; }
+.public-sub-v3 .public-sub-awg-heading h2, .public-sub-v3 .public-sub-awg-heading p:last-child,
+.public-sub-v3 .public-sub-awg-body p, .public-sub-v3 .public-sub-awg-unavailable p,
+.public-sub-v3 .public-sub-awg-divider, .public-sub-v3 .public-sub-awg-platform strong { color: #f3eee5; }
+.public-sub-v3 .public-sub-awg-trigger, .public-sub-v3 .public-sub-awg-action,
+.public-sub-v3 .public-sub-awg-unavailable, .public-sub-v3 .public-sub-awg-platform {
+  border-color: #766651;
+  background: #303836;
+  color: #f3eee5;
+}
+.public-sub-v3 .public-sub-awg-platform small { color: #d0c4b5; }
+.public-sub-v3 .public-sub-awg-divider { border-color: #766651; }
+.public-sub-v3 .public-sub-awg-divider a, .public-sub-v3 .public-sub-awg-platform > svg { color: #82dfd0; }
+.public-sub-v3 .public-sub-qr-button { border-color: var(--sub-line); background: var(--sub-surface); color: var(--sub-teal); }
+.public-sub-qr-dialog { border-color: var(--sub-line); background: #102a3b; color: var(--sub-ink); }
+
+/* Narrow screens: cards stay inside the viewport and app actions never
+   escape their card or collide with the copy. */
+.public-sub-v3 .public-sub-app-shell,
+.public-sub-v3 .public-sub-app-shell > * { min-width: 0; }
+.public-sub-v3 .public-sub-app-shell { width: min(calc(100% - 24px), 1040px); margin-inline: auto; }
+.public-sub-v3 .public-sub-app-item { grid-template-columns: 40px minmax(0, 1fr); align-items: start; }
+.public-sub-v3 .public-sub-app-copy { min-width: 0; }
+.public-sub-v3 .public-sub-app-copy p { display: -webkit-box; overflow: hidden; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.public-sub-v3 .public-sub-app-actions { grid-column: 1 / -1; display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 3px; }
+.public-sub-v3 .public-sub-app-actions > * { width: 100%; min-width: 0; padding-inline: 7px; }
+.public-sub-v3 .public-sub-share-copy { min-width: 0; }
+.public-sub-v3 .public-sub-share-copy span { max-width: 100%; }
+.public-sub-v3 .public-sub-footer-copy { min-width: 0; }
+@media (max-width: 620px) {
+  .public-sub-v3 .public-sub-overview-grid { grid-template-columns: minmax(0, 1fr); }
+  .public-sub-v3 .public-sub-usage-ring-row { flex-wrap: wrap; }
+  .public-sub-v3 .public-sub-usage-summary { min-width: 0; }
+}
+@media (max-width: 430px) {
+  .public-sub-v3 .public-sub-app-shell { width: min(calc(100% - 20px), 520px); }
+  .public-sub-v3 .public-sub-app-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .public-sub-v3 .public-sub-status-card { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .public-sub-v3 .public-sub-footer-v3 { align-items: flex-start; }
+}
 .public-sub-v3 { --sub-bg:#eef5f4; --sub-surface:#fdfefd; --sub-surface-2:#e5efee; --sub-ink:#142d3b; --sub-muted:#5e7780; --sub-line:#cbdeda; --sub-teal:#087f83; --sub-teal-soft:#c9eee5; --sub-navy:#12364b; position:relative; min-height:100dvh; overflow:hidden; background:linear-gradient(180deg,#f4faf8 0%,var(--sub-bg) 48%,#e6f0f0 100%); color:var(--sub-ink); font-family:var(--app-font-sans); }
 .public-sub-v3::before { content:''; position:fixed; inset:0; pointer-events:none; opacity:.2; background-image:linear-gradient(110deg,rgba(8,127,131,.08) 1px,transparent 1px),linear-gradient(20deg,rgba(18,54,75,.04) 1px,transparent 1px); background-size:56px 56px,88px 88px; }
 .public-sub-v3 .public-sub-app-shell { position:relative; z-index:1; display:flex; width:min(calc(100% - 28px),920px); flex-direction:column; gap:14px; padding:16px 0 40px; }

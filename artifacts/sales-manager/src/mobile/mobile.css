@@ -188,3 +188,31 @@
 @media (max-width:390px){.mobile-main{padding-inline:14px}.mobile-horizontal-scroll{margin-inline:-14px;padding-inline:14px}.mobile-detail-visual{gap:13px;padding:16px}.mobile-usage-ring{width:98px;height:98px}.mobile-usage-ring::before{width:79px;height:79px}.mobile-install-hero{grid-template-columns:108px 1fr;gap:12px;margin-inline:-14px;padding-inline:16px}.mobile-install-phone{width:101px;height:174px}.mobile-install-copy h1{font-size:24px}.mobile-nav-rebuilt-inner{width:calc(100% - 16px)}}
 @media (prefers-color-scheme:dark){.mobile-app{--m-bg:#091a2b;--m-surface:#10263b;--m-surface-2:#17324a;--m-ink:#edf7fb;--m-muted:#a0b4c7;--m-line:#244157;--m-primary:#55d4c0;--m-primary-strong:#31aeb0;background:radial-gradient(circle at 100% 0,rgba(57,195,176,.14),transparent 34%),var(--m-bg)}.mobile-topbar{background:color-mix(in srgb,var(--m-bg) 88%,transparent)}.mobile-nav-rebuilt-inner{border-color:#244157}.mobile-nav-rebuilt-item.is-active{color:#aaf4e5;background:rgba(57,195,176,.14)}.mobile-empty-hero,.mobile-push-card{background:linear-gradient(135deg,#15384b,#24384e)}.mobile-connect-panel{background:linear-gradient(110deg,#10263b,#173b4d)}.mobile-install-tabs{background:#17324a}.mobile-install-tabs button.is-active{background:#10263b;color:#edf7fb}.mobile-detail-visual{background:linear-gradient(135deg,#102b45,#0b5c6c)}.mobile-usage-ring::before{background:#102b45}}
 @media (prefers-reduced-motion:reduce){.mobile-app *,.mobile-app *::before,.mobile-app *::after{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+
+/* Customer mobile is intentionally dark on every device, independent of OS theme. */
+.mobile-app {
+  --m-bg: #091a2b;
+  --m-surface: #10263b;
+  --m-surface-2: #17324a;
+  --m-ink: #edf7fb;
+  --m-muted: #a0b4c7;
+  --m-line: #244157;
+  --m-primary: #55d4c0;
+  --m-primary-strong: #31aeb0;
+  background: radial-gradient(circle at 100% 0, rgba(57,195,176,.14), transparent 34%), var(--m-bg);
+}
+.mobile-topbar { background: color-mix(in srgb, var(--m-bg) 88%, transparent); }
+.mobile-nav-rebuilt-inner { border-color: #244157; background: color-mix(in srgb, var(--m-surface) 94%, transparent); }
+.mobile-nav-rebuilt-item { color: #9bb0c2; }
+.mobile-nav-rebuilt-item.is-active { color: #aaf4e5; background: rgba(57,195,176,.14); }
+.mobile-empty-hero, .mobile-push-card { background: linear-gradient(135deg, #15384b, #24384e); }
+.mobile-connect-panel { background: linear-gradient(110deg, #10263b, #173b4d); }
+.mobile-install-tabs { background: #17324a; }
+.mobile-install-tabs button.is-active { background: #10263b; color: #edf7fb; }
+.mobile-detail-visual { background: linear-gradient(135deg, #102b45, #0b5c6c); }
+.mobile-usage-ring::before { background: #102b45; }
+.mobile-skeleton-list span { background: linear-gradient(90deg, #10263b 25%, #1a3a51 45%, #10263b 65%); background-size: 300% 100%; }
+.mobile-switch { background: #29445b; }
+.mobile-menu-card, .mobile-settings-card, .mobile-install-step, .mobile-provider-card, .mobile-awg-card,
+.mobile-qr-modal, .mobile-install-modal, .mobile-push-prompt { border-color: var(--m-line); background: var(--m-surface); }
+.mobile-install-already, .mobile-install-browser-note, .mobile-install-note { color: #8fe5d5; background: rgba(57,195,176,.12); }

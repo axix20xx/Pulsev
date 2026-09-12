@@ -90,6 +90,44 @@ export function UsageRing({ item }: { item: MobileSubscription }) {
   return <div className="mobile-usage-ring" style={{ '--usage': `${percent}%` } as React.CSSProperties} data-testid={`meter-mobile-usage-${item.id}`} role="img" aria-label={`مصرف ${faNumber(Math.round(percent))} درصد`}><div><strong>{faNumber(Math.round(percent))}<small>٪</small></strong><span>مصرف شده</span></div></div>;
 }
 
+type MobileClient = {
+  id: string;
+  name: string;
+  platform: string;
+  description: string;
+  configUrl: string;
+  quickUrl?: string;
+  downloadUrl: string;
+  isPrimary?: boolean;
+};
+
+const mobileClientCatalog = (url: string, name: string): MobileClient[] => {
+  const encodedName = encodeURIComponent(name || 'Pulse');
+  const encodedUrl = encodeURIComponent(url);
+  const clashUrl = (() => {
+    const value = new URL(url);
+    value.searchParams.set('format', 'clash');
+    return value.toString();
+  })();
+  const encodedClashUrl = encodeURIComponent(clashUrl);
+  return [
+    { id: 'clash-plus', name: 'Clash Plus', platform: 'iOS', description: 'کانفیگ Mihomo برای آیفون', configUrl: clashUrl, quickUrl: `clash://install-config?url=${encodedClashUrl}&name=${encodedName}`, downloadUrl: 'https://apps.apple.com/us/app/clash-plus-smart-proxy-tool/id6774378761', isPrimary: true },
+    { id: 'clash-meta', name: 'Clash Meta', platform: 'Android', description: 'کلاینت متن‌باز اندروید', configUrl: clashUrl, quickUrl: `clash://install-config?url=${encodedClashUrl}&name=${encodedName}`, downloadUrl: 'https://github.com/MetaCubeX/ClashMetaForAndroid/releases', isPrimary: true },
+    { id: 'v2box', name: 'V2Box', platform: 'iOS / Android', description: 'اتصال سریع با لینک استاندارد', configUrl: url, quickUrl: `v2box://install-sub?url=${url}&name=${encodedName}`, downloadUrl: 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690' },
+    { id: 'v2rayng', name: 'v2rayNG', platform: 'Android', description: 'کلاینت قدرتمند و حرفه‌ای', configUrl: url, quickUrl: `v2rayng://install-sub?url=${encodedUrl}#${encodedName}`, downloadUrl: 'https://play.google.com/store/apps/details?id=com.v2ray.ang' },
+    { id: 'hiddify', name: 'Hiddify', platform: 'iOS / Android / Desktop', description: 'ساده و چندسکویی', configUrl: url, quickUrl: `hiddify://import/${encodedUrl}#${encodedName}`, downloadUrl: 'https://hiddify.com/' },
+    { id: 'streisand', name: 'Streisand', platform: 'iOS', description: 'لینک را از کلیپ‌بورد وارد کنید', configUrl: url, downloadUrl: 'https://apps.apple.com/us/app/streisand/id6450534064' },
+    { id: 'shadowrocket', name: 'Shadowrocket', platform: 'iOS', description: 'کپی لینک و Import داخل برنامه', configUrl: url, downloadUrl: 'https://apps.apple.com/us/app/shadowrocket/id932747118' },
+    { id: 'karing', name: 'Karing', platform: 'iOS / Android', description: 'کلاینت مدرن و چندسکویی', configUrl: url, quickUrl: `karing://install-config?url=${encodedUrl}&name=${encodedName}`, downloadUrl: 'https://karing.app/' },
+    { id: 'stash', name: 'Stash', platform: 'iOS', description: 'افزودن لینک از داخل برنامه', configUrl: url, quickUrl: `stash://install-config?url=${encodedUrl}`, downloadUrl: 'https://apps.apple.com/us/app/stash-rule-based-proxy/id1596063349' },
+    { id: 'quantumult-x', name: 'Quantumult X', platform: 'iOS', description: 'افزودن به Remote Resources', configUrl: url, quickUrl: `quantumult-x:///add-resource?remote-resource=${encodeURIComponent(JSON.stringify({ server_remote: [`${url}, tag=${name || 'Pulse'}`] }))}`, downloadUrl: 'https://apps.apple.com/us/app/quantumult-x/id1443988620' },
+    { id: 'loon', name: 'Loon', platform: 'iOS', description: 'وارد کردن لینک اشتراک', configUrl: url, quickUrl: `loon://import?sub=${encodedUrl}`, downloadUrl: 'https://apps.apple.com/us/app/loon/id1373567447' },
+    { id: 'clash-verge', name: 'Clash Verge Rev', platform: 'Windows / macOS / Linux', description: 'کلاینت دسکتاپ برای Clash', configUrl: clashUrl, downloadUrl: 'https://github.com/clash-verge-rev/clash-verge-rev/releases' },
+    { id: 'v2rayn', name: 'v2rayN', platform: 'Windows', description: 'کپی لینک و افزودن Subscription', configUrl: url, downloadUrl: 'https://github.com/2dust/v2rayN/releases' },
+    { id: 'surge', name: 'Surge', platform: 'iOS / macOS', description: 'کلاینت حرفه‌ای شبکه', configUrl: url, quickUrl: `surge:///install-config?url=${encodedUrl}`, downloadUrl: 'https://nssurge.com/' },
+  ];
+};
+
 export function AccessActions({ item }: { item: MobileSubscription }) {
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState('');
@@ -98,15 +136,46 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
   const copyValue = async (value: string, label: string) => { await navigator.clipboard?.writeText(value); setCopied(label); };
   const shareValue = async (value: string) => { if (navigator.share) await navigator.share({ title: item.plan, url: value }); else await copyValue(value, 'لینک Provider'); };
   const showQr = async (value: string) => setQr(await QRCode.toDataURL(value, { margin: 2, width: 240, color: { dark: '#163d40', light: '#f7f6f0' } }));
+  const copyAwg = async () => {
+    if (!item.awg_url) return;
+    try {
+      const response = await fetch(item.awg_url, { credentials: 'include' });
+      if (!response.ok) throw new Error();
+      await copyValue(await response.text(), 'متن کانفیگ AmneziaWG');
+    } catch {
+      await copyValue(item.awg_url, 'لینک AmneziaWG');
+    }
+  };
+  const clients = providerUrl ? mobileClientCatalog(providerUrl, item.plan) : [];
+  const awgDownloads = [
+    { id: 'ios', label: 'AmneziaWG برای iOS', detail: 'App Store', href: 'https://apps.apple.com/app/amneziawg/id6478942365' },
+    { id: 'android', label: 'AmneziaWG برای Android', detail: 'Google Play', href: 'https://play.google.com/store/apps/details?id=org.amnezia.awg' },
+    { id: 'windows', label: 'AmneziaWG برای Windows', detail: 'نسخه رسمی', href: 'https://github.com/amnezia-vpn/amneziawg-windows-client/releases/latest' },
+    { id: 'desktop', label: 'راهنمای macOS و Linux', detail: 'کلاینت‌های جایگزین مستند', href: 'https://docs.amnezia.org/documentation/alternative-clients' },
+  ];
   return <div className="mobile-connection-stack" data-testid={`panel-mobile-access-${item.id}`}>
     {providerUrl ? <section className="mobile-provider-card">
       <div className="mobile-connection-card-head"><span className="mobile-connection-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">مسیر اتصال اصلی</span><h3>Providerها</h3><p>{item.provider_name || item.server || 'Provider اصلی'} · لینک اشتراک به‌روز</p></div></div>
        <a className="mobile-v2box-button" href={v2boxUrl} data-testid={`link-mobile-v2box-${item.id}`}><ExternalLink size={17} /> باز کردن مستقیم در V2Box</a>
        <div className="mobile-connection-actions"><button onClick={() => void copyValue(providerUrl, 'لینک Provider')} data-testid={`button-mobile-copy-provider-${item.id}`}><Copy size={15} /> کپی لینک</button><button onClick={() => void shareValue(providerUrl)} data-testid={`button-mobile-share-provider-${item.id}`}><Share2 size={15} /> اشتراک‌گذاری</button><button onClick={() => void showQr(providerUrl)} data-testid={`button-mobile-qr-provider-${item.id}`}><QrCode size={15} /> QR</button></div>
     </section> : null}
+    {clients.length ? <section className="mobile-apps-card" data-testid={`panel-mobile-apps-${item.id}`}>
+      <div className="mobile-connection-card-head"><span className="mobile-connection-icon"><Download size={19} /></span><div><span className="mobile-eyebrow">کلاینت‌ها و دانلود</span><h3>باز کردن در همهٔ برنامه‌ها</h3><p>برای هر برنامه، config واقعی همین اشتراک استفاده می‌شود.</p></div></div>
+      <div className="mobile-client-list">{clients.map((client) => <article className={`mobile-client-item ${client.isPrimary ? 'is-primary' : ''}`} key={client.id}>
+        <div className="mobile-client-copy"><strong>{client.name}</strong><span>{client.platform}</span><small>{client.description}</small></div>
+        <div className="mobile-client-actions">
+          {client.quickUrl ? <a href={client.quickUrl} className="mobile-client-quick" data-testid={`link-mobile-client-quick-${client.id}`}><ExternalLink size={13} /> اتصال سریع</a> : null}
+          <button type="button" onClick={() => void copyValue(client.configUrl, `config ${client.name}`)} data-testid={`button-mobile-client-copy-${client.id}`}><Copy size={13} /> کپی config</button>
+          <a href={client.downloadUrl} target="_blank" rel="noreferrer" className="mobile-client-download" data-testid={`link-mobile-client-download-${client.id}`}><Download size={13} /> دانلود اپ</a>
+        </div>
+      </article>)}</div>
+      <p className="mobile-client-footnote">اگر اتصال سریع باز نشد، ابتدا کپی config را بزنید و لینک را داخل برنامه Import کنید.</p>
+    </section> : null}
     {item.awg_url ? <section className="mobile-awg-card">
       <div className="mobile-connection-card-head"><span className="mobile-awg-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">اتصال اختصاصی</span><h3>AmneziaWG</h3><p>کانفیگ جداگانه برای اتصال پایدارتر</p></div></div>
-       <div className="mobile-awg-actions"><a href={item.awg_url} download data-testid={`link-mobile-download-awg-${item.id}`}><Download size={16} /> دانلود کانفیگ</a><button onClick={() => void copyValue(item.awg_url as string, 'لینک AmneziaWG')} data-testid={`button-mobile-copy-awg-${item.id}`}><Copy size={15} /> کپی لینک</button></div>
+       <div className="mobile-awg-actions"><a href={item.awg_url} download data-testid={`link-mobile-download-awg-${item.id}`}><Download size={16} /> دانلود کانفیگ</a><button onClick={() => void copyAwg()} data-testid={`button-mobile-copy-awg-${item.id}`}><Copy size={15} /> کپی متن کانفیگ</button></div>
+       <div className="mobile-awg-download-heading"><span>دانلود اپ رسمی</span><a href="https://amnezia.org/downloads" target="_blank" rel="noreferrer"><ExternalLink size={13} /> همهٔ دانلودها</a></div>
+       <div className="mobile-awg-download-grid">{awgDownloads.map((download) => <a href={download.href} target="_blank" rel="noreferrer" key={download.id} data-testid={`link-mobile-awg-download-${download.id}`}><strong>{download.label}</strong><small>{download.detail}</small><ExternalLink size={13} /></a>)}</div>
     </section> : null}
     {copied ? <div className="mobile-toast mobile-toast-inline"><Check size={16} /> {copied} کپی شد</div> : null}
     {qr ? <div className="mobile-modal-backdrop" onClick={() => setQr('')}><div className="mobile-qr-modal" onClick={(event) => event.stopPropagation()}><button className="mobile-icon-button mobile-modal-close" onClick={() => setQr('')}><X size={18} /></button><p>اسکن کنید تا اشتراک اضافه شود</p><img src={qr} alt="کد QR اشتراک" /><small>{item.plan}</small></div></div> : null}

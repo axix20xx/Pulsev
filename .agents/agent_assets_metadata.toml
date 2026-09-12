@@ -806,3 +806,17 @@ mtime_ms = 1789225861170
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8b8c3f23-bf50-41e2-86d3-0f099bc5424b/38612589-9112-44eb-94f3-e52b1363524e"
 storage_version_token = "1789225876800159"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "yrhb5Vo0UvK83tcXGzmJH"
+uri = "file://exports/pulse-hostinger-dark-sub-mobile-customer-id-fix.zip"
+type = "unspecified"
+title = "Pulse Hostinger package — dark mobile/sub fix"
+description = "Production-ready Hostinger bundle with explicit dark mobile and /sub themes, narrow-screen containment fixes, and the corrected customer_id API query. ZIP integrity and Hostinger route validation passed."
+logical_id = "b929573f-b48a-4219-80ba-4961db072c84"
+content_hash = "sha256:8f545cf32cc50b69516680a8275f74d7a99dbef0a9775c5e07b76035208d640f"
+size = 27859487
+mtime_ms = 1789226667478
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b929573f-b48a-4219-80ba-4961db072c84/a6c51c6f-226d-4498-a247-6fbfacb57707"
+storage_version_token = "1789226694255317"
+content_type = "application/octet-stream"

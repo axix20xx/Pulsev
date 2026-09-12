@@ -70414,7 +70414,7 @@ router3.get("/command-center", requireAuth, async (req, res) => {
     pool.query(`SELECT id, 'sale' AS type, '\u0641\u0631\u0648\u0634' AS title, service_id::text AS detail, created_at::text AS created_at
        FROM reseller_sales_log WHERE ${master ? "TRUE" : "reseller_tg_id=$1"} ORDER BY created_at DESC LIMIT 20`, params),
     pool.query(
-      `SELECT s.id, s.service_id, s.customer_id, c.full_name AS customer_name, c.phone,
+      `SELECT s.id, s.service_id, svc.customer_id AS customer_id, c.full_name AS customer_name, c.phone,
            svc.label AS plan, COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql("r")})::float8 AS amount,
            s.created_at::text AS created_at
          FROM reseller_sales_log s
