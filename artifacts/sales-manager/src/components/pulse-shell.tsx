@@ -440,7 +440,7 @@ export function PageHeader({ eyebrow, title, description, action }: { eyebrow: s
         <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-[-.05em] text-foreground mb-2 sm:mb-3 leading-tight break-words">{title}</h1>
         {description && <p className="text-xs sm:text-sm font-medium text-muted-foreground max-w-2xl leading-relaxed break-words">{description}</p>}
       </div>
-      {action && <div className="w-full md:w-auto flex-shrink-0 mt-2 md:mt-0">{action}</div>}
+      {action && <div className="page-header-actions w-full md:w-auto flex-shrink-0 mt-2 md:mt-0">{action}</div>}
     </header>
   );
 }

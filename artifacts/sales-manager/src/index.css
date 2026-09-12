@@ -1156,6 +1156,63 @@ main, .page-wrap, .ops-page, .report-page { min-width: 0; }
   main, .page-wrap { overflow: visible; }
 }
 
+/* Shared print action: keep the icon intentional instead of looking like a loose glyph. */
+#root .print-action {
+  min-width: 124px;
+  gap: 9px;
+  border-color: hsl(var(--primary) / .22);
+  background: linear-gradient(135deg, hsl(var(--card)), hsl(var(--primary) / .06));
+  color: hsl(var(--foreground));
+}
+
+#root .print-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 8px;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / .11);
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / .12);
+}
+
+#root .print-action-icon svg {
+  display: block;
+}
+
+#root .print-action:hover {
+  border-color: hsl(var(--primary) / .42);
+  background: linear-gradient(135deg, hsl(var(--card)), hsl(var(--primary) / .11));
+  box-shadow: 0 8px 18px hsl(var(--primary) / .13);
+}
+
+@media (max-width: 767px) {
+  #root .page-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #root .page-header-actions > .print-action {
+    width: auto;
+    min-width: 124px;
+  }
+
+  #root .overview-home-header .page-header-actions > .print-action {
+    min-width: 44px;
+    width: 44px;
+    padding: 0;
+    border-radius: 13px;
+  }
+
+  #root .overview-home-header .print-action-label {
+    display: none;
+  }
+}
+
 /* Final mobile clarity pass for the operational surfaces. */
 @media (max-width: 767px) {
   .ops-page,

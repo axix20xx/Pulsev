@@ -792,3 +792,17 @@ mtime_ms = 1789225543257
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8b42adfd-c455-4ce7-bfe6-07f2d82c73c6/39b2beb2-bbb6-46f1-820d-3e12e610388d"
 storage_version_token = "1789225571688595"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "mC2JsDt5rqSkXF5TpdBxm"
+uri = "file://exports/pulse-hostinger-smart-center-print-fix.zip"
+type = "unspecified"
+title = "Pulse Hostinger — Smart Center و چاپ"
+description = "بستهٔ نهایی Hostinger شامل API به‌روز، Smart Center، پنل، موبایل، اشتراک عمومی و اصلاح دکمه‌های چاپ. تست unzip و مسیرهای اصلی با موفقیت انجام شد."
+logical_id = "8b8c3f23-bf50-41e2-86d3-0f099bc5424b"
+content_hash = "sha256:a54dadc4512579fc35dcbbfbc950835e7af43c4295899bc3636f3c899b95bdf9"
+size = 27850254
+mtime_ms = 1789225861170
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8b8c3f23-bf50-41e2-86d3-0f099bc5424b/38612589-9112-44eb-94f3-e52b1363524e"
+storage_version_token = "1789225876800159"
+content_type = "application/octet-stream"
