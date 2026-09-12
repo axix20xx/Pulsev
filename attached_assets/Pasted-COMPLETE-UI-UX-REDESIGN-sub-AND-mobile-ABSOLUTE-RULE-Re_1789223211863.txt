@@ -1,0 +1,859 @@
+COMPLETE UI/UX REDESIGN — /sub AND /mobile
+
+ABSOLUTE RULE
+
+Redesign ONLY the UI/UX of the existing /sub and /mobile experiences completely from scratch.
+
+Do NOT copy, preserve, imitate, or visually extend the current UI.
+
+Keep the existing backend functionality, APIs, authentication, subscription logic, VPN configuration generation, and business logic where they already work.
+
+The visual system must be completely new.
+
+⸻
+
+OFFICIAL UI/UX COMPONENT LIBRARY STACK
+
+Use these libraries as the official UI/UX stack:
+
+* shadcn/ui
+* Radix UI
+* Tailwind CSS
+* Lucide Icons
+* Framer Motion
+* Motion One
+* Lottie
+* Recharts
+* TanStack Table
+* TanStack Query
+* Zustand
+* React Hook Form
+* Zod
+* Embla Carousel
+* Sonner
+* Vaul
+* Floating UI
+* cmdk
+* react-resizable-panels
+* react-dropzone
+* OTP Input
+* next-themes
+* date-fns
+* class-variance-authority (CVA)
+* tailwind-merge
+* clsx
+* Three.js
+* React Three Fiber
+* @react-three/drei
+
+Use the appropriate library for each requirement.
+
+Do NOT add random UI libraries.
+
+Do NOT use Bootstrap.
+
+Do NOT use Material UI.
+
+Do NOT use generic dashboard templates.
+
+Do NOT leave default shadcn styling unchanged. Customize it into a unique product design system.
+
+⸻
+
+/SUB — SUBSCRIPTION / CONNECTION EXPERIENCE
+
+Completely redesign /sub from scratch.
+
+This should feel like a premium VPN subscription and connection management application, not an admin panel.
+
+Main areas
+
+Create a polished experience for:
+
+* Active subscription
+* Subscription status
+* Remaining traffic
+* Expiration
+* Connection status
+* Server/location
+* Protocol
+* Devices
+* Configuration
+* Download/install
+* QR code
+* Copy configuration
+* Renew subscription
+* Upgrade plan
+* Usage statistics
+* Connection instructions
+* Support
+
+Visual hierarchy
+
+The most important information should immediately be visible:
+
+Connection status
+
+Remaining traffic
+
+Expiration
+
+Current server
+
+Then secondary management functions.
+
+Avoid filling the page with cards.
+
+Use:
+
+* Hero sections
+* Floating surfaces
+* Context panels
+* Progress visualization
+* Status indicators
+* Bottom sheets
+* Drawers
+* Timelines
+* Data visualization
+* Action docks
+* Large touch-friendly controls
+
+⸻
+
+/MOBILE — CUSTOMER MOBILE APP
+
+Completely redesign /mobile from scratch.
+
+This is the primary customer-facing mobile experience.
+
+It must feel like a native premium VPN application, not a responsive website.
+
+Design specifically for:
+
+* iPhone
+* Android
+* Small phones
+* Large phones
+* Tablets
+
+Support:
+
+320px
+375px
+390px
+414px
+768px+
+
+⸻
+
+MOBILE APP STRUCTURE
+
+Create a dedicated mobile application shell.
+
+Header
+
+Include:
+
+* User/account
+* Notifications
+* Connection status
+* Contextual actions
+
+Main area
+
+Focus on:
+
+Connect
+
+Subscription
+
+Traffic
+
+Expiration
+
+Servers
+
+Apps
+
+Bottom navigation
+
+Create a polished mobile bottom navigation such as:
+
+* خانه
+* اتصال
+* سرورها
+* اشتراک
+* حساب
+
+Use Lucide icons.
+
+Do not use emoji for navigation.
+
+⸻
+
+VPN CONNECTION EXPERIENCE
+
+Create a premium connection interface.
+
+Primary state:
+
+متصل
+
+Secondary information:
+
+* Server
+* IP
+* Protocol
+* Traffic
+* Connection duration
+
+States:
+
+* اتصال
+* متصل
+* قطع
+* در حال اتصال
+* خطا
+* نیاز به نصب
+* اشتراک منقضی شده
+
+Use Framer Motion / Motion One for state transitions.
+
+Use subtle Lottie animations where appropriate.
+
+Do not create excessive animation.
+
+⸻
+
+AMNEZIAWG INSTALLER
+
+Add a dedicated AmneziaWG installer experience.
+
+The user should be able to select their platform and receive the correct installation/configuration workflow.
+
+Platforms:
+
+iOS
+
+Provide:
+
+* AmneziaWG installation guidance
+* App Store CTA where appropriate
+* Configuration import
+* QR code
+* Deep-link/import flow where supported
+* Copy configuration
+* Step-by-step instructions
+
+Android
+
+Provide:
+
+* AmneziaWG installation
+* Configuration download
+* Import configuration
+* QR code
+* Open/import workflow where supported
+
+Windows
+
+Provide:
+
+* AmneziaWG application installation guidance
+* Configuration download
+* Import instructions
+* Copy configuration
+
+macOS
+
+Provide:
+
+* AmneziaWG installation guidance
+* Configuration download
+* Import instructions
+
+Linux
+
+Provide:
+
+* Installation instructions
+* Configuration download
+* Import instructions
+* CLI instructions where appropriate
+
+Do not pretend an installation was completed if the browser cannot actually perform the installation.
+
+Clearly separate:
+
+Download
+
+Open App
+
+Import Configuration
+
+Connect
+
+⸻
+
+VLESS / V2BOX / V2RAY EXPERIENCE
+
+Create a similar application experience for VLESS-based connections.
+
+Support platform-specific workflows.
+
+iOS
+
+Provide compatible client options and configuration import workflow.
+
+Android
+
+Provide compatible client options and configuration import workflow.
+
+Windows
+
+Provide compatible client options and configuration import workflow.
+
+macOS
+
+Provide compatible client options and configuration import workflow.
+
+Linux
+
+Provide compatible client/configuration workflow.
+
+The /mobile application should intelligently show the appropriate client/application instructions based on the selected protocol.
+
+⸻
+
+PROTOCOL SELECTION
+
+Create a clean protocol selector.
+
+Examples:
+
+AmneziaWG
+
+VLESS
+
+V2Ray-compatible
+
+Only display protocols actually supported by the backend.
+
+Do not fabricate compatibility.
+
+Each protocol should have:
+
+* Status
+* Description
+* Supported platforms
+* Install button
+* Configuration button
+* QR button
+* Connection instructions
+
+⸻
+
+PLATFORM SELECTOR
+
+Create a premium platform selector:
+
+iOS | Android | Windows | macOS | Linux
+
+Use icons and clear labels.
+
+When the user selects a platform, dynamically change:
+
+* Recommended application
+* Installation instructions
+* Configuration format
+* Import method
+* Download CTA
+
+⸻
+
+CONFIGURATION CENTER
+
+Create:
+
+Configuration
+
+Show:
+
+* Protocol
+* Server
+* Port
+* UUID / credentials where appropriate
+* Encryption/security information where appropriate
+* Transport
+* Traffic
+* Expiration
+
+Sensitive credentials must be handled securely.
+
+Do not expose secrets unnecessarily.
+
+Actions:
+
+QR کد
+
+کپی تنظیمات
+
+دانلود فایل
+
+باز کردن در برنامه
+
+⸻
+
+QR CODE
+
+Create a premium QR configuration screen.
+
+Include:
+
+* Large QR code
+* Protocol
+* Server name
+* Expiration
+* Copy button
+* Download QR
+* Instructions
+
+The QR must be generated from the actual backend configuration.
+
+Do not hardcode fake configurations.
+
+⸻
+
+SUBSCRIPTION EXPERIENCE
+
+Create a dedicated subscription workspace.
+
+Show:
+
+* Current plan
+* Traffic
+* Used traffic
+* Remaining traffic
+* Expiration
+* Status
+* Renewal
+* Upgrade
+* Available plans
+
+Use Recharts for meaningful usage visualization.
+
+Use progress indicators for traffic.
+
+Persian numerals should be supported where appropriate.
+
+⸻
+
+PLAN SELECTION
+
+Create a premium pricing experience.
+
+Do not use generic pricing cards everywhere.
+
+Use:
+
+* Segmented layouts
+* Comparison sections
+* Highlighted recommended plan
+* Usage visualization
+* Sticky mobile CTA
+
+Actions:
+
+خرید اشتراک
+
+تمدید
+
+ارتقا
+
+⸻
+
+SERVER SELECTION
+
+Create a visual server selector.
+
+Show:
+
+* Country
+* City
+* Server name
+* Protocol
+* Availability
+* Latency if provided by backend
+* Load if provided by backend
+* Recommended status
+
+Do not invent latency or server health.
+
+Use real backend data.
+
+Use Embla Carousel where a horizontal mobile selector improves usability.
+
+⸻
+
+SERVER DETAIL
+
+Show:
+
+* Server identity
+* Country
+* Location
+* Protocols
+* Connection status
+* Performance metrics when available
+* Connect action
+
+Use clean visual hierarchy.
+
+⸻
+
+CONNECTION HISTORY
+
+If backend data exists, create:
+
+* Connection history
+* Session duration
+* Server
+* Platform
+* Protocol
+* Timestamp
+
+Use TanStack Table on desktop.
+
+Transform to mobile cards/timeline on mobile.
+
+⸻
+
+NOTIFICATIONS
+
+Use Sonner for transactional feedback.
+
+Examples:
+
+اشتراک با موفقیت تمدید شد
+
+تنظیمات با موفقیت کپی شد
+
+پیکربندی دانلود شد
+
+اتصال برقرار شد
+
+خطا در برقراری اتصال
+
+Create a dedicated notification center if the backend supports persistent notifications.
+
+⸻
+
+COMMAND PALETTE
+
+Use cmdk where appropriate.
+
+Desktop shortcut:
+
+⌘ K
+
+Ctrl K
+
+Actions:
+
+* اتصال
+* قطع اتصال
+* تغییر سرور
+* مشاهده اشتراک
+* تمدید اشتراک
+* دریافت تنظیمات
+* نمایش QR
+* راهنمای نصب
+* حساب کاربری
+
+⸻
+
+MOBILE DRAWERS
+
+Use Vaul for mobile:
+
+* Server selection
+* Protocol selection
+* Configuration details
+* Installation instructions
+* Account actions
+* Filters
+* Plan selection
+
+Avoid excessive modal dialogs.
+
+⸻
+
+RESPONSIVE DESIGN
+
+Do NOT simply shrink desktop UI.
+
+Create dedicated mobile compositions.
+
+Mobile must prioritize:
+
+* Touch
+* Speed
+* One-handed interaction
+* Bottom navigation
+* Bottom sheets
+* Large CTAs
+* Safe-area support
+
+Minimum touch target:
+
+44px where appropriate.
+
+⸻
+
+RTL / PERSIAN
+
+The entire /sub and /mobile experience must be true RTL.
+
+Use:
+
+* Persian typography
+* Logical CSS properties
+* RTL-aware icons
+* RTL tables
+* RTL drawers
+* RTL forms
+* RTL charts
+* Persian calendar
+* Persian numerals where appropriate
+
+Primary font:
+
+Vazirmatn
+
+Do not simply add direction: rtl.
+
+The entire layout must be designed for RTL.
+
+⸻
+
+DARK / LIGHT MODE
+
+Use:
+
+next-themes
+
+Support:
+
+* Dark
+* Light
+* System
+
+Dark mode should feel premium and intentional.
+
+Do not simply invert colors.
+
+⸻
+
+DESIGN SYSTEM
+
+Create a centralized design system.
+
+Define:
+
+* Colors
+* Typography
+* Spacing
+* Radius
+* Shadows
+* Borders
+* Surface hierarchy
+* Motion
+* Breakpoints
+* Z-index
+
+Use Tailwind tokens.
+
+Use CVA for component variants.
+
+Use clsx + tailwind-merge for class composition.
+
+⸻
+
+VISUAL STYLE
+
+Create an original visual language.
+
+Direction:
+
+Premium technology + sophisticated VPN + modern fintech
+
+Use:
+
+* Deep dark surfaces
+* Premium blue
+* Turquoise accents
+* Clean typography
+* Precise spacing
+* Subtle gradients
+* Soft elevation
+* High-quality motion
+
+Avoid:
+
+* Generic SaaS
+* Generic ERP
+* Cheap gradients
+* Excessive glassmorphism
+* Excessive rounded cards
+* Neon gaming style
+* Template-looking dashboards
+
+⸻
+
+3D
+
+Use:
+
+* Three.js
+* React Three Fiber
+* @react-three/drei
+
+ONLY where it improves the experience.
+
+Possible areas:
+
+* Login hero
+* Connection visualization
+* Network visualization
+* Premium onboarding
+
+3D must be:
+
+* Lightweight
+* Lazy loaded
+* Optional
+* Performance-conscious
+
+Respect prefers-reduced-motion.
+
+⸻
+
+DATA / STATE ARCHITECTURE
+
+Use:
+
+TanStack Query
+
+for:
+
+* Subscription data
+* Servers
+* Usage
+* Connection state
+* User data
+* Notifications
+* API state
+
+Use:
+
+Zustand
+
+for:
+
+* UI state
+* Navigation
+* Temporary connection state
+* Selected server
+* Selected protocol
+* Modal/drawer state
+
+Do not duplicate server state in Zustand.
+
+⸻
+
+FORMS
+
+Use:
+
+React Hook Form + Zod
+
+for:
+
+* Login
+* OTP
+* Account settings
+* Subscription actions
+* Configuration workflows
+
+⸻
+
+ACCESSIBILITY
+
+Support:
+
+* Keyboard navigation
+* Focus states
+* ARIA
+* Screen readers
+* Color contrast
+* Reduced motion
+* Touch accessibility
+
+⸻
+
+IMPORTANT BACKEND RULE
+
+Do NOT break the existing backend.
+
+Before changing frontend behavior, inspect:
+
+* Existing API endpoints
+* Authentication
+* Subscription system
+* User IDs
+* Server data
+* Protocol data
+* Configuration generation
+* QR generation
+* Payment system
+* Expiration logic
+* Traffic usage
+* Existing /sub functionality
+* Existing /mobile functionality
+
+Reuse working backend functionality.
+
+If a feature is not supported by the backend, build the UI architecture for it without fabricating real data or claiming that it works.
+
+⸻
+
+FINAL IMPLEMENTATION RULE
+
+Do not redesign one component and call it complete.
+
+Redesign the entire /sub and /mobile experience.
+
+Every screen must belong to the same new design language.
+
+The result must look like a completely new premium VPN product.
+
+Priority
+
+1. /mobile
+2. /sub
+3. Platform installation flows
+4. AmneziaWG
+5. VLESS
+6. V2Box/V2Ray-compatible workflows
+7. Configuration center
+8. Subscription management
+9. Server selection
+10. Connection experience
+11. Responsive/mobile polish
+12. Motion and final visual polish
+
+Do not change backend functionality unless required to expose the necessary data safely.
+
+Do not use the existing UI as a visual reference.
+
+Start the frontend redesign from zero using only the component/library stack specified above.

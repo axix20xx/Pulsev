@@ -2597,14 +2597,14 @@ function PublicSubscriptionContentV2() {
       <main className="public-sub-app-shell">
         <motion.header {...pageMotion} className="public-sub-appbar">
           <div className="public-sub-v3-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div>
-          <div className="public-sub-appbar-actions"><span className="public-sub-secure-chip"><Lock size={13} /> خصوصی</span><button type="button" className="public-sub-icon-button" onClick={() => void sharePage()} aria-label="اشتراک‌گذاری صفحه"><ArrowUpLeft size={17} /></button></div>
+          <div className="public-sub-appbar-actions"><span className="public-sub-secure-chip" data-testid="status-public-sub-private"><Lock size={13} /> خصوصی</span><button type="button" className="public-sub-icon-button" onClick={() => void sharePage()} aria-label="اشتراک‌گذاری صفحه" data-testid="button-public-sub-share"><ArrowUpLeft size={17} /></button></div>
         </motion.header>
 
         <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .08, duration: .5 }} className="public-sub-hero-card">
           <div className="public-sub-hero-glow" />
-          <div className="public-sub-hero-top"><span className={`public-sub-status-pill ${statusTone}`}><span className="public-sub-status-dot" />{statusLabel}</span><span className="public-sub-hero-caption"><ShieldCheck size={14} /> اشتراک شخصی شما</span></div>
-          <div className="public-sub-hero-copy"><p className="public-sub-kicker">خوش آمدید</p><h1>{data.plan || 'سرویس ویژه'}</h1><p className="public-sub-username" dir="ltr">@{data.username}</p></div>
-          <div className="public-sub-hero-actions"><button type="button" className="public-sub-hero-action primary" onClick={() => void copyUrl(pageUrl, 'page')}><Copy size={15} />{copied === 'page' ? 'لینک کپی شد' : 'کپی لینک صفحه'}</button><button type="button" className="public-sub-hero-action" onClick={() => void sharePage()}><ArrowUpLeft size={15} />{shared ? 'ارسال شد' : 'اشتراک‌گذاری'}</button></div>
+          <div className="public-sub-hero-top"><span className={`public-sub-status-pill ${statusTone}`} data-testid="status-public-sub-subscription"><span className="public-sub-status-dot" />{statusLabel}</span><span className="public-sub-hero-caption"><ShieldCheck size={14} /> اشتراک شخصی شما</span></div>
+          <div className="public-sub-hero-copy"><p className="public-sub-kicker">خوش آمدید</p><h1 data-testid="text-public-sub-plan">{data.plan || 'سرویس ویژه'}</h1><p className="public-sub-username" dir="ltr" data-testid="text-public-sub-username">@{data.username}</p></div>
+          <div className="public-sub-hero-actions"><button type="button" className="public-sub-hero-action primary" onClick={() => void copyUrl(pageUrl, 'page')} data-testid="button-public-sub-copy-page"><Copy size={15} />{copied === 'page' ? 'لینک کپی شد' : 'کپی لینک صفحه'}</button><button type="button" className="public-sub-hero-action" onClick={() => void sharePage()} data-testid="button-public-sub-share-hero"><ArrowUpLeft size={15} />{shared ? 'ارسال شد' : 'اشتراک‌گذاری'}</button></div>
         </motion.section>
 
         <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .15, duration: .5 }} className={`public-sub-status-card ${statusTone}`}>
