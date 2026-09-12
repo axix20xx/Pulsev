@@ -722,3 +722,17 @@ mtime_ms = 1789137732267
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/516580be-e337-4b13-bdf5-7320e4c097c7/e9892dcb-b789-43ce-9420-c15b8ba4b3f4"
 storage_version_token = "1789137814988534"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "m1FyDrqy3mUIfblV51MhC"
+uri = "file://exports/pulse-hostinger-smart-command-center.zip"
+type = "unspecified"
+title = "Pulse Hostinger — Smart Command Center"
+description = "بستهٔ production جدید Hostinger شامل پنل با صفحات جزئیات Smart Center، API به‌روزشده، فایل‌های migration و تنظیمات deploy است. SHA-256: 242bba8a3aae8a6ce28067d2becd7dc02d75cbc51808a1f2737a473711048d49"
+logical_id = "c4ab32a4-6ed1-4a5b-ae62-ef5d3c0a4dc4"
+content_hash = "sha256:242bba8a3aae8a6ce28067d2becd7dc02d75cbc51808a1f2737a473711048d49"
+size = 26864549
+mtime_ms = 1789221356998
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/c4ab32a4-6ed1-4a5b-ae62-ef5d3c0a4dc4/6bdb9c1a-5eef-47b3-8813-31547ca3f016"
+storage_version_token = "1789221396254759"
+content_type = "application/octet-stream"

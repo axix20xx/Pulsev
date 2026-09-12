@@ -67759,7 +67759,7 @@ router3.get("/dashboard", requireAuth, async (req, res) => {
       month_paid_income: Number(monthSales.rows[0]?.paid_income ?? 0),
       month_unpaid_income: Number(monthSales.rows[0]?.unpaid_income ?? 0),
       month_profit: Number(monthSales.rows[0]?.profit ?? 0),
-      month_daily: monthDaily.rows.map((row) => ({
+      month_daily: monthDaily.rows.filter((row) => row.day >= monthStart && row.day <= today).map((row) => ({
         day: row.day,
         sales_count: Number(row.sales_count ?? 0),
         sold_gb: Number(row.sold_gb ?? 0),
@@ -70283,6 +70283,82 @@ router3.post("/customers/:id/notes", requireAuth, async (req, res) => {
   await recordAudit(req, "note_added", "customer", id, { note });
   res.status(201).json(result.rows[0]);
 });
+var commandDaysUntil = (value) => {
+  if (!value) return null;
+  const timestamp2 = new Date(String(value)).getTime();
+  return Number.isFinite(timestamp2) ? Math.ceil((timestamp2 - Date.now()) / 864e5) : null;
+};
+var buildCommandAttention = (renewals, lowVolume, highUsage, unpaidSales, failedJobs) => {
+  const attention = [
+    ...renewals.map((item) => {
+      const days = commandDaysUntil(item.expires_at);
+      return {
+        id: `renewal-${item.id}`,
+        kind: "renewal",
+        priority: days !== null && days <= 0 ? 100 : days !== null && days <= 2 ? 92 : 76,
+        title: `\u062A\u0645\u062F\u06CC\u062F ${item.customer_name ?? "\u0645\u0634\u062A\u0631\u06CC"}`,
+        detail: `${item.plan ?? "\u0633\u0631\u0648\u06CC\u0633"} \xB7 ${days === null ? "\u0645\u0648\u0639\u062F \u0646\u0627\u0645\u0634\u062E\u0635" : days <= 0 ? "\u0645\u0648\u0639\u062F \u0631\u0633\u06CC\u062F\u0647" : `${days} \u0631\u0648\u0632 \u0645\u0627\u0646\u062F\u0647`}`,
+        why: "\u067E\u0646\u062C\u0631\u0647\u0654 \u062A\u0645\u062F\u06CC\u062F \u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u0628\u0627\u0632 \u0634\u062F\u0647 \u0627\u0633\u062A.",
+        next_action: "\u0628\u0627\u0632 \u06A9\u0631\u062F\u0646 \u067E\u0631\u0648\u0646\u062F\u0647 \u0648 \u062B\u0628\u062A \u0641\u0631\u0648\u0634 \u062A\u0645\u062F\u06CC\u062F\u06CC",
+        href: item.customer_id ? `/customers/${item.customer_id}` : "/services",
+        ...item
+      };
+    }),
+    ...lowVolume.map((item) => ({
+      id: `volume-${item.id}`,
+      kind: "low_volume",
+      priority: 58,
+      title: `\u0645\u0635\u0631\u0641 \u067E\u0627\u06CC\u06CC\u0646 ${item.customer_name ?? "\u0645\u0634\u062A\u0631\u06CC"}`,
+      detail: `${item.plan ?? "\u0633\u0631\u0648\u06CC\u0633"} \xB7 ${Number(item.used_gb ?? 0).toFixed(1)} \u0627\u0632 ${Number(item.limit_gb ?? 0).toFixed(1)} \u06AF\u06CC\u06AF`,
+      why: "\u0645\u0635\u0631\u0641 \u067E\u0627\u06CC\u06CC\u0646 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u062F \u0646\u0634\u0627\u0646\u0647\u0654 \u0639\u062F\u0645 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06CC\u0627 \u0646\u06CC\u0627\u0632 \u0628\u0647 \u067E\u06CC\u06AF\u06CC\u0631\u06CC \u0628\u0627\u0634\u062F.",
+      next_action: "\u0628\u0631\u0631\u0633\u06CC \u0648\u0636\u0639\u06CC\u062A \u0645\u0634\u062A\u0631\u06CC \u0648 \u067E\u06CC\u0634\u0646\u0647\u0627\u062F \u0645\u0646\u0627\u0633\u0628",
+      href: item.customer_id ? `/customers/${item.customer_id}` : "/services",
+      ...item
+    })),
+    ...highUsage.map((item) => ({
+      id: `high-usage-${item.id}`,
+      kind: "high_usage",
+      priority: 88,
+      title: `\u0645\u0635\u0631\u0641 \u0628\u0627\u0644\u0627 ${item.customer_name ?? "\u0645\u0634\u062A\u0631\u06CC"}`,
+      detail: `${item.plan ?? "\u0633\u0631\u0648\u06CC\u0633"} \xB7 ${Number(item.used_gb ?? 0).toFixed(1)} \u0627\u0632 ${Number(item.limit_gb ?? 0).toFixed(1)} \u06AF\u06CC\u06AF`,
+      why: "\u062D\u062C\u0645 \u0645\u0635\u0631\u0641\u06CC \u0628\u0647 \u06F8\u06F0\u066A \u06CC\u0627 \u0628\u06CC\u0634\u062A\u0631 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A.",
+      next_action: "\u0628\u0631\u0631\u0633\u06CC \u062A\u0645\u062F\u06CC\u062F \u06CC\u0627 \u0627\u0641\u0632\u0627\u06CC\u0634 \u062D\u062C\u0645",
+      href: item.customer_id ? `/customers/${item.customer_id}` : "/services",
+      ...item
+    })),
+    ...unpaidSales.map((item) => ({
+      id: `unpaid-${item.id}`,
+      kind: "unpaid",
+      priority: 82,
+      title: `\u0648\u0635\u0648\u0644 \u0627\u0632 ${item.customer_name ?? "\u0645\u0634\u062A\u0631\u06CC"}`,
+      detail: `${item.plan ?? "\u0633\u0631\u0648\u06CC\u0633"} \xB7 ${Number(item.amount ?? 0).toLocaleString("fa-IR")} \u062A\u0648\u0645\u0627\u0646`,
+      why: "\u0641\u0631\u0648\u0634 \u062B\u0628\u062A \u0634\u062F\u0647 \u0627\u0645\u0627 \u0647\u0646\u0648\u0632 \u067E\u0631\u062F\u0627\u062E\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.",
+      next_action: "\u0628\u0627\u0632 \u06A9\u0631\u062F\u0646 \u062F\u0641\u062A\u0631 \u0641\u0631\u0648\u0634 \u0648 \u067E\u06CC\u06AF\u06CC\u0631\u06CC \u067E\u0631\u062F\u0627\u062E\u062A",
+      href: "/sales?focus=unpaid",
+      ...item
+    })),
+    ...failedJobs.map((item) => ({
+      id: `job-${item.id}`,
+      kind: "job",
+      priority: 96,
+      title: `\u062E\u0637\u0627\u06CC \u0633\u0627\u062E\u062A ${item.customer_name ?? "\u0645\u0634\u062A\u0631\u06CC"}`,
+      detail: `${item.plan ?? "\u0633\u0631\u0648\u06CC\u0633"} \xB7 ${item.action ?? "provision"} \xB7 \u062A\u0644\u0627\u0634 ${item.attempts ?? 0}`,
+      why: item.last_error ?? "job \u0628\u0627 \u062E\u0637\u0627 \u0645\u062A\u0648\u0642\u0641 \u0634\u062F\u0647 \u0627\u0633\u062A.",
+      next_action: "\u0628\u0627\u0632 \u06A9\u0631\u062F\u0646 \u0645\u0627\u0646\u06CC\u062A\u0648\u0631\u06CC\u0646\u06AF \u0648 \u0628\u0631\u0631\u0633\u06CC retry",
+      href: "/monitoring?focus=failed-jobs",
+      ...item
+    }))
+  ];
+  return attention.sort((left, right) => Number(right.priority) - Number(left.priority)).slice(0, 50);
+};
+var summarizeCommandAttention = (attention) => ({
+  total: attention.length,
+  critical: attention.filter((item) => Number(item.priority) >= 90).length,
+  unpaid: attention.filter((item) => item.kind === "unpaid").length,
+  jobs: attention.filter((item) => item.kind === "job").length,
+  top_kind: attention[0]?.kind ?? null,
+  top_title: attention[0]?.title ?? null
+});
 router3.get("/admin/audit", requireMasterAdmin, async (req, res) => {
   await managementReady;
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 100));
@@ -70297,9 +70373,10 @@ router3.get("/command-center", requireAuth, async (req, res) => {
   await managementReady;
   const master = req.auth.role === "master_admin";
   const owner = master ? "TRUE" : "svc.reseller_tg_id = $1";
+  const customerOwner = master ? "TRUE" : "c.reseller_tg_id = $1";
   const params = master ? [] : [req.auth.telegramId];
   const monthStart = persianMonthStartIso(/* @__PURE__ */ new Date());
-  const [summary, candidates, lowVolume, topCustomers, activity] = await Promise.all([
+  const [summary, candidates, lowVolume, highUsage, topCustomers, activity, unpaidSales, failedJobs] = await Promise.all([
     pool.query(
       `SELECT COUNT(*) FILTER (WHERE ${owner} AND svc.status='active')::int AS active_services,
        COUNT(*) FILTER (WHERE ${owner} AND svc.status <> 'disabled' AND svc.expire_at <= NOW()+INTERVAL '14 days')::int AS expiring_soon,
@@ -70317,18 +70394,54 @@ router3.get("/command-center", requireAuth, async (req, res) => {
        COALESCE(s.gb_amount,0)::float8 AS last_gb, COALESCE(s.days_amount,svc.days)::int AS last_days
        FROM reseller_services svc JOIN reseller_customers c ON c.id=svc.customer_id LEFT JOIN LATERAL
        (SELECT * FROM reseller_sales_log x WHERE x.service_id=svc.id ORDER BY x.created_at DESC LIMIT 1) s ON TRUE
-       WHERE ${owner} AND svc.status <> 'disabled' AND svc.expire_at <= NOW()+INTERVAL '14 days' ORDER BY svc.expire_at LIMIT 100`, params),
+        WHERE ${owner} AND ${customerOwner} AND svc.status <> 'disabled' AND svc.expire_at <= NOW()+INTERVAL '14 days' ORDER BY svc.expire_at LIMIT 100`, params),
     pool.query(`SELECT svc.id, svc.customer_id, c.full_name AS customer_name, svc.label AS plan,
        COALESCE(svc.last_used_bytes,0)/1073741824.0 AS used_gb, svc.gb::float8 AS limit_gb
        FROM reseller_services svc JOIN reseller_customers c ON c.id=svc.customer_id
-       WHERE ${owner} AND svc.status='active' AND COALESCE(svc.last_used_bytes,0) < GREATEST(COALESCE(svc.gb,0)*1073741824*0.1,1)
+        WHERE ${owner} AND ${customerOwner} AND svc.status='active' AND COALESCE(svc.last_used_bytes,0) < GREATEST(COALESCE(svc.gb,0)*1073741824*0.1,1)
        ORDER BY svc.last_used_bytes NULLS FIRST LIMIT 100`, params),
+    pool.query(`SELECT svc.id, svc.customer_id, c.full_name AS customer_name, svc.label AS plan,
+        COALESCE(svc.last_used_bytes,0)/1073741824.0 AS used_gb, svc.gb::float8 AS limit_gb
+        FROM reseller_services svc JOIN reseller_customers c ON c.id=svc.customer_id
+        WHERE ${owner} AND ${customerOwner} AND svc.status IN ('active','expiring')
+          AND COALESCE(svc.gb,0) > 0
+          AND COALESCE(svc.last_used_bytes,0) >= svc.gb*1073741824*0.8
+        ORDER BY svc.last_used_bytes DESC LIMIT 100`, params),
     pool.query(`SELECT c.id, c.full_name AS customer_name, c.phone, COUNT(s.id)::int AS sales_count,
        COALESCE(SUM(COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()})),0)::float8 AS income
         FROM reseller_customers c JOIN reseller_services svc ON svc.customer_id=c.id JOIN resellers r ON r.tg_id=svc.reseller_tg_id LEFT JOIN reseller_sales_log s ON s.service_id=svc.id
        WHERE ${master ? "TRUE" : "svc.reseller_tg_id=$1"} GROUP BY c.id,c.full_name,c.phone ORDER BY income DESC LIMIT 10`, params),
     pool.query(`SELECT id, 'sale' AS type, '\u0641\u0631\u0648\u0634' AS title, service_id::text AS detail, created_at::text AS created_at
-       FROM reseller_sales_log WHERE ${master ? "TRUE" : "reseller_tg_id=$1"} ORDER BY created_at DESC LIMIT 20`, params)
+       FROM reseller_sales_log WHERE ${master ? "TRUE" : "reseller_tg_id=$1"} ORDER BY created_at DESC LIMIT 20`, params),
+    pool.query(
+      `SELECT s.id, s.service_id, s.customer_id, c.full_name AS customer_name, c.phone,
+           svc.label AS plan, COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql("r")})::float8 AS amount,
+           s.created_at::text AS created_at
+         FROM reseller_sales_log s
+         JOIN reseller_services svc ON svc.id = s.service_id
+         JOIN reseller_customers c ON c.id = svc.customer_id
+         LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+         WHERE ${master ? "TRUE" : "s.reseller_tg_id = $1"}
+           AND ${master ? "TRUE" : "svc.reseller_tg_id = $1"}
+           AND ${master ? "TRUE" : "c.reseller_tg_id = $1"}
+           AND COALESCE(s.is_paid, 0) = 0
+         ORDER BY s.created_at ASC
+         LIMIT 100`,
+      params
+    ),
+    pool.query(
+      `SELECT j.id, j.service_id, svc.customer_id, c.full_name AS customer_name,
+           svc.label AS plan, j.action, j.status, j.attempts, j.last_error,
+           j.next_attempt_at::text AS next_attempt_at, j.updated_at::text AS updated_at
+         FROM service_provision_jobs j
+         JOIN reseller_services svc ON svc.id = j.service_id
+         JOIN reseller_customers c ON c.id = svc.customer_id
+         WHERE ${owner} AND ${customerOwner}
+           AND j.last_error IS NOT NULL AND j.status <> 'completed'
+         ORDER BY j.updated_at ASC
+         LIMIT 100`,
+      params
+    )
   ]);
   if (!master) {
     const s = summary.rows[0] ?? {};
@@ -70336,8 +70449,10 @@ router3.get("/command-center", requireAuth, async (req, res) => {
     const soldGb = Number(s.sold_gb ?? 0);
     const balanceGb = Number(s.balance_gb ?? 0);
     const balanceDays = soldGb > 0 ? Math.max(0, Math.round(balanceGb / (soldGb / elapsedDays))) : 0;
+    const attention2 = buildCommandAttention(candidates.rows, lowVolume.rows, highUsage.rows, unpaidSales.rows, failedJobs.rows);
     res.json({
       role: "reseller",
+      generated_at: (/* @__PURE__ */ new Date()).toISOString(),
       summary: { ...s, balance_days: balanceDays },
       credit_forecast: {
         remaining_gb: balanceGb,
@@ -70346,6 +70461,11 @@ router3.get("/command-center", requireAuth, async (req, res) => {
       },
       renewal_candidates: candidates.rows,
       low_volume_services: lowVolume.rows,
+      high_usage_services: highUsage.rows,
+      unpaid_sales: unpaidSales.rows,
+      failed_jobs: failedJobs.rows,
+      attention: attention2,
+      decision_summary: summarizeCommandAttention(attention2),
       top_customers: topCustomers.rows,
       recent_activity: activity.rows
     });
@@ -70388,7 +70508,28 @@ router3.get("/command-center", requireAuth, async (req, res) => {
   });
   const resellerSummary = resellers.rows[0] ?? {};
   const financeSummary = finance.rows[0] ?? {};
-  res.json({ role: "master_admin", summary: { ...resellerSummary, month_income: financeSummary.month_income ?? 0, month_profit: financeSummary.month_profit ?? 0, unpaid_amount: financeSummary.unpaid_income ?? 0 }, provider_health: providerHealth, reseller_health: resellerHealth.rows, finance: { ...financeSummary, month_profit: financeSummary.month_profit ?? 0 }, recent_activity: activity.rows });
+  const attention = buildCommandAttention(candidates.rows, lowVolume.rows, highUsage.rows, unpaidSales.rows, failedJobs.rows);
+  res.json({
+    role: "master_admin",
+    generated_at: (/* @__PURE__ */ new Date()).toISOString(),
+    summary: {
+      ...resellerSummary,
+      month_income: financeSummary.month_income ?? 0,
+      month_profit: financeSummary.month_profit ?? 0,
+      unpaid_amount: financeSummary.unpaid_income ?? 0
+    },
+    provider_health: providerHealth,
+    reseller_health: resellerHealth.rows,
+    finance: { ...financeSummary, month_profit: financeSummary.month_profit ?? 0 },
+    renewal_candidates: candidates.rows,
+    low_volume_services: lowVolume.rows,
+    high_usage_services: highUsage.rows,
+    unpaid_sales: unpaidSales.rows,
+    failed_jobs: failedJobs.rows,
+    attention,
+    decision_summary: summarizeCommandAttention(attention),
+    recent_activity: activity.rows
+  });
 });
 router3.get("/insights", requireAuth, async (req, res) => {
   await managementReady;

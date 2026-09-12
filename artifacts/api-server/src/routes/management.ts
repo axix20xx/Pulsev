@@ -4492,6 +4492,93 @@ router.post("/customers/:id/notes", requireAuth, async (req, res): Promise<void>
   res.status(201).json(result.rows[0]);
 });
 
+const commandDaysUntil = (value: unknown) => {
+  if (!value) return null;
+  const timestamp = new Date(String(value)).getTime();
+  return Number.isFinite(timestamp) ? Math.ceil((timestamp - Date.now()) / 86_400_000) : null;
+};
+
+const buildCommandAttention = (
+  renewals: Array<Record<string, any>>,
+  lowVolume: Array<Record<string, any>>,
+  highUsage: Array<Record<string, any>>,
+  unpaidSales: Array<Record<string, any>>,
+  failedJobs: Array<Record<string, any>>,
+) => {
+  const attention = [
+    ...renewals.map((item) => {
+      const days = commandDaysUntil(item.expires_at);
+      return {
+        id: `renewal-${item.id}`,
+        kind: "renewal",
+        priority: days !== null && days <= 0 ? 100 : days !== null && days <= 2 ? 92 : 76,
+        title: `تمدید ${item.customer_name ?? "مشتری"}`,
+        detail: `${item.plan ?? "سرویس"} · ${days === null ? "موعد نامشخص" : days <= 0 ? "موعد رسیده" : `${days} روز مانده`}`,
+        why: "پنجرهٔ تمدید این سرویس باز شده است.",
+        next_action: "باز کردن پرونده و ثبت فروش تمدیدی",
+        href: item.customer_id ? `/customers/${item.customer_id}` : "/services",
+        ...item,
+      };
+    }),
+    ...lowVolume.map((item) => ({
+      id: `volume-${item.id}`,
+      kind: "low_volume",
+      priority: 58,
+      title: `مصرف پایین ${item.customer_name ?? "مشتری"}`,
+      detail: `${item.plan ?? "سرویس"} · ${Number(item.used_gb ?? 0).toFixed(1)} از ${Number(item.limit_gb ?? 0).toFixed(1)} گیگ`,
+      why: "مصرف پایین می‌تواند نشانهٔ عدم استفاده یا نیاز به پیگیری باشد.",
+      next_action: "بررسی وضعیت مشتری و پیشنهاد مناسب",
+      href: item.customer_id ? `/customers/${item.customer_id}` : "/services",
+      ...item,
+    })),
+    ...highUsage.map((item) => ({
+      id: `high-usage-${item.id}`,
+      kind: "high_usage",
+      priority: 88,
+      title: `مصرف بالا ${item.customer_name ?? "مشتری"}`,
+      detail: `${item.plan ?? "سرویس"} · ${Number(item.used_gb ?? 0).toFixed(1)} از ${Number(item.limit_gb ?? 0).toFixed(1)} گیگ`,
+      why: "حجم مصرفی به ۸۰٪ یا بیشتر رسیده است.",
+      next_action: "بررسی تمدید یا افزایش حجم",
+      href: item.customer_id ? `/customers/${item.customer_id}` : "/services",
+      ...item,
+    })),
+    ...unpaidSales.map((item) => ({
+      id: `unpaid-${item.id}`,
+      kind: "unpaid",
+      priority: 82,
+      title: `وصول از ${item.customer_name ?? "مشتری"}`,
+      detail: `${item.plan ?? "سرویس"} · ${Number(item.amount ?? 0).toLocaleString("fa-IR")} تومان`,
+      why: "فروش ثبت شده اما هنوز پرداخت نشده است.",
+      next_action: "باز کردن دفتر فروش و پیگیری پرداخت",
+      href: "/sales?focus=unpaid",
+      ...item,
+    })),
+    ...failedJobs.map((item) => ({
+      id: `job-${item.id}`,
+      kind: "job",
+      priority: 96,
+      title: `خطای ساخت ${item.customer_name ?? "مشتری"}`,
+      detail: `${item.plan ?? "سرویس"} · ${item.action ?? "provision"} · تلاش ${item.attempts ?? 0}`,
+      why: item.last_error ?? "job با خطا متوقف شده است.",
+      next_action: "باز کردن مانیتورینگ و بررسی retry",
+      href: "/monitoring?focus=failed-jobs",
+      ...item,
+    })),
+  ];
+  return attention
+    .sort((left, right) => Number(right.priority) - Number(left.priority))
+    .slice(0, 50);
+};
+
+const summarizeCommandAttention = (attention: Array<Record<string, any>>) => ({
+  total: attention.length,
+  critical: attention.filter((item) => Number(item.priority) >= 90).length,
+  unpaid: attention.filter((item) => item.kind === "unpaid").length,
+  jobs: attention.filter((item) => item.kind === "job").length,
+  top_kind: attention[0]?.kind ?? null,
+  top_title: attention[0]?.title ?? null,
+});
+
 router.get("/admin/audit", requireMasterAdmin, async (req, res): Promise<void> => {
   await managementReady;
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 100));
@@ -4509,7 +4596,7 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
   const customerOwner = master ? "TRUE" : "c.reseller_tg_id = $1";
   const params = master ? [] : [req.auth!.telegramId];
   const monthStart = persianMonthStartIso(new Date());
-  const [summary, candidates, lowVolume, topCustomers, activity] = await Promise.all([
+  const [summary, candidates, lowVolume, highUsage, topCustomers, activity, unpaidSales, failedJobs] = await Promise.all([
     pool.query(
       `SELECT COUNT(*) FILTER (WHERE ${owner} AND svc.status='active')::int AS active_services,
        COUNT(*) FILTER (WHERE ${owner} AND svc.status <> 'disabled' AND svc.expire_at <= NOW()+INTERVAL '14 days')::int AS expiring_soon,
@@ -4531,12 +4618,48 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
        FROM reseller_services svc JOIN reseller_customers c ON c.id=svc.customer_id
         WHERE ${owner} AND ${customerOwner} AND svc.status='active' AND COALESCE(svc.last_used_bytes,0) < GREATEST(COALESCE(svc.gb,0)*1073741824*0.1,1)
        ORDER BY svc.last_used_bytes NULLS FIRST LIMIT 100`, params),
+      pool.query(`SELECT svc.id, svc.customer_id, c.full_name AS customer_name, svc.label AS plan,
+        COALESCE(svc.last_used_bytes,0)/1073741824.0 AS used_gb, svc.gb::float8 AS limit_gb
+        FROM reseller_services svc JOIN reseller_customers c ON c.id=svc.customer_id
+        WHERE ${owner} AND ${customerOwner} AND svc.status IN ('active','expiring')
+          AND COALESCE(svc.gb,0) > 0
+          AND COALESCE(svc.last_used_bytes,0) >= svc.gb*1073741824*0.8
+        ORDER BY svc.last_used_bytes DESC LIMIT 100`, params),
      pool.query(`SELECT c.id, c.full_name AS customer_name, c.phone, COUNT(s.id)::int AS sales_count,
        COALESCE(SUM(COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()})),0)::float8 AS income
         FROM reseller_customers c JOIN reseller_services svc ON svc.customer_id=c.id JOIN resellers r ON r.tg_id=svc.reseller_tg_id LEFT JOIN reseller_sales_log s ON s.service_id=svc.id
        WHERE ${master ? "TRUE" : "svc.reseller_tg_id=$1"} GROUP BY c.id,c.full_name,c.phone ORDER BY income DESC LIMIT 10`, params),
     pool.query(`SELECT id, 'sale' AS type, 'فروش' AS title, service_id::text AS detail, created_at::text AS created_at
        FROM reseller_sales_log WHERE ${master ? "TRUE" : "reseller_tg_id=$1"} ORDER BY created_at DESC LIMIT 20`, params),
+      pool.query(
+        `SELECT s.id, s.service_id, s.customer_id, c.full_name AS customer_name, c.phone,
+           svc.label AS plan, COALESCE(s.custom_sell_price, s.gb_amount * ${resellerCostPerGbSql("r")})::float8 AS amount,
+           s.created_at::text AS created_at
+         FROM reseller_sales_log s
+         JOIN reseller_services svc ON svc.id = s.service_id
+         JOIN reseller_customers c ON c.id = svc.customer_id
+         LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+         WHERE ${master ? "TRUE" : "s.reseller_tg_id = $1"}
+           AND ${master ? "TRUE" : "svc.reseller_tg_id = $1"}
+           AND ${master ? "TRUE" : "c.reseller_tg_id = $1"}
+           AND COALESCE(s.is_paid, 0) = 0
+         ORDER BY s.created_at ASC
+         LIMIT 100`,
+        params,
+      ),
+      pool.query(
+        `SELECT j.id, j.service_id, svc.customer_id, c.full_name AS customer_name,
+           svc.label AS plan, j.action, j.status, j.attempts, j.last_error,
+           j.next_attempt_at::text AS next_attempt_at, j.updated_at::text AS updated_at
+         FROM service_provision_jobs j
+         JOIN reseller_services svc ON svc.id = j.service_id
+         JOIN reseller_customers c ON c.id = svc.customer_id
+         WHERE ${owner} AND ${customerOwner}
+           AND j.last_error IS NOT NULL AND j.status <> 'completed'
+         ORDER BY j.updated_at ASC
+         LIMIT 100`,
+        params,
+      ),
   ]);
   if (!master) {
     const s = summary.rows[0] ?? {};
@@ -4544,6 +4667,7 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
     const soldGb = Number(s.sold_gb ?? 0);
     const balanceGb = Number(s.balance_gb ?? 0);
     const balanceDays = soldGb > 0 ? Math.max(0, Math.round(balanceGb / (soldGb / elapsedDays))) : 0;
+    const attention = buildCommandAttention(candidates.rows, lowVolume.rows, highUsage.rows, unpaidSales.rows, failedJobs.rows);
     res.json({
       role: "reseller",
       generated_at: new Date().toISOString(),
@@ -4555,6 +4679,11 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
       },
       renewal_candidates: candidates.rows,
       low_volume_services: lowVolume.rows,
+      high_usage_services: highUsage.rows,
+      unpaid_sales: unpaidSales.rows,
+      failed_jobs: failedJobs.rows,
+      attention,
+      decision_summary: summarizeCommandAttention(attention),
       top_customers: topCustomers.rows,
       recent_activity: activity.rows,
     });
@@ -4597,6 +4726,7 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
   });
   const resellerSummary = resellers.rows[0] ?? {};
   const financeSummary = finance.rows[0] ?? {};
+  const attention = buildCommandAttention(candidates.rows, lowVolume.rows, highUsage.rows, unpaidSales.rows, failedJobs.rows);
   res.json({
     role: "master_admin",
     generated_at: new Date().toISOString(),
@@ -4611,6 +4741,11 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
     finance: { ...financeSummary, month_profit: financeSummary.month_profit ?? 0 },
     renewal_candidates: candidates.rows,
     low_volume_services: lowVolume.rows,
+    high_usage_services: highUsage.rows,
+    unpaid_sales: unpaidSales.rows,
+    failed_jobs: failedJobs.rows,
+    attention,
+    decision_summary: summarizeCommandAttention(attention),
     recent_activity: activity.rows,
   });
 });
