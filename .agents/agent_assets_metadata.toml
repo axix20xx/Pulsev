@@ -834,3 +834,10 @@ mtime_ms = 1789227256198
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5d6875c1-241a-4368-b275-1196b77ea80d/b5ee278e-3608-4f39-996b-be85676ea79a"
 storage_version_token = "1789227311257718"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "2rAuz97_LzGgodEEJTasJ"
+uri = "file://exports/pulse-hostinger-light-mobile-sub-audit.zip"
+type = "unspecified"
+title = "Pulse Hostinger ZIP — audited light mobile and sub UI"
+description = "Updated Hostinger bundle with final light cascade fixes for /sub open/copy/install buttons, public subscription loading/error surfaces, and all customer-mobile loading, empty, error, modal, install, and connection states. ZIP integrity passed."
