@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Activity, AlertTriangle, BarChart3, Check, ChevronLeft, CircleHelp, Copy, Download, FileWarning, Gauge, Layers3, Package, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Users, Wallet, Wifi } from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, Check, ChevronLeft, CircleHelp, Clock3, Copy, Download, FileWarning, Gauge, Layers3, Package, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Target, Users, Wallet, Wifi, Zap } from 'lucide-react';
 import { Link } from 'wouter';
 import { PageHeader } from '@/components/pulse-shell';
 import { usePulse } from '@/pages/pulse-pages';
@@ -25,6 +25,13 @@ type InsightsResponse = {
   credit: JsonRecord[];
   quality: { duplicate_phones: number; duplicate_active_usernames: number; services_without_subscription: number; orphan_sales: number; unpaid_sales: number };
   reports: { packages: JsonRecord[]; best_periods: JsonRecord[] };
+};
+type CommandCenterResponse = {
+  role?: string;
+  generated_at?: string;
+  summary?: JsonRecord;
+  renewal_candidates?: JsonRecord[];
+  low_volume_services?: JsonRecord[];
 };
 
 const readSavedViews = (): SavedView[] => {
@@ -118,38 +125,100 @@ function SavedViewsCard({ views, onChange }: { views: SavedView[]; onChange: (vi
   return <SmartCard kicker="workspace شخصی" title="نماهای ذخیره‌شده" detail="فیلترها و مسیرهای پرتکرار را برای استفادهٔ بعدی نگه دارید."><div className="smart-saved-list">{views.map((view) => <Link href={view.href} key={view.id} className="smart-saved-row"><span><Layers3 size={14} /><strong>{view.label}</strong></span><ChevronLeft size={14} /></Link>)}{!views.length && <div className="smart-empty"><Sparkles size={18} /><span>هنوز نمایی ذخیره نشده است.</span></div>}</div><div className="smart-save-form"><input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="مثلاً تمدیدهای این هفته" aria-label="نام نمای ذخیره‌شده" /><select value={href} onChange={(event) => setHref(event.target.value)} aria-label="مسیر نمای ذخیره‌شده"><option value="/operations">مرکز عملیات</option><option value="/customers">مشتری‌ها</option><option value="/services">سرویس‌ها</option><option value="/sales">دفتر فروش</option><option value="/monitoring">خطاهای ساخت</option></select><button className="button button-secondary" type="button" onClick={add} disabled={!label.trim()}><Check size={14} /> ذخیره</button></div></SmartCard>;
 }
 
+function DecisionBoard({ today, quality, command }: { today: InsightsResponse['today']; quality: InsightsResponse['quality']; command: CommandCenterResponse | null }) {
+  const actions: Array<{ id: string; title: string; detail: string; href: string; icon: typeof Activity; tone: string }> = [];
+  (command?.renewal_candidates ?? []).slice(0, 3).forEach((item, index) => {
+    const customer = text(item.customer_name, 'مشتری');
+    const service = text(item.plan, 'سرویس');
+    const expires = item.expires_at ? new Date(String(item.expires_at)).getTime() : 0;
+    const days = expires ? Math.ceil((expires - Date.now()) / 86_400_000) : null;
+    actions.push({
+      id: `renewal-${item.id ?? index}`,
+      title: `تمدید ${customer}`,
+      detail: `${service} · ${days === null ? 'موعد نامشخص' : days <= 0 ? 'موعد رسیده' : `${numberFormat.format(days)} روز مانده`}`,
+      href: item.customer_id ? `/customers/${item.customer_id}` : '/services',
+      icon: RefreshCw,
+      tone: 'amber',
+    });
+  });
+  (command?.low_volume_services ?? []).slice(0, 2).forEach((item, index) => {
+    actions.push({
+      id: `volume-${item.id ?? index}`,
+      title: `بررسی مصرف ${text(item.customer_name, 'مشتری')}`,
+      detail: `${text(item.plan, 'سرویس')} · ${decimalFormat.format(asNumber(item.used_gb))} از ${decimalFormat.format(asNumber(item.limit_gb))} گیگ`,
+      href: item.customer_id ? `/customers/${item.customer_id}` : '/services',
+      icon: Wifi,
+      tone: 'coral',
+    });
+  });
+  if (asNumber(today.failed_jobs) > 0) actions.push({ id: 'failed-jobs', title: 'بررسی ساخت‌های ناموفق', detail: `${count(today.failed_jobs)} job در صف بررسی Provider یا AWG`, href: '/monitoring', icon: Activity, tone: 'blue' });
+  if (asNumber(today.unpaid_sales) > 0) actions.push({ id: 'unpaid-sales', title: 'پیگیری وصول', detail: `${count(today.unpaid_sales)} فروش · ${moneyValue(today.unpaid_amount)} مانده`, href: '/sales', icon: Wallet, tone: 'rose' });
+  const qualityIssues = Object.values(quality).reduce((sum, value) => sum + (asNumber(value) > 0 ? 1 : 0), 0);
+  if (qualityIssues > 0) actions.push({ id: 'quality', title: 'پاک‌سازی مغایرت داده', detail: `${count(qualityIssues)} کنترل کیفیت نیازمند بررسی است`, href: '/insights', icon: FileWarning, tone: 'sage' });
+  const riskUnits = asNumber(today.expiring_urgent) + asNumber(today.high_usage) + asNumber(today.unpaid_sales) + asNumber(today.failed_jobs) + qualityIssues;
+  const score = Math.max(0, Math.min(100, 100 - riskUnits * 7));
+  const scoreTone = score >= 80 ? 'ok' : score >= 55 ? 'warn' : 'bad';
+  return <div className="smart-decision-grid">
+    <SmartCard kicker="موتور تصمیم" title="امروز از کجا شروع کنیم؟" detail="اقدام‌ها از صف‌های واقعی سرویس، فروش، job و کیفیت داده ساخته شده‌اند؛ نه متن نمایشی.">
+      {actions.length ? <div className="smart-action-list">{actions.slice(0, 8).map(({ id, title, detail, href, icon: Icon, tone }) => <Link href={href} className={`smart-action-row ${tone}`} key={id} data-testid={`smart-action-${id}`}><span className="smart-action-icon"><Icon size={15} /></span><span><strong>{title}</strong><small>{detail}</small></span><ChevronLeft size={14} /></Link>)}</div> : <div className="smart-empty"><Check size={18} /><span>برای امروز اقدام فوری از داده‌های فعلی پیدا نشد.</span></div>}
+    </SmartCard>
+    <SmartCard kicker="امتیاز لحظه‌ای" title="سلامت عملیاتی" detail="امتیاز با توجه به تعداد ریسک‌های قابل اقدام همین لحظه محاسبه می‌شود.">
+      <div className="smart-health-score"><div className={`smart-score-ring ${scoreTone}`}><strong>{numberFormat.format(score)}</strong><span>از ۱۰۰</span></div><div><StatusChip tone={scoreTone}>{scoreTone === 'ok' ? 'کنترل‌شده' : scoreTone === 'warn' ? 'نیازمند تمرکز' : 'ریسک بالا'}</StatusChip><p>{riskUnits ? `${count(riskUnits)} نشانهٔ ریسک فعال` : 'نشانهٔ ریسک فعالی ثبت نشده است.'}</p><small><Target size={13} /> اولویت‌ها با تغییر داده‌ها دوباره مرتب می‌شوند.</small></div></div>
+    </SmartCard>
+  </div>;
+}
+
 function SmartCenterContent() {
   const { session } = usePulse();
   const [data, setData] = useState<InsightsResponse | null>(null);
+  const [command, setCommand] = useState<CommandCenterResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshToken, setRefreshToken] = useState(0);
   const [views, setViews] = useState<SavedView[]>(readSavedViews);
-  const load = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/insights', { credentials: 'include' });
-      if (!response.ok) throw new Error('دریافت مرکز هوشمند ناموفق بود.');
-      setData(await response.json());
-      setError('');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'دریافت مرکز هوشمند ناموفق بود.');
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => { void load(); }, [refreshToken]);
+  useEffect(() => {
+    if (!session?.authenticated) return;
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [insightsResponse, commandResponse] = await Promise.all([
+          fetch('/api/insights', { credentials: 'include' }),
+          fetch('/api/command-center', { credentials: 'include' }),
+        ]);
+        if (!insightsResponse.ok || !commandResponse.ok) throw new Error('دریافت مرکز هوشمند ناموفق بود.');
+        const [nextInsights, nextCommand] = await Promise.all([insightsResponse.json(), commandResponse.json()]);
+        if (!active) return;
+        setData(nextInsights);
+        setCommand(nextCommand);
+        setError('');
+      } catch (cause) {
+        if (active) setError(cause instanceof Error ? cause.message : 'دریافت مرکز هوشمند ناموفق بود.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void load();
+    const interval = window.setInterval(load, 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [refreshToken, session?.authenticated]);
   useEffect(() => { localStorage.setItem('pulse-saved-views', JSON.stringify(views)); }, [views]);
-  const today = data?.today;
+  const today = data?.today ?? { expiring_urgent: 0, high_usage: 0, unpaid_sales: 0, unpaid_amount: 0, failed_jobs: 0, inactive_customers: 0, lifecycle_sample: 0 };
   const packageRows = useMemo(() => data?.reports.packages ?? [], [data]);
   const backupRows = useMemo(() => (data?.lifecycle.customers ?? []).map((row) => ({ id: row.id, name: row.name, phone: row.phone, segment: row.segment, score: row.score, purchases: row.purchases, total_spend: row.total_spend, last_purchase: row.last_purchase })), [data]);
   const exportOperational = () => downloadCsv('pulse-operational-customers.csv', backupRows);
   const exportPackages = () => downloadCsv('pulse-package-report.csv', packageRows);
+  const generatedAt = data?.generated_at ?? command?.generated_at;
+  const isStale = generatedAt ? Date.now() - new Date(generatedAt).getTime() > 90_000 : false;
   return <div className="smart-center-page" dir="rtl">
-    <PageHeader eyebrow="هوش عملیاتی" title="امروز چه چیزی مهم است؟" description={`یک نمای داده‌محور برای اقدام بعدی · ${data?.generated_at ? dateLabel(data.generated_at) : 'در حال دریافت'}`} action={<div className="smart-header-actions"><button className="button button-secondary" type="button" onClick={() => setRefreshToken((value) => value + 1)} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> بروزرسانی</button><Link href="/operations" className="button button-primary"><Gauge size={14} /> مرکز عملیات</Link></div>} />
+     <PageHeader eyebrow="هوش عملیاتی" title="امروز چه چیزی مهم است؟" description={`نمای اقدام‌محور · ${generatedAt ? dateLabel(generatedAt) : 'در حال دریافت'}`} action={<div className="smart-header-actions"><span className={`smart-freshness ${isStale ? 'stale' : ''}`}><Clock3 size={13} /> {generatedAt ? isStale ? 'داده نیازمند بروزرسانی' : `تازه تا ${dateLabel(generatedAt)}` : 'در حال دریافت'}</span><button className="button button-secondary" type="button" onClick={() => setRefreshToken((value) => value + 1)} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> بروزرسانی</button><Link href="/operations" className="button button-primary"><Gauge size={14} /> مرکز عملیات</Link></div>} />
     {error && <div className="notice danger"><AlertTriangle size={15} /> {error}<button type="button" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={14} /></button></div>}
     {loading && !data ? <div className="smart-loading"><RefreshCw size={20} className="spin" /><strong>در حال ساخت نمای هوشمند...</strong><span>اطلاعات مشتری، سرویس، فروش و Providerها از SQL خوانده می‌شود.</span></div> : data && <><section className="smart-hero"><div><span className="smart-hero-icon"><Sparkles size={18} /></span><div><p className="smart-kicker">Today command center</p><h2>یک نگاه، چند اقدام روشن</h2><p>اولویت‌ها بر اساس انقضا، مصرف، وصول، کیفیت داده و سلامت زیرساخت مرتب شده‌اند.</p></div></div><div className="smart-hero-links"><Link href="/pos"><ShoppingBag size={15} /> فروش جدید</Link><Link href="/customers"><Users size={15} /> CRM</Link><Link href="/reports"><BarChart3 size={15} /> گزارش</Link></div></section>
-      <section className="smart-metrics-grid"><InsightMetric icon={RefreshCw} label="انقضا امروز و فردا" value={count(today?.expiring_urgent)} detail="اولویت تمدید" href="/services" tone="amber" /><InsightMetric icon={Wifi} label="مصرف بالای ۸۰٪" value={count(today?.high_usage)} detail="قبل از اتمام حجم" href="/services" tone="coral" /><InsightMetric icon={Wallet} label="فروش پرداخت‌نشده" value={count(today?.unpaid_sales)} detail={moneyValue(today?.unpaid_amount)} href="/sales" tone="rose" /><InsightMetric icon={Activity} label="job نیازمند بررسی" value={count(today?.failed_jobs)} detail="Provider یا AWG" href="/monitoring" tone="blue" /><InsightMetric icon={Users} label="مشتری کم‌تعامل" value={count(today?.inactive_customers)} detail="در نمونهٔ lifecycle" href="/customers" tone="sage" /></section>
+       <section className="smart-metrics-grid"><InsightMetric icon={RefreshCw} label="انقضا امروز و فردا" value={count(today?.expiring_urgent)} detail="اولویت تمدید" href="/services" tone="amber" /><InsightMetric icon={Wifi} label="مصرف بالای ۸۰٪" value={count(today?.high_usage)} detail="قبل از اتمام حجم" href="/services" tone="coral" /><InsightMetric icon={Wallet} label="فروش پرداخت‌نشده" value={count(today?.unpaid_sales)} detail={moneyValue(today?.unpaid_amount)} href="/sales" tone="rose" /><InsightMetric icon={Activity} label="job نیازمند بررسی" value={count(today?.failed_jobs)} detail="Provider یا AWG" href="/monitoring" tone="blue" /><InsightMetric icon={Users} label="مشتری کم‌تعامل" value={count(today?.inactive_customers)} detail="در نمونهٔ lifecycle" href="/customers" tone="sage" /></section>
+       <DecisionBoard today={today} quality={data.quality} command={command} />
       <div className="smart-main-grid"><div className="smart-main-column"><LifecycleCard rows={data.lifecycle.customers} segments={data.lifecycle.segments} /><ProviderCard providers={data.providers} /><QualityCard quality={data.quality} /></div><div className="smart-side-column"><CommandLinks /><CreditCard rows={data.credit} admin={data.role === 'master_admin'} /><SavedViewsCard views={views} onChange={setViews} /><SmartCard kicker="گزارش و پشتیبان" title="داده‌ها را با خود ببرید" detail="خروجی‌های bounded از دادهٔ قابل مشاهده تولید می‌شوند؛ این عملیات فقط خواندنی است."><div className="smart-export-list"><button type="button" onClick={exportOperational} disabled={!backupRows.length}><Download size={15} /><span><strong>خروجی مشتری و سلامت</strong><small>{count(backupRows.length)} رکورد lifecycle</small></span></button><button type="button" onClick={exportPackages} disabled={!packageRows.length}><Package size={15} /><span><strong>گزارش بسته‌ها</strong><small>{count(packageRows.length)} بستهٔ پرتکرار</small></span></button><Link href="/reports"><BarChart3 size={15} /><span><strong>گزارش کامل مالی</strong><small>بازه، وصول و سود</small></span></Link></div></SmartCard></div></div>
     </>}
     {!loading && !data && !error && <div className="smart-empty-page"><CircleHelp size={22} /><strong>داده‌ای برای نمایش وجود ندارد.</strong></div>}

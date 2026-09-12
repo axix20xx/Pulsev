@@ -2081,6 +2081,29 @@ tbody tr:hover {
 .smart-metric.coral .smart-metric-icon, .smart-metric.rose .smart-metric-icon { background: hsl(5 75% 55% / .12); color: hsl(5 62% 48%); }
 .smart-metric.blue .smart-metric-icon { background: hsl(205 75% 52% / .12); color: hsl(205 68% 44%); }
 .smart-metric.sage .smart-metric-icon { background: hsl(145 42% 45% / .13); color: hsl(145 42% 34%); }
+.smart-freshness { display: inline-flex; align-items: center; gap: 5px; color: hsl(145 42% 34%); font-size: 9px; font-weight: 800; white-space: nowrap; }
+.smart-freshness.stale { color: hsl(5 62% 48%); }
+.smart-decision-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 14px; margin-top: 14px; }
+.smart-action-list { display: grid; gap: 7px; }
+.smart-action-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; border: 1px solid hsl(var(--border) / .78); border-radius: 12px; background: hsl(var(--background) / .45); padding: 9px 10px; color: var(--smart-ink); transition: .18s ease; }
+.smart-action-row:hover { border-color: hsl(var(--primary) / .4); background: hsl(var(--primary) / .05); transform: translateY(-1px); }
+.smart-action-row > span:nth-child(2) { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.smart-action-row strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.smart-action-row small { overflow: hidden; color: var(--smart-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.smart-action-row > svg { color: var(--smart-muted); }
+.smart-action-icon { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 9px; background: hsl(var(--primary) / .1); color: hsl(var(--primary)); }
+.smart-action-row.amber .smart-action-icon { background: hsl(38 90% 55% / .15); color: hsl(32 78% 42%); }
+.smart-action-row.coral .smart-action-icon, .smart-action-row.rose .smart-action-icon { background: hsl(5 75% 55% / .13); color: hsl(5 62% 48%); }
+.smart-action-row.sage .smart-action-icon { background: hsl(145 42% 45% / .13); color: hsl(145 42% 34%); }
+.smart-health-score { display: flex; align-items: center; gap: 15px; min-height: 150px; }
+.smart-score-ring { display: flex; width: 112px; height: 112px; flex: 0 0 auto; align-items: center; justify-content: center; flex-direction: column; border: 9px solid hsl(145 42% 45% / .28); border-radius: 50%; background: hsl(145 42% 45% / .07); }
+.smart-score-ring.warn { border-color: hsl(38 90% 55% / .35); background: hsl(38 90% 55% / .07); }
+.smart-score-ring.bad { border-color: hsl(5 75% 55% / .35); background: hsl(5 75% 55% / .07); }
+.smart-score-ring strong { font: 800 26px var(--app-font-mono); letter-spacing: -.06em; }
+.smart-score-ring span { color: var(--smart-muted); font-size: 9px; }
+.smart-health-score > div:last-child { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
+.smart-health-score p { color: var(--smart-ink); font-size: 10px; }
+.smart-health-score small { display: flex; align-items: center; gap: 5px; color: var(--smart-muted); font-size: 9px; line-height: 1.7; }
 .smart-main-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .8fr); align-items: start; gap: 14px; margin-top: 14px; }
 .smart-main-column, .smart-side-column { display: grid; gap: 14px; min-width: 0; }
 .smart-card { border: 1px solid hsl(var(--border)); border-radius: 20px; background: hsl(var(--card) / .82); box-shadow: var(--app-shadow-sm); padding: 17px; }
@@ -2160,11 +2183,13 @@ tbody tr:hover {
 .smart-empty-page { min-height: 230px; }
 @media (max-width: 1100px) {
   .smart-metrics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .smart-decision-grid { grid-template-columns: 1fr; }
   .smart-main-grid { grid-template-columns: 1fr; }
   .smart-side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 }
 @media (max-width: 680px) {
-  .smart-header-actions { width: 100%; }
+  .smart-header-actions { width: 100%; flex-wrap: wrap; }
+  .smart-freshness { width: 100%; }
   .smart-header-actions .button { flex: 1; justify-content: center; }
   .smart-hero { align-items: flex-start; flex-direction: column; padding: 16px; }
   .smart-hero-links { width: 100%; justify-content: stretch; }

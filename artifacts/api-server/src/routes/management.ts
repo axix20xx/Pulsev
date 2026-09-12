@@ -1833,7 +1833,9 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
        month_paid_income: Number(monthSales.rows[0]?.paid_income ?? 0),
        month_unpaid_income: Number(monthSales.rows[0]?.unpaid_income ?? 0),
         month_profit: Number(monthSales.rows[0]?.profit ?? 0),
-        month_daily: monthDaily.rows.map((row) => ({
+         month_daily: monthDaily.rows
+           .filter((row) => row.day >= monthStart && row.day <= today)
+           .map((row) => ({
           day: row.day,
           sales_count: Number(row.sales_count ?? 0),
           sold_gb: Number(row.sold_gb ?? 0),
@@ -1843,7 +1845,7 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
           profit: Number(row.profit ?? 0),
           paid_profit: Number(row.paid_profit ?? 0),
           unpaid_profit: Number(row.unpaid_profit ?? 0),
-        })),
+           })),
        disabled_today: Number(disabledToday.rows[0]?.value ?? 0),
        generated_at: new Date().toISOString(),
       recent_activity: activity.rows,
@@ -4504,6 +4506,7 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
   await managementReady;
   const master = req.auth!.role === "master_admin";
   const owner = master ? "TRUE" : "svc.reseller_tg_id = $1";
+  const customerOwner = master ? "TRUE" : "c.reseller_tg_id = $1";
   const params = master ? [] : [req.auth!.telegramId];
   const monthStart = persianMonthStartIso(new Date());
   const [summary, candidates, lowVolume, topCustomers, activity] = await Promise.all([
@@ -4522,11 +4525,11 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
        COALESCE(s.gb_amount,0)::float8 AS last_gb, COALESCE(s.days_amount,svc.days)::int AS last_days
        FROM reseller_services svc JOIN reseller_customers c ON c.id=svc.customer_id LEFT JOIN LATERAL
        (SELECT * FROM reseller_sales_log x WHERE x.service_id=svc.id ORDER BY x.created_at DESC LIMIT 1) s ON TRUE
-       WHERE ${owner} AND svc.status <> 'disabled' AND svc.expire_at <= NOW()+INTERVAL '14 days' ORDER BY svc.expire_at LIMIT 100`, params),
+        WHERE ${owner} AND ${customerOwner} AND svc.status <> 'disabled' AND svc.expire_at <= NOW()+INTERVAL '14 days' ORDER BY svc.expire_at LIMIT 100`, params),
     pool.query(`SELECT svc.id, svc.customer_id, c.full_name AS customer_name, svc.label AS plan,
        COALESCE(svc.last_used_bytes,0)/1073741824.0 AS used_gb, svc.gb::float8 AS limit_gb
        FROM reseller_services svc JOIN reseller_customers c ON c.id=svc.customer_id
-       WHERE ${owner} AND svc.status='active' AND COALESCE(svc.last_used_bytes,0) < GREATEST(COALESCE(svc.gb,0)*1073741824*0.1,1)
+        WHERE ${owner} AND ${customerOwner} AND svc.status='active' AND COALESCE(svc.last_used_bytes,0) < GREATEST(COALESCE(svc.gb,0)*1073741824*0.1,1)
        ORDER BY svc.last_used_bytes NULLS FIRST LIMIT 100`, params),
      pool.query(`SELECT c.id, c.full_name AS customer_name, c.phone, COUNT(s.id)::int AS sales_count,
        COALESCE(SUM(COALESCE(s.custom_sell_price,s.gb_amount*${resellerCostPerGbSql()})),0)::float8 AS income
@@ -4543,6 +4546,7 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
     const balanceDays = soldGb > 0 ? Math.max(0, Math.round(balanceGb / (soldGb / elapsedDays))) : 0;
     res.json({
       role: "reseller",
+      generated_at: new Date().toISOString(),
       summary: { ...s, balance_days: balanceDays },
       credit_forecast: {
         remaining_gb: balanceGb,
@@ -4593,7 +4597,22 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
   });
   const resellerSummary = resellers.rows[0] ?? {};
   const financeSummary = finance.rows[0] ?? {};
-  res.json({ role: "master_admin", summary: { ...resellerSummary, month_income: financeSummary.month_income ?? 0, month_profit: financeSummary.month_profit ?? 0, unpaid_amount: financeSummary.unpaid_income ?? 0 }, provider_health: providerHealth, reseller_health: resellerHealth.rows, finance: { ...financeSummary, month_profit: financeSummary.month_profit ?? 0 }, recent_activity: activity.rows });
+  res.json({
+    role: "master_admin",
+    generated_at: new Date().toISOString(),
+    summary: {
+      ...resellerSummary,
+      month_income: financeSummary.month_income ?? 0,
+      month_profit: financeSummary.month_profit ?? 0,
+      unpaid_amount: financeSummary.unpaid_income ?? 0,
+    },
+    provider_health: providerHealth,
+    reseller_health: resellerHealth.rows,
+    finance: { ...financeSummary, month_profit: financeSummary.month_profit ?? 0 },
+    renewal_candidates: candidates.rows,
+    low_volume_services: lowVolume.rows,
+    recent_activity: activity.rows,
+  });
 });
 
 router.get("/insights", requireAuth, async (req, res): Promise<void> => {
