@@ -210,6 +210,57 @@
 @media (prefers-reduced-motion:reduce){.mobile-app *,.mobile-app *::before,.mobile-app *::after{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 
 /* Customer mobile is intentionally dark on every device, independent of OS theme. */
+html body #root .mobile-app {
+  --m-bg:#f2f6fb !important;
+  --m-surface:#ffffff !important;
+  --m-surface-2:#e8eff7 !important;
+  --m-ink:#13283d !important;
+  --m-muted:#667b91 !important;
+  --m-line:#dce6ef !important;
+  --m-primary:#147f91 !important;
+  --m-primary-strong:#0a586c !important;
+  --m-accent:#39c3b0 !important;
+  --m-warm:#e6b968 !important;
+  --m-danger:#c75560 !important;
+  color:#13283d !important;
+  background:radial-gradient(circle at 105% -5%,rgba(57,195,176,.19),transparent 34%),radial-gradient(circle at -10% 18%,rgba(20,127,145,.12),transparent 30%),#f2f6fb !important;
+}
+html body #root .mobile-app .mobile-nav-rebuilt-inner,
+html body #root .mobile-app .mobile-provider-card,
+html body #root .mobile-app .mobile-awg-card,
+html body #root .mobile-app .mobile-apps-card,
+html body #root .mobile-app .mobile-qr-modal,
+html body #root .mobile-app .mobile-install-modal,
+html body #root .mobile-app .mobile-push-prompt {
+  border-color:#dce6ef !important;
+  background:#fff !important;
+  color:#13283d !important;
+}
+html body #root .mobile-app .mobile-client-item,
+html body #root .mobile-app .mobile-awg-download-grid a {
+  border-color:#dce6ef !important;
+  background:#e8eff7 !important;
+  color:#13283d !important;
+}
+html body #root .mobile-app .mobile-client-copy span,
+html body #root .mobile-app .mobile-client-actions .mobile-client-download,
+html body #root .mobile-app .mobile-awg-download-heading a { color:#0a586c !important; }
+html body #root .mobile-app .mobile-client-actions button,
+html body #root .mobile-app .mobile-client-actions a:not(.mobile-client-quick),
+html body #root .mobile-app .mobile-connection-actions button,
+html body #root .mobile-app .mobile-awg-actions button {
+  border-color:#dce6ef !important;
+  background:#fff !important;
+  color:#13283d !important;
+}
+html body #root .mobile-app .mobile-client-actions .mobile-client-quick,
+html body #root .mobile-app .mobile-v2box-button { background:#0a586c !important; color:#fff !important; }
+html body #root .mobile-app .mobile-awg-actions a { background:#e8eff7 !important; color:#13283d !important; }
+html body #root .mobile-app .mobile-detail-visual { background:linear-gradient(135deg,#e6f3f0,#d9f0f3) !important; color:#13283d !important; }
+html body #root .mobile-app .mobile-usage-ring::before { background:#e6f3f0 !important; }
+html body #root .mobile-app .mobile-topbar { background:rgba(242,246,251,.9) !important; }
+html body #root .mobile-app .mobile-nav-rebuilt-item { color:#7890a4 !important; }
+html body #root .mobile-app .mobile-nav-rebuilt-item.is-active { color:#0a586c !important; background:rgba(57,195,176,.2) !important; }
 .mobile-app {
   --m-bg: #091a2b;
   --m-surface: #10263b;
