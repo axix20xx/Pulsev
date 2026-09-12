@@ -736,3 +736,17 @@ mtime_ms = 1789221356998
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/c4ab32a4-6ed1-4a5b-ae62-ef5d3c0a4dc4/6bdb9c1a-5eef-47b3-8813-31547ca3f016"
 storage_version_token = "1789221396254759"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "fbyNhT7LB0gubFv0dfPcT"
+uri = "file://exports/pulse-hostinger-sub-mobile-redesign.zip"
+type = "unspecified"
+title = "Pulse Hostinger — /sub و /mobile redesign"
+description = "بستهٔ production شامل بازطراحی کامل /mobile و /sub، buildهای مسیرمحور /panel، /mobile و /panel-sub-assets، API و migrationهای موجود است. SHA-256: e9ed8be802dad644ef8602475dd3da02c5b78d70d89b5deb3e916f98d3195934"
+logical_id = "599ef51b-7997-4052-bd8a-5398df6107c3"
+content_hash = "sha256:e9ed8be802dad644ef8602475dd3da02c5b78d70d89b5deb3e916f98d3195934"
+size = 27275524
+mtime_ms = 1789223717721
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/599ef51b-7997-4052-bd8a-5398df6107c3/2f8c682a-180f-49be-aca0-5af1af0f0e58"
+storage_version_token = "1789223735131193"
+content_type = "application/octet-stream"
