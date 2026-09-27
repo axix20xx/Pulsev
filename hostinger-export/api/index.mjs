@@ -66921,10 +66921,38 @@ var managementReady = pool.query(`
         reviewed_at TIMESTAMP,
         reviewed_by_tg_id BIGINT
       );
+      ALTER TABLE service_action_requests
+        ADD COLUMN IF NOT EXISTS sales_log_cleaned_at TIMESTAMP;
       CREATE INDEX IF NOT EXISTS service_action_requests_owner_idx
         ON service_action_requests (reseller_tg_id, requested_at DESC);
       CREATE INDEX IF NOT EXISTS service_action_requests_pending_idx
         ON service_action_requests (service_id, requested_at DESC);
+      WITH approved_requests AS (
+        SELECT service_id, reseller_tg_id, sale_id
+        FROM service_action_requests
+        WHERE sales_log_cleaned_at IS NULL
+          AND (cancel_service_status = 'approved' OR delete_sale_status = 'approved')
+      ),
+      sales_to_clean AS (
+        SELECT DISTINCT matched.id
+        FROM approved_requests request
+        JOIN LATERAL (
+          SELECT sale.id
+          FROM reseller_sales_log sale
+          WHERE sale.service_id = request.service_id
+            AND sale.reseller_tg_id = request.reseller_tg_id
+            AND (request.sale_id IS NULL OR sale.id = request.sale_id)
+          ORDER BY sale.created_at DESC NULLS LAST, sale.id DESC
+          LIMIT 1
+        ) matched ON TRUE
+      )
+      DELETE FROM reseller_sales_log sale
+      USING sales_to_clean target
+      WHERE sale.id = target.id;
+      UPDATE service_action_requests
+      SET sales_log_cleaned_at = NOW()
+      WHERE sales_log_cleaned_at IS NULL
+        AND (cancel_service_status = 'approved' OR delete_sale_status = 'approved');
      CREATE TABLE IF NOT EXISTS reseller_credit_sales (
        id BIGSERIAL PRIMARY KEY,
        reseller_tg_id BIGINT NOT NULL,
@@ -68402,7 +68430,7 @@ router3.post("/services/:id/cancellation-request", requireAuth, async (req, res)
     res.status(400).json({ error: "\u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u0642\u0628\u0644\u0627\u064B \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0634\u062F\u0647 \u0627\u0633\u062A" });
     return;
   }
-  const sale = deleteSale ? await pool.query(
+  const sale = cancelService || deleteSale ? await pool.query(
     `SELECT id FROM reseller_sales_log
          WHERE service_id = $1 AND reseller_tg_id = $2
          ORDER BY created_at DESC NULLS LAST, id DESC
@@ -68517,6 +68545,7 @@ router3.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
     res.status(404).json({ error: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
     return;
   }
+  let shouldDisableService = false;
   if (validDecision(cancelDecision) && current.cancel_service_status === "pending") {
     if (cancelDecision === "approve" && current.service_status && current.service_status !== "disabled") {
       let panelResult = { attempted: 0, disabled: 0 };
@@ -68537,7 +68566,15 @@ router3.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
         res.status(502).json({ error: "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0647\u0645\u0647 Provider\u0647\u0627 \u0648 AWG \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F\u061B \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0647\u0645\u0686\u0646\u0627\u0646 \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06CC \u0627\u0633\u062A" });
         return;
       }
-      await pool.query(
+      shouldDisableService = true;
+    }
+  }
+  const client = await pool.connect();
+  const deletedSaleIds = [];
+  try {
+    await client.query("BEGIN");
+    if (shouldDisableService) {
+      await client.query(
         `UPDATE reseller_services
          SET status = 'disabled',
              disabled_at = NOW(),
@@ -68550,32 +68587,74 @@ router3.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
         [current.service_id]
       );
     }
-    await pool.query(
-      `UPDATE service_action_requests
-       SET cancel_service_status = $1, reviewed_at = NOW(), reviewed_by_tg_id = $2,
-           admin_note = COALESCE($3, admin_note)
-       WHERE id = $4`,
-      [cancelDecision === "approve" ? "approved" : "rejected", req.auth.telegramId, adminNote, requestId]
-    );
-  }
-  if (validDecision(saleDecision) && current.delete_sale_status === "pending") {
-    if (saleDecision === "approve" && current.sale_id) {
-      await pool.query(
-        `DELETE FROM reseller_sales_log WHERE id = $1 AND service_id = $2`,
-        [current.sale_id, current.service_id]
+    if (validDecision(cancelDecision) && current.cancel_service_status === "pending") {
+      if (cancelDecision === "approve") {
+        const removedSale = await client.query(
+          `DELETE FROM reseller_sales_log
+           WHERE id = (
+             SELECT sale.id
+             FROM reseller_sales_log sale
+             WHERE sale.service_id = $1 AND sale.reseller_tg_id = $2
+               AND ($3::bigint IS NULL OR sale.id = $3)
+             ORDER BY sale.created_at DESC NULLS LAST, sale.id DESC
+             LIMIT 1
+           )
+           RETURNING id::text AS id`,
+          [current.service_id, current.reseller_tg_id, current.sale_id]
+        );
+        deletedSaleIds.push(...removedSale.rows.map((row) => row.id));
+      }
+      await client.query(
+        `UPDATE service_action_requests
+         SET cancel_service_status = $1,
+             delete_sale_status = CASE
+               WHEN $1 = 'approved' AND delete_sale_requested = 1 THEN 'approved'
+               ELSE delete_sale_status
+             END,
+             reviewed_at = NOW(), reviewed_by_tg_id = $2,
+             sales_log_cleaned_at = CASE WHEN $1 = 'approved' THEN NOW() ELSE sales_log_cleaned_at END,
+             admin_note = COALESCE($3, admin_note)
+         WHERE id = $4`,
+        [cancelDecision === "approve" ? "approved" : "rejected", req.auth.telegramId, adminNote, requestId]
       );
     }
-    await pool.query(
-      `UPDATE service_action_requests
-       SET delete_sale_status = $1, reviewed_at = NOW(), reviewed_by_tg_id = $2,
-           admin_note = COALESCE($3, admin_note)
-       WHERE id = $4`,
-      [saleDecision === "approve" ? "approved" : "rejected", req.auth.telegramId, adminNote, requestId]
-    );
+    if (validDecision(saleDecision) && current.delete_sale_status === "pending") {
+      if (saleDecision === "approve") {
+        const removedSale = await client.query(
+          `DELETE FROM reseller_sales_log
+           WHERE id = (
+             SELECT sale.id
+             FROM reseller_sales_log sale
+             WHERE sale.service_id = $1 AND sale.reseller_tg_id = $2
+               AND ($3::bigint IS NULL OR sale.id = $3)
+             ORDER BY sale.created_at DESC NULLS LAST, sale.id DESC
+             LIMIT 1
+           )
+           RETURNING id::text AS id`,
+          [current.service_id, current.reseller_tg_id, current.sale_id]
+        );
+        deletedSaleIds.push(...removedSale.rows.map((row) => row.id));
+      }
+      await client.query(
+        `UPDATE service_action_requests
+         SET delete_sale_status = $1, reviewed_at = NOW(), reviewed_by_tg_id = $2,
+             sales_log_cleaned_at = CASE WHEN $1 = 'approved' THEN NOW() ELSE sales_log_cleaned_at END,
+             admin_note = COALESCE($3, admin_note)
+         WHERE id = $4`,
+        [saleDecision === "approve" ? "approved" : "rejected", req.auth.telegramId, adminNote, requestId]
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error40) {
+    await client.query("ROLLBACK").catch(() => void 0);
+    throw error40;
+  } finally {
+    client.release();
   }
   await recordAudit(req, "service_action_reviewed", "service_action_request", requestId, {
     cancel_service: cancelDecision,
-    delete_sale_log: saleDecision
+    delete_sale_log: saleDecision,
+    deleted_sale_ids: deletedSaleIds
   });
   res.json({ ok: true });
 });

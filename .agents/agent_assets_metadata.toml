@@ -841,3 +841,18 @@ uri = "file://exports/pulse-hostinger-light-mobile-sub-audit.zip"
 type = "unspecified"
 title = "Pulse Hostinger ZIP — audited light mobile and sub UI"
 description = "Updated Hostinger bundle with final light cascade fixes for /sub open/copy/install buttons, public subscription loading/error surfaces, and all customer-mobile loading, empty, error, modal, install, and connection states. ZIP integrity passed."
+logical_id = "6bcadd2c-958f-4c7b-9dc9-183fc0e0a616"
+
+[[outputs]]
+id = "BpZ0Q11mAiDU4IWr5KIko"
+uri = "file://exports/pulse-hostinger-sales-log-approval-fix.zip"
+type = "unspecified"
+title = "Hostinger bundle — sales-log approval fix"
+description = "Ready-to-upload Hostinger ZIP with the API fix, updated reseller panel, legacy approved-request cleanup, and validated production assets."
+logical_id = "3dc00d72-50e6-4fa8-a6be-aed79b577595"
+content_hash = "sha256:7e168878ba11b1fd658e983454f071d928fe894dffcefaad4f5e3c4606344011"
+size = 27870421
+mtime_ms = 1790501475633
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3dc00d72-50e6-4fa8-a6be-aed79b577595/c734e848-694e-4619-97fa-f3085fad4355"
+storage_version_token = "1790501520759368"
+content_type = "application/octet-stream"
