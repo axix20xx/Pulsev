@@ -926,3 +926,17 @@ mtime_ms = 1790579621992
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/a07e4302-bdf0-4df7-b2cf-0cc54941414c/1cb60df9-e8d3-4358-ad33-94563e64d272"
 storage_version_token = "1790579695070035"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "gcm6S1JVaDHLw5vD7ILT6"
+uri = "file://exports/pulse-hostinger-express-diagnostics.zip"
+type = "unspecified"
+title = "Pulse Hostinger Express deployment ZIP"
+description = "Flat Node.js archive with an explicit Express dependency for Hostinger framework detection, plus the API self-probe diagnostics."
+logical_id = "d1914a19-062a-4be0-8f97-bad6daf2b7d9"
+content_hash = "sha256:37f63ebf5ca99c46fc90f955825289bcc9a00c8b16a8971f03bdb347e68712cf"
+size = 27876082
+mtime_ms = 1790580131559
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/d1914a19-062a-4be0-8f97-bad6daf2b7d9/229ad519-22e2-4c14-b048-0008684c7302"
+storage_version_token = "1790580148951362"
+content_type = "application/octet-stream"
