@@ -26,6 +26,7 @@
 - [Hostinger root bundle](hostinger-root-bundle.md) — flat Hostinger deployments must build the frontend with `BASE_PATH=/`, not the Replit artifact prefix.
 - [Hostinger public subscription routing](hostinger-sub-router-base.md) — `/sub` is served at root while its assets use `/panel-sub-assets`; keep the public router base empty.
 - [Hostinger orphan API process](hostinger-orphan-api.md) — after forced restarts, reuse a healthy internal API child instead of spawning a second process on the fixed internal port.
+- [Hostinger runtime boundary](hostinger-runtime-boundary.md) — verify SSH is on the Web App host before treating localhost and process checks as deployment evidence.
 - [Hostinger bundle synchronization](hostinger-bundle-synchronization.md) — source route changes do not update the deploy ZIP until API and each route-specific frontend bundle are rebuilt and copied.
 - [Provider subscription feed](provider-subscription-feed.md) — public feeds must resolve through active Provider URLs; legacy token proxying is compatibility-only.
 - [Session guard and logout](session-guard-logout.md) — management UI must trust only server sessions; same-origin login and logout must survive proxy hosts and stale client caches.

@@ -165,6 +165,15 @@ function isChildRunning(child) {
   );
 }
 
+async function networkNamespace(pid) {
+  if (pid === undefined) return "unknown PID";
+  try {
+    return await fs.readlink(`/proc/${pid}/ns/net`);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 function probeApi(path = "/api/readyz") {
   return new Promise((resolve) => {
     let settled = false;
@@ -282,9 +291,14 @@ async function waitForApi(child, timeoutMs = apiStartupTimeoutMs) {
       Date.now() - startedAt >= startupDiagnosticAfterMs
     ) {
       const childState = isChildRunning(child) ? "still running" : "not running";
+      const [parentNetwork, childNetwork] = await Promise.all([
+        networkNamespace(process.pid),
+        networkNamespace(child.pid),
+      ]);
       const message =
         `API startup diagnostic: child ${child.pid ?? "unknown"} is ${childState}; ` +
-        `readiness ${lastProbe.detail}; liveness ${liveness.detail}.`;
+        `readiness ${lastProbe.detail}; liveness ${liveness.detail}; ` +
+        `parent network ${parentNetwork}; child network ${childNetwork}.`;
       console.error(message);
       recordInstallLog(message, "error");
       startupDiagnosticLogged = true;

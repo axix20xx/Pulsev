@@ -912,3 +912,17 @@ mtime_ms = 1790578657323
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/fa4d1d1a-33de-4902-a8ea-3911e5fa3102/cc1d5881-602a-43f9-bb49-3c683637253f"
 storage_version_token = "1790578678291513"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "gFAwFOexCNyNW3TqA-4Tn"
+uri = "file://exports/pulse-hostinger-self-probe-diagnostics.zip"
+type = "unspecified"
+title = "Pulse Hostinger self-probe ZIP"
+description = "Diagnostic build that checks the API listener from inside its own process and compares parent/child network namespaces."
+logical_id = "a07e4302-bdf0-4df7-b2cf-0cc54941414c"
+content_hash = "sha256:f709f1885431c7f4f4bfb3010a3da5de50f45d82c1db21d1145228c85bbcb5a4"
+size = 27876044
+mtime_ms = 1790579621992
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/a07e4302-bdf0-4df7-b2cf-0cc54941414c/1cb60df9-e8d3-4358-ad33-94563e64d272"
+storage_version_token = "1790579695070035"
+content_type = "application/octet-stream"

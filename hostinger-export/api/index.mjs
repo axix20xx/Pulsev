@@ -938,12 +938,12 @@ var require_depd = __commonJS({
       if ("value" in descriptor) {
         descriptor = convertDataDescriptorToAccessor(obj, prop, message);
       }
-      var get = descriptor.get;
+      var get2 = descriptor.get;
       var set2 = descriptor.set;
-      if (typeof get === "function") {
+      if (typeof get2 === "function") {
         descriptor.get = function getter() {
           log.call(deprecate, message, site);
-          return get.apply(this, arguments);
+          return get2.apply(this, arguments);
         };
       }
       if (typeof set2 === "function") {
@@ -40538,7 +40538,8 @@ var require_src2 = __commonJS({
 });
 
 // src/index.ts
-import { writeSync } from "node:fs";
+import { readlinkSync, writeSync } from "node:fs";
+import { get } from "node:http";
 
 // src/app.ts
 var import_express5 = __toESM(require_express2(), 1);
@@ -71241,19 +71242,45 @@ if (Number.isNaN(port) || port <= 0) {
 writeSync(2, `[api bootstrap] modules loaded; about to bind port ${port}
 `);
 var bindHost = process.env.HOSTINGER_INTERNAL_API === "true" ? "127.0.0.1" : void 0;
-var onListening = () => {
+var server = bindHost ? app_default.listen(port, bindHost) : app_default.listen(port);
+server.once("listening", () => {
   writeSync(
     2,
     `[api bootstrap] listening on ${bindHost || "default interface"}:${port}
 `
   );
+  if (bindHost) {
+    let networkNamespace;
+    try {
+      networkNamespace = readlinkSync("/proc/self/ns/net");
+    } catch (error40) {
+      networkNamespace = error40 instanceof Error ? error40.message : String(error40);
+    }
+    writeSync(
+      2,
+      `[api bootstrap] actual socket ${JSON.stringify(server.address())}; network ${networkNamespace}
+`
+    );
+    const selfProbe = get(
+      { hostname: bindHost, port, path: "/api/healthz", timeout: 3e3 },
+      (response) => {
+        writeSync(2, `[api bootstrap] self-health HTTP ${response.statusCode}
+`);
+        response.resume();
+      }
+    );
+    selfProbe.on("timeout", () => selfProbe.destroy(new Error("self-health timed out")));
+    selfProbe.on("error", (error40) => {
+      writeSync(2, `[api bootstrap] self-health failed: ${error40.message}
+`);
+    });
+  }
   logger.info({ port }, "Server listening");
   void managementReady.then(() => {
     startProvisioningWorker();
     startRainGroupSyncWorker();
   }).catch((error40) => logger.error({ err: error40 }, "Provisioning worker failed to start"));
-};
-var server = bindHost ? app_default.listen(port, bindHost, onListening) : app_default.listen(port, onListening);
+});
 server.on("error", (error40) => {
   const detail = error40 instanceof Error ? error40.stack || error40.message : String(error40);
   writeSync(2, `[api bootstrap] listen failed on port ${port}: ${detail}
