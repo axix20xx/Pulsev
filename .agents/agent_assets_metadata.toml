@@ -898,3 +898,17 @@ mtime_ms = 1790577891007
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/c8688081-7dbe-4560-8ee8-075d23ad5a56/c61c2070-8079-4f65-86a7-9ca1536480ff"
 storage_version_token = "1790578291931687"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "zCU71WLQrgcnMCjQTEHHa"
+uri = "file://exports/pulse-hostinger-api-bootstrap-fixed.zip"
+type = "unspecified"
+title = "Fixed Pulse Hostinger deployment ZIP"
+description = "Built from your attached archive with updated API IPv4 binding and startup diagnostics. ZIP integrity and file contents verified."
+logical_id = "fa4d1d1a-33de-4902-a8ea-3911e5fa3102"
+content_hash = "sha256:be805ea37967796a3c8b997c4d8fc76e4053c0c62020926da4f818e1ba2ea7a2"
+size = 27865658
+mtime_ms = 1790578657323
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/fa4d1d1a-33de-4902-a8ea-3911e5fa3102/cc1d5881-602a-43f9-bb49-3c683637253f"
+storage_version_token = "1790578678291513"
+content_type = "application/octet-stream"
