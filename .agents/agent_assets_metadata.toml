@@ -856,3 +856,17 @@ mtime_ms = 1790501475633
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3dc00d72-50e6-4fa8-a6be-aed79b577595/c734e848-694e-4619-97fa-f3085fad4355"
 storage_version_token = "1790501520759368"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "nX9TeyYRuJ2RGrk6Moo9C"
+uri = "file://exports/pulse-hostinger-api-readiness-recovery.zip"
+type = "unspecified"
+title = "Hostinger API readiness and recovery ZIP"
+description = "Rebuilt Hostinger package with separate API readiness/liveness checks, automatic recovery, stale-process cleanup, and startup diagnostics."
+logical_id = "ad230b65-c0d6-41e7-a75e-4f3259dcc26d"
+content_hash = "sha256:cda29344cec52069b11bac4dddff33dc1a923af115f91d71e589b87ca4a46791"
+size = 27873604
+mtime_ms = 1790576599547
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ad230b65-c0d6-41e7-a75e-4f3259dcc26d/d1884e43-6316-46d7-bdfd-6daee7c03c3b"
+storage_version_token = "1790576605859660"
+content_type = "application/octet-stream"

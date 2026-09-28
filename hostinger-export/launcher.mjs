@@ -14,14 +14,29 @@ const subscriptionRoot = path.join(publicRoot, "sub-app");
 const panelSubscriptionAssetsRoot = path.join(publicRoot, "panel-sub-assets");
 const installerPath = path.join(root, "installer.html");
 const startupLockPath = path.join(root, ".pulse-startup.lock");
+const apiPidPath = path.join(root, ".pulse-api.pid");
+const apiEntrypoint = path.join(root, "api", "index.mjs");
 const publicPort = Number(process.env.PORT || 3000);
 const apiPort = Number(process.env.API_INTERNAL_PORT || publicPort + 1);
+const apiStartupTimeoutMs = configuredDuration(
+  process.env.API_STARTUP_TIMEOUT_MS,
+  180_000,
+  30_000,
+  600_000,
+);
+const apiHealthIntervalMs = configuredDuration(
+  process.env.API_HEALTH_INTERVAL_MS,
+  30_000,
+  5_000,
+  300_000,
+);
 let api;
 let apiReady = false;
 let apiWasReady = false;
 let migrationProcess;
 let startupPromise;
 let apiRestartTimer;
+let apiHealthMonitor;
 let apiRestartAttempt = 0;
 let migrationChecked = false;
 let shuttingDown = false;
@@ -48,6 +63,12 @@ function childExit(child) {
     child.once("error", reject);
     child.once("exit", (code, signal) => resolve({ code, signal }));
   });
+}
+
+function configuredDuration(value, fallback, minimum, maximum) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(minimum, Math.min(maximum, parsed));
 }
 
 function recordInstallLog(message, kind = "info") {
@@ -81,51 +102,52 @@ function shouldForwardLog(source, text) {
 function pipeChildOutput(stream, source, onlyErrors = false) {
   if (!stream) return;
   let buffer = "";
+  let stackLinesRemaining = 0;
+  const recordLine = (line) => {
+    const text = line.trim();
+    if (!text) return;
+    const importantApiLog =
+      source !== "api" ||
+      !onlyErrors ||
+      /"level"\s*:\s*(?:40|50|60)|\b(?:warn|error|fatal|failed|exception|unhandled|assertion|EADDRINUSE|EAGAIN)\b/i.test(
+        text,
+      );
+    const isStackLine =
+      source === "api" &&
+      onlyErrors &&
+      stackLinesRemaining > 0 &&
+      /^\s*(?:at\s|Caused by:|Suppressed:)/.test(line);
+    if (importantApiLog) {
+      stackLinesRemaining = 8;
+    } else if (isStackLine) {
+      stackLinesRemaining -= 1;
+    } else if (stackLinesRemaining > 0) {
+      stackLinesRemaining = 0;
+    }
+    const shouldForward = importantApiLog || isStackLine;
+    if (shouldForward && shouldForwardLog(source, text)) {
+      console.log(`[${source}] ${text}`);
+    }
+    const safeError = /Panel management schema initialization failed|relation .* does not exist|Service renewal failed|RENEWAL_FAILED/i.test(text);
+    const shouldRecord = !onlyErrors || source === "migration" || safeError || importantApiLog || isStackLine;
+    if (shouldRecord) {
+      recordInstallLog(text, onlyErrors || safeError || /error|failed|missing|timeout/i.test(text) ? "error" : "info");
+    }
+    if (source === "api" && safeError) {
+      installState.phase = "error";
+      installState.error = text;
+      installState.updatedAt = new Date().toISOString();
+    }
+  };
   stream.setEncoding("utf8");
   stream.on("data", (chunk) => {
     buffer += chunk;
     const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() || "";
-    for (const line of lines) {
-      const text = line.trim();
-      if (!text) continue;
-      const importantApiLog =
-        source !== "api" ||
-        !onlyErrors ||
-        /"level"\s*:\s*(?:40|50|60)|\b(?:warn|error|fatal|failed|exception|unhandled|assertion|EADDRINUSE|EAGAIN)\b/i.test(
-          text,
-        );
-      if (importantApiLog && shouldForwardLog(source, text)) {
-        console.log(`[${source}] ${text}`);
-      }
-      const safeError = /Panel management schema initialization failed|relation .* does not exist|Service renewal failed|RENEWAL_FAILED/i.test(text);
-      const shouldRecord = !onlyErrors || source === "migration" || safeError || importantApiLog;
-      if (shouldRecord) {
-        recordInstallLog(text, onlyErrors || safeError || /error|failed|missing|timeout/i.test(text) ? "error" : "info");
-      }
-      if (source === "api" && safeError) {
-        installState.phase = "error";
-        installState.error = text;
-        installState.updatedAt = new Date().toISOString();
-      }
-    }
+    lines.forEach(recordLine);
   });
   stream.on("end", () => {
-    const text = buffer.trim();
-    if (text) {
-      const importantApiLog =
-        source !== "api" ||
-        !onlyErrors ||
-        /"level"\s*:\s*(?:40|50|60)|\b(?:warn|error|fatal|failed|exception|unhandled|assertion|EADDRINUSE|EAGAIN)\b/i.test(
-          text,
-        );
-      if (importantApiLog && shouldForwardLog(source, text)) {
-        console.log(`[${source}] ${text}`);
-      }
-      if (!onlyErrors || source === "migration" || importantApiLog || /Panel management schema initialization failed|relation .* does not exist/i.test(text)) {
-        recordInstallLog(text, "error");
-      }
-    }
+    recordLine(buffer);
   });
 }
 
@@ -134,29 +156,70 @@ function wait(milliseconds) {
 }
 
 function isChildRunning(child) {
-  return Boolean(child && child.exitCode === null && child.signalCode === null);
+  return Boolean(
+    child &&
+      child.pid !== undefined &&
+      child.exitCode === null &&
+      child.signalCode === null,
+  );
 }
 
-function probeApi() {
+function probeApi(path = "/api/readyz") {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
     const request = http.request(
       {
         hostname: "127.0.0.1",
         port: apiPort,
-        path: "/api/auth/session",
+        path,
         method: "GET",
         headers: { host: `127.0.0.1:${apiPort}` },
       },
       (response) => {
-        response.resume();
-        resolve(typeof response.statusCode === "number");
+        const chunks = [];
+        let bodyBytes = 0;
+        response.on("data", (chunk) => {
+          if (bodyBytes >= 1024) return;
+          const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          const accepted = part.subarray(0, 1024 - bodyBytes);
+          chunks.push(accepted);
+          bodyBytes += accepted.length;
+        });
+        response.on("end", () => {
+          const body = Buffer.concat(chunks).toString("utf8");
+          let state;
+          try {
+            state = JSON.parse(body).status;
+          } catch {
+            state = undefined;
+          }
+          const healthy = response.statusCode === 200;
+          finish({
+            healthy,
+            state,
+            statusCode: response.statusCode,
+            detail: healthy
+              ? `HTTP 200${state ? ` (${state})` : ""}`
+              : `readiness endpoint returned HTTP ${response.statusCode}${state ? ` (${state})` : ""}`,
+          });
+        });
       },
     );
     request.setTimeout(1_500, () => {
       request.destroy();
-      resolve(false);
+      finish({ healthy: false, detail: "health request timed out after 1500ms" });
     });
-    request.on("error", () => resolve(false));
+    request.on("error", (error) => {
+      finish({
+        healthy: false,
+        detail: `${error.code || "request error"}: ${error.message}`,
+      });
+    });
     request.end();
   });
 }
@@ -165,22 +228,65 @@ function reuseHealthyApi() {
   api = undefined;
   apiReady = true;
   apiWasReady = true;
+  migrationChecked = true;
   apiRestartAttempt = 0;
   installState.apiRunning = true;
   installState.phase = "ready";
   installState.error = null;
   installState.updatedAt = new Date().toISOString();
   recordInstallLog("API قبلی روی پورت داخلی فعال است؛ از همان process استفاده شد.");
+  startApiHealthMonitor();
 }
 
-async function waitForApi(child, timeoutMs = 30_000) {
+async function waitForApi(child, timeoutMs = apiStartupTimeoutMs) {
   const startedAt = Date.now();
+  let lastProbe = { healthy: false, detail: "health check has not run yet" };
   while (Date.now() - startedAt < timeoutMs) {
-    if (await probeApi()) return true;
-    if (!isChildRunning(child)) return false;
+    lastProbe = await probeApi();
+    if (lastProbe.healthy) return lastProbe;
+    if (lastProbe.state === "error") {
+      const liveness = await probeApi("/api/healthz");
+      return { ...lastProbe, failed: true, live: liveness.healthy };
+    }
+    if (child && !isChildRunning(child)) {
+      return { ...lastProbe, exited: true, live: false };
+    }
+    const liveness = await probeApi("/api/healthz");
+    if (!child && !liveness.healthy) {
+      return { ...lastProbe, exited: true, live: false };
+    }
     await wait(500);
   }
-  return await probeApi();
+  lastProbe = await probeApi();
+  const liveness = await probeApi("/api/healthz");
+  return {
+    ...lastProbe,
+    exited: child ? !isChildRunning(child) : !liveness.healthy,
+    live: liveness.healthy,
+  };
+}
+
+async function reuseOrWaitForExistingApi(timeoutMs = 15_000) {
+  const readiness = await probeApi();
+  if (readiness.healthy) {
+    reuseHealthyApi();
+    return true;
+  }
+
+  const liveness = await probeApi("/api/healthz");
+  if (!liveness.healthy || readiness.state === "error") return false;
+
+  const waited = await waitForApi(api, timeoutMs);
+  if (waited.healthy) {
+    reuseHealthyApi();
+    return true;
+  }
+  if (waited.live && waited.state !== "error") {
+    throw new Error(
+      `An existing API process is responding but readiness is still ${waited.state || "pending"} after ${Math.round(timeoutMs / 1000)}s (${waited.detail}). Keeping it alive rather than starting a duplicate.`,
+    );
+  }
+  return false;
 }
 
 function scheduleApiRestart(reason) {
@@ -199,6 +305,131 @@ function scheduleApiRestart(reason) {
   apiRestartTimer.unref();
 }
 
+async function waitForChildExit(child, timeoutMs) {
+  if (!isChildRunning(child)) return true;
+  return await new Promise((resolve) => {
+    const onExit = () => {
+      clearTimeout(timeout);
+      resolve(true);
+    };
+    const timeout = setTimeout(() => {
+      child.removeListener("exit", onExit);
+      resolve(!isChildRunning(child));
+    }, timeoutMs);
+    child.once("exit", onExit);
+  });
+}
+
+async function stopApiChild(child) {
+  if (!isChildRunning(child)) return true;
+  child.kill("SIGTERM");
+  if (await waitForChildExit(child, 5_000)) return true;
+  console.error(`API child ${child.pid ?? "unknown"} did not stop after SIGTERM; sending SIGKILL.`);
+  child.kill("SIGKILL");
+  return await waitForChildExit(child, 5_000);
+}
+
+async function isOwnedApiProcessRunning(pid) {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+  const commandLine = await fs.readFile(`/proc/${pid}/cmdline`, "utf8").catch(() => "");
+  return commandLine.split("\0").includes(apiEntrypoint);
+}
+
+async function clearApiPid(pid) {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return;
+  const recordedPid = Number(await fs.readFile(apiPidPath, "utf8").catch(() => ""));
+  if (recordedPid === pid) await fs.unlink(apiPidPath).catch(() => undefined);
+}
+
+async function stopOrphanedApi() {
+  const recordedPid = Number(await fs.readFile(apiPidPath, "utf8").catch(() => ""));
+  if (!Number.isSafeInteger(recordedPid) || recordedPid <= 0) return false;
+  if ((await probeApi()).healthy) return false;
+  if (!(await isOwnedApiProcessRunning(recordedPid))) {
+    await clearApiPid(recordedPid);
+    return false;
+  }
+
+  const waitForOrphanExit = async (timeoutMs) => {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      if (!(await isOwnedApiProcessRunning(recordedPid))) return true;
+      await wait(250);
+    }
+    return !(await isOwnedApiProcessRunning(recordedPid));
+  };
+
+  try {
+    process.kill(recordedPid, "SIGTERM");
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ESRCH") {
+      await clearApiPid(recordedPid);
+      return true;
+    }
+    console.error(`Could not stop stale API process ${recordedPid}:`, error);
+    return false;
+  }
+  if (await waitForOrphanExit(5_000)) {
+    await clearApiPid(recordedPid);
+    return true;
+  }
+
+  if (!(await isOwnedApiProcessRunning(recordedPid))) {
+    await clearApiPid(recordedPid);
+    return true;
+  }
+  try {
+    process.kill(recordedPid, "SIGKILL");
+  } catch (error) {
+    if (!(error && typeof error === "object" && "code" in error && error.code === "ESRCH")) {
+      console.error(`Could not force-stop stale API process ${recordedPid}:`, error);
+      return false;
+    }
+  }
+  const stopped = await waitForOrphanExit(5_000);
+  if (stopped) await clearApiPid(recordedPid);
+  else console.error(`Stale API process ${recordedPid} is still alive after SIGKILL.`);
+  return stopped;
+}
+
+function startApiHealthMonitor() {
+  if (apiHealthMonitor) return;
+  apiHealthMonitor = setInterval(() => {
+    if (shuttingDown || !apiReady) return;
+    void probeApi("/api/healthz").then((result) => {
+      if (result.healthy || shuttingDown || !apiReady) return;
+      apiReady = false;
+      installState.apiRunning = false;
+      installState.phase = "degraded";
+      installState.error = `API watchdog health check failed: ${result.detail}`;
+      installState.updatedAt = new Date().toISOString();
+      recordInstallLog(`${installState.error}; automatic recovery will start.`);
+      console.error(installState.error);
+      scheduleApiRestart(installState.error);
+    }).catch((error) => {
+      console.error("API watchdog probe failed:", error);
+    });
+  }, apiHealthIntervalMs);
+  apiHealthMonitor.unref();
+}
+
+async function isActiveLauncherProcess(pid) {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+  const commandLine = await fs.readFile(`/proc/${pid}/cmdline`, "utf8").catch(() => "");
+  if (!commandLine) return false;
+  const expectedEntrypoints = new Set([fileURLToPath(import.meta.url), path.join(root, "app.js")]);
+  return commandLine
+    .split("\0")
+    .slice(1)
+    .some((argument) => {
+      if (!argument) return false;
+      return (
+        expectedEntrypoints.has(path.resolve(process.cwd(), argument)) ||
+        expectedEntrypoints.has(path.resolve(root, argument))
+      );
+    });
+}
+
 async function acquireStartupLock() {
   const startedAt = Date.now();
   const maxWaitMs = 45 * 60_000;
@@ -212,10 +443,22 @@ async function acquireStartupLock() {
       if (!error || typeof error !== "object" || error.code !== "EEXIST") {
         throw error;
       }
-      if (await probeApi()) return null;
+      if ((await probeApi()).healthy) return null;
       try {
+        const lockContents = await fs.readFile(startupLockPath, "utf8");
+        const lockPid = Number(lockContents.trim());
         const lockStat = await fs.stat(startupLockPath);
-        if (Date.now() - lockStat.mtimeMs > staleAfterMs) {
+        const staleByAge = Date.now() - lockStat.mtimeMs > staleAfterMs;
+        const staleOwner =
+          Number.isSafeInteger(lockPid) &&
+          lockPid > 0 &&
+          !(await isActiveLauncherProcess(lockPid));
+        if (staleOwner || (!Number.isSafeInteger(lockPid) && staleByAge)) {
+          const currentContents = await fs.readFile(startupLockPath, "utf8").catch(() => "");
+          if (currentContents !== lockContents) {
+            await wait(100);
+            continue;
+          }
           await fs.unlink(startupLockPath);
           continue;
         }
@@ -241,17 +484,42 @@ async function startApiInternal() {
     // Hostinger has a finite application-log quota. Keep normal request
     // completion logs out of production by default; warnings/errors remain.
     LOG_LEVEL: process.env.LOG_LEVEL || "warn",
+    UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE || "1",
     PORT: String(apiPort),
   };
+  if (apiReady) {
+      const health = await probeApi("/api/healthz");
+    if (health.healthy) return;
+    apiReady = false;
+    installState.apiRunning = false;
+    installState.phase = "degraded";
+    installState.error = `API stopped responding to its health check: ${health.detail}`;
+    recordInstallLog(`${installState.error}; restarting the API.`);
+    console.error(installState.error);
+    const staleChild = api;
+    if (isChildRunning(staleChild) && !(await stopApiChild(staleChild))) {
+      throw new Error(`API child ${staleChild.pid ?? "unknown"} could not be stopped for recovery.`);
+    }
+    if (api === staleChild && !isChildRunning(staleChild)) api = undefined;
+  }
+
   installState.phase = "starting-api";
   installState.updatedAt = new Date().toISOString();
 
   // Hostinger may restart the public launcher while the API child is still
   // alive. Reuse it before starting another migration child; otherwise every
   // launcher restart consumes another process and can hit EAGAIN.
-  if (await probeApi()) {
-    reuseHealthyApi();
-    return;
+  const reusedApi = await reuseOrWaitForExistingApi();
+  if (reusedApi) return;
+  const existingApiHealth = await probeApi();
+  if (isChildRunning(api)) {
+    const staleChild = api;
+    if (!(await stopApiChild(staleChild))) {
+      throw new Error(
+        `Unhealthy API child ${staleChild.pid ?? "unknown"} could not be stopped before restart (${existingApiHealth.detail}).`,
+      );
+    }
+    if (api === staleChild) api = undefined;
   }
 
   const startupLock = await acquireStartupLock();
@@ -261,6 +529,9 @@ async function startApiInternal() {
   }
 
   try {
+  if (await reuseOrWaitForExistingApi()) return;
+  await stopOrphanedApi();
+
   const shouldMigrate = process.env.AUTO_MIGRATE_LEGACY_SQL !== "false";
   const legacySqlPath = path.join(root, "legacy", "legacy.sql");
   const supabaseSqlPath = path.join(root, "supabase-import.sql");
@@ -350,19 +621,28 @@ async function startApiInternal() {
      migrationChecked = true;
   }
 
-  if (await probeApi()) {
+    if (await reuseOrWaitForExistingApi()) {
     // Hostinger can restart the public launcher while the previous API child
     // survives briefly. Reuse that healthy local API instead of creating a
     // second child that will fail with EADDRINUSE on API_INTERNAL_PORT.
-    reuseHealthyApi();
     return;
   }
 
-  const child = spawn(process.execPath, [path.join(root, "api", "index.mjs")], {
+   await stopOrphanedApi();
+
+  const child = spawn(process.execPath, ["--v8-pool-size=1", apiEntrypoint], {
     env: childEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
   api = child;
+  if (child.pid !== undefined) {
+    await fs.writeFile(apiPidPath, `${child.pid}\n`, "utf8").catch((error) => {
+      console.error("Could not persist API child ownership:", error);
+    });
+  }
+  console.log(
+    `Starting API child ${child.pid ?? "unknown"} on 127.0.0.1:${apiPort}; health timeout ${Math.round(apiStartupTimeoutMs / 1000)}s.`,
+  );
   pipeChildOutput(child.stdout, "api", true);
   pipeChildOutput(child.stderr, "api", true);
   let spawnError;
@@ -376,22 +656,41 @@ async function startApiInternal() {
     recordInstallLog(error.message, "error");
   });
   child.once("exit", (code, signal) => {
+    if (child.pid !== undefined) void clearApiPid(child.pid);
     if (api === child) api = undefined;
     apiReady = false;
     installState.apiRunning = false;
     const status = code === 0 ? `signal ${signal || "unknown"}` : `exit code ${code ?? signal}`;
+    const exitMessage = `API child ${child.pid ?? "unknown"} stopped (${status})`;
     if (!shuttingDown) {
       installState.phase = apiWasReady ? "degraded" : "error";
-      installState.error = `API stopped (${status})`;
+      installState.error = exitMessage;
+      console.error(exitMessage);
       recordInstallLog(installState.error, "error");
       if (apiWasReady) scheduleApiRestart(installState.error);
     }
   });
-  const healthy = await waitForApi(child);
-  if (!healthy) {
-    const detail = spawnError?.message || "API process did not become healthy before the startup timeout.";
-    if (isChildRunning(child)) child.kill("SIGTERM");
-    if (api === child) api = undefined;
+  const health = await waitForApi(child);
+  if (!health.healthy) {
+    const readinessProblem =
+      health.state === "error"
+        ? "reported a readiness failure"
+        : health.live && health.state === "starting"
+          ? "is alive but still initializing"
+          : health.exited
+            ? "exited before becoming ready"
+            : "did not answer its readiness check";
+    const detail = spawnError
+      ? `Could not spawn API child: ${spawnError.message}`
+      : `API child ${child.pid ?? "unknown"} ${readinessProblem} on 127.0.0.1:${apiPort} within ${Math.round(apiStartupTimeoutMs / 1000)}s (${health.detail}).`;
+    const keepInitializingChild = health.live && health.state === "starting";
+    if (isChildRunning(child) && !keepInitializingChild) {
+      const stopped = await stopApiChild(child);
+      if (!stopped) {
+        console.error(`API child ${child.pid ?? "unknown"} remains alive after forced shutdown.`);
+      }
+    }
+    if (api === child && !isChildRunning(child)) api = undefined;
     throw new Error(detail);
   }
   apiReady = true;
@@ -402,6 +701,7 @@ async function startApiInternal() {
   installState.error = null;
   installState.updatedAt = new Date().toISOString();
   recordInstallLog("API آماده است؛ می‌توانید وارد پنل شوید.");
+  startApiHealthMonitor();
   } finally {
     await releaseStartupLock(startupLock);
   }
@@ -409,13 +709,9 @@ async function startApiInternal() {
 
 async function startApi() {
   if (shuttingDown) return;
-  if (apiReady) {
-    if (isChildRunning(api) || await probeApi()) return;
-    apiReady = false;
-    installState.apiRunning = false;
-  }
-  if (isChildRunning(api)) return;
   if (startupPromise) return startupPromise;
+  // startApiInternal probes the health endpoint before deciding whether the
+  // existing process can be reused; process liveness alone is insufficient.
   startupPromise = startApiInternal()
     .catch((error) => {
       installState.phase = "error";
@@ -426,7 +722,7 @@ async function startApi() {
     })
     .finally(() => {
       startupPromise = undefined;
-      if (!shuttingDown && !apiReady && !isChildRunning(api)) {
+      if (!shuttingDown && !apiReady) {
         scheduleApiRestart(installState.error || "API startup failed");
       }
     });
@@ -687,6 +983,14 @@ void startApi();
 function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
+  if (apiHealthMonitor) {
+    clearInterval(apiHealthMonitor);
+    apiHealthMonitor = undefined;
+  }
+  if (apiRestartTimer) {
+    clearTimeout(apiRestartTimer);
+    apiRestartTimer = undefined;
+  }
   server.close();
   if (migrationProcess && !migrationProcess.killed) {
     migrationProcess.kill("SIGTERM");

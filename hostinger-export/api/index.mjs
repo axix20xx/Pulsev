@@ -40547,7 +40547,7 @@ var import_cookie_parser = __toESM(require_cookie_parser(), 1);
 var import_express4 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
-var import_express = __toESM(require_express2(), 1);
+var import_express3 = __toESM(require_express2(), 1);
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/helpers/util.js
 var util;
@@ -45060,16 +45060,8 @@ var UpdateResellerResponse = objectType({
   "created_at": stringType()
 });
 
-// src/routes/health.ts
-var router = (0, import_express.Router)();
-router.get("/healthz", (_req, res) => {
-  const data = HealthCheckResponse.parse({ status: "ok" });
-  res.json(data);
-});
-var health_default = router;
-
 // src/routes/management.ts
-var import_express3 = __toESM(require_express2(), 1);
+var import_express2 = __toESM(require_express2(), 1);
 import { randomBytes as randomBytes6 } from "node:crypto";
 
 // ../../node_modules/.pnpm/pg@8.22.0/node_modules/pg/esm/index.mjs
@@ -65014,10 +65006,10 @@ var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
 };
 
 // src/routes/mobile.ts
-var import_express2 = __toESM(require_express2(), 1);
+var import_express = __toESM(require_express2(), 1);
 var import_web_push = __toESM(require_src2(), 1);
 import { createHash as createHash4, randomBytes as randomBytes5 } from "node:crypto";
-var router2 = (0, import_express2.Router)();
+var router = (0, import_express.Router)();
 var mobileSessionCookie = "pulse_mobile_session";
 var sessionHash2 = (value) => createHash4("sha256").update(value).digest("hex");
 var mobileReady = pool.query(`
@@ -65678,8 +65670,8 @@ var startMobileNotificationWorker = () => {
   setInterval(run, 30 * 60 * 1e3).unref();
   setInterval(runCampaigns, 60 * 1e3).unref();
 };
-router2.use(attachMobileAuth);
-router2.post("/mobile/notifications/:id/track", async (req, res) => {
+router.use(attachMobileAuth);
+router.post("/mobile/notifications/:id/track", async (req, res) => {
   await mobileReady;
   if (!req.mobileAuth) {
     res.status(401).json({ error: "\u0648\u0631\u0648\u062F \u0645\u0634\u062A\u0631\u06CC \u0644\u0627\u0632\u0645 \u0627\u0633\u062A" });
@@ -65747,7 +65739,7 @@ var phoneCandidates = (input) => {
   return [...candidates].filter((value) => value.length >= 8 && value.length <= 15);
 };
 var normalizeMobileOtp = (input) => typeof input === "string" ? input.trim().replace(/[۰-۹]/g, (digit) => String("\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669".indexOf(digit))).replace(/\D/g, "") : "";
-router2.post("/mobile/auth/otp/request", async (req, res) => {
+router.post("/mobile/auth/otp/request", async (req, res) => {
   await Promise.all([mobileReady, mobileOtpReady]);
   const candidates = phoneCandidates(req.body?.phone);
   if (!candidates.length) {
@@ -65771,7 +65763,7 @@ router2.post("/mobile/auth/otp/request", async (req, res) => {
     customer: { name: row.customer_name, phone: row.phone }
   });
 });
-router2.post("/mobile/auth/otp/verify", async (req, res) => {
+router.post("/mobile/auth/otp/verify", async (req, res) => {
   await Promise.all([mobileReady, mobileOtpReady]);
   const candidates = phoneCandidates(req.body?.phone);
   const challengeId = typeof req.body?.challenge_id === "string" ? req.body.challenge_id.trim() : "";
@@ -65793,16 +65785,16 @@ router2.post("/mobile/auth/otp/verify", async (req, res) => {
   }
   await createMobileSession(res, row.customer_id, row.customer_name, row.phone, row.service_id ?? null);
 });
-router2.get("/mobile/auth/session", async (req, res) => {
+router.get("/mobile/auth/session", async (req, res) => {
   res.json(req.mobileAuth ? { authenticated: true, customer: { id: String(req.mobileAuth.customerId), name: req.mobileAuth.customerName, phone: req.mobileAuth.phone } } : { authenticated: false });
 });
-router2.post("/mobile/auth/logout", async (req, res) => {
+router.post("/mobile/auth/logout", async (req, res) => {
   const raw = req.cookies?.[mobileSessionCookie];
   if (typeof raw === "string" && raw) await pool.query("DELETE FROM mobile_sessions WHERE id = $1", [sessionHash2(raw)]);
   clearMobileCookie(res);
   res.sendStatus(204);
 });
-router2.get("/mobile/dashboard", requireMobileAuth, async (req, res) => {
+router.get("/mobile/dashboard", requireMobileAuth, async (req, res) => {
   await mobileReady;
   const subscriptions = await listServices(req, req.mobileAuth.customerId);
   const notifications = await pool.query(
@@ -65821,11 +65813,11 @@ router2.get("/mobile/dashboard", requireMobileAuth, async (req, res) => {
     unread_count: Number(unread.rows[0]?.count ?? 0)
   });
 });
-router2.get("/mobile/subscriptions", requireMobileAuth, async (req, res) => {
+router.get("/mobile/subscriptions", requireMobileAuth, async (req, res) => {
   await mobileReady;
   res.json(await listServices(req, req.mobileAuth.customerId));
 });
-router2.get("/mobile/subscriptions/:id", requireMobileAuth, async (req, res) => {
+router.get("/mobile/subscriptions/:id", requireMobileAuth, async (req, res) => {
   await mobileReady;
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id <= 0) {
@@ -65840,7 +65832,7 @@ router2.get("/mobile/subscriptions/:id", requireMobileAuth, async (req, res) => 
   }
   res.json(service);
 });
-router2.get("/mobile/notifications", requireMobileAuth, async (req, res) => {
+router.get("/mobile/notifications", requireMobileAuth, async (req, res) => {
   await mobileReady;
   const result = await pool.query(
     `SELECT id, notification_type AS type, title, body, href, tone, created_at, read_at
@@ -65849,17 +65841,17 @@ router2.get("/mobile/notifications", requireMobileAuth, async (req, res) => {
   );
   res.json(result.rows);
 });
-router2.patch("/mobile/notifications/:id/read", requireMobileAuth, async (req, res) => {
+router.patch("/mobile/notifications/:id/read", requireMobileAuth, async (req, res) => {
   await mobileReady;
   await pool.query("UPDATE mobile_notifications SET read_at = COALESCE(read_at, NOW()) WHERE id = $1 AND customer_id = $2", [Number(req.params.id), req.mobileAuth.customerId]);
   res.sendStatus(204);
 });
-router2.post("/mobile/notifications/read-all", requireMobileAuth, async (req, res) => {
+router.post("/mobile/notifications/read-all", requireMobileAuth, async (req, res) => {
   await mobileReady;
   await pool.query("UPDATE mobile_notifications SET read_at = NOW() WHERE customer_id = $1 AND read_at IS NULL", [req.mobileAuth.customerId]);
   res.sendStatus(204);
 });
-router2.get("/mobile/settings", requireMobileAuth, async (req, res) => {
+router.get("/mobile/settings", requireMobileAuth, async (req, res) => {
   await mobileReady;
   const result = await pool.query(
     `INSERT INTO mobile_notification_preferences (customer_id)
@@ -65869,7 +65861,7 @@ router2.get("/mobile/settings", requireMobileAuth, async (req, res) => {
   );
   res.json(result.rows[0]);
 });
-router2.patch("/mobile/settings", requireMobileAuth, async (req, res) => {
+router.patch("/mobile/settings", requireMobileAuth, async (req, res) => {
   await mobileReady;
   const body = req.body ?? {};
   const values = ["service_enabled", "renewal_enabled", "expiry_enabled", "usage_enabled", "system_enabled"].map((key) => body[key] === void 0 ? null : Boolean(body[key]) ? 1 : 0);
@@ -65888,7 +65880,7 @@ router2.patch("/mobile/settings", requireMobileAuth, async (req, res) => {
   );
   res.json({ saved: true });
 });
-router2.get("/mobile/push/status", requireMobileAuth, async (req, res) => {
+router.get("/mobile/push/status", requireMobileAuth, async (req, res) => {
   await mobileReady;
   const config3 = await getVapidConfig();
   const result = await pool.query(
@@ -65901,7 +65893,7 @@ router2.get("/mobile/push/status", requireMobileAuth, async (req, res) => {
     subscribed: Number(result.rows[0]?.count ?? 0) > 0
   });
 });
-router2.post("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
+router.post("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
   await mobileReady;
   const subscription = req.body?.subscription ?? req.body;
   const endpoint = typeof subscription?.endpoint === "string" ? subscription.endpoint.trim() : "";
@@ -65923,13 +65915,13 @@ router2.post("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
   const config3 = await getVapidConfig();
   res.json({ saved: true, vapid_public_key: config3.vapid_public_key });
 });
-router2.delete("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
+router.delete("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
   await mobileReady;
   const endpoint = typeof req.body?.endpoint === "string" ? req.body.endpoint.trim() : "";
   await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE endpoint = $1 AND customer_id = $2", [endpoint, req.mobileAuth.customerId]);
   res.sendStatus(204);
 });
-router2.post("/mobile/push/test", requireMobileAuth, async (req, res) => {
+router.post("/mobile/push/test", requireMobileAuth, async (req, res) => {
   await mobileReady;
   const result = await createNotification({
     customerId: req.mobileAuth.customerId,
@@ -65947,7 +65939,7 @@ router2.post("/mobile/push/test", requireMobileAuth, async (req, res) => {
     configured: true
   });
 });
-var mobile_default = router2;
+var mobile_default = router;
 
 // src/lib/subscription-formats.ts
 function decodeBase64(value) {
@@ -66183,8 +66175,8 @@ function toClashSubscription(body) {
 var MASTER_ADMIN_COST_PER_GB = 2500;
 var resellerCostPerGbSql = (alias = "r") => `CASE WHEN ${alias}.tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${alias}.per_gig_price, 0) END`;
 var saleAmountToAdminSql = (saleAlias = "s", resellerAlias = "r") => `CASE WHEN ${saleAlias}.reseller_tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${resellerAlias}.per_gig_price, 0) END`;
-var router3 = (0, import_express3.Router)();
-router3.use(attachAuth);
+var router2 = (0, import_express2.Router)();
+router2.use(attachAuth);
 var campaignTargets = /* @__PURE__ */ new Set(["all", "recipient", "expiring_3d", "expiring_7d", "expired", "low_traffic", "no_push", "unpaid"]);
 var notificationHref = (value) => {
   const input = typeof value === "string" ? value.trim() : "";
@@ -66223,7 +66215,7 @@ var campaignTargetLabel = (target) => ({
   no_push: "\u0628\u062F\u0648\u0646 \u062F\u0633\u062A\u06AF\u0627\u0647 Push",
   unpaid: "\u062F\u0627\u0631\u0627\u06CC \u067E\u0631\u062F\u0627\u062E\u062A \u0645\u0639\u0648\u0642"
 })[target] || "\u0645\u062E\u0627\u0637\u0628\u0627\u0646 \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0634\u062F\u0647";
-router3.get("/admin/notification-audience", requireMasterAdmin, async (req, res) => {
+router2.get("/admin/notification-audience", requireMasterAdmin, async (req, res) => {
   await Promise.all([managementReady, mobileReady]);
   const target = typeof req.query.target === "string" && campaignTargets.has(req.query.target) ? req.query.target : "all";
   const recipientId = Number(req.query.recipient_id);
@@ -66235,7 +66227,7 @@ router3.get("/admin/notification-audience", requireMasterAdmin, async (req, res)
   ) : { rows: [] };
   res.json({ target, label: campaignTargetLabel(target), count: ids.length, sample: sample.rows });
 });
-router3.get("/admin/notification-subscriptions", requireMasterAdmin, async (req, res) => {
+router2.get("/admin/notification-subscriptions", requireMasterAdmin, async (req, res) => {
   await Promise.all([managementReady, mobileReady]);
   const customerId2 = Number(req.query.customer_id);
   if (!Number.isSafeInteger(customerId2) || customerId2 <= 0) {
@@ -66271,7 +66263,7 @@ router3.get("/admin/notification-subscriptions", requireMasterAdmin, async (req,
     }))
   });
 });
-router3.get("/admin/notification-templates", requireMasterAdmin, async (req, res) => {
+router2.get("/admin/notification-templates", requireMasterAdmin, async (req, res) => {
   await mobileReady;
   const result = await pool.query(
     `SELECT id, name, notification_type, title, body, href, action_label, tone, created_at, updated_at
@@ -66279,7 +66271,7 @@ router3.get("/admin/notification-templates", requireMasterAdmin, async (req, res
   );
   res.json({ items: result.rows });
 });
-router3.post("/admin/notification-templates", requireMasterAdmin, async (req, res) => {
+router2.post("/admin/notification-templates", requireMasterAdmin, async (req, res) => {
   await mobileReady;
   const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 120) : "";
   const title = typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 120) : "";
@@ -66298,7 +66290,7 @@ router3.post("/admin/notification-templates", requireMasterAdmin, async (req, re
   );
   res.status(201).json(result.rows[0]);
 });
-router3.delete("/admin/notification-templates/:id", requireMasterAdmin, async (req, res) => {
+router2.delete("/admin/notification-templates/:id", requireMasterAdmin, async (req, res) => {
   await mobileReady;
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id <= 0) {
@@ -66308,7 +66300,7 @@ router3.delete("/admin/notification-templates/:id", requireMasterAdmin, async (r
   await pool.query("DELETE FROM notification_templates WHERE id = $1", [id]);
   res.json({ deleted: true });
 });
-router3.get("/admin/notification-recipients", requireMasterAdmin, async (req, res) => {
+router2.get("/admin/notification-recipients", requireMasterAdmin, async (req, res) => {
   await Promise.all([managementReady, mobileReady]);
   const kind = req.query.kind === "reseller" ? "reseller" : "customer";
   const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
@@ -66366,7 +66358,7 @@ router3.get("/admin/notification-recipients", requireMasterAdmin, async (req, re
   );
   res.json({ kind, items: result.rows });
 });
-router3.get("/admin/notification-status", requireMasterAdmin, async (req, res) => {
+router2.get("/admin/notification-status", requireMasterAdmin, async (req, res) => {
   await Promise.all([managementReady, mobileReady]);
   const kind = req.query.kind === "reseller" ? "reseller" : "customer";
   const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
@@ -66430,7 +66422,7 @@ router3.get("/admin/notification-status", requireMasterAdmin, async (req, res) =
   );
   res.json({ kind, items: result.rows });
 });
-router3.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res) => {
+router2.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res) => {
   await Promise.all([managementReady, mobileReady]);
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
@@ -66549,7 +66541,7 @@ router3.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res)
     pushErrors: []
   });
 });
-router3.get("/admin/notification-campaigns", requireMasterAdmin, async (req, res) => {
+router2.get("/admin/notification-campaigns", requireMasterAdmin, async (req, res) => {
   await Promise.all([managementReady, mobileReady]);
   const requestedLimit = Number(req.query.limit);
   const limit = Number.isSafeInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 30;
@@ -66574,7 +66566,7 @@ router3.get("/admin/notification-campaigns", requireMasterAdmin, async (req, res
   );
   res.json({ items: result.rows });
 });
-router3.get("/admin/notification-analytics", requireMasterAdmin, async (req, res) => {
+router2.get("/admin/notification-analytics", requireMasterAdmin, async (req, res) => {
   await Promise.all([managementReady, mobileReady]);
   const campaignId = Number(req.query.campaign_id);
   const params = [];
@@ -66614,7 +66606,7 @@ router3.get("/admin/notification-analytics", requireMasterAdmin, async (req, res
   );
   res.json({ summary: summary.rows[0] ?? {}, daily: daily.rows });
 });
-router3.get("/admin/notification-campaigns/:id/logs", requireMasterAdmin, async (req, res) => {
+router2.get("/admin/notification-campaigns/:id/logs", requireMasterAdmin, async (req, res) => {
   await Promise.all([managementReady, mobileReady]);
   const campaignId = Number(req.params.id);
   if (!Number.isSafeInteger(campaignId) || campaignId <= 0) {
@@ -66650,7 +66642,7 @@ router3.get("/admin/notification-campaigns/:id/logs", requireMasterAdmin, async 
   );
   res.json({ items: result.rows });
 });
-router3.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async (req, res) => {
+router2.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async (req, res) => {
   await Promise.all([managementReady, mobileReady]);
   const campaignId = Number(req.params.id);
   if (!Number.isSafeInteger(campaignId) || campaignId <= 0) {
@@ -66993,7 +66985,7 @@ var managementReady = pool.query(`
   console.error("Panel management schema initialization failed", error40);
   throw error40;
 });
-router3.use(async (_req, _res, next) => {
+router2.use(async (_req, _res, next) => {
   try {
     await managementReady;
     next();
@@ -67075,10 +67067,10 @@ var ownership = (alias, req) => req.auth?.role === "master_admin" ? { sql: "TRUE
   sql: `${alias}.reseller_tg_id = $1`,
   params: [req.auth?.telegramId]
 };
-router3.get("/auth/session", async (req, res) => {
+router2.get("/auth/session", async (req, res) => {
   res.json(sessionResponse(req.auth ? req.auth : null));
 });
-router3.post("/auth/telegram", async (req, res) => {
+router2.post("/auth/telegram", async (req, res) => {
   if (!telegramAuthConfigured()) {
     res.status(503).json({ error: "Telegram authentication is not configured" });
     return;
@@ -67116,7 +67108,7 @@ router3.post("/auth/telegram", async (req, res) => {
     })
   );
 });
-router3.post("/auth/telegram-id", async (req, res) => {
+router2.post("/auth/telegram-id", async (req, res) => {
   const parsed = LoginWithTelegramIdBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -67149,7 +67141,7 @@ router3.post("/auth/telegram-id", async (req, res) => {
     })
   );
 });
-router3.post("/auth/logout", async (req, res) => {
+router2.post("/auth/logout", async (req, res) => {
   const rawId = req.cookies?.pulse_session;
   if (typeof rawId === "string" && rawId) {
     await pool.query("DELETE FROM web_sessions WHERE id = $1", [
@@ -67159,7 +67151,7 @@ router3.post("/auth/logout", async (req, res) => {
   clearSessionCookie(res);
   res.sendStatus(204);
 });
-router3.get("/public/subscription/:token", async (req, res) => {
+router2.get("/public/subscription/:token", async (req, res) => {
   const token = String(req.params.token ?? "").trim();
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     res.status(404).json({ error: "\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -67243,7 +67235,7 @@ router3.get("/public/subscription/:token", async (req, res) => {
     announcement: { ...announcement, service_code: serviceCode }
   });
 });
-router3.get("/public/subscription/:token/feed", async (req, res) => {
+router2.get("/public/subscription/:token/feed", async (req, res) => {
   const token = String(req.params.token ?? "").trim();
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     res.status(404).send("Invalid subscription token");
@@ -67412,7 +67404,7 @@ router3.get("/public/subscription/:token/feed", async (req, res) => {
   res.setHeader("content-type", upstreamContentType || "text/plain; charset=utf-8");
   res.send(body);
 });
-router3.get("/public/subscription/:token/awg", async (req, res) => {
+router2.get("/public/subscription/:token/awg", async (req, res) => {
   const token = String(req.params.token ?? "").trim();
   const result = await pool.query(
     `SELECT svc.awg_client_id, svc.rain_username AS username, svc.status,
@@ -67452,7 +67444,7 @@ router3.get("/public/subscription/:token/awg", async (req, res) => {
     throw error40;
   }
 });
-router3.get("/panels", requireMasterAdmin, async (_req, res) => {
+router2.get("/panels", requireMasterAdmin, async (_req, res) => {
   const result = await pool.query(
     `SELECT p.key, p.kind, p.api_base, p.is_enabled = 1 AS enabled,
             p.username_secret, p.password_secret, p.api_key_secret,
@@ -67480,7 +67472,7 @@ router3.get("/panels", requireMasterAdmin, async (_req, res) => {
     }))
   );
 });
-router3.post("/panels/:key/test", requireMasterAdmin, async (req, res) => {
+router2.post("/panels/:key/test", requireMasterAdmin, async (req, res) => {
   const key = String(req.params.key ?? "").trim();
   if (!/^[a-z0-9_-]{2,64}$/.test(key)) {
     res.status(400).json({ ok: false, detail: "Provider key is invalid." });
@@ -67512,7 +67504,7 @@ function isProviderApiBase(value) {
 function credentialValue(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
-router3.post("/panels", requireMasterAdmin, async (req, res) => {
+router2.post("/panels", requireMasterAdmin, async (req, res) => {
   const body = req.body ?? {};
   const key = typeof body.key === "string" ? body.key.trim() : "";
   const kind = body.kind;
@@ -67555,11 +67547,11 @@ router3.post("/panels", requireMasterAdmin, async (req, res) => {
     throw error40;
   }
 });
-router3.get("/providers/available", requireAuth, async (_req, res) => {
+router2.get("/providers/available", requireAuth, async (_req, res) => {
   await managementReady;
   res.json(await listAvailablePanels());
 });
-router3.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
+router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
   const key = String(req.params.key ?? "").trim();
   const body = req.body ?? {};
   const requestedKind = body.kind === void 0 ? void 0 : typeof body.kind === "string" ? body.kind.trim().toLowerCase() : body.kind;
@@ -67598,7 +67590,7 @@ router3.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
   }
   res.json(result.rows[0]);
 });
-router3.delete("/panels/:key", requireMasterAdmin, async (req, res) => {
+router2.delete("/panels/:key", requireMasterAdmin, async (req, res) => {
   const key = String(req.params.key ?? "").trim();
   if (!/^[a-z0-9_-]{2,64}$/.test(key)) {
     res.status(400).json({ error: "\u06A9\u0644\u06CC\u062F Provider \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -67611,7 +67603,7 @@ router3.delete("/panels/:key", requireMasterAdmin, async (req, res) => {
   }
   res.json({ deleted: true, key });
 });
-router3.post("/panels/:key/assignments", requireMasterAdmin, async (req, res) => {
+router2.post("/panels/:key/assignments", requireMasterAdmin, async (req, res) => {
   const key = String(req.params.key ?? "").trim();
   const telegramId = Number(req.body?.reseller_tg_id);
   if (!/^[a-z0-9_-]{2,64}$/.test(key) || !Number.isSafeInteger(telegramId) || telegramId <= 0 || typeof req.body?.assigned !== "boolean") {
@@ -67638,7 +67630,7 @@ router3.post("/panels/:key/assignments", requireMasterAdmin, async (req, res) =>
   }
   res.json({ panel_key: key, reseller_tg_id: telegramId, assigned: req.body.assigned });
 });
-router3.get("/dashboard", requireAuth, async (req, res) => {
+router2.get("/dashboard", requireAuth, async (req, res) => {
   const owner = ownership("s", req);
   const serviceOwner = ownership("svc", req);
   const customerOwner = ownership("c", req);
@@ -67804,7 +67796,7 @@ router3.get("/dashboard", requireAuth, async (req, res) => {
     })
   );
 });
-router3.get("/notifications", requireAuth, async (req, res) => {
+router2.get("/notifications", requireAuth, async (req, res) => {
   if (req.auth?.role !== "reseller") {
     res.json([]);
     return;
@@ -67958,7 +67950,7 @@ router3.get("/notifications", requireAuth, async (req, res) => {
   );
   res.json(result.rows);
 });
-router3.post("/notifications/read-all", requireAuth, async (req, res) => {
+router2.post("/notifications/read-all", requireAuth, async (req, res) => {
   if (req.auth?.role === "reseller") {
     await pool.query(
       "UPDATE reseller_notifications SET read_at = COALESCE(read_at, NOW()) WHERE reseller_tg_id = $1",
@@ -67967,7 +67959,7 @@ router3.post("/notifications/read-all", requireAuth, async (req, res) => {
   }
   res.status(204).end();
 });
-router3.post("/notifications/:id/read", requireAuth, async (req, res) => {
+router2.post("/notifications/:id/read", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (req.auth?.role !== "reseller" || !Number.isSafeInteger(id) || id <= 0) {
     res.status(400).json({ error: "\u0627\u0639\u0644\u0627\u0646 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -67979,7 +67971,7 @@ router3.post("/notifications/:id/read", requireAuth, async (req, res) => {
   );
   res.status(204).end();
 });
-router3.get("/sales-summary", requireAuth, async (req, res) => {
+router2.get("/sales-summary", requireAuth, async (req, res) => {
   const range = requestedDateRange(req, 0);
   if (!range.from || !range.to || range.from > range.to) {
     res.status(400).json({ error: "\u0628\u0627\u0632\u0647 \u062A\u0627\u0631\u06CC\u062E \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -68177,7 +68169,7 @@ router3.get("/sales-summary", requireAuth, async (req, res) => {
     reseller_payment_history: resellerPaymentHistory.rows
   });
 });
-router3.get("/reports", requireAuth, async (req, res) => {
+router2.get("/reports", requireAuth, async (req, res) => {
   if (req.auth?.role !== "master_admin") {
     res.status(403).json({ error: "\u06AF\u0632\u0627\u0631\u0634 \u06A9\u0627\u0645\u0644 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0645\u062F\u06CC\u0631 \u0627\u0635\u0644\u06CC \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0627\u0633\u062A" });
     return;
@@ -68240,7 +68232,7 @@ router3.get("/reports", requireAuth, async (req, res) => {
     reseller_credit_sales: resellerCredits
   });
 });
-router3.get("/sales", requireAuth, async (req, res) => {
+router2.get("/sales", requireAuth, async (req, res) => {
   const parsed = ListSalesQueryParams.parse(req.query);
   const owner = ownership("s", req);
   const params = [...owner.params];
@@ -68288,7 +68280,7 @@ router3.get("/sales", requireAuth, async (req, res) => {
   );
   res.json(ListSalesResponse.parse(result.rows));
 });
-router3.get("/admin/sales", requireMasterAdmin, async (req, res) => {
+router2.get("/admin/sales", requireMasterAdmin, async (req, res) => {
   const parsed = ListAdminSalesQueryParams.parse(req.query);
   const params = [];
   const conditions = [];
@@ -68352,7 +68344,7 @@ router3.get("/admin/sales", requireMasterAdmin, async (req, res) => {
   );
   res.json(ListAdminSalesResponse.parse(result.rows));
 });
-router3.delete("/admin/sales/:id", requireMasterAdmin, async (req, res) => {
+router2.delete("/admin/sales/:id", requireMasterAdmin, async (req, res) => {
   const parsed = DeleteAdminSaleParams.safeParse(req.params);
   if (!parsed.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0641\u0631\u0648\u0634 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -68365,7 +68357,7 @@ router3.delete("/admin/sales/:id", requireMasterAdmin, async (req, res) => {
   }
   res.status(204).end();
 });
-router3.get("/service-action-requests", requireAuth, async (req, res) => {
+router2.get("/service-action-requests", requireAuth, async (req, res) => {
   await managementReady;
   const params = [];
   const owner = req.auth?.role === "master_admin" ? "TRUE" : (params.push(Number(req.auth?.telegramId)), `request.reseller_tg_id = $${params.length}`);
@@ -68402,7 +68394,7 @@ router3.get("/service-action-requests", requireAuth, async (req, res) => {
   );
   res.json(result.rows);
 });
-router3.post("/services/:id/cancellation-request", requireAuth, async (req, res) => {
+router2.post("/services/:id/cancellation-request", requireAuth, async (req, res) => {
   await managementReady;
   if (req.auth?.role !== "reseller") {
     res.status(403).json({ error: "\u0641\u0642\u0637 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u062F \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062B\u0628\u062A \u06A9\u0646\u062F" });
@@ -68476,7 +68468,7 @@ router3.post("/services/:id/cancellation-request", requireAuth, async (req, res)
   });
   res.status(201).json({ id: created.rows[0].id });
 });
-router3.post("/sales/:id/action-request", requireAuth, async (req, res) => {
+router2.post("/sales/:id/action-request", requireAuth, async (req, res) => {
   await managementReady;
   if (req.auth?.role !== "reseller") {
     res.status(403).json({ error: "\u0641\u0642\u0637 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u062F \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062B\u0628\u062A \u06A9\u0646\u062F" });
@@ -68518,7 +68510,7 @@ router3.post("/sales/:id/action-request", requireAuth, async (req, res) => {
   await recordAudit(req, "sale_log_removal_requested", "sale", saleId, { request_id: created.rows[0].id });
   res.status(201).json({ id: created.rows[0].id });
 });
-router3.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res) => {
+router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res) => {
   await managementReady;
   const requestId = Number(req.params.id);
   const cancelDecision = req.body?.cancel_service;
@@ -68658,7 +68650,7 @@ router3.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
   });
   res.json({ ok: true });
 });
-router3.patch("/sales/:id", requireAuth, async (req, res) => {
+router2.patch("/sales/:id", requireAuth, async (req, res) => {
   const params = UpdateSaleParams.safeParse(req.params);
   const body = UpdateSaleBody.safeParse(req.body);
   if (!params.success || !body.success) {
@@ -68713,7 +68705,7 @@ router3.patch("/sales/:id", requireAuth, async (req, res) => {
   );
   res.json(UpdateSaleResponse.parse(fresh.rows[0]));
 });
-router3.get("/search", requireAuth, async (req, res) => {
+router2.get("/search", requireAuth, async (req, res) => {
   const parsed = SearchWorkspaceQueryParams.parse(req.query);
   const search = String(parsed.search ?? "").trim();
   if (!search) {
@@ -68824,7 +68816,7 @@ router3.get("/search", requireAuth, async (req, res) => {
   );
   res.json(SearchWorkspaceResponse.parse(result.rows));
 });
-router3.patch("/reseller-credit-sales/:id", requireMasterAdmin, async (req, res) => {
+router2.patch("/reseller-credit-sales/:id", requireMasterAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const isPaid = req.body?.is_paid;
   if (!Number.isSafeInteger(id) || id <= 0 || typeof isPaid !== "boolean") {
@@ -68849,7 +68841,7 @@ router3.patch("/reseller-credit-sales/:id", requireMasterAdmin, async (req, res)
   }
   res.json(result.rows[0]);
 });
-router3.post("/reseller-settlement-payments", requireMasterAdmin, async (req, res) => {
+router2.post("/reseller-settlement-payments", requireMasterAdmin, async (req, res) => {
   const resellerTgId = Number(req.body?.reseller_tg_id);
   const amount = Number(req.body?.amount);
   const paymentDate = req.body?.payment_date === void 0 ? tehranIsoDate(/* @__PURE__ */ new Date()) : String(req.body.payment_date);
@@ -68920,7 +68912,7 @@ router3.post("/reseller-settlement-payments", requireMasterAdmin, async (req, re
     client.release();
   }
 });
-router3.get("/monitoring", requireAuth, async (req, res) => {
+router2.get("/monitoring", requireAuth, async (req, res) => {
   const owner = ownership("svc", req);
   const [summary, jobs] = await Promise.all([
     pool.query(
@@ -68966,7 +68958,7 @@ router3.get("/monitoring", requireAuth, async (req, res) => {
     jobs: jobs.rows
   });
 });
-router3.post("/monitoring/jobs/:id/retry", requireAuth, async (req, res) => {
+router2.post("/monitoring/jobs/:id/retry", requireAuth, async (req, res) => {
   const jobId = Number(req.params.id);
   if (!Number.isInteger(jobId) || jobId < 1) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u062C\u0627\u0628 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A." });
@@ -69003,7 +68995,7 @@ router3.post("/monitoring/jobs/:id/retry", requireAuth, async (req, res) => {
   }
   res.json({ ok: true, job_id: jobId });
 });
-router3.get("/pasarguard/connections", requireAuth, async (req, res) => {
+router2.get("/pasarguard/connections", requireAuth, async (req, res) => {
   const owner = ownership("svc", req);
   const [remoteUsers, localUsers] = await Promise.all([
     listPasarguardConnectionUsers(req.auth?.telegramId, req.auth?.role),
@@ -69025,7 +69017,7 @@ router3.get("/pasarguard/connections", requireAuth, async (req, res) => {
   }).filter((user) => Boolean(user));
   res.json({ generated_at: (/* @__PURE__ */ new Date()).toISOString(), users });
 });
-router3.get("/services", requireAuth, async (req, res) => {
+router2.get("/services", requireAuth, async (req, res) => {
   const parsed = ListServicesQueryParams.parse(req.query);
   const owner = ownership("svc", req);
   const params = [...owner.params];
@@ -69130,7 +69122,7 @@ router3.get("/services", requireAuth, async (req, res) => {
   );
   res.json(ListServicesResponse.parse(result.rows));
 });
-router3.post("/services", requireAuth, async (req, res) => {
+router2.post("/services", requireAuth, async (req, res) => {
   const body = CreateServiceBody.safeParse(req.body ?? {});
   if (!body.success) {
     res.status(400).json({ error: "\u0645\u0634\u062E\u0635\u0627\u062A \u0645\u0634\u062A\u0631\u06CC \u0648 \u0628\u0633\u062A\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -69364,7 +69356,7 @@ router3.post("/services", requireAuth, async (req, res) => {
     client.release();
   }
 });
-router3.patch("/services/:id", requireAuth, async (req, res) => {
+router2.patch("/services/:id", requireAuth, async (req, res) => {
   const params = UpdateServiceParams.safeParse(req.params);
   const body = UpdateServiceBody.safeParse(req.body);
   if (!params.success || !body.success) {
@@ -69458,7 +69450,7 @@ router3.patch("/services/:id", requireAuth, async (req, res) => {
   );
   res.json(UpdateServiceResponse.parse(fresh.rows[0]));
 });
-router3.post("/services/:id/renew", requireAuth, async (req, res) => {
+router2.post("/services/:id/renew", requireAuth, async (req, res) => {
   const params = RenewServiceParams.safeParse(req.params);
   const body = RenewServiceBody.safeParse(req.body ?? {});
   if (!params.success || !body.success) {
@@ -69803,7 +69795,7 @@ router3.post("/services/:id/renew", requireAuth, async (req, res) => {
     lifecycleLock.release();
   }
 });
-router3.post("/services/:id/awg", requireAuth, async (req, res) => {
+router2.post("/services/:id/awg", requireAuth, async (req, res) => {
   const params = UpdateServiceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -69851,7 +69843,7 @@ router3.post("/services/:id/awg", requireAuth, async (req, res) => {
   );
   res.status(201).json({ awg_ready: true, awg_config_url: `/api/services/${params.data.id}/awg/config` });
 });
-router3.get("/services/:id/awg/config", requireAuth, async (req, res) => {
+router2.get("/services/:id/awg/config", requireAuth, async (req, res) => {
   const params = UpdateServiceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -69883,7 +69875,7 @@ router3.get("/services/:id/awg/config", requireAuth, async (req, res) => {
     throw error40;
   }
 });
-router3.post("/services/:id/reset-token", requireAuth, async (req, res) => {
+router2.post("/services/:id/reset-token", requireAuth, async (req, res) => {
   const params = UpdateServiceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -69921,7 +69913,7 @@ router3.post("/services/:id/reset-token", requireAuth, async (req, res) => {
     client.release();
   }
 });
-router3.get("/customers", requireAuth, async (req, res) => {
+router2.get("/customers", requireAuth, async (req, res) => {
   const parsed = ListCustomersQueryParams.parse(req.query);
   const owner = ownership("c", req);
   const params = [...owner.params];
@@ -69978,7 +69970,7 @@ router3.get("/customers", requireAuth, async (req, res) => {
   res.setHeader("X-Total-Pages", String(Math.max(1, Math.ceil(total / parsed.limit))));
   res.json(ListCustomersResponse.parse(result.rows));
 });
-router3.get("/customers/:id", requireAuth, async (req, res) => {
+router2.get("/customers/:id", requireAuth, async (req, res) => {
   const parsed = GetCustomerParams.safeParse(req.params);
   if (!parsed.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0645\u0634\u062A\u0631\u06CC \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -70100,7 +70092,7 @@ router3.get("/customers/:id", requireAuth, async (req, res) => {
     })
   );
 });
-router3.post("/customers/:id/mobile-otp", requireAuth, async (req, res) => {
+router2.post("/customers/:id/mobile-otp", requireAuth, async (req, res) => {
   if (req.auth?.role !== "reseller" && req.auth?.role !== "master_admin") {
     res.status(403).json({ error: "\u0641\u0642\u0637 \u0645\u062F\u06CC\u0631 \u0627\u0635\u0644\u06CC \u06CC\u0627 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u062F \u06A9\u062F \u0648\u0631\u0648\u062F \u062A\u0627\u0632\u0647 \u0628\u0633\u0627\u0632\u062F." });
     return;
@@ -70130,7 +70122,7 @@ router3.post("/customers/:id/mobile-otp", requireAuth, async (req, res) => {
     expires_at: null
   });
 });
-router3.get("/resellers", requireMasterAdmin, async (_req, res) => {
+router2.get("/resellers", requireMasterAdmin, async (_req, res) => {
   const result = await pool.query(
     `SELECT id, tg_id::float8 AS telegram_id, title, total_gb::float8 AS total_gb,
        used_gb::float8 AS used_gb,
@@ -70142,7 +70134,7 @@ router3.get("/resellers", requireMasterAdmin, async (_req, res) => {
   );
   res.json(ListResellersResponse.parse(result.rows));
 });
-router3.patch("/resellers/:id", requireMasterAdmin, async (req, res) => {
+router2.patch("/resellers/:id", requireMasterAdmin, async (req, res) => {
   const params = UpdateResellerParams.safeParse(req.params);
   const body = UpdateResellerBody.safeParse(req.body);
   if (!params.success || !body.success) {
@@ -70175,7 +70167,7 @@ router3.patch("/resellers/:id", requireMasterAdmin, async (req, res) => {
   }
   res.json(UpdateResellerResponse.parse(result.rows[0]));
 });
-router3.post("/reseller-credit-sales", requireMasterAdmin, async (req, res) => {
+router2.post("/reseller-credit-sales", requireMasterAdmin, async (req, res) => {
   const resellerId = Number(req.body?.reseller_id);
   const gbAmount = Number(req.body?.gb_amount);
   const unitPrice = Number(req.body?.unit_price);
@@ -70234,7 +70226,7 @@ var customerId = (req) => {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 };
 var customerAccess = (req, id) => req.auth?.role === "master_admin" ? { sql: "c.id = $1", params: [id] } : { sql: "c.id = $1 AND c.reseller_tg_id = $2", params: [id, req.auth?.telegramId] };
-router3.get("/customers/:id/crm", requireAuth, async (req, res) => {
+router2.get("/customers/:id/crm", requireAuth, async (req, res) => {
   await managementReady;
   const id = customerId(req);
   if (id === null) {
@@ -70294,7 +70286,7 @@ router3.get("/customers/:id/crm", requireAuth, async (req, res) => {
     }
   });
 });
-router3.post("/customers/:id/tags", requireAuth, async (req, res) => {
+router2.post("/customers/:id/tags", requireAuth, async (req, res) => {
   await managementReady;
   const id = customerId(req);
   const tag = typeof req.body?.tag === "string" ? req.body.tag.trim() : "";
@@ -70315,7 +70307,7 @@ router3.post("/customers/:id/tags", requireAuth, async (req, res) => {
   await recordAudit(req, "tag_added", "customer", id, { tag });
   res.status(201).json({ tag });
 });
-router3.delete("/customers/:id/tags/:tag", requireAuth, async (req, res) => {
+router2.delete("/customers/:id/tags/:tag", requireAuth, async (req, res) => {
   await managementReady;
   const id = customerId(req);
   const tag = String(req.params.tag ?? "").trim();
@@ -70340,7 +70332,7 @@ router3.delete("/customers/:id/tags/:tag", requireAuth, async (req, res) => {
   await recordAudit(req, "tag_removed", "customer", id, { tag });
   res.json({ tag });
 });
-router3.post("/customers/:id/notes", requireAuth, async (req, res) => {
+router2.post("/customers/:id/notes", requireAuth, async (req, res) => {
   await managementReady;
   const id = customerId(req);
   const note = typeof req.body?.note === "string" ? req.body.note.trim() : "";
@@ -70438,7 +70430,7 @@ var summarizeCommandAttention = (attention) => ({
   top_kind: attention[0]?.kind ?? null,
   top_title: attention[0]?.title ?? null
 });
-router3.get("/admin/audit", requireMasterAdmin, async (req, res) => {
+router2.get("/admin/audit", requireMasterAdmin, async (req, res) => {
   await managementReady;
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 100));
   const result = await pool.query(
@@ -70448,7 +70440,7 @@ router3.get("/admin/audit", requireMasterAdmin, async (req, res) => {
   );
   res.json(result.rows);
 });
-router3.get("/command-center", requireAuth, async (req, res) => {
+router2.get("/command-center", requireAuth, async (req, res) => {
   await managementReady;
   const master = req.auth.role === "master_admin";
   const owner = master ? "TRUE" : "svc.reseller_tg_id = $1";
@@ -70610,7 +70602,7 @@ router3.get("/command-center", requireAuth, async (req, res) => {
     recent_activity: activity.rows
   });
 });
-router3.get("/insights", requireAuth, async (req, res) => {
+router2.get("/insights", requireAuth, async (req, res) => {
   await managementReady;
   const master = req.auth.role === "master_admin";
   const ownerParam = master ? [] : [req.auth.telegramId];
@@ -70760,7 +70752,31 @@ router3.get("/insights", requireAuth, async (req, res) => {
     reports: { packages: packageReport.rows, best_periods: periodReport.rows }
   });
 });
-var management_default = router3;
+var management_default = router2;
+
+// src/routes/health.ts
+var router3 = (0, import_express3.Router)();
+var readinessState = "starting";
+void Promise.all([managementReady, mobileReady]).then(
+  () => {
+    readinessState = "ready";
+  },
+  () => {
+    readinessState = "error";
+  }
+);
+router3.get("/healthz", (_req, res) => {
+  const data = HealthCheckResponse.parse({ status: "ok" });
+  res.json(data);
+});
+router3.get("/readyz", (_req, res) => {
+  if (readinessState === "ready") {
+    res.json({ status: "ready" });
+    return;
+  }
+  res.status(503).json({ status: readinessState });
+});
+var health_default = router3;
 
 // src/routes/index.ts
 var router4 = (0, import_express4.Router)();
