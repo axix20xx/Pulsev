@@ -1,3 +1,4 @@
+import { writeSync } from "node:fs";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startProvisioningWorker } from "./lib/provisioning-worker";
@@ -18,12 +19,14 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
-
+writeSync(2, `[api bootstrap] modules loaded; about to bind port ${port}\n`);
+const bindHost =
+  process.env.HOSTINGER_INTERNAL_API === "true" ? "127.0.0.1" : undefined;
+const onListening = () => {
+  writeSync(
+    2,
+    `[api bootstrap] listening on ${bindHost || "default interface"}:${port}\n`,
+  );
   logger.info({ port }, "Server listening");
   void managementReady
     .then(() => {
@@ -31,4 +34,12 @@ app.listen(port, (err) => {
       startRainGroupSyncWorker();
     })
     .catch((error) => logger.error({ err: error }, "Provisioning worker failed to start"));
+};
+const server = bindHost
+  ? app.listen(port, bindHost, onListening)
+  : app.listen(port, onListening);
+server.on("error", (error) => {
+  const detail = error instanceof Error ? error.stack || error.message : String(error);
+  writeSync(2, `[api bootstrap] listen failed on port ${port}: ${detail}\n`);
+  process.exit(1);
 });

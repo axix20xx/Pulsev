@@ -15,7 +15,8 @@ const panelSubscriptionAssetsRoot = path.join(publicRoot, "panel-sub-assets");
 const installerPath = path.join(root, "installer.html");
 const startupLockPath = path.join(root, ".pulse-startup.lock");
 const apiPidPath = path.join(root, ".pulse-api.pid");
-const apiEntrypoint = path.join(root, "api", "index.mjs");
+const apiEntrypoint = path.join(root, "api", "hostinger-entry.mjs");
+const legacyApiEntrypoint = path.join(root, "api", "index.mjs");
 const publicPort = Number(process.env.PORT || 3000);
 const apiPort = Number(process.env.API_INTERNAL_PORT || publicPort + 1);
 const apiStartupTimeoutMs = configuredDuration(
@@ -109,7 +110,7 @@ function pipeChildOutput(stream, source, onlyErrors = false) {
     const importantApiLog =
       source !== "api" ||
       !onlyErrors ||
-      /"level"\s*:\s*(?:40|50|60)|\b(?:warn|error|fatal|failed|exception|unhandled|assertion|EADDRINUSE|EAGAIN)\b/i.test(
+      /"level"\s*:\s*(?:40|50|60)|"(?:msg|message)"\s*:\s*"Server listening"|API bootstrap|\b(?:warn|error|fatal|failed|exception|unhandled|assertion|EADDRINUSE|EAGAIN)\b/i.test(
         text,
       );
     const isStackLine =
@@ -240,20 +241,53 @@ function reuseHealthyApi() {
 
 async function waitForApi(child, timeoutMs = apiStartupTimeoutMs) {
   const startedAt = Date.now();
+  const startupDiagnosticAfterMs = Math.min(
+    30_000,
+    Math.max(5_000, Math.floor(timeoutMs / 2)),
+  );
   let lastProbe = { healthy: false, detail: "health check has not run yet" };
+  let startupDiagnosticLogged = false;
   while (Date.now() - startedAt < timeoutMs) {
     lastProbe = await probeApi();
     if (lastProbe.healthy) return lastProbe;
     if (lastProbe.state === "error") {
       const liveness = await probeApi("/api/healthz");
-      return { ...lastProbe, failed: true, live: liveness.healthy };
+      return {
+        ...lastProbe,
+        failed: true,
+        live: liveness.healthy,
+        livenessDetail: liveness.detail,
+      };
     }
     if (child && !isChildRunning(child)) {
-      return { ...lastProbe, exited: true, live: false };
+      return {
+        ...lastProbe,
+        exited: true,
+        live: false,
+        livenessDetail: "child exited before the liveness endpoint responded",
+      };
     }
     const liveness = await probeApi("/api/healthz");
     if (!child && !liveness.healthy) {
-      return { ...lastProbe, exited: true, live: false };
+      return {
+        ...lastProbe,
+        exited: true,
+        live: false,
+        livenessDetail: liveness.detail,
+      };
+    }
+    if (
+      child &&
+      !startupDiagnosticLogged &&
+      Date.now() - startedAt >= startupDiagnosticAfterMs
+    ) {
+      const childState = isChildRunning(child) ? "still running" : "not running";
+      const message =
+        `API startup diagnostic: child ${child.pid ?? "unknown"} is ${childState}; ` +
+        `readiness ${lastProbe.detail}; liveness ${liveness.detail}.`;
+      console.error(message);
+      recordInstallLog(message, "error");
+      startupDiagnosticLogged = true;
     }
     await wait(500);
   }
@@ -263,6 +297,7 @@ async function waitForApi(child, timeoutMs = apiStartupTimeoutMs) {
     ...lastProbe,
     exited: child ? !isChildRunning(child) : !liveness.healthy,
     live: liveness.healthy,
+    livenessDetail: liveness.detail,
   };
 }
 
@@ -332,7 +367,8 @@ async function stopApiChild(child) {
 async function isOwnedApiProcessRunning(pid) {
   if (!Number.isSafeInteger(pid) || pid <= 0) return false;
   const commandLine = await fs.readFile(`/proc/${pid}/cmdline`, "utf8").catch(() => "");
-  return commandLine.split("\0").includes(apiEntrypoint);
+  const argumentsList = commandLine.split("\0");
+  return argumentsList.includes(apiEntrypoint) || argumentsList.includes(legacyApiEntrypoint);
 }
 
 async function clearApiPid(pid) {
@@ -484,6 +520,7 @@ async function startApiInternal() {
     // Hostinger has a finite application-log quota. Keep normal request
     // completion logs out of production by default; warnings/errors remain.
     LOG_LEVEL: process.env.LOG_LEVEL || "warn",
+    HOSTINGER_INTERNAL_API: "true",
     UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE || "1",
     PORT: String(apiPort),
   };
@@ -680,9 +717,13 @@ async function startApiInternal() {
           : health.exited
             ? "exited before becoming ready"
             : "did not answer its readiness check";
+    const livenessDetail = health.live
+      ? "liveness endpoint is responding"
+      : `liveness check failed (${health.livenessDetail || "no response"})`;
+    const processDetail = isChildRunning(child) ? "child remained running" : "child exited";
     const detail = spawnError
       ? `Could not spawn API child: ${spawnError.message}`
-      : `API child ${child.pid ?? "unknown"} ${readinessProblem} on 127.0.0.1:${apiPort} within ${Math.round(apiStartupTimeoutMs / 1000)}s (${health.detail}).`;
+      : `API child ${child.pid ?? "unknown"} ${readinessProblem} on 127.0.0.1:${apiPort} within ${Math.round(apiStartupTimeoutMs / 1000)}s (${health.detail}; ${livenessDetail}; ${processDetail}).`;
     const keepInitializingChild = health.live && health.state === "starting";
     if (isChildRunning(child) && !keepInitializingChild) {
       const stopped = await stopApiChild(child);

@@ -21324,13 +21324,13 @@ var require_application = __commonJS({
       tryRender(view, renderOptions, done);
     };
     app2.listen = function listen() {
-      var server = http.createServer(this);
+      var server2 = http.createServer(this);
       var args = slice.call(arguments);
       if (typeof args[args.length - 1] === "function") {
         var done = args[args.length - 1] = once(args[args.length - 1]);
-        server.once("error", done);
+        server2.once("error", done);
       }
-      return server.listen.apply(server, args);
+      return server2.listen.apply(server2, args);
     };
     function logerror(err) {
       if (this.get("env") !== "test") console.error(err.stack || err.toString());
@@ -26286,7 +26286,7 @@ var require_thread_stream = __commonJS({
         }
         if (this[kImpl].flushing && this[kImpl].buf.length + data.length >= MAX_STRING) {
           try {
-            writeSync(this);
+            writeSync2(this);
             this[kImpl].flushing = true;
           } catch (err) {
             destroy(this, err);
@@ -26296,7 +26296,7 @@ var require_thread_stream = __commonJS({
         this[kImpl].buf += data;
         if (this[kImpl].sync) {
           try {
-            writeSync(this);
+            writeSync2(this);
             return true;
           } catch (err) {
             destroy(this, err);
@@ -26342,7 +26342,7 @@ var require_thread_stream = __commonJS({
         if (this[kImpl].destroyed) {
           return;
         }
-        writeSync(this);
+        writeSync2(this);
         flushSync(this);
       }
       unref() {
@@ -26446,7 +26446,7 @@ var require_thread_stream = __commonJS({
         destroy(stream, err);
       }
     }
-    function writeSync(stream) {
+    function writeSync2(stream) {
       const cb = () => {
         if (stream[kImpl].ending) {
           end(stream);
@@ -40536,6 +40536,9 @@ var require_src2 = __commonJS({
     };
   }
 });
+
+// src/index.ts
+import { writeSync } from "node:fs";
 
 // src/app.ts
 var import_express5 = __toESM(require_express2(), 1);
@@ -71235,16 +71238,27 @@ var port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
-app_default.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+writeSync(2, `[api bootstrap] modules loaded; about to bind port ${port}
+`);
+var bindHost = process.env.HOSTINGER_INTERNAL_API === "true" ? "127.0.0.1" : void 0;
+var onListening = () => {
+  writeSync(
+    2,
+    `[api bootstrap] listening on ${bindHost || "default interface"}:${port}
+`
+  );
   logger.info({ port }, "Server listening");
   void managementReady.then(() => {
     startProvisioningWorker();
     startRainGroupSyncWorker();
   }).catch((error40) => logger.error({ err: error40 }, "Provisioning worker failed to start"));
+};
+var server = bindHost ? app_default.listen(port, bindHost, onListening) : app_default.listen(port, onListening);
+server.on("error", (error40) => {
+  const detail = error40 instanceof Error ? error40.stack || error40.message : String(error40);
+  writeSync(2, `[api bootstrap] listen failed on port ${port}: ${detail}
+`);
+  process.exit(1);
 });
 /*! Bundled license information:
 

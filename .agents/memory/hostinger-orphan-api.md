@@ -25,4 +25,10 @@ Keep API liveness and readiness separate. Liveness must respond immediately; rea
 
 **Why:** The login/session route waits for `managementReady`, so treating it as a liveness probe can cause false startup timeouts and restart the API while DDL is still running. A liveness-only startup check has the opposite risk: the panel appears ready before its schema is usable.
 
-**How to apply:** Keep `/api/healthz` independent of database setup and expose a fast `/api/readyz` status with `starting`, `ready`, or `error`; never kill a responsive `starting` API just because its readiness window elapsed.
+**How to apply:** Keep `/api/healthz` independent of database setup and expose a fast `/api/readyz` status with `starting`, `ready`, or `error`; never kill a responsive `starting` API just because its readiness window elapsed. If both probes return `ECONNREFUSED`, diagnose process bootstrap or port binding rather than schema readiness.
+
+Bind the Hostinger-only API child explicitly to IPv4 loopback (`127.0.0.1`), matching the launcher's internal probes; leave the shared Replit API's bind behavior unchanged.
+
+**Why:** A wildcard/default address can select an address family that does not match the supervisor's IPv4 probe on some hosts.
+
+**How to apply:** Set a Hostinger-specific child environment flag and branch the API listener address on that flag, rather than changing the shared API's default host.

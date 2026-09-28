@@ -10,6 +10,7 @@ const requiredFiles = [
   "web/showcase/index.html",
   "web/sub-app/index.html",
   "api/index.mjs",
+  "api/hostinger-entry.mjs",
   "api/lib/migrate-legacy-sql.mjs",
 ];
 
