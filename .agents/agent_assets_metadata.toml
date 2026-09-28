@@ -940,3 +940,17 @@ mtime_ms = 1790580131559
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/d1914a19-062a-4be0-8f97-bad6daf2b7d9/229ad519-22e2-4c14-b048-0008684c7302"
 storage_version_token = "1790580148951362"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "lesTdrs4FtiY57LYMVlDn"
+uri = "file://exports/pulse-hostinger-api-bootstrap-fixed-express.zip"
+type = "unspecified"
+title = "Fixed Hostinger Express ZIP"
+description = "Based on the newly attached archive, with Express framework metadata and the updated API self-probe diagnostics."
+logical_id = "fad8c4f1-df6b-49f2-87d1-32c7852a52c9"
+content_hash = "sha256:03cf990d151c5d4b66dc555e924f3847189619e02da90980acbb51c96787113d"
+size = 27866447
+mtime_ms = 1790580394399
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/fad8c4f1-df6b-49f2-87d1-32c7852a52c9/2a858a1b-6549-491e-b952-13c31aa80806"
+storage_version_token = "1790580403731083"
+content_type = "application/octet-stream"
