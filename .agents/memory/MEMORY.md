@@ -28,6 +28,7 @@
 - [Hostinger orphan API process](hostinger-orphan-api.md) — after forced restarts, reuse a healthy internal API child instead of spawning a second process on the fixed internal port.
 - [Hostinger runtime boundary](hostinger-runtime-boundary.md) — verify SSH is on the Web App host before treating localhost and process checks as deployment evidence.
 - [Hostinger framework detection](hostinger-framework-detection.md) — keep Express declared in the flat deployment manifest so Hostinger can detect the bundled Node app.
+- [Hostinger private API transport](hostinger-private-api-transport.md) — keep parent/child API traffic on a private Unix socket when Hostinger loopback TCP refuses despite a listening server.
 - [Hostinger bundle synchronization](hostinger-bundle-synchronization.md) — source route changes do not update the deploy ZIP until API and each route-specific frontend bundle are rebuilt and copied.
 - [Provider subscription feed](provider-subscription-feed.md) — public feeds must resolve through active Provider URLs; legacy token proxying is compatibility-only.
 - [Session guard and logout](session-guard-logout.md) — management UI must trust only server sessions; same-origin login and logout must survive proxy hosts and stale client caches.

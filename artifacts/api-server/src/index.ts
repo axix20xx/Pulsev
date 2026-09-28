@@ -20,18 +20,34 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-writeSync(2, `[api bootstrap] modules loaded; about to bind port ${port}\n`);
+const internalSocketPath = process.env.HOSTINGER_INTERNAL_API_SOCKET;
+writeSync(
+  2,
+  internalSocketPath
+    ? `[api bootstrap] modules loaded; about to bind private socket ${internalSocketPath}\n`
+    : `[api bootstrap] modules loaded; about to bind port ${port}\n`,
+);
 const bindHost =
   process.env.HOSTINGER_INTERNAL_API === "true" ? "127.0.0.1" : undefined;
-const server = bindHost
-  ? app.listen(port, bindHost)
-  : app.listen(port);
+const server = internalSocketPath
+  ? app.listen(internalSocketPath)
+  : bindHost
+    ? app.listen(port, bindHost)
+    : app.listen(port);
 server.once("listening", () => {
+  const listenTarget = internalSocketPath
+    ? `Unix socket ${internalSocketPath}`
+    : `${bindHost || "default interface"}:${port}`;
   writeSync(
     2,
-    `[api bootstrap] listening on ${bindHost || "default interface"}:${port}\n`,
+    `[api bootstrap] listening on ${listenTarget}\n`,
   );
-  if (bindHost) {
+  if (internalSocketPath) {
+    writeSync(
+      2,
+      `[api bootstrap] actual socket ${JSON.stringify(server.address())}\n`,
+    );
+  } else if (bindHost) {
     let networkNamespace: string;
     try {
       networkNamespace = readlinkSync("/proc/self/ns/net");
@@ -42,8 +58,23 @@ server.once("listening", () => {
       2,
       `[api bootstrap] actual socket ${JSON.stringify(server.address())}; network ${networkNamespace}\n`,
     );
+  }
+  if (internalSocketPath || bindHost) {
+    const probeOptions = internalSocketPath
+      ? {
+          socketPath: internalSocketPath,
+          path: "/api/healthz",
+          headers: { host: `127.0.0.1:${port}` },
+          timeout: 3_000,
+        }
+      : {
+          hostname: bindHost || "127.0.0.1",
+          port,
+          path: "/api/healthz",
+          timeout: 3_000,
+        };
     const selfProbe = get(
-      { hostname: bindHost, port, path: "/api/healthz", timeout: 3_000 },
+      probeOptions,
       (response) => {
         writeSync(2, `[api bootstrap] self-health HTTP ${response.statusCode}\n`);
         response.resume();
@@ -64,6 +95,9 @@ server.once("listening", () => {
 });
 server.on("error", (error) => {
   const detail = error instanceof Error ? error.stack || error.message : String(error);
-  writeSync(2, `[api bootstrap] listen failed on port ${port}: ${detail}\n`);
+  const listenTarget = internalSocketPath
+    ? `Unix socket ${internalSocketPath}`
+    : `port ${port}`;
+  writeSync(2, `[api bootstrap] listen failed on ${listenTarget}: ${detail}\n`);
   process.exit(1);
 });

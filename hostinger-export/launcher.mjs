@@ -1,7 +1,9 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +17,13 @@ const panelSubscriptionAssetsRoot = path.join(publicRoot, "panel-sub-assets");
 const installerPath = path.join(root, "installer.html");
 const startupLockPath = path.join(root, ".pulse-startup.lock");
 const apiPidPath = path.join(root, ".pulse-api.pid");
+const apiSocketPath = path.join(
+  tmpdir(),
+  `pulse-api-${process.getuid?.() ?? "app"}-${createHash("sha256")
+    .update(root)
+    .digest("hex")
+    .slice(0, 12)}.sock`,
+);
 const apiEntrypoint = path.join(root, "api", "hostinger-entry.mjs");
 const legacyApiEntrypoint = path.join(root, "api", "index.mjs");
 const publicPort = Number(process.env.PORT || 3000);
@@ -184,8 +193,7 @@ function probeApi(path = "/api/readyz") {
     };
     const request = http.request(
       {
-        hostname: "127.0.0.1",
-        port: apiPort,
+        socketPath: apiSocketPath,
         path,
         method: "GET",
         headers: { host: `127.0.0.1:${apiPort}` },
@@ -442,6 +450,28 @@ async function stopOrphanedApi() {
   return stopped;
 }
 
+async function removeStaleApiSocket() {
+  try {
+    const stat = await fs.lstat(apiSocketPath);
+    if (!stat.isSocket()) {
+      throw new Error(`Refusing to remove non-socket API path: ${apiSocketPath}`);
+    }
+    if (typeof process.getuid === "function" && stat.uid !== process.getuid()) {
+      throw new Error(`Refusing to remove API socket owned by another user: ${apiSocketPath}`);
+    }
+    const health = await probeApi("/api/healthz");
+    if (health.healthy || !/ECONNREFUSED|ENOENT/.test(health.detail)) {
+      throw new Error(`Cannot confirm API socket is stale (${health.detail}).`);
+    }
+    await fs.unlink(apiSocketPath);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+}
+
 function startApiHealthMonitor() {
   if (apiHealthMonitor) return;
   apiHealthMonitor = setInterval(() => {
@@ -534,7 +564,7 @@ async function startApiInternal() {
     // Hostinger has a finite application-log quota. Keep normal request
     // completion logs out of production by default; warnings/errors remain.
     LOG_LEVEL: process.env.LOG_LEVEL || "warn",
-    HOSTINGER_INTERNAL_API: "true",
+    HOSTINGER_INTERNAL_API_SOCKET: apiSocketPath,
     UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE || "1",
     PORT: String(apiPort),
   };
@@ -680,6 +710,7 @@ async function startApiInternal() {
   }
 
    await stopOrphanedApi();
+  await removeStaleApiSocket();
 
   const child = spawn(process.execPath, ["--v8-pool-size=1", apiEntrypoint], {
     env: childEnv,
@@ -692,7 +723,7 @@ async function startApiInternal() {
     });
   }
   console.log(
-    `Starting API child ${child.pid ?? "unknown"} on 127.0.0.1:${apiPort}; health timeout ${Math.round(apiStartupTimeoutMs / 1000)}s.`,
+    `Starting API child ${child.pid ?? "unknown"} on private socket ${apiSocketPath}; health timeout ${Math.round(apiStartupTimeoutMs / 1000)}s.`,
   );
   pipeChildOutput(child.stdout, "api", true);
   pipeChildOutput(child.stderr, "api", true);
@@ -737,7 +768,7 @@ async function startApiInternal() {
     const processDetail = isChildRunning(child) ? "child remained running" : "child exited";
     const detail = spawnError
       ? `Could not spawn API child: ${spawnError.message}`
-      : `API child ${child.pid ?? "unknown"} ${readinessProblem} on 127.0.0.1:${apiPort} within ${Math.round(apiStartupTimeoutMs / 1000)}s (${health.detail}; ${livenessDetail}; ${processDetail}).`;
+      : `API child ${child.pid ?? "unknown"} ${readinessProblem} on private socket ${apiSocketPath} within ${Math.round(apiStartupTimeoutMs / 1000)}s (${health.detail}; ${livenessDetail}; ${processDetail}).`;
     const keepInitializingChild = health.live && health.state === "starting";
     if (isChildRunning(child) && !keepInitializingChild) {
       const stopped = await stopApiChild(child);
@@ -851,8 +882,7 @@ function proxyApi(req, res) {
   const { origin: _browserOrigin, ...forwardedHeaders } = req.headers;
   const upstream = http.request(
     {
-      hostname: "127.0.0.1",
-      port: apiPort,
+      socketPath: apiSocketPath,
       path: req.url,
       method: req.method,
       headers: { ...forwardedHeaders, host: `127.0.0.1:${apiPort}` },
@@ -901,8 +931,7 @@ function proxySubscriptionFeed(req, res, token) {
   const { origin: _browserOrigin, host: _publicHost, ...forwardedHeaders } = req.headers;
   const upstream = http.request(
     {
-      hostname: "127.0.0.1",
-      port: apiPort,
+      socketPath: apiSocketPath,
       path: `/api/public/subscription/${encodeURIComponent(token)}/feed`,
       method: "GET",
       headers: {
