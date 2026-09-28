@@ -21,6 +21,7 @@
 
 1. فایل ZIP را upload و Extract کنید.
 2. در بخش Node.js App:
+   - **Application type:** `Express`
    - **Application root:** همان پوشه‌ای که `app.js` داخل آن است
    - **Application startup file:** `app.js`
    - **Node.js:** نسخهٔ ۲۰ یا بالاتر
