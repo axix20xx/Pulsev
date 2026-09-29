@@ -64317,39 +64317,6 @@ async function provisionRainAdmin(panel, username, gb, days, resetUsage) {
   }
   throw new RainApiError(`Rain panel ${panelKey(panel)} rejected the user: ${safeError(last)}`);
 }
-async function ensureRainAdminGroupOne(username, ownerId, role) {
-  let attempted = 0;
-  let enabled = 0;
-  const errors = [];
-  const encoded = encodeURIComponent(username);
-  for (const panel of await panels(ownerId, role)) {
-    if (panelKind(panel) !== "rain_admin") continue;
-    attempted += 1;
-    try {
-      const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
-      if (existing.status === 404) {
-        errors.push(`${panelKey(panel)}: user not found`);
-        continue;
-      }
-      if (existing.status < 200 || existing.status >= 300) {
-        errors.push(`${panelKey(panel)}: ${safeError(existing)}`);
-        continue;
-      }
-      const response = await panelRequest(panel, "PUT", `/api/user/${encoded}`, {
-        status: "active",
-        group_ids: groupIdsFromUser(existing.json)
-      });
-      if (response.status >= 200 && response.status < 300) {
-        enabled += 1;
-      } else {
-        errors.push(`${panelKey(panel)}: ${safeError(response)}`);
-      }
-    } catch (error40) {
-      errors.push(`${panelKey(panel)}: ${error40 instanceof Error ? error40.message : "unknown error"}`);
-    }
-  }
-  return { attempted, enabled, errors };
-}
 async function provisionMarzban(panel, username, gb, days) {
   const encoded = encodeURIComponent(username);
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
@@ -71144,90 +71111,6 @@ function startProvisioningWorker() {
   logger.info("Service provisioning worker started");
 }
 
-// src/lib/rain-group-sync.ts
-var LOCK_NAMESPACE = 74421;
-var DEFAULT_INTERVAL_MS2 = 6 * 60 * 6e4;
-var INITIAL_DELAY_MS = 9e4;
-async function eligibleServices() {
-  const result = await pool.query(
-    `SELECT id, reseller_tg_id, rain_username
-     FROM reseller_services
-     WHERE status IN ('active', 'expiring')
-       AND (expire_at IS NULL OR expire_at > NOW())
-       AND COALESCE(last_used_bytes, 0) <
-         CASE
-           WHEN COALESCE(last_total_bytes, 0) > 0 THEN last_total_bytes
-           ELSE ROUND(COALESCE(gb, 0)::numeric * 1073741824)
-         END
-     ORDER BY id`
-  );
-  return result.rows;
-}
-async function syncOne(service) {
-  const lockClient = await pool.connect();
-  try {
-    await lockClient.query("SELECT pg_advisory_lock($1, $2)", [LOCK_NAMESPACE, service.id]);
-    const current = await pool.query(
-      `SELECT id, reseller_tg_id, rain_username
-       FROM reseller_services
-       WHERE id = $1
-         AND status IN ('active', 'expiring')
-         AND (expire_at IS NULL OR expire_at > NOW())
-         AND COALESCE(last_used_bytes, 0) <
-           CASE
-             WHEN COALESCE(last_total_bytes, 0) > 0 THEN last_total_bytes
-             ELSE ROUND(COALESCE(gb, 0)::numeric * 1073741824)
-           END
-       LIMIT 1`,
-      [service.id]
-    );
-    if (!current.rows[0]) return { attempted: 0, enabled: 0 };
-    const result = await ensureRainAdminGroupOne(
-      current.rows[0].rain_username,
-      Number(current.rows[0].reseller_tg_id)
-    );
-    if (result.errors.length) {
-      logger.warn(
-        { serviceId: service.id, errors: result.errors.slice(0, 5) },
-        "PasarGuard Group 1 reconciliation was incomplete"
-      );
-    }
-    return { attempted: result.attempted, enabled: result.enabled };
-  } finally {
-    await lockClient.query("SELECT pg_advisory_unlock($1, $2)", [LOCK_NAMESPACE, service.id]).catch(() => void 0);
-    lockClient.release();
-  }
-}
-async function runRainGroupSync() {
-  const services = await eligibleServices();
-  let attempted = 0;
-  let enabled = 0;
-  for (const service of services) {
-    const result = await syncOne(service);
-    attempted += result.attempted;
-    enabled += result.enabled;
-  }
-  logger.info(
-    { services: services.length, attempted, enabled },
-    "PasarGuard Group 1 reconciliation completed"
-  );
-}
-function startRainGroupSyncWorker() {
-  const configured = Number(process.env.RAIN_GROUP_SYNC_INTERVAL_MS ?? DEFAULT_INTERVAL_MS2);
-  const interval2 = Number.isFinite(configured) && configured >= 6e4 ? configured : DEFAULT_INTERVAL_MS2;
-  setTimeout(() => {
-    void runRainGroupSync().catch(
-      (error40) => logger.error({ err: error40 }, "PasarGuard Group 1 reconciliation failed")
-    );
-  }, INITIAL_DELAY_MS);
-  setInterval(() => {
-    void runRainGroupSync().catch(
-      (error40) => logger.error({ err: error40 }, "PasarGuard Group 1 reconciliation failed")
-    );
-  }, interval2);
-  logger.info({ intervalMs: interval2 }, "PasarGuard Group 1 reconciliation worker started");
-}
-
 // src/index.ts
 var rawPort = process.env["PORT"];
 if (!rawPort) {
@@ -71303,7 +71186,6 @@ server.once("listening", () => {
   logger.info({ port }, "Server listening");
   void managementReady.then(() => {
     startProvisioningWorker();
-    startRainGroupSyncWorker();
   }).catch((error40) => logger.error({ err: error40 }, "Provisioning worker failed to start"));
 });
 server.on("error", (error40) => {

@@ -772,44 +772,6 @@ async function provisionRainAdmin(
   throw new RainApiError(`Rain panel ${panelKey(panel)} rejected the user: ${safeError(last)}`);
 }
 
-export async function ensureRainAdminGroupOne(
-  username: string,
-  ownerId?: number,
-  role?: string,
-): Promise<{ attempted: number; enabled: number; errors: string[] }> {
-  let attempted = 0;
-  let enabled = 0;
-  const errors: string[] = [];
-  const encoded = encodeURIComponent(username);
-  for (const panel of await panels(ownerId, role)) {
-    if (panelKind(panel) !== "rain_admin") continue;
-    attempted += 1;
-    try {
-      const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
-      if (existing.status === 404) {
-        errors.push(`${panelKey(panel)}: user not found`);
-        continue;
-      }
-      if (existing.status < 200 || existing.status >= 300) {
-        errors.push(`${panelKey(panel)}: ${safeError(existing)}`);
-        continue;
-      }
-      const response = await panelRequest(panel, "PUT", `/api/user/${encoded}`, {
-        status: "active",
-        group_ids: groupIdsFromUser(existing.json),
-      });
-      if (response.status >= 200 && response.status < 300) {
-        enabled += 1;
-      } else {
-        errors.push(`${panelKey(panel)}: ${safeError(response)}`);
-      }
-    } catch (error) {
-      errors.push(`${panelKey(panel)}: ${error instanceof Error ? error.message : "unknown error"}`);
-    }
-  }
-  return { attempted, enabled, errors };
-}
-
 async function provisionMarzban(
   panel: Panel,
   username: string,

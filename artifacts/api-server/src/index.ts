@@ -3,7 +3,6 @@ import { get } from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startProvisioningWorker } from "./lib/provisioning-worker";
-import { startRainGroupSyncWorker } from "./lib/rain-group-sync";
 import { managementReady } from "./routes/management";
 
 const rawPort = process.env["PORT"];
@@ -89,7 +88,6 @@ server.once("listening", () => {
   void managementReady
     .then(() => {
       startProvisioningWorker();
-      startRainGroupSyncWorker();
     })
     .catch((error) => logger.error({ err: error }, "Provisioning worker failed to start"));
 });

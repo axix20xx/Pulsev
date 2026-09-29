@@ -15,8 +15,8 @@ Renewal must explicitly call `POST /api/user/{username}/reset` after updating th
 
 **How to apply:** Carry an explicit renewal-only reset intent through failed-Provider retry jobs. Never reset usage during ordinary provisioning retries.
 
-Older users may be reconciled periodically, but only while their local service is active, unexpired, and below quota, under the same per-service lifecycle lock as disable and renewal.
+Do not run periodic status/group reconciliation across existing Provider users. Provider audit systems can treat even unchanged PUT requests as bulk account edits and block the integration.
 
-**Why:** A broad cron that blindly activates remote users can restore access after quota or expiry shutdown.
+**Why:** The Provider reported recurring account edits and warned that this traffic could result in blocks.
 
-**How to apply:** Re-check eligibility under the lifecycle lock and update only status/group membership; do not send quota, expiry, or usage fields during reconciliation.
+**How to apply:** Set status and Group 1 during explicit provisioning or renewal only. Do not start a periodic all-user worker or issue PUTs when no user-initiated lifecycle action requires them.

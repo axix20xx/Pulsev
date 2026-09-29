@@ -110,13 +110,11 @@ Variables Hostinger تنظیم کنید.
 SUBSCRIPTION_UPSTREAM_BASE_URL=
 LEGACY_SUBSCRIPTION_BASE_URL=
 USAGE_SYNC_INTERVAL_MS=60000
-RAIN_GROUP_SYNC_INTERVAL_MS=21600000
 ```
 
-`RAIN_GROUP_SYNC_INTERVAL_MS` فاصلهٔ اجرای همگام‌سازی کاربران فعال PasarGuard
-است. این worker به‌طور پیش‌فرض هر ۶ ساعت اجرا می‌شود، Group 1 را با حفظ
-گروه‌های قبلی اضافه می‌کند و فقط وضعیت/group را تغییر می‌دهد؛ حجم، تاریخ و
-مصرف کاربران قبلی بازنویسی نمی‌شود.
+همگام‌سازی دوره‌ای وضعیت و گروه کاربران Provider خاموش است. Group 1 فقط هنگام
+ساخت یا تمدید صریح سرویس اعمال می‌شود تا درخواست‌های گروهیِ تکراری باعث محدودشدن
+دسترسی Provider نشوند.
 
 ### مدیریت log ها در Hostinger
 
