@@ -968,3 +968,17 @@ mtime_ms = 1790581058731
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5461c019-6ad7-41e9-9465-0f2db09b8e14/557b466f-a255-4198-b559-868cbba6d762"
 storage_version_token = "1790581441745352"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "esUrW1vwFTXh3N62MFrjM"
+uri = "file://exports/pulse-hostinger-no-bulk-provider-updates.zip"
+type = "unspecified"
+title = "Hostinger ZIP — bulk Provider edits disabled"
+description = "Includes the private-socket launcher fix and removes the recurring all-user PasarGuard status/group PUT worker. Upload it to the Hostinger Node.js app and restart."
+logical_id = "4808029f-2af0-4ada-853f-26b09675f31c"
+content_hash = "sha256:773f991466f9574defa1db5e438289fd2ed8e52cf66491159bcf72a8082001b7"
+size = 27874345
+mtime_ms = 1790664268464
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4808029f-2af0-4ada-853f-26b09675f31c/5ca772b2-22d8-4a6f-b2ba-5519ceb86cba"
+storage_version_token = "1790665336104407"
+content_type = "application/octet-stream"
