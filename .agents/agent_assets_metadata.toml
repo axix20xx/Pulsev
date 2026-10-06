@@ -996,3 +996,17 @@ mtime_ms = 1791296730887
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5b572063-9940-4057-ab7b-db6dd5710068/e1ed8145-ca36-48ef-9efc-e8542ae99201"
 storage_version_token = "1791296809600547"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "4jnUbBN3brucjwDTKzgo_"
+uri = "file://exports/pulse-hostinger-full-migration.zip"
+type = "unspecified"
+title = "Pulse full Hostinger migration ZIP"
+description = "Complete Hostinger-ready package with the latest luxury customer/mobile and subscription UI builds, OpenVPN import support, API bundle, installer, launcher, and both SQL migration files. ZIP integrity verified."
+logical_id = "7093d7aa-f78e-4c79-890d-35bc0be6a557"
+content_hash = "sha256:dd9b39f2eb00e5199c16099818c3f98e3040a32192ddbe04f513d131ed544783"
+size = 28266603
+mtime_ms = 1791298115760
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/7093d7aa-f78e-4c79-890d-35bc0be6a557/1fe86617-1435-4f81-9c54-98c2306063b8"
+storage_version_token = "1791298124106001"
+content_type = "application/octet-stream"
