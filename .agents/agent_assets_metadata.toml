@@ -982,3 +982,17 @@ mtime_ms = 1790664268464
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4808029f-2af0-4ada-853f-26b09675f31c/5ca772b2-22d8-4a6f-b2ba-5519ceb86cba"
 storage_version_token = "1790665336104407"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "HHg9H0LJpIc-yZq4uC_pb"
+uri = "file://exports/pulse-hostinger-openvpn-azadpanel.zip"
+type = "unspecified"
+title = "Pulse Hostinger package — OpenVPN iOS import"
+description = "Updated Hostinger deployment ZIP with OpenVPN Connect iOS deeplinks and token-checked inline profile endpoints."
+logical_id = "5b572063-9940-4057-ab7b-db6dd5710068"
+content_hash = "sha256:f0f5bf3fe3b803eaff301c1e204461d1ced1d19132874d190ffe815a05bd4f36"
+size = 28237693
+mtime_ms = 1791296730887
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5b572063-9940-4057-ab7b-db6dd5710068/e1ed8145-ca36-48ef-9efc-e8542ae99201"
+storage_version_token = "1791296809600547"
+content_type = "application/octet-stream"

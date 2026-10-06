@@ -1234,12 +1234,15 @@ router.post("/public/subscription/:token/openvpn", async (req, res): Promise<voi
     );
     const configBase = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/config/${encodeURIComponent(delivery.provider_key)}`;
     const bundleUrl = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/bundle/${encodeURIComponent(delivery.provider_key)}`;
+    const importBase = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/import/${encodeURIComponent(delivery.provider_key)}`;
     res.json({
       ...delivery,
       bundle_url: bundleUrl,
+      bundle_import_url: `/api/public/subscription/${encodeURIComponent(token)}/openvpn/import-bundle/${encodeURIComponent(delivery.provider_key)}`,
       locations: delivery.locations.map((location) => ({
         ...location,
         config_url: `${configBase}/${encodeURIComponent(location.id)}`,
+        import_url: `${importBase}/${encodeURIComponent(location.id)}`,
       })),
     });
   } catch (error) {
@@ -1305,6 +1308,38 @@ router.get("/public/subscription/:token/openvpn/bundle/:provider", async (req, r
   }
   res.setHeader("content-type", result.profile.contentType);
   res.setHeader("content-disposition", `attachment; filename="Pulse-${result.serviceId}-all.ovpn"`);
+  res.send(result.profile.body);
+});
+
+router.get("/public/subscription/:token/openvpn/import/:provider/:host", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  const result = await resolvePublicOpenVpnProfile(
+    token,
+    String(req.params.provider ?? ""),
+    String(req.params.host ?? ""),
+  );
+  if ("status" in result) {
+    res.status(result.status).type("text/plain").send(result.error);
+    return;
+  }
+  // OpenVPN Connect fetches this URL directly from its import-profile deeplink.
+  // Return the profile inline instead of forcing a browser-style download.
+  res.setHeader("content-type", result.profile.contentType);
+  res.send(result.profile.body);
+});
+
+router.get("/public/subscription/:token/openvpn/import-bundle/:provider", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  const result = await resolvePublicOpenVpnProfile(token, String(req.params.provider ?? ""));
+  if ("status" in result) {
+    res.status(result.status).type("text/plain").send(result.error);
+    return;
+  }
+  res.setHeader("content-type", result.profile.contentType);
   res.send(result.profile.body);
 });
 

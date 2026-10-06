@@ -177,8 +177,9 @@
 .mobile-openvpn-details strong { overflow-wrap:anywhere; font-size:10px; }
 .mobile-openvpn-details button { padding:5px 9px; border:1px solid var(--m-line); border-radius:9px; color:var(--m-primary-strong); background:var(--m-surface); font-size:9px; font-weight:800; }
 .mobile-openvpn-locations { display:grid; gap:6px; }
-.mobile-openvpn-locations a { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:8px; padding:10px; border:1px solid var(--m-line); border-radius:11px; color:var(--m-ink); background:var(--m-surface-2); text-decoration:none; }
-.mobile-openvpn-locations span { overflow-wrap:anywhere; font-size:10px; font-weight:800; }
+.mobile-openvpn-location { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:8px; padding:10px; border:1px solid var(--m-line); border-radius:11px; color:var(--m-ink); background:var(--m-surface-2); }
+.mobile-openvpn-location span { overflow-wrap:anywhere; font-size:10px; font-weight:800; }
+.mobile-openvpn-location a { display:flex; align-items:center; gap:4px; color:var(--m-primary-strong); font-size:9px; font-weight:800; text-decoration:none; white-space:nowrap; }
 .mobile-openvpn-locations small, .mobile-openvpn-hint { color:var(--m-muted); font-size:9px; line-height:1.8; }
 .mobile-openvpn-app-links { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 .mobile-openvpn-app-links a { display:flex; min-height:38px; align-items:center; justify-content:center; gap:4px; padding:6px; border:1px solid var(--m-line); border-radius:10px; color:var(--m-primary-strong); background:var(--m-surface-2); font-size:8px; font-weight:800; text-align:center; text-decoration:none; }

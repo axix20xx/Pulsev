@@ -3385,8 +3385,9 @@ table td { font-size: 11px; }
 .public-sub-openvpn-hint { margin:12px 0 0; color:var(--sub-muted); font-size:10px; line-height:1.9; }
 .public-sub-openvpn-locations { display:grid; gap:7px; margin-top:13px; }
 .public-sub-openvpn-locations > strong { color:var(--sub-ink); font-size:11px; }
-.public-sub-openvpn-locations a { display:flex; min-height:39px; align-items:center; justify-content:space-between; gap:10px; border:1px solid var(--sub-line); border-radius:11px; background:#fff; padding:0 11px; color:var(--sub-teal); font-size:10px; font-weight:700; text-decoration:none; }
-.public-sub-openvpn-locations a span { overflow:hidden; color:var(--sub-ink); text-overflow:ellipsis; white-space:nowrap; }
+.public-sub-openvpn-location { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:9px; min-height:42px; border:1px solid var(--sub-line); border-radius:11px; background:#fff; padding:0 11px; }
+.public-sub-openvpn-location > span { overflow:hidden; color:var(--sub-ink); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.public-sub-openvpn-location a { display:inline-flex; align-items:center; gap:4px; color:var(--sub-teal); font-size:10px; font-weight:700; text-decoration:none; white-space:nowrap; }
 .public-sub-openvpn-locations a svg { flex:0 0 auto; }
 @media (max-width: 520px) {
   .public-sub-openvpn-card { padding:16px; border-radius:21px; }

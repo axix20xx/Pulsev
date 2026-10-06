@@ -105,6 +105,7 @@ type MobileOpenVpnLocation = {
   id: string;
   name: string;
   config_url: string;
+  import_url: string;
 };
 
 type MobileOpenVpnDelivery = {
@@ -114,8 +115,12 @@ type MobileOpenVpnDelivery = {
   password: string;
   core: "openvpn";
   bundle_url: string;
+  bundle_import_url: string;
   locations: MobileOpenVpnLocation[];
 };
+
+const openVpnConnectImportUrl = (profileUrl: string) =>
+  `openvpn://import-profile/${encodeURIComponent(new URL(profileUrl, window.location.origin).toString())}`;
 
 const mobileClientCatalog = (url: string, name: string): MobileClient[] => {
   const encodedName = encodeURIComponent(name || 'Pulse');
@@ -157,6 +162,8 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
     try { return new URL(item.public_url, window.location.origin).searchParams.get('t') || ''; }
     catch { return ''; }
   })();
+  const isIosDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   const copyValue = async (value: string, label: string) => { await navigator.clipboard?.writeText(value); setCopied(label); };
   const shareValue = async (value: string) => { if (navigator.share) await navigator.share({ title: item.plan, url: value }); else await copyValue(value, 'لینک Provider'); };
   const showQr = async (value: string) => setQr(await QRCode.toDataURL(value, { margin: 2, width: 240, color: { dark: '#163d40', light: '#f7f6f0' } }));
@@ -229,9 +236,14 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
            <div><span>رمز عبور</span><strong dir="ltr">{openVpnData.password}</strong><button type="button" onClick={() => void copyValue(openVpnData.password, 'رمز OpenVPN')}>کپی</button></div>
          </div>
          <a className="mobile-openvpn-download primary" href={openVpnData.bundle_url} download data-testid={`link-mobile-openvpn-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ فایل‌ها</a>
-         <div className="mobile-openvpn-locations">{openVpnData.locations.map((location) => <a key={location.id} href={location.config_url} download data-testid={`link-mobile-openvpn-config-${item.id}-${location.id}`}><span>{location.name}</span><small>.ovpn</small><Download size={14} /></a>)}</div>
+        {isIosDevice && <a className="mobile-openvpn-primary" href={openVpnConnectImportUrl(openVpnData.bundle_import_url)} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-ios-${item.id}`}><ExternalLink size={14} /> واردکردن همه در OpenVPN Connect · iOS</a>}
+        <div className="mobile-openvpn-locations">{openVpnData.locations.map((location) => <div className="mobile-openvpn-location" key={location.id}>
+          <span>{location.name}</span>
+          {isIosDevice && <a href={openVpnConnectImportUrl(location.import_url)} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-ios-${item.id}-${location.id}`}><ExternalLink size={13} />واردکردن</a>}
+          <a href={location.config_url} download data-testid={`link-mobile-openvpn-config-${item.id}-${location.id}`}><Download size={13} />دانلود</a>
+        </div>)}</div>
          <div className="mobile-openvpn-app-links"><a href="https://apps.apple.com/us/app/openvpn-connect-openvpn-app/id590379981" target="_blank" rel="noreferrer">OpenVPN Connect برای iOS <ExternalLink size={13} /></a><a href="https://play.google.com/store/apps/details?id=net.openvpn.openvpn" target="_blank" rel="noreferrer">OpenVPN Connect برای Android <ExternalLink size={13} /></a></div>
-         <p className="mobile-openvpn-hint">در OpenVPN Connect گزینهٔ Import Profile ← URL را انتخاب کنید، آدرس سرور را وارد کنید و Next بزنید؛ سپس نام کاربری و رمز بالا را وارد کنید. در iPhone می‌توانید فایل .ovpn را هم دانلود و از منوی Share در OpenVPN Connect باز کنید.</p>
+        <p className="mobile-openvpn-hint">در iPhone دکمهٔ واردکردن، فایل امن پروفایل را مستقیم در OpenVPN Connect باز می‌کند. برای دستگاه‌های دیگر، در برنامه Import Profile ← URL را انتخاب کنید؛ فایل .ovpn هر سرور هم جداگانه در دسترس است.</p>
        </>}
        {openVpnError ? <p className="mobile-openvpn-error" role="alert">{openVpnError}</p> : null}
      </section> : null}
