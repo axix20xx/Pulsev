@@ -50,6 +50,7 @@ import {
   UpdateServiceResponse,
 } from "@workspace/api-zod";
 import { pool } from "@workspace/db";
+import { serviceUsageBytes, storedPanelUsageSql } from "../lib/service-usage-snapshot";
 import {
   attachAuth,
   clearSessionCookie,
@@ -671,6 +672,8 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
       offset_bytes BIGINT NOT NULL DEFAULT 0,
       last_updated TIMESTAMP NOT NULL DEFAULT NOW()
     );
+    CREATE INDEX IF NOT EXISTS user_panel_usages_user_panel_id_idx
+      ON user_panel_usages (username, panel_key, id DESC);
     ALTER TABLE user_panel_usages
       ADD COLUMN IF NOT EXISTS offset_bytes BIGINT NOT NULL DEFAULT 0;
     CREATE SEQUENCE IF NOT EXISTS user_panel_usages_id_seq;
@@ -1407,7 +1410,9 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
   const result = await pool.query(
     `SELECT svc.id, svc.rain_username AS username, svc.label AS plan, svc.status, svc.expire_at AS expires_at,
             svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes, svc.last_remaining_bytes,
-            svc.awg_client_id,
+            svc.awg_client_id, COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+            COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+            ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
             COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name, rst.token
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
@@ -1428,25 +1433,28 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     ]);
     const fresh = await pool.query(
       `SELECT status, expire_at AS expires_at, disable_reason, awg_client_id,
-              last_used_bytes, last_total_bytes, last_remaining_bytes
-       FROM reseller_services WHERE id = $1 LIMIT 1`,
+              last_used_bytes, last_total_bytes, last_remaining_bytes,
+              COALESCE(awg_total, 0)::float8 AS awg_total_bytes,
+              COALESCE(awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+              ${storedPanelUsageSql("svc")} AS panel_usage_bytes
+       FROM reseller_services svc WHERE svc.id = $1 LIMIT 1`,
       [row.id],
     );
     Object.assign(row, fresh.rows[0] ?? {});
   } catch (error) {
     req.log.warn({ err: error, serviceId: row.id }, "Public usage refresh failed");
   }
-  const usedGb = Number(row.last_used_bytes ?? 0) / (1024 ** 3);
+  const usedBytes = serviceUsageBytes({
+    lastUsedBytes: row.last_used_bytes,
+    panelUsageBytes: row.panel_usage_bytes,
+    awgTotalBytes: row.awg_total_bytes,
+    awgOffsetBytes: row.awg_offset_bytes,
+  });
   const totalBytes = Number(row.last_total_bytes) > 0
     ? Number(row.last_total_bytes)
     : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
-  const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
-  const storedRemainingBytes = row.last_remaining_bytes === null || row.last_remaining_bytes === undefined
-    ? null
-    : Number(row.last_remaining_bytes);
-  const remainingBytes = storedRemainingBytes !== null && Number.isFinite(storedRemainingBytes)
-    ? Math.max(0, storedRemainingBytes)
-    : Math.max(0, totalBytes - usedBytes);
+  const remainingBytes = Math.max(0, totalBytes - usedBytes);
+  const usedGb = usedBytes / (1024 ** 3);
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const quotaFinished = totalBytes > 0 && usedBytes >= totalBytes;
   const dateFinished = Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now();
@@ -1479,9 +1487,9 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     plan: row.plan,
     status: row.status,
     expires_at: row.expires_at,
-    used_gb: Number(usedGb.toFixed(2)),
+    used_gb: Number(usedGb.toFixed(6)),
     limit_gb: Number(row.limit_gb ?? 0),
-    remaining_gb: Number((remainingBytes / (1024 ** 3)).toFixed(2)),
+    remaining_gb: Number((remainingBytes / (1024 ** 3)).toFixed(6)),
     finished,
     disable_reason: disableReason,
     renew_url: `/login?next=${encodeURIComponent(`/services?renew=${row.id}`)}`,
@@ -3982,9 +3990,14 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
            'last_updated', usage.last_updated
          ) ORDER BY panel.key)
          FROM panel_configs panel
-         LEFT JOIN user_panel_usages usage
-           ON usage.username = svc.rain_username
-          AND usage.panel_key = panel.key
+       LEFT JOIN LATERAL (
+         SELECT usage.upload, usage.download, usage.offset_bytes, usage.last_updated
+         FROM user_panel_usages usage
+         WHERE usage.username = svc.rain_username
+           AND usage.panel_key = panel.key
+         ORDER BY usage.id DESC
+         LIMIT 1
+       ) usage ON TRUE
          WHERE panel.is_enabled = 1
            AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
        ), '[]'::json) AS panel_usages,

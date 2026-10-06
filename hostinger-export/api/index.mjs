@@ -63741,6 +63741,45 @@ pool.on("error", (error40) => {
 });
 var db = drizzle(pool, { schema: schema_exports });
 
+// src/lib/service-usage-snapshot.ts
+function nonNegativeBytes(value) {
+  const number4 = Number(value ?? 0);
+  return Number.isFinite(number4) ? Math.max(0, number4) : 0;
+}
+function serviceUsageBytes(snapshot) {
+  const storedCombined = nonNegativeBytes(snapshot.lastUsedBytes);
+  const providers = nonNegativeBytes(snapshot.panelUsageBytes);
+  const awg = Math.max(
+    0,
+    nonNegativeBytes(snapshot.awgTotalBytes) - nonNegativeBytes(snapshot.awgOffsetBytes)
+  );
+  return Math.max(storedCombined, providers + awg);
+}
+function storedPanelUsageSql(serviceAlias = "svc") {
+  if (!/^[a-z_][a-z0-9_]*$/i.test(serviceAlias)) {
+    throw new Error("Invalid SQL alias for stored service usage.");
+  }
+  return `COALESCE((
+    SELECT SUM(GREATEST(
+      0::float8,
+      COALESCE(latest_usage.upload, 0)::float8
+        + COALESCE(latest_usage.download, 0)::float8
+        - COALESCE(latest_usage.offset_bytes, 0)::float8
+    ))
+    FROM panel_configs panel
+    LEFT JOIN LATERAL (
+      SELECT usage.upload, usage.download, usage.offset_bytes
+      FROM user_panel_usages usage
+      WHERE usage.username = ${serviceAlias}.rain_username
+        AND usage.panel_key = panel.key
+      ORDER BY usage.id DESC
+      LIMIT 1
+    ) latest_usage ON TRUE
+    WHERE panel.is_enabled = 1
+      AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
+  ), 0)::float8`;
+}
+
 // src/lib/auth.ts
 import {
   createHash,
@@ -66030,8 +66069,13 @@ var originPath = (req, pathname) => {
 var asIso = (value) => value ? new Date(value).toISOString() : null;
 var mapService = (req, row) => {
   const totalBytes = Number(row.last_total_bytes ?? 0) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
-  const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
-  const remainingBytes = row.last_remaining_bytes !== null && row.last_remaining_bytes !== void 0 ? Math.max(0, Number(row.last_remaining_bytes)) : Math.max(0, totalBytes - usedBytes);
+  const usedBytes = serviceUsageBytes({
+    lastUsedBytes: row.last_used_bytes,
+    panelUsageBytes: row.panel_usage_bytes,
+    awgTotalBytes: row.awg_total_bytes,
+    awgOffsetBytes: row.awg_offset_bytes
+  });
+  const remainingBytes = Math.max(0, totalBytes - usedBytes);
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const daysRemaining = expiresAt ? Math.ceil((expiresAt - Date.now()) / 864e5) : null;
   const status = row.status === "disabled" ? "cancelled" : expiresAt > 0 && expiresAt <= Date.now() ? "expired" : row.status === "pending" ? "pending" : "active";
@@ -66045,7 +66089,7 @@ var mapService = (req, row) => {
     expires_at: asIso(row.expires_at),
     remaining_days: daysRemaining === null ? null : Math.max(0, daysRemaining),
     total_gb: Number((totalBytes / 1024 ** 3).toFixed(2)),
-    used_gb: Number((usedBytes / 1024 ** 3).toFixed(2)),
+    used_gb: Number((usedBytes / 1024 ** 3).toFixed(6)),
     remaining_gb: Number((remainingBytes / 1024 ** 3).toFixed(2)),
     usage_percent: totalBytes > 0 ? Math.min(100, Number((usedBytes / totalBytes * 100).toFixed(1))) : 0,
     customer_name: row.customer_name,
@@ -66067,7 +66111,11 @@ var listServices = async (req, customerId2) => {
             svc.label AS plan, svc.status, svc.created_at, svc.expire_at AS expires_at,
             svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
             svc.last_remaining_bytes, rst.token AS subscription_token,
-            svc.awg_client_id, COALESCE(svc.falco_system_name, 'V2Box') AS panel
+            svc.awg_client_id,
+            COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+            COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+            ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+            COALESCE(svc.falco_system_name, 'V2Box') AS panel
      FROM reseller_services svc
      JOIN reseller_customers c ON c.id = svc.customer_id
      LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
@@ -66387,9 +66435,13 @@ var runMobileNotificationSweep = async () => {
   const result = await pool.query(
     `SELECT svc.id, svc.customer_id, c.full_name AS customer_name, c.phone,
             svc.label AS plan, svc.status, svc.created_at, svc.expire_at AS expires_at,
-            svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
-            svc.last_remaining_bytes, rst.token AS subscription_token,
-            svc.awg_client_id, NULL::text AS panel
+             svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
+             svc.last_remaining_bytes, rst.token AS subscription_token,
+             svc.awg_client_id,
+             COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+             COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+             ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+             NULL::text AS panel
      FROM reseller_services svc
      JOIN reseller_customers c ON c.id = svc.customer_id
      LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
@@ -66400,7 +66452,12 @@ var runMobileNotificationSweep = async () => {
     const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
     const days = expiresAt ? Math.ceil((expiresAt - Date.now()) / 864e5) : null;
     const total = Number(row.last_total_bytes ?? 0) > 0 ? Number(row.last_total_bytes) : Number(row.limit_gb ?? 0) * 1024 ** 3;
-    const used = Math.max(0, Number(row.last_used_bytes ?? 0));
+    const used = serviceUsageBytes({
+      lastUsedBytes: row.last_used_bytes,
+      panelUsageBytes: row.panel_usage_bytes,
+      awgTotalBytes: row.awg_total_bytes,
+      awgOffsetBytes: row.awg_offset_bytes
+    });
     const percent = total > 0 ? used / total * 100 : 0;
     if (days !== null && days < 0) {
       await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:expired`, type: "subscription_expired", title: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F", body: "\u0628\u0631\u0627\u06CC \u0627\u062F\u0627\u0645\u0647\u0654 \u0627\u0633\u062A\u0641\u0627\u062F\u0647\u060C \u0627\u0634\u062A\u0631\u0627\u06A9 \u062E\u0648\u062F \u0631\u0627 \u062A\u0645\u062F\u06CC\u062F \u06A9\u0646\u06CC\u062F.", href: serviceUrl, tone: "danger" });
@@ -67702,6 +67759,8 @@ var managementReady = pool.query(`
       offset_bytes BIGINT NOT NULL DEFAULT 0,
       last_updated TIMESTAMP NOT NULL DEFAULT NOW()
     );
+    CREATE INDEX IF NOT EXISTS user_panel_usages_user_panel_id_idx
+      ON user_panel_usages (username, panel_key, id DESC);
     ALTER TABLE user_panel_usages
       ADD COLUMN IF NOT EXISTS offset_bytes BIGINT NOT NULL DEFAULT 0;
     CREATE SEQUENCE IF NOT EXISTS user_panel_usages_id_seq;
@@ -68374,7 +68433,9 @@ router2.get("/public/subscription/:token", async (req, res) => {
   const result = await pool.query(
     `SELECT svc.id, svc.rain_username AS username, svc.label AS plan, svc.status, svc.expire_at AS expires_at,
             svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes, svc.last_remaining_bytes,
-            svc.awg_client_id,
+            svc.awg_client_id, COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+            COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+            ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
             COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name, rst.token
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
@@ -68395,19 +68456,26 @@ router2.get("/public/subscription/:token", async (req, res) => {
     ]);
     const fresh = await pool.query(
       `SELECT status, expire_at AS expires_at, disable_reason, awg_client_id,
-              last_used_bytes, last_total_bytes, last_remaining_bytes
-       FROM reseller_services WHERE id = $1 LIMIT 1`,
+              last_used_bytes, last_total_bytes, last_remaining_bytes,
+              COALESCE(awg_total, 0)::float8 AS awg_total_bytes,
+              COALESCE(awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+              ${storedPanelUsageSql("svc")} AS panel_usage_bytes
+       FROM reseller_services svc WHERE svc.id = $1 LIMIT 1`,
       [row.id]
     );
     Object.assign(row, fresh.rows[0] ?? {});
   } catch (error40) {
     req.log.warn({ err: error40, serviceId: row.id }, "Public usage refresh failed");
   }
-  const usedGb = Number(row.last_used_bytes ?? 0) / 1024 ** 3;
+  const usedBytes = serviceUsageBytes({
+    lastUsedBytes: row.last_used_bytes,
+    panelUsageBytes: row.panel_usage_bytes,
+    awgTotalBytes: row.awg_total_bytes,
+    awgOffsetBytes: row.awg_offset_bytes
+  });
   const totalBytes = Number(row.last_total_bytes) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
-  const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
-  const storedRemainingBytes = row.last_remaining_bytes === null || row.last_remaining_bytes === void 0 ? null : Number(row.last_remaining_bytes);
-  const remainingBytes = storedRemainingBytes !== null && Number.isFinite(storedRemainingBytes) ? Math.max(0, storedRemainingBytes) : Math.max(0, totalBytes - usedBytes);
+  const remainingBytes = Math.max(0, totalBytes - usedBytes);
+  const usedGb = usedBytes / 1024 ** 3;
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const quotaFinished = totalBytes > 0 && usedBytes >= totalBytes;
   const dateFinished = Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now();
@@ -68435,9 +68503,9 @@ router2.get("/public/subscription/:token", async (req, res) => {
     plan: row.plan,
     status: row.status,
     expires_at: row.expires_at,
-    used_gb: Number(usedGb.toFixed(2)),
+    used_gb: Number(usedGb.toFixed(6)),
     limit_gb: Number(row.limit_gb ?? 0),
-    remaining_gb: Number((remainingBytes / 1024 ** 3).toFixed(2)),
+    remaining_gb: Number((remainingBytes / 1024 ** 3).toFixed(6)),
     finished,
     disable_reason: disableReason,
     renew_url: `/login?next=${encodeURIComponent(`/services?renew=${row.id}`)}`,
@@ -70729,9 +70797,14 @@ router2.get("/services", requireAuth, async (req, res) => {
            'last_updated', usage.last_updated
          ) ORDER BY panel.key)
          FROM panel_configs panel
-         LEFT JOIN user_panel_usages usage
-           ON usage.username = svc.rain_username
-          AND usage.panel_key = panel.key
+       LEFT JOIN LATERAL (
+         SELECT usage.upload, usage.download, usage.offset_bytes, usage.last_updated
+         FROM user_panel_usages usage
+         WHERE usage.username = svc.rain_username
+           AND usage.panel_key = panel.key
+         ORDER BY usage.id DESC
+         LIMIT 1
+       ) usage ON TRUE
          WHERE panel.is_enabled = 1
            AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
        ), '[]'::json) AS panel_usages,

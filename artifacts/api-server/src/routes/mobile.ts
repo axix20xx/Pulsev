@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { createHash, randomBytes } from "node:crypto";
 import webpush from "web-push";
 import { pool } from "@workspace/db";
+import { serviceUsageBytes, storedPanelUsageSql } from "../lib/service-usage-snapshot";
 import { consumeMobileOtp, findActiveMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
 import { logger } from "../lib/logger";
 
@@ -37,6 +38,9 @@ type MobileServiceRow = {
   last_used_bytes: number | null;
   last_total_bytes: number | null;
   last_remaining_bytes: number | null;
+  panel_usage_bytes: number | null;
+  awg_total_bytes: number | null;
+  awg_offset_bytes: number | null;
   subscription_token: string | null;
   awg_client_id: string | null;
   panel: string | null;
@@ -331,10 +335,13 @@ const mapService = (req: Request, row: MobileServiceRow) => {
   const totalBytes = Number(row.last_total_bytes ?? 0) > 0
     ? Number(row.last_total_bytes)
     : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
-  const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
-  const remainingBytes = row.last_remaining_bytes !== null && row.last_remaining_bytes !== undefined
-    ? Math.max(0, Number(row.last_remaining_bytes))
-    : Math.max(0, totalBytes - usedBytes);
+  const usedBytes = serviceUsageBytes({
+    lastUsedBytes: row.last_used_bytes,
+    panelUsageBytes: row.panel_usage_bytes,
+    awgTotalBytes: row.awg_total_bytes,
+    awgOffsetBytes: row.awg_offset_bytes,
+  });
+  const remainingBytes = Math.max(0, totalBytes - usedBytes);
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const daysRemaining = expiresAt ? Math.ceil((expiresAt - Date.now()) / 86400000) : null;
   const status = row.status === "disabled"
@@ -354,7 +361,7 @@ const mapService = (req: Request, row: MobileServiceRow) => {
     expires_at: asIso(row.expires_at),
     remaining_days: daysRemaining === null ? null : Math.max(0, daysRemaining),
     total_gb: Number((totalBytes / 1024 ** 3).toFixed(2)),
-    used_gb: Number((usedBytes / 1024 ** 3).toFixed(2)),
+    used_gb: Number((usedBytes / 1024 ** 3).toFixed(6)),
     remaining_gb: Number((remainingBytes / 1024 ** 3).toFixed(2)),
     usage_percent: totalBytes > 0 ? Math.min(100, Number((usedBytes / totalBytes * 100).toFixed(1))) : 0,
     customer_name: row.customer_name,
@@ -379,7 +386,11 @@ const listServices = async (req: Request, customerId: number) => {
             svc.label AS plan, svc.status, svc.created_at, svc.expire_at AS expires_at,
             svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
             svc.last_remaining_bytes, rst.token AS subscription_token,
-            svc.awg_client_id, COALESCE(svc.falco_system_name, 'V2Box') AS panel
+            svc.awg_client_id,
+            COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+            COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+            ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+            COALESCE(svc.falco_system_name, 'V2Box') AS panel
      FROM reseller_services svc
      JOIN reseller_customers c ON c.id = svc.customer_id
      LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
@@ -766,9 +777,13 @@ export const runMobileNotificationSweep = async (): Promise<void> => {
   const result = await pool.query<MobileServiceRow>(
     `SELECT svc.id, svc.customer_id, c.full_name AS customer_name, c.phone,
             svc.label AS plan, svc.status, svc.created_at, svc.expire_at AS expires_at,
-            svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
-            svc.last_remaining_bytes, rst.token AS subscription_token,
-            svc.awg_client_id, NULL::text AS panel
+             svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
+             svc.last_remaining_bytes, rst.token AS subscription_token,
+             svc.awg_client_id,
+             COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+             COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+             ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+             NULL::text AS panel
      FROM reseller_services svc
      JOIN reseller_customers c ON c.id = svc.customer_id
      LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
@@ -779,7 +794,12 @@ export const runMobileNotificationSweep = async (): Promise<void> => {
     const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
     const days = expiresAt ? Math.ceil((expiresAt - Date.now()) / 86400000) : null;
     const total = Number(row.last_total_bytes ?? 0) > 0 ? Number(row.last_total_bytes) : Number(row.limit_gb ?? 0) * 1024 ** 3;
-    const used = Math.max(0, Number(row.last_used_bytes ?? 0));
+    const used = serviceUsageBytes({
+      lastUsedBytes: row.last_used_bytes,
+      panelUsageBytes: row.panel_usage_bytes,
+      awgTotalBytes: row.awg_total_bytes,
+      awgOffsetBytes: row.awg_offset_bytes,
+    });
     const percent = total > 0 ? used / total * 100 : 0;
     if (days !== null && days < 0) {
       await createNotification({ customerId: Number(row.customer_id), serviceId: row.id, eventKey: `service:${row.id}:expired`, type: "subscription_expired", title: "اشتراک منقضی شد", body: "برای ادامهٔ استفاده، اشتراک خود را تمدید کنید.", href: serviceUrl, tone: "danger" });

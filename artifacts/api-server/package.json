@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:awg-stats": "node --test tests/awg-stats.test.mjs"
+    "test:awg-stats": "node --test tests/awg-stats.test.mjs",
+    "test:usage": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

@@ -1108,3 +1108,17 @@ mtime_ms = 1791323441798
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/91eb83eb-883f-435a-8091-a49963d77a4f/60474e1a-8d49-42c6-a0f5-f34743d6279c"
 storage_version_token = "1791323513597995"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "-YKO7MDHjIBxPZGf90EIB"
+uri = "file://exports/pulse-hostinger-awg-inclusive-usage-2026-10-07.zip"
+type = "unspecified"
+title = "Hostinger full migration ZIP — AWG usage totals"
+description = "Full Hostinger migration bundle with the AmneziaWG usage total fix for public subscription pages, reseller service pages, and /mobile."
+logical_id = "2a91085e-8d4d-4142-b183-133aaca04337"
+content_hash = "sha256:907f755b17626a33e37854ec82636efdc52c588f8b6c90a3b06fe58071ff1dc2"
+size = 28803632
+mtime_ms = 1791324306198
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2a91085e-8d4d-4142-b183-133aaca04337/585eb0b5-5cc3-4189-8f4a-dbc18bcdc49e"
+storage_version_token = "1791324325127563"
+content_type = "application/octet-stream"

@@ -1,0 +1,55 @@
+export type ServiceUsageSnapshot = {
+  lastUsedBytes?: number | null;
+  panelUsageBytes?: number | null;
+  awgTotalBytes?: number | null;
+  awgOffsetBytes?: number | null;
+};
+
+function nonNegativeBytes(value: number | null | undefined): number {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? Math.max(0, number) : 0;
+}
+
+/**
+ * last_used_bytes is already combined by the usage worker. Compare it with a
+ * fresh sum of persisted provider and AWG counters, then use the larger value:
+ * this fills gaps from a stale combined snapshot without counting AWG twice.
+ */
+export function serviceUsageBytes(snapshot: ServiceUsageSnapshot): number {
+  const storedCombined = nonNegativeBytes(snapshot.lastUsedBytes);
+  const providers = nonNegativeBytes(snapshot.panelUsageBytes);
+  const awg = Math.max(
+    0,
+    nonNegativeBytes(snapshot.awgTotalBytes) - nonNegativeBytes(snapshot.awgOffsetBytes),
+  );
+  return Math.max(storedCombined, providers + awg);
+}
+
+/**
+ * SQL expression for the newest persisted effective usage per enabled panel.
+ * The alias is supplied only by application code (e.g. "svc").
+ */
+export function storedPanelUsageSql(serviceAlias = "svc"): string {
+  if (!/^[a-z_][a-z0-9_]*$/i.test(serviceAlias)) {
+    throw new Error("Invalid SQL alias for stored service usage.");
+  }
+  return `COALESCE((
+    SELECT SUM(GREATEST(
+      0::float8,
+      COALESCE(latest_usage.upload, 0)::float8
+        + COALESCE(latest_usage.download, 0)::float8
+        - COALESCE(latest_usage.offset_bytes, 0)::float8
+    ))
+    FROM panel_configs panel
+    LEFT JOIN LATERAL (
+      SELECT usage.upload, usage.download, usage.offset_bytes
+      FROM user_panel_usages usage
+      WHERE usage.username = ${serviceAlias}.rain_username
+        AND usage.panel_key = panel.key
+      ORDER BY usage.id DESC
+      LIMIT 1
+    ) latest_usage ON TRUE
+    WHERE panel.is_enabled = 1
+      AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
+  ), 0)::float8`;
+}
