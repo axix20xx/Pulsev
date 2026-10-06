@@ -10,6 +10,7 @@ import { Customer, Service, Sale, dateLabel, dateTimeLabel, daysUntil, isoDaysFr
 import { Avatar, PageHeader, StatusPill } from '@/components/pulse-shell';
 import { PulseNetworkAccent } from '@/components/pulse-network-accent';
 import { copyTextToClipboard } from '@/lib/browser-utils';
+import './public-sub-lux.css';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
@@ -2629,12 +2630,12 @@ function PublicSubscriptionContentV2() {
   ];
   const pageMotion = reduceMotion ? {} : { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: .45, ease: 'easeOut' as const } };
 
-  if (state === 'loading') return <div className="public-sub-v3 public-sub-state" dir="rtl"><div className="public-sub-loading-card"><span className="pulse-mark large"><span /></span><div className="public-sub-loading-copy"><strong>پالس</strong><span>در حال آماده‌سازی فضای اشتراک شما</span></div><div className="public-sub-loading-bar wide" /><div className="public-sub-loading-bar" /></div></div>;
-  if (state === 'error') return <div className="public-sub-v3 public-sub-state" dir="rtl"><motion.div {...pageMotion} className="public-sub-error-card"><div className="public-sub-v3-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="public-sub-error-icon"><ShieldCheck size={27} /></div><p className="public-sub-kicker">دسترسی اشتراک</p><h1>لینک نامعتبر است</h1><p>ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="public-sub-button primary" data-testid="link-public-sub-home">بازگشت به پالس</a></motion.div></div>;
+  if (state === 'loading') return <div className="public-sub-v3 public-sub-lux public-sub-state" dir="rtl"><div className="public-sub-loading-card"><span className="pulse-mark large"><span /></span><div className="public-sub-loading-copy"><strong>پالس</strong><span>در حال آماده‌سازی فضای اشتراک شما</span></div><div className="public-sub-loading-bar wide" /><div className="public-sub-loading-bar" /></div></div>;
+  if (state === 'error') return <div className="public-sub-v3 public-sub-lux public-sub-state" dir="rtl"><motion.div {...pageMotion} className="public-sub-error-card"><div className="public-sub-v3-brand"><span className="pulse-mark"><span /></span><strong>پالس</strong></div><div className="public-sub-error-icon"><ShieldCheck size={27} /></div><p className="public-sub-kicker">دسترسی اشتراک</p><h1>لینک نامعتبر است</h1><p>ممکن است لینک اشتباه باشد یا اشتراک دیگر فعال نباشد.</p><a href="/" className="public-sub-button primary" data-testid="link-public-sub-home">بازگشت به پالس</a></motion.div></div>;
 
   return (
     <>
-    <div className={`public-sub-v3 ${statusTone}`} dir="rtl">
+    <div className={`public-sub-v3 public-sub-lux ${statusTone}`} dir="rtl">
       <main className="public-sub-app-shell">
         <motion.header {...pageMotion} className="public-sub-appbar">
           <div className="public-sub-v3-brand"><span className="pulse-mark"><span /></span><div><strong>پالس</strong><small>فضای اتصال شخصی</small></div></div>
@@ -2643,9 +2644,9 @@ function PublicSubscriptionContentV2() {
 
         <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .08, duration: .5 }} className="public-sub-hero-card" data-testid="card-public-sub-hero">
           <div className="public-sub-hero-top"><span className={`public-sub-status-pill ${statusTone}`} data-testid="status-public-sub-subscription"><span className="public-sub-status-dot" />{statusLabel}</span><span className="public-sub-hero-caption"><ShieldCheck size={14} /> اشتراک شخصی شما</span></div>
-          <div className="public-sub-hero-copy"><p className="public-sub-kicker">اتصال شما آماده است</p><h1 data-testid="text-public-sub-plan">{data.plan || 'سرویس ویژه'}</h1><p className="public-sub-username" dir="ltr" data-testid="text-public-sub-username">@{data.username}</p></div>
+          <div className="public-sub-hero-copy"><p className="public-sub-kicker">{finished ? 'اشتراک شما پایان یافته است' : 'اتصال شما آماده است'}</p><h1 data-testid="text-public-sub-plan">{data.plan || 'سرویس ویژه'}</h1><p className="public-sub-username" dir="ltr" data-testid="text-public-sub-username">@{data.username}</p></div>
           <div className="public-sub-hero-meta"><div><span>انقضا</span><strong data-testid="text-public-sub-expiry">{dateLabel(data.expires_at)}</strong></div><div><span>حجم باقی‌مانده</span><strong data-testid="text-public-sub-remaining">{number(remainingGb, 0)} GB</strong></div><div><span>سرور</span><strong>{data.provider_label || 'پالس'}</strong></div></div>
-          <div className="public-sub-hero-actions"><button type="button" className="public-sub-hero-action primary" onClick={() => document.getElementById('public-sub-connect')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })} data-testid="button-public-sub-connect"><Wifi size={15} />انتخاب برنامه اتصال</button><button type="button" className="public-sub-hero-action secondary" onClick={() => void copyUrl(pageUrl, 'page')} data-testid="button-public-sub-copy-page"><Copy size={15} />{copied === 'page' ? 'لینک کپی شد' : 'کپی لینک صفحه'}</button></div>
+          <div className="public-sub-hero-actions">{!finished && <button type="button" className="public-sub-hero-action primary" onClick={() => document.getElementById('public-sub-connect')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })} data-testid="button-public-sub-connect"><Wifi size={15} />انتخاب برنامه اتصال</button>}<button type="button" className="public-sub-hero-action secondary" onClick={() => void copyUrl(pageUrl, 'page')} data-testid="button-public-sub-copy-page"><Copy size={15} />{copied === 'page' ? 'لینک کپی شد' : 'کپی لینک صفحه'}</button></div>
         </motion.section>
 
         <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .15, duration: .5 }} className={`public-sub-status-card ${statusTone}`} data-testid="card-public-sub-status">
@@ -2658,7 +2659,7 @@ function PublicSubscriptionContentV2() {
         <div className="public-sub-overview-grid">
           <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .22, duration: .55 }} className="public-sub-surface public-sub-usage-card" data-testid="card-public-sub-usage">
             <div className="public-sub-card-heading"><div><p className="public-sub-kicker">مصرف اینترنت</p><h2>حجم اشتراک</h2></div><span className="public-sub-percent">{number(ratio, 0)}٪</span></div>
-            <div className="public-sub-usage-ring-row"><div className="public-sub-usage-ring" style={{ background: `conic-gradient(#66d4c5 ${ratio}%, rgba(255,255,255,.13) ${ratio}% 100%)` }}><div className="public-sub-usage-ring-center"><strong>{number(remainingGb, 0)}</strong><span>گیگ باقی‌مانده</span></div></div><div className="public-sub-usage-summary"><div><span>مصرف شده</span><strong>{number(usedGb)} <em>GB</em></strong></div><div><span>حجم کل</span><strong>{number(limitGb, 0)} <em>GB</em></strong></div></div></div>
+            <div className="public-sub-usage-ring-row"><div className="public-sub-usage-ring" style={{ background: `conic-gradient(#66d4c5 ${ratio}%, rgba(255,255,255,.13) ${ratio}% 100%)`, '--lx-r': `${ratio}%` } as React.CSSProperties}><div className="public-sub-usage-ring-center"><strong>{number(remainingGb, 0)}</strong><span>گیگ باقی‌مانده</span></div></div><div className="public-sub-usage-summary"><div><span>مصرف شده</span><strong>{number(usedGb)} <em>GB</em></strong></div><div><span>حجم کل</span><strong>{number(limitGb, 0)} <em>GB</em></strong></div></div></div>
             <div className="public-sub-usage-foot"><span><CalendarDays size={13} /> انقضا: {dateLabel(data.expires_at)}</span><span>{number(remaining, 0)} روز اعتبار</span></div>
           </motion.section>
           <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .28, duration: .55 }} className="public-sub-surface public-sub-details-card">
@@ -2723,7 +2724,7 @@ function PublicSubscriptionContentV2() {
          <footer className="public-sub-footer-v3"><div className="public-sub-footer-copy"><ShieldCheck size={16} /><span>این صفحه ایمن و اختصاصی است. لینک اشتراک را فقط با دستگاه‌های شخصی خود به اشتراک بگذارید.</span></div><button type="button" className="public-sub-qr-button" onClick={() => setQrOpen(true)} data-testid="button-public-sub-qr"><QrCode size={16} />نمایش QR</button><div className="public-sub-qr-v3"><SubscriptionQr url={pageUrl} /></div></footer>
       </main>
     </div>
-    {qrOpen && data && pageUrl ? <div className="public-sub-qr-modal" role="dialog" aria-modal="true" onClick={() => setQrOpen(false)}><div className="public-sub-qr-dialog" onClick={(event) => event.stopPropagation()}><button type="button" className="public-sub-qr-close" onClick={() => setQrOpen(false)} data-testid="button-public-sub-qr-close">بستن</button><h2>QR اشتراک</h2><p>این کد را با برنامه VPN اسکن کنید.</p><div className="public-sub-qr-dialog-code"><SubscriptionQr url={pageUrl} /></div><span dir="ltr">{pageUrl}</span></div></div> : null}
+    {qrOpen && data && pageUrl ? <div className="public-sub-qr-modal public-sub-lux-modal" role="dialog" aria-modal="true" onClick={() => setQrOpen(false)}><div className="public-sub-qr-dialog" onClick={(event) => event.stopPropagation()}><button type="button" className="public-sub-qr-close" onClick={() => setQrOpen(false)} data-testid="button-public-sub-qr-close">بستن</button><h2>QR اشتراک</h2><p>این کد را با برنامه VPN اسکن کنید.</p><div className="public-sub-qr-dialog-code"><SubscriptionQr url={pageUrl} /></div><span dir="ltr">{pageUrl}</span></div></div> : null}
     </>
   );
 }

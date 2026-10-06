@@ -1,0 +1,264 @@
+/* Pulse /sub — "Porcelain & Lacquer" luxury pass. Scoped to .public-sub-lux only.
+   High specificity + !important deliberately beats legacy /sub layers in index.css. */
+html body #root .public-sub-lux, html body .public-sub-lux-modal {
+  --lx-bg: #f3eee5; --lx-bg-2: #ebe4d7; --lx-surface: #fbf8f2; --lx-line: #e2d9c9; --lx-line-2: #d6cab5;
+  --lx-ink: #14202b; --lx-ink-2: #3d4a55; --lx-muted: #6c727a;
+  --lx-lacquer: #0f2930; --lx-lacquer-2: #17404a; --lx-champ: #b38d55; --lx-champ-soft: #e7d6b7;
+  --lx-jade: #2a7566; --lx-jade-soft: #dcece6; --lx-warn: #94661a; --lx-warn-soft: #f4e6c8; --lx-danger: #9e3d39; --lx-danger-soft: #f5dfdb;
+  --lx-ease: cubic-bezier(.22,1,.36,1);
+  font-family: 'Vazirmatn', sans-serif !important;
+}
+html body #root .public-sub-lux {
+  position: relative; min-height: 100dvh !important; padding: 0 !important; color: var(--lx-ink) !important;
+  background: radial-gradient(120% 60% at 100% 0%, #fbf6ec 0%, transparent 60%), radial-gradient(90% 50% at 0% 100%, #e7dfcf 0%, transparent 60%), var(--lx-bg) !important;
+}
+html body #root .public-sub-lux::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .35;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .25 0 0 0 0 .2 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+html body #root .public-sub-lux > * { position: relative; z-index: 1; }
+html body #root .public-sub-lux .public-sub-app-shell {
+  display: grid !important; gap: 14px !important; width: min(100%, 980px) !important; margin: 0 auto !important;
+  padding: max(14px, env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom)) !important; background: none !important;
+}
+html body #root .public-sub-lux .public-sub-kicker { margin: 0 0 4px !important; color: var(--lx-champ) !important; font: 600 10px/1.4 'IBM Plex Mono','Vazirmatn',monospace !important; letter-spacing: .14em !important; text-transform: uppercase; }
+html body #root .public-sub-lux h1, html body #root .public-sub-lux h2 { color: inherit !important; letter-spacing: -.035em !important; }
+html body #root .public-sub-lux h2 { margin: 0 !important; font-size: 18px !important; font-weight: 800 !important; }
+html body #root .public-sub-lux [dir="ltr"] { font-family: 'IBM Plex Mono', monospace !important; unicode-bidi: isolate; }
+
+/* App bar */
+html body #root .public-sub-lux .public-sub-appbar { position: sticky !important; top: 0; z-index: 20 !important; display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 10px; margin: 0 -16px !important; padding: 10px 16px !important; border: 0 !important; border-bottom: 1px solid color-mix(in srgb, var(--lx-line) 70%, transparent) !important; border-radius: 0 !important; background: color-mix(in srgb, var(--lx-bg) 82%, transparent) !important; box-shadow: none !important; backdrop-filter: saturate(1.4) blur(18px); -webkit-backdrop-filter: saturate(1.4) blur(18px); }
+html body #root .public-sub-lux .public-sub-v3-brand { display: flex !important; align-items: center !important; gap: 10px !important; color: var(--lx-ink) !important; }
+html body #root .public-sub-lux .public-sub-v3-brand strong { font-size: 16px !important; font-weight: 800 !important; color: var(--lx-ink) !important; }
+html body #root .public-sub-lux .public-sub-v3-brand small { display: block; color: var(--lx-muted) !important; font-size: 10px !important; }
+html body #root .public-sub-lux .pulse-mark { background: var(--lx-lacquer) !important; box-shadow: inset 0 0 0 1px rgba(231,214,183,.35), 0 6px 14px rgba(15,41,48,.18) !important; }
+html body #root .public-sub-lux .public-sub-appbar-actions { display: flex !important; align-items: center !important; gap: 8px !important; }
+html body #root .public-sub-lux .public-sub-secure-chip { display: inline-flex !important; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px !important; border: 1px solid var(--lx-line-2) !important; border-radius: 99px !important; color: var(--lx-ink-2) !important; background: var(--lx-surface) !important; font-size: 11px !important; font-weight: 700 !important; }
+html body #root .public-sub-lux .public-sub-icon-button { display: grid !important; place-items: center; width: 44px !important; height: 44px !important; border: 1px solid var(--lx-line-2) !important; border-radius: 15px !important; color: var(--lx-ink) !important; background: var(--lx-surface) !important; box-shadow: none !important; transition: transform .2s var(--lx-ease); }
+html body #root .public-sub-lux .public-sub-icon-button:active { transform: scale(.94); }
+
+/* Hero — lacquer pass */
+html body #root .public-sub-lux .public-sub-hero-card { position: relative !important; overflow: hidden !important; display: grid !important; gap: 22px !important; padding: 22px 20px 20px !important; border: 1px solid rgba(231,214,183,.18) !important; border-radius: 30px !important; color: #f6efe2 !important;
+  background: radial-gradient(110% 80% at 0% 0%, rgba(179,141,85,.28) 0%, transparent 55%), radial-gradient(80% 70% at 100% 100%, rgba(42,117,102,.42) 0%, transparent 60%), linear-gradient(160deg, var(--lx-lacquer-2), var(--lx-lacquer) 70%) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 30px 60px -24px rgba(15,41,48,.55), 0 10px 22px -12px rgba(15,41,48,.35) !important; }
+html body #root .public-sub-lux .public-sub-hero-card::after { content: ""; position: absolute; inset: auto -30% -60% auto; width: 340px; height: 340px; border: 1px solid rgba(231,214,183,.16); border-radius: 50%; box-shadow: 0 0 0 28px rgba(231,214,183,.04), 0 0 0 56px rgba(231,214,183,.03); pointer-events: none; }
+html body #root .public-sub-lux .public-sub-hero-card > * { position: relative; z-index: 1; }
+html body #root .public-sub-lux .public-sub-hero-top { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px; }
+html body #root .public-sub-lux .public-sub-status-pill { display: inline-flex !important; align-items: center; gap: 7px; padding: 6px 12px !important; border: 1px solid rgba(220,236,230,.25) !important; border-radius: 99px !important; color: #cfeee4 !important; background: rgba(42,117,102,.32) !important; font-size: 11px !important; font-weight: 800 !important; }
+html body #root .public-sub-lux .public-sub-status-pill.warn { color: #f6dfae !important; background: rgba(179,141,85,.3) !important; border-color: rgba(246,223,174,.3) !important; }
+html body #root .public-sub-lux .public-sub-status-pill.danger { color: #f7c9c3 !important; background: rgba(158,61,57,.35) !important; border-color: rgba(247,201,195,.3) !important; }
+html body #root .public-sub-lux .public-sub-status-dot { width: 7px !important; height: 7px !important; border-radius: 50%; background: currentColor !important; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent); animation: lx-breathe 2.6s ease-in-out infinite; }
+html body #root .public-sub-lux .public-sub-hero-caption { display: inline-flex; align-items: center; gap: 6px; color: rgba(246,239,226,.66) !important; font-size: 11px !important; }
+html body #root .public-sub-lux .public-sub-hero-copy .public-sub-kicker { color: var(--lx-champ-soft) !important; }
+html body #root .public-sub-lux .public-sub-hero-copy h1 { margin: 2px 0 6px !important; color: #fbf6ec !important; font-size: clamp(30px, 8.6vw, 48px) !important; font-weight: 800 !important; line-height: 1.15 !important; }
+html body #root .public-sub-lux .public-sub-username { margin: 0 !important; color: rgba(231,214,183,.85) !important; font-size: 13px !important; text-align: right; }
+html body #root .public-sub-lux .public-sub-hero-meta { display: grid !important; grid-template-columns: repeat(3, minmax(0,1fr)) !important; gap: 0 !important; padding: 14px 0 0 !important; border-top: 1px solid rgba(231,214,183,.16) !important; background: none !important; }
+html body #root .public-sub-lux .public-sub-hero-meta > div { display: grid; gap: 4px; min-width: 0; padding: 0 12px !important; border: 0 !important; border-inline-start: 1px solid rgba(231,214,183,.14) !important; background: none !important; }
+html body #root .public-sub-lux .public-sub-hero-meta > div:first-child { padding-inline-start: 0 !important; border-inline-start: 0 !important; }
+html body #root .public-sub-lux .public-sub-hero-meta span { color: rgba(246,239,226,.58) !important; font-size: 10px !important; }
+html body #root .public-sub-lux .public-sub-hero-meta strong { overflow: hidden; color: #fbf6ec !important; font-size: 14px !important; font-weight: 800 !important; text-overflow: ellipsis; white-space: nowrap; }
+html body #root .public-sub-lux .public-sub-hero-actions { display: grid !important; grid-template-columns: 1.3fr 1fr !important; gap: 8px !important; }
+html body #root .public-sub-lux .public-sub-hero-action { display: inline-flex !important; align-items: center; justify-content: center; gap: 7px; min-height: 52px !important; padding: 0 12px !important; border-radius: 17px !important; font-size: 13px !important; font-weight: 800 !important; transition: transform .2s var(--lx-ease), opacity .2s; }
+html body #root .public-sub-lux .public-sub-hero-action:active { transform: scale(.97); }
+html body #root .public-sub-lux .public-sub-hero-action.primary { border: 0 !important; color: var(--lx-lacquer) !important; background: linear-gradient(180deg, #f3e3c3, #d9bb87) !important; box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 10px 22px -10px rgba(0,0,0,.5) !important; }
+html body #root .public-sub-lux .public-sub-hero-action.secondary { border: 1px solid rgba(231,214,183,.28) !important; color: #f6efe2 !important; background: rgba(255,255,255,.06) !important; }
+
+/* Status / announcement rows */
+html body #root .public-sub-lux .public-sub-status-card { display: flex !important; align-items: center !important; gap: 12px !important; padding: 14px 16px !important; border: 1px solid var(--lx-line) !important; border-radius: 22px !important; color: var(--lx-ink) !important; background: var(--lx-surface) !important; box-shadow: 0 8px 24px -18px rgba(20,32,43,.35) !important; }
+html body #root .public-sub-lux .public-sub-status-icon { display: grid !important; place-items: center; flex: 0 0 auto; width: 40px !important; height: 40px !important; border-radius: 14px !important; color: var(--lx-jade) !important; background: var(--lx-jade-soft) !important; font-weight: 800; }
+html body #root .public-sub-lux .public-sub-status-card.warn .public-sub-status-icon { color: var(--lx-warn) !important; background: var(--lx-warn-soft) !important; }
+html body #root .public-sub-lux .public-sub-status-card.danger .public-sub-status-icon { color: var(--lx-danger) !important; background: var(--lx-danger-soft) !important; }
+html body #root .public-sub-lux .public-sub-status-copy { display: grid !important; flex: 1; min-width: 0; gap: 2px; }
+html body #root .public-sub-lux .public-sub-status-overline { color: var(--lx-muted) !important; font-size: 10px !important; font-weight: 700; }
+html body #root .public-sub-lux .public-sub-status-copy strong { color: var(--lx-ink) !important; font-size: 13px !important; font-weight: 800 !important; line-height: 1.6; }
+html body #root .public-sub-lux .public-sub-status-copy small { color: var(--lx-muted) !important; font-size: 11px !important; }
+html body #root .public-sub-lux .public-sub-status-arrow { color: var(--lx-muted) !important; font-size: 11px; }
+
+/* Surfaces */
+html body #root .public-sub-lux .public-sub-overview-grid { display: grid !important; grid-template-columns: 1fr !important; gap: 14px !important; }
+html body #root .public-sub-lux .public-sub-surface,
+html body #root .public-sub-lux .public-sub-connections-card,
+html body #root .public-sub-lux .public-sub-openvpn-card,
+html body #root .public-sub-lux .public-sub-awg-card,
+html body #root .public-sub-lux .public-sub-share-card,
+html body #root .public-sub-lux .public-sub-finished-card,
+html body #root .public-sub-lux .public-sub-expired-config-card {
+  display: grid !important; gap: 16px !important; padding: 20px 18px !important; border: 1px solid var(--lx-line) !important; border-radius: 26px !important; color: var(--lx-ink) !important; background: var(--lx-surface) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,.8) inset, 0 18px 40px -30px rgba(20,32,43,.4) !important; }
+html body #root .public-sub-lux .public-sub-card-heading, html body #root .public-sub-lux .public-sub-section-heading { display: flex !important; align-items: flex-start !important; justify-content: space-between !important; gap: 12px; }
+html body #root .public-sub-lux .public-sub-section-heading span { display: block; margin-top: 4px; color: var(--lx-muted) !important; font-size: 12px !important; }
+html body #root .public-sub-lux .public-sub-percent { color: var(--lx-ink) !important; font: 600 22px 'IBM Plex Mono', monospace !important; letter-spacing: -.04em; }
+html body #root .public-sub-lux .public-sub-usage-ring-row { display: flex !important; align-items: center !important; gap: 22px !important; }
+html body #root .public-sub-lux .public-sub-usage-ring { position: relative; display: grid !important; place-items: center; flex: 0 0 auto; width: 132px !important; height: 132px !important; border-radius: 50% !important; filter: hue-rotate(0); }
+html body #root .public-sub-lux .public-sub-usage-ring { background: conic-gradient(from 0deg, var(--lx-lacquer-2) 0, var(--lx-jade) var(--lx-r, 0%), var(--lx-bg-2) 0) !important; }
+html body #root .public-sub-lux .public-sub-usage-ring-center { display: grid !important; place-items: center; align-content: center; width: 106px !important; height: 106px !important; border-radius: 50% !important; background: var(--lx-surface) !important; box-shadow: inset 0 2px 8px rgba(20,32,43,.06); }
+html body #root .public-sub-lux .public-sub-usage-ring-center strong { color: var(--lx-ink) !important; font-size: 26px !important; font-weight: 800 !important; line-height: 1.1; }
+html body #root .public-sub-lux .public-sub-usage-ring-center span { color: var(--lx-muted) !important; font-size: 10px !important; }
+html body #root .public-sub-lux .public-sub-usage-summary { display: grid !important; flex: 1; gap: 12px !important; }
+html body #root .public-sub-lux .public-sub-usage-summary > div { display: grid; gap: 2px; padding: 0 0 10px !important; border: 0 !important; border-bottom: 1px solid var(--lx-line) !important; background: none !important; }
+html body #root .public-sub-lux .public-sub-usage-summary > div:last-child { border-bottom: 0 !important; }
+html body #root .public-sub-lux .public-sub-usage-summary span { color: var(--lx-muted) !important; font-size: 11px !important; }
+html body #root .public-sub-lux .public-sub-usage-summary strong { color: var(--lx-ink) !important; font-size: 20px !important; font-weight: 800 !important; }
+html body #root .public-sub-lux .public-sub-usage-summary em { color: var(--lx-champ) !important; font: 500 11px 'IBM Plex Mono', monospace !important; font-style: normal !important; }
+html body #root .public-sub-lux .public-sub-usage-foot { display: flex !important; justify-content: space-between !important; gap: 8px; padding-top: 12px !important; border-top: 1px dashed var(--lx-line-2) !important; color: var(--lx-muted) !important; font-size: 11px !important; }
+html body #root .public-sub-lux .public-sub-usage-foot span { display: inline-flex; align-items: center; gap: 5px; }
+html body #root .public-sub-lux .public-sub-card-badge { display: inline-flex !important; align-items: center; gap: 5px; padding: 5px 10px !important; border-radius: 99px !important; color: var(--lx-jade) !important; background: var(--lx-jade-soft) !important; font-size: 11px !important; font-weight: 800; }
+html body #root .public-sub-lux .public-sub-card-badge.warn { color: var(--lx-warn) !important; background: var(--lx-warn-soft) !important; }
+html body #root .public-sub-lux .public-sub-card-badge.danger { color: var(--lx-danger) !important; background: var(--lx-danger-soft) !important; }
+html body #root .public-sub-lux .public-sub-detail-list { display: grid !important; gap: 0 !important; }
+html body #root .public-sub-lux .public-sub-detail-row { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 12px; min-height: 50px; padding: 0 !important; border: 0 !important; border-bottom: 1px solid var(--lx-line) !important; background: none !important; }
+html body #root .public-sub-lux .public-sub-detail-row:last-child { border-bottom: 0 !important; }
+html body #root .public-sub-lux .public-sub-detail-row span { display: inline-flex; align-items: center; gap: 9px; color: var(--lx-muted) !important; font-size: 12px !important; }
+html body #root .public-sub-lux .public-sub-detail-row span svg { color: var(--lx-champ); }
+html body #root .public-sub-lux .public-sub-detail-row strong { min-width: 0; overflow: hidden; color: var(--lx-ink) !important; font-size: 13px !important; font-weight: 700 !important; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Connect: segmented platform + app list */
+html body #root .public-sub-lux .public-sub-connection-icon, html body #root .public-sub-lux .public-sub-openvpn-icon, html body #root .public-sub-lux .public-sub-awg-icon, html body #root .public-sub-lux .public-sub-share-icon, html body #root .public-sub-lux .public-sub-finished-icon, html body #root .public-sub-lux .public-sub-expired-config-icon {
+  display: grid !important; place-items: center; flex: 0 0 auto; width: 44px !important; height: 44px !important; border-radius: 15px !important; color: var(--lx-champ-soft) !important; background: var(--lx-lacquer) !important; box-shadow: inset 0 0 0 1px rgba(231,214,183,.2) !important; }
+html body #root .public-sub-lux .public-sub-platforms { display: flex !important; gap: 2px !important; overflow-x: auto; padding: 4px !important; border: 0 !important; border-radius: 16px !important; background: var(--lx-bg-2) !important; scrollbar-width: none; }
+html body #root .public-sub-lux .public-sub-platforms::-webkit-scrollbar { display: none; }
+html body #root .public-sub-lux .public-sub-platforms button { position: relative; flex: 1 0 auto; min-width: 64px; min-height: 40px !important; padding: 0 12px !important; border: 0 !important; border-radius: 12px !important; color: var(--lx-muted) !important; background: transparent !important; font: 600 12px 'IBM Plex Mono', 'Vazirmatn', monospace !important; box-shadow: none !important; }
+html body #root .public-sub-lux .public-sub-platforms button.active { color: var(--lx-ink) !important; }
+html body #root .public-sub-lux .public-sub-platform-pill { position: absolute !important; inset: 0 !important; z-index: -1 !important; border-radius: 12px !important; background: var(--lx-surface) !important; box-shadow: 0 1px 2px rgba(20,32,43,.08), 0 4px 10px -4px rgba(20,32,43,.2) !important; }
+html body #root .public-sub-lux .public-sub-platforms button { isolation: isolate; }
+html body #root .public-sub-lux .public-sub-app-list { display: grid !important; gap: 0 !important; overflow: hidden; border: 1px solid var(--lx-line) !important; border-radius: 20px !important; background: #fdfbf7 !important; }
+html body #root .public-sub-lux .public-sub-app-item { display: grid !important; grid-template-columns: 46px minmax(0,1fr) !important; align-items: center !important; gap: 10px 12px !important; padding: 14px !important; border: 0 !important; border-bottom: 1px solid var(--lx-line) !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
+html body #root .public-sub-lux .public-sub-app-item:last-child { border-bottom: 0 !important; }
+html body #root .public-sub-lux .public-sub-app-item.recommended { background: linear-gradient(90deg, transparent, rgba(231,214,183,.28)) !important; }
+html body #root .public-sub-lux .public-sub-app-icon { display: grid !important; place-items: center; width: 46px !important; height: 46px !important; border: 1px solid var(--lx-line) !important; border-radius: 14px !important; color: var(--lx-lacquer-2) !important; background: var(--lx-surface) !important; }
+html body #root .public-sub-lux .public-sub-app-item.recommended .public-sub-app-icon { color: var(--lx-champ-soft) !important; background: var(--lx-lacquer) !important; border-color: transparent !important; }
+html body #root .public-sub-lux .public-sub-app-copy { display: grid !important; gap: 2px; min-width: 0; }
+html body #root .public-sub-lux .public-sub-app-title { display: flex !important; align-items: center; flex-wrap: wrap; gap: 6px; }
+html body #root .public-sub-lux .public-sub-app-title strong { color: var(--lx-ink) !important; font-size: 14px !important; font-weight: 800 !important; }
+html body #root .public-sub-lux .public-sub-app-title span { padding: 2px 8px !important; border-radius: 99px !important; color: #7a5a26 !important; background: var(--lx-champ-soft) !important; font-size: 10px !important; font-weight: 800; }
+html body #root .public-sub-lux .public-sub-app-copy p { margin: 0 !important; color: var(--lx-ink-2) !important; font-size: 12px !important; }
+html body #root .public-sub-lux .public-sub-app-copy small { color: var(--lx-muted) !important; font: 500 10px 'IBM Plex Mono', monospace !important; }
+html body #root .public-sub-lux .public-sub-app-actions { grid-column: 1 / -1; display: grid !important; grid-template-columns: 1.4fr 1fr !important; gap: 8px !important; }
+html body #root .public-sub-lux .public-sub-app-actions > :only-child { grid-column: 1 / -1; }
+html body #root .public-sub-lux .public-sub-quick-action, html body #root .public-sub-lux .public-sub-copy-action, html body #root .public-sub-lux .public-sub-install-action {
+  display: inline-flex !important; align-items: center; justify-content: center; gap: 6px; min-height: 44px !important; padding: 0 12px !important; border-radius: 14px !important; font-size: 12px !important; font-weight: 800 !important; text-decoration: none !important; transition: transform .18s var(--lx-ease); }
+html body #root .public-sub-lux .public-sub-quick-action, html body #root .public-sub-lux .public-sub-copy-action { border: 0 !important; color: #f6efe2 !important; background: var(--lx-lacquer) !important; }
+html body #root .public-sub-lux .public-sub-install-action { border: 1px solid var(--lx-line-2) !important; color: var(--lx-ink) !important; background: var(--lx-surface) !important; }
+html body #root .public-sub-lux .public-sub-quick-action:active, html body #root .public-sub-lux .public-sub-copy-action:active, html body #root .public-sub-lux .public-sub-install-action:active { transform: scale(.97); }
+
+/* OpenVPN */
+html body #root .public-sub-lux .public-sub-openvpn-heading, html body #root .public-sub-lux .public-sub-awg-heading { display: flex !important; align-items: flex-start !important; gap: 12px !important; }
+html body #root .public-sub-lux .public-sub-openvpn-heading p:not(.public-sub-kicker), html body #root .public-sub-lux .public-sub-awg-heading p:not(.public-sub-kicker) { margin: 4px 0 0 !important; color: var(--lx-muted) !important; font-size: 12px !important; line-height: 1.8; }
+html body #root .public-sub-lux .public-sub-awg-heading > div:nth-child(2) { flex: 1; min-width: 0; }
+html body #root .public-sub-lux .public-sub-openvpn-button, html body #root .public-sub-lux .public-sub-awg-action {
+  display: inline-flex !important; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 48px !important; padding: 0 14px !important; border: 1px solid var(--lx-line-2) !important; border-radius: 15px !important; color: var(--lx-ink) !important; background: var(--lx-surface) !important; font-size: 12px !important; font-weight: 800 !important; text-align: center; text-decoration: none !important; }
+html body #root .public-sub-lux .public-sub-openvpn-button.primary, html body #root .public-sub-lux .public-sub-awg-action.primary { border-color: transparent !important; color: #f6efe2 !important; background: var(--lx-lacquer) !important; box-shadow: 0 10px 20px -12px rgba(15,41,48,.6) !important; }
+html body #root .public-sub-lux .public-sub-openvpn-button:disabled { opacity: .6; }
+html body #root .public-sub-lux .public-sub-openvpn-credentials { display: grid !important; gap: 0 !important; overflow: hidden; border: 1px solid var(--lx-line) !important; border-radius: 18px !important; background: #fdfbf7 !important; }
+html body #root .public-sub-lux .public-sub-openvpn-credentials > div { display: grid !important; grid-template-columns: minmax(0,1fr) 44px !important; align-items: center; gap: 2px 10px; padding: 10px 12px !important; border: 0 !important; border-bottom: 1px solid var(--lx-line) !important; background: none !important; }
+html body #root .public-sub-lux .public-sub-openvpn-credentials > div:last-child { border-bottom: 0 !important; }
+html body #root .public-sub-lux .public-sub-openvpn-credentials span { grid-column: 1; color: var(--lx-muted) !important; font-size: 10px !important; }
+html body #root .public-sub-lux .public-sub-openvpn-credentials strong { grid-column: 1; color: var(--lx-ink) !important; font-size: 13px !important; overflow-wrap: anywhere; text-align: left; }
+html body #root .public-sub-lux .public-sub-openvpn-credentials button { grid-column: 2; grid-row: 1 / span 2; display: grid !important; place-items: center; width: 44px !important; height: 44px !important; border: 1px solid var(--lx-line) !important; border-radius: 13px !important; color: var(--lx-lacquer-2) !important; background: var(--lx-surface) !important; }
+html body #root .public-sub-lux .public-sub-openvpn-actions { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+html body #root .public-sub-lux .public-sub-openvpn-actions > :first-child { grid-column: 1 / -1; }
+html body #root .public-sub-lux .public-sub-openvpn-hint { margin: 0 !important; padding: 12px 14px !important; border-radius: 16px !important; color: var(--lx-ink-2) !important; background: var(--lx-bg-2) !important; font-size: 11px !important; line-height: 1.9 !important; }
+html body #root .public-sub-lux .public-sub-openvpn-error { margin: 0 !important; color: var(--lx-danger) !important; font-size: 12px !important; }
+html body #root .public-sub-lux .public-sub-openvpn-locations { display: grid !important; gap: 0 !important; overflow: hidden; border: 1px solid var(--lx-line) !important; border-radius: 18px !important; background: #fdfbf7 !important; }
+html body #root .public-sub-lux .public-sub-openvpn-locations > strong { padding: 10px 14px !important; color: var(--lx-muted) !important; font-size: 11px !important; border-bottom: 1px solid var(--lx-line); }
+html body #root .public-sub-lux .public-sub-openvpn-location { display: flex !important; align-items: center !important; gap: 6px !important; min-height: 54px; padding: 6px 10px 6px 6px !important; border: 0 !important; border-bottom: 1px solid var(--lx-line) !important; background: none !important; }
+html body #root .public-sub-lux .public-sub-openvpn-location:last-child { border-bottom: 0 !important; }
+html body #root .public-sub-lux .public-sub-openvpn-location span { flex: 1; min-width: 0; color: var(--lx-ink) !important; font-size: 13px !important; font-weight: 700; overflow-wrap: anywhere; }
+html body #root .public-sub-lux .public-sub-openvpn-location a { display: inline-flex !important; align-items: center; gap: 4px; min-height: 40px; padding: 0 12px !important; border: 1px solid var(--lx-line) !important; border-radius: 12px !important; color: var(--lx-lacquer-2) !important; background: var(--lx-surface) !important; font-size: 11px !important; font-weight: 800; text-decoration: none !important; white-space: nowrap; }
+
+/* AmneziaWG */
+html body #root .public-sub-lux .public-sub-awg-status { display: inline-flex !important; align-items: center; gap: 5px; flex: 0 0 auto; padding: 5px 10px !important; border-radius: 99px !important; font-size: 11px !important; font-weight: 800; }
+html body #root .public-sub-lux .public-sub-awg-status.ready { color: var(--lx-jade) !important; background: var(--lx-jade-soft) !important; }
+html body #root .public-sub-lux .public-sub-awg-status.pending { color: var(--lx-warn) !important; background: var(--lx-warn-soft) !important; }
+html body #root .public-sub-lux .public-sub-awg-trigger { display: flex !important; align-items: center; justify-content: space-between; width: 100%; min-height: 52px !important; padding: 0 16px !important; border: 1px solid var(--lx-line-2) !important; border-radius: 16px !important; color: var(--lx-ink) !important; background: #fdfbf7 !important; font-size: 13px !important; font-weight: 800 !important; }
+html body #root .public-sub-lux .public-sub-awg-trigger svg { transition: transform .3s var(--lx-ease); }
+html body #root .public-sub-lux .public-sub-awg-trigger svg.rotate-90 { transform: rotate(-90deg); }
+html body #root .public-sub-lux .public-sub-awg-body { display: grid !important; gap: 10px; overflow: hidden; }
+html body #root .public-sub-lux .public-sub-awg-body p { margin: 0 !important; color: var(--lx-muted) !important; font-size: 12px !important; line-height: 1.9; }
+html body #root .public-sub-lux .public-sub-awg-body > div { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; }
+html body #root .public-sub-lux .public-sub-awg-unavailable { padding: 14px !important; border: 1px dashed var(--lx-line-2) !important; border-radius: 16px !important; background: none !important; }
+html body #root .public-sub-lux .public-sub-awg-unavailable strong { color: var(--lx-ink) !important; font-size: 13px !important; }
+html body #root .public-sub-lux .public-sub-awg-unavailable p { margin: 4px 0 0 !important; color: var(--lx-muted) !important; font-size: 12px !important; line-height: 1.8; }
+html body #root .public-sub-lux .public-sub-awg-divider { display: flex !important; align-items: center; justify-content: space-between; gap: 8px; padding-top: 4px !important; border: 0 !important; color: var(--lx-muted) !important; font-size: 11px !important; font-weight: 700; }
+html body #root .public-sub-lux .public-sub-awg-divider a { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; color: var(--lx-lacquer-2) !important; text-decoration: none !important; }
+html body #root .public-sub-lux .public-sub-awg-grid { display: grid !important; grid-template-columns: 1fr !important; gap: 0 !important; overflow: hidden; border: 1px solid var(--lx-line) !important; border-radius: 18px !important; background: #fdfbf7 !important; }
+html body #root .public-sub-lux .public-sub-awg-platform { display: flex !important; align-items: center !important; gap: 12px; min-height: 60px; padding: 10px 14px !important; border: 0 !important; border-bottom: 1px solid var(--lx-line) !important; border-radius: 0 !important; color: var(--lx-ink) !important; background: none !important; text-decoration: none !important; }
+html body #root .public-sub-lux .public-sub-awg-platform:last-child { border-bottom: 0 !important; }
+html body #root .public-sub-lux .public-sub-awg-platform > span:nth-child(2) { display: grid; flex: 1; min-width: 0; gap: 2px; }
+html body #root .public-sub-lux .public-sub-awg-platform strong { color: var(--lx-ink) !important; font-size: 13px !important; }
+html body #root .public-sub-lux .public-sub-awg-platform small { color: var(--lx-muted) !important; font-size: 11px !important; }
+html body #root .public-sub-lux .public-sub-awg-platform > svg { color: var(--lx-muted); }
+html body #root .public-sub-lux .public-sub-awg-platform-icon { display: grid !important; place-items: center; width: 38px !important; height: 38px !important; border-radius: 12px !important; color: var(--lx-lacquer-2) !important; background: var(--lx-bg-2) !important; }
+
+/* Share / finished / footer */
+html body #root .public-sub-lux .public-sub-share-card { grid-template-columns: 1fr !important; }
+html body #root .public-sub-lux .public-sub-share-copy { display: flex !important; align-items: center; gap: 12px; min-width: 0; }
+html body #root .public-sub-lux .public-sub-share-copy > div:last-child { display: grid; gap: 2px; min-width: 0; }
+html body #root .public-sub-lux .public-sub-share-copy strong { color: var(--lx-ink) !important; font-size: 13px !important; }
+html body #root .public-sub-lux .public-sub-share-copy span { overflow: hidden; color: var(--lx-muted) !important; font-size: 11px !important; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+html body #root .public-sub-lux .public-sub-copy-link { display: inline-flex !important; align-items: center; justify-content: center; gap: 7px; min-height: 50px !important; border: 0 !important; border-radius: 16px !important; color: var(--lx-lacquer) !important; background: linear-gradient(180deg, #f3e3c3, #d9bb87) !important; font-size: 13px !important; font-weight: 800 !important; }
+html body #root .public-sub-lux .public-sub-finished-card { grid-template-columns: auto 1fr !important; align-items: center; border-color: #e8c9c3 !important; background: linear-gradient(135deg, #fbf3f0, var(--lx-surface)) !important; }
+html body #root .public-sub-lux .public-sub-finished-icon { color: #fbe6e2 !important; background: var(--lx-danger) !important; }
+html body #root .public-sub-lux .public-sub-finished-card strong { color: var(--lx-ink) !important; font-size: 14px !important; }
+html body #root .public-sub-lux .public-sub-finished-card p, html body #root .public-sub-lux .public-sub-expired-config-card > p, html body #root .public-sub-lux .public-sub-expired-config-card small { margin: 4px 0 0 !important; color: var(--lx-muted) !important; font-size: 12px !important; line-height: 1.8; }
+html body #root .public-sub-lux .public-sub-expired-config-heading { display: flex !important; align-items: center; gap: 12px; }
+html body #root .public-sub-lux .public-sub-expired-config-placeholder { padding: 12px !important; border: 1px dashed var(--lx-line-2) !important; border-radius: 14px !important; color: var(--lx-muted) !important; background: var(--lx-bg-2) !important; font-size: 12px; text-decoration: line-through; }
+html body #root .public-sub-lux .public-sub-footer-v3 { display: grid !important; grid-template-columns: 1fr !important; justify-items: center; gap: 12px !important; padding: 20px 4px 4px !important; border: 0 !important; background: none !important; color: var(--lx-muted) !important; text-align: center; }
+html body #root .public-sub-lux .public-sub-footer-copy { display: flex !important; align-items: flex-start; gap: 8px; max-width: 460px; font-size: 11px !important; line-height: 1.9; color: var(--lx-muted) !important; }
+html body #root .public-sub-lux .public-sub-footer-copy svg { flex: 0 0 auto; color: var(--lx-champ); margin-top: 3px; }
+html body #root .public-sub-lux .public-sub-qr-button { display: inline-flex !important; align-items: center; gap: 7px; min-height: 46px !important; padding: 0 18px !important; border: 1px solid var(--lx-line-2) !important; border-radius: 99px !important; color: var(--lx-ink) !important; background: var(--lx-surface) !important; font-size: 12px !important; font-weight: 800 !important; }
+html body #root .public-sub-lux .public-sub-qr-v3 { display: none !important; }
+
+/* QR sheet */
+html body .public-sub-lux-modal { position: fixed !important; inset: 0 !important; z-index: 200 !important; display: grid !important; place-items: end center !important; padding: 0 !important; background: rgba(15,41,48,.5) !important; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); animation: lx-fade .25s ease both; }
+html body .public-sub-lux-modal .public-sub-qr-dialog { position: relative; display: grid !important; justify-items: center; gap: 8px; width: min(100%, 440px) !important; padding: 14px 22px calc(26px + env(safe-area-inset-bottom)) !important; border: 0 !important; border-radius: 30px 30px 0 0 !important; color: #14202b !important; background: #fbf8f2 !important; box-shadow: 0 -20px 60px -20px rgba(15,41,48,.5) !important; text-align: center; animation: lx-sheet .42s cubic-bezier(.22,1,.36,1) both; }
+html body .public-sub-lux-modal .public-sub-qr-dialog::before { content: ""; width: 40px; height: 5px; margin-bottom: 10px; border-radius: 99px; background: #d6cab5; }
+html body .public-sub-lux-modal .public-sub-qr-dialog h2 { margin: 0 !important; font-size: 20px !important; font-weight: 800 !important; color: #14202b !important; }
+html body .public-sub-lux-modal .public-sub-qr-dialog p { margin: 0 !important; color: #6c727a !important; font-size: 12px !important; }
+html body .public-sub-lux-modal .public-sub-qr-dialog-code { margin: 10px 0 !important; padding: 14px !important; border: 1px solid #e2d9c9 !important; border-radius: 24px !important; background: #fff9ef !important; }
+html body .public-sub-lux-modal .public-sub-qr-dialog-code img, html body .public-sub-lux-modal .public-sub-qr-dialog-code canvas { width: min(60vw, 230px) !important; height: auto !important; }
+html body .public-sub-lux-modal .public-sub-qr-dialog > span { max-width: 100%; overflow: hidden; color: #6c727a !important; font: 11px 'IBM Plex Mono', monospace !important; text-overflow: ellipsis; white-space: nowrap; }
+html body .public-sub-lux-modal .public-sub-qr-close { position: absolute !important; top: 14px !important; left: 14px !important; min-height: 40px !important; padding: 0 14px !important; border: 1px solid #e2d9c9 !important; border-radius: 99px !important; color: #14202b !important; background: #fbf8f2 !important; font-size: 12px !important; font-weight: 800 !important; }
+
+/* Loading / error states */
+html body #root .public-sub-lux.public-sub-state { display: grid !important; place-items: center !important; padding: 20px !important; }
+html body #root .public-sub-lux .public-sub-loading-card, html body #root .public-sub-lux .public-sub-error-card { display: grid !important; justify-items: center; gap: 12px !important; width: min(100%, 400px) !important; padding: 32px 24px !important; border: 1px solid var(--lx-line) !important; border-radius: 30px !important; color: var(--lx-ink) !important; background: var(--lx-surface) !important; box-shadow: 0 30px 60px -36px rgba(20,32,43,.45) !important; text-align: center; }
+html body #root .public-sub-lux .public-sub-loading-copy { display: grid; gap: 4px; }
+html body #root .public-sub-lux .public-sub-loading-copy strong { font-size: 18px !important; color: var(--lx-ink) !important; }
+html body #root .public-sub-lux .public-sub-loading-copy span, html body #root .public-sub-lux .public-sub-error-card p:not(.public-sub-kicker) { margin: 0 !important; color: var(--lx-muted) !important; font-size: 12px !important; line-height: 1.8; }
+html body #root .public-sub-lux .public-sub-loading-bar { width: 60% !important; height: 10px !important; border-radius: 99px !important; background: linear-gradient(90deg, var(--lx-bg-2) 25%, #fbf6ec 45%, var(--lx-bg-2) 65%) !important; background-size: 300% 100% !important; animation: lx-shimmer 1.4s ease infinite; }
+html body #root .public-sub-lux .public-sub-loading-bar.wide { width: 86% !important; }
+html body #root .public-sub-lux .public-sub-error-card h1 { margin: 0 !important; font-size: 24px !important; font-weight: 800 !important; }
+html body #root .public-sub-lux .public-sub-error-icon { display: grid !important; place-items: center; width: 64px !important; height: 64px !important; border-radius: 22px !important; color: var(--lx-champ-soft) !important; background: var(--lx-lacquer) !important; }
+html body #root .public-sub-lux .public-sub-button.primary { display: inline-flex !important; align-items: center; justify-content: center; min-height: 50px !important; width: 100%; border-radius: 16px !important; color: #f6efe2 !important; background: var(--lx-lacquer) !important; font-size: 13px !important; font-weight: 800 !important; text-decoration: none !important; }
+
+html body #root .public-sub-lux .public-sub-spin { animation: lx-spin .9s linear infinite; }
+@keyframes lx-breathe { 50% { opacity: .55; } }
+@keyframes lx-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes lx-spin { to { transform: rotate(360deg); } }
+@keyframes lx-fade { from { opacity: 0; } }
+@keyframes lx-sheet { from { transform: translateY(40px); opacity: 0; } }
+
+@media (min-width: 760px) {
+  html body #root .public-sub-lux .public-sub-app-shell { gap: 18px !important; padding-inline: 28px !important; }
+  html body #root .public-sub-lux .public-sub-appbar { margin: 0 -28px !important; padding-inline: 28px !important; }
+  html body #root .public-sub-lux .public-sub-hero-card { padding: 34px 34px 28px !important; border-radius: 36px !important; }
+  html body #root .public-sub-lux .public-sub-hero-actions { grid-template-columns: auto auto !important; justify-content: start; }
+  html body #root .public-sub-lux .public-sub-hero-action { padding: 0 24px !important; }
+  html body #root .public-sub-lux .public-sub-overview-grid { grid-template-columns: 1.15fr 1fr !important; }
+  html body #root .public-sub-lux .public-sub-app-list { grid-template-columns: 1fr 1fr !important; }
+  html body #root .public-sub-lux .public-sub-app-item { border-inline-start: 1px solid var(--lx-line) !important; }
+  html body #root .public-sub-lux .public-sub-awg-grid { grid-template-columns: 1fr 1fr !important; }
+  html body #root .public-sub-lux .public-sub-share-card { grid-template-columns: 1fr auto !important; align-items: center; }
+  html body #root .public-sub-lux .public-sub-copy-link { padding: 0 24px !important; }
+  html body .public-sub-lux-modal { place-items: center !important; }
+  html body .public-sub-lux-modal .public-sub-qr-dialog { border-radius: 30px !important; padding-bottom: 26px !important; }
+}
+@media (max-width: 380px) {
+  html body #root .public-sub-lux .public-sub-secure-chip { display: none !important; }
+  html body #root .public-sub-lux .public-sub-hero-actions { grid-template-columns: 1fr !important; }
+  html body #root .public-sub-lux .public-sub-usage-ring { width: 112px !important; height: 112px !important; }
+  html body #root .public-sub-lux .public-sub-usage-ring-center { width: 90px !important; height: 90px !important; }
+  html body #root .public-sub-lux .public-sub-hero-meta strong { font-size: 12px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html body #root .public-sub-lux *, html body .public-sub-lux-modal, html body .public-sub-lux-modal * { animation: none !important; transition: none !important; }
+}
