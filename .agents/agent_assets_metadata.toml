@@ -1038,3 +1038,17 @@ mtime_ms = 1791300480026
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1b3bcdcc-e5e2-4194-810d-6a1aea15396f/1c56d1be-ac4e-4ca7-b1c7-8be91bafb4f9"
 storage_version_token = "1791300586445014"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "TCxeqG_sS_UXrO7riyG13"
+uri = "file://exports/pulse-hostinger-openvpn-schema-fix-2026-10-06.zip"
+type = "unspecified"
+title = "Corrected Hostinger migration ZIP"
+description = "Use this replacement bundle instead of the previous ZIP. It removes the invalid foreign-key assumption that prevented API startup; the legacy migration remains idempotent."
+logical_id = "d2c6ae92-2c56-4614-a462-011e90c0fbe9"
+content_hash = "sha256:5794d411c0ea9961f820518ff52cd3cd0cf2ba781d87f3a364cbb4af53ed48a9"
+size = 27365060
+mtime_ms = 1791300924678
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/d2c6ae92-2c56-4614-a462-011e90c0fbe9/9a0baba7-c488-4275-a1fd-eef7708c9d16"
+storage_version_token = "1791300955645254"
+content_type = "application/octet-stream"

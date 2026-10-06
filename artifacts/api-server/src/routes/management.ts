@@ -784,7 +784,7 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS reseller_service_openvpn_accounts (
-        service_id BIGINT PRIMARY KEY REFERENCES reseller_services(id) ON DELETE CASCADE,
+        service_id BIGINT PRIMARY KEY,
         delivery_secret TEXT NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
