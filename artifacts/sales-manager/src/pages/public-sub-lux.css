@@ -262,3 +262,87 @@ html body #root .public-sub-lux .public-sub-spin { animation: lx-spin .9s linear
 @media (prefers-reduced-motion: reduce) {
   html body #root .public-sub-lux *, html body .public-sub-lux-modal, html body .public-sub-lux-modal * { animation: none !important; transition: none !important; }
 }
+
+/* Pin the standalone subscription page to a readable light palette, including
+   when the phone or authenticated shell is using dark mode. */
+html body #root .public-sub-lux, html body .public-sub-lux-modal {
+  color-scheme: light !important;
+  --lx-bg: #f4f1e9 !important;
+  --lx-bg-2: #ebe5d9 !important;
+  --lx-surface: #fffdf8 !important;
+  --lx-line: #d9d1c4 !important;
+  --lx-line-2: #c7baa3 !important;
+  --lx-ink: #142a34 !important;
+  --lx-ink-2: #354a55 !important;
+  --lx-muted: #4b5d67 !important;
+  --lx-lacquer: #14343d !important;
+  --lx-lacquer-2: #20515b !important;
+  --lx-champ: #72521c !important;
+  --sub-bg: #f4f1e9 !important;
+  --sub-surface: #fffdf8 !important;
+  --sub-surface-2: #ebe5d9 !important;
+  --sub-ink: #142a34 !important;
+  --sub-muted: #4b5d67 !important;
+}
+html body #root .public-sub-lux {
+  color: #142a34 !important;
+  background: radial-gradient(120% 60% at 100% 0%, #fffaf0 0%, transparent 60%), #f4f1e9 !important;
+}
+html body #root .public-sub-lux .public-sub-kicker { color: #72521c !important; font-size: 12px !important; letter-spacing: .02em !important; }
+html body #root .public-sub-lux .public-sub-v3-brand small,
+html body #root .public-sub-lux .public-sub-secure-chip,
+html body #root .public-sub-lux .public-sub-status-overline,
+html body #root .public-sub-lux .public-sub-awg-download-heading,
+html body #root .public-sub-lux .public-sub-openvpn-locations > strong { color: #465964 !important; font-size: 13px !important; }
+html body #root .public-sub-lux .public-sub-hero-card {
+  border-color: #d8cfbe !important;
+  color: #142a34 !important;
+  background: radial-gradient(100% 80% at 0% 0%, rgba(179,141,85,.15), transparent 58%), linear-gradient(145deg, #fffdf8, #eee7da) !important;
+  box-shadow: 0 18px 44px -30px rgba(20,42,52,.28), 0 1px 0 rgba(255,255,255,.8) inset !important;
+}
+html body #root .public-sub-lux .public-sub-hero-card::after { border-color: rgba(114,82,28,.16) !important; box-shadow: 0 0 0 28px rgba(114,82,28,.035), 0 0 0 56px rgba(114,82,28,.025) !important; }
+html body #root .public-sub-lux .public-sub-status-pill { color: #175c49 !important; border-color: #c1ddce !important; background: #e2f0e8 !important; font-size: 13px !important; }
+html body #root .public-sub-lux .public-sub-status-pill.warn { color: #76501c !important; border-color: #ead5aa !important; background: #f7edda !important; }
+html body #root .public-sub-lux .public-sub-status-pill.danger { color: #823c38 !important; border-color: #e8c5c0 !important; background: #f8e8e5 !important; }
+html body #root .public-sub-lux .public-sub-hero-caption,
+html body #root .public-sub-lux .public-sub-hero-meta span { color: #4b5d67 !important; font-size: 13px !important; }
+html body #root .public-sub-lux .public-sub-hero-copy .public-sub-kicker { color: #72521c !important; }
+html body #root .public-sub-lux .public-sub-hero-copy h1,
+html body #root .public-sub-lux .public-sub-hero-meta strong { color: #142a34 !important; }
+html body #root .public-sub-lux .public-sub-username { color: #354a55 !important; font-size: 15px !important; }
+html body #root .public-sub-lux .public-sub-hero-meta { border-color: #d8cfbe !important; }
+html body #root .public-sub-lux .public-sub-hero-meta > div { border-color: #d8cfbe !important; }
+html body #root .public-sub-lux .public-sub-hero-action.secondary { border-color: #c7baa3 !important; color: #173943 !important; background: rgba(255,253,248,.8) !important; }
+html body #root .public-sub-lux .public-sub-status-copy small,
+html body #root .public-sub-lux .public-sub-openvpn-heading p:not(.public-sub-kicker),
+html body #root .public-sub-lux .public-sub-awg-heading p:not(.public-sub-kicker),
+html body #root .public-sub-lux .public-sub-app-copy p,
+html body #root .public-sub-lux .public-sub-usage-summary span,
+html body #root .public-sub-lux .public-sub-usage-foot { color: #465964 !important; font-size: 14px !important; }
+html body #root .public-sub-lux .public-sub-status-copy strong,
+html body #root .public-sub-lux .public-sub-app-title strong,
+html body #root .public-sub-lux .public-sub-detail-row strong { font-size: 15px !important; }
+html body #root .public-sub-lux .public-sub-usage-summary strong,
+html body #root .public-sub-lux .public-sub-detail-row span,
+html body #root .public-sub-lux .public-sub-app-copy small { color: #354a55 !important; font-size: 13px !important; }
+html body #root .public-sub-lux .public-sub-openvpn-button,
+html body #root .public-sub-lux .public-sub-awg-action,
+html body #root .public-sub-lux .public-sub-quick-action,
+html body #root .public-sub-lux .public-sub-copy-action,
+html body #root .public-sub-lux .public-sub-install-action { font-size: 14px !important; }
+html body #root .public-sub-lux .public-sub-openvpn-credentials span { color: #465964 !important; font-size: 14px !important; }
+html body #root .public-sub-lux .public-sub-openvpn-credentials strong { color: #142a34 !important; font-size: 16px !important; }
+html body #root .public-sub-lux .public-sub-openvpn-hint,
+html body #root .public-sub-lux .public-sub-awg-hint { color: #263943 !important; background: #ebe5d9 !important; font-size: 14px !important; line-height: 1.9 !important; }
+html body #root .public-sub-lux .public-sub-openvpn-location span { color: #142a34 !important; font-size: 15px !important; }
+html body #root .public-sub-lux .public-sub-openvpn-location a { color: #173943 !important; font-size: 13px !important; }
+html body #root .public-sub-lux .public-sub-error-card h1 {
+  color: #142a34 !important;
+  -webkit-text-fill-color: #142a34 !important;
+  background: none !important;
+  opacity: 1 !important;
+  font-size: 25px !important;
+}
+html body #root .public-sub-lux .public-sub-error-card p:not(.public-sub-kicker) { color: #354a55 !important; font-size: 14px !important; }
+html body #root .public-sub-lux .public-sub-error-card .public-sub-kicker { color: #72521c !important; }
+html body #root .public-sub-lux-modal { background: rgba(27,39,44,.38) !important; }

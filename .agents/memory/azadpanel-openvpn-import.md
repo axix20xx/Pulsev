@@ -3,8 +3,8 @@ name: AzadPanel OpenVPN handoff
 description: Supported OpenVPN Connect import options for AzadPanel-backed customer profiles
 ---
 
-AzadPanel returns an OpenVPN server address, username/password, locations, and `.ovpn` profiles, but not an OpenVPN Access Server import token or a customer-facing profile URL. OpenVPN Connect can import a profile from an HTTPS URL wrapped as `openvpn://import-profile/<percent-encoded-HTTPS-URL>`.
+AzadPanel returns an OpenVPN server address, username/password, locations, and `.ovpn` profiles, but not an OpenVPN Access Server import token or a customer-facing profile URL. OpenVPN Connect's import-profile deeplink uses the raw HTTPS URL after `openvpn://import-profile/`; do not percent-encode the nested URL. The profile endpoint must return `application/x-openvpn-profile`.
 
-**Why:** The customer-facing reference uses its own HTTPS profile endpoint inside the OpenVPN Connect deeplink. An app-owned endpoint can provide the same handoff without exposing AzadPanel credentials or pretending its subscription token is an Access Server token.
+**Why:** OpenVPN's webauth RFC specifies the literal nested URL and exact profile MIME type. Percent-encoding the URL or returning the Provider's `text/plain` response type makes the Connect import invalid.
 
-**How to apply:** Build the deeplink around an app-owned HTTPS endpoint that validates the subscription bearer token and returns the actual profile as uncached `text/plain`, with no forced attachment download. Keep per-location downloads and official app links as fallbacks; never place provider credentials in the deeplink.
+**How to apply:** Build the deeplink around a same-origin HTTPS profile endpoint; return the profile uncached, inline, with `application/x-openvpn-profile`, and never put Provider credentials in the link. Keep direct `.ovpn` downloads as a fallback. Do not add a one-time login handshake to the importer.

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { type MobileNotification, type MobileSubscription, faNumber, formatMobileDate, statusCopy } from './mobile-api';
+import { openVpnConnectImportUrl } from '../lib/openvpn-connect-link';
 
 const mobileLogoSrc = `${import.meta.env.BASE_URL}favicon.svg`;
 
@@ -119,9 +120,6 @@ type MobileOpenVpnDelivery = {
   locations: MobileOpenVpnLocation[];
 };
 
-const openVpnConnectImportUrl = (profileUrl: string) =>
-  `openvpn://import-profile/${encodeURIComponent(new URL(profileUrl, window.location.origin).toString())}`;
-
 const mobileClientCatalog = (url: string, name: string): MobileClient[] => {
   const encodedName = encodeURIComponent(name || 'Pulse');
   const encodedUrl = encodeURIComponent(url);
@@ -227,6 +225,9 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
     }
   };
   const clients = providerUrl ? mobileClientCatalog(providerUrl, item.plan) : [];
+  const openVpnBundleImportHref = openVpnData
+    ? openVpnConnectImportUrl(openVpnData.bundle_import_url, window.location.origin)
+    : null;
   const awgDownloads = [
     { id: 'ios', label: 'AmneziaWG برای iOS', detail: 'App Store', href: 'https://apps.apple.com/app/amneziawg/id6478942365' },
     { id: 'android', label: 'AmneziaWG برای Android', detail: 'Google Play', href: 'https://play.google.com/store/apps/details?id=org.amnezia.awg' },
@@ -266,12 +267,15 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
            <div><span>رمز عبور</span><strong dir="ltr">{openVpnData.password}</strong><button type="button" onClick={() => void copyValue(openVpnData.password, 'رمز OpenVPN')}>کپی</button></div>
          </div>
          <a className="mobile-openvpn-download primary" href={openVpnData.bundle_url} download data-testid={`link-mobile-openvpn-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ فایل‌ها</a>
-        {isIosDevice && <a className="mobile-openvpn-primary" href={openVpnConnectImportUrl(openVpnData.bundle_import_url)} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-ios-${item.id}`}><ExternalLink size={14} /> واردکردن همه در OpenVPN Connect · iOS</a>}
-        <div className="mobile-openvpn-locations">{openVpnData.locations.map((location) => <div className="mobile-openvpn-location" key={location.id}>
-          <span>{location.name}</span>
-          {isIosDevice && <a href={openVpnConnectImportUrl(location.import_url)} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-ios-${item.id}-${location.id}`}><ExternalLink size={13} />واردکردن</a>}
-          <a href={location.config_url} download data-testid={`link-mobile-openvpn-config-${item.id}-${location.id}`}><Download size={13} />دانلود</a>
-        </div>)}</div>
+         {isIosDevice && openVpnBundleImportHref && <a className="mobile-openvpn-primary" href={openVpnBundleImportHref} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-ios-${item.id}`}><ExternalLink size={14} /> واردکردن همه در OpenVPN Connect · iOS</a>}
+         <div className="mobile-openvpn-locations">{openVpnData.locations.map((location) => {
+           const importHref = openVpnConnectImportUrl(location.import_url, window.location.origin);
+           return <div className="mobile-openvpn-location" key={location.id}>
+             <span>{location.name}</span>
+             {isIosDevice && importHref && <a href={importHref} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-ios-${item.id}-${location.id}`}><ExternalLink size={13} />واردکردن</a>}
+             <a href={location.config_url} download data-testid={`link-mobile-openvpn-config-${item.id}-${location.id}`}><Download size={13} />دانلود</a>
+           </div>;
+         })}</div>
          <div className="mobile-openvpn-app-links"><a href="https://apps.apple.com/us/app/openvpn-connect-openvpn-app/id590379981" target="_blank" rel="noreferrer">OpenVPN Connect برای iOS <ExternalLink size={13} /></a><a href="https://play.google.com/store/apps/details?id=net.openvpn.openvpn" target="_blank" rel="noreferrer">OpenVPN Connect برای Android <ExternalLink size={13} /></a></div>
         <p className="mobile-openvpn-hint">در iPhone دکمهٔ واردکردن، فایل امن پروفایل را مستقیم در OpenVPN Connect باز می‌کند. برای دستگاه‌های دیگر، در برنامه Import Profile ← URL را انتخاب کنید؛ فایل .ovpn هر سرور هم جداگانه در دسترس است.</p>
        </>}

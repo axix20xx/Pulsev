@@ -11,6 +11,7 @@ import { Avatar, PageHeader, StatusPill } from '@/components/pulse-shell';
 import { PulseNetworkAccent } from '@/components/pulse-network-accent';
 import { copyTextToClipboard } from '@/lib/browser-utils';
 import './public-sub-lux.css';
+import { openVpnConnectImportUrl } from '@/lib/openvpn-connect-link';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
@@ -2670,8 +2671,9 @@ function PublicSubscriptionContentV2() {
     setOpenVpnCopied(kind);
     window.setTimeout(() => setOpenVpnCopied((current) => current === kind ? null : current), 1800);
   };
-  const openVpnImportHref = (profileUrl: string) =>
-    `openvpn://import-profile/${encodeURIComponent(new URL(profileUrl, window.location.origin).toString())}`;
+  const openVpnBundleImportHref = openVpnData
+    ? openVpnConnectImportUrl(openVpnData.bundle_import_url, window.location.origin)
+    : null;
   const sharePage = async () => {
     if (navigator.share) {
       await navigator.share({ title: data?.plan || 'اشتراک پالس', text: 'صفحه وضعیت اشتراک من', url: pageUrl }).catch(() => undefined);
@@ -2798,18 +2800,21 @@ function PublicSubscriptionContentV2() {
             </div>
             <div className="public-sub-openvpn-actions">
               <a className="public-sub-openvpn-button primary" href={openVpnData.bundle_url} download data-testid="link-public-sub-openvpn-bundle"><Download size={15} />دانلود همهٔ فایل‌ها</a>
-              {activeOS === 'iOS' && <a className="public-sub-openvpn-button" href={openVpnImportHref(openVpnData.bundle_import_url)} referrerPolicy="no-referrer" data-testid="link-public-sub-openvpn-import-ios"><ExternalLink size={14} />واردکردن همه در OpenVPN · iOS</a>}
+              {activeOS === 'iOS' && openVpnBundleImportHref && <a className="public-sub-openvpn-button" href={openVpnBundleImportHref} referrerPolicy="no-referrer" data-testid="link-public-sub-openvpn-import-ios"><ExternalLink size={14} />واردکردن همه در OpenVPN · iOS</a>}
               <a className="public-sub-openvpn-button" href="https://apps.apple.com/us/app/openvpn-connect-openvpn-app/id590379981" target="_blank" rel="noreferrer" data-testid="link-public-sub-openvpn-ios"><ExternalLink size={14} />OpenVPN Connect · iOS</a>
               <a className="public-sub-openvpn-button" href="https://play.google.com/store/apps/details?id=net.openvpn.openvpn" target="_blank" rel="noreferrer" data-testid="link-public-sub-openvpn-android"><ExternalLink size={14} />OpenVPN Connect · Android</a>
             </div>
             <p className="public-sub-openvpn-hint">در iPhone با دکمهٔ واردکردن، پروفایل مستقیم در OpenVPN Connect باز می‌شود. برای دستگاه‌های دیگر، در برنامه Import Profile ← URL را انتخاب کنید و آدرس سرور را وارد کنید؛ فایل هر سرور هم جداگانه قابل دانلود است.</p>
-            {openVpnData.locations?.length > 0 && <div className="public-sub-openvpn-locations">
+              {openVpnData.locations?.length > 0 && <div className="public-sub-openvpn-locations">
               <strong>سرورها</strong>
-              {openVpnData.locations.map((location: any) => <div className="public-sub-openvpn-location" key={location.id}>
-                <span>{location.name}</span>
-                {activeOS === 'iOS' && <a href={openVpnImportHref(location.import_url)} referrerPolicy="no-referrer" data-testid={`link-public-sub-openvpn-import-ios-${location.id}`}><ExternalLink size={13} />واردکردن</a>}
-                <a href={location.config_url} download data-testid={`link-public-sub-openvpn-config-${location.id}`}><Download size={13} />دانلود</a>
-              </div>)}
+                {openVpnData.locations.map((location: any) => {
+                  const importHref = openVpnConnectImportUrl(location.import_url, window.location.origin);
+                  return <div className="public-sub-openvpn-location" key={location.id}>
+                    <span>{location.name}</span>
+                    {activeOS === 'iOS' && importHref && <a href={importHref} referrerPolicy="no-referrer" data-testid={`link-public-sub-openvpn-import-ios-${location.id}`}><ExternalLink size={13} />واردکردن</a>}
+                    <a href={location.config_url} download data-testid={`link-public-sub-openvpn-config-${location.id}`}><Download size={13} />دانلود</a>
+                  </div>;
+                })}
             </div>}
           </>}
         </motion.section>}

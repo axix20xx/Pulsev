@@ -1459,7 +1459,7 @@ router.get("/public/subscription/:token/openvpn/import/:provider/:host", async (
   }
   // OpenVPN Connect fetches this URL directly from its import-profile deeplink.
   // Return the profile inline instead of forcing a browser-style download.
-  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-type", "application/x-openvpn-profile");
   res.send(result.profile.body);
 });
 
@@ -1472,7 +1472,7 @@ router.get("/public/subscription/:token/openvpn/import-bundle/:provider", async 
     res.status(result.status).type("text/plain").send(result.error);
     return;
   }
-  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-type", "application/x-openvpn-profile");
   res.send(result.profile.body);
 });
 

@@ -420,3 +420,25 @@
 @media (prefers-reduced-motion: reduce) {
   .mobile-app *, .mobile-app *::before, .mobile-app *::after { animation: none !important; transition-duration: .001ms !important; }
 }
+
+/* Readability pass for subscription and connection details. */
+.mobile-app { color-scheme: light; }
+.mobile-topbar-title { font-size: 18px; }
+.mobile-eyebrow { color: #765722; font-size: 12px; letter-spacing: .04em; }
+.mobile-nav-rebuilt-item { color: rgba(246,239,226,.9); font-size: 11px; }
+.mobile-detail-grid span { color: #465560; font-size: 13px; }
+.mobile-detail-grid strong { font-size: 15px; }
+.mobile-access-section > p { color: #465560; font-size: 14px; }
+.mobile-connection-card-head h3 { font-size: 18px; }
+.mobile-connection-card-head p { color: #465560; font-size: 14px; line-height: 1.85; }
+.mobile-client-copy small { color: #465560; font-size: 13px; }
+.mobile-client-actions a, .mobile-client-actions button { font-size: 13px; }
+.mobile-client-footnote, .mobile-openvpn-hint { color: #263943; background: #ebe5d9; font-size: 15px; line-height: 1.9; }
+.mobile-openvpn-primary, .mobile-openvpn-download { font-size: 15px; }
+.mobile-openvpn-loading, .mobile-openvpn-error { font-size: 15px; }
+.mobile-openvpn-details span { color: #344651; font-size: 14px; }
+.mobile-openvpn-details strong { color: #152630; font-size: 16px; }
+.mobile-openvpn-details button { color: #17404a; font-size: 14px; }
+.mobile-openvpn-location span { color: #152630; font-size: 15px; }
+.mobile-openvpn-location a, .mobile-openvpn-app-links a { color: #173943; font-size: 13px; }
+.mobile-awg-download-heading, .mobile-awg-download-grid a small { color: #465560; font-size: 13px; }

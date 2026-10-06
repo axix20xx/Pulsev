@@ -67984,7 +67984,7 @@ router2.get("/public/subscription/:token/openvpn/import/:provider/:host", async 
     res.status(result.status).type("text/plain").send(result.error);
     return;
   }
-  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-type", "application/x-openvpn-profile");
   res.send(result.profile.body);
 });
 router2.get("/public/subscription/:token/openvpn/import-bundle/:provider", async (req, res) => {
@@ -67996,7 +67996,7 @@ router2.get("/public/subscription/:token/openvpn/import-bundle/:provider", async
     res.status(result.status).type("text/plain").send(result.error);
     return;
   }
-  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-type", "application/x-openvpn-profile");
   res.send(result.profile.body);
 });
 router2.get("/public/subscription/:token/feed", async (req, res) => {
