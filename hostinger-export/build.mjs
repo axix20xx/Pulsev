@@ -5,11 +5,14 @@ const requiredFiles = [
   "app.js",
   "launcher.mjs",
   "installer.html",
+  "release.json",
   "web/index.html",
+  "web/release.json",
   "web/panel/index.html",
   "web/mobile/index.html",
   "web/showcase/index.html",
   "web/sub-app/index.html",
+  "web/panel-sub-assets/index.html",
   "api/index.mjs",
   "api/hostinger-entry.mjs",
   "api/lib/migrate-legacy-sql.mjs",
@@ -17,6 +20,16 @@ const requiredFiles = [
 
 for (const file of requiredFiles) {
   await access(file);
+}
+
+const packageRelease = JSON.parse(await readFile("release.json", "utf8"));
+const webRelease = JSON.parse(await readFile("web/release.json", "utf8"));
+if (
+  typeof packageRelease.releaseId !== "string" ||
+  !packageRelease.releaseId ||
+  packageRelease.releaseId !== webRelease.releaseId
+) {
+  throw new Error("Hostinger release metadata is missing or inconsistent.");
 }
 
 const webIndex = await readFile("web/index.html", "utf8");
@@ -61,12 +74,38 @@ if (!/["']\/panel-sub-assets\//.test(subscriptionIndex)) {
   );
 }
 
+const panelSubscriptionIndex = await readFile("web/panel-sub-assets/index.html", "utf8");
+if (!/["']\/panel-sub-assets\/assets\//.test(panelSubscriptionIndex)) {
+  throw new Error("Hostinger subscription asset page must use /panel-sub-assets/.");
+}
+
+const launcherSource = await readFile("launcher.mjs", "utf8");
+for (const routeMarker of [
+  'pathname === "/panel"',
+  'pathname === "/mobile"',
+  'pathname === "/sub"',
+  'pathname.startsWith("/panel-sub-assets/")',
+  'PULSE_WORKERS_PAUSED: process.env.PULSE_WORKERS_PAUSED || "0"',
+]) {
+  if (!launcherSource.includes(routeMarker)) {
+    throw new Error(`Hostinger launcher is missing required release behavior: ${routeMarker}`);
+  }
+}
+
+const apiBundle = await readFile("api/index.mjs", "utf8");
+for (const workerMarker of ["PULSE_WORKERS_PAUSED", "backgroundWorkersPaused"]) {
+  if (!apiBundle.includes(workerMarker)) {
+    throw new Error(`Hostinger API bundle is missing worker pause support: ${workerMarker}`);
+  }
+}
+
 const assetPages = [
   "web/index.html",
   "web/panel/index.html",
   "web/mobile/index.html",
   "web/showcase/index.html",
   "web/sub-app/index.html",
+  "web/panel-sub-assets/index.html",
 ];
 for (const page of assetPages) {
   const html = await readFile(page, "utf8");

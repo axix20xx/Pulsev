@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "migrate:legacy": "tsx ../artifacts/api-server/src/lib/migrate-legacy-sql.ts",
+    "check:hostinger-release": "tsx ./src/hostinger-release-check.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

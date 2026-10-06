@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createReadStream } from "node:fs";
 import {
   cp,
   mkdir,
@@ -8,6 +9,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -15,10 +17,17 @@ import { gzipSync } from "node:zlib";
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const exportRoot = path.join(workspaceRoot, "hostinger-export");
 const webRoot = path.join(exportRoot, "web");
+const generatedAt = new Date();
+const releaseId = generatedAt.toISOString().replace(/[:.]/g, "-");
+const releaseMetadata = {
+  releaseId,
+  generatedAt: generatedAt.toISOString(),
+  schemaVersion: 1,
+};
 const outputZip = path.join(
   workspaceRoot,
   "exports",
-  "pulse-hostinger-fast-full-migration-2026-10-06.zip",
+  `pulse-hostinger-full-migration-${releaseId}.zip`,
 );
 const frontendDist = path.join(workspaceRoot, "artifacts/sales-manager/dist/public");
 const showcaseDist = path.join(workspaceRoot, "artifacts/gift-card-showcase/dist/public");
@@ -119,6 +128,10 @@ console.log("Building the showcase for /showcase/...");
 buildFrontend("@workspace/gift-card-showcase", "/showcase/", 3004);
 await replaceDirectory(showcaseDist, path.join(webRoot, "showcase"));
 
+const releaseJson = `${JSON.stringify(releaseMetadata, null, 2)}\n`;
+await writeFile(path.join(exportRoot, "release.json"), releaseJson, "utf8");
+await writeFile(path.join(webRoot, "release.json"), releaseJson, "utf8");
+
 await verifyNoRuntimeSecrets();
 await stat(path.join(exportRoot, "legacy/legacy.sql"));
 
@@ -140,7 +153,18 @@ console.log("Validating the Hostinger package...");
 run("node", ["build.mjs"], { cwd: exportRoot });
 
 await mkdir(path.dirname(outputZip), { recursive: true });
-await rm(outputZip, { force: true });
+const outputAlreadyExists = await stat(outputZip).then(
+  () => true,
+  (error) => {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  },
+);
+if (outputAlreadyExists) {
+  throw new Error(`Refusing to overwrite existing release archive: ${outputZip}`);
+}
 console.log("Creating the full migration ZIP...");
 run(
   "zip",
@@ -161,7 +185,16 @@ run(
   { cwd: exportRoot },
 );
 
+run("unzip", ["-tq", outputZip]);
+const hash = createHash("sha256");
+for await (const chunk of createReadStream(outputZip)) hash.update(chunk);
+const checksum = hash.digest("hex");
+await writeFile(
+  `${outputZip}.sha256`,
+  `${checksum}  ${path.basename(outputZip)}\n`,
+  "utf8",
+);
 const zipStat = await stat(outputZip);
 console.log(
-  `Ready: ${path.relative(workspaceRoot, outputZip)} (${(zipStat.size / 1024 / 1024).toFixed(1)} MB; ${compressedFiles} gzip sidecars).`,
+  `Ready: ${path.relative(workspaceRoot, outputZip)} (${(zipStat.size / 1024 / 1024).toFixed(1)} MB; ${compressedFiles} gzip sidecars; SHA-256 ${checksum}).`,
 );

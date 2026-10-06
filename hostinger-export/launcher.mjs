@@ -564,6 +564,8 @@ async function startApiInternal() {
     // Hostinger has a finite application-log quota. Keep normal request
     // completion logs out of production by default; warnings/errors remain.
     LOG_LEVEL: process.env.LOG_LEVEL || "warn",
+    // Passed to the API child so staging/release checks can keep schedulers idle.
+    PULSE_WORKERS_PAUSED: process.env.PULSE_WORKERS_PAUSED || "0",
     HOSTINGER_INTERNAL_API_SOCKET: apiSocketPath,
     UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE || "1",
     PORT: String(apiPort),

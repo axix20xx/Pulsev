@@ -3,6 +3,7 @@ import { get } from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startProvisioningWorker } from "./lib/provisioning-worker";
+import { isBackgroundWorkersPaused } from "./lib/worker-mode";
 import { managementReady } from "./routes/management";
 
 const rawPort = process.env["PORT"];
@@ -87,7 +88,7 @@ server.once("listening", () => {
   logger.info({ port }, "Server listening");
   void managementReady
     .then(() => {
-      startProvisioningWorker();
+      if (!isBackgroundWorkersPaused()) startProvisioningWorker();
     })
     .catch((error) => logger.error({ err: error }, "Provisioning worker failed to start"));
 });

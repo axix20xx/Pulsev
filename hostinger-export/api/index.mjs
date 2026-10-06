@@ -63898,6 +63898,12 @@ var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
   }
 };
 
+// src/lib/worker-mode.ts
+var truthyValues = /* @__PURE__ */ new Set(["1", "true", "yes", "on"]);
+function isBackgroundWorkersPaused(value = process.env.PULSE_WORKERS_PAUSED) {
+  return typeof value === "string" && truthyValues.has(value.trim().toLowerCase());
+}
+
 // src/routes/management.ts
 var import_express2 = __toESM(require_express2(), 1);
 import { randomBytes as randomBytes6 } from "node:crypto";
@@ -72543,15 +72549,16 @@ router3.get("/healthz", (_req, res) => {
   res.json(data);
 });
 router3.get("/readyz", async (_req, res) => {
+  const backgroundWorkersPaused = isBackgroundWorkersPaused();
   if (readinessState !== "ready") {
-    res.status(503).json({ status: readinessState });
+    res.status(503).json({ status: readinessState, backgroundWorkersPaused });
     return;
   }
   try {
     await pool.query("SELECT 1");
-    res.json({ status: "ready" });
+    res.json({ status: "ready", backgroundWorkersPaused });
   } catch {
-    res.status(503).json({ status: "database_unavailable" });
+    res.status(503).json({ status: "database_unavailable", backgroundWorkersPaused });
   }
 });
 var health_default = router3;
@@ -72933,9 +72940,16 @@ app.use(
     });
   }
 );
-startUsageSyncWorker();
-startAwgUsagePollWorker();
-startMobileNotificationWorker();
+if (isBackgroundWorkersPaused()) {
+  logger.warn(
+    { env: "PULSE_WORKERS_PAUSED" },
+    "Background workers are paused by deployment configuration"
+  );
+} else {
+  startUsageSyncWorker();
+  startAwgUsagePollWorker();
+  startMobileNotificationWorker();
+}
 var app_default = app;
 
 // src/lib/provisioning-worker.ts
@@ -73295,7 +73309,7 @@ server.once("listening", () => {
   }
   logger.info({ port }, "Server listening");
   void managementReady.then(() => {
-    startProvisioningWorker();
+    if (!isBackgroundWorkersPaused()) startProvisioningWorker();
   }).catch((error40) => logger.error({ err: error40 }, "Provisioning worker failed to start"));
 });
 server.on("error", (error40) => {

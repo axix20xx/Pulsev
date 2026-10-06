@@ -6,6 +6,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { startUsageSyncWorker } from "./lib/usage-sync";
 import { startAwgUsagePollWorker } from "./lib/awg-usage-poll";
+import { isBackgroundWorkersPaused } from "./lib/worker-mode";
 import { startMobileNotificationWorker } from "./routes/mobile";
 
 const app: Express = express();
@@ -141,8 +142,15 @@ app.use(
   },
 );
 
-startUsageSyncWorker();
-startAwgUsagePollWorker();
-startMobileNotificationWorker();
+if (isBackgroundWorkersPaused()) {
+  logger.warn(
+    { env: "PULSE_WORKERS_PAUSED" },
+    "Background workers are paused by deployment configuration",
+  );
+} else {
+  startUsageSyncWorker();
+  startAwgUsagePollWorker();
+  startMobileNotificationWorker();
+}
 
 export default app;

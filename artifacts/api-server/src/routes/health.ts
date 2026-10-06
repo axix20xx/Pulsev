@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { HealthCheckResponse } from "@workspace/api-zod";
 import { pool } from "@workspace/db";
 import { mobileOtpReady } from "../lib/mobile-otp";
+import { isBackgroundWorkersPaused } from "../lib/worker-mode";
 import { managementReady } from "./management";
 import { mobileReady } from "./mobile";
 
@@ -23,15 +24,16 @@ router.get("/healthz", (_req, res) => {
 });
 
 router.get("/readyz", async (_req, res) => {
+  const backgroundWorkersPaused = isBackgroundWorkersPaused();
   if (readinessState !== "ready") {
-    res.status(503).json({ status: readinessState });
+    res.status(503).json({ status: readinessState, backgroundWorkersPaused });
     return;
   }
   try {
     await pool.query("SELECT 1");
-    res.json({ status: "ready" });
+    res.json({ status: "ready", backgroundWorkersPaused });
   } catch {
-    res.status(503).json({ status: "database_unavailable" });
+    res.status(503).json({ status: "database_unavailable", backgroundWorkersPaused });
   }
 });
 

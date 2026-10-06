@@ -75,6 +75,25 @@ API داخلی Hostinger از طریق Unix socket خصوصی میان launcher 
 
 `SUPABASE_SQL_PATH` اختیاری است و فقط در صورت انتقال `supabase-import.sql` به مسیر دیگری تنظیم می‌شود.
 
+### انتشار امن، بررسی staging و بازگشت نسخه
+
+- محیط staging باید دیتابیس جداگانه داشته باشد و credential فعال Providerها را نداشته باشد. مقدار `PULSE_WORKERS_PAUSED=1` در staging تمام workerهای زمان‌بندی‌شدهٔ usage، AWG، اعلان‌ها و provisioning را متوقف می‌کند؛ خود API و بررسی/ساخت schema همچنان اجرا می‌شوند.
+- در پاسخ `/api/readyz` مقدار `backgroundWorkersPaused` وضعیت این گزینه را نشان می‌دهد. آماده‌شدن این مسیر یعنی بررسی‌های schema این نسخه تکمیل شده و اتصال دیتابیس پاسخ می‌دهد؛ این جایگزین آزمایش migration روی دیتابیس staging نیست.
+- از ریشهٔ پروژه ZIP بسازید: `pnpm run build:hostinger`. خروجی هر بار نام یکتای release و فایل checksum با پسوند `.sha256` می‌گیرد؛ ZIPهای قبلی بازنویسی نمی‌شوند.
+- برای بررسی خود ZIP، مسیر فایل را به دستور زیر بدهید. برای بررسی staging، دو متغیر محیطی را هم تنظیم کنید؛ این بررسی فقط درخواست‌های GET سلامت و فایل‌های استاتیک می‌فرستد:
+
+```sh
+pnpm run check:hostinger-release -- exports/نام-فایل-release.zip
+HOSTINGER_STAGING_URL=https://staging.example.com HOSTINGER_STAGING_CONFIRMED=1 \
+  pnpm run check:hostinger-release -- exports/نام-فایل-release.zip
+```
+
+بررسی staging شناسهٔ release، `/api/healthz`، آماده‌بودن دیتابیس و schema در `/api/readyz`، paused بودن workerها و مسیرهای `/`، `/panel/`، `/mobile/`، `/showcase/` و `/sub/` و assetهایشان را تأیید می‌کند. برای اجرای بخش staging، مقدار `HOSTINGER_STAGING_CONFIRMED=1` را فقط پس از اطمینان از آدرس staging تنظیم کنید؛ این بررسی را روی دامنهٔ production اجرا نکنید.
+- برای انتشار، ابتدا از دیتابیس نسخهٔ پشتیبان بگیرید و ZIP قبلی و checksum آن را نگه دارید. workerها را با `PULSE_WORKERS_PAUSED=1` متوقف کنید، نسخهٔ جدید را جایگزین و برنامه را restart کنید، سپس `/api/healthz` و `/api/readyz` را بررسی کنید. پس از تأیید، مقدار را به `0` برگردانید و restart کنید تا workerها اجرا شوند.
+- برای rollback، workerها را pause کنید، فایل‌های نسخهٔ قبلی را از ZIP نگه‌داشته‌شده برگردانید، restart کنید و readiness را بررسی کنید؛ بعد از اطمینان workerها را دوباره فعال کنید. بازگرداندن کد، تغییرات schema را خودکار برنمی‌گرداند؛ دیتابیس را بدون برنامهٔ migration مشخص از backup جایگزین نکنید و برای تغییرات ناسازگار به‌جای rollback کور، migration رو به جلو آماده کنید.
+
+گزینهٔ pause فقط workerهای پس‌زمینه را متوقف می‌کند؛ درخواست‌های دستی کاربران یا مدیران که Provider را صدا می‌زنند همچنان ممکن‌اند. staging را با دیتابیس و تنظیمات Provider جدا اجرا کنید.
+
 این پروژه یک Node.js App است، نه سایت PHP یا Static HTML. اگر دامنه به
 `public_html` معمولی وصل باشد و Node.js App برای آن دامنه ساخته نشده باشد،
 Hostinger ممکن است صفحهٔ `403 Forbidden` نشان دهد؛ در این حالت Domain را به
