@@ -20,6 +20,7 @@ import {
   SettingsPage,
   usePulse,
 } from '@/pages/pulse-pages';
+import AwgUsagePage from '@/pages/awg-usage';
 import { InsightDetailPage, SmartCenter } from '@/pages/smart-center';
 import { OperationsCenter } from '@/pages/operations-center';
 import ProviderAccountAuditPage from '@/pages/provider-account-audit';
@@ -54,6 +55,7 @@ export default function ManagementApp() {
             <Route path="/reseller-accounting" component={ResellerAccounting} />
             <Route path="/action-requests" component={ActionRequests} />
             <Route path="/services" component={Services} />
+            <Route path="/awg-usage" component={AwgUsagePage} />
             <Route path="/customers" component={Customers} />
             <Route path="/customers/:id" component={CustomerDetail} />
             <Route path="/reports" component={Reports} />

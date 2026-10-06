@@ -28,6 +28,7 @@ const nav = [
   { href: '/customers', label: 'مشتری‌ها', icon: Users },
   { href: '/reports', label: 'گزارش‌ها', icon: BarChart3 },
 ];
+const awgUsageNav = { href: '/awg-usage', label: 'مصرف AWG', icon: Wifi };
 const monitoringNav = { href: '/monitoring', label: 'مانیتورینگ', icon: Activity };
 const connectionsNav = { href: '/connections', label: 'کاربران آنلاین', icon: Wifi };
 const actionRequestsNav = { href: '/action-requests', label: 'درخواست‌های عملیات', icon: ShieldAlert };
@@ -106,7 +107,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const name = session?.display_name || 'مدیر فروش';
   const isSignedOut = !sessionLoading && (authFallback || session?.authenticated === false || !session);
   const visibleNav = session
-     ? [...nav, actionRequestsNav, ...(session.role === 'master_admin' ? [resellerAccountingNav, { href: '/admin-sales', label: 'فروش مشتریان فروشندگان', icon: ShieldAlert }] : [])]
+     ? [...nav, awgUsageNav, actionRequestsNav, ...(session.role === 'master_admin' ? [resellerAccountingNav, { href: '/admin-sales', label: 'فروش مشتریان فروشندگان', icon: ShieldAlert }] : [])]
     : nav;
   const isNavActive = (href: string) => location === href || (href !== '/' && location.startsWith(`${href}/`));
   const signOut = async () => {
