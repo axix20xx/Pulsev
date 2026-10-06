@@ -108,7 +108,7 @@ export default function AwgUsagePage() {
       <PageHeader
         eyebrow="گزارش جداگانه"
         title="مصرف AmneziaWG"
-        description="نمایش مصرف ثبت‌شدهٔ AWG به تفکیک سرویس و مشتری."
+        description="آخرین شمارنده‌های AWG ذخیره‌شده به تفکیک سرویس و مشتری."
         action={
           <button
             type="button"
@@ -126,9 +126,9 @@ export default function AwgUsagePage() {
       <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 text-sm leading-7" role="note" data-testid="notice-awg-usage-source">
         <Database size={17} className="mt-1 shrink-0 text-amber-600" />
         <p className="m-0 text-foreground/80">
-          این گزارش فقط مقدار ذخیره‌شده در دفتر سرویس را می‌خواند؛ به AWG یا Providerها درخواست زنده نمی‌فرستد.
-          اگر مقدار صفر است، آخرین عدد ذخیره‌شده صفر بوده و این به‌تنهایی وضعیت اتصال فعلی را ثابت نمی‌کند.
-          سرویس غیرفعال فقط سابقهٔ ذخیره‌شده را نشان می‌دهد.
+          سرور برای سرویس‌های فعال یا رو به پایان که شناسهٔ AWG ذخیره‌شده دارند، هر ۵ دقیقه آمار AWG را می‌خواند.
+          این صفحه و دکمهٔ بارگذاری دوباره فقط دفتر محلی را می‌خوانند؛ خطای دریافت، عدد قبلی را حفظ می‌کند.
+          مقدار صفر به‌تنهایی وضعیت اتصال فعلی را ثابت نمی‌کند و سرویس غیرفعال فقط سابقهٔ ذخیره‌شده را نشان می‌دهد.
         </p>
       </div>
 

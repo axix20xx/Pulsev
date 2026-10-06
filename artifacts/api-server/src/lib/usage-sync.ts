@@ -7,16 +7,15 @@ import { logger } from "./logger";
 const BYTES_PER_GB = 1024 ** 3;
 const DEFAULT_INTERVAL_MS = 60_000;
 let running = false;
-let lastAwgRouteWarningAt = 0;
+const lastAwgUsageWarningAt = new Map<string, number>();
 const AWG_ROUTE_WARNING_INTERVAL_MS = 5 * 60_000;
 
-function shouldLogAwgUsageError(error: unknown): boolean {
-  if (!(error instanceof AwgApiError) || error.kind !== "stats-route-unavailable") {
-    return true;
-  }
+function shouldLogAwgUsageError(error: unknown, serviceId: number): boolean {
+  if (!(error instanceof AwgApiError)) return true;
   const now = Date.now();
-  if (now - lastAwgRouteWarningAt < AWG_ROUTE_WARNING_INTERVAL_MS) return false;
-  lastAwgRouteWarningAt = now;
+  const key = error.kind === "stats-route-unavailable" ? "stats-route-unavailable" : `service:${serviceId}`;
+  if (now - (lastAwgUsageWarningAt.get(key) ?? 0) < AWG_ROUTE_WARNING_INTERVAL_MS) return false;
+  lastAwgUsageWarningAt.set(key, now);
   return true;
 }
 
@@ -112,7 +111,7 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
         [awgRx, awgTx, rawAwgBytes, offset, service.id],
       );
     } catch (error) {
-      if (shouldLogAwgUsageError(error)) {
+      if (shouldLogAwgUsageError(error, service.id)) {
         logger.warn({ serviceId: service.id, err: error }, "AWG usage sync skipped");
       }
     }

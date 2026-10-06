@@ -32,3 +32,9 @@ AzadPanel OpenVPN reports current `used_traffic` in bytes; use it as a provider 
 **Why:** Lifetime traffic can include earlier service periods, while the current counter works with the per-provider reset offsets used during renewal.
 
 **How to apply:** Include AzadPanel in the combined usage ledger, retain its last effective reading when a transient read fails, and disable its account with the documented user update only when combined service quota is reached.
+
+The AWG-only reporting poll runs every five minutes for unexpired active/expiring services with a stored AWG client ID. It updates AWG counters only; it does not change service state or call panel APIs. Keep the existing combined worker separate and unchanged.
+
+**Why:** The user wants AWG readings refreshed without increasing panel traffic or risking accidental lifecycle changes; the existing combined worker still owns quota/expiry behavior.
+
+**How to apply:** Share a five-minute per-client AWG result cache between workers, serialize stats requests, preserve saved counters on errors, and back off for an hour after all stats routes return route-level 404s. Do not run the poller locally without explicit approval.

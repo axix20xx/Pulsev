@@ -26021,7 +26021,7 @@ var require_wait = __commonJS({
   "../../node_modules/.pnpm/thread-stream@3.1.0/node_modules/thread-stream/lib/wait.js"(exports, module) {
     "use strict";
     var MAX_TIMEOUT = 1e3;
-    function wait2(state, index, expected, timeout, done) {
+    function wait3(state, index, expected, timeout, done) {
       const max = Date.now() + timeout;
       let current = Atomics.load(state, index);
       if (current === expected) {
@@ -26070,7 +26070,7 @@ var require_wait = __commonJS({
       };
       check2(1);
     }
-    module.exports = { wait: wait2, waitDiff };
+    module.exports = { wait: wait3, waitDiff };
   }
 });
 
@@ -26096,7 +26096,7 @@ var require_thread_stream = __commonJS({
     var { Worker } = __require("worker_threads");
     var { join } = __require("path");
     var { pathToFileURL } = __require("url");
-    var { wait: wait2 } = require_wait();
+    var { wait: wait3 } = require_wait();
     var {
       WRITE_INDEX,
       READ_INDEX
@@ -26325,7 +26325,7 @@ var require_thread_stream = __commonJS({
           return;
         }
         const writeIndex = Atomics.load(this[kImpl].state, WRITE_INDEX);
-        wait2(this[kImpl].state, READ_INDEX, writeIndex, Infinity, (err, res) => {
+        wait3(this[kImpl].state, READ_INDEX, writeIndex, Infinity, (err, res) => {
           if (err) {
             destroy(this, err);
             process.nextTick(cb, err);
@@ -64910,9 +64910,62 @@ var AwgApiError = class extends Error {
     this.name = "AwgApiError";
   }
 };
-var AWG_STATS_ROUTE_COOLDOWN_MS = 5 * 6e4;
+var AWG_STATS_CACHE_TTL_MS = 5 * 6e4;
+var AWG_STATS_ERROR_RETRY_MS = 5 * 6e4;
+var AWG_STATS_ROUTE_COOLDOWN_MS = 60 * 6e4;
+var AWG_STATS_MIN_REQUEST_GAP_MS = 500;
+var AWG_STATS_CACHE_PRUNE_INTERVAL_MS = 6e4;
 var statsEndpointByApiUrl = /* @__PURE__ */ new Map();
 var statsRouteUnavailableUntil = /* @__PURE__ */ new Map();
+var statsCache = /* @__PURE__ */ new Map();
+var statsErrorCache = /* @__PURE__ */ new Map();
+var statsInFlight = /* @__PURE__ */ new Map();
+var lastStatsRequestAt = 0;
+var lastStatsCachePruneAt = 0;
+var statsRequestQueue = Promise.resolve();
+function awgStatsCacheKey(apiUrl, clientId) {
+  return `${apiUrl}\0${clientId}`;
+}
+function pruneExpiredAwgStatsCache(now) {
+  if (now - lastStatsCachePruneAt < AWG_STATS_CACHE_PRUNE_INTERVAL_MS) return;
+  lastStatsCachePruneAt = now;
+  for (const [key, value] of statsCache) {
+    if (value.expiresAt <= now) statsCache.delete(key);
+  }
+  for (const [key, value] of statsErrorCache) {
+    if (value.expiresAt <= now) statsErrorCache.delete(key);
+  }
+  for (const [apiUrl, expiresAt] of statsRouteUnavailableUntil) {
+    if (expiresAt <= now) statsRouteUnavailableUntil.delete(apiUrl);
+  }
+}
+function clearAwgStatsCache(clientId) {
+  for (const key of statsCache.keys()) {
+    if (key.endsWith(`\0${clientId}`)) statsCache.delete(key);
+  }
+  for (const key of statsErrorCache.keys()) {
+    if (key.endsWith(`\0${clientId}`)) statsErrorCache.delete(key);
+  }
+  for (const key of statsInFlight.keys()) {
+    if (key.endsWith(`\0${clientId}`)) statsInFlight.delete(key);
+  }
+}
+async function requestAwgStats(endpoint, awg) {
+  const previousRequest = statsRequestQueue;
+  let releaseRequest;
+  statsRequestQueue = new Promise((resolve) => {
+    releaseRequest = resolve;
+  });
+  await previousRequest;
+  try {
+    const waitMs = AWG_STATS_MIN_REQUEST_GAP_MS - (Date.now() - lastStatsRequestAt);
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    lastStatsRequestAt = Date.now();
+    return await request2("GET", endpoint, void 0, awg);
+  } finally {
+    releaseRequest();
+  }
+}
 function responseError(status, text2) {
   const raw = text2.trim();
   if (!raw) return `AmneziaWG returned HTTP ${status}`;
@@ -64992,6 +65045,7 @@ async function createAwgClient(requestedClientId) {
     }
     if (response.status < 200 || response.status >= 300) {
       if (response.status >= 500 && await confirmAwgClient(clientId)) {
+        clearAwgStatsCache(clientId);
         return { configured: true, clientId, error: null };
       }
       return {
@@ -65000,9 +65054,11 @@ async function createAwgClient(requestedClientId) {
         error: responseError(response.status, response.text)
       };
     }
+    clearAwgStatsCache(clientId);
     return { configured: true, clientId, error: null };
   } catch {
     if (await confirmAwgClient(clientId)) {
+      clearAwgStatsCache(clientId);
       return { configured: true, clientId, error: null };
     }
     return {
@@ -65026,9 +65082,7 @@ async function getAwgConfiguration(clientId) {
   if (!response.text.trim()) throw new AwgApiError("AmneziaWG returned an empty configuration.");
   return response.text;
 }
-async function getAwgStats(clientId) {
-  const awg = await config2();
-  if (!awg) throw new AwgApiError("AmneziaWG API is not configured.");
+async function fetchAwgStats(clientId, awg) {
   const unavailableUntil = statsRouteUnavailableUntil.get(awg.apiUrl) ?? 0;
   if (unavailableUntil > Date.now()) {
     throw new AwgApiError(
@@ -65050,7 +65104,7 @@ async function getAwgStats(clientId) {
   let response = null;
   let routeNotFoundCount = 0;
   for (const endpoint of endpoints) {
-    const candidate = await request2("GET", endpoint, void 0, awg);
+    const candidate = await requestAwgStats(endpoint, awg);
     if (!candidate.configured) throw new AwgApiError("AmneziaWG API is not configured.");
     response = candidate;
     if (candidate.status >= 200 && candidate.status < 300) {
@@ -65062,6 +65116,7 @@ async function getAwgStats(clientId) {
       if (endpoint === preferredEndpoint) statsEndpointByApiUrl.delete(awg.apiUrl);
       continue;
     }
+    if (endpoint === preferredEndpoint && candidate.status === 404) break;
     if (candidate.status !== 404 && candidate.status !== 405) break;
   }
   if (!response || response.status < 200 || response.status >= 300) {
@@ -65111,10 +65166,45 @@ async function getAwgStats(clientId) {
   }
   return { rxBytes: Math.round(rxBytes), txBytes: Math.round(txBytes) };
 }
+async function getAwgStats(clientId) {
+  const awg = await config2();
+  if (!awg) throw new AwgApiError("AmneziaWG API is not configured.");
+  const now = Date.now();
+  pruneExpiredAwgStatsCache(now);
+  const key = awgStatsCacheKey(awg.apiUrl, clientId);
+  const cached2 = statsCache.get(key);
+  if (cached2 && cached2.expiresAt > now) return cached2.value;
+  if (cached2) statsCache.delete(key);
+  const failed = statsErrorCache.get(key);
+  if (failed && failed.expiresAt > now) throw new AwgApiError(failed.message, failed.kind);
+  if (failed) statsErrorCache.delete(key);
+  const inFlight = statsInFlight.get(key);
+  if (inFlight) return inFlight;
+  const requestPromise = fetchAwgStats(clientId, awg).then((value) => {
+    statsCache.set(key, { value, expiresAt: Date.now() + AWG_STATS_CACHE_TTL_MS });
+    statsErrorCache.delete(key);
+    return value;
+  }).catch((error40) => {
+    const normalized = error40 instanceof AwgApiError ? error40 : new AwgApiError(error40 instanceof Error ? error40.message : "AmneziaWG stats request failed.");
+    const retryDelay = normalized.kind === "stats-route-unavailable" ? AWG_STATS_ROUTE_COOLDOWN_MS : AWG_STATS_ERROR_RETRY_MS;
+    statsErrorCache.set(key, {
+      message: normalized.message,
+      kind: normalized.kind,
+      expiresAt: Date.now() + retryDelay
+    });
+    throw normalized;
+  }).finally(() => {
+    statsInFlight.delete(key);
+  });
+  statsInFlight.set(key, requestPromise);
+  return requestPromise;
+}
 async function disableAwgClient(clientId) {
   try {
     const response = await request2("DELETE", `/api/clients/${encodeURIComponent(clientId)}`);
-    return response.status >= 200 && response.status < 300 || response.status === 404;
+    const disabled = response.status >= 200 && response.status < 300 || response.status === 404;
+    if (disabled) clearAwgStatsCache(clientId);
+    return disabled;
   } catch {
     return false;
   }
@@ -65144,6 +65234,7 @@ async function recreateAwgClient(clientId) {
   if (response.status < 200 || response.status >= 300) {
     throw new AwgApiError(responseError(response.status, response.text));
   }
+  clearAwgStatsCache(clientId);
 }
 
 // src/lib/service-disable-guard.ts
@@ -65186,15 +65277,14 @@ var logger = (0, import_pino.default)({
 var BYTES_PER_GB = 1024 ** 3;
 var DEFAULT_INTERVAL_MS = 6e4;
 var running = false;
-var lastAwgRouteWarningAt = 0;
+var lastAwgUsageWarningAt = /* @__PURE__ */ new Map();
 var AWG_ROUTE_WARNING_INTERVAL_MS = 5 * 6e4;
-function shouldLogAwgUsageError(error40) {
-  if (!(error40 instanceof AwgApiError) || error40.kind !== "stats-route-unavailable") {
-    return true;
-  }
+function shouldLogAwgUsageError(error40, serviceId) {
+  if (!(error40 instanceof AwgApiError)) return true;
   const now = Date.now();
-  if (now - lastAwgRouteWarningAt < AWG_ROUTE_WARNING_INTERVAL_MS) return false;
-  lastAwgRouteWarningAt = now;
+  const key = error40.kind === "stats-route-unavailable" ? "stats-route-unavailable" : `service:${serviceId}`;
+  if (now - (lastAwgUsageWarningAt.get(key) ?? 0) < AWG_ROUTE_WARNING_INTERVAL_MS) return false;
+  lastAwgUsageWarningAt.set(key, now);
   return true;
 }
 function epochSeconds(date6) {
@@ -65266,7 +65356,7 @@ async function syncServiceUnlocked(service) {
         [awgRx, awgTx, rawAwgBytes, offset, service.id]
       );
     } catch (error40) {
-      if (shouldLogAwgUsageError(error40)) {
+      if (shouldLogAwgUsageError(error40, service.id)) {
         logger.warn({ serviceId: service.id, err: error40 }, "AWG usage sync skipped");
       }
     }
@@ -71838,6 +71928,162 @@ router4.use(management_default);
 router4.use(mobile_default);
 var routes_default = router4;
 
+// src/lib/awg-usage-poll.ts
+var AWG_USAGE_POLL_INTERVAL_MS = 5 * 6e4;
+var AWG_USAGE_POLL_START_DELAY_MS = 5e3;
+var AWG_USAGE_POLL_MIN_GAP_MS = 500;
+var SERVICE_LOCK_NAMESPACE = 74421;
+var AWG_WORKER_LOCK_NAMESPACE = 74423;
+var running2 = false;
+var wait2 = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function pollServiceAwgUsage(serviceId) {
+  const client = await pool.connect();
+  let serviceLockAcquired = false;
+  try {
+    const lockResult = await client.query(
+      "SELECT pg_try_advisory_lock($1, $2) AS locked",
+      [SERVICE_LOCK_NAMESPACE, serviceId]
+    );
+    if (!lockResult.rows[0]?.locked) return "skipped";
+    serviceLockAcquired = true;
+    const serviceResult = await client.query(
+      `SELECT id, awg_client_id,
+              COALESCE(awg_total, 0)::float8 AS awg_total,
+              COALESCE(awg_offset_bytes, 0)::float8 AS awg_offset_bytes
+       FROM reseller_services
+       WHERE id = $1
+         AND status IN ('active', 'expiring')
+         AND (expire_at IS NULL OR expire_at > NOW())
+         AND NULLIF(BTRIM(awg_client_id), '') IS NOT NULL
+       LIMIT 1`,
+      [serviceId]
+    );
+    const service = serviceResult.rows[0];
+    if (!service?.awg_client_id) return "skipped";
+    const stats = await getAwgStats(service.awg_client_id);
+    const rxBytes = Math.max(0, Math.round(stats.rxBytes));
+    const txBytes = Math.max(0, Math.round(stats.txBytes));
+    const rawBytes = Math.max(0, rxBytes + txBytes);
+    const previousBytes = Math.max(0, Number(service.awg_total ?? 0));
+    let offsetBytes = Math.max(0, Number(service.awg_offset_bytes ?? 0));
+    if (previousBytes > 0 && rawBytes < previousBytes * 0.5) {
+      offsetBytes = rawBytes;
+    }
+    const updated = await client.query(
+      `UPDATE reseller_services
+       SET awg_rx = $1::bigint,
+           awg_tx = $2::bigint,
+           awg_total = $3::bigint,
+           awg_offset_bytes = $4::bigint
+       WHERE id = $5
+         AND awg_client_id = $6
+         AND status IN ('active', 'expiring')
+         AND (expire_at IS NULL OR expire_at > NOW())`,
+      [rxBytes, txBytes, rawBytes, offsetBytes, service.id, service.awg_client_id]
+    );
+    return updated.rowCount ? "updated" : "skipped";
+  } catch (error40) {
+    if (error40 instanceof AwgApiError && error40.kind === "stats-route-unavailable") {
+      return "route-unavailable";
+    }
+    logger.warn({ serviceId, err: error40 }, "AWG-only usage poll failed; saved counters were preserved");
+    return "failed";
+  } finally {
+    if (serviceLockAcquired) {
+      await client.query(
+        "SELECT pg_advisory_unlock($1, $2)",
+        [SERVICE_LOCK_NAMESPACE, serviceId]
+      ).catch(() => void 0);
+    }
+    client.release();
+  }
+}
+async function runAwgUsagePoll() {
+  if (running2) return;
+  running2 = true;
+  const workerLockClient = await pool.connect().catch((error40) => {
+    logger.warn({ err: error40 }, "AWG-only usage poll could not acquire a database connection");
+    return null;
+  });
+  if (!workerLockClient) {
+    running2 = false;
+    return;
+  }
+  let workerLockAcquired = false;
+  try {
+    const lockResult = await workerLockClient.query(
+      "SELECT pg_try_advisory_lock($1, $2) AS locked",
+      [AWG_WORKER_LOCK_NAMESPACE, 1]
+    );
+    if (!lockResult.rows[0]?.locked) return;
+    workerLockAcquired = true;
+    const configuredResult = await workerLockClient.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM settings
+         WHERE NULLIF(awg_api_url, '') IS NOT NULL
+           AND NULLIF(awg_api_token, '') IS NOT NULL
+       ) AS configured`
+    );
+    if (!configuredResult.rows[0]?.configured) return;
+    const services = await workerLockClient.query(
+      `SELECT id
+       FROM reseller_services
+       WHERE status IN ('active', 'expiring')
+         AND (expire_at IS NULL OR expire_at > NOW())
+         AND NULLIF(BTRIM(awg_client_id), '') IS NOT NULL
+       ORDER BY id`
+    );
+    let updatedCount = 0;
+    let skippedCount = 0;
+    let failureCount = 0;
+    for (let index = 0; index < services.rows.length; index += 1) {
+      const result = await pollServiceAwgUsage(services.rows[index].id);
+      if (result === "updated") updatedCount += 1;
+      else if (result === "failed") failureCount += 1;
+      else if (result === "route-unavailable") {
+        failureCount += 1;
+        logger.warn("AWG stats routes are unavailable; pausing this polling cycle without changing saved counters");
+        break;
+      } else skippedCount += 1;
+      if (index < services.rows.length - 1) await wait2(AWG_USAGE_POLL_MIN_GAP_MS);
+    }
+    if (services.rows.length) {
+      logger.info(
+        {
+          scanned: services.rows.length,
+          updated: updatedCount,
+          skipped: skippedCount,
+          failed: failureCount,
+          intervalMs: AWG_USAGE_POLL_INTERVAL_MS
+        },
+        "AWG-only usage poll completed"
+      );
+    }
+  } catch (error40) {
+    logger.error({ err: error40 }, "AWG-only usage poll failed");
+  } finally {
+    if (workerLockAcquired) {
+      await workerLockClient.query(
+        "SELECT pg_advisory_unlock($1, $2)",
+        [AWG_WORKER_LOCK_NAMESPACE, 1]
+      ).catch(() => void 0);
+    }
+    workerLockClient.release();
+    running2 = false;
+  }
+}
+function startAwgUsagePollWorker() {
+  const initialRun = setTimeout(() => {
+    void runAwgUsagePoll();
+  }, AWG_USAGE_POLL_START_DELAY_MS);
+  const interval2 = setInterval(() => {
+    void runAwgUsagePoll();
+  }, AWG_USAGE_POLL_INTERVAL_MS);
+  initialRun.unref();
+  interval2.unref();
+  logger.info({ intervalMs: AWG_USAGE_POLL_INTERVAL_MS }, "AWG-only usage poll worker started");
+}
+
 // src/app.ts
 var app = (0, import_express5.default)();
 app.use(
@@ -71928,6 +72174,7 @@ app.use(
   }
 );
 startUsageSyncWorker();
+startAwgUsagePollWorker();
 startMobileNotificationWorker();
 var app_default = app;
 

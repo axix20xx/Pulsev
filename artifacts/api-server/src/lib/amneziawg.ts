@@ -16,9 +16,67 @@ export class AwgApiError extends Error {
   }
 }
 
-const AWG_STATS_ROUTE_COOLDOWN_MS = 5 * 60_000;
+const AWG_STATS_CACHE_TTL_MS = 5 * 60_000;
+const AWG_STATS_ERROR_RETRY_MS = 5 * 60_000;
+const AWG_STATS_ROUTE_COOLDOWN_MS = 60 * 60_000;
+const AWG_STATS_MIN_REQUEST_GAP_MS = 500;
+const AWG_STATS_CACHE_PRUNE_INTERVAL_MS = 60_000;
 const statsEndpointByApiUrl = new Map<string, string>();
 const statsRouteUnavailableUntil = new Map<string, number>();
+type AwgStats = { rxBytes: number; txBytes: number };
+const statsCache = new Map<string, { value: AwgStats; expiresAt: number }>();
+const statsErrorCache = new Map<string, { message: string; kind?: "stats-route-unavailable"; expiresAt: number }>();
+const statsInFlight = new Map<string, Promise<AwgStats>>();
+let lastStatsRequestAt = 0;
+let lastStatsCachePruneAt = 0;
+let statsRequestQueue = Promise.resolve();
+
+function awgStatsCacheKey(apiUrl: string, clientId: string): string {
+  return `${apiUrl}\u0000${clientId}`;
+}
+
+function pruneExpiredAwgStatsCache(now: number): void {
+  if (now - lastStatsCachePruneAt < AWG_STATS_CACHE_PRUNE_INTERVAL_MS) return;
+  lastStatsCachePruneAt = now;
+  for (const [key, value] of statsCache) {
+    if (value.expiresAt <= now) statsCache.delete(key);
+  }
+  for (const [key, value] of statsErrorCache) {
+    if (value.expiresAt <= now) statsErrorCache.delete(key);
+  }
+  for (const [apiUrl, expiresAt] of statsRouteUnavailableUntil) {
+    if (expiresAt <= now) statsRouteUnavailableUntil.delete(apiUrl);
+  }
+}
+
+export function clearAwgStatsCache(clientId: string): void {
+  for (const key of statsCache.keys()) {
+    if (key.endsWith(`\u0000${clientId}`)) statsCache.delete(key);
+  }
+  for (const key of statsErrorCache.keys()) {
+    if (key.endsWith(`\u0000${clientId}`)) statsErrorCache.delete(key);
+  }
+  for (const key of statsInFlight.keys()) {
+    if (key.endsWith(`\u0000${clientId}`)) statsInFlight.delete(key);
+  }
+}
+
+async function requestAwgStats(endpoint: string, awg: AwgConfig) {
+  const previousRequest = statsRequestQueue;
+  let releaseRequest!: () => void;
+  statsRequestQueue = new Promise<void>((resolve) => {
+    releaseRequest = resolve;
+  });
+  await previousRequest;
+  try {
+    const waitMs = AWG_STATS_MIN_REQUEST_GAP_MS - (Date.now() - lastStatsRequestAt);
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    lastStatsRequestAt = Date.now();
+    return await request("GET", endpoint, undefined, awg);
+  } finally {
+    releaseRequest();
+  }
+}
 
 function responseError(status: number, text: string): string {
   const raw = text.trim();
@@ -118,6 +176,7 @@ export async function createAwgClient(requestedClientId?: string): Promise<{
     }
     if (response.status < 200 || response.status >= 300) {
       if (response.status >= 500 && await confirmAwgClient(clientId)) {
+        clearAwgStatsCache(clientId);
         return { configured: true, clientId, error: null };
       }
       return {
@@ -126,9 +185,11 @@ export async function createAwgClient(requestedClientId?: string): Promise<{
         error: responseError(response.status, response.text),
       };
     }
+    clearAwgStatsCache(clientId);
     return { configured: true, clientId, error: null };
   } catch {
     if (await confirmAwgClient(clientId)) {
+      clearAwgStatsCache(clientId);
       return { configured: true, clientId, error: null };
     }
     return {
@@ -154,10 +215,7 @@ export async function getAwgConfiguration(clientId: string): Promise<string> {
   return response.text;
 }
 
-export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; txBytes: number }> {
-  const awg = await config();
-  if (!awg) throw new AwgApiError("AmneziaWG API is not configured.");
-
+async function fetchAwgStats(clientId: string, awg: AwgConfig): Promise<AwgStats> {
   const unavailableUntil = statsRouteUnavailableUntil.get(awg.apiUrl) ?? 0;
   if (unavailableUntil > Date.now()) {
     throw new AwgApiError(
@@ -182,7 +240,7 @@ export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; 
   let response: Awaited<ReturnType<typeof request>> | null = null;
   let routeNotFoundCount = 0;
   for (const endpoint of endpoints) {
-    const candidate = await request("GET", endpoint, undefined, awg);
+    const candidate = await requestAwgStats(endpoint, awg);
     if (!candidate.configured) throw new AwgApiError("AmneziaWG API is not configured.");
     response = candidate;
     if (candidate.status >= 200 && candidate.status < 300) {
@@ -197,6 +255,7 @@ export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; 
       if (endpoint === preferredEndpoint) statsEndpointByApiUrl.delete(awg.apiUrl);
       continue;
     }
+    if (endpoint === preferredEndpoint && candidate.status === 404) break;
     if (candidate.status !== 404 && candidate.status !== 405) break;
   }
   if (!response || response.status < 200 || response.status >= 300) {
@@ -250,10 +309,54 @@ export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; 
   return { rxBytes: Math.round(rxBytes), txBytes: Math.round(txBytes) };
 }
 
+export async function getAwgStats(clientId: string): Promise<AwgStats> {
+  const awg = await config();
+  if (!awg) throw new AwgApiError("AmneziaWG API is not configured.");
+  const now = Date.now();
+  pruneExpiredAwgStatsCache(now);
+  const key = awgStatsCacheKey(awg.apiUrl, clientId);
+  const cached = statsCache.get(key);
+  if (cached && cached.expiresAt > now) return cached.value;
+  if (cached) statsCache.delete(key);
+  const failed = statsErrorCache.get(key);
+  if (failed && failed.expiresAt > now) throw new AwgApiError(failed.message, failed.kind);
+  if (failed) statsErrorCache.delete(key);
+  const inFlight = statsInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const requestPromise = fetchAwgStats(clientId, awg)
+    .then((value) => {
+      statsCache.set(key, { value, expiresAt: Date.now() + AWG_STATS_CACHE_TTL_MS });
+      statsErrorCache.delete(key);
+      return value;
+    })
+    .catch((error: unknown) => {
+      const normalized = error instanceof AwgApiError
+        ? error
+        : new AwgApiError(error instanceof Error ? error.message : "AmneziaWG stats request failed.");
+      const retryDelay = normalized.kind === "stats-route-unavailable"
+        ? AWG_STATS_ROUTE_COOLDOWN_MS
+        : AWG_STATS_ERROR_RETRY_MS;
+      statsErrorCache.set(key, {
+        message: normalized.message,
+        kind: normalized.kind,
+        expiresAt: Date.now() + retryDelay,
+      });
+      throw normalized;
+    })
+    .finally(() => {
+      statsInFlight.delete(key);
+    });
+  statsInFlight.set(key, requestPromise);
+  return requestPromise;
+}
+
 export async function disableAwgClient(clientId: string): Promise<boolean> {
   try {
     const response = await request("DELETE", `/api/clients/${encodeURIComponent(clientId)}`);
-    return response.status >= 200 && response.status < 300 || response.status === 404;
+    const disabled = response.status >= 200 && response.status < 300 || response.status === 404;
+    if (disabled) clearAwgStatsCache(clientId);
+    return disabled;
   } catch {
     return false;
   }
@@ -290,4 +393,5 @@ export async function recreateAwgClient(clientId: string): Promise<void> {
   if (response.status < 200 || response.status >= 300) {
     throw new AwgApiError(responseError(response.status, response.text));
   }
+  clearAwgStatsCache(clientId);
 }
