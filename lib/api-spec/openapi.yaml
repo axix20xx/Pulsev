@@ -24,6 +24,8 @@ tags:
     description: Cross-workspace search
   - name: resellers
     description: Master-admin reseller operations
+  - name: storefront
+    description: Public reseller storefronts and attributed inquiries
 paths:
   /healthz:
     get:
@@ -38,6 +40,162 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /public/storefronts/{slug}:
+    get:
+      operationId: getPublicStorefront
+      tags: [storefront]
+      summary: Get a reseller's public storefront and active offers
+      parameters:
+        - $ref: "#/components/parameters/StorefrontSlug"
+      responses:
+        "200":
+          description: Public store and visible offers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicStorefront"
+        "404":
+          description: Storefront is unavailable
+  /public/storefronts/{slug}/views:
+    post:
+      operationId: recordPublicStorefrontView
+      tags: [storefront]
+      summary: Record an anonymous storefront view by source
+      parameters:
+        - $ref: "#/components/parameters/StorefrontSlug"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublicStorefrontViewInput"
+      responses:
+        "200":
+          description: View recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicStorefrontViewResult"
+        "404":
+          description: Storefront is unavailable
+  /public/storefronts/{slug}/leads:
+    post:
+      operationId: createPublicStorefrontLead
+      tags: [storefront]
+      summary: Submit an inquiry for one active storefront offer
+      parameters:
+        - $ref: "#/components/parameters/StorefrontSlug"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublicStorefrontInquiryInput"
+      responses:
+        "201":
+          description: Inquiry saved for the storefront owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicStorefrontInquiryResult"
+        "400":
+          description: Invalid inquiry
+        "404":
+          description: Storefront or offer is unavailable
+        "429":
+          description: A recent inquiry for this phone already exists
+  /storefront:
+    get:
+      operationId: getResellerStorefront
+      tags: [storefront]
+      summary: Get the current seller's storefront, offers, and performance
+      responses:
+        "200":
+          description: Seller-owned storefront configuration and metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResellerStorefront"
+        "401":
+          description: Sign in required
+    put:
+      operationId: updateResellerStorefront
+      tags: [storefront]
+      summary: Save the current seller's storefront and offer catalog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResellerStorefrontInput"
+      responses:
+        "200":
+          description: Saved storefront configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResellerStorefront"
+        "400":
+          description: Invalid store configuration
+        "409":
+          description: Store slug is already in use
+  /storefront/leads:
+    get:
+      operationId: listResellerStorefrontLeads
+      tags: [storefront]
+      summary: List inquiries owned by the current seller
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Seller-owned storefront inquiries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StorefrontLead"
+        "401":
+          description: Sign in required
+  /storefront/leads/{id}:
+    get:
+      operationId: getResellerStorefrontLead
+      tags: [storefront]
+      summary: Get one storefront inquiry owned by the current seller
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Seller-owned storefront inquiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorefrontLead"
+        "404":
+          description: Inquiry not found
+    patch:
+      operationId: updateResellerStorefrontLead
+      tags: [storefront]
+      summary: Update inquiry follow-up status and note
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorefrontLeadUpdateInput"
+      responses:
+        "200":
+          description: Updated seller-owned inquiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorefrontLead"
+        "400":
+          description: Invalid inquiry update
+        "404":
+          description: Inquiry not found
   /auth/session:
     get:
       operationId: getAuthSession
@@ -665,6 +823,15 @@ components:
       schema:
         type: string
         pattern: "^[A-Za-z0-9_-]{12,256}$"
+    StorefrontSlug:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 48
+        pattern: "^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$"
     OpenVpnProviderPath:
       name: provider
       in: path
@@ -783,6 +950,228 @@ components:
           type: number
           format: int64
           minimum: 1
+    StorefrontOffer:
+      type: object
+      required: [id, title, description, gb, days, price, enabled, sort_order]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        description:
+          type: string
+        gb:
+          type: number
+          exclusiveMinimum: 0
+        days:
+          type: integer
+          minimum: 1
+        price:
+          type: number
+          minimum: 0
+        enabled:
+          type: boolean
+        sort_order:
+          type: integer
+    StorefrontOfferInput:
+      type: object
+      required: [id, title, description, gb, days, price, enabled, sort_order]
+      properties:
+        id:
+          type: ["integer", "null"]
+          minimum: 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 280
+        gb:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 5000
+        days:
+          type: integer
+          minimum: 1
+          maximum: 3650
+        price:
+          type: number
+          minimum: 0
+          maximum: 1000000000000
+        enabled:
+          type: boolean
+        sort_order:
+          type: integer
+          minimum: 0
+          maximum: 100
+    StorefrontStats:
+      type: object
+      required: [views, inquiries, conversions, attributed_revenue]
+      properties:
+        views:
+          type: integer
+          minimum: 0
+        inquiries:
+          type: integer
+          minimum: 0
+        conversions:
+          type: integer
+          minimum: 0
+        attributed_revenue:
+          type: number
+          minimum: 0
+    StorefrontLead:
+      type: object
+      required: [id, customer_name, phone, offer_id, offer_name, gb, days, offer_price, message, source, status, seller_note, created_at, converted_sale_id]
+      properties:
+        id:
+          type: integer
+        customer_name:
+          type: string
+        phone:
+          type: string
+        offer_id:
+          type: ["integer", "null"]
+        offer_name:
+          type: string
+        gb:
+          type: number
+        days:
+          type: integer
+        offer_price:
+          type: number
+        message:
+          type: ["string", "null"]
+        source:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [new, contacted, converted, closed]
+        seller_note:
+          type: ["string", "null"]
+        created_at:
+          type: string
+        converted_sale_id:
+          type: ["integer", "null"]
+    ResellerStorefront:
+      type: object
+      required: [slug, store_name, description, whatsapp_phone, enabled, offers, stats]
+      properties:
+        slug:
+          type: string
+        store_name:
+          type: string
+        description:
+          type: string
+        whatsapp_phone:
+          type: ["string", "null"]
+        enabled:
+          type: boolean
+        offers:
+          type: array
+          items:
+            $ref: "#/components/schemas/StorefrontOffer"
+        stats:
+          $ref: "#/components/schemas/StorefrontStats"
+    ResellerStorefrontInput:
+      type: object
+      required: [slug, store_name, description, whatsapp_phone, enabled, offers]
+      properties:
+        slug:
+          type: string
+          minLength: 3
+          maxLength: 48
+          pattern: "^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$"
+        store_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        whatsapp_phone:
+          type: ["string", "null"]
+          maxLength: 30
+        enabled:
+          type: boolean
+        offers:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/StorefrontOfferInput"
+    PublicStorefront:
+      type: object
+      required: [slug, store_name, description, whatsapp_phone, offers]
+      properties:
+        slug:
+          type: string
+        store_name:
+          type: string
+        description:
+          type: string
+        whatsapp_phone:
+          type: ["string", "null"]
+        offers:
+          type: array
+          items:
+            $ref: "#/components/schemas/StorefrontOffer"
+    PublicStorefrontViewInput:
+      type: object
+      required: [source]
+      properties:
+        source:
+          type: string
+          maxLength: 80
+    PublicStorefrontViewResult:
+      type: object
+      required: [recorded]
+      properties:
+        recorded:
+          type: boolean
+    PublicStorefrontInquiryInput:
+      type: object
+      required: [customer_name, phone, offer_id, message, source, website]
+      properties:
+        customer_name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        phone:
+          type: string
+          minLength: 7
+          maxLength: 30
+        offer_id:
+          type: integer
+          minimum: 1
+        message:
+          type: string
+          maxLength: 500
+        source:
+          type: string
+          maxLength: 80
+        website:
+          type: string
+          maxLength: 200
+    PublicStorefrontInquiryResult:
+      type: object
+      required: [lead_id, whatsapp_url]
+      properties:
+        lead_id:
+          type: integer
+        whatsapp_url:
+          type: ["string", "null"]
+    StorefrontLeadUpdateInput:
+      type: object
+      required: [status, seller_note]
+      properties:
+        status:
+          type: string
+          enum: [new, contacted, closed]
+        seller_note:
+          type: ["string", "null"]
+          maxLength: 500
     CreateServiceInput:
       type: object
       required: [customer_name, phone, label, gb, days]
@@ -809,6 +1198,9 @@ components:
         is_paid:
           type: boolean
           default: true
+        storefront_lead_id:
+          type: ["integer", "null"]
+          minimum: 1
     AuthSession:
       type: object
       required: [authenticated, role]

@@ -27,6 +27,198 @@ export interface TelegramIdLoginInput {
   telegram_id: number;
 }
 
+export interface StorefrontOffer {
+  /** @minimum 1 */
+  id: number;
+  title: string;
+  description: string;
+  /** @exclusiveMinimum 0 */
+  gb: number;
+  /** @minimum 1 */
+  days: number;
+  /** @minimum 0 */
+  price: number;
+  enabled: boolean;
+  sort_order: number;
+}
+
+export interface StorefrontOfferInput {
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  id: number | null;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  title: string;
+  /** @maxLength 280 */
+  description: string;
+  /**
+     * @maximum 5000
+     * @exclusiveMinimum 0
+     */
+  gb: number;
+  /**
+     * @minimum 1
+     * @maximum 3650
+     */
+  days: number;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     */
+  price: number;
+  enabled: boolean;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  sort_order: number;
+}
+
+export interface StorefrontStats {
+  /** @minimum 0 */
+  views: number;
+  /** @minimum 0 */
+  inquiries: number;
+  /** @minimum 0 */
+  conversions: number;
+  /** @minimum 0 */
+  attributed_revenue: number;
+}
+
+export type StorefrontLeadStatus = typeof StorefrontLeadStatus[keyof typeof StorefrontLeadStatus];
+
+
+export const StorefrontLeadStatus = {
+  new: 'new',
+  contacted: 'contacted',
+  converted: 'converted',
+  closed: 'closed',
+} as const;
+
+export interface StorefrontLead {
+  id: number;
+  customer_name: string;
+  phone: string;
+  /** @nullable */
+  offer_id: number | null;
+  offer_name: string;
+  gb: number;
+  days: number;
+  offer_price: number;
+  /** @nullable */
+  message: string | null;
+  /** @nullable */
+  source: string | null;
+  status: StorefrontLeadStatus;
+  /** @nullable */
+  seller_note: string | null;
+  created_at: string;
+  /** @nullable */
+  converted_sale_id: number | null;
+}
+
+export interface ResellerStorefront {
+  slug: string;
+  store_name: string;
+  description: string;
+  /** @nullable */
+  whatsapp_phone: string | null;
+  enabled: boolean;
+  offers: StorefrontOffer[];
+  stats: StorefrontStats;
+}
+
+export interface ResellerStorefrontInput {
+  /**
+     * @minLength 3
+     * @maxLength 48
+     * @pattern ^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$
+     */
+  slug: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  store_name: string;
+  /** @maxLength 500 */
+  description: string;
+  /**
+     * @maxLength 30
+     * @nullable
+     */
+  whatsapp_phone: string | null;
+  enabled: boolean;
+  /** @maxItems 20 */
+  offers: StorefrontOfferInput[];
+}
+
+export interface PublicStorefront {
+  slug: string;
+  store_name: string;
+  description: string;
+  /** @nullable */
+  whatsapp_phone: string | null;
+  offers: StorefrontOffer[];
+}
+
+export interface PublicStorefrontViewInput {
+  /** @maxLength 80 */
+  source: string;
+}
+
+export interface PublicStorefrontViewResult {
+  recorded: boolean;
+}
+
+export interface PublicStorefrontInquiryInput {
+  /**
+     * @minLength 2
+     * @maxLength 120
+     */
+  customer_name: string;
+  /**
+     * @minLength 7
+     * @maxLength 30
+     */
+  phone: string;
+  /** @minimum 1 */
+  offer_id: number;
+  /** @maxLength 500 */
+  message: string;
+  /** @maxLength 80 */
+  source: string;
+  /** @maxLength 200 */
+  website: string;
+}
+
+export interface PublicStorefrontInquiryResult {
+  lead_id: number;
+  /** @nullable */
+  whatsapp_url: string | null;
+}
+
+export type StorefrontLeadUpdateInputStatus = typeof StorefrontLeadUpdateInputStatus[keyof typeof StorefrontLeadUpdateInputStatus];
+
+
+export const StorefrontLeadUpdateInputStatus = {
+  new: 'new',
+  contacted: 'contacted',
+  closed: 'closed',
+} as const;
+
+export interface StorefrontLeadUpdateInput {
+  status: StorefrontLeadUpdateInputStatus;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  seller_note: string | null;
+}
+
 export interface CreateServiceInput {
   /** @minLength 1 */
   customer_name: string;
@@ -47,6 +239,11 @@ export interface CreateServiceInput {
      */
   sell_price?: number | null;
   is_paid?: boolean;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  storefront_lead_id?: number | null;
 }
 
 export type AuthSessionRole = typeof AuthSessionRole[keyof typeof AuthSessionRole];
@@ -672,6 +869,14 @@ export type FromDateParameter = string;
 export type ToDateParameter = string;
 
 export type ResellerIdParameter = number;
+
+export type ListResellerStorefrontLeadsParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: LimitParameter;
+};
 
 export type ListSalesParams = {
 search?: SearchParameter;

@@ -26,4 +26,9 @@ export interface CreateServiceInput {
      */
   sell_price?: number | null;
   is_paid?: boolean;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  storefront_lead_id?: number | null;
 }

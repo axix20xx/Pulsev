@@ -35,6 +35,7 @@ import type {
   ListAdminSalesParams,
   ListAwgUsageParams,
   ListCustomersParams,
+  ListResellerStorefrontLeadsParams,
   ListSalesParams,
   ListServicesParams,
   OpenVpnDelivery,
@@ -42,12 +43,19 @@ import type {
   ProviderAccountAuditRepairResult,
   ProviderAccountAuditScanInput,
   ProviderAccountAuditScanResult,
+  PublicStorefront,
+  PublicStorefrontInquiryInput,
+  PublicStorefrontInquiryResult,
+  PublicStorefrontViewInput,
+  PublicStorefrontViewResult,
   RenewServiceInput,
   Reseller,
   ResellerCreditSale,
   ResellerCreditSaleUpdate,
   ResellerSettlementPayment,
   ResellerSettlementPaymentCreate,
+  ResellerStorefront,
+  ResellerStorefrontInput,
   ResellerUpdate,
   ResetServiceToken200,
   Sale,
@@ -58,6 +66,8 @@ import type {
   ServiceProviderRepairInput,
   ServiceProviderRepairResult,
   ServiceUpdate,
+  StorefrontLead,
+  StorefrontLeadUpdateInput,
   TelegramIdLoginInput,
   TelegramLoginInput,
   WorkspaceSearchResult
@@ -167,6 +177,608 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+
+export const getGetPublicStorefrontUrl = (slug: string,) => {
+
+
+
+
+  return `/api/public/storefronts/${slug}`
+}
+
+/**
+ * @summary Get a reseller's public storefront and active offers
+ */
+export const getPublicStorefront = async (slug: string, options?: Parameters<typeof customFetch>[1]): Promise<PublicStorefront> => {
+
+  return customFetch<PublicStorefront>(getGetPublicStorefrontUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicStorefrontQueryKey = (slug: string,) => {
+    return [
+    `/api/public/storefronts/${slug}`
+    ] as const;
+    }
+
+
+export const getGetPublicStorefrontQueryOptions = <TData = Awaited<ReturnType<typeof getPublicStorefront>>, TError = ErrorType<void>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicStorefront>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicStorefrontQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicStorefront>>> = ({ signal }) => getPublicStorefront(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: slug !== null && slug !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicStorefront>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicStorefrontQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicStorefront>>>
+export type GetPublicStorefrontQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a reseller's public storefront and active offers
+ */
+
+export function useGetPublicStorefront<TData = Awaited<ReturnType<typeof getPublicStorefront>>, TError = ErrorType<void>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicStorefront>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicStorefrontQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordPublicStorefrontViewUrl = (slug: string,) => {
+
+
+
+
+  return `/api/public/storefronts/${slug}/views`
+}
+
+/**
+ * @summary Record an anonymous storefront view by source
+ */
+export const recordPublicStorefrontView = async (slug: string,
+    publicStorefrontViewInput: PublicStorefrontViewInput, options?: Parameters<typeof customFetch>[1]): Promise<PublicStorefrontViewResult> => {
+
+  return customFetch<PublicStorefrontViewResult>(getRecordPublicStorefrontViewUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(publicStorefrontViewInput)
+  }
+);}
+
+
+
+
+
+export const getRecordPublicStorefrontViewMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordPublicStorefrontView>>, TError,{slug: string;data: BodyType<PublicStorefrontViewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordPublicStorefrontView>>, TError,{slug: string;data: BodyType<PublicStorefrontViewInput>}, TContext> => {
+
+const mutationKey = ['recordPublicStorefrontView'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordPublicStorefrontView>>, {slug: string;data: BodyType<PublicStorefrontViewInput>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  recordPublicStorefrontView(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordPublicStorefrontViewMutationResult = NonNullable<Awaited<ReturnType<typeof recordPublicStorefrontView>>>
+    export type RecordPublicStorefrontViewMutationBody = BodyType<PublicStorefrontViewInput>
+    export type RecordPublicStorefrontViewMutationError = ErrorType<void>
+
+    /**
+ * @summary Record an anonymous storefront view by source
+ */
+export const useRecordPublicStorefrontView = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordPublicStorefrontView>>, TError,{slug: string;data: BodyType<PublicStorefrontViewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordPublicStorefrontView>>,
+        TError,
+        {slug: string;data: BodyType<PublicStorefrontViewInput>},
+        TContext
+      > => {
+      return useMutation(getRecordPublicStorefrontViewMutationOptions(options));
+    }
+
+export const getCreatePublicStorefrontLeadUrl = (slug: string,) => {
+
+
+
+
+  return `/api/public/storefronts/${slug}/leads`
+}
+
+/**
+ * @summary Submit an inquiry for one active storefront offer
+ */
+export const createPublicStorefrontLead = async (slug: string,
+    publicStorefrontInquiryInput: PublicStorefrontInquiryInput, options?: Parameters<typeof customFetch>[1]): Promise<PublicStorefrontInquiryResult> => {
+
+  return customFetch<PublicStorefrontInquiryResult>(getCreatePublicStorefrontLeadUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(publicStorefrontInquiryInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePublicStorefrontLeadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPublicStorefrontLead>>, TError,{slug: string;data: BodyType<PublicStorefrontInquiryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPublicStorefrontLead>>, TError,{slug: string;data: BodyType<PublicStorefrontInquiryInput>}, TContext> => {
+
+const mutationKey = ['createPublicStorefrontLead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPublicStorefrontLead>>, {slug: string;data: BodyType<PublicStorefrontInquiryInput>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  createPublicStorefrontLead(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePublicStorefrontLeadMutationResult = NonNullable<Awaited<ReturnType<typeof createPublicStorefrontLead>>>
+    export type CreatePublicStorefrontLeadMutationBody = BodyType<PublicStorefrontInquiryInput>
+    export type CreatePublicStorefrontLeadMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit an inquiry for one active storefront offer
+ */
+export const useCreatePublicStorefrontLead = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPublicStorefrontLead>>, TError,{slug: string;data: BodyType<PublicStorefrontInquiryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPublicStorefrontLead>>,
+        TError,
+        {slug: string;data: BodyType<PublicStorefrontInquiryInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePublicStorefrontLeadMutationOptions(options));
+    }
+
+export const getGetResellerStorefrontUrl = () => {
+
+
+
+
+  return `/api/storefront`
+}
+
+/**
+ * @summary Get the current seller's storefront, offers, and performance
+ */
+export const getResellerStorefront = async ( options?: Parameters<typeof customFetch>[1]): Promise<ResellerStorefront> => {
+
+  return customFetch<ResellerStorefront>(getGetResellerStorefrontUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetResellerStorefrontQueryKey = () => {
+    return [
+    `/api/storefront`
+    ] as const;
+    }
+
+
+export const getGetResellerStorefrontQueryOptions = <TData = Awaited<ReturnType<typeof getResellerStorefront>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResellerStorefront>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetResellerStorefrontQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getResellerStorefront>>> = ({ signal }) => getResellerStorefront({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getResellerStorefront>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetResellerStorefrontQueryResult = NonNullable<Awaited<ReturnType<typeof getResellerStorefront>>>
+export type GetResellerStorefrontQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the current seller's storefront, offers, and performance
+ */
+
+export function useGetResellerStorefront<TData = Awaited<ReturnType<typeof getResellerStorefront>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResellerStorefront>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetResellerStorefrontQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateResellerStorefrontUrl = () => {
+
+
+
+
+  return `/api/storefront`
+}
+
+/**
+ * @summary Save the current seller's storefront and offer catalog
+ */
+export const updateResellerStorefront = async (resellerStorefrontInput: ResellerStorefrontInput, options?: Parameters<typeof customFetch>[1]): Promise<ResellerStorefront> => {
+
+  return customFetch<ResellerStorefront>(getUpdateResellerStorefrontUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resellerStorefrontInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateResellerStorefrontMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateResellerStorefront>>, TError,{data: BodyType<ResellerStorefrontInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateResellerStorefront>>, TError,{data: BodyType<ResellerStorefrontInput>}, TContext> => {
+
+const mutationKey = ['updateResellerStorefront'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateResellerStorefront>>, {data: BodyType<ResellerStorefrontInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateResellerStorefront(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateResellerStorefrontMutationResult = NonNullable<Awaited<ReturnType<typeof updateResellerStorefront>>>
+    export type UpdateResellerStorefrontMutationBody = BodyType<ResellerStorefrontInput>
+    export type UpdateResellerStorefrontMutationError = ErrorType<void>
+
+    /**
+ * @summary Save the current seller's storefront and offer catalog
+ */
+export const useUpdateResellerStorefront = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateResellerStorefront>>, TError,{data: BodyType<ResellerStorefrontInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateResellerStorefront>>,
+        TError,
+        {data: BodyType<ResellerStorefrontInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateResellerStorefrontMutationOptions(options));
+    }
+
+export const getListResellerStorefrontLeadsUrl = (params?: ListResellerStorefrontLeadsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/storefront/leads?${stringifiedParams}` : `/api/storefront/leads`
+}
+
+/**
+ * @summary List inquiries owned by the current seller
+ */
+export const listResellerStorefrontLeads = async (params?: ListResellerStorefrontLeadsParams, options?: Parameters<typeof customFetch>[1]): Promise<StorefrontLead[]> => {
+
+  return customFetch<StorefrontLead[]>(getListResellerStorefrontLeadsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListResellerStorefrontLeadsQueryKey = (params?: ListResellerStorefrontLeadsParams,) => {
+    return [
+    `/api/storefront/leads`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListResellerStorefrontLeadsQueryOptions = <TData = Awaited<ReturnType<typeof listResellerStorefrontLeads>>, TError = ErrorType<void>>(params?: ListResellerStorefrontLeadsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listResellerStorefrontLeads>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListResellerStorefrontLeadsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listResellerStorefrontLeads>>> = ({ signal }) => listResellerStorefrontLeads(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listResellerStorefrontLeads>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListResellerStorefrontLeadsQueryResult = NonNullable<Awaited<ReturnType<typeof listResellerStorefrontLeads>>>
+export type ListResellerStorefrontLeadsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List inquiries owned by the current seller
+ */
+
+export function useListResellerStorefrontLeads<TData = Awaited<ReturnType<typeof listResellerStorefrontLeads>>, TError = ErrorType<void>>(
+ params?: ListResellerStorefrontLeadsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listResellerStorefrontLeads>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListResellerStorefrontLeadsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetResellerStorefrontLeadUrl = (id: number,) => {
+
+
+
+
+  return `/api/storefront/leads/${id}`
+}
+
+/**
+ * @summary Get one storefront inquiry owned by the current seller
+ */
+export const getResellerStorefrontLead = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<StorefrontLead> => {
+
+  return customFetch<StorefrontLead>(getGetResellerStorefrontLeadUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetResellerStorefrontLeadQueryKey = (id: number,) => {
+    return [
+    `/api/storefront/leads/${id}`
+    ] as const;
+    }
+
+
+export const getGetResellerStorefrontLeadQueryOptions = <TData = Awaited<ReturnType<typeof getResellerStorefrontLead>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResellerStorefrontLead>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetResellerStorefrontLeadQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getResellerStorefrontLead>>> = ({ signal }) => getResellerStorefrontLead(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getResellerStorefrontLead>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetResellerStorefrontLeadQueryResult = NonNullable<Awaited<ReturnType<typeof getResellerStorefrontLead>>>
+export type GetResellerStorefrontLeadQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get one storefront inquiry owned by the current seller
+ */
+
+export function useGetResellerStorefrontLead<TData = Awaited<ReturnType<typeof getResellerStorefrontLead>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResellerStorefrontLead>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetResellerStorefrontLeadQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateResellerStorefrontLeadUrl = (id: number,) => {
+
+
+
+
+  return `/api/storefront/leads/${id}`
+}
+
+/**
+ * @summary Update inquiry follow-up status and note
+ */
+export const updateResellerStorefrontLead = async (id: number,
+    storefrontLeadUpdateInput: StorefrontLeadUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<StorefrontLead> => {
+
+  return customFetch<StorefrontLead>(getUpdateResellerStorefrontLeadUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(storefrontLeadUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateResellerStorefrontLeadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateResellerStorefrontLead>>, TError,{id: number;data: BodyType<StorefrontLeadUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateResellerStorefrontLead>>, TError,{id: number;data: BodyType<StorefrontLeadUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateResellerStorefrontLead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateResellerStorefrontLead>>, {id: number;data: BodyType<StorefrontLeadUpdateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateResellerStorefrontLead(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateResellerStorefrontLeadMutationResult = NonNullable<Awaited<ReturnType<typeof updateResellerStorefrontLead>>>
+    export type UpdateResellerStorefrontLeadMutationBody = BodyType<StorefrontLeadUpdateInput>
+    export type UpdateResellerStorefrontLeadMutationError = ErrorType<void>
+
+    /**
+ * @summary Update inquiry follow-up status and note
+ */
+export const useUpdateResellerStorefrontLead = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateResellerStorefrontLead>>, TError,{id: number;data: BodyType<StorefrontLeadUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateResellerStorefrontLead>>,
+        TError,
+        {id: number;data: BodyType<StorefrontLeadUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateResellerStorefrontLeadMutationOptions(options));
+    }
 
 export const getGetAuthSessionUrl = () => {
 

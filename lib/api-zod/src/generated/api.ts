@@ -18,6 +18,350 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Get a reseller's public storefront and active offers
+ */
+export const getPublicStorefrontPathSlugMin = 3;
+export const getPublicStorefrontPathSlugMax = 48;
+
+
+export const getPublicStorefrontPathSlugRegExp = new RegExp('^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$');
+
+
+export const GetPublicStorefrontParams = zod.object({
+  "slug": zod.coerce.string().min(getPublicStorefrontPathSlugMin).max(getPublicStorefrontPathSlugMax).regex(getPublicStorefrontPathSlugRegExp)
+})
+
+
+export const getPublicStorefrontResponseOffersItemGbExclusiveMin = 0;
+
+
+export const getPublicStorefrontResponseOffersItemPriceMin = 0;
+
+
+
+export const GetPublicStorefrontResponse = zod.object({
+  "slug": zod.string(),
+  "store_name": zod.string(),
+  "description": zod.string(),
+  "whatsapp_phone": zod.string().nullable(),
+  "offers": zod.array(zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string(),
+  "gb": zod.number().gt(getPublicStorefrontResponseOffersItemGbExclusiveMin),
+  "days": zod.int().min(1),
+  "price": zod.number().min(getPublicStorefrontResponseOffersItemPriceMin),
+  "enabled": zod.boolean(),
+  "sort_order": zod.int()
+}))
+})
+
+
+/**
+ * @summary Record an anonymous storefront view by source
+ */
+export const recordPublicStorefrontViewPathSlugMin = 3;
+export const recordPublicStorefrontViewPathSlugMax = 48;
+
+
+export const recordPublicStorefrontViewPathSlugRegExp = new RegExp('^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$');
+
+
+export const RecordPublicStorefrontViewParams = zod.object({
+  "slug": zod.coerce.string().min(recordPublicStorefrontViewPathSlugMin).max(recordPublicStorefrontViewPathSlugMax).regex(recordPublicStorefrontViewPathSlugRegExp)
+})
+
+export const recordPublicStorefrontViewBodySourceMax = 80;
+
+
+
+export const RecordPublicStorefrontViewBody = zod.object({
+  "source": zod.string().max(recordPublicStorefrontViewBodySourceMax)
+})
+
+export const RecordPublicStorefrontViewResponse = zod.object({
+  "recorded": zod.boolean()
+})
+
+
+/**
+ * @summary Submit an inquiry for one active storefront offer
+ */
+export const createPublicStorefrontLeadPathSlugMin = 3;
+export const createPublicStorefrontLeadPathSlugMax = 48;
+
+
+export const createPublicStorefrontLeadPathSlugRegExp = new RegExp('^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$');
+
+
+export const CreatePublicStorefrontLeadParams = zod.object({
+  "slug": zod.coerce.string().min(createPublicStorefrontLeadPathSlugMin).max(createPublicStorefrontLeadPathSlugMax).regex(createPublicStorefrontLeadPathSlugRegExp)
+})
+
+export const createPublicStorefrontLeadBodyCustomerNameMin = 2;
+export const createPublicStorefrontLeadBodyCustomerNameMax = 120;
+
+export const createPublicStorefrontLeadBodyPhoneMin = 7;
+export const createPublicStorefrontLeadBodyPhoneMax = 30;
+
+
+export const createPublicStorefrontLeadBodyMessageMax = 500;
+
+export const createPublicStorefrontLeadBodySourceMax = 80;
+
+export const createPublicStorefrontLeadBodyWebsiteMax = 200;
+
+
+
+export const CreatePublicStorefrontLeadBody = zod.object({
+  "customer_name": zod.string().min(createPublicStorefrontLeadBodyCustomerNameMin).max(createPublicStorefrontLeadBodyCustomerNameMax),
+  "phone": zod.string().min(createPublicStorefrontLeadBodyPhoneMin).max(createPublicStorefrontLeadBodyPhoneMax),
+  "offer_id": zod.int().min(1),
+  "message": zod.string().max(createPublicStorefrontLeadBodyMessageMax),
+  "source": zod.string().max(createPublicStorefrontLeadBodySourceMax),
+  "website": zod.string().max(createPublicStorefrontLeadBodyWebsiteMax)
+})
+
+export const CreatePublicStorefrontLeadResponse = zod.object({
+  "lead_id": zod.int(),
+  "whatsapp_url": zod.string().nullable()
+})
+
+
+/**
+ * @summary Get the current seller's storefront, offers, and performance
+ */
+
+export const getResellerStorefrontResponseOffersItemGbExclusiveMin = 0;
+
+
+export const getResellerStorefrontResponseOffersItemPriceMin = 0;
+
+export const getResellerStorefrontResponseStatsViewsMin = 0;
+
+export const getResellerStorefrontResponseStatsInquiriesMin = 0;
+
+export const getResellerStorefrontResponseStatsConversionsMin = 0;
+
+export const getResellerStorefrontResponseStatsAttributedRevenueMin = 0;
+
+
+
+export const GetResellerStorefrontResponse = zod.object({
+  "slug": zod.string(),
+  "store_name": zod.string(),
+  "description": zod.string(),
+  "whatsapp_phone": zod.string().nullable(),
+  "enabled": zod.boolean(),
+  "offers": zod.array(zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string(),
+  "gb": zod.number().gt(getResellerStorefrontResponseOffersItemGbExclusiveMin),
+  "days": zod.int().min(1),
+  "price": zod.number().min(getResellerStorefrontResponseOffersItemPriceMin),
+  "enabled": zod.boolean(),
+  "sort_order": zod.int()
+})),
+  "stats": zod.object({
+  "views": zod.int().min(getResellerStorefrontResponseStatsViewsMin),
+  "inquiries": zod.int().min(getResellerStorefrontResponseStatsInquiriesMin),
+  "conversions": zod.int().min(getResellerStorefrontResponseStatsConversionsMin),
+  "attributed_revenue": zod.number().min(getResellerStorefrontResponseStatsAttributedRevenueMin)
+})
+})
+
+
+/**
+ * @summary Save the current seller's storefront and offer catalog
+ */
+export const updateResellerStorefrontBodySlugMin = 3;
+export const updateResellerStorefrontBodySlugMax = 48;
+
+
+export const updateResellerStorefrontBodySlugRegExp = new RegExp('^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$');
+export const updateResellerStorefrontBodyStoreNameMax = 100;
+
+export const updateResellerStorefrontBodyDescriptionMax = 500;
+
+export const updateResellerStorefrontBodyWhatsappPhoneMax = 30;
+
+
+export const updateResellerStorefrontBodyOffersItemTitleMax = 80;
+
+export const updateResellerStorefrontBodyOffersItemDescriptionMax = 280;
+
+export const updateResellerStorefrontBodyOffersItemGbExclusiveMin = 0;
+export const updateResellerStorefrontBodyOffersItemGbMax = 5000;
+
+export const updateResellerStorefrontBodyOffersItemDaysMax = 3650;
+
+export const updateResellerStorefrontBodyOffersItemPriceMin = 0;
+export const updateResellerStorefrontBodyOffersItemPriceMax = 1000000000000;
+
+export const updateResellerStorefrontBodyOffersItemSortOrderMin = 0;
+export const updateResellerStorefrontBodyOffersItemSortOrderMax = 100;
+
+export const updateResellerStorefrontBodyOffersMax = 20;
+
+
+
+export const UpdateResellerStorefrontBody = zod.object({
+  "slug": zod.string().min(updateResellerStorefrontBodySlugMin).max(updateResellerStorefrontBodySlugMax).regex(updateResellerStorefrontBodySlugRegExp),
+  "store_name": zod.string().min(1).max(updateResellerStorefrontBodyStoreNameMax),
+  "description": zod.string().max(updateResellerStorefrontBodyDescriptionMax),
+  "whatsapp_phone": zod.string().max(updateResellerStorefrontBodyWhatsappPhoneMax).nullable(),
+  "enabled": zod.boolean(),
+  "offers": zod.array(zod.object({
+  "id": zod.int().min(1).nullable(),
+  "title": zod.string().min(1).max(updateResellerStorefrontBodyOffersItemTitleMax),
+  "description": zod.string().max(updateResellerStorefrontBodyOffersItemDescriptionMax),
+  "gb": zod.number().gt(updateResellerStorefrontBodyOffersItemGbExclusiveMin).max(updateResellerStorefrontBodyOffersItemGbMax),
+  "days": zod.int().min(1).max(updateResellerStorefrontBodyOffersItemDaysMax),
+  "price": zod.number().min(updateResellerStorefrontBodyOffersItemPriceMin).max(updateResellerStorefrontBodyOffersItemPriceMax),
+  "enabled": zod.boolean(),
+  "sort_order": zod.int().min(updateResellerStorefrontBodyOffersItemSortOrderMin).max(updateResellerStorefrontBodyOffersItemSortOrderMax)
+})).max(updateResellerStorefrontBodyOffersMax)
+})
+
+
+export const updateResellerStorefrontResponseOffersItemGbExclusiveMin = 0;
+
+
+export const updateResellerStorefrontResponseOffersItemPriceMin = 0;
+
+export const updateResellerStorefrontResponseStatsViewsMin = 0;
+
+export const updateResellerStorefrontResponseStatsInquiriesMin = 0;
+
+export const updateResellerStorefrontResponseStatsConversionsMin = 0;
+
+export const updateResellerStorefrontResponseStatsAttributedRevenueMin = 0;
+
+
+
+export const UpdateResellerStorefrontResponse = zod.object({
+  "slug": zod.string(),
+  "store_name": zod.string(),
+  "description": zod.string(),
+  "whatsapp_phone": zod.string().nullable(),
+  "enabled": zod.boolean(),
+  "offers": zod.array(zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string(),
+  "gb": zod.number().gt(updateResellerStorefrontResponseOffersItemGbExclusiveMin),
+  "days": zod.int().min(1),
+  "price": zod.number().min(updateResellerStorefrontResponseOffersItemPriceMin),
+  "enabled": zod.boolean(),
+  "sort_order": zod.int()
+})),
+  "stats": zod.object({
+  "views": zod.int().min(updateResellerStorefrontResponseStatsViewsMin),
+  "inquiries": zod.int().min(updateResellerStorefrontResponseStatsInquiriesMin),
+  "conversions": zod.int().min(updateResellerStorefrontResponseStatsConversionsMin),
+  "attributed_revenue": zod.number().min(updateResellerStorefrontResponseStatsAttributedRevenueMin)
+})
+})
+
+
+/**
+ * @summary List inquiries owned by the current seller
+ */
+export const listResellerStorefrontLeadsQueryLimitDefault = 100;
+export const listResellerStorefrontLeadsQueryLimitMax = 200;
+
+
+
+export const ListResellerStorefrontLeadsQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listResellerStorefrontLeadsQueryLimitMax).default(listResellerStorefrontLeadsQueryLimitDefault)
+})
+
+export const ListResellerStorefrontLeadsResponseItem = zod.object({
+  "id": zod.int(),
+  "customer_name": zod.string(),
+  "phone": zod.string(),
+  "offer_id": zod.int().nullable(),
+  "offer_name": zod.string(),
+  "gb": zod.number(),
+  "days": zod.int(),
+  "offer_price": zod.number(),
+  "message": zod.string().nullable(),
+  "source": zod.string().nullable(),
+  "status": zod.enum(['new', 'contacted', 'converted', 'closed']),
+  "seller_note": zod.string().nullable(),
+  "created_at": zod.string(),
+  "converted_sale_id": zod.int().nullable()
+})
+export const ListResellerStorefrontLeadsResponse = zod.array(ListResellerStorefrontLeadsResponseItem)
+
+
+/**
+ * @summary Get one storefront inquiry owned by the current seller
+ */
+
+
+
+export const GetResellerStorefrontLeadParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const GetResellerStorefrontLeadResponse = zod.object({
+  "id": zod.int(),
+  "customer_name": zod.string(),
+  "phone": zod.string(),
+  "offer_id": zod.int().nullable(),
+  "offer_name": zod.string(),
+  "gb": zod.number(),
+  "days": zod.int(),
+  "offer_price": zod.number(),
+  "message": zod.string().nullable(),
+  "source": zod.string().nullable(),
+  "status": zod.enum(['new', 'contacted', 'converted', 'closed']),
+  "seller_note": zod.string().nullable(),
+  "created_at": zod.string(),
+  "converted_sale_id": zod.int().nullable()
+})
+
+
+/**
+ * @summary Update inquiry follow-up status and note
+ */
+
+
+
+export const UpdateResellerStorefrontLeadParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const updateResellerStorefrontLeadBodySellerNoteMax = 500;
+
+
+
+export const UpdateResellerStorefrontLeadBody = zod.object({
+  "status": zod.enum(['new', 'contacted', 'closed']),
+  "seller_note": zod.string().max(updateResellerStorefrontLeadBodySellerNoteMax).nullable()
+})
+
+export const UpdateResellerStorefrontLeadResponse = zod.object({
+  "id": zod.int(),
+  "customer_name": zod.string(),
+  "phone": zod.string(),
+  "offer_id": zod.int().nullable(),
+  "offer_name": zod.string(),
+  "gb": zod.number(),
+  "days": zod.int(),
+  "offer_price": zod.number(),
+  "message": zod.string().nullable(),
+  "source": zod.string().nullable(),
+  "status": zod.enum(['new', 'contacted', 'converted', 'closed']),
+  "seller_note": zod.string().nullable(),
+  "created_at": zod.string(),
+  "converted_sale_id": zod.int().nullable()
+})
+
+
+/**
  * @summary Get the current authenticated session
  */
 export const GetAuthSessionResponse = zod.object({
@@ -597,6 +941,7 @@ export const createServiceBodySellPriceMin = 0;
 
 export const createServiceBodyIsPaidDefault = true;
 
+
 export const CreateServiceBody = zod.object({
   "customer_name": zod.string().min(1),
   "phone": zod.string().min(createServiceBodyPhoneMin),
@@ -604,7 +949,8 @@ export const CreateServiceBody = zod.object({
   "gb": zod.number().gt(createServiceBodyGbExclusiveMin),
   "days": zod.number().min(1),
   "sell_price": zod.number().min(createServiceBodySellPriceMin).nullish(),
-  "is_paid": zod.boolean().default(createServiceBodyIsPaidDefault)
+  "is_paid": zod.boolean().default(createServiceBodyIsPaidDefault),
+  "storefront_lead_id": zod.int().min(1).nullish()
 })
 
 export const CreateServiceResponse = zod.object({
