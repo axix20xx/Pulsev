@@ -1122,3 +1122,17 @@ mtime_ms = 1791324306198
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2a91085e-8d4d-4142-b183-133aaca04337/585eb0b5-5cc3-4189-8f4a-dbc18bcdc49e"
 storage_version_token = "1791324325127563"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "eiVXuZZioeOXmqm63vBel"
+uri = "file://exports/pulse-hostinger-full-migration-backend-reliability-fixes-2026-10-07.zip"
+type = "unspecified"
+title = "Hostinger Full Migration ZIP"
+description = "Full Hostinger deployment package with the audited API/backend fixes and separate root, panel, mobile, showcase, and subscription asset bundles. ZIP integrity and package validation passed."
+logical_id = "8c5c9a25-d131-4dfb-bd59-97eced07a368"
+content_hash = "sha256:86bfe0b0087f5b7b3e89587c6ad40622a79a273943f166a37b351d296ea47520"
+size = 28812018
+mtime_ms = 1791326368662
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8c5c9a25-d131-4dfb-bd59-97eced07a368/6e022fb3-1f8b-473a-bbe5-e96d6d37f67c"
+storage_version_token = "1791326402559011"
+content_type = "application/octet-stream"

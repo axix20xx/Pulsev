@@ -26021,7 +26021,7 @@ var require_wait = __commonJS({
   "../../node_modules/.pnpm/thread-stream@3.1.0/node_modules/thread-stream/lib/wait.js"(exports, module) {
     "use strict";
     var MAX_TIMEOUT = 1e3;
-    function wait3(state, index, expected, timeout, done) {
+    function wait2(state, index, expected, timeout, done) {
       const max = Date.now() + timeout;
       let current = Atomics.load(state, index);
       if (current === expected) {
@@ -26070,7 +26070,7 @@ var require_wait = __commonJS({
       };
       check2(1);
     }
-    module.exports = { wait: wait3, waitDiff };
+    module.exports = { wait: wait2, waitDiff };
   }
 });
 
@@ -26096,7 +26096,7 @@ var require_thread_stream = __commonJS({
     var { Worker } = __require("worker_threads");
     var { join } = __require("path");
     var { pathToFileURL } = __require("url");
-    var { wait: wait3 } = require_wait();
+    var { wait: wait2 } = require_wait();
     var {
       WRITE_INDEX,
       READ_INDEX
@@ -26325,7 +26325,7 @@ var require_thread_stream = __commonJS({
           return;
         }
         const writeIndex = Atomics.load(this[kImpl].state, WRITE_INDEX);
-        wait3(this[kImpl].state, READ_INDEX, writeIndex, Infinity, (err, res) => {
+        wait2(this[kImpl].state, READ_INDEX, writeIndex, Infinity, (err, res) => {
           if (err) {
             destroy(this, err);
             process.nextTick(cb, err);
@@ -45261,10 +45261,6 @@ var DownloadOpenVpnBundleParams = objectType({
 });
 var DownloadOpenVpnBundleResponse = stringType();
 
-// src/routes/management.ts
-var import_express2 = __toESM(require_express2(), 1);
-import { randomBytes as randomBytes6 } from "node:crypto";
-
 // ../../node_modules/.pnpm/pg@8.22.0/node_modules/pg/esm/index.mjs
 var import_lib = __toESM(require_lib5(), 1);
 var Client = import_lib.default.Client;
@@ -63741,19 +63737,192 @@ pool.on("error", (error40) => {
 });
 var db = drizzle(pool, { schema: schema_exports });
 
+// src/lib/mobile-otp.ts
+import { createHash, createHmac, randomBytes, randomInt } from "node:crypto";
+var mobileOtpReady = pool.query(`
+  CREATE TABLE IF NOT EXISTS mobile_login_otps (
+    id TEXT PRIMARY KEY,
+    customer_id BIGINT NOT NULL,
+    phone TEXT NOT NULL,
+    otp_hash TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    attempts SMALLINT NOT NULL DEFAULT 0,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+  ALTER TABLE mobile_login_otps ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
+  UPDATE mobile_login_otps
+     SET expires_at = NOW(), used_at = COALESCE(used_at, NOW())
+   WHERE expires_at IS NULL;
+  ALTER TABLE mobile_login_otps ALTER COLUMN expires_at SET NOT NULL;
+  CREATE INDEX IF NOT EXISTS mobile_login_otps_lookup_idx
+    ON mobile_login_otps (customer_id, phone, expires_at DESC);
+  CREATE TABLE IF NOT EXISTS mobile_auth_rate_limits (
+    key_hash TEXT PRIMARY KEY,
+    window_started_at TIMESTAMP NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS mobile_auth_rate_limits_window_idx
+    ON mobile_auth_rate_limits (window_started_at);
+`);
+var MOBILE_OTP_LIFETIME_MS = 5 * 6e4;
+var RATE_LIMIT_WINDOW_MS = 15 * 6e4;
+var lastRateLimitCleanupAt = 0;
+var hashOtp = (challengeId, otp) => createHash("sha256").update(`${challengeId}:${otp}`).digest("hex");
+function mobileOtpRowValid(row, otp, nowMs = Date.now()) {
+  const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : Number.NaN;
+  return Number(row.attempts) < 5 && !row.used_at && Number.isFinite(expiresAt) && expiresAt > nowMs && hashOtp(row.id, otp) === row.otp_hash;
+}
+var allowMobileAuthAttempt = async (purpose, phoneKey, ipAddress) => {
+  await mobileOtpReady;
+  const secret = process.env.SESSION_SECRET?.trim() || "pulse-mobile-auth-rate-limit";
+  const buckets = [
+    {
+      identity: `phone\0${phoneKey}`,
+      maxAttempts: purpose === "verify" ? 10 : 20
+    },
+    {
+      identity: `ip\0${ipAddress || "unknown"}`,
+      maxAttempts: purpose === "verify" ? 100 : 100
+    }
+  ];
+  let allowed = true;
+  let retryAfterSeconds = 1;
+  for (const bucket of buckets) {
+    const keyHash = createHmac("sha256", secret).update(`${purpose}\0${bucket.identity}`).digest("hex");
+    const result = await pool.query(
+      `INSERT INTO mobile_auth_rate_limits (key_hash, window_started_at, attempts, updated_at)
+       VALUES ($1, NOW(), 1, NOW())
+       ON CONFLICT (key_hash) DO UPDATE SET
+         window_started_at = CASE
+           WHEN mobile_auth_rate_limits.window_started_at < NOW() - INTERVAL '15 minutes'
+           THEN NOW() ELSE mobile_auth_rate_limits.window_started_at END,
+         attempts = CASE
+           WHEN mobile_auth_rate_limits.window_started_at < NOW() - INTERVAL '15 minutes'
+           THEN 1 ELSE LEAST($2 + 1, mobile_auth_rate_limits.attempts + 1) END,
+         updated_at = NOW()
+       RETURNING attempts, window_started_at`,
+      [keyHash, bucket.maxAttempts]
+    );
+    const row = result.rows[0];
+    const startedAt = row ? new Date(row.window_started_at).getTime() : Date.now();
+    const bucketRetryAfter = Math.max(
+      1,
+      Math.ceil((startedAt + RATE_LIMIT_WINDOW_MS - Date.now()) / 1e3)
+    );
+    if (Number(row?.attempts ?? bucket.maxAttempts + 1) > bucket.maxAttempts) {
+      allowed = false;
+      retryAfterSeconds = Math.max(retryAfterSeconds, bucketRetryAfter);
+    }
+  }
+  if (Date.now() - lastRateLimitCleanupAt > 60 * 6e4) {
+    lastRateLimitCleanupAt = Date.now();
+    void pool.query(
+      "DELETE FROM mobile_auth_rate_limits WHERE window_started_at < NOW() - INTERVAL '1 day'"
+    ).catch(() => void 0);
+  }
+  return { allowed, retryAfterSeconds };
+};
+var issueMobileOtp = async (customerId2, phone) => {
+  await mobileOtpReady;
+  const challengeId = randomBytes(24).toString("hex");
+  const otp = String(randomInt(1e3, 1e4));
+  await pool.query(
+    `UPDATE mobile_login_otps
+     SET used_at = COALESCE(used_at, NOW())
+     WHERE customer_id = $1 AND phone = $2 AND used_at IS NULL`,
+    [customerId2, phone]
+  );
+  const inserted = await pool.query(
+    `INSERT INTO mobile_login_otps (id, customer_id, phone, otp_hash, expires_at)
+     VALUES ($1, $2, $3, $4, NOW() + INTERVAL '5 minutes')
+     RETURNING expires_at`,
+    [challengeId, customerId2, phone, hashOtp(challengeId, otp)]
+  );
+  const expiresAt = inserted.rows[0]?.expires_at ?? new Date(Date.now() + MOBILE_OTP_LIFETIME_MS);
+  return {
+    challengeId,
+    otp,
+    expiresAt: new Date(expiresAt).toISOString()
+  };
+};
+var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
+  await mobileOtpReady;
+  void challengeId;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `SELECT id, otp_hash, attempts, expires_at, used_at
+       FROM mobile_login_otps
+       WHERE customer_id = $1
+         AND phone = $2
+         AND used_at IS NULL
+         AND expires_at > NOW()
+         AND attempts < 5
+       ORDER BY created_at DESC
+       LIMIT 1
+       FOR UPDATE`,
+      [customerId2, phone]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      await client.query("ROLLBACK");
+      return { ok: false, reason: "\u06A9\u062F \u0648\u0631\u0648\u062F \u0646\u0627\u062F\u0631\u0633\u062A \u06CC\u0627 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F\u0647 \u0627\u0633\u062A." };
+    }
+    if (!mobileOtpRowValid(row, otp)) {
+      await client.query(
+        `UPDATE mobile_login_otps
+         SET attempts = attempts + 1
+         WHERE id = $1`,
+        [row.id]
+      );
+      await client.query("COMMIT");
+      return { ok: false, reason: "\u06A9\u062F \u0648\u0631\u0648\u062F \u0646\u0627\u062F\u0631\u0633\u062A \u06CC\u0627 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F\u0647 \u0627\u0633\u062A." };
+    }
+    const consumed = await client.query(
+      `UPDATE mobile_login_otps
+       SET used_at = NOW(), attempts = 0
+       WHERE id = $1 AND used_at IS NULL AND expires_at > NOW()
+       RETURNING id`,
+      [row.id]
+    );
+    await client.query("COMMIT");
+    return { ok: consumed.rows.length === 1 };
+  } catch (error40) {
+    await client.query("ROLLBACK").catch(() => void 0);
+    throw error40;
+  } finally {
+    client.release();
+  }
+};
+
+// src/routes/management.ts
+var import_express2 = __toESM(require_express2(), 1);
+import { randomBytes as randomBytes6 } from "node:crypto";
+
 // src/lib/service-usage-snapshot.ts
 function nonNegativeBytes(value) {
   const number4 = Number(value ?? 0);
   return Number.isFinite(number4) ? Math.max(0, number4) : 0;
+}
+function signedBytes(value) {
+  const number4 = Number(value ?? 0);
+  return Number.isFinite(number4) ? Math.round(number4) : 0;
 }
 function serviceUsageBytes(snapshot) {
   const storedCombined = nonNegativeBytes(snapshot.lastUsedBytes);
   const providers = nonNegativeBytes(snapshot.panelUsageBytes);
   const awg = Math.max(
     0,
-    nonNegativeBytes(snapshot.awgTotalBytes) - nonNegativeBytes(snapshot.awgOffsetBytes)
+    nonNegativeBytes(snapshot.awgTotalBytes) - signedBytes(snapshot.awgOffsetBytes)
   );
   return Math.max(storedCombined, providers + awg);
+}
+function serviceCanUseAwg(input) {
+  const expiry = input.expiresAt ? new Date(input.expiresAt).getTime() : null;
+  return (input.status === "active" || input.status === "expiring") && (expiry === null || Number.isFinite(expiry) && expiry > Date.now()) && Number(input.remoteDisablePending ?? 0) !== 1 && Number.isFinite(input.totalBytes) && input.totalBytes > 0 && Number.isFinite(input.usedBytes) && input.usedBytes < input.totalBytes;
 }
 function storedPanelUsageSql(serviceAlias = "svc") {
   if (!/^[a-z_][a-z0-9_]*$/i.test(serviceAlias)) {
@@ -63782,16 +63951,16 @@ function storedPanelUsageSql(serviceAlias = "svc") {
 
 // src/lib/auth.ts
 import {
-  createHash,
-  createHmac,
-  randomBytes,
+  createHash as createHash2,
+  createHmac as createHmac2,
+  randomBytes as randomBytes2,
   timingSafeEqual
 } from "node:crypto";
 var MASTER_ADMIN_TELEGRAM_ID = Number(
   process.env.TELEGRAM_MASTER_ADMIN_ID ?? "1026368027"
 );
 var sessionCookie = "pulse_session";
-var sessionHash = (value) => createHash("sha256").update(value).digest("hex");
+var sessionHash = (value) => createHash2("sha256").update(value).digest("hex");
 var transientDatabaseCodes = /* @__PURE__ */ new Set([
   "08000",
   "08001",
@@ -63849,14 +64018,14 @@ function verifyTelegramLogin(payload) {
   if (!token || !hash || !Number.isFinite(authDate)) return false;
   if (Math.floor(Date.now() / 1e3) - authDate > 86400) return false;
   const checkString = Object.entries(payload).filter(([key, value]) => key !== "hash" && value !== void 0 && value !== null).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}=${String(value)}`).join("\n");
-  const secret = createHash("sha256").update(token).digest();
-  const expected = createHmac("sha256", secret).update(checkString).digest("hex");
+  const secret = createHash2("sha256").update(token).digest();
+  const expected = createHmac2("sha256", secret).update(checkString).digest("hex");
   const expectedBuffer = Buffer.from(expected, "utf8");
   const hashBuffer = Buffer.from(hash, "utf8");
   return expectedBuffer.length === hashBuffer.length && timingSafeEqual(expectedBuffer, hashBuffer);
 }
 async function createWebSession(context) {
-  const rawId = randomBytes(32).toString("hex");
+  const rawId = randomBytes2(32).toString("hex");
   await pool.query(
     `INSERT INTO web_sessions
       (id, telegram_id, role, reseller_id, display_name, expires_at)
@@ -63946,20 +64115,20 @@ function requireMasterAdmin(req, res, next) {
 }
 
 // src/lib/rain.ts
-import { randomBytes as randomBytes3 } from "node:crypto";
+import { randomBytes as randomBytes4 } from "node:crypto";
 
 // src/lib/panel-credentials.ts
-import { createCipheriv, createDecipheriv, createHash as createHash2, randomBytes as randomBytes2 } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash as createHash3, randomBytes as randomBytes3 } from "node:crypto";
 var version3 = "v1";
 function encryptionKey() {
   const secret = process.env.SESSION_SECRET?.trim();
   if (!secret) {
     throw new Error("SESSION_SECRET is required to encrypt Provider credentials.");
   }
-  return createHash2("sha256").update(secret).digest();
+  return createHash3("sha256").update(secret).digest();
 }
 function encryptPanelCredential(value) {
-  const iv = randomBytes2(12);
+  const iv = randomBytes3(12);
   const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
   const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
@@ -65017,18 +65186,69 @@ async function downloadOpenVpnProfile(username, providerKey, hostId, ownerId, ro
   return { body: response.text, contentType: "text/plain; charset=utf-8" };
 }
 function createServiceUsername(customerId2) {
-  return `u${customerId2}_${randomBytes3(8).toString("hex")}`;
+  return `u${customerId2}_${randomBytes4(8).toString("hex")}`;
 }
 function createSubscriptionToken() {
-  return randomBytes3(16).toString("hex");
+  return randomBytes4(16).toString("hex");
+}
+
+// src/lib/service-disable-guard.ts
+async function hasOtherActiveServiceWithUsername(username, serviceId) {
+  const normalizedUsername = username.trim();
+  if (!normalizedUsername) return false;
+  const result = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM reseller_services sibling
+       WHERE sibling.rain_username = $1
+         AND sibling.id <> $2
+         AND sibling.status IN ('active', 'expiring')
+         AND (sibling.expire_at IS NULL OR sibling.expire_at > NOW())
+     ) AS has_other_service`,
+    [normalizedUsername, serviceId]
+  );
+  return result.rows[0]?.has_other_service === true;
+}
+
+// src/lib/awg-counters.ts
+var nonNegativeBytes2 = (value) => {
+  const bytes = Number(value);
+  return Number.isFinite(bytes) ? Math.max(0, Math.round(bytes)) : 0;
+};
+var signedBytes2 = (value) => {
+  const bytes = Number(value);
+  return Number.isFinite(bytes) ? Math.round(bytes) : 0;
+};
+function effectiveAwgBytes(rawBytes, offsetBytes) {
+  return Math.max(0, nonNegativeBytes2(rawBytes) - signedBytes2(offsetBytes));
+}
+function reconcileAwgCounter(rawBytesInput, previousRawBytesInput, previousOffsetBytesInput) {
+  const rawBytes = nonNegativeBytes2(rawBytesInput);
+  const previousRawBytes = nonNegativeBytes2(previousRawBytesInput);
+  let offsetBytes = signedBytes2(previousOffsetBytesInput);
+  const resetDetected = previousRawBytes > 0 && rawBytes < previousRawBytes * 0.5;
+  if (resetDetected) {
+    const previousEffectiveBytes = effectiveAwgBytes(previousRawBytes, offsetBytes);
+    offsetBytes = rawBytes - previousEffectiveBytes;
+  }
+  return {
+    rawBytes,
+    offsetBytes,
+    effectiveBytes: effectiveAwgBytes(rawBytes, offsetBytes),
+    resetDetected
+  };
+}
+function awgOffsetForReplacementClient(previousRawBytes, previousOffsetBytes) {
+  return -effectiveAwgBytes(previousRawBytes, previousOffsetBytes);
 }
 
 // src/lib/amneziawg.ts
 import { randomUUID } from "node:crypto";
 var AwgApiError = class extends Error {
-  constructor(message, kind) {
+  constructor(message, kind, status) {
     super(message);
     this.kind = kind;
+    this.status = status;
     this.name = "AwgApiError";
   }
 };
@@ -65199,7 +65419,7 @@ async function getAwgConfiguration(clientId) {
     throw new AwgApiError("AmneziaWG API is not configured.");
   }
   if (response.status < 200 || response.status >= 300) {
-    throw new AwgApiError(responseError(response.status, response.text));
+    throw new AwgApiError(responseError(response.status, response.text), void 0, response.status);
   }
   if (!response.text.trim()) throw new AwgApiError("AmneziaWG returned an empty configuration.");
   return response.text;
@@ -65368,22 +65588,29 @@ async function recreateAwgClient(clientId) {
   clearAwgStatsCache(clientId);
 }
 
-// src/lib/service-disable-guard.ts
-async function hasOtherActiveServiceWithUsername(username, serviceId) {
-  const normalizedUsername = username.trim();
-  if (!normalizedUsername) return false;
-  const result = await pool.query(
-    `SELECT EXISTS (
-       SELECT 1
-       FROM reseller_services sibling
-       WHERE sibling.rain_username = $1
-         AND sibling.id <> $2
-         AND sibling.status IN ('active', 'expiring')
-         AND (sibling.expire_at IS NULL OR sibling.expire_at > NOW())
-     ) AS has_other_service`,
-    [normalizedUsername, serviceId]
-  );
-  return result.rows[0]?.has_other_service === true;
+// src/routes/mobile.ts
+var import_express = __toESM(require_express2(), 1);
+var import_web_push = __toESM(require_src2(), 1);
+import { createHash as createHash4, randomBytes as randomBytes5 } from "node:crypto";
+
+// src/lib/mobile-push-url.ts
+var allowedPushHosts = /* @__PURE__ */ new Set([
+  "fcm.googleapis.com",
+  "web.push.apple.com",
+  "updates.push.services.mozilla.com"
+]);
+var isSubdomainOf = (hostname3, suffix) => hostname3 !== suffix && hostname3.endsWith(`.${suffix}`);
+function isAllowedPushEndpoint(endpoint) {
+  try {
+    const url2 = new URL(endpoint);
+    if (url2.protocol !== "https:" || url2.username || url2.password || url2.port && url2.port !== "443") {
+      return false;
+    }
+    const hostname3 = url2.hostname.toLowerCase().replace(/\.$/, "");
+    return allowedPushHosts.has(hostname3) || isSubdomainOf(hostname3, "push.apple.com") || isSubdomainOf(hostname3, "push.services.mozilla.com");
+  } catch {
+    return false;
+  }
 }
 
 // src/lib/logger.ts
@@ -65404,405 +65631,7 @@ var logger = (0, import_pino.default)({
   }
 });
 
-// src/lib/usage-sync.ts
-var BYTES_PER_GB = 1024 ** 3;
-var DEFAULT_INTERVAL_MS = 6e4;
-var running = false;
-var lastAwgUsageWarningAt = /* @__PURE__ */ new Map();
-var AWG_ROUTE_WARNING_INTERVAL_MS = 5 * 6e4;
-function shouldLogAwgUsageError(error40, serviceId) {
-  if (!(error40 instanceof AwgApiError)) return true;
-  const now = Date.now();
-  const key = error40.kind === "stats-route-unavailable" ? "stats-route-unavailable" : `service:${serviceId}`;
-  if (now - (lastAwgUsageWarningAt.get(key) ?? 0) < AWG_ROUTE_WARNING_INTERVAL_MS) return false;
-  lastAwgUsageWarningAt.set(key, now);
-  return true;
-}
-function epochSeconds(date6) {
-  if (!date6) return null;
-  const time4 = new Date(date6).getTime();
-  return Number.isFinite(time4) ? Math.floor(time4 / 1e3) : null;
-}
-async function updatePanelUsage(username, panelKey2, rawBytes) {
-  const existing = await pool.query(
-    `SELECT id, COALESCE(upload, 0)::float8 AS upload, COALESCE(download, 0)::float8 AS download,
-            COALESCE(offset_bytes, 0)::float8 AS offset_bytes
-     FROM user_panel_usages
-     WHERE username = $1 AND panel_key = $2
-     ORDER BY id DESC LIMIT 1`,
-    [username, panelKey2]
-  );
-  let offset = Number(existing.rows[0]?.offset_bytes ?? 0);
-  const previousRaw = Number(existing.rows[0]?.upload ?? 0) + Number(existing.rows[0]?.download ?? 0);
-  if (previousRaw > 0 && rawBytes < previousRaw * 0.5) {
-    offset = rawBytes;
-  }
-  const effective = Math.max(0, rawBytes - offset);
-  if (existing.rows[0]) {
-    await pool.query(
-      `UPDATE user_panel_usages
-       SET upload = 0, download = $1, total = $1, offset_bytes = $2, last_updated = NOW()
-       WHERE id = $3`,
-      [rawBytes, offset, existing.rows[0].id]
-    );
-  } else {
-    await pool.query(
-      `INSERT INTO user_panel_usages (username, panel_key, upload, download, total, offset_bytes, last_updated)
-       VALUES ($1, $2, 0, $3, $3, $4, NOW())`,
-      [username, panelKey2, rawBytes, offset]
-    );
-  }
-  return effective;
-}
-async function syncServiceUnlocked(service) {
-  const panelUsages = await readPanelUsages(
-    service.rain_username,
-    service.falco_config_id,
-    Number(service.reseller_tg_id),
-    "reseller"
-  );
-  let panelUsedBytes = 0;
-  for (const usage of panelUsages) {
-    panelUsedBytes += usage.stale ? usage.usedBytes : await updatePanelUsage(service.rain_username, usage.panelKey, usage.usedBytes);
-  }
-  let awgUsedBytes = Math.max(0, Number(service.awg_total ?? 0) - Number(service.awg_offset_bytes ?? 0));
-  let awgRx = 0;
-  let awgTx = 0;
-  let awgStatsFresh = !service.awg_client_id;
-  if (service.awg_client_id) {
-    try {
-      const stats = await getAwgStats(service.awg_client_id);
-      awgRx = stats.rxBytes;
-      awgTx = stats.txBytes;
-      awgStatsFresh = true;
-      const rawAwgBytes = awgRx + awgTx;
-      const previousAwgBytes = Number(service.awg_total ?? 0);
-      let offset = Number(service.awg_offset_bytes ?? 0);
-      if (previousAwgBytes > 0 && rawAwgBytes < previousAwgBytes * 0.5) offset = rawAwgBytes;
-      awgUsedBytes = Math.max(0, rawAwgBytes - offset);
-      await pool.query(
-        `UPDATE reseller_services
-         SET awg_rx = $1, awg_tx = $2, awg_total = $3, awg_offset_bytes = $4
-         WHERE id = $5`,
-        [awgRx, awgTx, rawAwgBytes, offset, service.id]
-      );
-    } catch (error40) {
-      if (shouldLogAwgUsageError(error40, service.id)) {
-        logger.warn({ serviceId: service.id, err: error40 }, "AWG usage sync skipped");
-      }
-    }
-  }
-  const combinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
-  const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB));
-  const expired = service.expired_in_db;
-  const usageSnapshotFresh = awgStatsFresh && panelUsages.every((usage) => !usage.stale);
-  const quotaReached = usageSnapshotFresh && limitBytes > 0 && combinedBytes >= limitBytes;
-  const alreadyDisabled = service.status === "disabled";
-  const shouldDisable = alreadyDisabled || expired || quotaReached;
-  const needsRemoteDisable = !alreadyDisabled || Number(service.remote_disable_pending) === 1;
-  let remoteDisabled = alreadyDisabled && !needsRemoteDisable;
-  let awgDisabled = !service.awg_client_id;
-  if (shouldDisable && !alreadyDisabled) {
-    logger.warn(
-      {
-        serviceId: service.id,
-        username: service.rain_username,
-        trigger: quotaReached ? "quota" : "expiry",
-        usedBytes: combinedBytes,
-        limitBytes,
-        expireAt: service.expire_at,
-        providerReadings: panelUsages.map((usage) => ({
-          provider: usage.panelKey,
-          usedBytes: usage.usedBytes,
-          stale: usage.stale
-        })),
-        awgUsedBytes
-      },
-      "Automatic service disable threshold reached"
-    );
-  }
-  if (shouldDisable && needsRemoteDisable) {
-    const sharedUsername = await hasOtherActiveServiceWithUsername(
-      service.rain_username,
-      service.id
-    );
-    if (sharedUsername && (!alreadyDisabled || Number(service.remote_disable_pending) !== 1)) {
-      logger.warn(
-        { serviceId: service.id, username: service.rain_username },
-        "Provider disable deferred because another active service shares this username"
-      );
-    }
-    const panelResult = sharedUsername ? { attempted: 0, disabled: 0 } : await disablePanelUser(
-      service.rain_username,
-      service.falco_config_id,
-      Number(service.reseller_tg_id),
-      "reseller"
-    );
-    awgDisabled = service.awg_client_id ? await disableAwgClient(service.awg_client_id) : true;
-    const providersDisabled = !sharedUsername && panelResult.attempted > 0 && panelResult.disabled === panelResult.attempted;
-    remoteDisabled = providersDisabled && awgDisabled;
-  }
-  const remainingBytes = limitBytes > 0 ? Math.max(0, limitBytes - combinedBytes) : 0;
-  const reason = quotaReached ? "\u062D\u062C\u0645 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : expired ? "\u062A\u0627\u0631\u06CC\u062E \u0627\u0639\u062A\u0628\u0627\u0631 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : service.disable_reason ?? (alreadyDisabled ? "\u0633\u0631\u0648\u06CC\u0633 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0634\u062F\u0647 \u0627\u0633\u062A" : null);
-  const updated = await pool.query(
-    `UPDATE reseller_services
-     SET last_used_bytes = $1, last_total_bytes = $2, last_remaining_bytes = $3,
-         last_expire_ts = $4, last_usage_updated_at = $5,
-         status = CASE WHEN $6 THEN 'disabled' ELSE status END,
-         disabled_at = CASE WHEN $6 AND status <> 'disabled' THEN NOW() ELSE disabled_at END,
-         disable_reason = CASE WHEN $6 THEN COALESCE($7::text, disable_reason) ELSE disable_reason END,
-         remote_disable_pending = CASE WHEN $6 AND NOT $8 THEN 1 ELSE 0 END,
-         remote_disabled_at = CASE WHEN $6 AND $8 THEN COALESCE(remote_disabled_at, NOW()) ELSE remote_disabled_at END,
-         awg_client_id = CASE WHEN $9 THEN NULL ELSE awg_client_id END,
-         lifecycle_version = CASE WHEN $6 AND status <> 'disabled' THEN lifecycle_version + 1 ELSE lifecycle_version END,
-         updated_at = NOW()
-     WHERE id = $10
-     RETURNING lifecycle_version`,
-    [
-      combinedBytes,
-      limitBytes,
-      remainingBytes,
-      epochSeconds(service.expire_at),
-      Math.floor(Date.now() / 1e3),
-      shouldDisable,
-      reason,
-      remoteDisabled,
-      Boolean(service.awg_client_id && awgDisabled),
-      service.id
-    ]
-  );
-  const currentVersion = Number(updated.rows[0]?.lifecycle_version ?? service.lifecycle_version);
-  if (shouldDisable) {
-    await pool.query(
-      `UPDATE service_provision_jobs
-       SET status = 'completed',
-           last_error = NULL,
-           updated_at = NOW(),
-           completed_at = NOW()
-       WHERE service_id = $1
-         AND lifecycle_version < $2
-         AND status IN ('pending', 'running', 'retrying')`,
-      [service.id, currentVersion]
-    );
-  }
-  if (service.token) {
-    const cacheValues = [combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0, service.token];
-    const updatedCache = await pool.query(
-      `UPDATE user_stats_cache
-       SET used_bytes = $1, total_bytes = $2, expire_ts = $3, is_disabled = $4,
-           last_updated = EXTRACT(EPOCH FROM NOW())::int
-       WHERE token = $5`,
-      cacheValues
-    );
-    if (!updatedCache.rowCount) {
-      await pool.query(
-        `INSERT INTO user_stats_cache (token, used_bytes, total_bytes, expire_ts, is_disabled, last_updated)
-         VALUES ($1, $2, $3, $4, $5, EXTRACT(EPOCH FROM NOW())::int)`,
-        [service.token, combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0]
-      );
-    }
-  }
-}
-async function syncService(service) {
-  const lockClient = await pool.connect();
-  try {
-    await lockClient.query("SELECT pg_advisory_lock(74421, $1)", [service.id]);
-    const fresh = await pool.query(
-      `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
-              svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
-              COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
-              svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
-              svc.lifecycle_version, svc.remote_disable_pending
-       FROM reseller_services svc
-       LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
-       WHERE svc.id = $1
-       LIMIT 1`,
-      [service.id]
-    );
-    if (fresh.rows[0]) await syncServiceUnlocked(fresh.rows[0]);
-  } finally {
-    await lockClient.query("SELECT pg_advisory_unlock(74421, $1)", [service.id]).catch(() => void 0);
-    lockClient.release();
-  }
-}
-async function syncServiceUsageById(serviceId) {
-  const result = await pool.query(
-    `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
-            svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
-            COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
-             svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
-             svc.lifecycle_version, svc.remote_disable_pending
-     FROM reseller_services svc
-     LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
-     WHERE svc.id = $1
-     LIMIT 1`,
-    [serviceId]
-  );
-  const service = result.rows[0];
-  if (!service) return false;
-  await syncService(service);
-  return true;
-}
-async function runUsageSync() {
-  if (running) return;
-  running = true;
-  try {
-    const result = await pool.query(
-      `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
-              svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
-              COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
-               svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
-               svc.lifecycle_version, svc.remote_disable_pending
-       FROM reseller_services svc
-       LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
-        WHERE svc.status IN ('active', 'expiring')
-           OR (svc.status = 'disabled' AND COALESCE(svc.remote_disable_pending, 0) = 1)
-       ORDER BY svc.id`
-    );
-    for (const service of result.rows) {
-      try {
-        await syncService(service);
-      } catch (error40) {
-        logger.warn({ serviceId: service.id, err: error40 }, "Service usage sync failed");
-      }
-    }
-    if (result.rows.length) logger.info({ services: result.rows.length }, "Combined usage sync completed");
-  } catch (error40) {
-    logger.error({ err: error40 }, "Combined usage sync failed");
-  } finally {
-    running = false;
-  }
-}
-function startUsageSyncWorker() {
-  const interval2 = Math.max(3e4, Number(process.env.USAGE_SYNC_INTERVAL_MS ?? DEFAULT_INTERVAL_MS));
-  setTimeout(() => {
-    void runUsageSync();
-  }, 5e3);
-  setInterval(() => {
-    void runUsageSync();
-  }, interval2);
-  logger.info({ intervalMs: interval2 }, "Combined usage sync worker started");
-}
-
-// src/lib/mobile-otp.ts
-import { createHash as createHash3, randomBytes as randomBytes4, randomInt } from "node:crypto";
-var mobileOtpReady = pool.query(`
-  CREATE TABLE IF NOT EXISTS mobile_login_otps (
-    id TEXT PRIMARY KEY,
-    customer_id BIGINT NOT NULL,
-    phone TEXT NOT NULL,
-    otp_hash TEXT NOT NULL,
-     expires_at TIMESTAMP,
-    attempts SMALLINT NOT NULL DEFAULT 0,
-    used_at TIMESTAMP,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-  );
-  CREATE INDEX IF NOT EXISTS mobile_login_otps_lookup_idx
-    ON mobile_login_otps (customer_id, phone, expires_at DESC);
- `).then(async () => {
-  await pool.query("ALTER TABLE mobile_login_otps ALTER COLUMN expires_at DROP NOT NULL").catch(() => void 0);
-});
-var hashOtp = (challengeId, otp) => createHash3("sha256").update(`${challengeId}:${otp}`).digest("hex");
-var issueMobileOtp = async (customerId2, phone) => {
-  await mobileOtpReady;
-  const challengeId = randomBytes4(24).toString("hex");
-  const otp = String(randomInt(1e3, 1e4));
-  await pool.query(
-    `UPDATE mobile_login_otps
-     SET used_at = COALESCE(used_at, NOW())
-     WHERE customer_id = $1 AND phone = $2 AND used_at IS NULL`,
-    [customerId2, phone]
-  );
-  await pool.query(
-    `INSERT INTO mobile_login_otps (id, customer_id, phone, otp_hash, expires_at)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [challengeId, customerId2, phone, hashOtp(challengeId, otp), null]
-  );
-  return {
-    challengeId,
-    otp,
-    expiresAt: null
-  };
-};
-var findActiveMobileOtp = async (customerId2, phone) => {
-  await mobileOtpReady;
-  const result = await pool.query(
-    `SELECT id
-     FROM mobile_login_otps
-     WHERE customer_id = $1
-       AND phone = $2
-       AND used_at IS NULL
-       AND attempts < 5
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [customerId2, phone]
-  );
-  return result.rows[0]?.id ?? null;
-};
-var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
-  await mobileOtpReady;
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const result = await client.query(
-      `SELECT id, otp_hash, attempts, expires_at, used_at
-       FROM mobile_login_otps
-       WHERE id = $1 AND customer_id = $2 AND phone = $3
-       FOR UPDATE`,
-      [challengeId, customerId2, phone]
-    );
-    let row = result.rows[0];
-    let valid = Boolean(row) && Number(row.attempts) < 5 && !row.used_at && hashOtp(challengeId, otp) === row.otp_hash;
-    if (!row) {
-      await client.query("ROLLBACK");
-      return { ok: false, reason: "\u06A9\u062F \u0648\u0631\u0648\u062F \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." };
-    }
-    if (!valid) {
-      const latest = await client.query(
-        `SELECT id, otp_hash, attempts, expires_at, used_at
-         FROM mobile_login_otps
-         WHERE customer_id = $1 AND phone = $2 AND used_at IS NULL AND attempts < 5
-         ORDER BY created_at DESC
-         LIMIT 1
-         FOR UPDATE`,
-        [customerId2, phone]
-      );
-      const latestRow = latest.rows[0];
-      if (latestRow && latestRow.id !== row.id && hashOtp(latestRow.id, otp) === latestRow.otp_hash) {
-        row = latestRow;
-        valid = true;
-      }
-    }
-    if (!valid) {
-      await client.query(
-        `UPDATE mobile_login_otps
-         SET attempts = attempts + 1
-         WHERE id = $1`,
-        [challengeId]
-      );
-      await client.query("COMMIT");
-      return { ok: false, reason: "\u06A9\u062F \u0648\u0631\u0648\u062F \u0646\u0627\u062F\u0631\u0633\u062A \u06CC\u0627 \u0628\u06CC\u0634 \u0627\u0632 \u062D\u062F \u062A\u0644\u0627\u0634\u200C\u0634\u062F\u0647 \u0627\u0633\u062A." };
-    }
-    await client.query(
-      `UPDATE mobile_login_otps
-        SET attempts = 0
-        WHERE id = $1`,
-      [row.id]
-    );
-    await client.query("COMMIT");
-    return { ok: true };
-  } catch (error40) {
-    await client.query("ROLLBACK").catch(() => void 0);
-    throw error40;
-  } finally {
-    client.release();
-  }
-};
-
 // src/routes/mobile.ts
-var import_express = __toESM(require_express2(), 1);
-var import_web_push = __toESM(require_src2(), 1);
-import { createHash as createHash4, randomBytes as randomBytes5 } from "node:crypto";
 var router = (0, import_express.Router)();
 var mobileSessionCookie = "pulse_mobile_session";
 var sessionHash2 = (value) => createHash4("sha256").update(value).digest("hex");
@@ -66148,7 +65977,11 @@ var sendPush = async (customerId2, notification) => {
       [notification.campaignId ?? null, notification.id ?? null, customerId2, subscription.id]
     );
     const attemptId = attempt.rows[0]?.id;
+    const pushEndpointAllowed = isAllowedPushEndpoint(subscription.endpoint);
     try {
+      if (!pushEndpointAllowed) {
+        throw Object.assign(new Error("Unsupported push endpoint host"), { statusCode: 410 });
+      }
       await import_web_push.default.sendNotification(
         { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
         JSON.stringify({
@@ -66176,7 +66009,7 @@ var sendPush = async (customerId2, notification) => {
       const statusCode = error40 && typeof error40 === "object" && "statusCode" in error40 ? Number(error40.statusCode) : 0;
       const responseBody = error40 && typeof error40 === "object" && "body" in error40 && typeof error40.body === "string" ? error40.body : "";
       const badJwtToken = responseBody.includes("BadJwtToken");
-      if (statusCode === 404 || statusCode === 410 || badJwtToken) {
+      if (!pushEndpointAllowed || statusCode === 404 || statusCode === 410 || badJwtToken) {
         await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE id = $1", [subscription.id]);
       }
       if (attemptId) {
@@ -66559,21 +66392,20 @@ router.post("/mobile/auth/otp/request", async (req, res) => {
     res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
     return;
   }
-  const result = await findCustomerByPhone(candidates);
-  const row = result.rows[0];
-  if (!row) {
-    res.status(404).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0634\u062A\u0631\u06CC \u06CC\u0627 \u0633\u0631\u0648\u06CC\u0633\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
-    return;
-  }
-  const challengeId = await findActiveMobileOtp(row.customer_id, row.phone);
-  if (!challengeId) {
-    res.status(409).json({ error: "\u06A9\u062F \u0648\u0631\u0648\u062F \u0631\u0627 \u0627\u0632 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u06CC\u0627 \u0645\u062F\u06CC\u0631 \u0627\u0635\u0644\u06CC \u062F\u0631\u06CC\u0627\u0641\u062A \u06A9\u0646\u06CC\u062F." });
+  const rateLimit = await allowMobileAuthAttempt(
+    "request",
+    [...candidates].sort().join("|"),
+    req.ip ?? req.socket.remoteAddress ?? "unknown"
+  );
+  if (!rateLimit.allowed) {
+    res.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
+    res.status(429).json({ error: "\u062A\u0639\u062F\u0627\u062F \u062F\u0631\u062E\u0648\u0627\u0633\u062A\u200C\u0647\u0627\u06CC \u0648\u0631\u0648\u062F \u0632\u06CC\u0627\u062F \u0627\u0633\u062A\u061B \u06A9\u0645\u06CC \u0628\u0639\u062F \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F." });
     return;
   }
   res.json({
-    challenge_id: challengeId,
-    expires_at: null,
-    customer: { name: row.customer_name, phone: row.phone }
+    // This is an opaque client nonce, not a customer or OTP record identifier.
+    challenge_id: randomBytes5(24).toString("hex"),
+    expires_at: new Date(Date.now() + 5 * 6e4).toISOString()
   });
 });
 router.post("/mobile/auth/otp/verify", async (req, res) => {
@@ -66581,19 +66413,29 @@ router.post("/mobile/auth/otp/verify", async (req, res) => {
   const candidates = phoneCandidates(req.body?.phone);
   const challengeId = typeof req.body?.challenge_id === "string" ? req.body.challenge_id.trim() : "";
   const otp = normalizeMobileOtp(req.body?.otp);
-  if (!candidates.length || !challengeId || otp.length !== 4) {
+  if (!candidates.length || !/^[A-Fa-f0-9]{48}$/.test(challengeId) || otp.length !== 4) {
     res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0648 \u06A9\u062F \u0648\u0631\u0648\u062F \u0645\u0639\u062A\u0628\u0631 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
+    return;
+  }
+  const rateLimit = await allowMobileAuthAttempt(
+    "verify",
+    [...candidates].sort().join("|"),
+    req.ip ?? req.socket.remoteAddress ?? "unknown"
+  );
+  if (!rateLimit.allowed) {
+    res.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
+    res.status(429).json({ error: "\u062A\u0639\u062F\u0627\u062F \u062A\u0644\u0627\u0634\u200C\u0647\u0627\u06CC \u0648\u0631\u0648\u062F \u0632\u06CC\u0627\u062F \u0627\u0633\u062A\u061B \u06A9\u0645\u06CC \u0628\u0639\u062F \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F." });
     return;
   }
   const result = await findCustomerByPhone(candidates);
   const row = result.rows[0];
   if (!row) {
-    res.status(404).json({ error: "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0634\u062A\u0631\u06CC \u06CC\u0627 \u0633\u0631\u0648\u06CC\u0633\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+    res.status(401).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u06CC\u0627 \u06A9\u062F \u0648\u0631\u0648\u062F \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A \u06CC\u0627 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F\u0647 \u0627\u0633\u062A." });
     return;
   }
   const verification = await consumeMobileOtp(challengeId, row.customer_id, row.phone, otp);
   if (!verification.ok) {
-    res.status(401).json({ error: verification.reason });
+    res.status(401).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u06CC\u0627 \u06A9\u062F \u0648\u0631\u0648\u062F \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A \u06CC\u0627 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F\u0647 \u0627\u0633\u062A." });
     return;
   }
   await createMobileSession(res, row.customer_id, row.customer_name, row.phone, row.service_id ?? null);
@@ -66712,7 +66554,7 @@ router.post("/mobile/push/subscribe", requireMobileAuth, async (req, res) => {
   const endpoint = typeof subscription?.endpoint === "string" ? subscription.endpoint.trim() : "";
   const p256dh = typeof subscription?.keys?.p256dh === "string" ? subscription.keys.p256dh.trim() : "";
   const auth = typeof subscription?.keys?.auth === "string" ? subscription.keys.auth.trim() : "";
-  if (!endpoint.startsWith("https://") || endpoint.length > 2048 || !p256dh || !auth || p256dh.length > 512 || auth.length > 512) {
+  if (!isAllowedPushEndpoint(endpoint) || endpoint.length > 2048 || !p256dh || !auth || p256dh.length > 512 || auth.length > 512) {
     res.status(400).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0627\u0639\u0644\u0627\u0646 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
     return;
   }
@@ -66987,10 +66829,10 @@ function toClashSubscription(body) {
 // src/lib/awg-usage-poll.ts
 var AWG_USAGE_POLL_INTERVAL_MS = 5 * 6e4;
 var AWG_USAGE_POLL_START_DELAY_MS = 5e3;
-var AWG_USAGE_POLL_MIN_GAP_MS = 500;
+var AWG_USAGE_POLL_CONCURRENCY = 3;
 var SERVICE_LOCK_NAMESPACE = 74421;
 var AWG_WORKER_LOCK_NAMESPACE = 74423;
-var running2 = false;
+var running = false;
 var recentEvents = [];
 var nextEventId = 1;
 var workerStatus = {
@@ -67019,7 +66861,6 @@ function getAwgUsageWorkerLog() {
     events: recentEvents.map((event) => ({ ...event }))
   };
 }
-var wait2 = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function safeErrorMessage(error40) {
   const message = error40 instanceof Error ? error40.message : "AWG API request failed.";
   return message.replace(/Bearer\s+\S+/gi, "Bearer [redacted]").replace(/(token|api[_ -]?key)\s*[:=]\s*\S+/gi, "$1=[redacted]").replace(/\s+/g, " ").slice(0, 240);
@@ -67037,7 +66878,7 @@ function recordServiceEvent(identity, status, options = {}) {
     rx_bytes: rxBytes,
     tx_bytes: txBytes,
     raw_total_bytes: rawTotal,
-    effective_bytes: rawTotal === null ? null : Math.max(0, rawTotal - Math.max(0, options.offsetBytes ?? 0))
+    effective_bytes: rawTotal === null ? null : effectiveAwgBytes(rawTotal, options.offsetBytes)
   });
 }
 async function pollServiceAwgUsage(identity) {
@@ -67080,12 +66921,13 @@ async function pollServiceAwgUsage(identity) {
     const stats = await getAwgStats(service.awg_client_id);
     const rxBytes = Math.max(0, Math.round(stats.rxBytes));
     const txBytes = Math.max(0, Math.round(stats.txBytes));
-    const rawBytes = Math.max(0, rxBytes + txBytes);
-    const previousBytes = Math.max(0, Number(service.awg_total ?? 0));
-    let offsetBytes = Math.max(0, Number(service.awg_offset_bytes ?? 0));
-    if (previousBytes > 0 && rawBytes < previousBytes * 0.5) {
-      offsetBytes = rawBytes;
-    }
+    const counter = reconcileAwgCounter(
+      rxBytes + txBytes,
+      service.awg_total,
+      service.awg_offset_bytes
+    );
+    const rawBytes = counter.rawBytes;
+    const offsetBytes = counter.offsetBytes;
     const updated = await client.query(
       `UPDATE reseller_services
        SET awg_rx = $1::bigint,
@@ -67125,8 +66967,8 @@ async function pollServiceAwgUsage(identity) {
   }
 }
 async function runAwgUsagePoll() {
-  if (running2) return;
-  running2 = true;
+  if (running) return;
+  running = true;
   workerStatus.running = true;
   workerStatus.last_started_at = (/* @__PURE__ */ new Date()).toISOString();
   workerStatus.last_scanned = 0;
@@ -67140,7 +66982,7 @@ async function runAwgUsagePoll() {
     return null;
   });
   if (!workerLockClient) {
-    running2 = false;
+    running = false;
     workerStatus.running = false;
     workerStatus.last_completed_at = (/* @__PURE__ */ new Date()).toISOString();
     return;
@@ -67179,25 +67021,31 @@ async function runAwgUsagePoll() {
          AND NULLIF(BTRIM(svc.awg_client_id), '') IS NOT NULL
        ORDER BY svc.id`
     );
-    for (let index = 0; index < services.rows.length; index += 1) {
-      const result = await pollServiceAwgUsage(services.rows[index]);
-      workerStatus.last_scanned += 1;
-      if (result === "updated") workerStatus.last_updated += 1;
-      else if (result === "failed") {
-        workerStatus.last_failed += 1;
-        workerStatus.last_error = "\u0628\u0631\u0627\u06CC \u06CC\u06A9 \u06CC\u0627 \u0686\u0646\u062F \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631\u06CC\u0627\u0641\u062A \u0622\u0645\u0627\u0631 \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F.";
-      } else if (result === "route-unavailable") {
-        workerStatus.last_failed += 1;
-        workerStatus.last_error = "\u0645\u0633\u06CC\u0631\u0647\u0627\u06CC \u0622\u0645\u0627\u0631 AWG \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A\u0646\u062F\u061B \u0627\u06CC\u0646 \u0686\u0631\u062E\u0647 \u0628\u0631\u0627\u06CC \u062C\u0644\u0648\u06AF\u06CC\u0631\u06CC \u0627\u0632 \u062F\u0631\u062E\u0648\u0627\u0633\u062A\u200C\u0647\u0627\u06CC \u062A\u06A9\u0631\u0627\u0631\u06CC \u0645\u062A\u0648\u0642\u0641 \u0634\u062F.";
+    let stopForMissingRoute = false;
+    for (let index = 0; index < services.rows.length; index += AWG_USAGE_POLL_CONCURRENCY) {
+      const batch = services.rows.slice(index, index + AWG_USAGE_POLL_CONCURRENCY);
+      const results = await Promise.all(batch.map((service) => pollServiceAwgUsage(service)));
+      workerStatus.last_scanned += batch.length;
+      for (const result of results) {
+        if (result === "updated") workerStatus.last_updated += 1;
+        else if (result === "failed") {
+          workerStatus.last_failed += 1;
+          workerStatus.last_error = "\u0628\u0631\u0627\u06CC \u06CC\u06A9 \u06CC\u0627 \u0686\u0646\u062F \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631\u06CC\u0627\u0641\u062A \u0622\u0645\u0627\u0631 \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F.";
+        } else if (result === "route-unavailable") {
+          workerStatus.last_failed += 1;
+          workerStatus.last_error = "\u0645\u0633\u06CC\u0631\u0647\u0627\u06CC \u0622\u0645\u0627\u0631 AWG \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A\u0646\u062F\u061B \u0627\u06CC\u0646 \u0686\u0631\u062E\u0647 \u0628\u0631\u0627\u06CC \u062C\u0644\u0648\u06AF\u06CC\u0631\u06CC \u0627\u0632 \u062F\u0631\u062E\u0648\u0627\u0633\u062A\u200C\u0647\u0627\u06CC \u062A\u06A9\u0631\u0627\u0631\u06CC \u0645\u062A\u0648\u0642\u0641 \u0634\u062F.";
+          stopForMissingRoute = true;
+        } else workerStatus.last_skipped += 1;
+      }
+      if (stopForMissingRoute) {
         logger.warn("AWG stats routes are unavailable; pausing this polling cycle without changing saved counters");
         break;
-      } else workerStatus.last_skipped += 1;
-      if (index < services.rows.length - 1) await wait2(AWG_USAGE_POLL_MIN_GAP_MS);
+      }
     }
     if (services.rows.length) {
       logger.info(
         {
-          scanned: services.rows.length,
+          scanned: workerStatus.last_scanned,
           updated: workerStatus.last_updated,
           skipped: workerStatus.last_skipped,
           failed: workerStatus.last_failed,
@@ -67217,7 +67065,7 @@ async function runAwgUsagePoll() {
       ).catch(() => void 0);
     }
     workerLockClient.release();
-    running2 = false;
+    running = false;
     workerStatus.running = false;
     workerStatus.last_completed_at = (/* @__PURE__ */ new Date()).toISOString();
   }
@@ -67992,10 +67840,6 @@ var managementReady = pool.query(`
          ('phonepanel', 'rain_admin', 'https://videobazi.com', NULL, NULL, NULL),
           ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL)
        ON CONFLICT (key) DO NOTHING;
-      DELETE FROM reseller_panel_assignments
-        WHERE panel_key IN ('xxpanel', 'fibrpanel', 'falcon');
-      DELETE FROM panel_configs
-        WHERE key IN ('xxpanel', 'fibrpanel', 'falcon')
   `).catch((error40) => {
   console.error("Panel management schema initialization failed", error40);
   throw error40;
@@ -68098,7 +67942,7 @@ var awgUsageItemSelect = `SELECT svc.id::float8 AS id,
        COALESCE(svc.awg_rx, 0)::float8 / ${AWG_BYTES_PER_GB} AS rx_gb,
        COALESCE(svc.awg_tx, 0)::float8 / ${AWG_BYTES_PER_GB} AS tx_gb,
        COALESCE(svc.awg_total, 0)::float8 / ${AWG_BYTES_PER_GB} AS raw_total_gb,
-       COALESCE(svc.awg_offset_bytes, 0)::float8 / ${AWG_BYTES_PER_GB} AS offset_gb,
+       GREATEST(0, COALESCE(svc.awg_offset_bytes, 0))::float8 / ${AWG_BYTES_PER_GB} AS offset_gb,
        svc.awg_client_id,
        COALESCE(svc.awg_rx, 0)::float8 AS awg_rx_bytes,
        COALESCE(svc.awg_tx, 0)::float8 AS awg_tx_bytes,
@@ -68240,9 +68084,8 @@ router2.post("/awg-usage/:id/refresh", requireAuth, async (req, res) => {
       const rxBytes = Math.max(0, Math.round(stats.rxBytes));
       const txBytes = Math.max(0, Math.round(stats.txBytes));
       const rawBytes = rxBytes + txBytes;
-      const previousBytes = Math.max(0, Number(row.awg_total_bytes ?? 0));
-      let offsetBytes = Math.max(0, Number(row.awg_offset_bytes ?? 0));
-      if (previousBytes > 0 && rawBytes < previousBytes * 0.5) offsetBytes = rawBytes;
+      const counter = reconcileAwgCounter(rawBytes, row.awg_total_bytes, row.awg_offset_bytes);
+      const offsetBytes = counter.offsetBytes;
       const updated = await client.query(
         `UPDATE reseller_services
          SET awg_rx = $1::bigint,
@@ -68448,24 +68291,6 @@ router2.get("/public/subscription/:token", async (req, res) => {
   if (!row) {
     res.status(404).json({ error: "\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
     return;
-  }
-  try {
-    await Promise.race([
-      syncServiceUsageById(Number(row.id)),
-      new Promise((resolve) => setTimeout(resolve, 8e3))
-    ]);
-    const fresh = await pool.query(
-      `SELECT status, expire_at AS expires_at, disable_reason, awg_client_id,
-              last_used_bytes, last_total_bytes, last_remaining_bytes,
-              COALESCE(awg_total, 0)::float8 AS awg_total_bytes,
-              COALESCE(awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
-              ${storedPanelUsageSql("svc")} AS panel_usage_bytes
-       FROM reseller_services svc WHERE svc.id = $1 LIMIT 1`,
-      [row.id]
-    );
-    Object.assign(row, fresh.rows[0] ?? {});
-  } catch (error40) {
-    req.log.warn({ err: error40, serviceId: row.id }, "Public usage refresh failed");
   }
   const usedBytes = serviceUsageBytes({
     lastUsedBytes: row.last_used_bytes,
@@ -68764,21 +68589,6 @@ router2.get("/public/subscription/:token/feed", async (req, res) => {
     res.status(404).send("Subscription not found");
     return;
   }
-  try {
-    await Promise.race([
-      syncServiceUsageById(Number(row.id)),
-      new Promise((resolve) => setTimeout(resolve, 8e3))
-    ]);
-    const fresh = await pool.query(
-      `SELECT status, disable_reason, expire_at AS expires_at,
-              last_used_bytes, last_total_bytes, last_remaining_bytes
-       FROM reseller_services WHERE id = $1 LIMIT 1`,
-      [row.id]
-    );
-    Object.assign(row, fresh.rows[0] ?? {});
-  } catch (error40) {
-    req.log.warn({ err: error40, serviceId: row.id }, "Feed usage refresh failed");
-  }
   const finishedTotalBytes = Number(row.last_total_bytes) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
   const finishedUsedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
   const finishedExpiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
@@ -68916,7 +68726,11 @@ router2.get("/public/subscription/:token/awg", async (req, res) => {
   const result = await pool.query(
     `SELECT svc.awg_client_id, svc.rain_username AS username, svc.status,
             svc.disable_reason, svc.expire_at AS expires_at, svc.gb::float8 AS limit_gb,
-            svc.last_used_bytes, svc.last_total_bytes
+            svc.last_used_bytes, svc.last_total_bytes,
+            COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+            COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+            ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+            COALESCE(svc.remote_disable_pending, 0)::int AS remote_disable_pending
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
      WHERE rst.token = $1
@@ -68925,9 +68739,19 @@ router2.get("/public/subscription/:token/awg", async (req, res) => {
   );
   const row = result.rows[0];
   const totalBytes = Number(row?.last_total_bytes) > 0 ? Number(row?.last_total_bytes) : Math.round(Number(row?.limit_gb ?? 0) * 1024 ** 3);
-  const usedBytes = Math.max(0, Number(row?.last_used_bytes ?? 0));
-  const expiresAt = row?.expires_at ? new Date(row.expires_at).getTime() : 0;
-  const finished = row?.status === "disabled" || totalBytes > 0 && usedBytes >= totalBytes || Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now();
+  const usedBytes = row ? serviceUsageBytes({
+    lastUsedBytes: row.last_used_bytes,
+    panelUsageBytes: row.panel_usage_bytes,
+    awgTotalBytes: row.awg_total_bytes,
+    awgOffsetBytes: row.awg_offset_bytes
+  }) : 0;
+  const finished = row ? !serviceCanUseAwg({
+    status: row.status,
+    expiresAt: row.expires_at,
+    totalBytes,
+    usedBytes,
+    remoteDisablePending: row.remote_disable_pending
+  }) : false;
   if (row && finished) {
     res.status(410).json({
       error: row.disable_reason || (usedBytes >= totalBytes ? "\u062D\u062C\u0645 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : "\u0627\u0639\u062A\u0628\u0627\u0631 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A")
@@ -70820,7 +70644,7 @@ router2.get("/services", requireAuth, async (req, res) => {
          'tx_gb', COALESCE(svc.awg_tx, 0) / 1073741824.0,
          'raw_total_gb', COALESCE(svc.awg_total, 0) / 1073741824.0,
          'used_gb', GREATEST(0, COALESCE(svc.awg_total, 0) - COALESCE(svc.awg_offset_bytes, 0)) / 1073741824.0,
-         'offset_gb', COALESCE(svc.awg_offset_bytes, 0) / 1073741824.0,
+         'offset_gb', GREATEST(0, COALESCE(svc.awg_offset_bytes, 0)) / 1073741824.0,
          'last_updated', CASE WHEN svc.last_usage_updated_at IS NULL THEN NULL ELSE to_timestamp(svc.last_usage_updated_at) END
         )
         END AS awg_usage
@@ -71074,84 +70898,131 @@ router2.patch("/services/:id", requireAuth, async (req, res) => {
     res.status(400).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
     return;
   }
-  const owner = ownership("svc", req);
-  const values = [];
-  const updates = ["updated_at = NOW()"];
-  let remoteWarning = null;
-  if (body.data.status === "disabled") {
-    const current = await pool.query(
-      `SELECT svc.rain_username, svc.falco_config_id, svc.awg_client_id, svc.status
-       FROM reseller_services svc
-       WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
-      [params.data.id, ...owner.params]
+  const lifecycleLock = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lifecycleLock.query(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [params.data.id]
     );
-    const service = current.rows[0];
-    if (!service) {
-      res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+    if (!lockResult.rows[0]?.locked) {
+      res.status(409).json({ error: "\u0639\u0645\u0644\u06CC\u0627\u062A \u062F\u06CC\u06AF\u0631\u06CC \u0631\u0648\u06CC \u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631 \u062D\u0627\u0644 \u0627\u0646\u062C\u0627\u0645 \u0627\u0633\u062A." });
       return;
     }
-    if (service.status !== "disabled") {
-      if (await hasOtherActiveServiceWithUsername(service.rain_username, params.data.id)) {
+    lockAcquired = true;
+    const owner = ownership("svc", req);
+    if (body.data.status === "active") {
+      const currentStatus = await pool.query(
+        `SELECT svc.status FROM reseller_services svc
+       WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+        [params.data.id, ...owner.params]
+      );
+      const status = currentStatus.rows[0]?.status;
+      if (!status) {
+        res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+        return;
+      }
+      if (status !== "active" && status !== "expiring") {
         res.status(409).json({
-          error: "\u0627\u06CC\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC Provider \u0628\u0627 \u0633\u0631\u0648\u06CC\u0633 \u0641\u0639\u0627\u0644 \u062F\u06CC\u06AF\u0631\u06CC \u0645\u0634\u062A\u0631\u06A9 \u0627\u0633\u062A\u061B \u0628\u0631\u0627\u06CC \u062C\u0644\u0648\u06AF\u06CC\u0631\u06CC \u0627\u0632 \u0642\u0637\u0639 \u0633\u0631\u0648\u06CC\u0633\u060C \u0627\u06CC\u0646 \u0645\u0648\u0631\u062F \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0646\u0634\u062F"
+          code: "REMOTE_REACTIVATION_REQUIRED",
+          error: "\u062A\u063A\u06CC\u06CC\u0631 \u0648\u0636\u0639\u06CC\u062A \u0645\u062D\u0644\u06CC \u06A9\u0627\u0641\u06CC \u0646\u06CC\u0633\u062A\u061B \u0628\u0631\u0627\u06CC \u0633\u0631\u0648\u06CC\u0633 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0627\u0632 \u0628\u0627\u0632\u06CC\u0627\u0628\u06CC \u06CC\u06A9 Provider \u06CC\u0627 \u062A\u0645\u062F\u06CC\u062F \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F."
         });
         return;
       }
-      let panelResult = { attempted: 0, disabled: 0 };
-      let awgDisabled = true;
-      try {
-        panelResult = await disablePanelUser(
-          service.rain_username,
-          service.falco_config_id,
-          Number(req.auth?.telegramId),
-          req.auth?.role
-        );
-      } catch {
-        remoteWarning = "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC provider\u0647\u0627 \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F";
-      }
-      if (service.awg_client_id) {
-        awgDisabled = await disableAwgClient(service.awg_client_id);
-      }
-      const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
-      if (!providersDisabled || !awgDisabled) {
-        remoteWarning = "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0647\u0645\u0647 provider\u0647\u0627 \u0648 AWG \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F";
-      }
-      if (remoteWarning) {
-        res.status(502).json({ error: remoteWarning });
+    }
+    const values = [];
+    const updates = ["updated_at = NOW()"];
+    let remoteWarning = null;
+    if (body.data.status === "disabled") {
+      const current = await pool.query(
+        `SELECT svc.rain_username, svc.falco_config_id, svc.awg_client_id, svc.status
+       FROM reseller_services svc
+       WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+        [params.data.id, ...owner.params]
+      );
+      const service = current.rows[0];
+      if (!service) {
+        res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
         return;
       }
+      if (service.status !== "disabled") {
+        if (await hasOtherActiveServiceWithUsername(service.rain_username, params.data.id)) {
+          res.status(409).json({
+            error: "\u0627\u06CC\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC Provider \u0628\u0627 \u0633\u0631\u0648\u06CC\u0633 \u0641\u0639\u0627\u0644 \u062F\u06CC\u06AF\u0631\u06CC \u0645\u0634\u062A\u0631\u06A9 \u0627\u0633\u062A\u061B \u0628\u0631\u0627\u06CC \u062C\u0644\u0648\u06AF\u06CC\u0631\u06CC \u0627\u0632 \u0642\u0637\u0639 \u0633\u0631\u0648\u06CC\u0633\u060C \u0627\u06CC\u0646 \u0645\u0648\u0631\u062F \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0646\u0634\u062F"
+          });
+          return;
+        }
+        let panelResult = { attempted: 0, disabled: 0 };
+        let awgDisabled = true;
+        try {
+          panelResult = await disablePanelUser(
+            service.rain_username,
+            service.falco_config_id,
+            Number(req.auth?.telegramId),
+            req.auth?.role
+          );
+        } catch {
+          remoteWarning = "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC provider\u0647\u0627 \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F";
+        }
+        if (service.awg_client_id) {
+          awgDisabled = await disableAwgClient(service.awg_client_id);
+        }
+        const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+        if (!providersDisabled || !awgDisabled) {
+          remoteWarning = "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0647\u0645\u0647 provider\u0647\u0627 \u0648 AWG \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F";
+        }
+        if (remoteWarning) {
+          res.status(502).json({ error: remoteWarning });
+          return;
+        }
+      }
     }
-  }
-  if (body.data.status !== void 0) {
-    values.push(body.data.status);
-    updates.push(`status = $${values.length}`);
-    updates.push(`disabled_at = CASE WHEN $${values.length} = 'disabled' THEN COALESCE(disabled_at, NOW()) ELSE NULL END`);
-    if (body.data.status === "disabled") {
-      updates.push("admin_notes = CASE WHEN NULLIF(admin_notes, '') IS NULL THEN '\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u062F\u0633\u062A\u06CC' ELSE admin_notes END");
+    if (body.data.status !== void 0) {
+      values.push(body.data.status);
+      updates.push(`status = $${values.length}`);
+      updates.push(`disabled_at = CASE WHEN $${values.length} = 'disabled' THEN COALESCE(disabled_at, NOW()) ELSE NULL END`);
+      if (body.data.status === "disabled") {
+        updates.push("admin_notes = CASE WHEN NULLIF(admin_notes, '') IS NULL THEN '\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u062F\u0633\u062A\u06CC' ELSE admin_notes END");
+      }
     }
-  }
-  if (remoteWarning) {
-    values.push(remoteWarning);
-    updates.push(`admin_notes = CASE WHEN NULLIF(admin_notes, '') IS NULL THEN $${values.length} ELSE admin_notes || ' \xB7 ' || $${values.length} END`);
-  }
-  if (body.data.admin_notes !== void 0) {
-    values.push(body.data.admin_notes);
-    updates.push(`admin_notes = $${values.length}`);
-  }
-  values.push(params.data.id);
-  const result = await pool.query(
-    `UPDATE reseller_services svc
+    if (remoteWarning) {
+      values.push(remoteWarning);
+      updates.push(`admin_notes = CASE WHEN NULLIF(admin_notes, '') IS NULL THEN $${values.length} ELSE admin_notes || ' \xB7 ' || $${values.length} END`);
+    }
+    if (body.data.admin_notes !== void 0) {
+      values.push(body.data.admin_notes);
+      updates.push(`admin_notes = $${values.length}`);
+    }
+    values.push(params.data.id);
+    const result = await pool.query(
+      `UPDATE reseller_services svc
      SET ${updates.join(", ")}
-     WHERE svc.id = $${values.length} AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
+     WHERE svc.id = $${values.length}
+       AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
+       ${body.data.status === "active" ? "AND svc.status IN ('active', 'expiring')" : ""}
      RETURNING svc.id`,
-    [...values, ...owner.params]
-  );
-  if (!result.rows[0]) {
-    res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
-    return;
-  }
-  const fresh = await pool.query(
-    `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+      [...values, ...owner.params]
+    );
+    if (!result.rows[0]) {
+      if (body.data.status === "active") {
+        const stillExists = await pool.query(
+          `SELECT svc.id FROM reseller_services svc
+         WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+          [params.data.id, ...owner.params]
+        );
+        if (stillExists.rows[0]) {
+          res.status(409).json({
+            code: "REMOTE_REACTIVATION_REQUIRED",
+            error: "\u0648\u0636\u0639\u06CC\u062A \u0633\u0631\u0648\u06CC\u0633 \u0647\u0645\u200C\u0632\u0645\u0627\u0646 \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F\u061B \u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0645\u062D\u0644\u06CC \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F."
+          });
+          return;
+        }
+      }
+      res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+      return;
+    }
+    const fresh = await pool.query(
+      `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
        svc.customer_id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
        svc.rain_username AS username, svc.label AS plan,
        COALESCE(svc.falco_system_name, '\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC') AS panel, svc.status,
@@ -71165,9 +71036,15 @@ router2.patch("/services/:id", requireAuth, async (req, res) => {
      FROM reseller_services svc
      LEFT JOIN reseller_customers c ON c.id = svc.customer_id
      WHERE svc.id = $1`,
-    [params.data.id]
-  );
-  res.json(UpdateServiceResponse.parse(fresh.rows[0]));
+      [params.data.id]
+    );
+    res.json(UpdateServiceResponse.parse(fresh.rows[0]));
+  } finally {
+    if (lockAcquired) {
+      await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [params.data.id]).catch(() => void 0);
+    }
+    lifecycleLock.release();
+  }
 });
 router2.post("/services/:id/renew", requireAuth, async (req, res) => {
   const params = RenewServiceParams.safeParse(req.params);
@@ -71597,46 +71474,116 @@ router2.post("/services/:id/awg", requireAuth, async (req, res) => {
     return;
   }
   const owner = ownership("svc", req);
-  const current = await pool.query(
-    `SELECT svc.awg_client_id FROM reseller_services svc
-     WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
-    [params.data.id, ...owner.params]
-  );
-  if (!current.rows[0]) {
-    res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
-    return;
-  }
-  if (current.rows[0].awg_client_id) {
-    try {
-      await getAwgConfiguration(current.rows[0].awg_client_id);
-      res.json({ awg_ready: true, awg_config_url: `/api/services/${params.data.id}/awg/config` });
-      return;
-    } catch {
-      await recreateAwgClient(current.rows[0].awg_client_id);
-      await pool.query(
-        `UPDATE reseller_services
-         SET awg_rx = 0, awg_tx = 0, awg_total = 0, awg_offset_bytes = 0, updated_at = NOW()
-         WHERE id = $1`,
-        [params.data.id]
-      );
-      res.status(201).json({
-        awg_ready: true,
-        awg_repaired: true,
-        awg_config_url: `/api/services/${params.data.id}/awg/config`
-      });
+  const serviceId = params.data.id;
+  const lockClient = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lockClient.query(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [serviceId]
+    );
+    if (!lockResult.rows[0]?.locked) {
+      res.status(409).json({ error: "\u0631\u0648\u06CC \u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u0639\u0645\u0644\u06CC\u0627\u062A \u062F\u06CC\u06AF\u0631\u06CC \u062F\u0631 \u062D\u0627\u0644 \u0627\u0646\u062C\u0627\u0645 \u0627\u0633\u062A." });
       return;
     }
+    lockAcquired = true;
+    const current = await pool.query(
+      `SELECT svc.awg_client_id, svc.status, svc.expire_at AS expires_at,
+              svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes,
+              COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+              COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+              ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+              COALESCE(svc.remote_disable_pending, 0)::int AS remote_disable_pending
+       FROM reseller_services svc
+       WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+      [serviceId, ...owner.params]
+    );
+    const row = current.rows[0];
+    if (!row) {
+      res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+      return;
+    }
+    const totalBytes = Number(row.last_total_bytes) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+    const usedBytes = serviceUsageBytes({
+      lastUsedBytes: row.last_used_bytes,
+      panelUsageBytes: row.panel_usage_bytes,
+      awgTotalBytes: row.awg_total_bytes,
+      awgOffsetBytes: row.awg_offset_bytes
+    });
+    if (!serviceCanUseAwg({
+      status: row.status,
+      expiresAt: row.expires_at,
+      totalBytes,
+      usedBytes,
+      remoteDisablePending: row.remote_disable_pending
+    })) {
+      res.status(409).json({ error: "\u0633\u0627\u062E\u062A \u06CC\u0627 \u062A\u0639\u0645\u06CC\u0631 AWG \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0633\u0631\u0648\u06CC\u0633 \u0641\u0639\u0627\u0644 \u0628\u0627 \u062D\u062C\u0645 \u0648 \u0632\u0645\u0627\u0646 \u0628\u0627\u0642\u06CC\u0645\u0627\u0646\u062F\u0647 \u0645\u062C\u0627\u0632 \u0627\u0633\u062A." });
+      return;
+    }
+    if (row.awg_client_id) {
+      try {
+        await getAwgConfiguration(row.awg_client_id);
+        res.json({ awg_ready: true, awg_config_url: `/api/services/${serviceId}/awg/config` });
+        return;
+      } catch (error40) {
+        if (!(error40 instanceof AwgApiError) || error40.status !== 404) {
+          res.status(502).json({
+            error: error40 instanceof Error ? error40.message : "\u062E\u0648\u0627\u0646\u062F\u0646 \u06A9\u0627\u0646\u0641\u06CC\u06AF AWG \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F\u061B \u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0642\u0628\u0644\u06CC \u062D\u0641\u0638 \u0634\u062F."
+          });
+          return;
+        }
+        try {
+          await recreateAwgClient(row.awg_client_id);
+        } catch (repairError) {
+          res.status(502).json({
+            error: repairError instanceof Error ? repairError.message : "\u062A\u0639\u0645\u06CC\u0631 \u06A9\u0644\u0627\u06CC\u0646\u062A AWG \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F."
+          });
+          return;
+        }
+        const offsetBytes = awgOffsetForReplacementClient(row.awg_total_bytes, row.awg_offset_bytes);
+        const saved2 = await pool.query(
+          `UPDATE reseller_services
+           SET awg_rx = 0, awg_tx = 0, awg_total = 0, awg_offset_bytes = $1, updated_at = NOW()
+           WHERE id = $2 AND awg_client_id = $3
+           RETURNING id`,
+          [offsetBytes, serviceId, row.awg_client_id]
+        );
+        if (!saved2.rows[0]) {
+          res.status(409).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u0647\u0646\u06AF\u0627\u0645 \u062A\u0639\u0645\u06CC\u0631 \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F\u061B \u062F\u0648\u0628\u0627\u0631\u0647 \u0648\u0636\u0639\u06CC\u062A \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F." });
+          return;
+        }
+        res.status(201).json({
+          awg_ready: true,
+          awg_repaired: true,
+          awg_config_url: `/api/services/${serviceId}/awg/config`
+        });
+        return;
+      }
+    }
+    const awg = await createAwgClient();
+    if (!awg.clientId) {
+      res.status(502).json({ error: awg.error ?? "\u0633\u0627\u062E\u062A AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F" });
+      return;
+    }
+    const saved = await pool.query(
+      `UPDATE reseller_services
+       SET awg_client_id = $1, updated_at = NOW()
+       WHERE id = $2 AND awg_client_id IS NULL
+         AND status IN ('active', 'expiring')
+       RETURNING id`,
+      [awg.clientId, serviceId]
+    );
+    if (!saved.rows[0]) {
+      res.status(409).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u0647\u0646\u06AF\u0627\u0645 \u0633\u0627\u062E\u062A AWG \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F\u061B \u0648\u0636\u0639\u06CC\u062A \u0631\u0627 \u062F\u0648\u0628\u0627\u0631\u0647 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F." });
+      return;
+    }
+    res.status(201).json({ awg_ready: true, awg_config_url: `/api/services/${serviceId}/awg/config` });
+  } finally {
+    if (lockAcquired) {
+      await lockClient.query("SELECT pg_advisory_unlock(74421, $1)", [serviceId]).catch(() => void 0);
+    }
+    lockClient.release();
   }
-  const awg = await createAwgClient();
-  if (!awg.clientId) {
-    res.status(502).json({ error: awg.error ?? "\u0633\u0627\u062E\u062A AmneziaWG \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F" });
-    return;
-  }
-  await pool.query(
-    "UPDATE reseller_services SET awg_client_id = $1, updated_at = NOW() WHERE id = $2",
-    [awg.clientId, params.data.id]
-  );
-  res.status(201).json({ awg_ready: true, awg_config_url: `/api/services/${params.data.id}/awg/config` });
 });
 router2.get("/services/:id/awg/config", requireAuth, async (req, res) => {
   const params = UpdateServiceParams.safeParse(req.params);
@@ -71646,20 +71593,48 @@ router2.get("/services/:id/awg/config", requireAuth, async (req, res) => {
   }
   const owner = ownership("svc", req);
   const current = await pool.query(
-    `SELECT svc.awg_client_id FROM reseller_services svc
+    `SELECT svc.awg_client_id, svc.status, svc.expire_at AS expires_at,
+            svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes,
+            COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+            COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+            ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+            COALESCE(svc.remote_disable_pending, 0)::int AS remote_disable_pending
+     FROM reseller_services svc
      WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
     [params.data.id, ...owner.params]
   );
-  if (!current.rows[0]?.awg_client_id) {
+  const row = current.rows[0];
+  if (!row) {
+    res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+    return;
+  }
+  if (!row.awg_client_id) {
     res.status(404).json({ error: "\u06A9\u0644\u0627\u06CC\u0646\u062A AmneziaWG \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
     return;
   }
+  const totalBytes = Number(row.last_total_bytes) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = serviceUsageBytes({
+    lastUsedBytes: row.last_used_bytes,
+    panelUsageBytes: row.panel_usage_bytes,
+    awgTotalBytes: row.awg_total_bytes,
+    awgOffsetBytes: row.awg_offset_bytes
+  });
+  if (!serviceCanUseAwg({
+    status: row.status,
+    expiresAt: row.expires_at,
+    totalBytes,
+    usedBytes,
+    remoteDisablePending: row.remote_disable_pending
+  })) {
+    res.status(409).json({ error: "\u06A9\u0627\u0646\u0641\u06CC\u06AF AWG \u0628\u0631\u0627\u06CC \u0633\u0631\u0648\u06CC\u0633 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u060C \u0645\u0646\u0642\u0636\u06CC \u06CC\u0627 \u062A\u0645\u0627\u0645\u200C\u0634\u062F\u0647 \u0627\u0631\u0627\u0626\u0647 \u0646\u0645\u06CC\u200C\u0634\u0648\u062F." });
+    return;
+  }
   try {
-    const configuration = await getAwgConfiguration(current.rows[0].awg_client_id);
+    const configuration = await getAwgConfiguration(row.awg_client_id);
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${current.rows[0].awg_client_id}.conf"`
+      `attachment; filename="${row.awg_client_id}.conf"`
     );
     res.send(configuration);
   } catch (error40) {
@@ -71877,7 +71852,7 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
         tx_gb: Number(service.awg_tx ?? 0) / 1073741824,
         raw_total_gb: Number(service.awg_total ?? 0) / 1073741824,
         used_gb: Math.max(0, Number(service.awg_total ?? 0) - Number(service.awg_offset_bytes ?? 0)) / 1073741824,
-        offset_gb: Number(service.awg_offset_bytes ?? 0) / 1073741824,
+        offset_gb: Math.max(0, Number(service.awg_offset_bytes ?? 0)) / 1073741824,
         last_updated: service.last_usage_updated_at ? new Date(Number(service.last_usage_updated_at) * 1e3).toISOString() : null
       } : null
     };
@@ -72555,7 +72530,7 @@ var management_default = router2;
 // src/routes/health.ts
 var router3 = (0, import_express3.Router)();
 var readinessState = "starting";
-void Promise.all([managementReady, mobileReady]).then(
+void Promise.all([managementReady, mobileReady, mobileOtpReady]).then(
   () => {
     readinessState = "ready";
   },
@@ -72567,12 +72542,17 @@ router3.get("/healthz", (_req, res) => {
   const data = HealthCheckResponse.parse({ status: "ok" });
   res.json(data);
 });
-router3.get("/readyz", (_req, res) => {
-  if (readinessState === "ready") {
-    res.json({ status: "ready" });
+router3.get("/readyz", async (_req, res) => {
+  if (readinessState !== "ready") {
+    res.status(503).json({ status: readinessState });
     return;
   }
-  res.status(503).json({ status: readinessState });
+  try {
+    await pool.query("SELECT 1");
+    res.json({ status: "ready" });
+  } catch {
+    res.status(503).json({ status: "database_unavailable" });
+  }
 });
 var health_default = router3;
 
@@ -72582,6 +72562,287 @@ router4.use(health_default);
 router4.use(management_default);
 router4.use(mobile_default);
 var routes_default = router4;
+
+// src/lib/usage-sync.ts
+var BYTES_PER_GB = 1024 ** 3;
+var DEFAULT_INTERVAL_MS = 6e4;
+var COMBINED_WORKER_LOCK_NAMESPACE = 74424;
+var running2 = false;
+var lastAwgUsageWarningAt = /* @__PURE__ */ new Map();
+var AWG_ROUTE_WARNING_INTERVAL_MS = 5 * 6e4;
+function shouldLogAwgUsageError(error40, serviceId) {
+  if (!(error40 instanceof AwgApiError)) return true;
+  const now = Date.now();
+  const key = error40.kind === "stats-route-unavailable" ? "stats-route-unavailable" : `service:${serviceId}`;
+  if (now - (lastAwgUsageWarningAt.get(key) ?? 0) < AWG_ROUTE_WARNING_INTERVAL_MS) return false;
+  lastAwgUsageWarningAt.set(key, now);
+  return true;
+}
+function epochSeconds(date6) {
+  if (!date6) return null;
+  const time4 = new Date(date6).getTime();
+  return Number.isFinite(time4) ? Math.floor(time4 / 1e3) : null;
+}
+async function updatePanelUsage(username, panelKey2, rawBytes) {
+  const existing = await pool.query(
+    `SELECT id, COALESCE(upload, 0)::float8 AS upload, COALESCE(download, 0)::float8 AS download,
+            COALESCE(offset_bytes, 0)::float8 AS offset_bytes
+     FROM user_panel_usages
+     WHERE username = $1 AND panel_key = $2
+     ORDER BY id DESC LIMIT 1`,
+    [username, panelKey2]
+  );
+  let offset = Number(existing.rows[0]?.offset_bytes ?? 0);
+  const previousRaw = Number(existing.rows[0]?.upload ?? 0) + Number(existing.rows[0]?.download ?? 0);
+  if (previousRaw > 0 && rawBytes < previousRaw * 0.5) {
+    offset = rawBytes;
+  }
+  const effective = Math.max(0, rawBytes - offset);
+  if (existing.rows[0]) {
+    await pool.query(
+      `UPDATE user_panel_usages
+       SET upload = 0, download = $1, total = $1, offset_bytes = $2, last_updated = NOW()
+       WHERE id = $3`,
+      [rawBytes, offset, existing.rows[0].id]
+    );
+  } else {
+    await pool.query(
+      `INSERT INTO user_panel_usages (username, panel_key, upload, download, total, offset_bytes, last_updated)
+       VALUES ($1, $2, 0, $3, $3, $4, NOW())`,
+      [username, panelKey2, rawBytes, offset]
+    );
+  }
+  return effective;
+}
+async function syncServiceUnlocked(service) {
+  const panelUsages = await readPanelUsages(
+    service.rain_username,
+    service.falco_config_id,
+    Number(service.reseller_tg_id),
+    "reseller"
+  );
+  let panelUsedBytes = 0;
+  for (const usage of panelUsages) {
+    panelUsedBytes += usage.stale ? usage.usedBytes : await updatePanelUsage(service.rain_username, usage.panelKey, usage.usedBytes);
+  }
+  let awgUsedBytes = effectiveAwgBytes(service.awg_total, service.awg_offset_bytes);
+  let awgRx = 0;
+  let awgTx = 0;
+  let awgStatsFresh = !service.awg_client_id;
+  if (service.awg_client_id) {
+    try {
+      const stats = await getAwgStats(service.awg_client_id);
+      awgRx = stats.rxBytes;
+      awgTx = stats.txBytes;
+      awgStatsFresh = true;
+      const rawAwgBytes = awgRx + awgTx;
+      const counter = reconcileAwgCounter(rawAwgBytes, service.awg_total, service.awg_offset_bytes);
+      const offset = counter.offsetBytes;
+      awgUsedBytes = counter.effectiveBytes;
+      await pool.query(
+        `UPDATE reseller_services
+         SET awg_rx = $1, awg_tx = $2, awg_total = $3, awg_offset_bytes = $4
+         WHERE id = $5`,
+        [awgRx, awgTx, rawAwgBytes, offset, service.id]
+      );
+    } catch (error40) {
+      if (shouldLogAwgUsageError(error40, service.id)) {
+        logger.warn({ serviceId: service.id, err: error40 }, "AWG usage sync skipped");
+      }
+    }
+  }
+  const combinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
+  const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB));
+  const expired = service.expired_in_db;
+  const usageSnapshotFresh = awgStatsFresh && panelUsages.every((usage) => !usage.stale);
+  const quotaReached = usageSnapshotFresh && limitBytes > 0 && combinedBytes >= limitBytes;
+  const alreadyDisabled = service.status === "disabled";
+  const shouldDisable = alreadyDisabled || expired || quotaReached;
+  const needsRemoteDisable = !alreadyDisabled || Number(service.remote_disable_pending) === 1;
+  let remoteDisabled = alreadyDisabled && !needsRemoteDisable;
+  let awgDisabled = !service.awg_client_id;
+  if (shouldDisable && !alreadyDisabled) {
+    logger.warn(
+      {
+        serviceId: service.id,
+        username: service.rain_username,
+        trigger: quotaReached ? "quota" : "expiry",
+        usedBytes: combinedBytes,
+        limitBytes,
+        expireAt: service.expire_at,
+        providerReadings: panelUsages.map((usage) => ({
+          provider: usage.panelKey,
+          usedBytes: usage.usedBytes,
+          stale: usage.stale
+        })),
+        awgUsedBytes
+      },
+      "Automatic service disable threshold reached"
+    );
+  }
+  if (shouldDisable && needsRemoteDisable) {
+    const sharedUsername = await hasOtherActiveServiceWithUsername(
+      service.rain_username,
+      service.id
+    );
+    if (sharedUsername && (!alreadyDisabled || Number(service.remote_disable_pending) !== 1)) {
+      logger.warn(
+        { serviceId: service.id, username: service.rain_username },
+        "Provider disable deferred because another active service shares this username"
+      );
+    }
+    const panelResult = sharedUsername ? { attempted: 0, disabled: 0 } : await disablePanelUser(
+      service.rain_username,
+      service.falco_config_id,
+      Number(service.reseller_tg_id),
+      "reseller"
+    );
+    awgDisabled = service.awg_client_id ? await disableAwgClient(service.awg_client_id) : true;
+    const providersDisabled = !sharedUsername && panelResult.attempted > 0 && panelResult.disabled === panelResult.attempted;
+    remoteDisabled = providersDisabled && awgDisabled;
+  }
+  const remainingBytes = limitBytes > 0 ? Math.max(0, limitBytes - combinedBytes) : 0;
+  const reason = quotaReached ? "\u062D\u062C\u0645 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : expired ? "\u062A\u0627\u0631\u06CC\u062E \u0627\u0639\u062A\u0628\u0627\u0631 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : service.disable_reason ?? (alreadyDisabled ? "\u0633\u0631\u0648\u06CC\u0633 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0634\u062F\u0647 \u0627\u0633\u062A" : null);
+  const updated = await pool.query(
+    `UPDATE reseller_services
+     SET last_used_bytes = $1, last_total_bytes = $2, last_remaining_bytes = $3,
+         last_expire_ts = $4, last_usage_updated_at = $5,
+         status = CASE WHEN $6 THEN 'disabled' ELSE status END,
+         disabled_at = CASE WHEN $6 AND status <> 'disabled' THEN NOW() ELSE disabled_at END,
+         disable_reason = CASE WHEN $6 THEN COALESCE($7::text, disable_reason) ELSE disable_reason END,
+         remote_disable_pending = CASE WHEN $6 AND NOT $8 THEN 1 ELSE 0 END,
+         remote_disabled_at = CASE WHEN $6 AND $8 THEN COALESCE(remote_disabled_at, NOW()) ELSE remote_disabled_at END,
+         awg_client_id = CASE WHEN $9 THEN NULL ELSE awg_client_id END,
+         lifecycle_version = CASE WHEN $6 AND status <> 'disabled' THEN lifecycle_version + 1 ELSE lifecycle_version END,
+         updated_at = NOW()
+     WHERE id = $10
+     RETURNING lifecycle_version`,
+    [
+      combinedBytes,
+      limitBytes,
+      remainingBytes,
+      epochSeconds(service.expire_at),
+      Math.floor(Date.now() / 1e3),
+      shouldDisable,
+      reason,
+      remoteDisabled,
+      Boolean(service.awg_client_id && awgDisabled),
+      service.id
+    ]
+  );
+  const currentVersion = Number(updated.rows[0]?.lifecycle_version ?? service.lifecycle_version);
+  if (shouldDisable) {
+    await pool.query(
+      `UPDATE service_provision_jobs
+       SET status = 'completed',
+           last_error = NULL,
+           updated_at = NOW(),
+           completed_at = NOW()
+       WHERE service_id = $1
+         AND lifecycle_version < $2
+         AND status IN ('pending', 'running', 'retrying')`,
+      [service.id, currentVersion]
+    );
+  }
+  if (service.token) {
+    const cacheValues = [combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0, service.token];
+    const updatedCache = await pool.query(
+      `UPDATE user_stats_cache
+       SET used_bytes = $1, total_bytes = $2, expire_ts = $3, is_disabled = $4,
+           last_updated = EXTRACT(EPOCH FROM NOW())::int
+       WHERE token = $5`,
+      cacheValues
+    );
+    if (!updatedCache.rowCount) {
+      await pool.query(
+        `INSERT INTO user_stats_cache (token, used_bytes, total_bytes, expire_ts, is_disabled, last_updated)
+         VALUES ($1, $2, $3, $4, $5, EXTRACT(EPOCH FROM NOW())::int)`,
+        [service.token, combinedBytes, limitBytes, epochSeconds(service.expire_at), shouldDisable ? 1 : 0]
+      );
+    }
+  }
+}
+async function syncService(service) {
+  const lockClient = await pool.connect();
+  try {
+    await lockClient.query("SELECT pg_advisory_lock(74421, $1)", [service.id]);
+    const fresh = await pool.query(
+      `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
+              svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
+              svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
+              svc.lifecycle_version, svc.remote_disable_pending
+       FROM reseller_services svc
+       LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
+       WHERE svc.id = $1
+       LIMIT 1`,
+      [service.id]
+    );
+    if (fresh.rows[0]) await syncServiceUnlocked(fresh.rows[0]);
+  } finally {
+    await lockClient.query("SELECT pg_advisory_unlock(74421, $1)", [service.id]).catch(() => void 0);
+    lockClient.release();
+  }
+}
+async function runUsageSync() {
+  if (running2) return;
+  running2 = true;
+  let unlockWorkerLock;
+  let releaseWorkerLock;
+  let workerLockAcquired = false;
+  try {
+    const workerLockClient = await pool.connect();
+    unlockWorkerLock = async () => {
+      await workerLockClient.query(
+        "SELECT pg_advisory_unlock($1, $2)",
+        [COMBINED_WORKER_LOCK_NAMESPACE, 1]
+      );
+    };
+    releaseWorkerLock = () => workerLockClient.release();
+    const lockResult = await workerLockClient.query(
+      "SELECT pg_try_advisory_lock($1, $2) AS locked",
+      [COMBINED_WORKER_LOCK_NAMESPACE, 1]
+    );
+    if (!lockResult.rows[0]?.locked) return;
+    workerLockAcquired = true;
+    const result = await workerLockClient.query(
+      `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
+              svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
+               svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
+               svc.lifecycle_version, svc.remote_disable_pending
+       FROM reseller_services svc
+       LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
+        WHERE svc.status IN ('active', 'expiring')
+           OR (svc.status = 'disabled' AND COALESCE(svc.remote_disable_pending, 0) = 1)
+       ORDER BY svc.id`
+    );
+    for (const service of result.rows) {
+      try {
+        await syncService(service);
+      } catch (error40) {
+        logger.warn({ serviceId: service.id, err: error40 }, "Service usage sync failed");
+      }
+    }
+    if (result.rows.length) logger.info({ services: result.rows.length }, "Combined usage sync completed");
+  } catch (error40) {
+    logger.error({ err: error40 }, "Combined usage sync failed");
+  } finally {
+    if (workerLockAcquired) await unlockWorkerLock?.().catch(() => void 0);
+    releaseWorkerLock?.();
+    running2 = false;
+  }
+}
+function startUsageSyncWorker() {
+  const interval2 = Math.max(3e4, Number(process.env.USAGE_SYNC_INTERVAL_MS ?? DEFAULT_INTERVAL_MS));
+  setTimeout(() => {
+    void runUsageSync();
+  }, 5e3);
+  setInterval(() => {
+    void runUsageSync();
+  }, interval2);
+  logger.info({ intervalMs: interval2 }, "Combined usage sync worker started");
+}
 
 // src/app.ts
 var app = (0, import_express5.default)();
@@ -72920,11 +73181,6 @@ function startProvisioningWorker() {
       logger.warn({ jobsRecovered: result.rowCount }, "Recovered stale running provisioning jobs");
     }
   }).catch((error40) => logger.error({ err: error40 }, "Failed to recover stale provisioning jobs"));
-  void pool.query(
-    `UPDATE service_provision_jobs
-     SET next_attempt_at = NOW(), updated_at = NOW()
-     WHERE status = 'retrying'`
-  ).catch((error40) => logger.error({ err: error40 }, "Failed to wake retrying provisioning jobs"));
   void pool.query(
     `UPDATE service_provision_jobs job
      SET status = 'retrying',
