@@ -70063,14 +70063,22 @@ router2.get("/services", requireAuth, async (req, res) => {
          WHERE panel.is_enabled = 1
            AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
        ), '[]'::json) AS panel_usages,
-       CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE json_build_object(
+        CASE
+          WHEN svc.awg_client_id IS NULL
+           AND COALESCE(svc.awg_rx, 0) = 0
+           AND COALESCE(svc.awg_tx, 0) = 0
+           AND COALESCE(svc.awg_total, 0) = 0
+           AND COALESCE(svc.awg_offset_bytes, 0) = 0
+          THEN NULL
+          ELSE json_build_object(
          'rx_gb', COALESCE(svc.awg_rx, 0) / 1073741824.0,
          'tx_gb', COALESCE(svc.awg_tx, 0) / 1073741824.0,
          'raw_total_gb', COALESCE(svc.awg_total, 0) / 1073741824.0,
          'used_gb', GREATEST(0, COALESCE(svc.awg_total, 0) - COALESCE(svc.awg_offset_bytes, 0)) / 1073741824.0,
          'offset_gb', COALESCE(svc.awg_offset_bytes, 0) / 1073741824.0,
          'last_updated', CASE WHEN svc.last_usage_updated_at IS NULL THEN NULL ELSE to_timestamp(svc.last_usage_updated_at) END
-       ) END AS awg_usage
+        )
+        END AS awg_usage
      FROM reseller_services svc
      LEFT JOIN reseller_customers c ON c.id = svc.customer_id
      WHERE ${conditions.join(" AND ")}
@@ -71114,18 +71122,21 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
     });
     usageByUsername.set(usage.username, entries);
   }
-  const detailedServices = services.rows.map((service) => ({
-    ...service,
-    panel_usages: usageByUsername.get(service.username) ?? [],
-    awg_usage: service.awg_client_id ? {
-      rx_gb: Number(service.awg_rx ?? 0) / 1073741824,
-      tx_gb: Number(service.awg_tx ?? 0) / 1073741824,
-      raw_total_gb: Number(service.awg_total ?? 0) / 1073741824,
-      used_gb: Math.max(0, Number(service.awg_total ?? 0) - Number(service.awg_offset_bytes ?? 0)) / 1073741824,
-      offset_gb: Number(service.awg_offset_bytes ?? 0) / 1073741824,
-      last_updated: service.last_usage_updated_at ? new Date(Number(service.last_usage_updated_at) * 1e3).toISOString() : null
-    } : null
-  }));
+  const detailedServices = services.rows.map((service) => {
+    const hasAwgUsage = Boolean(service.awg_client_id) || Number(service.awg_rx ?? 0) > 0 || Number(service.awg_tx ?? 0) > 0 || Number(service.awg_total ?? 0) > 0 || Number(service.awg_offset_bytes ?? 0) > 0;
+    return {
+      ...service,
+      panel_usages: usageByUsername.get(service.username) ?? [],
+      awg_usage: hasAwgUsage ? {
+        rx_gb: Number(service.awg_rx ?? 0) / 1073741824,
+        tx_gb: Number(service.awg_tx ?? 0) / 1073741824,
+        raw_total_gb: Number(service.awg_total ?? 0) / 1073741824,
+        used_gb: Math.max(0, Number(service.awg_total ?? 0) - Number(service.awg_offset_bytes ?? 0)) / 1073741824,
+        offset_gb: Number(service.awg_offset_bytes ?? 0) / 1073741824,
+        last_updated: service.last_usage_updated_at ? new Date(Number(service.last_usage_updated_at) * 1e3).toISOString() : null
+      } : null
+    };
+  });
   res.json(
     GetCustomerResponse.parse({
       ...customer.rows[0],

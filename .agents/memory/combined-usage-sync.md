@@ -15,6 +15,12 @@ The legacy AWG server's client list contains identity/address metadata but no tr
 
 **How to apply:** Support wrapped stats and common counter aliases, preserve the previous value on invalid/missing stats, and only recreate a missing client during an explicit AWG repair/save action because its configuration changes.
 
+Usage pages must keep showing persisted AWG counters after disabling a service deletes its remote client and clears the client ID. When no live client remains, present these as saved history rather than live stats.
+
+**Why:** The remote client ID is cleared during disable, but the last counters remain in the database; hiding them makes a user's AWG history disappear.
+
+**How to apply:** Include historical AWG usage when counters or reset offsets exist, even without a client ID. Never treat a missing ID or failed stats request as zero or recreate the client just to display history.
+
 Provider clients and the AWG client are lifecycle parts of the same service: creation must not persist a partial service, and quota/date/manual disable is complete only after every configured remote is disabled.
 
 **Why:** Treating one remote's success as the service's success can leave active access after a customer reaches quota or expiration.
