@@ -3,7 +3,7 @@ name: Combined provider usage sync
 description: Background quota enforcement combines panel usage and AmneziaWG usage with reset offsets.
 ---
 
-Quota enforcement must aggregate effective usage from every successful V2Box panel row and the AmneziaWG client, subtracting per-source reset offsets before comparing with the service quota.
+Quota enforcement must aggregate effective usage from every successful configured panel row—including AzadPanel OpenVPN—and the AmneziaWG client, subtracting per-source reset offsets before comparing with the service quota.
 
 **Why:** Provider counters can reset independently on renewal, and treating a reset counter as a decrease would undercount traffic or re-enable an exhausted service.
 
@@ -20,3 +20,9 @@ Provider clients and the AWG client are lifecycle parts of the same service: cre
 **Why:** Treating one remote's success as the service's success can leave active access after a customer reaches quota or expiration.
 
 **How to apply:** Roll back the local create on provider/AWG failure, perform best-effort remote cleanup, and retry automatic disable while any provider or AWG remains enabled.
+
+AzadPanel OpenVPN reports current `used_traffic` in bytes; use it as a provider counter, not `lifetime_used_traffic`.
+
+**Why:** Lifetime traffic can include earlier service periods, while the current counter works with the per-provider reset offsets used during renewal.
+
+**How to apply:** Include AzadPanel in the combined usage ledger, retain its last effective reading when a transient read fails, and disable its account with the documented user update only when combined service quota is reached.

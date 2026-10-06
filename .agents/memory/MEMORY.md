@@ -2,7 +2,8 @@
 - [OpenAPI and Orval compatibility](openapi-zod-compatibility.md) — keep schemas Zod 3-compatible and avoid mixed inline path/query parameter name collisions.
 - [Panel availability policy](panel-availability-policy.md) — expose only credential-backed providers, and make every enabled provider available to every active seller.
 - [Public token subscription routes](public-subscription.md) — token links must bypass auth by path prefix and normalize legacy URLs to the current public route.
-- [Combined provider usage sync](combined-usage-sync.md) — aggregate effective V2Box and AmneziaWG usage with independent reset offsets before disabling services.
+- [Combined provider usage sync](combined-usage-sync.md) — aggregate all configured provider counters and AmneziaWG with independent reset offsets before quota enforcement.
+- [AzadPanel OpenVPN handoff](azadpanel-openvpn-import.md) — OpenVPN Connect deep links need an Access Server import token; AzadPanel uses URL import or `.ovpn` files.
 - [Persian date boundaries](persian-date-boundaries.md) — keep user-facing dates in Tehran’s Persian calendar and convert to ISO only at API boundaries.
 - [ISO date query schemas](iso-date-query-schemas.md) — use patterned strings for OpenAPI query dates; date formats generate runtime zod.date parsers that reject URL strings.
 - [Paid and unpaid profit](paid-profit-allocation.md) — allocate shared credit cost by paid-revenue share when splitting profit by collection status.

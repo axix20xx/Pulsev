@@ -588,6 +588,7 @@ export type PanelUsage = {
   usedBytes: number;
   totalBytes: number | null;
   expiresAt: string | null;
+  stale?: boolean;
 };
 
 function nestedPayload(json: any): any {
@@ -649,6 +650,27 @@ function usedBytesValue(payload: any): number | null {
   return upload === null && download === null ? null : Math.round((upload ?? 0) + (download ?? 0));
 }
 
+async function lastKnownPanelUsage(username: string, key: string): Promise<PanelUsage | null> {
+  const existing = await pool.query<{ upload: number; download: number; offset_bytes: number }>(
+    `SELECT COALESCE(upload, 0)::float8 AS upload,
+            COALESCE(download, 0)::float8 AS download,
+            COALESCE(offset_bytes, 0)::float8 AS offset_bytes
+     FROM user_panel_usages
+     WHERE username = $1 AND panel_key = $2
+     ORDER BY id DESC LIMIT 1`,
+    [username, key],
+  );
+  const row = existing.rows[0];
+  if (!row) return null;
+  return {
+    panelKey: key,
+    usedBytes: Math.max(0, Math.round(Number(row.upload) + Number(row.download) - Number(row.offset_bytes))),
+    totalBytes: null,
+    expiresAt: null,
+    stale: true,
+  };
+}
+
 function expiryValue(payload: any): string | null {
   const value = payload?.expire_at ?? payload?.expire_date ?? payload?.expire ?? payload?.expires_at ?? payload?.expires;
   if (value === undefined || value === null || value === "") return null;
@@ -674,7 +696,6 @@ export async function readPanelUsages(
   };
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
-    if (kind === "azadpanel") continue;
     let response: { status: number; json: any; text: string } | null = null;
     if (kind === "falcon") {
       response = await safePanelRequest(
@@ -688,15 +709,17 @@ export async function readPanelUsages(
       }
     } else {
       const encoded = encodeURIComponent(username);
-      const paths = kind === "rain_admin"
-        ? [
+      const paths = kind === "azadpanel"
+        ? [`/api/user/${encodeURIComponent(username)}`]
+        : kind === "rain_admin"
+          ? [
             `/api/users/${encoded}`,
             `/api/user/${encoded}`,
             `/api/users?username=${encoded}`,
             `/api/users?search=${encoded}`,
             "/api/users",
           ]
-        : [`/api/user/${encoded}`, `/api/users?username=${encoded}`];
+          : [`/api/user/${encoded}`, `/api/users?username=${encoded}`];
       for (const path of paths) {
         response = await safePanelRequest(panel, "GET", path);
         if (response?.status === 200) {
@@ -711,10 +734,20 @@ export async function readPanelUsages(
         if (!response || ![404, 405].includes(response.status)) break;
       }
     }
-    if (!response || response.status < 200 || response.status >= 300) continue;
+    if (!response || response.status < 200 || response.status >= 300) {
+      if (response?.status !== 404) {
+        const stale = await lastKnownPanelUsage(username, panelKey(panel));
+        if (stale) result.push(stale);
+      }
+      continue;
+    }
     const payload = findUserPayload(response.json, username) ?? nestedPayload(response.json);
     const usedBytes = usedBytesValue(payload);
-    if (usedBytes === null) continue;
+    if (usedBytes === null) {
+      const stale = await lastKnownPanelUsage(username, panelKey(panel));
+      if (stale) result.push(stale);
+      continue;
+    }
     result.push({
       panelKey: panelKey(panel),
       usedBytes,
@@ -735,14 +768,15 @@ export async function disablePanelUser(
   let disabled = 0;
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
-    if (kind === "azadpanel") continue;
     attempted += 1;
     const encoded = encodeURIComponent(username);
     const candidates: Array<[string, string, unknown]> = kind === "falcon"
       ? (falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [])
       : kind === "rain_admin"
         ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]]
-        : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
+        : kind === "azadpanel"
+          ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]]
+          : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
     let success = false;
     for (const [method, path, body] of candidates) {
       try {

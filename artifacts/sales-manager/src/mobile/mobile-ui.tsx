@@ -101,6 +101,22 @@ type MobileClient = {
   isPrimary?: boolean;
 };
 
+type MobileOpenVpnLocation = {
+  id: string;
+  name: string;
+  config_url: string;
+};
+
+type MobileOpenVpnDelivery = {
+  provider_key: string;
+  server: string;
+  username: string;
+  password: string;
+  core: "openvpn";
+  bundle_url: string;
+  locations: MobileOpenVpnLocation[];
+};
+
 const mobileClientCatalog = (url: string, name: string): MobileClient[] => {
   const encodedName = encodeURIComponent(name || 'Pulse');
   const encodedUrl = encodeURIComponent(url);
@@ -131,8 +147,16 @@ const mobileClientCatalog = (url: string, name: string): MobileClient[] => {
 export function AccessActions({ item }: { item: MobileSubscription }) {
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState('');
+  const [openVpnData, setOpenVpnData] = useState<MobileOpenVpnDelivery | null>(null);
+  const [openVpnBusy, setOpenVpnBusy] = useState(false);
+  const [openVpnError, setOpenVpnError] = useState('');
   const providerUrl = item.provider_url || item.subscription_url || item.public_url;
   const v2boxUrl = item.v2box_url || (providerUrl ? `v2box://install-sub?url=${encodeURIComponent(providerUrl)}&name=${encodeURIComponent(item.plan)}` : '');
+  const openVpnToken = (() => {
+    if (!item.public_url) return '';
+    try { return new URL(item.public_url, window.location.origin).searchParams.get('t') || ''; }
+    catch { return ''; }
+  })();
   const copyValue = async (value: string, label: string) => { await navigator.clipboard?.writeText(value); setCopied(label); };
   const shareValue = async (value: string) => { if (navigator.share) await navigator.share({ title: item.plan, url: value }); else await copyValue(value, 'لینک Provider'); };
   const showQr = async (value: string) => setQr(await QRCode.toDataURL(value, { margin: 2, width: 240, color: { dark: '#163d40', light: '#f7f6f0' } }));
@@ -144,6 +168,25 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
       await copyValue(await response.text(), 'متن کانفیگ AmneziaWG');
     } catch {
       await copyValue(item.awg_url, 'لینک AmneziaWG');
+    }
+  };
+  const prepareOpenVpn = async () => {
+    if (!openVpnToken) return;
+    setOpenVpnBusy(true);
+    setOpenVpnError('');
+    try {
+      const response = await fetch(`/api/public/subscription/${encodeURIComponent(openVpnToken)}/openvpn`, {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const payload = await response.json().catch(() => null) as MobileOpenVpnDelivery & { error?: string } | null;
+      if (!response.ok || !payload) throw new Error(payload?.error || 'دریافت اطلاعات OpenVPN ناموفق بود.');
+      setOpenVpnData(payload);
+    } catch (cause) {
+      setOpenVpnError(cause instanceof Error ? cause.message : 'دریافت اطلاعات OpenVPN ناموفق بود.');
+    } finally {
+      setOpenVpnBusy(false);
     }
   };
   const clients = providerUrl ? mobileClientCatalog(providerUrl, item.plan) : [];
@@ -177,6 +220,21 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
        <div className="mobile-awg-download-heading"><span>دانلود اپ رسمی</span><a href="https://amnezia.org/downloads" target="_blank" rel="noreferrer"><ExternalLink size={13} /> همهٔ دانلودها</a></div>
        <div className="mobile-awg-download-grid">{awgDownloads.map((download) => <a href={download.href} target="_blank" rel="noreferrer" key={download.id} data-testid={`link-mobile-awg-download-${download.id}`}><strong>{download.label}</strong><small>{download.detail}</small><ExternalLink size={13} /></a>)}</div>
     </section> : null}
+     {item.openvpn_available && openVpnToken ? <section className="mobile-openvpn-card" data-testid={`panel-mobile-openvpn-${item.id}`}>
+       <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">اتصال جداگانه</span><h3>OpenVPN</h3><p>حساب OpenVPN و فایل کانفیگ همین سرویس</p></div></div>
+       {!openVpnData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareOpenVpn()} disabled={openVpnBusy} data-testid={`button-mobile-openvpn-prepare-${item.id}`}>{openVpnBusy ? 'در حال دریافت...' : 'دریافت حساب و کانفیگ OpenVPN'}</button> : <>
+         <div className="mobile-openvpn-details">
+           <div><span>آدرس سرور</span><strong dir="ltr">{openVpnData.server}</strong></div>
+           <div><span>نام کاربری</span><strong dir="ltr">{openVpnData.username}</strong><button type="button" onClick={() => void copyValue(openVpnData.username, 'نام کاربری OpenVPN')}>کپی</button></div>
+           <div><span>رمز عبور</span><strong dir="ltr">{openVpnData.password}</strong><button type="button" onClick={() => void copyValue(openVpnData.password, 'رمز OpenVPN')}>کپی</button></div>
+         </div>
+         <a className="mobile-openvpn-download primary" href={openVpnData.bundle_url} download data-testid={`link-mobile-openvpn-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ فایل‌ها</a>
+         <div className="mobile-openvpn-locations">{openVpnData.locations.map((location) => <a key={location.id} href={location.config_url} download data-testid={`link-mobile-openvpn-config-${item.id}-${location.id}`}><span>{location.name}</span><small>.ovpn</small><Download size={14} /></a>)}</div>
+         <div className="mobile-openvpn-app-links"><a href="https://apps.apple.com/us/app/openvpn-connect-openvpn-app/id590379981" target="_blank" rel="noreferrer">OpenVPN Connect برای iOS <ExternalLink size={13} /></a><a href="https://play.google.com/store/apps/details?id=net.openvpn.openvpn" target="_blank" rel="noreferrer">OpenVPN Connect برای Android <ExternalLink size={13} /></a></div>
+         <p className="mobile-openvpn-hint">در OpenVPN Connect گزینهٔ Import Profile ← URL را انتخاب کنید، آدرس سرور را وارد کنید و Next بزنید؛ سپس نام کاربری و رمز بالا را وارد کنید. در iPhone می‌توانید فایل .ovpn را هم دانلود و از منوی Share در OpenVPN Connect باز کنید.</p>
+       </>}
+       {openVpnError ? <p className="mobile-openvpn-error" role="alert">{openVpnError}</p> : null}
+     </section> : null}
     {copied ? <div className="mobile-toast mobile-toast-inline"><Check size={16} /> {copied} کپی شد</div> : null}
     {qr ? <div className="mobile-modal-backdrop" onClick={() => setQr('')}><div className="mobile-qr-modal" onClick={(event) => event.stopPropagation()}><button className="mobile-icon-button mobile-modal-close" onClick={() => setQr('')}><X size={18} /></button><p>اسکن کنید تا اشتراک اضافه شود</p><img src={qr} alt="کد QR اشتراک" /><small>{item.plan}</small></div></div> : null}
   </div>;

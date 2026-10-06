@@ -20,6 +20,7 @@ export type MobileSubscription = {
   v2box_url?: string | null;
   public_url?: string | null;
   awg_url?: string | null;
+  openvpn_available?: boolean;
   service_code?: string | null;
 };
 export type MobileNotification = {

@@ -64258,6 +64258,26 @@ function usedBytesValue(payload) {
   const download = bytesValue(payload, ["download", "download_bytes", "down", "downlink"]);
   return upload === null && download === null ? null : Math.round((upload ?? 0) + (download ?? 0));
 }
+async function lastKnownPanelUsage(username, key) {
+  const existing = await pool.query(
+    `SELECT COALESCE(upload, 0)::float8 AS upload,
+            COALESCE(download, 0)::float8 AS download,
+            COALESCE(offset_bytes, 0)::float8 AS offset_bytes
+     FROM user_panel_usages
+     WHERE username = $1 AND panel_key = $2
+     ORDER BY id DESC LIMIT 1`,
+    [username, key]
+  );
+  const row = existing.rows[0];
+  if (!row) return null;
+  return {
+    panelKey: key,
+    usedBytes: Math.max(0, Math.round(Number(row.upload) + Number(row.download) - Number(row.offset_bytes))),
+    totalBytes: null,
+    expiresAt: null,
+    stale: true
+  };
+}
 function expiryValue(payload) {
   const value = payload?.expire_at ?? payload?.expire_date ?? payload?.expire ?? payload?.expires_at ?? payload?.expires;
   if (value === void 0 || value === null || value === "") return null;
@@ -64275,7 +64295,6 @@ async function readPanelUsages(username, falcoConfigId, ownerId, role) {
   };
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
-    if (kind === "azadpanel") continue;
     let response = null;
     if (kind === "falcon") {
       response = await safePanelRequest(
@@ -64289,7 +64308,7 @@ async function readPanelUsages(username, falcoConfigId, ownerId, role) {
       }
     } else {
       const encoded = encodeURIComponent(username);
-      const paths = kind === "rain_admin" ? [
+      const paths = kind === "azadpanel" ? [`/api/user/${encodeURIComponent(username)}`] : kind === "rain_admin" ? [
         `/api/users/${encoded}`,
         `/api/user/${encoded}`,
         `/api/users?username=${encoded}`,
@@ -64310,10 +64329,20 @@ async function readPanelUsages(username, falcoConfigId, ownerId, role) {
         if (!response || ![404, 405].includes(response.status)) break;
       }
     }
-    if (!response || response.status < 200 || response.status >= 300) continue;
+    if (!response || response.status < 200 || response.status >= 300) {
+      if (response?.status !== 404) {
+        const stale = await lastKnownPanelUsage(username, panelKey(panel));
+        if (stale) result.push(stale);
+      }
+      continue;
+    }
     const payload = findUserPayload(response.json, username) ?? nestedPayload(response.json);
     const usedBytes = usedBytesValue(payload);
-    if (usedBytes === null) continue;
+    if (usedBytes === null) {
+      const stale = await lastKnownPanelUsage(username, panelKey(panel));
+      if (stale) result.push(stale);
+      continue;
+    }
     result.push({
       panelKey: panelKey(panel),
       usedBytes,
@@ -64328,10 +64357,9 @@ async function disablePanelUser(username, falcoConfigId, ownerId, role) {
   let disabled = 0;
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
-    if (kind === "azadpanel") continue;
     attempted += 1;
     const encoded = encodeURIComponent(username);
-    const candidates = kind === "falcon" ? falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [] : kind === "rain_admin" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
+    const candidates = kind === "falcon" ? falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [] : kind === "rain_admin" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : kind === "azadpanel" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
     let success2 = false;
     for (const [method, path, body] of candidates) {
       try {
@@ -64889,7 +64917,7 @@ async function syncServiceUnlocked(service) {
   );
   let panelUsedBytes = 0;
   for (const usage of panelUsages) {
-    panelUsedBytes += await updatePanelUsage(service.rain_username, usage.panelKey, usage.usedBytes);
+    panelUsedBytes += usage.stale ? usage.usedBytes : await updatePanelUsage(service.rain_username, usage.panelKey, usage.usedBytes);
   }
   let awgUsedBytes = Math.max(0, Number(service.awg_total ?? 0) - Number(service.awg_offset_bytes ?? 0));
   let awgRx = 0;
@@ -65456,7 +65484,7 @@ var originPath = (req, pathname) => {
   return `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}${pathname}`;
 };
 var asIso = (value) => value ? new Date(value).toISOString() : null;
-var mapService = (req, row) => {
+var mapService = (req, row, openVpnAvailable = false) => {
   const totalBytes = Number(row.last_total_bytes ?? 0) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
   const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
   const remainingBytes = row.last_remaining_bytes !== null && row.last_remaining_bytes !== void 0 ? Math.max(0, Number(row.last_remaining_bytes)) : Math.max(0, totalBytes - usedBytes);
@@ -65484,6 +65512,7 @@ var mapService = (req, row) => {
     provider_url: subscriptionUrl2,
     v2box_url: subscriptionUrl2 ? `v2box://install-sub?url=${encodeURIComponent(subscriptionUrl2)}&name=${encodeURIComponent(row.plan)}` : null,
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
+    openvpn_available: openVpnAvailable && Boolean(token) && status === "active",
     awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
     service_code: `PULSE-${String(row.id).padStart(6, "0")}`
   };
@@ -65502,7 +65531,8 @@ var listServices = async (req, customerId2) => {
      ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.expire_at DESC NULLS LAST, svc.id DESC`,
     [customerId2]
   );
-  return result.rows.map((row) => mapService(req, row));
+  const openVpnAvailable = (await listAvailablePanels()).some((panel) => panel.kind === "azadpanel");
+  return result.rows.map((row) => mapService(req, row, openVpnAvailable));
 };
 var configuredVapidPublicKey = "";
 var configureVapid = (config3) => {

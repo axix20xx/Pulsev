@@ -71,7 +71,9 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
   );
   let panelUsedBytes = 0;
   for (const usage of panelUsages) {
-    panelUsedBytes += await updatePanelUsage(service.rain_username, usage.panelKey, usage.usedBytes);
+    panelUsedBytes += usage.stale
+      ? usage.usedBytes
+      : await updatePanelUsage(service.rain_username, usage.panelKey, usage.usedBytes);
   }
 
   let awgUsedBytes = Math.max(0, Number(service.awg_total ?? 0) - Number(service.awg_offset_bytes ?? 0));

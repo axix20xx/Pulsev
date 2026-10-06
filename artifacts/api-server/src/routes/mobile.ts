@@ -4,6 +4,7 @@ import webpush from "web-push";
 import { pool } from "@workspace/db";
 import { consumeMobileOtp, findActiveMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
 import { logger } from "../lib/logger";
+import { listAvailablePanels } from "../lib/rain";
 
 const router: IRouter = Router();
 const mobileSessionCookie = "pulse_mobile_session";
@@ -327,7 +328,7 @@ const originPath = (req: Request, pathname: string) => {
 
 const asIso = (value: Date | string | null) => value ? new Date(value).toISOString() : null;
 
-const mapService = (req: Request, row: MobileServiceRow) => {
+const mapService = (req: Request, row: MobileServiceRow, openVpnAvailable = false) => {
   const totalBytes = Number(row.last_total_bytes ?? 0) > 0
     ? Number(row.last_total_bytes)
     : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
@@ -367,6 +368,7 @@ const mapService = (req: Request, row: MobileServiceRow) => {
       ? `v2box://install-sub?url=${encodeURIComponent(subscriptionUrl)}&name=${encodeURIComponent(row.plan)}`
       : null,
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
+    openvpn_available: openVpnAvailable && Boolean(token) && status === "active",
     awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
     service_code: `PULSE-${String(row.id).padStart(6, "0")}`,
   };
@@ -386,7 +388,8 @@ const listServices = async (req: Request, customerId: number) => {
      ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.expire_at DESC NULLS LAST, svc.id DESC`,
     [customerId],
   );
-  return result.rows.map((row) => mapService(req, row));
+  const openVpnAvailable = (await listAvailablePanels()).some((panel) => panel.kind === "azadpanel");
+  return result.rows.map((row) => mapService(req, row, openVpnAvailable));
 };
 
 let configuredVapidPublicKey = "";
