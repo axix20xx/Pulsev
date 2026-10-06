@@ -22,6 +22,8 @@ import type {
 import type {
   AdminSale,
   AuthSession,
+  AwgUsagePage,
+  AwgUsageRefreshResult,
   CreateServiceInput,
   CreateServiceResult,
   Customer,
@@ -30,6 +32,7 @@ import type {
   GetSalesSummaryParams,
   HealthStatus,
   ListAdminSalesParams,
+  ListAwgUsageParams,
   ListCustomersParams,
   ListSalesParams,
   ListServicesParams,
@@ -1152,6 +1155,161 @@ export const useUpdateSale = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateSaleMutationOptions(options));
+    }
+
+export const getListAwgUsageUrl = (params?: ListAwgUsageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/awg-usage?${stringifiedParams}` : `/api/awg-usage`
+}
+
+/**
+ * @summary Search current AmneziaWG usage for the user's active services
+ */
+export const listAwgUsage = async (params?: ListAwgUsageParams, options?: Parameters<typeof customFetch>[1]): Promise<AwgUsagePage> => {
+
+  return customFetch<AwgUsagePage>(getListAwgUsageUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAwgUsageQueryKey = (params?: ListAwgUsageParams,) => {
+    return [
+    `/api/awg-usage`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAwgUsageQueryOptions = <TData = Awaited<ReturnType<typeof listAwgUsage>>, TError = ErrorType<unknown>>(params?: ListAwgUsageParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAwgUsage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAwgUsageQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAwgUsage>>> = ({ signal }) => listAwgUsage(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAwgUsage>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAwgUsageQueryResult = NonNullable<Awaited<ReturnType<typeof listAwgUsage>>>
+export type ListAwgUsageQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Search current AmneziaWG usage for the user's active services
+ */
+
+export function useListAwgUsage<TData = Awaited<ReturnType<typeof listAwgUsage>>, TError = ErrorType<unknown>>(
+ params?: ListAwgUsageParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAwgUsage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAwgUsageQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRefreshAwgUsageUrl = (id: number,) => {
+
+
+
+
+  return `/api/awg-usage/${id}/refresh`
+}
+
+/**
+ * @summary Read live usage from AmneziaWG for one active service
+ */
+export const refreshAwgUsage = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AwgUsageRefreshResult> => {
+
+  return customFetch<AwgUsageRefreshResult>(getRefreshAwgUsageUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRefreshAwgUsageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshAwgUsage>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refreshAwgUsage>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['refreshAwgUsage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refreshAwgUsage>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  refreshAwgUsage(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefreshAwgUsageMutationResult = NonNullable<Awaited<ReturnType<typeof refreshAwgUsage>>>
+
+    export type RefreshAwgUsageMutationError = ErrorType<void>
+
+    /**
+ * @summary Read live usage from AmneziaWG for one active service
+ */
+export const useRefreshAwgUsage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshAwgUsage>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refreshAwgUsage>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRefreshAwgUsageMutationOptions(options));
     }
 
 export const getListServicesUrl = (params?: ListServicesParams,) => {

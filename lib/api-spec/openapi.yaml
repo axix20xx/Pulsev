@@ -258,6 +258,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Sale"
+  /awg-usage:
+    get:
+      operationId: listAwgUsage
+      tags: [services]
+      summary: Search current AmneziaWG usage for the user's active services
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/AwgUsageLimit"
+        - $ref: "#/components/parameters/AwgUsageOffset"
+      responses:
+        "200":
+          description: Active AWG services matching the search
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AwgUsagePage"
+  /awg-usage/{id}/refresh:
+    post:
+      operationId: refreshAwgUsage
+      tags: [services]
+      summary: Read live usage from AmneziaWG for one active service
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Fresh AWG usage saved for the service
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AwgUsageRefreshResult"
+        "404":
+          description: Service is not visible to the current user
+        "409":
+          description: Service is not active, has no AWG client, or is busy
+        "429":
+          description: This service was checked too recently
+        "502":
+          description: AmneziaWG usage could not be read
   /services:
     get:
       operationId: listServices
@@ -653,6 +691,26 @@ components:
         minimum: 1
         maximum: 5000
         default: 1000
+    AwgUsageLimit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum active AWG users returned per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    AwgUsageOffset:
+      name: offset
+      in: query
+      required: false
+      description: Number of matching active AWG users to skip
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 100000
+        default: 0
     FromDate:
       name: from
       in: query
@@ -1124,6 +1182,59 @@ components:
           type: ["string", "null"]
         status:
           type: ["string", "null"]
+    AwgUsageItem:
+      type: object
+      required: [id, service_code, customer_id, customer_name, phone, username, plan, status, expires_at, used_gb, rx_gb, tx_gb, raw_total_gb, offset_gb]
+      properties:
+        id:
+          type: number
+        service_code:
+          type: string
+        customer_id:
+          type: ["number", "null"]
+        customer_name:
+          type: string
+        phone:
+          type: ["string", "null"]
+        username:
+          type: string
+        plan:
+          type: string
+        status:
+          type: string
+          enum: [active, expiring]
+        expires_at:
+          type: ["string", "null"]
+        used_gb:
+          type: number
+        rx_gb:
+          type: number
+        tx_gb:
+          type: number
+        raw_total_gb:
+          type: number
+        offset_gb:
+          type: number
+    AwgUsagePage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AwgUsageItem"
+        total:
+          type: integer
+          minimum: 0
+    AwgUsageRefreshResult:
+      type: object
+      required: [item, checked_at]
+      properties:
+        item:
+          $ref: "#/components/schemas/AwgUsageItem"
+        checked_at:
+          type: string
+          format: date-time
     Service:
       type: object
       required: [id, service_code, customer_id, customer_name, username, plan, panel, status, expires_at, used_gb, limit_gb, note, subscription_url, created_at, last_renewed_at]

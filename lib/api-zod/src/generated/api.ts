@@ -414,6 +414,80 @@ export const UpdateSaleResponse = zod.object({
 
 
 /**
+ * @summary Search current AmneziaWG usage for the user's active services
+ */
+export const listAwgUsageQueryLimitDefault = 25;
+export const listAwgUsageQueryLimitMax = 100;
+
+export const listAwgUsageQueryOffsetDefault = 0;
+export const listAwgUsageQueryOffsetMin = 0;
+export const listAwgUsageQueryOffsetMax = 100000;
+
+
+
+export const ListAwgUsageQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().int().min(1).max(listAwgUsageQueryLimitMax).default(listAwgUsageQueryLimitDefault).describe('Maximum active AWG users returned per page'),
+  "offset": zod.coerce.number().int().min(listAwgUsageQueryOffsetMin).max(listAwgUsageQueryOffsetMax).default(listAwgUsageQueryOffsetDefault).describe('Number of matching active AWG users to skip')
+})
+
+export const listAwgUsageResponseTotalMin = 0;
+
+
+
+export const ListAwgUsageResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "service_code": zod.string(),
+  "customer_id": zod.number().nullable(),
+  "customer_name": zod.string(),
+  "phone": zod.string().nullable(),
+  "username": zod.string(),
+  "plan": zod.string(),
+  "status": zod.enum(['active', 'expiring']),
+  "expires_at": zod.string().nullable(),
+  "used_gb": zod.number(),
+  "rx_gb": zod.number(),
+  "tx_gb": zod.number(),
+  "raw_total_gb": zod.number(),
+  "offset_gb": zod.number()
+})),
+  "total": zod.int().min(listAwgUsageResponseTotalMin)
+})
+
+
+/**
+ * @summary Read live usage from AmneziaWG for one active service
+ */
+
+
+
+export const RefreshAwgUsageParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const RefreshAwgUsageResponse = zod.object({
+  "item": zod.object({
+  "id": zod.number(),
+  "service_code": zod.string(),
+  "customer_id": zod.number().nullable(),
+  "customer_name": zod.string(),
+  "phone": zod.string().nullable(),
+  "username": zod.string(),
+  "plan": zod.string(),
+  "status": zod.enum(['active', 'expiring']),
+  "expires_at": zod.string().nullable(),
+  "used_gb": zod.number(),
+  "rx_gb": zod.number(),
+  "tx_gb": zod.number(),
+  "raw_total_gb": zod.number(),
+  "offset_gb": zod.number()
+}),
+  "checked_at": zod.coerce.date()
+})
+
+
+/**
  * @summary List services visible to the current user
  */
 export const listServicesQueryLimitDefault = 1000;

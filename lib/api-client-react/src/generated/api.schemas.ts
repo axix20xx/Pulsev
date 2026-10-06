@@ -278,6 +278,45 @@ export interface WorkspaceSearchResult {
   status: string | null;
 }
 
+export type AwgUsageItemStatus = typeof AwgUsageItemStatus[keyof typeof AwgUsageItemStatus];
+
+
+export const AwgUsageItemStatus = {
+  active: 'active',
+  expiring: 'expiring',
+} as const;
+
+export interface AwgUsageItem {
+  id: number;
+  service_code: string;
+  /** @nullable */
+  customer_id: number | null;
+  customer_name: string;
+  /** @nullable */
+  phone: string | null;
+  username: string;
+  plan: string;
+  status: AwgUsageItemStatus;
+  /** @nullable */
+  expires_at: string | null;
+  used_gb: number;
+  rx_gb: number;
+  tx_gb: number;
+  raw_total_gb: number;
+  offset_gb: number;
+}
+
+export interface AwgUsagePage {
+  items: AwgUsageItem[];
+  /** @minimum 0 */
+  total: number;
+}
+
+export interface AwgUsageRefreshResult {
+  item: AwgUsageItem;
+  checked_at: string;
+}
+
 export type ServiceStatus = typeof ServiceStatus[keyof typeof ServiceStatus];
 
 
@@ -538,6 +577,16 @@ export type LimitParameter = number;
 export type ServicesLimitParameter = number;
 
 /**
+ * Maximum active AWG users returned per page
+ */
+export type AwgUsageLimitParameter = number;
+
+/**
+ * Number of matching active AWG users to skip
+ */
+export type AwgUsageOffsetParameter = number;
+
+/**
  * Start date in ISO Gregorian format; the UI displays this as a Persian date.
  */
 export type FromDateParameter = string;
@@ -611,6 +660,22 @@ from?: FromDateParameter;
  * @pattern ^\d{4}-\d{2}-\d{2}$
  */
 to?: ToDateParameter;
+};
+
+export type ListAwgUsageParams = {
+search?: SearchParameter;
+/**
+ * Maximum active AWG users returned per page
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: AwgUsageLimitParameter;
+/**
+ * Number of matching active AWG users to skip
+ * @minimum 0
+ * @maximum 100000
+ */
+offset?: AwgUsageOffsetParameter;
 };
 
 export type ListServicesParams = {
