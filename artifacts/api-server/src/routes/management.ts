@@ -27,6 +27,9 @@ import {
   RenewServiceBody,
   RenewServiceParams,
   RenewServiceResponse,
+  RepairServiceProviderBody,
+  RepairServiceProviderParams,
+  RepairServiceProviderResponse,
   UpdateResellerBody,
   UpdateResellerParams,
   UpdateResellerResponse,
@@ -63,6 +66,7 @@ import {
   listPasarguardConnectionUsers,
   prepareOpenVpnAccount,
   provisionUser,
+  repairXrayProviderUser,
   RainApiError,
   testPanelAuthentication,
   legacySubscriptionUrl,
@@ -1166,8 +1170,6 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     || (quotaFinished ? "حجم اشتراک به پایان رسیده است" : dateFinished ? "تاریخ اعتبار اشتراک به پایان رسیده است" : null);
   const serviceCode = `PULSE-${String(row.id).padStart(6, "0")}`;
   const daysRemaining = expiresAt > 0 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 86400000)) : null;
-  const availableProviders = await listAvailablePanels();
-  const openvpnAvailable = availableProviders.some((provider) => provider.kind === "azadpanel");
   const announcement = finished
     ? {
         title: "اشتراک پایان یافته است",
@@ -1202,7 +1204,7 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     public_url: `/sub?t=${encodeURIComponent(token)}`,
     awg_ready: !finished && Boolean(row.awg_client_id),
     awg_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
-    openvpn_available: !finished && openvpnAvailable,
+    openvpn_available: !finished && Boolean(token),
     provider_label: "V2Box",
     announcement: { ...announcement, service_code: serviceCode },
   });
@@ -3348,6 +3350,7 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
        COALESCE((
          SELECT json_agg(json_build_object(
            'panel_key', panel.key,
+           'panel_kind', panel.kind,
            'used_gb', GREATEST(0, COALESCE(usage.upload, 0) + COALESCE(usage.download, 0) - COALESCE(usage.offset_bytes, 0)) / 1073741824.0,
            'raw_used_gb', (COALESCE(usage.upload, 0) + COALESCE(usage.download, 0)) / 1073741824.0,
            'offset_gb', COALESCE(usage.offset_bytes, 0) / 1073741824.0,
@@ -3358,9 +3361,7 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
            ON usage.username = svc.rain_username
           AND usage.panel_key = panel.key
          WHERE panel.is_enabled = 1
-           AND panel.kind IN ('rain_admin', 'marzban')
-           AND NULLIF(panel.username_secret, '') IS NOT NULL
-           AND NULLIF(panel.password_secret, '') IS NOT NULL
+           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
        ), '[]'::json) AS panel_usages,
        CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE json_build_object(
          'rx_gb', COALESCE(svc.awg_rx, 0) / 1073741824.0,
@@ -4080,6 +4081,97 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   }
 });
 
+router.post("/services/:id/repair-provider", requireAuth, async (req, res): Promise<void> => {
+  if (req.auth?.role !== "reseller" && req.auth?.role !== "master_admin") {
+    res.status(403).json({ error: "دسترسی تعمیر Provider مجاز نیست." });
+    return;
+  }
+  const params = RepairServiceProviderParams.safeParse(req.params);
+  const body = RepairServiceProviderBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "شناسه سرویس یا Provider معتبر نیست." });
+    return;
+  }
+
+  const serviceId = params.data.id;
+  const lifecycleLock = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lifecycleLock.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [serviceId],
+    );
+    if (!lockResult.rows[0]?.locked) {
+      res.status(409).json({ error: "عملیات دیگری روی این سرویس در حال انجام است؛ کمی بعد دوباره تلاش کنید." });
+      return;
+    }
+    lockAcquired = true;
+
+    const owner = ownership("svc", req);
+    const currentResult = await pool.query<{
+      username: string;
+      gb: number;
+      expires_at: Date | string;
+      status: string;
+      used_bytes: number;
+      reseller_tg_id: number;
+    }>(
+      `SELECT svc.rain_username AS username,
+              svc.gb::float8 AS gb,
+              svc.expire_at AS expires_at,
+              svc.status,
+              COALESCE(svc.last_used_bytes, 0)::float8 AS used_bytes,
+              svc.reseller_tg_id
+       FROM reseller_services svc
+       WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+      [serviceId, ...owner.params],
+    );
+    const current = currentResult.rows[0];
+    if (!current) {
+      res.status(404).json({ error: "سرویس پیدا نشد." });
+      return;
+    }
+    const expiry = new Date(current.expires_at);
+    const totalBytes = Math.max(0, Number(current.gb) * 1024 ** 3);
+    const remainingBytes = Math.max(0, totalBytes - Number(current.used_bytes ?? 0));
+    if (
+      current.status !== "active" ||
+      !Number.isFinite(expiry.getTime()) ||
+      expiry.getTime() <= Date.now() ||
+      remainingBytes <= 0
+    ) {
+      res.status(409).json({
+        error: "تعمیر فقط برای سرویس فعال با اعتبار زمانی و حجم باقیمانده انجام می‌شود؛ سهمیه یا زمان افزایش داده نشد.",
+      });
+      return;
+    }
+    try {
+      const repaired = await repairXrayProviderUser(
+        current.username,
+        Number(current.gb),
+        expiry,
+        body.data.provider_key,
+        Number(current.reseller_tg_id),
+        req.auth.role,
+      );
+      res.json(RepairServiceProviderResponse.parse({
+        service_id: serviceId,
+        provider_key: repaired.key,
+        repaired: true,
+        usage_reset: false,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Provider repair failed.";
+      res.status(502).json({ error: message });
+    }
+  } finally {
+    if (lockAcquired) {
+      await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [serviceId]).catch(() => undefined);
+    }
+    lifecycleLock.release();
+  }
+});
+
 router.post("/services/:id/awg", requireAuth, async (req, res): Promise<void> => {
   const params = UpdateServiceParams.safeParse(req.params);
   if (!params.success) {
@@ -4344,6 +4436,7 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
            SELECT unnest($1::text[]) AS username
          )
          SELECT requested.username, panel.key AS panel_key,
+                panel.kind AS panel_kind,
                 COALESCE(usage.upload, 0) AS upload,
                 COALESCE(usage.download, 0) AS download,
                 COALESCE(usage.offset_bytes, 0) AS offset_bytes,
@@ -4354,9 +4447,7 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
            ON usage.username = requested.username
           AND usage.panel_key = panel.key
          WHERE panel.is_enabled = 1
-           AND panel.kind IN ('rain_admin', 'marzban')
-           AND NULLIF(panel.username_secret, '') IS NOT NULL
-           AND NULLIF(panel.password_secret, '') IS NOT NULL
+           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
          ORDER BY requested.username, panel.key`,
         [services.rows.map((service: any) => service.username)],
       )
@@ -4367,6 +4458,7 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
     const rawBytes = Number(usage.upload ?? 0) + Number(usage.download ?? 0);
     entries.push({
       panel_key: usage.panel_key,
+      panel_kind: usage.panel_kind,
       used_gb: Math.max(0, rawBytes - Number(usage.offset_bytes ?? 0)) / 1073741824,
       raw_used_gb: rawBytes / 1073741824,
       offset_gb: Number(usage.offset_bytes ?? 0) / 1073741824,

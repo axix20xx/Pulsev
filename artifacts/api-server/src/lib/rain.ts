@@ -1037,6 +1037,71 @@ export async function provisionUser(
   return { ok: true, results };
 }
 
+export async function repairXrayProviderUser(
+  username: string,
+  gb: number,
+  expiresAt: Date,
+  providerKey: string,
+  ownerId?: number,
+  role?: string,
+): Promise<{ key: string; kind: "rain_admin" | "marzban"; status: number }> {
+  const panel = (await panels(ownerId, role)).find((candidate) => panelKey(candidate) === providerKey);
+  if (!panel) {
+    throw new RainApiError("Provider انتخاب‌شده فعال یا دارای credential نیست.");
+  }
+  const kind = panelKind(panel);
+  if (kind !== "rain_admin" && kind !== "marzban") {
+    throw new RainApiError("تعمیر فقط برای Providerهای Xray پشتیبانی می‌شود.");
+  }
+  if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+    throw new RainApiError("اعتبار سرویس پایان یافته است؛ هیچ تغییری در Provider انجام نشد.");
+  }
+
+  const encodedUsername = encodeURIComponent(username);
+  const existing = await panelRequest(panel, "GET", `/api/user/${encodedUsername}`);
+  if (existing.status !== 200) {
+    const detail = existing.status === 404
+      ? "کاربر در این Provider پیدا نشد؛ حساب جدیدی ساخته نشد."
+      : `Provider نتوانست حساب را بخواند: ${safeError(existing)}`;
+    throw new RainApiError(detail);
+  }
+
+  const current = nestedPayload(existing.json);
+  const body: Record<string, unknown> = {
+    username,
+    status: "active",
+    expire: Math.floor(expiresAt.getTime() / 1000),
+    data_limit: bytesForGb(gb),
+    data_limit_reset_strategy:
+      typeof current?.data_limit_reset_strategy === "string"
+        ? current.data_limit_reset_strategy
+        : "no_reset",
+  };
+
+  if (kind === "rain_admin") {
+    body.group_ids = groupIdsFromUser(existing.json);
+  }
+  for (const field of [
+    "group_ids",
+    "proxies",
+    "inbounds",
+    "excluded_inbounds",
+    "proxy_settings",
+    "note",
+  ]) {
+    if (field === "group_ids" && kind === "rain_admin") continue;
+    if (current?.[field] !== undefined && current[field] !== null) {
+      body[field] = current[field];
+    }
+  }
+
+  const response = await panelRequest(panel, "PUT", `/api/user/${encodedUsername}`, body);
+  if (response.status < 200 || response.status >= 300) {
+    throw new RainApiError(`Provider ${panelKey(panel)} تعمیر را نپذیرفت: ${safeError(response)}`);
+  }
+  return { key: panelKey(panel), kind, status: response.status };
+}
+
 export type OpenVpnLocation = {
   id: string;
   name: string;

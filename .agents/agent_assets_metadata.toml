@@ -1010,3 +1010,17 @@ mtime_ms = 1791298115760
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/7093d7aa-f78e-4c79-890d-35bc0be6a557/1fe86617-1435-4f81-9c54-98c2306063b8"
 storage_version_token = "1791298124106001"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "FUZhikQh6U9QB2p_UGHMo"
+uri = "file://exports/pulse-hostinger-openvpn-xray-repair-2026-10-06.zip"
+type = "unspecified"
+title = "Pulse Hostinger deployment ZIP"
+description = "Updated full Hostinger package with AzadPanel OpenVPN usage on customer pages, an OpenVPN create/open action, and a confirmed single-provider Xray repair that preserves usage, quota, and expiry."
+logical_id = "55bbbf3d-6b24-4a5a-a09f-a02ab8d9d4e4"
+content_hash = "sha256:274fb606b9d41540c47c7098cce3eda3cbec534d0444a5c9db6ae816573b8c7d"
+size = 28267708
+mtime_ms = 1791299585115
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/55bbbf3d-6b24-4a5a-a09f-a02ab8d9d4e4/e5a99311-ed10-4948-8e35-9b2cecd742da"
+storage_version_token = "1791299653300588"
+content_type = "application/octet-stream"

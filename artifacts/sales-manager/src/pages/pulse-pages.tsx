@@ -5,7 +5,7 @@ import { Activity, Apple, ArrowUpLeft, Bell, CalendarDays, Check, CheckCircle2, 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import QRCode from 'qrcode';
 import { Link, useLocation, useParams } from 'wouter';
-import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, type AdminSale } from '@workspace/api-client-react';
+import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useRepairServiceProvider, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, type AdminSale } from '@workspace/api-client-react';
 import { Customer, Service, Sale, dateLabel, dateTimeLabel, daysUntil, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, jalaliToGregorian, money, todayLabel } from '@/lib/pulse-data';
 import { Avatar, PageHeader, StatusPill } from '@/components/pulse-shell';
 import { PulseNetworkAccent } from '@/components/pulse-network-accent';
@@ -30,7 +30,7 @@ const subscriptionFeedUrl = (raw: string | null | undefined) => { if (!raw) retu
 const mapService = (item: any): Service => {
   const expiresAt = item.expires_at ?? '';
   const status: Service['status'] = item.status === 'disabled' ? 'Disabled' : item.status === 'expired' ? 'Expired' : item.status === 'expiring' || (item.status === 'active' && expiresAt && daysUntil(expiresAt) >= 0 && daysUntil(expiresAt) <= 7) ? 'Expiring' : 'Active';
-  return { id: String(item.id), serviceCode: item.service_code ?? `PULSE-${String(item.id).padStart(6, '0')}`, customerId: String(item.customer_id ?? ''), customerName: item.customer_name ?? 'مشتری', username: item.username ?? 'بدون نام کاربری', plan: item.plan ?? 'سرویس پایه', panel: item.panel ?? 'پنل اصلی', status, expiresAt, createdAt: item.created_at ?? '', lastRenewedAt: item.last_renewed_at ?? null, provisionStatus: item.provision_status ?? null, provisionLastError: item.provision_last_error ?? null, provisionUpdatedAt: item.provision_updated_at ?? null, cancelStatus: item.cancel_status ?? null, cancelRequestedAt: item.cancel_requested_at ?? null, usedGb: Number(item.used_gb ?? 0), limitGb: Number(item.limit_gb ?? 0), note: item.note ?? item.admin_notes ?? '', subscriptionUrl: subscriptionFeedUrl(item.subscription_url ?? null), publicSubscriptionUrl: freshSubscriptionUrl(item.subscription_url ?? null), awgReady: Boolean(item.awg_ready), awgConfigUrl: item.awg_config_url ?? null, panelUsages: Array.isArray(item.panel_usages) ? item.panel_usages.map((usage: any) => ({ panelKey: String(usage.panel_key), usedGb: Number(usage.used_gb ?? 0), rawUsedGb: Number(usage.raw_used_gb ?? 0), offsetGb: Number(usage.offset_gb ?? 0), lastUpdated: usage.last_updated ?? null })) : [], awgUsage: item.awg_usage ? { rxGb: Number(item.awg_usage.rx_gb ?? 0), txGb: Number(item.awg_usage.tx_gb ?? 0), rawTotalGb: Number(item.awg_usage.raw_total_gb ?? 0), usedGb: Number(item.awg_usage.used_gb ?? 0), offsetGb: Number(item.awg_usage.offset_gb ?? 0), lastUpdated: item.awg_usage.last_updated ?? null } : null };
+  return { id: String(item.id), serviceCode: item.service_code ?? `PULSE-${String(item.id).padStart(6, '0')}`, customerId: String(item.customer_id ?? ''), customerName: item.customer_name ?? 'مشتری', username: item.username ?? 'بدون نام کاربری', plan: item.plan ?? 'سرویس پایه', panel: item.panel ?? 'پنل اصلی', status, expiresAt, createdAt: item.created_at ?? '', lastRenewedAt: item.last_renewed_at ?? null, provisionStatus: item.provision_status ?? null, provisionLastError: item.provision_last_error ?? null, provisionUpdatedAt: item.provision_updated_at ?? null, cancelStatus: item.cancel_status ?? null, cancelRequestedAt: item.cancel_requested_at ?? null, usedGb: Number(item.used_gb ?? 0), limitGb: Number(item.limit_gb ?? 0), note: item.note ?? item.admin_notes ?? '', subscriptionUrl: subscriptionFeedUrl(item.subscription_url ?? null), publicSubscriptionUrl: freshSubscriptionUrl(item.subscription_url ?? null), awgReady: Boolean(item.awg_ready), awgConfigUrl: item.awg_config_url ?? null, panelUsages: Array.isArray(item.panel_usages) ? item.panel_usages.map((usage: any) => ({ panelKey: String(usage.panel_key), panelKind: String(usage.panel_kind ?? ''), usedGb: Number(usage.used_gb ?? 0), rawUsedGb: Number(usage.raw_used_gb ?? 0), offsetGb: Number(usage.offset_gb ?? 0), lastUpdated: usage.last_updated ?? null })) : [], awgUsage: item.awg_usage ? { rxGb: Number(item.awg_usage.rx_gb ?? 0), txGb: Number(item.awg_usage.tx_gb ?? 0), rawTotalGb: Number(item.awg_usage.raw_total_gb ?? 0), usedGb: Number(item.awg_usage.used_gb ?? 0), offsetGb: Number(item.awg_usage.offset_gb ?? 0), lastUpdated: item.awg_usage.last_updated ?? null } : null };
 };
 const serviceDisplayCode = (service: Service) => service.serviceCode ?? `PULSE-${String(service.id).replace(/\D/g, '').padStart(6, '0')}`;
 const serviceTimestamp = (value?: string | null) => value ? new Date(value).getTime() || 0 : 0;
@@ -1566,6 +1566,10 @@ function SendIcon() {
 const usageLabel = (value: number) => value > 0 && value < 0.01 ? `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(value * 1024)} مگابایت` : `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(value)} گیگابایت`;
 const usageDate = (value: string | null) => value ? dateLabel(value) : 'هنوز همگام‌سازی نشده';
 function ServiceUsageBreakdown({ service }: { service: Service }) {
+  const queryClient = useQueryClient();
+  const providerRepairMutation = useRepairServiceProvider();
+  const [repairNotice, setRepairNotice] = useState('');
+  const [repairingKey, setRepairingKey] = useState('');
   const hasPanelUsage = Boolean(service.panelUsages?.length);
   const hasAwgUsage = Boolean(service.awgUsage || service.awgReady);
   const remainingDays = daysUntil(service.expiresAt);
@@ -1573,7 +1577,58 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
   const expiring = !finished && remainingDays <= 7;
   const announcementTitle = finished ? 'اشتراک پایان یافته است' : expiring ? 'زمان تمدید نزدیک است' : 'اشتراک آماده استفاده است';
   const announcementDetail = finished ? 'برای فعال‌سازی دوباره این سرویس، آن را تمدید کنید.' : expiring ? `${remainingDays} روز تا پایان اعتبار باقی مانده است.` : 'این سرویس فعال است و برای اتصال آماده است.';
-  return <><div className={`notice ${finished ? 'notice-danger' : expiring ? 'notice-warning' : ''}`}><Sparkles size={14} /><div><strong>{announcementTitle}</strong><span>شناسه {serviceDisplayCode(service)} · {announcementDetail}</span></div></div>{!hasPanelUsage && !hasAwgUsage ? <div className="usage-breakdown empty"><Wifi size={14} /><span>مصرف تفکیکی هنوز از پنل‌ها دریافت نشده است.</span></div> : <div className="usage-breakdown"><div className="usage-breakdown-title"><span>مصرف تفکیکی اتصال‌ها</span><small>آخرین همگام‌سازی هر منبع جداست</small></div>{service.panelUsages?.map((usage) => <div className="usage-source" key={`${service.id}-${usage.panelKey}`}><div className="usage-source-icon"><Server size={13} /></div><div className="usage-source-name"><strong>{usage.panelKey}</strong><small>{usageDate(usage.lastUpdated)}</small></div><div className="usage-source-value"><strong>{usageLabel(usage.usedGb)}</strong><small>عدد خام: {usageLabel(usage.rawUsedGb)} · پایه مصرف: {usageLabel(usage.offsetGb)}</small></div></div>)}{service.awgUsage ? <div className="usage-source awg"><div className="usage-source-icon"><Wifi size={13} /></div><div className="usage-source-name"><strong>AmneziaWG</strong><small>{usageDate(service.awgUsage.lastUpdated)}</small></div><div className="usage-source-value"><strong>{usageLabel(service.awgUsage.usedGb)}</strong><small>دریافت: {usageLabel(service.awgUsage.rxGb)} · ارسال: {usageLabel(service.awgUsage.txGb)}</small></div></div> : service.awgReady && <div className="usage-source awg"><div className="usage-source-icon"><Wifi size={13} /></div><div className="usage-source-name"><strong>AmneziaWG</strong><small>در انتظار اولین همگام‌سازی</small></div><div className="usage-source-value"><strong>۰ گیگابایت</strong><small>آمار هنوز دریافت نشده است</small></div></div>}</div>}</>;
+  const repairProvider = async (panelKey: string) => {
+    const serviceId = Number(service.id.replace(/\D/g, ''));
+    if (!Number.isSafeInteger(serviceId) || serviceId <= 0) return;
+    const accepted = window.confirm(
+      `فقط حساب ${panelKey} برای ${service.username} دوباره فعال می‌شود. حجم مصرف‌شده پاک نمی‌شود و سهمیه یا زمان سرویس تغییر نمی‌کند. ادامه می‌دهید؟`,
+    );
+    if (!accepted) return;
+    const key = `${service.id}:${panelKey}`;
+    setRepairingKey(key);
+    setRepairNotice('');
+    try {
+      await providerRepairMutation.mutateAsync({ id: serviceId, data: { provider_key: panelKey } });
+      setRepairNotice(`حساب ${service.username} در ${panelKey} فعال شد؛ مصرف، سهمیه و زمان سرویس حفظ شدند.`);
+      void queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) });
+      void queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() });
+    } catch (cause) {
+      setRepairNotice(describeApiError(cause));
+    } finally {
+      setRepairingKey('');
+    }
+  };
+  return <>
+    <div className={`notice ${finished ? 'notice-danger' : expiring ? 'notice-warning' : ''}`}><Sparkles size={14} /><div><strong>{announcementTitle}</strong><span>شناسه {serviceDisplayCode(service)} · {announcementDetail}</span></div></div>
+    {repairNotice && <div className="notice" role="status">{repairNotice}<button type="button" onClick={() => setRepairNotice('')} aria-label="بستن پیام"><X size={14} /></button></div>}
+    {service.publicSubscriptionUrl && <div className="customer-openvpn-action"><a className="service-openvpn-link" href={service.publicSubscriptionUrl} target="_blank" rel="noreferrer" data-testid={`link-customer-openvpn-${service.id}`}><ShieldCheck size={13} /> ساخت / دریافت OpenVPN</a></div>}
+    {!hasPanelUsage && !hasAwgUsage
+      ? <div className="usage-breakdown empty"><Wifi size={14} /><span>مصرف تفکیکی هنوز از پنل‌ها دریافت نشده است.</span></div>
+      : <div className="usage-breakdown">
+        <div className="usage-breakdown-title">
+          <span>مصرف تفکیکی اتصال‌ها</span>
+          <small>آخرین همگام‌سازی هر منبع جداست</small>
+        </div>
+        {service.panelUsages?.map((usage) => {
+          const canRepair = !finished && service.limitGb > service.usedGb &&
+            (usage.panelKind === 'rain_admin' || usage.panelKind === 'marzban');
+          const repairKey = `${service.id}:${usage.panelKey}`;
+          const isRepairing = repairingKey === repairKey;
+          return <div className="usage-source" key={`${service.id}-${usage.panelKey}`}>
+            <div className="usage-source-icon"><Server size={13} /></div>
+            <div className="usage-source-name"><strong>{usage.panelKind === 'azadpanel' ? `${usage.panelKey} · OpenVPN` : usage.panelKey}</strong><small>{usageDate(usage.lastUpdated)}</small></div>
+            <div className="usage-source-value">
+              <strong>{usageLabel(usage.usedGb)}</strong>
+              <small>عدد خام: {usageLabel(usage.rawUsedGb)} · پایه مصرف: {usageLabel(usage.offsetGb)}</small>
+              {canRepair && <button type="button" className="service-provider-repair" onClick={() => void repairProvider(usage.panelKey)} disabled={Boolean(repairingKey)} data-testid={`button-repair-provider-${service.id}-${usage.panelKey}`}>{isRepairing ? <><RefreshCw size={12} className="spin" /> در حال تعمیر...</> : <><RefreshCw size={12} /> تعمیر این Provider</>}</button>}
+            </div>
+          </div>;
+        })}
+        {service.awgUsage
+          ? <div className="usage-source awg"><div className="usage-source-icon"><Wifi size={13} /></div><div className="usage-source-name"><strong>AmneziaWG</strong><small>{usageDate(service.awgUsage.lastUpdated)}</small></div><div className="usage-source-value"><strong>{usageLabel(service.awgUsage.usedGb)}</strong><small>دریافت: {usageLabel(service.awgUsage.rxGb)} · ارسال: {usageLabel(service.awgUsage.txGb)}</small></div></div>
+          : service.awgReady && <div className="usage-source awg"><div className="usage-source-icon"><Wifi size={13} /></div><div className="usage-source-name"><strong>AmneziaWG</strong><small>در انتظار اولین همگام‌سازی</small></div><div className="usage-source-value"><strong>۰ گیگابایت</strong><small>آمار هنوز دریافت نشده است</small></div></div>}
+      </div>}
+  </>;
 }
 
 function ServicesContent() {
@@ -2679,7 +2734,7 @@ function PublicSubscriptionContentV2() {
 
         </section>}
 
-        {!finished && data.openvpn_available && <motion.section {...pageMotion} className="public-sub-openvpn-card" data-testid="card-public-sub-openvpn">
+        {!finished && <motion.section {...pageMotion} className="public-sub-openvpn-card" data-testid="card-public-sub-openvpn">
           <div className="public-sub-openvpn-heading">
             <div className="public-sub-openvpn-icon"><ShieldCheck size={20} /></div>
             <div><p className="public-sub-kicker">دسترسی OpenVPN</p><h2>حساب OpenVPN</h2><p>برای سرویس‌های قدیمی، حساب فقط با انتخاب دکمه ساخته می‌شود.</p></div>

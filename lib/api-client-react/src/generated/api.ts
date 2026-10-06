@@ -47,6 +47,8 @@ import type {
   SalesSummary,
   SearchWorkspaceParams,
   Service,
+  ServiceProviderRepairInput,
+  ServiceProviderRepairResult,
   ServiceUpdate,
   TelegramIdLoginInput,
   TelegramLoginInput,
@@ -1587,6 +1589,78 @@ export const useCreateServiceAwg = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateServiceAwgMutationOptions(options));
+    }
+
+export const getRepairServiceProviderUrl = (id: number,) => {
+
+
+
+
+  return `/api/services/${id}/repair-provider`
+}
+
+/**
+ * @summary Reactivate one Xray provider user without resetting usage
+ */
+export const repairServiceProvider = async (id: number,
+    serviceProviderRepairInput: ServiceProviderRepairInput, options?: Parameters<typeof customFetch>[1]): Promise<ServiceProviderRepairResult> => {
+
+  return customFetch<ServiceProviderRepairResult>(getRepairServiceProviderUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(serviceProviderRepairInput)
+  }
+);}
+
+
+
+
+
+export const getRepairServiceProviderMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairServiceProvider>>, TError,{id: number;data: BodyType<ServiceProviderRepairInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof repairServiceProvider>>, TError,{id: number;data: BodyType<ServiceProviderRepairInput>}, TContext> => {
+
+const mutationKey = ['repairServiceProvider'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof repairServiceProvider>>, {id: number;data: BodyType<ServiceProviderRepairInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  repairServiceProvider(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RepairServiceProviderMutationResult = NonNullable<Awaited<ReturnType<typeof repairServiceProvider>>>
+    export type RepairServiceProviderMutationBody = BodyType<ServiceProviderRepairInput>
+    export type RepairServiceProviderMutationError = ErrorType<void>
+
+    /**
+ * @summary Reactivate one Xray provider user without resetting usage
+ */
+export const useRepairServiceProvider = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairServiceProvider>>, TError,{id: number;data: BodyType<ServiceProviderRepairInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof repairServiceProvider>>,
+        TError,
+        {id: number;data: BodyType<ServiceProviderRepairInput>},
+        TContext
+      > => {
+      return useMutation(getRepairServiceProviderMutationOptions(options));
     }
 
 export const getDownloadServiceAwgUrl = (id: number,) => {

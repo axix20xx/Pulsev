@@ -451,6 +451,7 @@ export const ListServicesResponseItem = zod.object({
   "awg_config_url": zod.string().nullish(),
   "panel_usages": zod.array(zod.object({
   "panel_key": zod.string(),
+  "panel_kind": zod.string(),
   "used_gb": zod.number(),
   "raw_used_gb": zod.number(),
   "offset_gb": zod.number(),
@@ -519,6 +520,7 @@ export const CreateServiceResponse = zod.object({
   "awg_config_url": zod.string().nullish(),
   "panel_usages": zod.array(zod.object({
   "panel_key": zod.string(),
+  "panel_kind": zod.string(),
   "used_gb": zod.number(),
   "raw_used_gb": zod.number(),
   "offset_gb": zod.number(),
@@ -578,6 +580,7 @@ export const UpdateServiceResponse = zod.object({
   "awg_config_url": zod.string().nullish(),
   "panel_usages": zod.array(zod.object({
   "panel_key": zod.string(),
+  "panel_kind": zod.string(),
   "used_gb": zod.number(),
   "raw_used_gb": zod.number(),
   "offset_gb": zod.number(),
@@ -647,6 +650,7 @@ export const RenewServiceResponse = zod.object({
   "awg_config_url": zod.string().nullish(),
   "panel_usages": zod.array(zod.object({
   "panel_key": zod.string(),
+  "panel_kind": zod.string(),
   "used_gb": zod.number(),
   "raw_used_gb": zod.number(),
   "offset_gb": zod.number(),
@@ -689,6 +693,32 @@ export const CreateServiceAwgParams = zod.object({
 })
 
 export const CreateServiceAwgResponse = zod.void()
+
+
+/**
+ * @summary Reactivate one Xray provider user without resetting usage
+ */
+
+
+
+export const RepairServiceProviderParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const repairServiceProviderBodyProviderKeyMax = 255;
+
+
+
+export const RepairServiceProviderBody = zod.object({
+  "provider_key": zod.string().min(1).max(repairServiceProviderBodyProviderKeyMax)
+})
+
+export const RepairServiceProviderResponse = zod.object({
+  "service_id": zod.number(),
+  "provider_key": zod.string(),
+  "repaired": zod.boolean(),
+  "usage_reset": zod.boolean()
+})
 
 
 /**
@@ -771,6 +801,7 @@ export const GetCustomerResponse = zod.object({
   "awg_config_url": zod.string().nullish(),
   "panel_usages": zod.array(zod.object({
   "panel_key": zod.string(),
+  "panel_kind": zod.string(),
   "used_gb": zod.number(),
   "raw_used_gb": zod.number(),
   "offset_gb": zod.number(),

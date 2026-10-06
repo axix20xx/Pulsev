@@ -227,7 +227,7 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
        <div className="mobile-awg-download-heading"><span>دانلود اپ رسمی</span><a href="https://amnezia.org/downloads" target="_blank" rel="noreferrer"><ExternalLink size={13} /> همهٔ دانلودها</a></div>
        <div className="mobile-awg-download-grid">{awgDownloads.map((download) => <a href={download.href} target="_blank" rel="noreferrer" key={download.id} data-testid={`link-mobile-awg-download-${download.id}`}><strong>{download.label}</strong><small>{download.detail}</small><ExternalLink size={13} /></a>)}</div>
     </section> : null}
-     {item.openvpn_available && openVpnToken ? <section className="mobile-openvpn-card" data-testid={`panel-mobile-openvpn-${item.id}`}>
+     {openVpnToken && item.status === 'active' ? <section className="mobile-openvpn-card" data-testid={`panel-mobile-openvpn-${item.id}`}>
        <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">اتصال جداگانه</span><h3>OpenVPN</h3><p>حساب OpenVPN و فایل کانفیگ همین سرویس</p></div></div>
        {!openVpnData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareOpenVpn()} disabled={openVpnBusy} data-testid={`button-mobile-openvpn-prepare-${item.id}`}>{openVpnBusy ? 'در حال دریافت...' : 'دریافت حساب و کانفیگ OpenVPN'}</button> : <>
          <div className="mobile-openvpn-details">

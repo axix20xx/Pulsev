@@ -8,6 +8,7 @@
 
 export interface PanelUsage {
   panel_key: string;
+  panel_kind: string;
   used_gb: number;
   raw_used_gb: number;
   offset_gb: number;

@@ -44762,6 +44762,7 @@ var ListServicesResponseItem = objectType({
   "awg_config_url": stringType().nullish(),
   "panel_usages": arrayType(objectType({
     "panel_key": stringType(),
+    "panel_kind": stringType(),
     "used_gb": numberType(),
     "raw_used_gb": numberType(),
     "offset_gb": numberType(),
@@ -44817,6 +44818,7 @@ var CreateServiceResponse = objectType({
     "awg_config_url": stringType().nullish(),
     "panel_usages": arrayType(objectType({
       "panel_key": stringType(),
+      "panel_kind": stringType(),
       "used_gb": numberType(),
       "raw_used_gb": numberType(),
       "offset_gb": numberType(),
@@ -44866,6 +44868,7 @@ var UpdateServiceResponse = objectType({
   "awg_config_url": stringType().nullish(),
   "panel_usages": arrayType(objectType({
     "panel_key": stringType(),
+    "panel_kind": stringType(),
     "used_gb": numberType(),
     "raw_used_gb": numberType(),
     "offset_gb": numberType(),
@@ -44919,6 +44922,7 @@ var RenewServiceResponse = objectType({
   "awg_config_url": stringType().nullish(),
   "panel_usages": arrayType(objectType({
     "panel_key": stringType(),
+    "panel_kind": stringType(),
     "used_gb": numberType(),
     "raw_used_gb": numberType(),
     "offset_gb": numberType(),
@@ -44943,6 +44947,19 @@ var CreateServiceAwgParams = objectType({
   "id": coerce.number().min(1)
 });
 var CreateServiceAwgResponse = voidType();
+var RepairServiceProviderParams = objectType({
+  "id": coerce.number().min(1)
+});
+var repairServiceProviderBodyProviderKeyMax = 255;
+var RepairServiceProviderBody = objectType({
+  "provider_key": stringType().min(1).max(repairServiceProviderBodyProviderKeyMax)
+});
+var RepairServiceProviderResponse = objectType({
+  "service_id": numberType(),
+  "provider_key": stringType(),
+  "repaired": booleanType(),
+  "usage_reset": booleanType()
+});
 var DownloadServiceAwgParams = objectType({
   "id": coerce.number().min(1)
 });
@@ -44998,6 +45015,7 @@ var GetCustomerResponse = objectType({
     "awg_config_url": stringType().nullish(),
     "panel_usages": arrayType(objectType({
       "panel_key": stringType(),
+      "panel_kind": stringType(),
       "used_gb": numberType(),
       "raw_used_gb": numberType(),
       "offset_gb": numberType(),
@@ -64555,6 +64573,54 @@ async function provisionUser(username, gb, days, label, ownerId, role, onlyPanel
   }
   return { ok: true, results };
 }
+async function repairXrayProviderUser(username, gb, expiresAt, providerKey, ownerId, role) {
+  const panel = (await panels(ownerId, role)).find((candidate) => panelKey(candidate) === providerKey);
+  if (!panel) {
+    throw new RainApiError("Provider \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0634\u062F\u0647 \u0641\u0639\u0627\u0644 \u06CC\u0627 \u062F\u0627\u0631\u0627\u06CC credential \u0646\u06CC\u0633\u062A.");
+  }
+  const kind = panelKind(panel);
+  if (kind !== "rain_admin" && kind !== "marzban") {
+    throw new RainApiError("\u062A\u0639\u0645\u06CC\u0631 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC Provider\u0647\u0627\u06CC Xray \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0645\u06CC\u200C\u0634\u0648\u062F.");
+  }
+  if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+    throw new RainApiError("\u0627\u0639\u062A\u0628\u0627\u0631 \u0633\u0631\u0648\u06CC\u0633 \u067E\u0627\u06CC\u0627\u0646 \u06CC\u0627\u0641\u062A\u0647 \u0627\u0633\u062A\u061B \u0647\u06CC\u0686 \u062A\u063A\u06CC\u06CC\u0631\u06CC \u062F\u0631 Provider \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F.");
+  }
+  const encodedUsername = encodeURIComponent(username);
+  const existing = await panelRequest(panel, "GET", `/api/user/${encodedUsername}`);
+  if (existing.status !== 200) {
+    const detail = existing.status === 404 ? "\u06A9\u0627\u0631\u0628\u0631 \u062F\u0631 \u0627\u06CC\u0646 Provider \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F\u061B \u062D\u0633\u0627\u0628 \u062C\u062F\u06CC\u062F\u06CC \u0633\u0627\u062E\u062A\u0647 \u0646\u0634\u062F." : `Provider \u0646\u062A\u0648\u0627\u0646\u0633\u062A \u062D\u0633\u0627\u0628 \u0631\u0627 \u0628\u062E\u0648\u0627\u0646\u062F: ${safeError(existing)}`;
+    throw new RainApiError(detail);
+  }
+  const current = nestedPayload(existing.json);
+  const body = {
+    username,
+    status: "active",
+    expire: Math.floor(expiresAt.getTime() / 1e3),
+    data_limit: bytesForGb(gb),
+    data_limit_reset_strategy: typeof current?.data_limit_reset_strategy === "string" ? current.data_limit_reset_strategy : "no_reset"
+  };
+  if (kind === "rain_admin") {
+    body.group_ids = groupIdsFromUser(existing.json);
+  }
+  for (const field of [
+    "group_ids",
+    "proxies",
+    "inbounds",
+    "excluded_inbounds",
+    "proxy_settings",
+    "note"
+  ]) {
+    if (field === "group_ids" && kind === "rain_admin") continue;
+    if (current?.[field] !== void 0 && current[field] !== null) {
+      body[field] = current[field];
+    }
+  }
+  const response = await panelRequest(panel, "PUT", `/api/user/${encodedUsername}`, body);
+  if (response.status < 200 || response.status >= 300) {
+    throw new RainApiError(`Provider ${panelKey(panel)} \u062A\u0639\u0645\u06CC\u0631 \u0631\u0627 \u0646\u067E\u0630\u06CC\u0631\u0641\u062A: ${safeError(response)}`);
+  }
+  return { key: panelKey(panel), kind, status: response.status };
+}
 async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, requestedPanelKey) {
   const openVpnPanels = (await panels(ownerId, role)).filter((panel2) => panelKind(panel2) === "azadpanel");
   const panel = requestedPanelKey ? openVpnPanels.find((candidate) => panelKey(candidate) === requestedPanelKey) : openVpnPanels[0];
@@ -65484,7 +65550,7 @@ var originPath = (req, pathname) => {
   return `${forwardedProto || req.protocol}://${forwardedHost || req.get("host")}${pathname}`;
 };
 var asIso = (value) => value ? new Date(value).toISOString() : null;
-var mapService = (req, row, openVpnAvailable = false) => {
+var mapService = (req, row) => {
   const totalBytes = Number(row.last_total_bytes ?? 0) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
   const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
   const remainingBytes = row.last_remaining_bytes !== null && row.last_remaining_bytes !== void 0 ? Math.max(0, Number(row.last_remaining_bytes)) : Math.max(0, totalBytes - usedBytes);
@@ -65512,7 +65578,7 @@ var mapService = (req, row, openVpnAvailable = false) => {
     provider_url: subscriptionUrl2,
     v2box_url: subscriptionUrl2 ? `v2box://install-sub?url=${encodeURIComponent(subscriptionUrl2)}&name=${encodeURIComponent(row.plan)}` : null,
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
-    openvpn_available: openVpnAvailable && Boolean(token) && status === "active",
+    openvpn_available: Boolean(token) && status === "active",
     awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
     service_code: `PULSE-${String(row.id).padStart(6, "0")}`
   };
@@ -65531,8 +65597,7 @@ var listServices = async (req, customerId2) => {
      ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.expire_at DESC NULLS LAST, svc.id DESC`,
     [customerId2]
   );
-  const openVpnAvailable = (await listAvailablePanels()).some((panel) => panel.kind === "azadpanel");
-  return result.rows.map((row) => mapService(req, row, openVpnAvailable));
+  return result.rows.map((row) => mapService(req, row));
 };
 var configuredVapidPublicKey = "";
 var configureVapid = (config3) => {
@@ -67376,8 +67441,6 @@ router2.get("/public/subscription/:token", async (req, res) => {
   const disableReason = row.disable_reason || (quotaFinished ? "\u062D\u062C\u0645 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : dateFinished ? "\u062A\u0627\u0631\u06CC\u062E \u0627\u0639\u062A\u0628\u0627\u0631 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : null);
   const serviceCode = `PULSE-${String(row.id).padStart(6, "0")}`;
   const daysRemaining = expiresAt > 0 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 864e5)) : null;
-  const availableProviders = await listAvailablePanels();
-  const openvpnAvailable = availableProviders.some((provider) => provider.kind === "azadpanel");
   const announcement = finished ? {
     title: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u0627\u06CC\u0627\u0646 \u06CC\u0627\u0641\u062A\u0647 \u0627\u0633\u062A",
     detail: `${disableReason || "\u0627\u0639\u062A\u0628\u0627\u0631 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A"}\u061B \u0628\u0631\u0627\u06CC \u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u062F\u0648\u0628\u0627\u0631\u0647 \u0628\u0627 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u062A\u0645\u0627\u0633 \u0628\u06AF\u06CC\u0631\u06CC\u062F.`,
@@ -67408,7 +67471,7 @@ router2.get("/public/subscription/:token", async (req, res) => {
     public_url: `/sub?t=${encodeURIComponent(token)}`,
     awg_ready: !finished && Boolean(row.awg_client_id),
     awg_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
-    openvpn_available: !finished && openvpnAvailable,
+    openvpn_available: !finished && Boolean(token),
     provider_label: "V2Box",
     announcement: { ...announcement, service_code: serviceCode }
   });
@@ -69392,6 +69455,7 @@ router2.get("/services", requireAuth, async (req, res) => {
        COALESCE((
          SELECT json_agg(json_build_object(
            'panel_key', panel.key,
+           'panel_kind', panel.kind,
            'used_gb', GREATEST(0, COALESCE(usage.upload, 0) + COALESCE(usage.download, 0) - COALESCE(usage.offset_bytes, 0)) / 1073741824.0,
            'raw_used_gb', (COALESCE(usage.upload, 0) + COALESCE(usage.download, 0)) / 1073741824.0,
            'offset_gb', COALESCE(usage.offset_bytes, 0) / 1073741824.0,
@@ -69402,9 +69466,7 @@ router2.get("/services", requireAuth, async (req, res) => {
            ON usage.username = svc.rain_username
           AND usage.panel_key = panel.key
          WHERE panel.is_enabled = 1
-           AND panel.kind IN ('rain_admin', 'marzban')
-           AND NULLIF(panel.username_secret, '') IS NOT NULL
-           AND NULLIF(panel.password_secret, '') IS NOT NULL
+           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
        ), '[]'::json) AS panel_usages,
        CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE json_build_object(
          'rx_gb', COALESCE(svc.awg_rx, 0) / 1073741824.0,
@@ -70096,6 +70158,82 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     lifecycleLock.release();
   }
 });
+router2.post("/services/:id/repair-provider", requireAuth, async (req, res) => {
+  if (req.auth?.role !== "reseller" && req.auth?.role !== "master_admin") {
+    res.status(403).json({ error: "\u062F\u0633\u062A\u0631\u0633\u06CC \u062A\u0639\u0645\u06CC\u0631 Provider \u0645\u062C\u0627\u0632 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  const params = RepairServiceProviderParams.safeParse(req.params);
+  const body = RepairServiceProviderBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 \u06CC\u0627 Provider \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  const serviceId = params.data.id;
+  const lifecycleLock = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lifecycleLock.query(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [serviceId]
+    );
+    if (!lockResult.rows[0]?.locked) {
+      res.status(409).json({ error: "\u0639\u0645\u0644\u06CC\u0627\u062A \u062F\u06CC\u06AF\u0631\u06CC \u0631\u0648\u06CC \u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631 \u062D\u0627\u0644 \u0627\u0646\u062C\u0627\u0645 \u0627\u0633\u062A\u061B \u06A9\u0645\u06CC \u0628\u0639\u062F \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F." });
+      return;
+    }
+    lockAcquired = true;
+    const owner = ownership("svc", req);
+    const currentResult = await pool.query(
+      `SELECT svc.rain_username AS username,
+              svc.gb::float8 AS gb,
+              svc.expire_at AS expires_at,
+              svc.status,
+              COALESCE(svc.last_used_bytes, 0)::float8 AS used_bytes,
+              svc.reseller_tg_id
+       FROM reseller_services svc
+       WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+      [serviceId, ...owner.params]
+    );
+    const current = currentResult.rows[0];
+    if (!current) {
+      res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+      return;
+    }
+    const expiry = new Date(current.expires_at);
+    const totalBytes = Math.max(0, Number(current.gb) * 1024 ** 3);
+    const remainingBytes = Math.max(0, totalBytes - Number(current.used_bytes ?? 0));
+    if (current.status !== "active" || !Number.isFinite(expiry.getTime()) || expiry.getTime() <= Date.now() || remainingBytes <= 0) {
+      res.status(409).json({
+        error: "\u062A\u0639\u0645\u06CC\u0631 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0633\u0631\u0648\u06CC\u0633 \u0641\u0639\u0627\u0644 \u0628\u0627 \u0627\u0639\u062A\u0628\u0627\u0631 \u0632\u0645\u0627\u0646\u06CC \u0648 \u062D\u062C\u0645 \u0628\u0627\u0642\u06CC\u0645\u0627\u0646\u062F\u0647 \u0627\u0646\u062C\u0627\u0645 \u0645\u06CC\u200C\u0634\u0648\u062F\u061B \u0633\u0647\u0645\u06CC\u0647 \u06CC\u0627 \u0632\u0645\u0627\u0646 \u0627\u0641\u0632\u0627\u06CC\u0634 \u062F\u0627\u062F\u0647 \u0646\u0634\u062F."
+      });
+      return;
+    }
+    try {
+      const repaired = await repairXrayProviderUser(
+        current.username,
+        Number(current.gb),
+        expiry,
+        body.data.provider_key,
+        Number(current.reseller_tg_id),
+        req.auth.role
+      );
+      res.json(RepairServiceProviderResponse.parse({
+        service_id: serviceId,
+        provider_key: repaired.key,
+        repaired: true,
+        usage_reset: false
+      }));
+    } catch (error40) {
+      const message = error40 instanceof Error ? error40.message : "Provider repair failed.";
+      res.status(502).json({ error: message });
+    }
+  } finally {
+    if (lockAcquired) {
+      await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [serviceId]).catch(() => void 0);
+    }
+    lifecycleLock.release();
+  }
+});
 router2.post("/services/:id/awg", requireAuth, async (req, res) => {
   const params = UpdateServiceParams.safeParse(req.params);
   if (!params.success) {
@@ -70344,6 +70482,7 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
            SELECT unnest($1::text[]) AS username
          )
          SELECT requested.username, panel.key AS panel_key,
+                panel.kind AS panel_kind,
                 COALESCE(usage.upload, 0) AS upload,
                 COALESCE(usage.download, 0) AS download,
                 COALESCE(usage.offset_bytes, 0) AS offset_bytes,
@@ -70354,9 +70493,7 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
            ON usage.username = requested.username
           AND usage.panel_key = panel.key
          WHERE panel.is_enabled = 1
-           AND panel.kind IN ('rain_admin', 'marzban')
-           AND NULLIF(panel.username_secret, '') IS NOT NULL
-           AND NULLIF(panel.password_secret, '') IS NOT NULL
+           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
          ORDER BY requested.username, panel.key`,
     [services.rows.map((service) => service.username)]
   ) : { rows: [] };
@@ -70366,6 +70503,7 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
     const rawBytes = Number(usage.upload ?? 0) + Number(usage.download ?? 0);
     entries.push({
       panel_key: usage.panel_key,
+      panel_kind: usage.panel_kind,
       used_gb: Math.max(0, rawBytes - Number(usage.offset_bytes ?? 0)) / 1073741824,
       raw_used_gb: rawBytes / 1073741824,
       offset_gb: Number(usage.offset_bytes ?? 0) / 1073741824,

@@ -364,6 +364,34 @@ paths:
       responses:
         "201":
           description: AmneziaWG client created
+  /services/{id}/repair-provider:
+    post:
+      operationId: repairServiceProvider
+      tags: [services]
+      summary: Reactivate one Xray provider user without resetting usage
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceProviderRepairInput"
+      responses:
+        "200":
+          description: One provider user was repaired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceProviderRepairResult"
+        "400":
+          description: Invalid repair request
+        "404":
+          description: Service or provider user not found
+        "409":
+          description: Service is expired, disabled, out of quota, or busy
+        "502":
+          description: Provider rejected the repair
   /services/{id}/awg/config:
     get:
       operationId: downloadServiceAwg
@@ -1088,9 +1116,11 @@ components:
           nullable: true
     PanelUsage:
       type: object
-      required: [panel_key, used_gb, raw_used_gb, offset_gb, last_updated]
+      required: [panel_key, panel_kind, used_gb, raw_used_gb, offset_gb, last_updated]
       properties:
         panel_key:
+          type: string
+        panel_kind:
           type: string
         used_gb:
           type: number
@@ -1100,6 +1130,26 @@ components:
           type: number
         last_updated:
           type: ["string", "null"]
+    ServiceProviderRepairInput:
+      type: object
+      required: [provider_key]
+      properties:
+        provider_key:
+          type: string
+          minLength: 1
+          maxLength: 255
+    ServiceProviderRepairResult:
+      type: object
+      required: [service_id, provider_key, repaired, usage_reset]
+      properties:
+        service_id:
+          type: number
+        provider_key:
+          type: string
+        repaired:
+          type: boolean
+        usage_reset:
+          type: boolean
     AwgUsage:
       type: object
       required: [rx_gb, tx_gb, raw_total_gb, used_gb, offset_gb, last_updated]

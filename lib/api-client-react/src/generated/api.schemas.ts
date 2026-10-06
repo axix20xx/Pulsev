@@ -289,6 +289,7 @@ export const ServiceStatus = {
 
 export interface PanelUsage {
   panel_key: string;
+  panel_kind: string;
   used_gb: number;
   raw_used_gb: number;
   offset_gb: number;
@@ -341,6 +342,21 @@ export interface Service {
   awg_config_url?: string | null;
   panel_usages?: PanelUsage[];
   awg_usage?: AwgUsage | null;
+}
+
+export interface ServiceProviderRepairInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  provider_key: string;
+}
+
+export interface ServiceProviderRepairResult {
+  service_id: number;
+  provider_key: string;
+  repaired: boolean;
+  usage_reset: boolean;
 }
 
 export type CreateServiceResultSyncStatus = typeof CreateServiceResultSyncStatus[keyof typeof CreateServiceResultSyncStatus];

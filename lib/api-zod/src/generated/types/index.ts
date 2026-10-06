@@ -48,6 +48,8 @@ export * from './saleUpdate';
 export * from './searchParameter';
 export * from './searchWorkspaceParams';
 export * from './service';
+export * from './serviceProviderRepairInput';
+export * from './serviceProviderRepairResult';
 export * from './servicesLimitParameter';
 export * from './serviceStatus';
 export * from './serviceUpdate';
