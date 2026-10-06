@@ -1441,7 +1441,7 @@ export async function downloadOpenVpnProfile(
 }
 
 export function createServiceUsername(customerId: number): string {
-  return `u${customerId}_${randomBytes(3).toString("hex")}`;
+  return `u${customerId}_${randomBytes(8).toString("hex")}`;
 }
 
 export function createSubscriptionToken(): string {

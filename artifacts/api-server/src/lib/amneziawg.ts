@@ -7,11 +7,18 @@ type AwgConfig = {
 };
 
 export class AwgApiError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly kind?: "stats-route-unavailable",
+  ) {
     super(message);
     this.name = "AwgApiError";
   }
 }
+
+const AWG_STATS_ROUTE_COOLDOWN_MS = 5 * 60_000;
+const statsEndpointByApiUrl = new Map<string, string>();
+const statsRouteUnavailableUntil = new Map<string, number>();
 
 function responseError(status: number, text: string): string {
   const raw = text.trim();
@@ -47,8 +54,9 @@ async function request(
   method: string,
   endpoint: string,
   body?: unknown,
+  configured?: AwgConfig | null,
 ): Promise<{ configured: boolean; status: number; text: string }> {
-  const awg = await config();
+  const awg = configured === undefined ? await config() : configured;
   if (!awg) return { configured: false, status: 0, text: "" };
   const response = await fetch(`${awg.apiUrl}${endpoint}`, {
     method,
@@ -147,23 +155,58 @@ export async function getAwgConfiguration(clientId: string): Promise<string> {
 }
 
 export async function getAwgStats(clientId: string): Promise<{ rxBytes: number; txBytes: number }> {
+  const awg = await config();
+  if (!awg) throw new AwgApiError("AmneziaWG API is not configured.");
+
+  const unavailableUntil = statsRouteUnavailableUntil.get(awg.apiUrl) ?? 0;
+  if (unavailableUntil > Date.now()) {
+    throw new AwgApiError(
+      "AmneziaWG stats routes are temporarily unavailable after repeated route-level 404 responses.",
+      "stats-route-unavailable",
+    );
+  }
+  statsRouteUnavailableUntil.delete(awg.apiUrl);
+
   const encodedId = encodeURIComponent(clientId);
-  const endpoints = [
+  const routeCandidates = [
     `/api/clients/${encodedId}/stats`,
     `/api/clients/${encodedId}`,
     `/api/client/${encodedId}`,
     `/api/client/${encodedId}/stats`,
     `/api/stats/${encodedId}`,
   ];
+  const preferredEndpoint = statsEndpointByApiUrl.get(awg.apiUrl);
+  const endpoints = preferredEndpoint
+    ? [preferredEndpoint, ...routeCandidates.filter((endpoint) => endpoint !== preferredEndpoint)]
+    : routeCandidates;
   let response: Awaited<ReturnType<typeof request>> | null = null;
+  let routeNotFoundCount = 0;
   for (const endpoint of endpoints) {
-    const candidate = await request("GET", endpoint);
+    const candidate = await request("GET", endpoint, undefined, awg);
     if (!candidate.configured) throw new AwgApiError("AmneziaWG API is not configured.");
     response = candidate;
-    if (candidate.status >= 200 && candidate.status < 300) break;
+    if (candidate.status >= 200 && candidate.status < 300) {
+      statsEndpointByApiUrl.set(awg.apiUrl, endpoint);
+      break;
+    }
+    if (
+      candidate.status === 404 &&
+      /^404 page not found$/i.test(candidate.text.trim())
+    ) {
+      routeNotFoundCount += 1;
+      if (endpoint === preferredEndpoint) statsEndpointByApiUrl.delete(awg.apiUrl);
+      continue;
+    }
     if (candidate.status !== 404 && candidate.status !== 405) break;
   }
   if (!response || response.status < 200 || response.status >= 300) {
+    if (routeNotFoundCount === endpoints.length) {
+      statsRouteUnavailableUntil.set(awg.apiUrl, Date.now() + AWG_STATS_ROUTE_COOLDOWN_MS);
+      throw new AwgApiError(
+        "All supported AmneziaWG stats routes returned a route-level 404.",
+        "stats-route-unavailable",
+      );
+    }
     throw new AwgApiError(
       response
         ? responseError(response.status, response.text)

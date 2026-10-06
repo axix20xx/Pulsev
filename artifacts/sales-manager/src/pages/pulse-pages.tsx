@@ -20,6 +20,8 @@ type PulseContextValue = {
   addSale: (sale: Sale) => void; updateSale: (sale: Sale) => Promise<void>; createService: (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean }) => Promise<Service>; updateService: (service: Service) => void; renewService: (service: Service, days?: number, gb?: number, sellPrice?: number | null, isPaid?: boolean, requestId?: string) => Promise<Service>; openRenewWizard: (service: Service) => void; resetServiceToken: (service: Service) => Promise<string>; setPrefs: (prefs: Prefs) => void; updateReseller: (id: number, enabled: boolean) => void;
 };
 const PulseContext = createContext<PulseContextValue | null>(null);
+const LIVE_DATA_STALE_MS = 30_000;
+const LIVE_DATA_REFRESH_MS = 60_000;
 const load = <T,>(key: string, fallback: T): T => { try { const raw = localStorage.getItem(`pulse-${key}`); return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; } };
 function usePersisted<T>(key: string, initial: T) { const [value, setValue] = useState<T>(() => load(key, initial)); useEffect(() => localStorage.setItem(`pulse-${key}`, JSON.stringify(value)), [key, value]); return [value, setValue] as const; }
 
@@ -218,11 +220,15 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const sessionQuery = useGetAuthSession({ query: { queryKey: getGetAuthSessionQueryKey() } });
   const canLoadApi = sessionQuery.data?.authenticated === true;
-  const dashboardQuery = useGetDashboard({ query: { enabled: canLoadApi, queryKey: getGetDashboardQueryKey(), staleTime: 0, refetchInterval: 15_000, refetchOnReconnect: true, refetchOnWindowFocus: true, refetchOnMount: 'always' } });
-  const salesQuery = useListSales(undefined, { query: { enabled: canLoadApi, queryKey: getListSalesQueryKey() } });
-  const servicesQuery = useListServices({ limit: 1000 }, { query: { enabled: canLoadApi, queryKey: getListServicesQueryKey({ limit: 1000 }), staleTime: 0, refetchInterval: 15_000, refetchOnReconnect: true, refetchOnWindowFocus: true, refetchOnMount: 'always' } });
-  const customersQuery = useListCustomers(undefined, { query: { enabled: canLoadApi, queryKey: getListCustomersQueryKey() } });
-  const resellerQuery = useListResellers({ query: { enabled: canLoadApi && sessionQuery.data?.role === 'master_admin', queryKey: getListResellersQueryKey() } });
+  const authScope = sessionQuery.data?.authenticated
+    ? `${sessionQuery.data.role}:${sessionQuery.data.telegram_id ?? sessionQuery.data.reseller_id ?? 'unknown'}`
+    : 'signed-out';
+  const [businessDataScope, setBusinessDataScope] = useState(authScope);
+  const dashboardQuery = useGetDashboard({ query: { enabled: canLoadApi, queryKey: [...getGetDashboardQueryKey(), authScope], staleTime: LIVE_DATA_STALE_MS, refetchInterval: LIVE_DATA_REFRESH_MS, refetchOnReconnect: true, refetchOnWindowFocus: true } });
+  const salesQuery = useListSales(undefined, { query: { enabled: canLoadApi, queryKey: [...getListSalesQueryKey(), authScope], staleTime: LIVE_DATA_STALE_MS } });
+  const servicesQuery = useListServices({ limit: 1000 }, { query: { enabled: canLoadApi, queryKey: [...getListServicesQueryKey({ limit: 1000 }), authScope], staleTime: LIVE_DATA_STALE_MS, refetchInterval: LIVE_DATA_REFRESH_MS, refetchOnReconnect: true, refetchOnWindowFocus: true } });
+  const customersQuery = useListCustomers(undefined, { query: { enabled: canLoadApi, queryKey: [...getListCustomersQueryKey(), authScope], staleTime: LIVE_DATA_STALE_MS } });
+  const resellerQuery = useListResellers({ query: { enabled: canLoadApi && sessionQuery.data?.role === 'master_admin', queryKey: [...getListResellersQueryKey(), authScope], staleTime: LIVE_DATA_STALE_MS } });
   const updateSaleApi = useUpdateSale();
   const updateServiceApi = useUpdateService();
   const renewServiceApi = useRenewService();
@@ -230,11 +236,14 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const resetServiceTokenApi = useResetServiceToken();
   const updateResellerApi = useUpdateReseller();
   const [renewTarget, setRenewTarget] = useState<Service | null>(null);
-  const apiCustomers = useMemo(() => Array.isArray(customersQuery.data) ? customersQuery.data.map(mapCustomer) : null, [customersQuery.data]);
-  const apiSales = useMemo(() => Array.isArray(salesQuery.data) ? salesQuery.data.map(mapSale) : null, [salesQuery.data]);
-  const apiServices = useMemo(() => Array.isArray(servicesQuery.data) ? servicesQuery.data.map(mapService) : null, [servicesQuery.data]);
-  useEffect(() => { setSales(apiSales ?? []); }, [apiSales]);
-  useEffect(() => { setServices(apiServices ?? []); }, [apiServices]);
+  const apiCustomers = useMemo(() => canLoadApi && Array.isArray(customersQuery.data) ? customersQuery.data.map(mapCustomer) : null, [canLoadApi, customersQuery.data]);
+  const apiSales = useMemo(() => canLoadApi && Array.isArray(salesQuery.data) ? salesQuery.data.map(mapSale) : null, [canLoadApi, salesQuery.data]);
+  const apiServices = useMemo(() => canLoadApi && Array.isArray(servicesQuery.data) ? servicesQuery.data.map(mapService) : null, [canLoadApi, servicesQuery.data]);
+  useEffect(() => {
+    setSales(apiSales ?? []);
+    setServices(apiServices ?? []);
+    setBusinessDataScope(authScope);
+  }, [apiSales, apiServices, authScope]);
   useEffect(() => {
     if (canLoadApi) return;
     setSales([]);
@@ -242,7 +251,8 @@ export function PulseProvider({ children }: { children: ReactNode }) {
     setLocalResellers([]);
     setRenewTarget(null);
   }, [canLoadApi]);
-  const customers = useMemo(() => apiCustomers ?? [], [apiCustomers]);
+  const visibleBusinessData = businessDataScope === authScope && canLoadApi;
+  const customers = useMemo(() => canLoadApi ? apiCustomers ?? [] : [], [apiCustomers, canLoadApi]);
   const displaySession = sessionQuery.data ?? null;
   const authFallback = sessionQuery.isError;
   const resellers = Array.isArray(resellerQuery.data) ? resellerQuery.data.map((r: any) => ({ id: r.id, telegram_id: Number(r.telegram_id), title: r.title, enabled: r.enabled, used_gb: r.used_gb, total_gb: r.total_gb, per_gig_price: Number(r.per_gig_price ?? 0), customer_price_per_gb: Number(r.customer_price_per_gb ?? 0) })) : localResellers;
@@ -259,12 +269,25 @@ export function PulseProvider({ children }: { children: ReactNode }) {
     }
   };
   const updateService = (service: Service) => {
+    const previous = services.find((item) => item.id === service.id);
+    const statusChanged = previous?.status !== service.status;
     setServices((items) => items.map((item) => item.id === service.id ? service : item));
     const id = Number(service.id.replace(/\D/g, ''));
     if (canLoadApi && Number.isFinite(id) && id > 0) {
+      const status: 'disabled' | 'expired' | 'active' = service.status === 'Disabled' ? 'disabled' : service.status === 'Expired' ? 'expired' : 'active';
+      const data = {
+        ...(statusChanged ? { status } : {}),
+        admin_notes: service.note || null,
+      };
       updateServiceApi.mutate(
-        { id, data: { status: service.status === 'Disabled' ? 'disabled' : service.status === 'Expired' ? 'expired' : 'active', admin_notes: service.note || null } },
-        { onError: () => void queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() }) },
+        { id, data },
+        {
+          onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() });
+            if (statusChanged) void queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey() });
+          },
+          onError: () => void queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() }),
+        },
       );
     }
   };
@@ -273,7 +296,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const renewService = async (service: Service, days = 30, gb = service.limitGb, sellPrice: number | null = null, isPaid = true, requestId?: string) => { const id = Number(service.id.replace(/\D/g, '')); if (!canLoadApi || !Number.isFinite(id) || id <= 0) throw new Error('برای تمدید باید وارد سامانه شوید.'); const renewed = await renewServiceApi.mutateAsync({ id, data: { days, gb, sell_price: sellPrice, is_paid: isPaid, request_id: requestId } }); await Promise.all([refreshRealData(), queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) })]); return mapService(renewed); };
   const resetServiceToken = async (service: Service) => { const id = Number(service.id.replace(/\D/g, '')); if (!canLoadApi || !Number.isFinite(id) || id <= 0) throw new Error('سرویس معتبر نیست.'); const result = await resetServiceTokenApi.mutateAsync({ id }); await queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) }); return result.subscription_url; };
   const updateReseller = (id: number, enabled: boolean) => { setLocalResellers((items) => items.map((item) => item.id === id ? { ...item, enabled } : item)); if (canLoadApi && sessionQuery.data?.role === 'master_admin') updateResellerApi.mutate({ id, data: { enabled } }); };
-  return <PulseContext.Provider value={{ sales, services, customers, prefs, session: displaySession, sessionLoading: sessionQuery.isLoading, authFallback, dashboard: dashboardQuery.data ?? null, resellers, addSale: (sale) => setSales((items) => [sale, ...items]), updateSale, createService, updateService, renewService, openRenewWizard: setRenewTarget, resetServiceToken, setPrefs, updateReseller }}>{children}{renewTarget && <RenewWizard service={renewTarget} onClose={() => setRenewTarget(null)} onRenew={renewService} />}</PulseContext.Provider>;
+  return <PulseContext.Provider value={{ sales: visibleBusinessData ? sales : [], services: visibleBusinessData ? services : [], customers, prefs, session: displaySession, sessionLoading: sessionQuery.isLoading, authFallback, dashboard: canLoadApi ? dashboardQuery.data ?? null : null, resellers: canLoadApi ? resellers : [], addSale: (sale) => setSales((items) => [sale, ...items]), updateSale, createService, updateService, renewService, openRenewWizard: setRenewTarget, resetServiceToken, setPrefs, updateReseller }}>{children}{renewTarget && <RenewWizard service={renewTarget} onClose={() => setRenewTarget(null)} onRenew={renewService} />}</PulseContext.Provider>;
 }
 export const usePulse = () => { const value = useContext(PulseContext); if (!value) throw new Error('PulseProvider missing'); return value; };
 
@@ -1643,8 +1666,6 @@ function ServicesContent() {
   const [sortBy, setSortBy] = useState('expiry-asc');
   const [modal, setModal] = useState(false);
   const [noteService, setNoteService] = useState<Service | null>(null);
-   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-   const [bulkBusy, setBulkBusy] = useState(false);
   const openedRenewDeepLink = useRef(false);
   useEffect(() => {
     if (openedRenewDeepLink.current || services.length === 0) return;
@@ -1683,22 +1704,17 @@ function ServicesContent() {
       });
    }, [connectionFilter, expiryFilter, issueFilter, panelFilter, quotaFilter, search, services, sortBy, status]);
    const resetFilters = () => { setSearch(''); setStatus('All'); setExpiryFilter('all'); setQuotaFilter('all'); setConnectionFilter('all'); setPanelFilter('all'); setIssueFilter('all'); setSortBy('expiry-asc'); };
-  const toggle = (service: Service) => updateService({ ...service, status: service.status === 'Disabled' ? 'Active' : 'Disabled' });
-   const toggleSelected = (id: string) => setSelectedIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-   const selectVisible = () => setSelectedIds((current) => current.size === filtered.length ? new Set() : new Set(filtered.map((service) => service.id)));
-   const runBulkStatus = (nextStatus: 'Active' | 'Disabled') => {
-     const targets = services.filter((service) => selectedIds.has(service.id) && service.status !== nextStatus);
-     if (!targets.length) return;
-     if (!window.confirm(`وضعیت ${numberFa(targets.length, 0)} سرویس تغییر کند؟`)) return;
-     setBulkBusy(true);
-     targets.forEach((service) => updateService({ ...service, status: nextStatus }));
-     setSelectedIds(new Set());
-     window.setTimeout(() => setBulkBusy(false), 500);
+   const toggle = (service: Service) => {
+     if (
+       service.status !== 'Disabled' &&
+       !window.confirm('این کار حساب Provider این سرویس را متوقف می‌کند. فقط همین سرویس را غیرفعال می‌کنید؟')
+     ) return;
+     updateService({ ...service, status: service.status === 'Disabled' ? 'Active' : 'Disabled' });
    };
    return <><PageHeader eyebrow="موجودی دسترسی" title="سرویس‌ها" description="حساب‌ها، مصرف، انقضا و یادداشت‌ها را یک‌جا کنترل کنید." action={<button type="button" className="button button-primary" onClick={() => setModal(true)} aria-haspopup="dialog" data-testid="button-add-service"><Plus size={16} /> افزودن سرویس</button>} />
       <section className="service-filter-card panel-card"><div className="service-filter-head"><div><p className="eyebrow">فیلتر هوشمند</p><h2>اولویت‌بندی سرویس‌ها</h2><span>بر اساس انقضا، حجم باقی‌مانده، اتصال و وضعیت مرتب کنید.</span></div><div className="service-filter-result"><strong>{numberFa(filtered.length, 0)}</strong><span>از {numberFa(services.length, 0)} سرویس</span></div></div><div className="service-filter-search search-field"><Search size={16} /><input placeholder="شناسه، مشتری، نام کاربری، بسته، پنل یا یادداشت" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-services" /></div><div className="service-status-tabs">{([['All', 'همه'], ['Active', 'فعال'], ['Expiring', 'نزدیک انقضا'], ['Expired', 'منقضی'], ['Disabled', 'غیرفعال']] as const).map(([value, label]) => <button type="button" className={status === value ? 'selected' : ''} key={value} onClick={() => setStatus(value)}>{label}</button>)}</div><div className="service-filter-grid"><label><span>زمان انقضا</span><select value={expiryFilter} onChange={(event) => setExpiryFilter(event.target.value)}><option value="all">همه تاریخ‌ها</option><option value="7days">تا ۷ روز آینده</option><option value="14days">تا ۱۴ روز آینده</option><option value="later">بیشتر از ۱۴ روز</option><option value="expired">گذشته</option></select></label><label><span>حجم باقی‌مانده</span><select value={quotaFilter} onChange={(event) => setQuotaFilter(event.target.value)}><option value="all">همه حجم‌ها</option><option value="empty">تمام‌شده</option><option value="low">۱۰ گیگ یا کمتر</option><option value="high-usage">مصرف بالای ۸۰٪</option><option value="healthy">بیشتر از ۱۰ گیگ</option></select></label><label><span>نوع اتصال</span><select value={connectionFilter} onChange={(event) => setConnectionFilter(event.target.value)}><option value="all">همه اتصال‌ها</option><option value="awg">دارای AmneziaWG</option><option value="provider">فقط Provider</option></select></label><label><span>عملیات اخیر</span><select value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)} data-testid="select-service-issue-filter"><option value="all">همه سرویس‌ها</option><option value="failed">خطای ساخت در ۳۰ روز اخیر</option><option value="cancelled">لغوشده یا در انتظار لغو</option></select></label><label><span>پنل</span><select value={panelFilter} onChange={(event) => setPanelFilter(event.target.value)}><option value="all">همه پنل‌ها</option>{panels.map((panel) => <option value={panel} key={panel}>{panel}</option>)}</select></label><label><span>مرتب‌سازی</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value)} data-testid="select-service-sort"><option value="expiry-asc">نزدیک‌ترین انقضا</option><option value="renewed-desc">آخرین تمدید</option><option value="created-desc">جدیدترین ایجاد</option><option value="expiry-desc">دورترین انقضا</option><option value="quota-asc">کمترین حجم باقی‌مانده</option><option value="usage-desc">بیشترین درصد مصرف</option><option value="customer">نام مشتری</option></select></label><button type="button" className="service-filter-reset" onClick={resetFilters}><RefreshCw size={14} /> پاک کردن فیلترها</button></div></section>
-       {filtered.length > 0 && <section className="panel-card flex flex-wrap items-center gap-3"><label className="flex cursor-pointer items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === filtered.length} onChange={selectVisible} /> انتخاب همهٔ نتایج</label>{selectedIds.size > 0 && <><span className="soft-badge">{numberFa(selectedIds.size, 0)} انتخاب شده</span><Button variant="secondary" onClick={() => runBulkStatus('Active')} disabled={bulkBusy}><Check size={14} /> فعال‌سازی</Button><Button variant="quiet" onClick={() => runBulkStatus('Disabled')} disabled={bulkBusy}><X size={14} /> غیرفعال‌سازی</Button><button type="button" className="mr-auto text-xs text-muted-foreground hover:text-foreground" onClick={() => setSelectedIds(new Set())}>لغو انتخاب</button></>}</section>}
-       <section className="services-grid">{filtered.map((service) => <article className={`service-card ${selectedIds.has(service.id) ? 'ring-2 ring-primary/40' : ''}`} key={service.id} data-testid={`card-service-${service.id}`}><div className="flex items-start justify-between"><div className="flex items-center gap-3"><input type="checkbox" checked={selectedIds.has(service.id)} onChange={() => toggleSelected(service.id)} aria-label={`انتخاب ${service.customerName}`} /><div className="service-symbol"><Globe2 size={17} /></div><div><h3 className="font-bold">{service.plan}</h3><p className="font-mono text-[10px] text-primary">{serviceDisplayCode(service)}</p><p className="font-mono text-[10px] text-muted-foreground">{service.username}</p></div></div><StatusPill value={service.status} /></div><div className="mt-5 flex items-end justify-between"><div><p className="text-xs text-muted-foreground">مشتری</p><p className="mt-1 text-sm font-semibold">{service.customerName}</p></div><div className="text-right"><p className="text-xs text-muted-foreground">انقضا</p><p className="mt-1 text-sm font-semibold">{dateLabel(service.expiresAt)}</p></div></div><div className="quota"><div className="mb-1.5 flex justify-between text-[11px] text-muted-foreground"><span>مصرف</span><span className="font-mono">{service.usedGb} / {service.limitGb} گیگ</span></div><div className="quota-track"><span style={{ width: `${service.limitGb ? Math.min(100, service.usedGb / service.limitGb * 100) : 0}%` }} /></div></div><div className="mt-4 flex items-center justify-between border-t border-border/70 pt-3"><button className="text-right text-[11px] text-muted-foreground hover:text-foreground" onClick={() => setNoteService(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? `${service.panel} · یادداشت دارد` : `${service.panel} · افزودن یادداشت`}</button><div className="flex items-center gap-1"><Button variant="quiet" onClick={() => toggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Disabled' && <Button variant="quiet" onClick={() => renewService(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={12} /> تمدید</Button>}</div></div></article>)}</section>{!filtered.length && <EmptyState title="سرویسی پیدا نشد" detail="فیلتر وضعیت یا عبارت جست‌وجو را تغییر دهید." />}{modal && <ServiceModal onClose={() => setModal(false)} />}{noteService && <NoteModal service={noteService} onClose={() => setNoteService(null)} />}</>;
+        {filtered.length > 0 && <section className="panel-card text-sm text-muted-foreground">برای محافظت از حساب‌های Provider، توقف سرویس فقط به‌صورت جداگانه انجام می‌شود.</section>}
+        <section className="services-grid">{filtered.map((service) => <article className="service-card" key={service.id} data-testid={`card-service-${service.id}`}><div className="flex items-start justify-between"><div className="flex items-center gap-3"><div className="service-symbol"><Globe2 size={17} /></div><div><h3 className="font-bold">{service.plan}</h3><p className="font-mono text-[10px] text-primary">{serviceDisplayCode(service)}</p><p className="font-mono text-[10px] text-muted-foreground">{service.username}</p></div></div><StatusPill value={service.status} /></div><div className="mt-5 flex items-end justify-between"><div><p className="text-xs text-muted-foreground">مشتری</p><p className="mt-1 text-sm font-semibold">{service.customerName}</p></div><div className="text-right"><p className="text-xs text-muted-foreground">انقضا</p><p className="mt-1 text-sm font-semibold">{dateLabel(service.expiresAt)}</p></div></div><div className="quota"><div className="mb-1.5 flex justify-between text-[11px] text-muted-foreground"><span>مصرف</span><span className="font-mono">{service.usedGb} / {service.limitGb} گیگ</span></div><div className="quota-track"><span style={{ width: `${service.limitGb ? Math.min(100, service.usedGb / service.limitGb * 100) : 0}%` }} /></div></div><div className="mt-4 flex items-center justify-between border-t border-border/70 pt-3"><button className="text-right text-[11px] text-muted-foreground hover:text-foreground" onClick={() => setNoteService(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? `${service.panel} · یادداشت دارد` : `${service.panel} · افزودن یادداشت`}</button><div className="flex items-center gap-1"><Button variant="quiet" onClick={() => toggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Disabled' && <Button variant="quiet" onClick={() => renewService(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={12} /> تمدید</Button>}</div></div></article>)}</section>{!filtered.length && <EmptyState title="سرویسی پیدا نشد" detail="فیلتر وضعیت یا عبارت جست‌وجو را تغییر دهید." />}{modal && <ServiceModal onClose={() => setModal(false)} />}{noteService && <NoteModal service={noteService} onClose={() => setNoteService(null)} />}</>;
 }
 
 type MonitoringJob = {

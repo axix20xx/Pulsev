@@ -1,11 +1,24 @@
 import { pool } from "@workspace/db";
-import { disableAwgClient, getAwgStats } from "./amneziawg";
+import { AwgApiError, disableAwgClient, getAwgStats } from "./amneziawg";
 import { disablePanelUser, readPanelUsages } from "./rain";
+import { hasOtherActiveServiceWithUsername } from "./service-disable-guard";
 import { logger } from "./logger";
 
 const BYTES_PER_GB = 1024 ** 3;
 const DEFAULT_INTERVAL_MS = 60_000;
 let running = false;
+let lastAwgRouteWarningAt = 0;
+const AWG_ROUTE_WARNING_INTERVAL_MS = 5 * 60_000;
+
+function shouldLogAwgUsageError(error: unknown): boolean {
+  if (!(error instanceof AwgApiError) || error.kind !== "stats-route-unavailable") {
+    return true;
+  }
+  const now = Date.now();
+  if (now - lastAwgRouteWarningAt < AWG_ROUTE_WARNING_INTERVAL_MS) return false;
+  lastAwgRouteWarningAt = now;
+  return true;
+}
 
 type ServiceRow = {
   id: number;
@@ -16,6 +29,7 @@ type ServiceRow = {
   awg_offset_bytes: number | null;
   awg_total: number | null;
   expire_at: string | null;
+  expired_in_db: boolean;
   gb: number;
   token: string | null;
   status: string;
@@ -96,13 +110,15 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
         [awgRx, awgTx, rawAwgBytes, offset, service.id],
       );
     } catch (error) {
-      logger.warn({ serviceId: service.id, err: error }, "AWG usage sync skipped");
+      if (shouldLogAwgUsageError(error)) {
+        logger.warn({ serviceId: service.id, err: error }, "AWG usage sync skipped");
+      }
     }
   }
 
   const combinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
   const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB));
-  const expired = Boolean(service.expire_at && new Date(service.expire_at).getTime() <= Date.now());
+  const expired = service.expired_in_db;
   const quotaReached = limitBytes > 0 && combinedBytes >= limitBytes;
   const alreadyDisabled = service.status === "disabled";
   const shouldDisable = alreadyDisabled || expired || quotaReached;
@@ -110,16 +126,53 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
   let remoteDisabled = alreadyDisabled && !needsRemoteDisable;
   let awgDisabled = !service.awg_client_id;
 
-  if (shouldDisable && needsRemoteDisable) {
-    const panelResult = await disablePanelUser(
-      service.rain_username,
-      service.falco_config_id,
-      Number(service.reseller_tg_id),
-      "reseller",
+  if (shouldDisable && !alreadyDisabled) {
+    logger.warn(
+      {
+        serviceId: service.id,
+        username: service.rain_username,
+        trigger: quotaReached ? "quota" : "expiry",
+        usedBytes: combinedBytes,
+        limitBytes,
+        expireAt: service.expire_at,
+        providerReadings: panelUsages.map((usage) => ({
+          provider: usage.panelKey,
+          usedBytes: usage.usedBytes,
+          stale: usage.stale,
+        })),
+        awgUsedBytes,
+      },
+      "Automatic service disable threshold reached",
     );
+  }
+
+  if (shouldDisable && needsRemoteDisable) {
+    const sharedUsername = await hasOtherActiveServiceWithUsername(
+      service.rain_username,
+      service.id,
+    );
+    if (
+      sharedUsername &&
+      (!alreadyDisabled || Number(service.remote_disable_pending) !== 1)
+    ) {
+      logger.warn(
+        { serviceId: service.id, username: service.rain_username },
+        "Provider disable deferred because another active service shares this username",
+      );
+    }
+    const panelResult = sharedUsername
+      ? { attempted: 0, disabled: 0 }
+      : await disablePanelUser(
+          service.rain_username,
+          service.falco_config_id,
+          Number(service.reseller_tg_id),
+          "reseller",
+        );
     awgDisabled = service.awg_client_id ? await disableAwgClient(service.awg_client_id) : true;
     const providersDisabled =
-      panelResult.attempted > 0 && panelResult.disabled === panelResult.attempted;
+      !sharedUsername &&
+      panelResult.attempted > 0 &&
+      panelResult.disabled === panelResult.attempted;
     remoteDisabled = providersDisabled && awgDisabled;
   }
 
@@ -196,6 +249,7 @@ async function syncService(service: ServiceRow): Promise<void> {
     const fresh = await pool.query<ServiceRow>(
       `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
               svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
               svc.lifecycle_version, svc.remote_disable_pending
        FROM reseller_services svc
@@ -215,6 +269,7 @@ export async function syncServiceUsageById(serviceId: number): Promise<boolean> 
   const result = await pool.query<ServiceRow>(
     `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
             svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+            COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
              svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
              svc.lifecycle_version, svc.remote_disable_pending
      FROM reseller_services svc
@@ -236,6 +291,7 @@ export async function runUsageSync(): Promise<void> {
     const result = await pool.query<ServiceRow>(
       `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
                svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
                svc.lifecycle_version, svc.remote_disable_pending
        FROM reseller_services svc

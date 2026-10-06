@@ -80,6 +80,7 @@ import {
   type OpenVpnDelivery,
 } from "../lib/rain";
 import { syncServiceUsageById } from "../lib/usage-sync";
+import { hasOtherActiveServiceWithUsername } from "../lib/service-disable-guard";
 import {
   AwgApiError,
   createAwgClient,
@@ -2907,6 +2908,15 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
   let shouldDisableService = false;
   if (validDecision(cancelDecision) && current.cancel_service_status === "pending") {
     if (cancelDecision === "approve" && current.service_status && current.service_status !== "disabled") {
+       if (
+         current.rain_username &&
+         await hasOtherActiveServiceWithUsername(current.rain_username, current.service_id)
+       ) {
+         res.status(409).json({
+           error: "این نام کاربری Provider با سرویس فعال دیگری مشترک است؛ ابتدا سرویس مشترک را بررسی کنید",
+         });
+         return;
+       }
       let panelResult = { attempted: 0, disabled: 0 };
       try {
         panelResult = await disablePanelUser(
@@ -3988,8 +3998,9 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
       rain_username: string;
       falco_config_id: number | null;
       awg_client_id: string | null;
+      status: string;
     }>(
-      `SELECT svc.rain_username, svc.falco_config_id, svc.awg_client_id
+      `SELECT svc.rain_username, svc.falco_config_id, svc.awg_client_id, svc.status
        FROM reseller_services svc
        WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
       [params.data.id, ...owner.params],
@@ -3999,35 +4010,43 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
       res.status(404).json({ error: "سرویس پیدا نشد" });
       return;
     }
-    let panelResult = { attempted: 0, disabled: 0 };
-    let awgDisabled = true;
-    try {
-      panelResult = await disablePanelUser(
-        service.rain_username,
-        service.falco_config_id,
-        Number(req.auth?.telegramId),
-        req.auth?.role,
-      );
-    } catch {
-      remoteWarning = "غیرفعال‌سازی providerها کامل نشد";
-    }
-    if (service.awg_client_id) {
-      awgDisabled = await disableAwgClient(service.awg_client_id);
-    }
-    const providersDisabled =
-      panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
-    if (!providersDisabled || !awgDisabled) {
-      remoteWarning = "غیرفعال‌سازی همه providerها و AWG کامل نشد";
-    }
-    if (remoteWarning) {
-      res.status(502).json({ error: remoteWarning });
-      return;
+    if (service.status !== "disabled") {
+      if (await hasOtherActiveServiceWithUsername(service.rain_username, params.data.id)) {
+        res.status(409).json({
+          error: "این نام کاربری Provider با سرویس فعال دیگری مشترک است؛ برای جلوگیری از قطع سرویس، این مورد غیرفعال نشد",
+        });
+        return;
+      }
+      let panelResult = { attempted: 0, disabled: 0 };
+      let awgDisabled = true;
+      try {
+        panelResult = await disablePanelUser(
+          service.rain_username,
+          service.falco_config_id,
+          Number(req.auth?.telegramId),
+          req.auth?.role,
+        );
+      } catch {
+        remoteWarning = "غیرفعال‌سازی providerها کامل نشد";
+      }
+      if (service.awg_client_id) {
+        awgDisabled = await disableAwgClient(service.awg_client_id);
+      }
+      const providersDisabled =
+        panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+      if (!providersDisabled || !awgDisabled) {
+        remoteWarning = "غیرفعال‌سازی همه providerها و AWG کامل نشد";
+      }
+      if (remoteWarning) {
+        res.status(502).json({ error: remoteWarning });
+        return;
+      }
     }
   }
   if (body.data.status !== undefined) {
     values.push(body.data.status);
     updates.push(`status = $${values.length}`);
-    updates.push(`disabled_at = CASE WHEN $${values.length} = 'disabled' THEN NOW() ELSE NULL END`);
+     updates.push(`disabled_at = CASE WHEN $${values.length} = 'disabled' THEN COALESCE(disabled_at, NOW()) ELSE NULL END`);
     if (body.data.status === "disabled") {
       updates.push("admin_notes = CASE WHEN NULLIF(admin_notes, '') IS NULL THEN 'غیرفعال‌سازی دستی' ELSE admin_notes END");
     }
