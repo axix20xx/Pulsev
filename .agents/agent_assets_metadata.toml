@@ -1024,3 +1024,17 @@ mtime_ms = 1791299585115
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/55bbbf3d-6b24-4a5a-a09f-a02ab8d9d4e4/e5a99311-ed10-4948-8e35-9b2cecd742da"
 storage_version_token = "1791299653300588"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "telS1_0VvZsCpowSBKuu1"
+uri = "file://exports/pulse-hostinger-openvpn-account-persistence-2026-10-06.zip"
+type = "unspecified"
+title = "Updated Hostinger migration ZIP"
+description = "Full Hostinger-ready Pulse package with the updated API and mobile/subscription bundles, encrypted OpenVPN account persistence, and the existing database migration files."
+logical_id = "1b3bcdcc-e5e2-4194-810d-6a1aea15396f"
+content_hash = "sha256:523e697445e257fd92ee4e4f502e2b7903fa03d5973fcc1b95ecd093d47a3e07"
+size = 27365083
+mtime_ms = 1791300480026
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1b3bcdcc-e5e2-4194-810d-6a1aea15396f/1c56d1be-ac4e-4ca7-b1c7-8be91bafb4f9"
+storage_version_token = "1791300586445014"
+content_type = "application/octet-stream"

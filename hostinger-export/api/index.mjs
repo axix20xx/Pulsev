@@ -45081,6 +45081,25 @@ var UpdateResellerResponse = objectType({
   "enabled": booleanType(),
   "created_at": stringType()
 });
+var getOpenVpnAccountPathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
+var GetOpenVpnAccountParams = objectType({
+  "token": coerce.string().regex(getOpenVpnAccountPathTokenRegExp)
+});
+var GetOpenVpnAccountResponse = objectType({
+  "provider_key": stringType(),
+  "server": stringType(),
+  "username": stringType(),
+  "password": stringType(),
+  "core": enumType(["openvpn"]),
+  "bundle_url": stringType(),
+  "bundle_import_url": stringType(),
+  "locations": arrayType(objectType({
+    "id": stringType(),
+    "name": stringType(),
+    "config_url": stringType(),
+    "import_url": stringType()
+  }))
+});
 var createOpenVpnAccountPathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
 var CreateOpenVpnAccountParams = objectType({
   "token": coerce.string().regex(createOpenVpnAccountPathTokenRegExp)
@@ -45092,10 +45111,12 @@ var CreateOpenVpnAccountResponse = objectType({
   "password": stringType(),
   "core": enumType(["openvpn"]),
   "bundle_url": stringType(),
+  "bundle_import_url": stringType(),
   "locations": arrayType(objectType({
     "id": stringType(),
     "name": stringType(),
-    "config_url": stringType()
+    "config_url": stringType(),
+    "import_url": stringType()
   }))
 });
 var downloadOpenVpnProfilePathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
@@ -67098,6 +67119,12 @@ var managementReady = pool.query(`
         content_type TEXT NOT NULL DEFAULT 'text/plain; charset=utf-8',
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS reseller_service_openvpn_accounts (
+        service_id BIGINT PRIMARY KEY REFERENCES reseller_services(id) ON DELETE CASCADE,
+        delivery_secret TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS reseller_notifications (
         id BIGSERIAL PRIMARY KEY,
         reseller_tg_id BIGINT NOT NULL,
@@ -67476,9 +67503,54 @@ router2.get("/public/subscription/:token", async (req, res) => {
     announcement: { ...announcement, service_code: serviceCode }
   });
 });
-router2.post("/public/subscription/:token/openvpn", async (req, res) => {
+function isOpenVpnDelivery(value) {
+  if (!value || typeof value !== "object") return false;
+  const delivery = value;
+  return typeof delivery.provider_key === "string" && typeof delivery.server === "string" && typeof delivery.username === "string" && typeof delivery.password === "string" && delivery.core === "openvpn" && Array.isArray(delivery.locations) && delivery.locations.every(
+    (location) => Boolean(location) && typeof location.id === "string" && typeof location.name === "string"
+  );
+}
+async function loadSavedOpenVpnDelivery(serviceId) {
+  const result = await pool.query(
+    `SELECT delivery_secret
+     FROM reseller_service_openvpn_accounts
+     WHERE service_id = $1
+     LIMIT 1`,
+    [serviceId]
+  );
+  const secret = result.rows[0]?.delivery_secret;
+  if (!secret) return null;
+  const decoded = decryptPanelCredential(secret);
+  if (!decoded) throw new Error("Saved OpenVPN account could not be decrypted.");
+  let parsed;
+  try {
+    parsed = JSON.parse(decoded);
+  } catch {
+    throw new Error("Saved OpenVPN account data is invalid.");
+  }
+  if (!isOpenVpnDelivery(parsed)) throw new Error("Saved OpenVPN account data is invalid.");
+  return parsed;
+}
+function publicOpenVpnDelivery(token, delivery) {
+  const tokenPath = `/api/public/subscription/${encodeURIComponent(token)}`;
+  const providerPath = `${tokenPath}/openvpn`;
+  const configBase = `${providerPath}/config/${encodeURIComponent(delivery.provider_key)}`;
+  const importBase = `${providerPath}/import/${encodeURIComponent(delivery.provider_key)}`;
+  return {
+    ...delivery,
+    bundle_url: `${providerPath}/bundle/${encodeURIComponent(delivery.provider_key)}`,
+    bundle_import_url: `${providerPath}/import-bundle/${encodeURIComponent(delivery.provider_key)}`,
+    locations: delivery.locations.map((location) => ({
+      ...location,
+      config_url: `${configBase}/${encodeURIComponent(location.id)}`,
+      import_url: `${importBase}/${encodeURIComponent(location.id)}`
+    }))
+  };
+}
+router2.get("/public/subscription/:token/openvpn", async (req, res) => {
+  await managementReady;
   const token = String(req.params.token ?? "").trim();
-  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     res.status(404).json({ error: "\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
     return;
@@ -67493,6 +67565,55 @@ router2.post("/public/subscription/:token/openvpn", async (req, res) => {
     return;
   }
   try {
+    const delivery = await loadSavedOpenVpnDelivery(Number(service.id));
+    if (!delivery) {
+      res.status(404).json({ error: "\u062D\u0633\u0627\u0628 OpenVPN \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647\u200C\u0627\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F", code: "OPENVPN_NOT_CREATED" });
+      return;
+    }
+    res.json(publicOpenVpnDelivery(token, delivery));
+  } catch {
+    res.status(500).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647 OpenVPN \u0642\u0627\u0628\u0644 \u062E\u0648\u0627\u0646\u062F\u0646 \u0646\u06CC\u0633\u062A." });
+  }
+});
+router2.post("/public/subscription/:token/openvpn", async (req, res) => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).json({ error: "\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u0627\u06CC\u0627\u0646 \u06CC\u0627\u0641\u062A\u0647 \u0627\u0633\u062A\u061B \u0628\u0631\u0627\u06CC \u062F\u0631\u06CC\u0627\u0641\u062A OpenVPN \u0622\u0646 \u0631\u0627 \u062A\u0645\u062F\u06CC\u062F \u06A9\u0646\u06CC\u062F." });
+    return;
+  }
+  const serviceId = Number(service.id);
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
+    res.status(500).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  const lockClient = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lockClient.query(
+      "SELECT pg_try_advisory_lock(74422, hashtext($1::text)) AS locked",
+      [serviceId]
+    );
+    lockAcquired = Boolean(lockResult.rows[0]?.locked);
+    if (!lockAcquired) {
+      res.status(409).json({ error: "\u0622\u0645\u0627\u062F\u0647\u200C\u0633\u0627\u0632\u06CC OpenVPN \u0647\u0645\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631 \u062D\u0627\u0644 \u0627\u0646\u062C\u0627\u0645 \u0627\u0633\u062A\u061B \u0686\u0646\u062F \u0644\u062D\u0638\u0647 \u062F\u06CC\u06AF\u0631 \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F." });
+      return;
+    }
+    const savedDelivery = await loadSavedOpenVpnDelivery(serviceId);
+    if (savedDelivery) {
+      res.json(publicOpenVpnDelivery(token, savedDelivery));
+      return;
+    }
     const delivery = await prepareOpenVpnAccount(
       String(service.username),
       Number(service.limit_gb ?? 0),
@@ -67500,23 +67621,30 @@ router2.post("/public/subscription/:token/openvpn", async (req, res) => {
       Number(service.reseller_tg_id),
       "reseller"
     );
-    const configBase = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/config/${encodeURIComponent(delivery.provider_key)}`;
-    const bundleUrl = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/bundle/${encodeURIComponent(delivery.provider_key)}`;
-    const importBase = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/import/${encodeURIComponent(delivery.provider_key)}`;
-    res.json({
-      ...delivery,
-      bundle_url: bundleUrl,
-      bundle_import_url: `/api/public/subscription/${encodeURIComponent(token)}/openvpn/import-bundle/${encodeURIComponent(delivery.provider_key)}`,
-      locations: delivery.locations.map((location) => ({
-        ...location,
-        config_url: `${configBase}/${encodeURIComponent(location.id)}`,
-        import_url: `${importBase}/${encodeURIComponent(location.id)}`
-      }))
-    });
+    await pool.query(
+      `INSERT INTO reseller_service_openvpn_accounts (service_id, delivery_secret)
+       VALUES ($1, $2)
+       ON CONFLICT (service_id) DO NOTHING`,
+      [serviceId, encryptPanelCredential(JSON.stringify(delivery))]
+    );
+    const persistedDelivery = await loadSavedOpenVpnDelivery(serviceId);
+    if (!persistedDelivery) throw new Error("OpenVPN account details were not persisted.");
+    res.json(publicOpenVpnDelivery(token, persistedDelivery));
   } catch (error40) {
     const message = error40 instanceof Error ? error40.message : "OpenVPN account setup failed.";
     const unavailable = message.includes("No enabled AzadPanel");
-    res.status(unavailable ? 503 : 502).json({ error: message });
+    const savedAccountError = message.startsWith("Saved OpenVPN account") || message.startsWith("OpenVPN account details were not persisted");
+    res.status(savedAccountError ? 500 : unavailable ? 503 : 502).json({
+      error: savedAccountError ? "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647 OpenVPN \u0642\u0627\u0628\u0644 \u062E\u0648\u0627\u0646\u062F\u0646 \u0646\u06CC\u0633\u062A." : message
+    });
+  } finally {
+    if (lockAcquired) {
+      await lockClient.query(
+        "SELECT pg_advisory_unlock(74422, hashtext($1::text))",
+        [serviceId]
+      ).catch(() => void 0);
+    }
+    lockClient.release();
   }
 });
 async function resolvePublicOpenVpnProfile(token, providerKey, hostId) {

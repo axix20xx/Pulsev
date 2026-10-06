@@ -194,24 +194,25 @@
 .mobile-client-actions a, .mobile-client-actions button { display: flex; min-width: 0; min-height: 44px; align-items: center; justify-content: center; gap: 4px; padding: 0 6px; border: 1px solid var(--m-line-2) !important; border-radius: 13px; color: var(--m-ink); background: var(--m-surface) !important; font-size: 11px; font-weight: 800; text-align: center; text-decoration: none; }
 .mobile-client-actions .mobile-client-quick { color: #f6efe2; border-color: transparent !important; background: var(--m-lacquer) !important; }
 .mobile-client-actions .mobile-client-download { color: var(--m-lacquer-2); }
-.mobile-client-footnote, .mobile-openvpn-hint { margin: 0; padding: 12px 14px; border-radius: 16px; color: var(--m-ink-2); background: var(--m-bg-2); font-size: 12px; line-height: 1.9; }
-.mobile-openvpn-primary, .mobile-openvpn-download { display: flex; min-height: 50px; align-items: center; justify-content: center; gap: 7px; padding: 8px 14px; border: 1px solid var(--m-line-2) !important; border-radius: 16px; color: var(--m-ink); background: var(--m-surface) !important; font-size: 13px; font-weight: 800; text-align: center; text-decoration: none; }
+.mobile-client-footnote, .mobile-openvpn-hint { margin: 0; padding: 12px 14px; border-radius: 16px; color: var(--m-ink-2); background: var(--m-bg-2); font-size: 14px; line-height: 1.8; }
+.mobile-openvpn-primary, .mobile-openvpn-download { display: flex; min-height: 50px; align-items: center; justify-content: center; gap: 7px; padding: 8px 14px; border: 1px solid var(--m-line-2) !important; border-radius: 16px; color: var(--m-ink); background: var(--m-surface) !important; font-size: 14px; font-weight: 800; line-height: 1.5; text-align: center; text-decoration: none; }
+.mobile-openvpn-loading { display: flex; min-height: 50px; align-items: center; gap: 9px; border: 1px solid var(--m-line); border-radius: 16px; padding: 10px 14px; color: var(--m-ink); background: var(--m-bg-2); font-size: 14px; line-height: 1.6; }
 .mobile-app .mobile-openvpn-primary, .mobile-app .mobile-openvpn-download.primary { color: #f6efe2; border-color: transparent !important; background: var(--m-lacquer) !important; box-shadow: 0 10px 20px -12px rgba(15,41,48,.6); }
 .mobile-openvpn-primary:disabled { opacity: .6; }
 .mobile-openvpn-details { display: grid; overflow: hidden; border: 1px solid var(--m-line); border-radius: 18px; background: #fdfbf7; }
 .mobile-openvpn-details > div { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 2px 10px; padding: 11px 12px; border-bottom: 1px solid var(--m-line); }
 .mobile-openvpn-details > div:last-child { border-bottom: 0; }
-.mobile-openvpn-details span { grid-column: 1; color: var(--m-muted); font-size: 11px; }
-.mobile-openvpn-details strong { grid-column: 1; overflow-wrap: anywhere; font-size: 13px; text-align: left; }
-.mobile-openvpn-details button { grid-column: 2; grid-row: 1 / span 2; min-height: 40px; padding: 0 14px; border: 1px solid var(--m-line-2) !important; border-radius: 12px; color: var(--m-lacquer-2); background: var(--m-surface) !important; font-size: 12px; font-weight: 800; }
+.mobile-openvpn-details span { grid-column: 1; color: var(--m-ink-2); font-size: 13px; }
+.mobile-openvpn-details strong { grid-column: 1; overflow-wrap: anywhere; font-size: 15px; text-align: left; }
+.mobile-openvpn-details button { grid-column: 2; grid-row: 1 / span 2; min-height: 42px; padding: 0 14px; border: 1px solid var(--m-line-2) !important; border-radius: 12px; color: var(--m-lacquer-2); background: var(--m-surface) !important; font-size: 13px; font-weight: 800; }
 .mobile-openvpn-locations { display: grid; overflow: hidden; border: 1px solid var(--m-line); border-radius: 18px; background: #fdfbf7; }
 .mobile-openvpn-location { display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: 6px; min-height: 56px; padding: 6px 12px 6px 6px; border-bottom: 1px solid var(--m-line); }
 .mobile-openvpn-location:last-child { border-bottom: 0; }
-.mobile-openvpn-location span { overflow-wrap: anywhere; font-size: 13px; font-weight: 700; }
-.mobile-openvpn-location a { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 12px; border: 1px solid var(--m-line); border-radius: 12px; color: var(--m-lacquer-2); background: var(--m-surface); font-size: 11px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.mobile-openvpn-location span { overflow-wrap: anywhere; font-size: 14px; font-weight: 700; }
+.mobile-openvpn-location a { display: flex; align-items: center; gap: 4px; min-height: 42px; padding: 0 12px; border: 1px solid var(--m-line); border-radius: 12px; color: var(--m-lacquer-2); background: var(--m-surface); font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }
 .mobile-openvpn-app-links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.mobile-openvpn-app-links a { display: flex; min-height: 46px; align-items: center; justify-content: center; gap: 4px; padding: 6px; border: 1px solid var(--m-line-2); border-radius: 14px; color: var(--m-ink); background: var(--m-surface); font-size: 11px; font-weight: 800; text-align: center; text-decoration: none; }
-.mobile-openvpn-error { margin: 0; color: var(--m-danger); font-size: 12px; line-height: 1.7; }
+.mobile-openvpn-app-links a { display: flex; min-height: 48px; align-items: center; justify-content: center; gap: 4px; padding: 6px; border: 1px solid var(--m-line-2); border-radius: 14px; color: var(--m-ink); background: var(--m-surface); font-size: 12px; font-weight: 800; line-height: 1.5; text-align: center; text-decoration: none; }
+.mobile-openvpn-error { margin: 0; color: var(--m-danger); font-size: 14px; line-height: 1.8; }
 .mobile-awg-download-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--m-muted); font-size: 12px; font-weight: 700; }
 .mobile-awg-download-heading a { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; color: var(--m-lacquer-2); text-decoration: none; }
 .mobile-awg-download-grid { display: grid; overflow: hidden; border: 1px solid var(--m-line); border-radius: 18px; background: #fdfbf7; }

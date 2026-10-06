@@ -2050,6 +2050,83 @@ export const useUpdateReseller = <TError = ErrorType<unknown>,
       return useMutation(getUpdateResellerMutationOptions(options));
     }
 
+export const getGetOpenVpnAccountUrl = (token: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/openvpn`
+}
+
+/**
+ * @summary Read previously saved OpenVPN access without contacting the provider
+ */
+export const getOpenVpnAccount = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<OpenVpnDelivery> => {
+
+  return customFetch<OpenVpnDelivery>(getGetOpenVpnAccountUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOpenVpnAccountQueryKey = (token: string,) => {
+    return [
+    `/api/public/subscription/${token}/openvpn`
+    ] as const;
+    }
+
+
+export const getGetOpenVpnAccountQueryOptions = <TData = Awaited<ReturnType<typeof getOpenVpnAccount>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpenVpnAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOpenVpnAccountQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOpenVpnAccount>>> = ({ signal }) => getOpenVpnAccount(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOpenVpnAccount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOpenVpnAccountQueryResult = NonNullable<Awaited<ReturnType<typeof getOpenVpnAccount>>>
+export type GetOpenVpnAccountQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read previously saved OpenVPN access without contacting the provider
+ */
+
+export function useGetOpenVpnAccount<TData = Awaited<ReturnType<typeof getOpenVpnAccount>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOpenVpnAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOpenVpnAccountQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getCreateOpenVpnAccountUrl = (token: string,) => {
 
 
@@ -2059,7 +2136,7 @@ export const getCreateOpenVpnAccountUrl = (token: string,) => {
 }
 
 /**
- * @summary Create or retrieve OpenVPN access for a subscription
+ * @summary Create or retrieve and persist OpenVPN access after an explicit user action
  */
 export const createOpenVpnAccount = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<OpenVpnDelivery> => {
 
@@ -2108,7 +2185,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateOpenVpnAccountMutationError = ErrorType<void>
 
     /**
- * @summary Create or retrieve OpenVPN access for a subscription
+ * @summary Create or retrieve and persist OpenVPN access after an explicit user action
  */
 export const useCreateOpenVpnAccount = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOpenVpnAccount>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}

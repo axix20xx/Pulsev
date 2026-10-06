@@ -2530,6 +2530,7 @@ function PublicSubscriptionContentV2() {
   const [connectState, setConnectState] = useState<string | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [openVpnBusy, setOpenVpnBusy] = useState(false);
+  const [openVpnLoading, setOpenVpnLoading] = useState(false);
   const [openVpnData, setOpenVpnData] = useState<any>(null);
   const [openVpnError, setOpenVpnError] = useState('');
   const [openVpnCopied, setOpenVpnCopied] = useState<'server' | 'username' | 'password' | null>(null);
@@ -2580,6 +2581,35 @@ function PublicSubscriptionContentV2() {
   const statusLabel = finished ? 'پایان‌یافته' : expiring ? 'نزدیک انقضا' : 'فعال';
   const finishedReason = data?.disable_reason || (quotaFinished ? 'حجم اشتراک به پایان رسیده است' : 'اعتبار اشتراک به پایان رسیده است');
   const awgAvailable = Boolean(data?.awg_url && data?.awg_ready !== false);
+  useEffect(() => {
+    if (!token || finished) {
+      setOpenVpnData(null);
+      setOpenVpnError('');
+      setOpenVpnLoading(false);
+      return;
+    }
+    let active = true;
+    setOpenVpnLoading(true);
+    void fetch(`/api/public/subscription/${encodeURIComponent(token)}/openvpn`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (response.status === 404 || response.status === 410) return null;
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.error || 'اطلاعات حساب OpenVPN دریافت نشد.');
+        return result;
+      })
+      .then((result) => {
+        if (!active) return;
+        setOpenVpnData(result);
+        setOpenVpnError('');
+      })
+      .catch((cause) => {
+        if (active) setOpenVpnError(cause instanceof Error ? cause.message : 'اطلاعات حساب OpenVPN دریافت نشد.');
+      })
+      .finally(() => {
+        if (active) setOpenVpnLoading(false);
+      });
+    return () => { active = false; };
+  }, [token, finished]);
   const number = (value: number, maximumFractionDigits = 1) => new Intl.NumberFormat('fa-IR', { maximumFractionDigits }).format(value);
   const flashCopy = (kind: 'page' | 'feed' | 'awg') => {
     setCopied(kind);
@@ -2737,9 +2767,9 @@ function PublicSubscriptionContentV2() {
         {!finished && <motion.section {...pageMotion} className="public-sub-openvpn-card" data-testid="card-public-sub-openvpn">
           <div className="public-sub-openvpn-heading">
             <div className="public-sub-openvpn-icon"><ShieldCheck size={20} /></div>
-            <div><p className="public-sub-kicker">دسترسی OpenVPN</p><h2>حساب OpenVPN</h2><p>برای سرویس‌های قدیمی، حساب فقط با انتخاب دکمه ساخته می‌شود.</p></div>
+            <div><p className="public-sub-kicker">دسترسی OpenVPN</p><h2>حساب OpenVPN</h2><p>اگر حساب قبلاً ساخته شده باشد بازیابی می‌شود؛ در غیر این صورت فقط با انتخاب شما ساخته خواهد شد.</p></div>
           </div>
-          {!openVpnData ? <div className="public-sub-openvpn-setup">
+          {openVpnLoading ? <div className="public-sub-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی حساب ذخیره‌شدهٔ OpenVPN...</div> : !openVpnData ? <div className="public-sub-openvpn-setup">
             <button type="button" className="public-sub-openvpn-button primary" onClick={() => void prepareOpenVpn()} disabled={openVpnBusy} data-testid="button-public-sub-openvpn-create">
               {openVpnBusy ? <><RefreshCw size={15} className="public-sub-spin" />در حال آماده‌سازی حساب...</> : <><Plus size={15} />ساخت یا دریافت حساب OpenVPN</>}
             </button>

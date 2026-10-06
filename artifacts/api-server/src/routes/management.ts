@@ -71,6 +71,7 @@ import {
   testPanelAuthentication,
   legacySubscriptionUrl,
   subscriptionUrl,
+  type OpenVpnDelivery,
 } from "../lib/rain";
 import { syncServiceUsageById } from "../lib/usage-sync";
 import {
@@ -782,6 +783,12 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
         content_type TEXT NOT NULL DEFAULT 'text/plain; charset=utf-8',
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS reseller_service_openvpn_accounts (
+        service_id BIGINT PRIMARY KEY REFERENCES reseller_services(id) ON DELETE CASCADE,
+        delivery_secret TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS reseller_notifications (
         id BIGSERIAL PRIMARY KEY,
         reseller_tg_id BIGINT NOT NULL,
@@ -1210,9 +1217,66 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/public/subscription/:token/openvpn", async (req, res): Promise<void> => {
+function isOpenVpnDelivery(value: unknown): value is OpenVpnDelivery {
+  if (!value || typeof value !== "object") return false;
+  const delivery = value as Partial<OpenVpnDelivery>;
+  return typeof delivery.provider_key === "string"
+    && typeof delivery.server === "string"
+    && typeof delivery.username === "string"
+    && typeof delivery.password === "string"
+    && delivery.core === "openvpn"
+    && Array.isArray(delivery.locations)
+    && delivery.locations.every((location) =>
+      Boolean(location)
+      && typeof location.id === "string"
+      && typeof location.name === "string",
+    );
+}
+
+async function loadSavedOpenVpnDelivery(serviceId: number): Promise<OpenVpnDelivery | null> {
+  const result = await pool.query<{ delivery_secret: string }>(
+    `SELECT delivery_secret
+     FROM reseller_service_openvpn_accounts
+     WHERE service_id = $1
+     LIMIT 1`,
+    [serviceId],
+  );
+  const secret = result.rows[0]?.delivery_secret;
+  if (!secret) return null;
+
+  const decoded = decryptPanelCredential(secret);
+  if (!decoded) throw new Error("Saved OpenVPN account could not be decrypted.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(decoded);
+  } catch {
+    throw new Error("Saved OpenVPN account data is invalid.");
+  }
+  if (!isOpenVpnDelivery(parsed)) throw new Error("Saved OpenVPN account data is invalid.");
+  return parsed;
+}
+
+function publicOpenVpnDelivery(token: string, delivery: OpenVpnDelivery) {
+  const tokenPath = `/api/public/subscription/${encodeURIComponent(token)}`;
+  const providerPath = `${tokenPath}/openvpn`;
+  const configBase = `${providerPath}/config/${encodeURIComponent(delivery.provider_key)}`;
+  const importBase = `${providerPath}/import/${encodeURIComponent(delivery.provider_key)}`;
+  return {
+    ...delivery,
+    bundle_url: `${providerPath}/bundle/${encodeURIComponent(delivery.provider_key)}`,
+    bundle_import_url: `${providerPath}/import-bundle/${encodeURIComponent(delivery.provider_key)}`,
+    locations: delivery.locations.map((location) => ({
+      ...location,
+      config_url: `${configBase}/${encodeURIComponent(location.id)}`,
+      import_url: `${importBase}/${encodeURIComponent(location.id)}`,
+    })),
+  };
+}
+
+router.get("/public/subscription/:token/openvpn", async (req, res): Promise<void> => {
+  await managementReady;
   const token = String(req.params.token ?? "").trim();
-  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     res.status(404).json({ error: "لینک اشتراک معتبر نیست" });
     return;
@@ -1227,6 +1291,58 @@ router.post("/public/subscription/:token/openvpn", async (req, res): Promise<voi
     return;
   }
   try {
+    const delivery = await loadSavedOpenVpnDelivery(Number(service.id));
+    if (!delivery) {
+      res.status(404).json({ error: "حساب OpenVPN ذخیره‌شده‌ای پیدا نشد", code: "OPENVPN_NOT_CREATED" });
+      return;
+    }
+    res.json(publicOpenVpnDelivery(token, delivery));
+  } catch {
+    res.status(500).json({ error: "اطلاعات ذخیره‌شده OpenVPN قابل خواندن نیست." });
+  }
+});
+
+router.post("/public/subscription/:token/openvpn", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).json({ error: "لینک اشتراک معتبر نیست" });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "لینک اشتراک پیدا نشد" });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "اشتراک پایان یافته است؛ برای دریافت OpenVPN آن را تمدید کنید." });
+    return;
+  }
+  const serviceId = Number(service.id);
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
+    res.status(500).json({ error: "شناسه سرویس معتبر نیست." });
+    return;
+  }
+  const lockClient = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lockClient.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(74422, hashtext($1::text)) AS locked",
+      [serviceId],
+    );
+    lockAcquired = Boolean(lockResult.rows[0]?.locked);
+    if (!lockAcquired) {
+      res.status(409).json({ error: "آماده‌سازی OpenVPN همین سرویس در حال انجام است؛ چند لحظه دیگر دوباره تلاش کنید." });
+      return;
+    }
+
+    const savedDelivery = await loadSavedOpenVpnDelivery(serviceId);
+    if (savedDelivery) {
+      res.json(publicOpenVpnDelivery(token, savedDelivery));
+      return;
+    }
+
     const delivery = await prepareOpenVpnAccount(
       String(service.username),
       Number(service.limit_gb ?? 0),
@@ -1234,23 +1350,31 @@ router.post("/public/subscription/:token/openvpn", async (req, res): Promise<voi
       Number(service.reseller_tg_id),
       "reseller",
     );
-    const configBase = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/config/${encodeURIComponent(delivery.provider_key)}`;
-    const bundleUrl = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/bundle/${encodeURIComponent(delivery.provider_key)}`;
-    const importBase = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/import/${encodeURIComponent(delivery.provider_key)}`;
-    res.json({
-      ...delivery,
-      bundle_url: bundleUrl,
-      bundle_import_url: `/api/public/subscription/${encodeURIComponent(token)}/openvpn/import-bundle/${encodeURIComponent(delivery.provider_key)}`,
-      locations: delivery.locations.map((location) => ({
-        ...location,
-        config_url: `${configBase}/${encodeURIComponent(location.id)}`,
-        import_url: `${importBase}/${encodeURIComponent(location.id)}`,
-      })),
-    });
+    await pool.query(
+      `INSERT INTO reseller_service_openvpn_accounts (service_id, delivery_secret)
+       VALUES ($1, $2)
+       ON CONFLICT (service_id) DO NOTHING`,
+      [serviceId, encryptPanelCredential(JSON.stringify(delivery))],
+    );
+    const persistedDelivery = await loadSavedOpenVpnDelivery(serviceId);
+    if (!persistedDelivery) throw new Error("OpenVPN account details were not persisted.");
+    res.json(publicOpenVpnDelivery(token, persistedDelivery));
   } catch (error) {
     const message = error instanceof Error ? error.message : "OpenVPN account setup failed.";
     const unavailable = message.includes("No enabled AzadPanel");
-    res.status(unavailable ? 503 : 502).json({ error: message });
+    const savedAccountError = message.startsWith("Saved OpenVPN account")
+      || message.startsWith("OpenVPN account details were not persisted");
+    res.status(savedAccountError ? 500 : unavailable ? 503 : 502).json({
+      error: savedAccountError ? "اطلاعات ذخیره‌شده OpenVPN قابل خواندن نیست." : message,
+    });
+  } finally {
+    if (lockAcquired) {
+      await lockClient.query(
+        "SELECT pg_advisory_unlock(74422, hashtext($1::text))",
+        [serviceId],
+      ).catch(() => undefined);
+    }
+    lockClient.release();
   }
 });
 

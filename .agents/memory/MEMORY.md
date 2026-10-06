@@ -4,6 +4,7 @@
 - [Public token subscription routes](public-subscription.md) — token links must bypass auth by path prefix and normalize legacy URLs to the current public route.
 - [Combined provider usage sync](combined-usage-sync.md) — aggregate all configured provider counters and AmneziaWG with independent reset offsets before quota enforcement.
 - [AzadPanel OpenVPN handoff](azadpanel-openvpn-import.md) — wrap a token-protected HTTPS profile endpoint in OpenVPN Connect’s import-profile deeplink; never expose provider credentials.
+- [OpenVPN account persistence](openvpn-account-persistence.md) — share encrypted per-service credentials across `/sub` and `/mobile`; ordinary reads must not contact Providers.
 - [Persian date boundaries](persian-date-boundaries.md) — keep user-facing dates in Tehran’s Persian calendar and convert to ISO only at API boundaries.
 - [ISO date query schemas](iso-date-query-schemas.md) — use patterned strings for OpenAPI query dates; date formats generate runtime zod.date parsers that reject URL strings.
 - [Paid and unpaid profit](paid-profit-allocation.md) — allocate shared credit cost by paid-revenue share when splitting profit by collection status.

@@ -452,6 +452,7 @@ export interface OpenVpnLocation {
   id: string;
   name: string;
   config_url: string;
+  import_url: string;
 }
 
 export interface OpenVpnDelivery {
@@ -461,6 +462,7 @@ export interface OpenVpnDelivery {
   password: string;
   core: OpenVpnDeliveryCore;
   bundle_url: string;
+  bundle_import_url: string;
   locations: OpenVpnLocation[];
 }
 

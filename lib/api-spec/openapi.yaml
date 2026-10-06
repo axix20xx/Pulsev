@@ -472,10 +472,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/Reseller"
   /public/subscription/{token}/openvpn:
+    get:
+      operationId: getOpenVpnAccount
+      tags: [services]
+      summary: Read previously saved OpenVPN access without contacting the provider
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+      responses:
+        "200":
+          description: Persisted OpenVPN account details and import locations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenVpnDelivery"
+        "404":
+          description: Subscription not found or no OpenVPN account has been saved
+        "410":
+          description: Subscription is no longer active
     post:
       operationId: createOpenVpnAccount
       tags: [services]
-      summary: Create or retrieve OpenVPN access for a subscription
+      summary: Create or retrieve and persist OpenVPN access after an explicit user action
       parameters:
         - $ref: "#/components/parameters/SubscriptionToken"
       responses:
@@ -1272,7 +1289,7 @@ components:
           minimum: 0
     OpenVpnDelivery:
       type: object
-      required: [provider_key, server, username, password, core, bundle_url, locations]
+      required: [provider_key, server, username, password, core, bundle_url, bundle_import_url, locations]
       properties:
         provider_key:
           type: string
@@ -1287,18 +1304,22 @@ components:
           enum: [openvpn]
         bundle_url:
           type: string
+        bundle_import_url:
+          type: string
         locations:
           type: array
           items:
             $ref: "#/components/schemas/OpenVpnLocation"
     OpenVpnLocation:
       type: object
-      required: [id, name, config_url]
+      required: [id, name, config_url, import_url]
       properties:
         id:
           type: string
         name:
           type: string
         config_url:
+          type: string
+        import_url:
           type: string
 

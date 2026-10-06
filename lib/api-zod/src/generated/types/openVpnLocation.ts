@@ -10,4 +10,5 @@ export interface OpenVpnLocation {
   id: string;
   name: string;
   config_url: string;
+  import_url: string;
 }

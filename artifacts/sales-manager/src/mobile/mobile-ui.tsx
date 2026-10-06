@@ -154,6 +154,7 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
   const [copied, setCopied] = useState('');
   const [openVpnData, setOpenVpnData] = useState<MobileOpenVpnDelivery | null>(null);
   const [openVpnBusy, setOpenVpnBusy] = useState(false);
+  const [openVpnLoading, setOpenVpnLoading] = useState(false);
   const [openVpnError, setOpenVpnError] = useState('');
   const providerUrl = item.provider_url || item.subscription_url || item.public_url;
   const v2boxUrl = item.v2box_url || (providerUrl ? `v2box://install-sub?url=${encodeURIComponent(providerUrl)}&name=${encodeURIComponent(item.plan)}` : '');
@@ -164,6 +165,35 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
   })();
   const isIosDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent)
     || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  useEffect(() => {
+    if (!openVpnToken || item.status !== 'active') {
+      setOpenVpnData(null);
+      setOpenVpnError('');
+      setOpenVpnLoading(false);
+      return;
+    }
+    let active = true;
+    setOpenVpnLoading(true);
+    void fetch(`/api/public/subscription/${encodeURIComponent(openVpnToken)}/openvpn`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (response.status === 404 || response.status === 410) return null;
+        const payload = await response.json().catch(() => null) as (MobileOpenVpnDelivery & { error?: string }) | null;
+        if (!response.ok || !payload) throw new Error(payload?.error || 'دریافت اطلاعات OpenVPN ناموفق بود.');
+        return payload;
+      })
+      .then((payload) => {
+        if (!active) return;
+        setOpenVpnData(payload);
+        setOpenVpnError('');
+      })
+      .catch((cause) => {
+        if (active) setOpenVpnError(cause instanceof Error ? cause.message : 'دریافت اطلاعات OpenVPN ناموفق بود.');
+      })
+      .finally(() => {
+        if (active) setOpenVpnLoading(false);
+      });
+    return () => { active = false; };
+  }, [openVpnToken, item.status]);
   const copyValue = async (value: string, label: string) => { await navigator.clipboard?.writeText(value); setCopied(label); };
   const shareValue = async (value: string) => { if (navigator.share) await navigator.share({ title: item.plan, url: value }); else await copyValue(value, 'لینک Provider'); };
   const showQr = async (value: string) => setQr(await QRCode.toDataURL(value, { margin: 2, width: 240, color: { dark: '#163d40', light: '#f7f6f0' } }));
@@ -228,8 +258,8 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
        <div className="mobile-awg-download-grid">{awgDownloads.map((download) => <a href={download.href} target="_blank" rel="noreferrer" key={download.id} data-testid={`link-mobile-awg-download-${download.id}`}><strong>{download.label}</strong><small>{download.detail}</small><ExternalLink size={13} /></a>)}</div>
     </section> : null}
      {openVpnToken && item.status === 'active' ? <section className="mobile-openvpn-card" data-testid={`panel-mobile-openvpn-${item.id}`}>
-       <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">اتصال جداگانه</span><h3>OpenVPN</h3><p>حساب OpenVPN و فایل کانفیگ همین سرویس</p></div></div>
-       {!openVpnData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareOpenVpn()} disabled={openVpnBusy} data-testid={`button-mobile-openvpn-prepare-${item.id}`}>{openVpnBusy ? 'در حال دریافت...' : 'دریافت حساب و کانفیگ OpenVPN'}</button> : <>
+       <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">اتصال جداگانه</span><h3>OpenVPN</h3><p>بازیابی حساب موجود؛ ساخت حساب فقط با انتخاب شما</p></div></div>
+        {openVpnLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی حساب ذخیره‌شدهٔ OpenVPN...</div> : !openVpnData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareOpenVpn()} disabled={openVpnBusy} data-testid={`button-mobile-openvpn-prepare-${item.id}`}>{openVpnBusy ? 'در حال دریافت...' : 'بازیابی یا ساخت حساب OpenVPN'}</button> : <>
          <div className="mobile-openvpn-details">
            <div><span>آدرس سرور</span><strong dir="ltr">{openVpnData.server}</strong></div>
            <div><span>نام کاربری</span><strong dir="ltr">{openVpnData.username}</strong><button type="button" onClick={() => void copyValue(openVpnData.username, 'نام کاربری OpenVPN')}>کپی</button></div>

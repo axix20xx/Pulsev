@@ -15,5 +15,6 @@ export interface OpenVpnDelivery {
   password: string;
   core: OpenVpnDeliveryCore;
   bundle_url: string;
+  bundle_import_url: string;
   locations: OpenVpnLocation[];
 }

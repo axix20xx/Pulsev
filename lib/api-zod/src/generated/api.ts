@@ -897,7 +897,34 @@ export const UpdateResellerResponse = zod.object({
 
 
 /**
- * @summary Create or retrieve OpenVPN access for a subscription
+ * @summary Read previously saved OpenVPN access without contacting the provider
+ */
+export const getOpenVpnAccountPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+
+
+export const GetOpenVpnAccountParams = zod.object({
+  "token": zod.coerce.string().regex(getOpenVpnAccountPathTokenRegExp)
+})
+
+export const GetOpenVpnAccountResponse = zod.object({
+  "provider_key": zod.string(),
+  "server": zod.string(),
+  "username": zod.string(),
+  "password": zod.string(),
+  "core": zod.enum(['openvpn']),
+  "bundle_url": zod.string(),
+  "bundle_import_url": zod.string(),
+  "locations": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "config_url": zod.string(),
+  "import_url": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create or retrieve and persist OpenVPN access after an explicit user action
  */
 export const createOpenVpnAccountPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
 
@@ -913,10 +940,12 @@ export const CreateOpenVpnAccountResponse = zod.object({
   "password": zod.string(),
   "core": zod.enum(['openvpn']),
   "bundle_url": zod.string(),
+  "bundle_import_url": zod.string(),
   "locations": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),
-  "config_url": zod.string()
+  "config_url": zod.string(),
+  "import_url": zod.string()
 }))
 })
 
