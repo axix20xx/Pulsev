@@ -452,7 +452,7 @@ export const ListAwgUsageResponse = zod.object({
   "raw_total_gb": zod.number(),
   "offset_gb": zod.number()
 })),
-  "total": zod.int().min(listAwgUsageResponseTotalMin)
+  "total": zod.number().min(listAwgUsageResponseTotalMin)
 })
 
 

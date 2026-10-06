@@ -1224,7 +1224,7 @@ components:
           items:
             $ref: "#/components/schemas/AwgUsageItem"
         total:
-          type: integer
+          type: number
           minimum: 0
     AwgUsageRefreshResult:
       type: object

@@ -23,7 +23,7 @@ const AWG_STATS_MIN_REQUEST_GAP_MS = 500;
 const AWG_STATS_CACHE_PRUNE_INTERVAL_MS = 60_000;
 const statsEndpointByApiUrl = new Map<string, string>();
 const statsRouteUnavailableUntil = new Map<string, number>();
-type AwgStats = { rxBytes: number; txBytes: number };
+export type AwgStats = { rxBytes: number; txBytes: number; source: "api" | "cache" };
 const statsCache = new Map<string, { value: AwgStats; expiresAt: number }>();
 const statsErrorCache = new Map<string, { message: string; kind?: "stats-route-unavailable"; expiresAt: number }>();
 const statsInFlight = new Map<string, Promise<AwgStats>>();
@@ -306,17 +306,22 @@ async function fetchAwgStats(clientId: string, awg: AwgConfig): Promise<AwgStats
   if (rxBytes === null || txBytes === null) {
     throw new AwgApiError("AmneziaWG returned invalid usage statistics.");
   }
-  return { rxBytes: Math.round(rxBytes), txBytes: Math.round(txBytes) };
+  return { rxBytes: Math.round(rxBytes), txBytes: Math.round(txBytes), source: "api" };
 }
 
-export async function getAwgStats(clientId: string): Promise<AwgStats> {
+export async function getAwgStats(
+  clientId: string,
+  options: { forceRefresh?: boolean } = {},
+): Promise<AwgStats> {
   const awg = await config();
   if (!awg) throw new AwgApiError("AmneziaWG API is not configured.");
   const now = Date.now();
   pruneExpiredAwgStatsCache(now);
   const key = awgStatsCacheKey(awg.apiUrl, clientId);
   const cached = statsCache.get(key);
-  if (cached && cached.expiresAt > now) return cached.value;
+  if (!options.forceRefresh && cached && cached.expiresAt > now) {
+    return { ...cached.value, source: "cache" };
+  }
   if (cached) statsCache.delete(key);
   const failed = statsErrorCache.get(key);
   if (failed && failed.expiresAt > now) throw new AwgApiError(failed.message, failed.kind);
