@@ -24,6 +24,7 @@ import type {
   AuthSession,
   AwgUsagePage,
   AwgUsageRefreshResult,
+  AwgUsageWorkerLog,
   CreateServiceInput,
   CreateServiceResult,
   Customer,
@@ -1311,6 +1312,83 @@ export const useRefreshAwgUsage = <TError = ErrorType<void>,
       > => {
       return useMutation(getRefreshAwgUsageMutationOptions(options));
     }
+
+export const getGetAwgUsageWorkerLogUrl = () => {
+
+
+
+
+  return `/api/admin/awg-usage/worker-log`
+}
+
+/**
+ * @summary Read the current AWG worker status and its latest 100 service results
+ */
+export const getAwgUsageWorkerLog = async ( options?: Parameters<typeof customFetch>[1]): Promise<AwgUsageWorkerLog> => {
+
+  return customFetch<AwgUsageWorkerLog>(getGetAwgUsageWorkerLogUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAwgUsageWorkerLogQueryKey = () => {
+    return [
+    `/api/admin/awg-usage/worker-log`
+    ] as const;
+    }
+
+
+export const getGetAwgUsageWorkerLogQueryOptions = <TData = Awaited<ReturnType<typeof getAwgUsageWorkerLog>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAwgUsageWorkerLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAwgUsageWorkerLogQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAwgUsageWorkerLog>>> = ({ signal }) => getAwgUsageWorkerLog({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAwgUsageWorkerLog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAwgUsageWorkerLogQueryResult = NonNullable<Awaited<ReturnType<typeof getAwgUsageWorkerLog>>>
+export type GetAwgUsageWorkerLogQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read the current AWG worker status and its latest 100 service results
+ */
+
+export function useGetAwgUsageWorkerLog<TData = Awaited<ReturnType<typeof getAwgUsageWorkerLog>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAwgUsageWorkerLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAwgUsageWorkerLogQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListServicesUrl = (params?: ListServicesParams,) => {
   const normalizedParams = new URLSearchParams();

@@ -1,106 +1,114 @@
-import { useMemo, useState } from 'react';
-import { Activity, ChevronLeft, ChevronRight, Database, RefreshCw, Search, Wifi } from 'lucide-react';
-import { Link } from 'wouter';
-import { PageHeader } from '@/components/pulse-shell';
-import { usePulse } from '@/pages/pulse-pages';
-import type { Service } from '@/lib/pulse-data';
-
-type UsageFilter = 'all' | 'with-client' | 'saved' | 'zero';
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Activity,
+  ChevronLeft,
+  ChevronRight,
+  Database,
+  ExternalLink,
+  RefreshCw,
+  Search,
+  Wifi,
+} from "lucide-react";
+import { Link } from "wouter";
+import {
+  getListAwgUsageQueryKey,
+  useListAwgUsage,
+  useRefreshAwgUsage,
+} from "@workspace/api-client-react";
+import { PageHeader } from "@/components/pulse-shell";
+import { usePulse } from "@/pages/pulse-pages";
 
 const PAGE_SIZE = 25;
-const numberFormat = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 3 });
-const countFormat = new Intl.NumberFormat('fa-IR');
-const normalize = (value: string) => value
-  .toLocaleLowerCase('fa-IR')
-  .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
-  .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+const countFormat = new Intl.NumberFormat("fa-IR");
+const numberFormat = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 3 });
 
-function trafficLabel(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return '—';
-  const gb = Math.max(0, value);
-  if (gb === 0) return '۰ گیگابایت';
+function trafficLabel(value: number): string {
+  const gb = Math.max(0, Number.isFinite(value) ? value : 0);
+  if (gb === 0) return "۰ گیگابایت";
   if (gb < 0.01) {
     const mb = gb * 1024;
-    return mb < 0.01 ? 'کمتر از ۰٫۰۱ مگابایت' : `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(mb)} مگابایت`;
+    return `${new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 2 }).format(mb)} مگابایت`;
   }
   return `${numberFormat.format(gb)} گیگابایت`;
 }
 
-function serviceCode(service: Service): string {
-  return service.serviceCode ?? `PULSE-${service.id.replace(/\D/g, '').padStart(6, '0')}`;
+function checkedLabel(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("fa-IR", {
+        dateStyle: "short",
+        timeStyle: "short",
+        timeZone: "Asia/Tehran",
+      }).format(date);
 }
 
-function serviceStatusLabel(status: Service['status']): string {
-  return {
-    Active: 'فعال',
-    Expiring: 'رو به پایان',
-    Expired: 'منقضی',
-    Disabled: 'غیرفعال',
-  }[status];
-}
-
-function matchesFilter(service: Service, filter: UsageFilter): boolean {
-  if (filter === 'with-client') return Boolean(service.awgReady);
-  if (filter === 'saved') return !service.awgReady && Boolean(service.awgUsage);
-  if (filter === 'zero') return Boolean(service.awgReady && (!service.awgUsage || service.awgUsage.usedGb <= 0));
-  return Boolean(service.awgReady || service.awgUsage);
+function readError(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return "دریافت اطلاعات ناموفق بود. دوباره تلاش کنید.";
 }
 
 export default function AwgUsagePage() {
-  const { services, servicesLoading, servicesError, refreshServices } = usePulse();
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<UsageFilter>('all');
+  const { session, sessionLoading } = usePulse();
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshingId, setRefreshingId] = useState<number | null>(null);
+  const [lastChecks, setLastChecks] = useState<Record<number, string>>({});
+  const [refreshErrors, setRefreshErrors] = useState<Record<number, string>>({});
 
-  const awgServices = useMemo(
-    () => services
-      .filter((service) => service.awgReady || service.awgUsage)
-      .sort((a, b) => (b.awgUsage?.usedGb ?? -1) - (a.awgUsage?.usedGb ?? -1)),
-    [services],
-  );
+  const authScope = session?.authenticated
+    ? `${session.role ?? "user"}:${session.telegram_id ?? session.reseller_id ?? "unknown"}`
+    : "signed-out";
+  const params = {
+    search: debouncedSearch || undefined,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+  };
+  const usageQuery = useListAwgUsage(params, {
+    query: {
+      enabled: session?.authenticated === true && !sessionLoading,
+      queryKey: [...getListAwgUsageQueryKey(params), authScope],
+      staleTime: 20_000,
+      refetchInterval: 60_000,
+      refetchOnReconnect: true,
+      refetchOnWindowFocus: true,
+    },
+  });
+  const refreshMutation = useRefreshAwgUsage();
 
-  const filteredServices = useMemo(() => {
-    const needle = normalize(search.trim());
-    return awgServices.filter((service) => {
-      if (!matchesFilter(service, filter)) return false;
-      if (!needle) return true;
-      return [
-        service.customerName,
-        service.username,
-        service.plan,
-        serviceCode(service),
-        service.id,
-      ].some((value) => normalize(value).includes(needle));
-    });
-  }, [awgServices, filter, search]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredServices.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount - 1);
-  const visibleServices = filteredServices.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
-  const clientsWithId = awgServices.filter((service) => service.awgReady).length;
-  const servicesWithUsage = awgServices.filter((service) => Boolean(service.awgUsage)).length;
-  const zeroUsageCount = awgServices.filter((service) => service.awgReady && (!service.awgUsage || service.awgUsage.usedGb <= 0)).length;
-  const totalEffectiveUsage = awgServices.reduce((sum, service) => sum + (service.awgUsage?.usedGb ?? 0), 0);
-
-  const reload = async () => {
-    setRefreshing(true);
-    try {
-      await refreshServices();
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
       setPage(0);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  const items = usageQuery.data?.items ?? [];
+  const total = usageQuery.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const zeroCount = items.filter((item) => item.used_gb <= 0).length;
+  const totalUsage = items.reduce((sum, item) => sum + item.used_gb, 0);
+
+  const reloadList = async () => {
+    await usageQuery.refetch();
+  };
+
+  const checkLive = async (serviceId: number) => {
+    setRefreshingId(serviceId);
+    setRefreshErrors((previous) => ({ ...previous, [serviceId]: "" }));
+    try {
+      const result = await refreshMutation.mutateAsync({ id: serviceId });
+      setLastChecks((previous) => ({ ...previous, [serviceId]: result.checked_at }));
+      await queryClient.invalidateQueries({ queryKey: getListAwgUsageQueryKey() });
+    } catch (error) {
+      setRefreshErrors((previous) => ({ ...previous, [serviceId]: readError(error) }));
     } finally {
-      setRefreshing(false);
+      setRefreshingId(null);
     }
-  };
-
-  const updateSearch = (value: string) => {
-    setSearch(value);
-    setPage(0);
-  };
-
-  const updateFilter = (value: UsageFilter) => {
-    setFilter(value);
-    setPage(0);
   };
 
   return (
@@ -108,162 +116,223 @@ export default function AwgUsagePage() {
       <PageHeader
         eyebrow="گزارش جداگانه"
         title="مصرف AmneziaWG"
-        description="آخرین شمارنده‌های AWG ذخیره‌شده به تفکیک سرویس و مشتری."
+        description="فقط سرویس‌های فعال و دارای شناسهٔ AWG؛ جست‌وجو در سرور انجام می‌شود."
         action={
-          <button
-            type="button"
-            className="button button-secondary"
-            onClick={() => void reload()}
-            disabled={refreshing || servicesLoading}
-            data-testid="button-refresh-awg-usage"
-          >
-            <RefreshCw size={15} className={refreshing ? 'spin' : ''} />
-            بارگذاری دوباره
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {session?.role === "master_admin" && (
+              <Link href="/awg-usage-log" className="button button-secondary" data-testid="link-awg-worker-log">
+                <Activity size={15} />
+                لاگ زنده worker
+              </Link>
+            )}
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => void reloadList()}
+              disabled={usageQuery.isFetching}
+              data-testid="button-refresh-awg-usage"
+            >
+              <RefreshCw size={15} className={usageQuery.isFetching ? "spin" : ""} />
+              تازه‌سازی فهرست
+            </button>
+          </div>
         }
       />
 
-      <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 text-sm leading-7" role="note" data-testid="notice-awg-usage-source">
+      <div
+        className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 text-sm leading-7"
+        role="note"
+        data-testid="notice-awg-usage-source"
+      >
         <Database size={17} className="mt-1 shrink-0 text-amber-600" />
         <p className="m-0 text-foreground/80">
-          سرور برای سرویس‌های فعال یا رو به پایان که شناسهٔ AWG ذخیره‌شده دارند، هر ۵ دقیقه آمار AWG را می‌خواند.
-          این صفحه و دکمهٔ بارگذاری دوباره فقط دفتر محلی را می‌خوانند؛ خطای دریافت، عدد قبلی را حفظ می‌کند.
-          مقدار صفر به‌تنهایی وضعیت اتصال فعلی را ثابت نمی‌کند و سرویس غیرفعال فقط سابقهٔ ذخیره‌شده را نشان می‌دهد.
+          worker فعلی هر ۵ دقیقه آمار را ذخیره می‌کند. «تازه‌سازی فهرست» فقط دادهٔ ذخیره‌شده را می‌خواند؛
+          برای یک درخواست زنده، فقط دکمهٔ همان سرویس را بزنید. بررسی دستی به API آمِنزیا WG برای همان سرویس
+          وصل می‌شود و هیچ پنل Provider را صدا نمی‌زند. در خطا، مقدار قبلی حفظ می‌شود؛ هر سرویس حداکثر
+          یک‌بار در دقیقه بررسی دستی می‌شود.
         </p>
       </div>
 
       <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="خلاصه مصرف AmneziaWG">
-        <div className="panel-card p-4" data-testid="metric-awg-services">
+        <div className="panel-card p-4" data-testid="metric-awg-active-services">
           <div className="flex items-center gap-3">
             <span className="monitoring-metric-icon teal"><Wifi size={17} /></span>
-            <div><small className="text-muted-foreground">سرویس‌های دارای داده AWG</small><strong className="mt-1 block text-xl font-extrabold">{countFormat.format(awgServices.length)}</strong></div>
+            <div>
+              <small className="text-muted-foreground">سرویس‌های فعال دارای AWG</small>
+              <strong className="mt-1 block text-xl font-extrabold">{countFormat.format(total)}</strong>
+            </div>
           </div>
         </div>
-        <div className="panel-card p-4" data-testid="metric-awg-client-ids">
+        <div className="panel-card p-4" data-testid="metric-awg-visible-zero">
           <div className="flex items-center gap-3">
-            <span className="monitoring-metric-icon"><Activity size={17} /></span>
-            <div><small className="text-muted-foreground">شناسه کلاینت ذخیره‌شده</small><strong className="mt-1 block text-xl font-extrabold">{countFormat.format(clientsWithId)}</strong></div>
+            <span className="monitoring-metric-icon amber"><Activity size={17} /></span>
+            <div>
+              <small className="text-muted-foreground">مصرف صفر در این صفحه</small>
+              <strong className="mt-1 block text-xl font-extrabold">{countFormat.format(zeroCount)}</strong>
+            </div>
           </div>
         </div>
-        <div className="panel-card p-4" data-testid="metric-awg-total-usage">
+        <div className="panel-card p-4" data-testid="metric-awg-page-total">
           <div className="flex items-center gap-3">
-            <span className="monitoring-metric-icon amber"><Database size={17} /></span>
-            <div><small className="text-muted-foreground">جمع مصرف مؤثر ذخیره‌شده</small><strong className="mt-1 block text-xl font-extrabold">{trafficLabel(totalEffectiveUsage)}</strong></div>
+            <span className="monitoring-metric-icon"><Database size={17} /></span>
+            <div>
+              <small className="text-muted-foreground">جمع مصرف مؤثر این صفحه</small>
+              <strong className="mt-1 block text-xl font-extrabold">{trafficLabel(totalUsage)}</strong>
+            </div>
           </div>
         </div>
       </section>
-
-      {servicesError && (
-        <div className="notice notice-danger mb-4" role="alert" data-testid="error-awg-usage">
-          دریافت فهرست سرویس‌ها ناموفق بود: {servicesError}
-        </div>
-      )}
 
       <section className="panel-card p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="eyebrow">مصرف به تفکیک کاربر</p>
-            <h2 className="section-title">سرویس‌های AWG</h2>
+            <h2 className="section-title">کاربران فعال AWG</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              {countFormat.format(filteredServices.length)} مورد از {countFormat.format(awgServices.length)}
-              {servicesWithUsage > 0 ? ` · ${countFormat.format(servicesWithUsage)} ردیف دارای عدد ذخیره‌شده` : ''}
-              {zeroUsageCount > 0 ? ` · ${countFormat.format(zeroUsageCount)} ردیف با مصرف مؤثر صفر` : ''}
+              {countFormat.format(items.length)} مورد از {countFormat.format(total)}
+              {zeroCount > 0 ? ` · ${countFormat.format(zeroCount)} مورد با مصرف ذخیره‌شدهٔ صفر` : ""}
             </p>
           </div>
+          {usageQuery.isFetching && usageQuery.data && (
+            <span className="inline-flex items-center gap-2 text-xs text-muted-foreground" role="status">
+              <RefreshCw size={13} className="spin" /> به‌روزرسانی فهرست
+            </span>
+          )}
         </div>
 
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-          <label className="search-field" htmlFor="awg-usage-search">
-            <Search size={16} />
-            <input
-              id="awg-usage-search"
-              value={search}
-              onChange={(event) => updateSearch(event.target.value)}
-              placeholder="جست‌وجوی مشتری، username یا شناسه سرویس"
-              aria-label="جست‌وجوی مصرف AWG"
-              data-testid="input-search-awg-usage"
-            />
-          </label>
-          <select
-            className="h-11 rounded-xl border border-border bg-background px-3 text-sm"
-            value={filter}
-            onChange={(event) => updateFilter(event.target.value as UsageFilter)}
-            aria-label="فیلتر سرویس‌های AWG"
-            data-testid="select-filter-awg-usage"
-          >
-            <option value="all">همه سرویس‌های AWG</option>
-            <option value="with-client">دارای شناسه کلاینت</option>
-            <option value="saved">فقط سابقه ذخیره‌شده</option>
-            <option value="zero">مصرف مؤثر صفر / بدون عدد</option>
-          </select>
-        </div>
+        <label className="search-field mb-4" htmlFor="awg-usage-search">
+          <Search size={16} />
+          <input
+            id="awg-usage-search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="جست‌وجوی نام، شماره، username یا شناسه سرویس"
+            aria-label="جست‌وجوی سروری کاربران AWG"
+            data-testid="input-search-awg-usage"
+          />
+        </label>
 
-        {servicesLoading && services.length === 0 ? (
+        {usageQuery.isLoading ? (
           <div className="monitoring-empty" role="status" data-testid="loading-awg-usage">
-            <RefreshCw size={18} className="spin" /><p>در حال بارگذاری مقادیر ذخیره‌شده...</p>
+            <RefreshCw size={18} className="spin" />
+            <p>در حال دریافت فهرست کاربران فعال...</p>
           </div>
-        ) : visibleServices.length === 0 ? (
+        ) : usageQuery.isError ? (
+          <div className="notice notice-danger mb-4" role="alert" data-testid="error-awg-usage">
+            دریافت فهرست AWG ناموفق بود: {readError(usageQuery.error)}
+          </div>
+        ) : items.length === 0 ? (
           <div className="monitoring-empty" data-testid="empty-awg-usage">
             <Wifi size={18} />
-            <p>{awgServices.length ? 'با جست‌وجو یا فیلتر فعلی موردی پیدا نشد.' : 'سرویس دارای شناسه یا سابقهٔ AWG پیدا نشد.'}</p>
-            <small>این صفحه فقط سرویس‌هایی را نشان می‌دهد که شناسه AWG یا عدد ذخیره‌شده دارند.</small>
+            <p>{debouncedSearch ? "کاربر فعالی با این جست‌وجو پیدا نشد." : "سرویس فعال دارای شناسهٔ AWG پیدا نشد."}</p>
+            <small>سرویس‌های غیرفعال و منقضی در این فهرست نمایش داده نمی‌شوند.</small>
           </div>
         ) : (
           <div className="grid gap-3" data-testid="list-awg-usage">
-            {visibleServices.map((service) => {
-              const usage = service.awgUsage;
-              const sourceLabel = service.awgReady
-                ? usage ? 'شناسه ثبت‌شده · دادهٔ دفتر' : 'شناسه ثبت‌شده · منتظر آمار'
-                : 'سابقهٔ ذخیره‌شده';
-              const metrics = [
-                { label: 'مصرف مؤثر', value: usage ? trafficLabel(usage.usedGb) : 'در انتظار عدد', id: 'effective' },
-                { label: 'دریافت · RX', value: usage ? trafficLabel(usage.rxGb) : '—', id: 'rx' },
-                { label: 'ارسال · TX', value: usage ? trafficLabel(usage.txGb) : '—', id: 'tx' },
-                { label: 'خام RX + TX', value: usage ? trafficLabel(usage.rawTotalGb) : '—', id: 'raw' },
-                { label: 'مبنای کسرشده', value: usage ? trafficLabel(usage.offsetGb) : '—', id: 'offset' },
-              ];
+            {items.map((item) => {
+              const checkedAt = lastChecks[item.id];
+              const refreshError = refreshErrors[item.id];
+              const isRefreshing = refreshingId === item.id;
               return (
-                <article className="rounded-2xl border border-border bg-background/60 p-4" key={service.id} data-testid={`card-awg-usage-${service.id}`}>
+                <article
+                  className="rounded-2xl border border-border bg-background/60 p-4"
+                  key={item.id}
+                  data-testid={`card-awg-usage-${item.id}`}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      {service.customerId ? (
-                        <Link href={`/customers/${service.customerId}`} className="font-bold text-foreground hover:text-primary" data-testid={`link-awg-customer-${service.id}`}>
-                          {service.customerName}
+                      {item.customer_id ? (
+                        <Link
+                          href={`/customers/${item.customer_id}`}
+                          className="font-bold text-foreground hover:text-primary"
+                          data-testid={`link-awg-customer-${item.id}`}
+                        >
+                          {item.customer_name}
                         </Link>
-                      ) : <strong className="font-bold">{service.customerName}</strong>}
+                      ) : <strong className="font-bold">{item.customer_name}</strong>}
                       <p className="mt-1 break-all text-xs text-muted-foreground" dir="ltr">
-                        @{service.username} · {serviceCode(service)}
+                        @{item.username} · {item.service_code}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">{service.plan} · سرویس {serviceStatusLabel(service.status)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {item.plan} · {item.status === "expiring" ? "رو به پایان" : "فعال"}
+                        {item.expires_at ? ` · انقضا: ${checkedLabel(item.expires_at)}` : ""}
+                      </p>
                     </div>
-                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${service.awgReady ? 'border-teal-600/25 bg-teal-600/10 text-teal-700' : 'border-amber-600/25 bg-amber-600/10 text-amber-700'}`} data-testid={`status-awg-usage-${service.id}`}>
-                      {sourceLabel}
+                    <span
+                      className="rounded-full border border-teal-600/25 bg-teal-600/10 px-3 py-1 text-xs font-semibold text-teal-700"
+                      data-testid={`status-awg-usage-${item.id}`}
+                    >
+                      فعال در سرویس AWG
                     </span>
                   </div>
+
                   <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-                    {metrics.map((metric) => (
-                      <div className="min-w-0 rounded-xl border border-border/70 bg-card/70 p-3" key={metric.id} data-testid={`metric-awg-${metric.id}-${service.id}`}>
+                    {[
+                      { id: "effective", label: "مصرف مؤثر", value: trafficLabel(item.used_gb) },
+                      { id: "rx", label: "دریافت · RX", value: trafficLabel(item.rx_gb) },
+                      { id: "tx", label: "ارسال · TX", value: trafficLabel(item.tx_gb) },
+                      { id: "raw", label: "خام RX + TX", value: trafficLabel(item.raw_total_gb) },
+                      { id: "offset", label: "مبنای کسرشده", value: trafficLabel(item.offset_gb) },
+                    ].map((metric) => (
+                      <div
+                        className="min-w-0 rounded-xl border border-border/70 bg-card/70 p-3"
+                        key={metric.id}
+                        data-testid={`metric-awg-${metric.id}-${item.id}`}
+                      >
                         <dt className="text-[11px] leading-5 text-muted-foreground">{metric.label}</dt>
                         <dd className="mt-1 break-words text-sm font-bold text-foreground">{metric.value}</dd>
                       </div>
                     ))}
                   </dl>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-3">
+                    <div className="min-w-0 text-xs text-muted-foreground">
+                      {checkedAt
+                        ? `بررسی دستی: ${checkedLabel(checkedAt)}`
+                        : "نمایش مقدار ذخیره‌شده؛ برای بررسی لحظه‌ای از دکمه استفاده کنید."}
+                      {refreshError && <p className="mt-1 text-rose-600" role="alert">{refreshError}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => void checkLive(item.id)}
+                      disabled={refreshingId !== null}
+                      data-testid={`button-live-awg-${item.id}`}
+                    >
+                      {isRefreshing
+                        ? <RefreshCw size={15} className="spin" />
+                        : <ExternalLink size={15} />}
+                      دریافت زنده از AWG
+                    </button>
+                  </div>
                 </article>
               );
             })}
           </div>
         )}
 
-        {filteredServices.length > PAGE_SIZE && (
+        {total > PAGE_SIZE && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4">
             <span className="text-xs text-muted-foreground">
-              صفحه {countFormat.format(currentPage + 1)} از {countFormat.format(pageCount)}
+              صفحه {countFormat.format(page + 1)} از {countFormat.format(pageCount)}
             </span>
             <div className="flex gap-2">
-              <button type="button" className="button button-secondary" onClick={() => setPage((value) => Math.max(0, value - 1))} disabled={currentPage === 0} data-testid="button-awg-previous-page">
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => setPage((value) => Math.max(0, value - 1))}
+                disabled={page === 0 || usageQuery.isFetching}
+                data-testid="button-awg-previous-page"
+              >
                 <ChevronRight size={15} /> قبلی
               </button>
-              <button type="button" className="button button-secondary" onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))} disabled={currentPage >= pageCount - 1} data-testid="button-awg-next-page">
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
+                disabled={page >= pageCount - 1 || usageQuery.isFetching}
+                data-testid="button-awg-next-page"
+              >
                 بعدی <ChevronLeft size={15} />
               </button>
             </div>

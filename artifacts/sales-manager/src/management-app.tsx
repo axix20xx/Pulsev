@@ -21,6 +21,7 @@ import {
   usePulse,
 } from '@/pages/pulse-pages';
 import AwgUsagePage from '@/pages/awg-usage';
+import AwgUsageLogPage from '@/pages/awg-usage-log';
 import { InsightDetailPage, SmartCenter } from '@/pages/smart-center';
 import { OperationsCenter } from '@/pages/operations-center';
 import ProviderAccountAuditPage from '@/pages/provider-account-audit';
@@ -34,6 +35,11 @@ import NotFound from '@/pages/not-found';
 function ProviderAccountAuditRoute() {
   const { session } = usePulse();
   return session?.role === 'master_admin' ? <ProviderAccountAuditPage /> : <NotFound />;
+}
+
+function AwgUsageLogRoute() {
+  const { session } = usePulse();
+  return session?.role === 'master_admin' ? <AwgUsageLogPage /> : <NotFound />;
 }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
@@ -56,6 +62,7 @@ export default function ManagementApp() {
             <Route path="/action-requests" component={ActionRequests} />
             <Route path="/services" component={Services} />
             <Route path="/awg-usage" component={AwgUsagePage} />
+            <Route path="/awg-usage-log" component={AwgUsageLogRoute} />
             <Route path="/customers" component={Customers} />
             <Route path="/customers/:id" component={CustomerDetail} />
             <Route path="/reports" component={Reports} />

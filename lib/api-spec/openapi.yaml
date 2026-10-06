@@ -296,6 +296,20 @@ paths:
           description: This service was checked too recently
         "502":
           description: AmneziaWG usage could not be read
+  /admin/awg-usage/worker-log:
+    get:
+      operationId: getAwgUsageWorkerLog
+      tags: [admin]
+      summary: Read the current AWG worker status and its latest 100 service results
+      responses:
+        "200":
+          description: In-memory AWG worker status and recent poll events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AwgUsageWorkerLog"
+        "403":
+          description: Master admin access required
   /services:
     get:
       operationId: listServices
@@ -1232,6 +1246,80 @@ components:
       properties:
         item:
           $ref: "#/components/schemas/AwgUsageItem"
+        checked_at:
+          type: string
+          format: date-time
+    AwgUsageWorkerLog:
+      type: object
+      required: [worker, events]
+      properties:
+        worker:
+          $ref: "#/components/schemas/AwgUsageWorkerStatus"
+        events:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/AwgUsagePollEvent"
+    AwgUsageWorkerStatus:
+      type: object
+      required: [started_at, running, last_started_at, last_completed_at, interval_ms, last_scanned, last_updated, last_skipped, last_failed, last_error]
+      properties:
+        started_at:
+          type: ["string", "null"]
+          format: date-time
+        running:
+          type: boolean
+        last_started_at:
+          type: ["string", "null"]
+          format: date-time
+        last_completed_at:
+          type: ["string", "null"]
+          format: date-time
+        interval_ms:
+          type: number
+        last_scanned:
+          type: number
+        last_updated:
+          type: number
+        last_skipped:
+          type: number
+        last_failed:
+          type: number
+        last_error:
+          type: ["string", "null"]
+    AwgUsagePollEvent:
+      type: object
+      required: [event_id, service_id, service_code, customer_name, username, status, source, stats_source, message, rx_bytes, tx_bytes, raw_total_bytes, effective_bytes, checked_at]
+      properties:
+        event_id:
+          type: number
+        service_id:
+          type: number
+        service_code:
+          type: string
+        customer_name:
+          type: string
+        username:
+          type: string
+        status:
+          type: string
+          enum: [updated, skipped, failed, route-unavailable]
+        source:
+          type: string
+          enum: [background, manual]
+        stats_source:
+          type: ["string", "null"]
+          enum: [api, cache, null]
+        message:
+          type: ["string", "null"]
+        rx_bytes:
+          type: ["number", "null"]
+        tx_bytes:
+          type: ["number", "null"]
+        raw_total_bytes:
+          type: ["number", "null"]
+        effective_bytes:
+          type: ["number", "null"]
         checked_at:
           type: string
           format: date-time

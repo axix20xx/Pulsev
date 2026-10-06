@@ -488,6 +488,45 @@ export const RefreshAwgUsageResponse = zod.object({
 
 
 /**
+ * @summary Read the current AWG worker status and its latest 100 service results
+ */
+export const getAwgUsageWorkerLogResponseEventsMax = 100;
+
+
+
+export const GetAwgUsageWorkerLogResponse = zod.object({
+  "worker": zod.object({
+  "started_at": zod.coerce.date().nullable(),
+  "running": zod.boolean(),
+  "last_started_at": zod.coerce.date().nullable(),
+  "last_completed_at": zod.coerce.date().nullable(),
+  "interval_ms": zod.number(),
+  "last_scanned": zod.number(),
+  "last_updated": zod.number(),
+  "last_skipped": zod.number(),
+  "last_failed": zod.number(),
+  "last_error": zod.string().nullable()
+}),
+  "events": zod.array(zod.object({
+  "event_id": zod.number(),
+  "service_id": zod.number(),
+  "service_code": zod.string(),
+  "customer_name": zod.string(),
+  "username": zod.string(),
+  "status": zod.enum(['updated', 'skipped', 'failed', 'route-unavailable']),
+  "source": zod.enum(['background', 'manual']),
+  "stats_source": zod.union([zod.literal('api'),zod.literal('cache'),zod.literal(null)]).nullable(),
+  "message": zod.string().nullable(),
+  "rx_bytes": zod.number().nullable(),
+  "tx_bytes": zod.number().nullable(),
+  "raw_total_bytes": zod.number().nullable(),
+  "effective_bytes": zod.number().nullable(),
+  "checked_at": zod.coerce.date()
+})).max(getAwgUsageWorkerLogResponseEventsMax)
+})
+
+
+/**
  * @summary List services visible to the current user
  */
 export const listServicesQueryLimitDefault = 1000;

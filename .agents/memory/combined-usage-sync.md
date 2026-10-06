@@ -38,3 +38,9 @@ The AWG-only reporting poll runs every five minutes for unexpired active/expirin
 **Why:** The user wants AWG readings refreshed without increasing panel traffic or risking accidental lifecycle changes; the existing combined worker still owns quota/expiry behavior.
 
 **How to apply:** Share a five-minute per-client AWG result cache between workers, serialize stats requests, preserve saved counters on errors, and back off for an hour after all stats routes return route-level 404s. Do not run the poller locally without explicit approval.
+
+Manual live checks are deliberately one-service AWG-only operations: they apply to one currently active, unexpired client, bypass a successful stats cache, retain normal error backoff, and are limited to one request per service per minute. The master-admin worker log keeps only the latest 100 check results in process memory.
+
+**Why:** The operator needs to distinguish an API-reported zero from a skipped or failed poll without increasing panel Provider traffic or risking service lifecycle changes.
+
+**How to apply:** Update only that service's AWG counters and reset offset; never call Provider APIs or change service status. Keep the log read-only and admin-only, and explain that it clears when the API restarts.

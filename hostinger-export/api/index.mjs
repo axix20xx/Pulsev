@@ -44731,6 +44731,89 @@ var UpdateSaleResponse = objectType({
   "paid": booleanType(),
   "status": stringType()
 });
+var listAwgUsageQueryLimitDefault = 25;
+var listAwgUsageQueryLimitMax = 100;
+var listAwgUsageQueryOffsetDefault = 0;
+var listAwgUsageQueryOffsetMin = 0;
+var listAwgUsageQueryOffsetMax = 1e5;
+var ListAwgUsageQueryParams = objectType({
+  "search": coerce.string().optional(),
+  "limit": coerce.number().int().min(1).max(listAwgUsageQueryLimitMax).default(listAwgUsageQueryLimitDefault).describe("Maximum active AWG users returned per page"),
+  "offset": coerce.number().int().min(listAwgUsageQueryOffsetMin).max(listAwgUsageQueryOffsetMax).default(listAwgUsageQueryOffsetDefault).describe("Number of matching active AWG users to skip")
+});
+var listAwgUsageResponseTotalMin = 0;
+var ListAwgUsageResponse = objectType({
+  "items": arrayType(objectType({
+    "id": numberType(),
+    "service_code": stringType(),
+    "customer_id": numberType().nullable(),
+    "customer_name": stringType(),
+    "phone": stringType().nullable(),
+    "username": stringType(),
+    "plan": stringType(),
+    "status": enumType(["active", "expiring"]),
+    "expires_at": stringType().nullable(),
+    "used_gb": numberType(),
+    "rx_gb": numberType(),
+    "tx_gb": numberType(),
+    "raw_total_gb": numberType(),
+    "offset_gb": numberType()
+  })),
+  "total": numberType().min(listAwgUsageResponseTotalMin)
+});
+var RefreshAwgUsageParams = objectType({
+  "id": coerce.number().min(1)
+});
+var RefreshAwgUsageResponse = objectType({
+  "item": objectType({
+    "id": numberType(),
+    "service_code": stringType(),
+    "customer_id": numberType().nullable(),
+    "customer_name": stringType(),
+    "phone": stringType().nullable(),
+    "username": stringType(),
+    "plan": stringType(),
+    "status": enumType(["active", "expiring"]),
+    "expires_at": stringType().nullable(),
+    "used_gb": numberType(),
+    "rx_gb": numberType(),
+    "tx_gb": numberType(),
+    "raw_total_gb": numberType(),
+    "offset_gb": numberType()
+  }),
+  "checked_at": coerce.date()
+});
+var getAwgUsageWorkerLogResponseEventsMax = 100;
+var GetAwgUsageWorkerLogResponse = objectType({
+  "worker": objectType({
+    "started_at": coerce.date().nullable(),
+    "running": booleanType(),
+    "last_started_at": coerce.date().nullable(),
+    "last_completed_at": coerce.date().nullable(),
+    "interval_ms": numberType(),
+    "last_scanned": numberType(),
+    "last_updated": numberType(),
+    "last_skipped": numberType(),
+    "last_failed": numberType(),
+    "last_error": stringType().nullable()
+  }),
+  "events": arrayType(objectType({
+    "event_id": numberType(),
+    "service_id": numberType(),
+    "service_code": stringType(),
+    "customer_name": stringType(),
+    "username": stringType(),
+    "status": enumType(["updated", "skipped", "failed", "route-unavailable"]),
+    "source": enumType(["background", "manual"]),
+    "stats_source": unionType([literalType("api"), literalType("cache"), literalType(null)]).nullable(),
+    "message": stringType().nullable(),
+    "rx_bytes": numberType().nullable(),
+    "tx_bytes": numberType().nullable(),
+    "raw_total_bytes": numberType().nullable(),
+    "effective_bytes": numberType().nullable(),
+    "checked_at": coerce.date()
+  })).max(getAwgUsageWorkerLogResponseEventsMax)
+});
 var listServicesQueryLimitDefault = 1e3;
 var listServicesQueryLimitMax = 5e3;
 var ListServicesQueryParams = objectType({
@@ -65164,16 +65247,18 @@ async function fetchAwgStats(clientId, awg) {
   if (rxBytes === null || txBytes === null) {
     throw new AwgApiError("AmneziaWG returned invalid usage statistics.");
   }
-  return { rxBytes: Math.round(rxBytes), txBytes: Math.round(txBytes) };
+  return { rxBytes: Math.round(rxBytes), txBytes: Math.round(txBytes), source: "api" };
 }
-async function getAwgStats(clientId) {
+async function getAwgStats(clientId, options = {}) {
   const awg = await config2();
   if (!awg) throw new AwgApiError("AmneziaWG API is not configured.");
   const now = Date.now();
   pruneExpiredAwgStatsCache(now);
   const key = awgStatsCacheKey(awg.apiUrl, clientId);
   const cached2 = statsCache.get(key);
-  if (cached2 && cached2.expiresAt > now) return cached2.value;
+  if (!options.forceRefresh && cached2 && cached2.expiresAt > now) {
+    return { ...cached2.value, source: "cache" };
+  }
   if (cached2) statsCache.delete(key);
   const failed = statsErrorCache.get(key);
   if (failed && failed.expiresAt > now) throw new AwgApiError(failed.message, failed.kind);
@@ -66835,6 +66920,257 @@ function toClashSubscription(body) {
 `;
 }
 
+// src/lib/awg-usage-poll.ts
+var AWG_USAGE_POLL_INTERVAL_MS = 5 * 6e4;
+var AWG_USAGE_POLL_START_DELAY_MS = 5e3;
+var AWG_USAGE_POLL_MIN_GAP_MS = 500;
+var SERVICE_LOCK_NAMESPACE = 74421;
+var AWG_WORKER_LOCK_NAMESPACE = 74423;
+var running2 = false;
+var recentEvents = [];
+var nextEventId = 1;
+var workerStatus = {
+  started_at: null,
+  running: false,
+  last_started_at: null,
+  last_completed_at: null,
+  interval_ms: AWG_USAGE_POLL_INTERVAL_MS,
+  last_scanned: 0,
+  last_updated: 0,
+  last_skipped: 0,
+  last_failed: 0,
+  last_error: null
+};
+function recordAwgUsagePollEvent(event) {
+  recentEvents.unshift({
+    ...event,
+    event_id: nextEventId++,
+    checked_at: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  if (recentEvents.length > 100) recentEvents.length = 100;
+}
+function getAwgUsageWorkerLog() {
+  return {
+    worker: { ...workerStatus },
+    events: recentEvents.map((event) => ({ ...event }))
+  };
+}
+var wait2 = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function safeErrorMessage(error40) {
+  const message = error40 instanceof Error ? error40.message : "AWG API request failed.";
+  return message.replace(/Bearer\s+\S+/gi, "Bearer [redacted]").replace(/(token|api[_ -]?key)\s*[:=]\s*\S+/gi, "$1=[redacted]").replace(/\s+/g, " ").slice(0, 240);
+}
+function recordServiceEvent(identity, status, options = {}) {
+  const rxBytes = options.stats ? Math.max(0, Math.round(options.stats.rxBytes)) : null;
+  const txBytes = options.stats ? Math.max(0, Math.round(options.stats.txBytes)) : null;
+  const rawTotal = rxBytes === null || txBytes === null ? null : rxBytes + txBytes;
+  recordAwgUsagePollEvent({
+    ...identity,
+    status,
+    source: options.source ?? "background",
+    stats_source: options.stats?.source ?? null,
+    message: options.message ?? null,
+    rx_bytes: rxBytes,
+    tx_bytes: txBytes,
+    raw_total_bytes: rawTotal,
+    effective_bytes: rawTotal === null ? null : Math.max(0, rawTotal - Math.max(0, options.offsetBytes ?? 0))
+  });
+}
+async function pollServiceAwgUsage(identity) {
+  const serviceId = identity.service_id;
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (error40) {
+    recordServiceEvent(identity, "failed", { message: safeErrorMessage(error40) });
+    return "failed";
+  }
+  let serviceLockAcquired = false;
+  try {
+    const lockResult = await client.query(
+      "SELECT pg_try_advisory_lock($1, $2) AS locked",
+      [SERVICE_LOCK_NAMESPACE, serviceId]
+    );
+    if (!lockResult.rows[0]?.locked) {
+      recordServiceEvent(identity, "skipped", { message: "\u0633\u0631\u0648\u06CC\u0633 \u062F\u0631 \u062D\u0627\u0644 \u062A\u0645\u062F\u06CC\u062F \u06CC\u0627 \u062A\u063A\u06CC\u06CC\u0631 \u0648\u0636\u0639\u06CC\u062A \u0627\u0633\u062A." });
+      return "skipped";
+    }
+    serviceLockAcquired = true;
+    const serviceResult = await client.query(
+      `SELECT id, awg_client_id,
+              COALESCE(awg_total, 0)::float8 AS awg_total,
+              COALESCE(awg_offset_bytes, 0)::float8 AS awg_offset_bytes
+       FROM reseller_services
+       WHERE id = $1
+         AND status IN ('active', 'expiring')
+         AND (expire_at IS NULL OR expire_at > NOW())
+         AND NULLIF(BTRIM(awg_client_id), '') IS NOT NULL
+       LIMIT 1`,
+      [serviceId]
+    );
+    const service = serviceResult.rows[0];
+    if (!service?.awg_client_id) {
+      recordServiceEvent(identity, "skipped", { message: "\u0633\u0631\u0648\u06CC\u0633 \u062F\u06CC\u06AF\u0631 \u0641\u0639\u0627\u0644 \u0646\u06CC\u0633\u062A \u06CC\u0627 \u0634\u0646\u0627\u0633\u0647 AWG \u0646\u062F\u0627\u0631\u062F." });
+      return "skipped";
+    }
+    const stats = await getAwgStats(service.awg_client_id);
+    const rxBytes = Math.max(0, Math.round(stats.rxBytes));
+    const txBytes = Math.max(0, Math.round(stats.txBytes));
+    const rawBytes = Math.max(0, rxBytes + txBytes);
+    const previousBytes = Math.max(0, Number(service.awg_total ?? 0));
+    let offsetBytes = Math.max(0, Number(service.awg_offset_bytes ?? 0));
+    if (previousBytes > 0 && rawBytes < previousBytes * 0.5) {
+      offsetBytes = rawBytes;
+    }
+    const updated = await client.query(
+      `UPDATE reseller_services
+       SET awg_rx = $1::bigint,
+           awg_tx = $2::bigint,
+           awg_total = $3::bigint,
+           awg_offset_bytes = $4::bigint
+       WHERE id = $5
+         AND awg_client_id = $6
+         AND status IN ('active', 'expiring')
+         AND (expire_at IS NULL OR expire_at > NOW())`,
+      [rxBytes, txBytes, rawBytes, offsetBytes, service.id, service.awg_client_id]
+    );
+    const status = updated.rowCount ? "updated" : "skipped";
+    recordServiceEvent(identity, status, {
+      stats,
+      offsetBytes,
+      message: status === "skipped" ? "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u0634 \u0627\u0632 \u0630\u062E\u06CC\u0631\u0647\u200C\u0633\u0627\u0632\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F." : null
+    });
+    return status;
+  } catch (error40) {
+    const message = safeErrorMessage(error40);
+    if (error40 instanceof AwgApiError && error40.kind === "stats-route-unavailable") {
+      recordServiceEvent(identity, "route-unavailable", { message });
+      return "route-unavailable";
+    }
+    logger.warn({ serviceId, err: error40 }, "AWG-only usage poll failed; saved counters were preserved");
+    recordServiceEvent(identity, "failed", { message });
+    return "failed";
+  } finally {
+    if (serviceLockAcquired) {
+      await client.query(
+        "SELECT pg_advisory_unlock($1, $2)",
+        [SERVICE_LOCK_NAMESPACE, serviceId]
+      ).catch(() => void 0);
+    }
+    client.release();
+  }
+}
+async function runAwgUsagePoll() {
+  if (running2) return;
+  running2 = true;
+  workerStatus.running = true;
+  workerStatus.last_started_at = (/* @__PURE__ */ new Date()).toISOString();
+  workerStatus.last_scanned = 0;
+  workerStatus.last_updated = 0;
+  workerStatus.last_skipped = 0;
+  workerStatus.last_failed = 0;
+  workerStatus.last_error = null;
+  const workerLockClient = await pool.connect().catch((error40) => {
+    logger.warn({ err: error40 }, "AWG-only usage poll could not acquire a database connection");
+    workerStatus.last_error = safeErrorMessage(error40);
+    return null;
+  });
+  if (!workerLockClient) {
+    running2 = false;
+    workerStatus.running = false;
+    workerStatus.last_completed_at = (/* @__PURE__ */ new Date()).toISOString();
+    return;
+  }
+  let workerLockAcquired = false;
+  try {
+    const lockResult = await workerLockClient.query(
+      "SELECT pg_try_advisory_lock($1, $2) AS locked",
+      [AWG_WORKER_LOCK_NAMESPACE, 1]
+    );
+    if (!lockResult.rows[0]?.locked) {
+      workerStatus.last_error = "\u0646\u0645\u0648\u0646\u0647 \u062F\u06CC\u06AF\u0631\u06CC \u0627\u0632 API \u062F\u0631 \u062D\u0627\u0644 \u0627\u062C\u0631\u0627\u06CC worker \u0645\u0635\u0631\u0641 AWG \u0627\u0633\u062A.";
+      return;
+    }
+    workerLockAcquired = true;
+    const configuredResult = await workerLockClient.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM settings
+         WHERE NULLIF(awg_api_url, '') IS NOT NULL
+           AND NULLIF(awg_api_token, '') IS NOT NULL
+       ) AS configured`
+    );
+    if (!configuredResult.rows[0]?.configured) {
+      workerStatus.last_error = "API \u0645\u0631\u0628\u0648\u0637 \u0628\u0647 AmneziaWG \u062F\u0631 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+      return;
+    }
+    const services = await workerLockClient.query(
+      `SELECT svc.id AS service_id,
+              'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+              COALESCE(customer.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
+              COALESCE(svc.rain_username, '\u0628\u062F\u0648\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC') AS username
+       FROM reseller_services svc
+       LEFT JOIN reseller_customers customer ON customer.id = svc.customer_id
+       WHERE svc.status IN ('active', 'expiring')
+         AND (svc.expire_at IS NULL OR svc.expire_at > NOW())
+         AND NULLIF(BTRIM(svc.awg_client_id), '') IS NOT NULL
+       ORDER BY svc.id`
+    );
+    for (let index = 0; index < services.rows.length; index += 1) {
+      const result = await pollServiceAwgUsage(services.rows[index]);
+      workerStatus.last_scanned += 1;
+      if (result === "updated") workerStatus.last_updated += 1;
+      else if (result === "failed") {
+        workerStatus.last_failed += 1;
+        workerStatus.last_error = "\u0628\u0631\u0627\u06CC \u06CC\u06A9 \u06CC\u0627 \u0686\u0646\u062F \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631\u06CC\u0627\u0641\u062A \u0622\u0645\u0627\u0631 \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F.";
+      } else if (result === "route-unavailable") {
+        workerStatus.last_failed += 1;
+        workerStatus.last_error = "\u0645\u0633\u06CC\u0631\u0647\u0627\u06CC \u0622\u0645\u0627\u0631 AWG \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A\u0646\u062F\u061B \u0627\u06CC\u0646 \u0686\u0631\u062E\u0647 \u0628\u0631\u0627\u06CC \u062C\u0644\u0648\u06AF\u06CC\u0631\u06CC \u0627\u0632 \u062F\u0631\u062E\u0648\u0627\u0633\u062A\u200C\u0647\u0627\u06CC \u062A\u06A9\u0631\u0627\u0631\u06CC \u0645\u062A\u0648\u0642\u0641 \u0634\u062F.";
+        logger.warn("AWG stats routes are unavailable; pausing this polling cycle without changing saved counters");
+        break;
+      } else workerStatus.last_skipped += 1;
+      if (index < services.rows.length - 1) await wait2(AWG_USAGE_POLL_MIN_GAP_MS);
+    }
+    if (services.rows.length) {
+      logger.info(
+        {
+          scanned: services.rows.length,
+          updated: workerStatus.last_updated,
+          skipped: workerStatus.last_skipped,
+          failed: workerStatus.last_failed,
+          intervalMs: AWG_USAGE_POLL_INTERVAL_MS
+        },
+        "AWG-only usage poll completed"
+      );
+    }
+  } catch (error40) {
+    workerStatus.last_error = safeErrorMessage(error40);
+    logger.error({ err: error40 }, "AWG-only usage poll failed");
+  } finally {
+    if (workerLockAcquired) {
+      await workerLockClient.query(
+        "SELECT pg_advisory_unlock($1, $2)",
+        [AWG_WORKER_LOCK_NAMESPACE, 1]
+      ).catch(() => void 0);
+    }
+    workerLockClient.release();
+    running2 = false;
+    workerStatus.running = false;
+    workerStatus.last_completed_at = (/* @__PURE__ */ new Date()).toISOString();
+  }
+}
+function startAwgUsagePollWorker() {
+  workerStatus.started_at ??= (/* @__PURE__ */ new Date()).toISOString();
+  const initialRun = setTimeout(() => {
+    void runAwgUsagePoll();
+  }, AWG_USAGE_POLL_START_DELAY_MS);
+  const interval2 = setInterval(() => {
+    void runAwgUsagePoll();
+  }, AWG_USAGE_POLL_INTERVAL_MS);
+  initialRun.unref();
+  interval2.unref();
+  logger.info({ intervalMs: AWG_USAGE_POLL_INTERVAL_MS }, "AWG-only usage poll worker started");
+}
+
 // src/routes/management.ts
 var MASTER_ADMIN_COST_PER_GB = 2500;
 var resellerCostPerGbSql = (alias = "r") => `CASE WHEN ${alias}.tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${alias}.per_gig_price, 0) END`;
@@ -67680,6 +68016,245 @@ var ownership = (alias, req) => req.auth?.role === "master_admin" ? { sql: "TRUE
   sql: `${alias}.reseller_tg_id = $1`,
   params: [req.auth?.telegramId]
 };
+var AWG_BYTES_PER_GB = 1024 ** 3;
+var AWG_MANUAL_REFRESH_COOLDOWN_MS = 6e4;
+var manualAwgRefreshCooldowns = /* @__PURE__ */ new Map();
+var awgUsageItemSelect = `SELECT svc.id::float8 AS id,
+       'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+       c.id::float8 AS customer_id,
+       COALESCE(NULLIF(BTRIM(c.full_name), ''), '\u0645\u0634\u062A\u0631\u06CC \u0628\u062F\u0648\u0646 \u0646\u0627\u0645') AS customer_name,
+       c.phone::text AS phone,
+       COALESCE(NULLIF(BTRIM(svc.rain_username), ''), '\u0628\u062F\u0648\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC') AS username,
+       COALESCE(NULLIF(BTRIM(svc.label), ''), '\u0633\u0631\u0648\u06CC\u0633') AS plan,
+       svc.status,
+       svc.expire_at::text AS expires_at,
+       GREATEST(0, COALESCE(svc.awg_total, 0)::float8 - COALESCE(svc.awg_offset_bytes, 0)::float8) / ${AWG_BYTES_PER_GB} AS used_gb,
+       COALESCE(svc.awg_rx, 0)::float8 / ${AWG_BYTES_PER_GB} AS rx_gb,
+       COALESCE(svc.awg_tx, 0)::float8 / ${AWG_BYTES_PER_GB} AS tx_gb,
+       COALESCE(svc.awg_total, 0)::float8 / ${AWG_BYTES_PER_GB} AS raw_total_gb,
+       COALESCE(svc.awg_offset_bytes, 0)::float8 / ${AWG_BYTES_PER_GB} AS offset_gb,
+       svc.awg_client_id,
+       COALESCE(svc.awg_rx, 0)::float8 AS awg_rx_bytes,
+       COALESCE(svc.awg_tx, 0)::float8 AS awg_tx_bytes,
+       COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+       COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes
+FROM reseller_services svc
+LEFT JOIN reseller_customers c ON c.id = svc.customer_id`;
+function toAwgUsageItem(row) {
+  return {
+    id: Number(row.id),
+    service_code: String(row.service_code),
+    customer_id: row.customer_id == null ? null : Number(row.customer_id),
+    customer_name: String(row.customer_name ?? "\u0645\u0634\u062A\u0631\u06CC \u0628\u062F\u0648\u0646 \u0646\u0627\u0645"),
+    phone: row.phone == null ? null : String(row.phone),
+    username: String(row.username ?? "\u0628\u062F\u0648\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC"),
+    plan: String(row.plan ?? "\u0633\u0631\u0648\u06CC\u0633"),
+    status: row.status === "expiring" ? "expiring" : "active",
+    expires_at: row.expires_at == null ? null : String(row.expires_at),
+    used_gb: Number(row.used_gb ?? 0),
+    rx_gb: Number(row.rx_gb ?? 0),
+    tx_gb: Number(row.tx_gb ?? 0),
+    raw_total_gb: Number(row.raw_total_gb ?? 0),
+    offset_gb: Number(row.offset_gb ?? 0)
+  };
+}
+function reserveManualAwgRefresh(serviceId) {
+  const now = Date.now();
+  if (manualAwgRefreshCooldowns.size > 5e3) {
+    for (const [id, until2] of manualAwgRefreshCooldowns) {
+      if (until2 <= now) manualAwgRefreshCooldowns.delete(id);
+    }
+  }
+  const until = manualAwgRefreshCooldowns.get(serviceId) ?? 0;
+  if (until > now) return Math.ceil((until - now) / 1e3);
+  manualAwgRefreshCooldowns.set(serviceId, now + AWG_MANUAL_REFRESH_COOLDOWN_MS);
+  return 0;
+}
+router2.get("/awg-usage", requireAuth, async (req, res) => {
+  const parsed = ListAwgUsageQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "\u067E\u0627\u0631\u0627\u0645\u062A\u0631\u0647\u0627\u06CC \u062C\u0633\u062A\u200C\u0648\u062C\u0648\u06CC \u0645\u0635\u0631\u0641 AWG \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  const owner = ownership("svc", req);
+  const conditions = [
+    owner.sql,
+    "svc.status IN ('active', 'expiring')",
+    "(svc.expire_at IS NULL OR svc.expire_at > NOW())",
+    "NULLIF(BTRIM(svc.awg_client_id), '') IS NOT NULL"
+  ];
+  const params = [...owner.params];
+  const search = String(parsed.data.search ?? "").trim().slice(0, 100);
+  if (search) {
+    params.push(search);
+    const textIndex = params.length;
+    const digits = search.replace(/[۰-۹]/g, (digit) => String("\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9".indexOf(digit))).replace(/[٠-٩]/g, (digit) => String("\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669".indexOf(digit))).replace(/\D/g, "");
+    const phoneCondition = digits ? `OR POSITION($${params.push(digits)} IN regexp_replace(translate(COALESCE(c.phone, ''), '\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669', '01234567890123456789'), '[^0-9]', '', 'g')) > 0` : "";
+    conditions.push(`(
+      POSITION(LOWER($${textIndex}) IN LOWER(COALESCE(c.full_name, ''))) > 0
+      OR POSITION(LOWER($${textIndex}) IN LOWER(COALESCE(svc.rain_username, ''))) > 0
+      OR POSITION(LOWER($${textIndex}) IN LOWER(COALESCE(svc.label, ''))) > 0
+      OR POSITION(LOWER($${textIndex}) IN LOWER('PULSE-' || LPAD(svc.id::text, 6, '0'))) > 0
+      ${phoneCondition}
+    )`);
+  }
+  const where = conditions.join(" AND ");
+  const countResult = await pool.query(
+    `SELECT COUNT(*)::float8 AS total
+     FROM reseller_services svc
+     LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+     WHERE ${where}`,
+    params
+  );
+  const pageParams = [...params, parsed.data.limit, parsed.data.offset];
+  const result = await pool.query(
+    `${awgUsageItemSelect}
+     WHERE ${where}
+     ORDER BY svc.id DESC
+     LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
+    pageParams
+  );
+  res.json(ListAwgUsageResponse.parse({
+    items: result.rows.map((row) => toAwgUsageItem(row)),
+    total: Number(countResult.rows[0]?.total ?? 0)
+  }));
+});
+router2.post("/awg-usage/:id/refresh", requireAuth, async (req, res) => {
+  const parsed = RefreshAwgUsageParams.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  const serviceId = parsed.data.id;
+  const owner = ownership("svc", req);
+  const client = await pool.connect();
+  let lockAcquired = false;
+  let identity = null;
+  try {
+    const lockResult = await client.query(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [serviceId]
+    );
+    if (!lockResult.rows[0]?.locked) {
+      res.status(409).json({ error: "\u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u0647\u0645\u200C\u0627\u06A9\u0646\u0648\u0646 \u062F\u0631 \u062D\u0627\u0644 \u062A\u0645\u062F\u06CC\u062F \u06CC\u0627 \u062A\u063A\u06CC\u06CC\u0631 \u0648\u0636\u0639\u06CC\u062A \u0627\u0633\u062A." });
+      return;
+    }
+    lockAcquired = true;
+    const current = await client.query(
+      `${awgUsageItemSelect}
+       WHERE svc.id = $1
+         AND ${owner.sql.replace("$1", "$2")}
+         AND svc.status IN ('active', 'expiring')
+         AND (svc.expire_at IS NULL OR svc.expire_at > NOW())
+         AND NULLIF(BTRIM(svc.awg_client_id), '') IS NOT NULL
+       LIMIT 1`,
+      [serviceId, ...owner.params]
+    );
+    const row = current.rows[0];
+    if (!row?.awg_client_id) {
+      res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u0641\u0639\u0627\u0644 \u062F\u0627\u0631\u0627\u06CC \u06A9\u0644\u0627\u06CC\u0646\u062A AmneziaWG \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+      return;
+    }
+    identity = {
+      service_id: serviceId,
+      service_code: String(row.service_code),
+      customer_name: String(row.customer_name),
+      username: String(row.username)
+    };
+    const retryAfter = reserveManualAwgRefresh(serviceId);
+    if (retryAfter > 0) {
+      res.status(429).json({
+        error: "\u0628\u0631\u0627\u06CC \u062C\u0644\u0648\u06AF\u06CC\u0631\u06CC \u0627\u0632 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0645\u06A9\u0631\u0631\u060C \u06A9\u0645\u06CC \u0628\u0639\u062F \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F.",
+        retry_after_seconds: retryAfter
+      });
+      return;
+    }
+    try {
+      const stats = await getAwgStats(String(row.awg_client_id), { forceRefresh: true });
+      const rxBytes = Math.max(0, Math.round(stats.rxBytes));
+      const txBytes = Math.max(0, Math.round(stats.txBytes));
+      const rawBytes = rxBytes + txBytes;
+      const previousBytes = Math.max(0, Number(row.awg_total_bytes ?? 0));
+      let offsetBytes = Math.max(0, Number(row.awg_offset_bytes ?? 0));
+      if (previousBytes > 0 && rawBytes < previousBytes * 0.5) offsetBytes = rawBytes;
+      const updated = await client.query(
+        `UPDATE reseller_services
+         SET awg_rx = $1::bigint,
+             awg_tx = $2::bigint,
+             awg_total = $3::bigint,
+             awg_offset_bytes = $4::bigint
+         WHERE id = $5
+           AND awg_client_id = $6
+           AND status IN ('active', 'expiring')
+           AND (expire_at IS NULL OR expire_at > NOW())`,
+        [rxBytes, txBytes, rawBytes, offsetBytes, serviceId, String(row.awg_client_id)]
+      );
+      if (!updated.rowCount) {
+        recordAwgUsagePollEvent({
+          ...identity,
+          status: "skipped",
+          source: "manual",
+          stats_source: stats.source,
+          message: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u0634 \u0627\u0632 \u0630\u062E\u06CC\u0631\u0647\u200C\u0633\u0627\u0632\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F.",
+          rx_bytes: rxBytes,
+          tx_bytes: txBytes,
+          raw_total_bytes: rawBytes,
+          effective_bytes: Math.max(0, rawBytes - offsetBytes)
+        });
+        res.status(409).json({ error: "\u0648\u0636\u0639\u06CC\u062A \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631 \u062D\u06CC\u0646 \u062F\u0631\u06CC\u0627\u0641\u062A \u0622\u0645\u0627\u0631 \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F\u061B \u062F\u0648\u0628\u0627\u0631\u0647 \u0641\u0647\u0631\u0633\u062A \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F." });
+        return;
+      }
+      const refreshed = await client.query(
+        `${awgUsageItemSelect}
+         WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}
+         LIMIT 1`,
+        [serviceId, ...owner.params]
+      );
+      const refreshedRow = refreshed.rows[0];
+      const item = refreshedRow ? toAwgUsageItem(refreshedRow) : null;
+      if (!item) {
+        res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u0633 \u0627\u0632 \u062F\u0631\u06CC\u0627\u0641\u062A \u0622\u0645\u0627\u0631 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+        return;
+      }
+      recordAwgUsagePollEvent({
+        ...identity,
+        status: "updated",
+        source: "manual",
+        stats_source: stats.source,
+        message: null,
+        rx_bytes: rxBytes,
+        tx_bytes: txBytes,
+        raw_total_bytes: rawBytes,
+        effective_bytes: Math.max(0, rawBytes - offsetBytes)
+      });
+      res.json(RefreshAwgUsageResponse.parse({ item, checked_at: /* @__PURE__ */ new Date() }));
+    } catch (error40) {
+      const message = error40 instanceof AwgApiError ? error40.message.replace(/Bearer\s+\S+/gi, "Bearer [redacted]").slice(0, 240) : "\u062F\u0631\u06CC\u0627\u0641\u062A \u0622\u0645\u0627\u0631 \u0632\u0646\u062F\u0647 \u0627\u0632 API \u0622\u0645\u0650\u0646\u0632\u06CC\u0627 WG \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F.";
+      if (identity) {
+        recordAwgUsagePollEvent({
+          ...identity,
+          status: error40 instanceof AwgApiError && error40.kind === "stats-route-unavailable" ? "route-unavailable" : "failed",
+          source: "manual",
+          stats_source: null,
+          message,
+          rx_bytes: null,
+          tx_bytes: null,
+          raw_total_bytes: null,
+          effective_bytes: null
+        });
+      }
+      res.status(502).json({ error: message });
+    }
+  } finally {
+    if (lockAcquired) {
+      await client.query("SELECT pg_advisory_unlock(74421, $1)", [serviceId]).catch(() => void 0);
+    }
+    client.release();
+  }
+});
+router2.get("/admin/awg-usage/worker-log", requireMasterAdmin, (_req, res) => {
+  res.json(GetAwgUsageWorkerLogResponse.parse(getAwgUsageWorkerLog()));
+});
 router2.get("/auth/session", async (req, res) => {
   res.json(sessionResponse(req.auth ? req.auth : null));
 });
@@ -71927,162 +72502,6 @@ router4.use(health_default);
 router4.use(management_default);
 router4.use(mobile_default);
 var routes_default = router4;
-
-// src/lib/awg-usage-poll.ts
-var AWG_USAGE_POLL_INTERVAL_MS = 5 * 6e4;
-var AWG_USAGE_POLL_START_DELAY_MS = 5e3;
-var AWG_USAGE_POLL_MIN_GAP_MS = 500;
-var SERVICE_LOCK_NAMESPACE = 74421;
-var AWG_WORKER_LOCK_NAMESPACE = 74423;
-var running2 = false;
-var wait2 = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-async function pollServiceAwgUsage(serviceId) {
-  const client = await pool.connect();
-  let serviceLockAcquired = false;
-  try {
-    const lockResult = await client.query(
-      "SELECT pg_try_advisory_lock($1, $2) AS locked",
-      [SERVICE_LOCK_NAMESPACE, serviceId]
-    );
-    if (!lockResult.rows[0]?.locked) return "skipped";
-    serviceLockAcquired = true;
-    const serviceResult = await client.query(
-      `SELECT id, awg_client_id,
-              COALESCE(awg_total, 0)::float8 AS awg_total,
-              COALESCE(awg_offset_bytes, 0)::float8 AS awg_offset_bytes
-       FROM reseller_services
-       WHERE id = $1
-         AND status IN ('active', 'expiring')
-         AND (expire_at IS NULL OR expire_at > NOW())
-         AND NULLIF(BTRIM(awg_client_id), '') IS NOT NULL
-       LIMIT 1`,
-      [serviceId]
-    );
-    const service = serviceResult.rows[0];
-    if (!service?.awg_client_id) return "skipped";
-    const stats = await getAwgStats(service.awg_client_id);
-    const rxBytes = Math.max(0, Math.round(stats.rxBytes));
-    const txBytes = Math.max(0, Math.round(stats.txBytes));
-    const rawBytes = Math.max(0, rxBytes + txBytes);
-    const previousBytes = Math.max(0, Number(service.awg_total ?? 0));
-    let offsetBytes = Math.max(0, Number(service.awg_offset_bytes ?? 0));
-    if (previousBytes > 0 && rawBytes < previousBytes * 0.5) {
-      offsetBytes = rawBytes;
-    }
-    const updated = await client.query(
-      `UPDATE reseller_services
-       SET awg_rx = $1::bigint,
-           awg_tx = $2::bigint,
-           awg_total = $3::bigint,
-           awg_offset_bytes = $4::bigint
-       WHERE id = $5
-         AND awg_client_id = $6
-         AND status IN ('active', 'expiring')
-         AND (expire_at IS NULL OR expire_at > NOW())`,
-      [rxBytes, txBytes, rawBytes, offsetBytes, service.id, service.awg_client_id]
-    );
-    return updated.rowCount ? "updated" : "skipped";
-  } catch (error40) {
-    if (error40 instanceof AwgApiError && error40.kind === "stats-route-unavailable") {
-      return "route-unavailable";
-    }
-    logger.warn({ serviceId, err: error40 }, "AWG-only usage poll failed; saved counters were preserved");
-    return "failed";
-  } finally {
-    if (serviceLockAcquired) {
-      await client.query(
-        "SELECT pg_advisory_unlock($1, $2)",
-        [SERVICE_LOCK_NAMESPACE, serviceId]
-      ).catch(() => void 0);
-    }
-    client.release();
-  }
-}
-async function runAwgUsagePoll() {
-  if (running2) return;
-  running2 = true;
-  const workerLockClient = await pool.connect().catch((error40) => {
-    logger.warn({ err: error40 }, "AWG-only usage poll could not acquire a database connection");
-    return null;
-  });
-  if (!workerLockClient) {
-    running2 = false;
-    return;
-  }
-  let workerLockAcquired = false;
-  try {
-    const lockResult = await workerLockClient.query(
-      "SELECT pg_try_advisory_lock($1, $2) AS locked",
-      [AWG_WORKER_LOCK_NAMESPACE, 1]
-    );
-    if (!lockResult.rows[0]?.locked) return;
-    workerLockAcquired = true;
-    const configuredResult = await workerLockClient.query(
-      `SELECT EXISTS (
-         SELECT 1 FROM settings
-         WHERE NULLIF(awg_api_url, '') IS NOT NULL
-           AND NULLIF(awg_api_token, '') IS NOT NULL
-       ) AS configured`
-    );
-    if (!configuredResult.rows[0]?.configured) return;
-    const services = await workerLockClient.query(
-      `SELECT id
-       FROM reseller_services
-       WHERE status IN ('active', 'expiring')
-         AND (expire_at IS NULL OR expire_at > NOW())
-         AND NULLIF(BTRIM(awg_client_id), '') IS NOT NULL
-       ORDER BY id`
-    );
-    let updatedCount = 0;
-    let skippedCount = 0;
-    let failureCount = 0;
-    for (let index = 0; index < services.rows.length; index += 1) {
-      const result = await pollServiceAwgUsage(services.rows[index].id);
-      if (result === "updated") updatedCount += 1;
-      else if (result === "failed") failureCount += 1;
-      else if (result === "route-unavailable") {
-        failureCount += 1;
-        logger.warn("AWG stats routes are unavailable; pausing this polling cycle without changing saved counters");
-        break;
-      } else skippedCount += 1;
-      if (index < services.rows.length - 1) await wait2(AWG_USAGE_POLL_MIN_GAP_MS);
-    }
-    if (services.rows.length) {
-      logger.info(
-        {
-          scanned: services.rows.length,
-          updated: updatedCount,
-          skipped: skippedCount,
-          failed: failureCount,
-          intervalMs: AWG_USAGE_POLL_INTERVAL_MS
-        },
-        "AWG-only usage poll completed"
-      );
-    }
-  } catch (error40) {
-    logger.error({ err: error40 }, "AWG-only usage poll failed");
-  } finally {
-    if (workerLockAcquired) {
-      await workerLockClient.query(
-        "SELECT pg_advisory_unlock($1, $2)",
-        [AWG_WORKER_LOCK_NAMESPACE, 1]
-      ).catch(() => void 0);
-    }
-    workerLockClient.release();
-    running2 = false;
-  }
-}
-function startAwgUsagePollWorker() {
-  const initialRun = setTimeout(() => {
-    void runAwgUsagePoll();
-  }, AWG_USAGE_POLL_START_DELAY_MS);
-  const interval2 = setInterval(() => {
-    void runAwgUsagePoll();
-  }, AWG_USAGE_POLL_INTERVAL_MS);
-  initialRun.unref();
-  interval2.unref();
-  logger.info({ intervalMs: AWG_USAGE_POLL_INTERVAL_MS }, "AWG-only usage poll worker started");
-}
 
 // src/app.ts
 var app = (0, import_express5.default)();

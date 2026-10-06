@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
 type PulseContextValue = {
-  sales: Sale[]; services: Service[]; customers: Customer[]; servicesLoading: boolean; servicesError: string | null; refreshServices: () => Promise<void>; prefs: Prefs; session: { authenticated?: boolean; role?: string; display_name?: string | null; customer_price_per_gb?: number | null } | null;
+  sales: Sale[]; services: Service[]; customers: Customer[]; servicesLoading: boolean; servicesError: string | null; refreshServices: () => Promise<void>; prefs: Prefs; session: { authenticated?: boolean; role?: string; telegram_id?: number | null; reseller_id?: number | null; display_name?: string | null; customer_price_per_gb?: number | null } | null;
   sessionLoading: boolean; authFallback: boolean; dashboard: any | null; resellers: { id: number; telegram_id: number; title?: string | null; enabled: boolean; used_gb: number; total_gb: number; per_gig_price?: number; customer_price_per_gb?: number }[];
   addSale: (sale: Sale) => void; updateSale: (sale: Sale) => Promise<void>; createService: (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean }) => Promise<Service>; updateService: (service: Service) => void; renewService: (service: Service, days?: number, gb?: number, sellPrice?: number | null, isPaid?: boolean, requestId?: string) => Promise<Service>; openRenewWizard: (service: Service) => void; resetServiceToken: (service: Service) => Promise<string>; setPrefs: (prefs: Prefs) => void; updateReseller: (id: number, enabled: boolean) => void;
 };
@@ -214,6 +214,7 @@ function SubscriptionClientActions({ url, name, compact = false }: { url: string
 }
 
 export function PulseProvider({ children }: { children: ReactNode }) {
+  const [currentRoute] = useLocation();
   const [sales, setSales] = useState<Sale[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [prefs, setPrefs] = usePersisted<Prefs>('prefs', { businessName: 'مرکز فروش پالس', currency: 'تومان', reminderDays: '۷', compact: false });
@@ -227,7 +228,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const [businessDataScope, setBusinessDataScope] = useState(authScope);
   const dashboardQuery = useGetDashboard({ query: { enabled: canLoadApi, queryKey: [...getGetDashboardQueryKey(), authScope], staleTime: LIVE_DATA_STALE_MS, refetchInterval: LIVE_DATA_REFRESH_MS, refetchOnReconnect: true, refetchOnWindowFocus: true } });
   const salesQuery = useListSales(undefined, { query: { enabled: canLoadApi, queryKey: [...getListSalesQueryKey(), authScope], staleTime: LIVE_DATA_STALE_MS } });
-  const servicesQuery = useListServices({ limit: 1000 }, { query: { enabled: canLoadApi, queryKey: [...getListServicesQueryKey({ limit: 1000 }), authScope], staleTime: LIVE_DATA_STALE_MS, refetchInterval: LIVE_DATA_REFRESH_MS, refetchOnReconnect: true, refetchOnWindowFocus: true } });
+  const servicesQuery = useListServices({ limit: 1000 }, { query: { enabled: canLoadApi && currentRoute !== '/awg-usage' && currentRoute !== '/awg-usage-log', queryKey: [...getListServicesQueryKey({ limit: 1000 }), authScope], staleTime: LIVE_DATA_STALE_MS, refetchInterval: LIVE_DATA_REFRESH_MS, refetchOnReconnect: true, refetchOnWindowFocus: true } });
   const customersQuery = useListCustomers(undefined, { query: { enabled: canLoadApi, queryKey: [...getListCustomersQueryKey(), authScope], staleTime: LIVE_DATA_STALE_MS } });
   const resellerQuery = useListResellers({ query: { enabled: canLoadApi && sessionQuery.data?.role === 'master_admin', queryKey: [...getListResellersQueryKey(), authScope], staleTime: LIVE_DATA_STALE_MS } });
   const updateSaleApi = useUpdateSale();

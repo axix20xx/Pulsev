@@ -317,6 +317,81 @@ export interface AwgUsageRefreshResult {
   checked_at: string;
 }
 
+export interface AwgUsageWorkerStatus {
+  /** @nullable */
+  started_at: string | null;
+  running: boolean;
+  /** @nullable */
+  last_started_at: string | null;
+  /** @nullable */
+  last_completed_at: string | null;
+  interval_ms: number;
+  last_scanned: number;
+  last_updated: number;
+  last_skipped: number;
+  last_failed: number;
+  /** @nullable */
+  last_error: string | null;
+}
+
+export type AwgUsagePollEventStatus = typeof AwgUsagePollEventStatus[keyof typeof AwgUsagePollEventStatus];
+
+
+export const AwgUsagePollEventStatus = {
+  updated: 'updated',
+  skipped: 'skipped',
+  failed: 'failed',
+  'route-unavailable': 'route-unavailable',
+} as const;
+
+export type AwgUsagePollEventSource = typeof AwgUsagePollEventSource[keyof typeof AwgUsagePollEventSource];
+
+
+export const AwgUsagePollEventSource = {
+  background: 'background',
+  manual: 'manual',
+} as const;
+
+/**
+ * @nullable
+ */
+export type AwgUsagePollEventStatsSource = typeof AwgUsagePollEventStatsSource[keyof typeof AwgUsagePollEventStatsSource] | null;
+
+
+export const AwgUsagePollEventStatsSource = {
+  api: 'api',
+  cache: 'cache',
+} as const;
+
+export interface AwgUsagePollEvent {
+  event_id: number;
+  service_id: number;
+  service_code: string;
+  customer_name: string;
+  username: string;
+  status: AwgUsagePollEventStatus;
+  source: AwgUsagePollEventSource;
+  /** @nullable */
+  stats_source: AwgUsagePollEventStatsSource;
+  /** @nullable */
+  message: string | null;
+  /** @nullable */
+  rx_bytes: number | null;
+  /** @nullable */
+  tx_bytes: number | null;
+  /** @nullable */
+  raw_total_bytes: number | null;
+  /** @nullable */
+  effective_bytes: number | null;
+  checked_at: string;
+}
+
+export interface AwgUsageWorkerLog {
+  worker: AwgUsageWorkerStatus;
+  /** @maxItems 100 */
+  events: AwgUsagePollEvent[];
+}
+
 export type ServiceStatus = typeof ServiceStatus[keyof typeof ServiceStatus];
 
 
