@@ -21,7 +21,8 @@ const AWG_STATS_ERROR_RETRY_MS = 5 * 60_000;
 const AWG_STATS_ROUTE_COOLDOWN_MS = 60 * 60_000;
 const AWG_STATS_MIN_REQUEST_GAP_MS = 500;
 const AWG_STATS_CACHE_PRUNE_INTERVAL_MS = 60_000;
-const statsEndpointByApiUrl = new Map<string, string>();
+// Remember a route shape, never a concrete URL containing another client's ID.
+const statsRouteIndexByApiUrl = new Map<string, number>();
 const statsRouteUnavailableUntil = new Map<string, number>();
 export type AwgStats = { rxBytes: number; txBytes: number; source: "api" | "cache" };
 const statsCache = new Map<string, { value: AwgStats; expiresAt: number }>();
@@ -233,18 +234,21 @@ async function fetchAwgStats(clientId: string, awg: AwgConfig): Promise<AwgStats
     `/api/client/${encodedId}/stats`,
     `/api/stats/${encodedId}`,
   ];
-  const preferredEndpoint = statsEndpointByApiUrl.get(awg.apiUrl);
-  const endpoints = preferredEndpoint
-    ? [preferredEndpoint, ...routeCandidates.filter((endpoint) => endpoint !== preferredEndpoint)]
-    : routeCandidates;
+  const preferredRouteIndex = statsRouteIndexByApiUrl.get(awg.apiUrl);
+  const allRouteIndexes = routeCandidates.map((_, index) => index);
+  const routeIndexes = preferredRouteIndex === undefined
+    ? allRouteIndexes
+    : [preferredRouteIndex, ...allRouteIndexes.filter((index) => index !== preferredRouteIndex)];
   let response: Awaited<ReturnType<typeof request>> | null = null;
   let routeNotFoundCount = 0;
-  for (const endpoint of endpoints) {
+  let successfulRouteIndex: number | null = null;
+  for (const routeIndex of routeIndexes) {
+    const endpoint = routeCandidates[routeIndex];
     const candidate = await requestAwgStats(endpoint, awg);
     if (!candidate.configured) throw new AwgApiError("AmneziaWG API is not configured.");
     response = candidate;
     if (candidate.status >= 200 && candidate.status < 300) {
-      statsEndpointByApiUrl.set(awg.apiUrl, endpoint);
+      successfulRouteIndex = routeIndex;
       break;
     }
     if (
@@ -252,14 +256,14 @@ async function fetchAwgStats(clientId: string, awg: AwgConfig): Promise<AwgStats
       /^404 page not found$/i.test(candidate.text.trim())
     ) {
       routeNotFoundCount += 1;
-      if (endpoint === preferredEndpoint) statsEndpointByApiUrl.delete(awg.apiUrl);
+      if (routeIndex === preferredRouteIndex) statsRouteIndexByApiUrl.delete(awg.apiUrl);
       continue;
     }
-    if (endpoint === preferredEndpoint && candidate.status === 404) break;
+    if (routeIndex === preferredRouteIndex && candidate.status === 404) break;
     if (candidate.status !== 404 && candidate.status !== 405) break;
   }
   if (!response || response.status < 200 || response.status >= 300) {
-    if (routeNotFoundCount === endpoints.length) {
+    if (routeNotFoundCount === routeIndexes.length) {
       statsRouteUnavailableUntil.set(awg.apiUrl, Date.now() + AWG_STATS_ROUTE_COOLDOWN_MS);
       throw new AwgApiError(
         "All supported AmneziaWG stats routes returned a route-level 404.",
@@ -292,21 +296,27 @@ async function fetchAwgStats(clientId: string, awg: AwgConfig): Promise<AwgStats
     }
   };
   collect(payload);
-  const readNumber = (keys: string[]): number | null => {
-    for (const candidate of candidates) {
-      for (const key of keys) {
-        const value = Number(candidate[key]);
-        if (Number.isFinite(value) && value >= 0) return value;
-      }
+  const readNumber = (candidate: Record<string, unknown>, keys: string[]): number | null => {
+    for (const key of keys) {
+      const raw = candidate[key];
+      // Number(null), Number("") and Number(false) are zero, not valid API counters.
+      if (typeof raw !== "number" && typeof raw !== "string") continue;
+      if (typeof raw === "string" && !raw.trim()) continue;
+      const value = Number(raw);
+      if (Number.isFinite(value) && value >= 0) return value;
     }
     return null;
   };
-  const rxBytes = readNumber(["rx_bytes", "rxBytes", "rx", "received", "received_bytes", "receive", "download_bytes", "download", "transfer_rx", "transferRx"]);
-  const txBytes = readNumber(["tx_bytes", "txBytes", "tx", "sent", "sent_bytes", "transmit", "upload_bytes", "upload", "transfer_tx", "transferTx"]);
-  if (rxBytes === null || txBytes === null) {
-    throw new AwgApiError("AmneziaWG returned invalid usage statistics.");
+  for (const candidate of candidates) {
+    // Read the pair from the same stats object rather than mixing nested records.
+    const rxBytes = readNumber(candidate, ["rx_bytes", "rxBytes", "rx", "received", "received_bytes", "receive", "download_bytes", "download", "transfer_rx", "transferRx"]);
+    const txBytes = readNumber(candidate, ["tx_bytes", "txBytes", "tx", "sent", "sent_bytes", "transmit", "upload_bytes", "upload", "transfer_tx", "transferTx"]);
+    if (rxBytes !== null && txBytes !== null) {
+      if (successfulRouteIndex !== null) statsRouteIndexByApiUrl.set(awg.apiUrl, successfulRouteIndex);
+      return { rxBytes: Math.round(rxBytes), txBytes: Math.round(txBytes), source: "api" };
+    }
   }
-  return { rxBytes: Math.round(rxBytes), txBytes: Math.round(txBytes), source: "api" };
+  throw new AwgApiError("AmneziaWG returned invalid usage statistics.");
 }
 
 export async function getAwgStats(

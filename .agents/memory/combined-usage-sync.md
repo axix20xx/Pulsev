@@ -44,3 +44,9 @@ Manual live checks are deliberately one-service AWG-only operations: they apply 
 **Why:** The operator needs to distinguish an API-reported zero from a skipped or failed poll without increasing panel Provider traffic or risking service lifecycle changes.
 
 **How to apply:** Update only that service's AWG counters and reset offset; never call Provider APIs or change service status. Keep the log read-only and admin-only, and explain that it clears when the API restarts.
+
+Usage attribution requires identity isolation at every cache layer, including endpoint-discovery caches, not just the cache holding numeric readings.
+
+**Why:** Reusing an identity-bearing endpoint across clients copied one client's readings to other services. Successful HTTP responses therefore do not by themselves prove the reading belongs to the selected service.
+
+**How to apply:** Keep shared discovery information identity-free and rebuild requests for the selected client. Verify this offline with distinct clients, including a zero-usage first client. Treat null, blank, boolean, or incomplete counter pairs as invalid rather than authoritative zeroes.

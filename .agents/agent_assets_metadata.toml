@@ -1094,3 +1094,17 @@ mtime_ms = 1791322630222
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8284794e-8732-40fc-ae4f-840a95cffce5/5ceee40f-6749-4b71-a66d-bd0b51445e48"
 storage_version_token = "1791322732872440"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "RCVBWRALP9KHDUpmmvfcH"
+uri = "file://exports/pulse-hostinger-awg-client-stats-fix-2026-10-07.zip"
+type = "unspecified"
+title = "Hostinger ZIP — corrected per-user AWG stats"
+description = "Full migration package with client-isolated AWG stats URLs and strict counter validation. Offline regression tests, API typecheck, production build, and ZIP integrity checks passed."
+logical_id = "91eb83eb-883f-435a-8091-a49963d77a4f"
+content_hash = "sha256:dcb5a6a13cc1b292873746e477ec89ba5aaa592d39f4d96672661d0202a06ff3"
+size = 28801316
+mtime_ms = 1791323441798
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/91eb83eb-883f-435a-8091-a49963d77a4f/60474e1a-8d49-42c6-a0f5-f34743d6279c"
+storage_version_token = "1791323513597995"
+content_type = "application/octet-stream"
