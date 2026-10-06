@@ -56,10 +56,12 @@ import {
   brandSubscriptionBody,
   createServiceUsername,
   createSubscriptionToken,
+  downloadOpenVpnProfile,
   disablePanelUser,
   fetchPanelSubscription,
   listAvailablePanels,
   listPasarguardConnectionUsers,
+  prepareOpenVpnAccount,
   provisionUser,
   RainApiError,
   testPanelAuthentication,
@@ -625,64 +627,6 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
   res.json({ retried: true, campaignId, ...result });
 });
 
- async function backfillMissingCreateSales(): Promise<void> {
-   const client = await pool.connect();
-   try {
-     await client.query("BEGIN");
-     await client.query("SELECT pg_advisory_xact_lock(hashtext('pulse_sales_log'))");
-     const result = await client.query(
-       `WITH missing AS (
-          SELECT
-            svc.id AS service_id,
-            svc.reseller_tg_id,
-            svc.gb,
-            svc.days,
-            svc.created_at,
-            ROW_NUMBER() OVER (ORDER BY svc.id) - 1 AS row_offset
-          FROM reseller_services svc
-          WHERE NOT EXISTS (
-            SELECT 1
-            FROM reseller_sales_log sale
-            WHERE sale.service_id = svc.id
-              AND sale.action_type = 'create'
-          )
-        ),
-        next_id AS (
-          SELECT COALESCE(MAX(id), 0) + 1 AS first_id
-          FROM reseller_sales_log
-        )
-        INSERT INTO reseller_sales_log
-          (id, reseller_tg_id, service_id, action_type, gb_amount, days_amount,
-           created_at, custom_sell_price, is_paid)
-        SELECT
-          next_id.first_id + missing.row_offset,
-          missing.reseller_tg_id,
-          missing.service_id,
-          'create',
-          missing.gb,
-          missing.days,
-          missing.created_at,
-          NULL,
-          0
-        FROM missing
-        CROSS JOIN next_id
-        RETURNING service_id`,
-     );
-     await client.query("COMMIT");
-     if (result.rowCount) {
-       logger.info(
-         { count: result.rowCount, serviceIds: result.rows.map((row) => Number(row.service_id)) },
-         "Backfilled missing legacy create sales",
-       );
-     }
-   } catch (error) {
-     await client.query("ROLLBACK").catch(() => undefined);
-     throw error;
-   } finally {
-     client.release();
-   }
- }
-
  export const managementReady = pool
   .query(`
     CREATE TABLE IF NOT EXISTS panel_configs (
@@ -939,7 +883,6 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
       DELETE FROM panel_configs
         WHERE key IN ('xxpanel', 'fibrpanel', 'falcon')
   `)
-   .then(() => backfillMissingCreateSales())
    .catch((error) => {
     console.error("Panel management schema initialization failed", error);
     throw error;
@@ -1140,6 +1083,32 @@ router.post("/auth/logout", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
+async function loadPublicOpenVpnService(token: string): Promise<any | null> {
+  const result = await pool.query(
+    `SELECT svc.id, svc.reseller_tg_id, svc.rain_username AS username,
+            svc.gb::float8 AS limit_gb, svc.status, svc.expire_at AS expires_at,
+            svc.last_used_bytes, svc.last_total_bytes
+     FROM reseller_sub_tokens rst
+     JOIN reseller_services svc ON svc.id = rst.service_id
+     WHERE rst.token = $1
+     LIMIT 1`,
+    [token],
+  );
+  return result.rows[0] ?? null;
+}
+
+function publicOpenVpnServiceFinished(service: any): boolean {
+  const expiresAt = service.expires_at ? new Date(service.expires_at).getTime() : 0;
+  const totalBytes = Number(service.last_total_bytes) > 0
+    ? Number(service.last_total_bytes)
+    : Math.round(Number(service.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = Math.max(0, Number(service.last_used_bytes ?? 0));
+  return service.status === "disabled"
+    || service.status === "expired"
+    || (totalBytes > 0 && usedBytes >= totalBytes)
+    || (Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now());
+}
+
 router.get("/public/subscription/:token", async (req, res): Promise<void> => {
   const token = String(req.params.token ?? "").trim();
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
@@ -1197,6 +1166,8 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     || (quotaFinished ? "حجم اشتراک به پایان رسیده است" : dateFinished ? "تاریخ اعتبار اشتراک به پایان رسیده است" : null);
   const serviceCode = `PULSE-${String(row.id).padStart(6, "0")}`;
   const daysRemaining = expiresAt > 0 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 86400000)) : null;
+  const availableProviders = await listAvailablePanels();
+  const openvpnAvailable = availableProviders.some((provider) => provider.kind === "azadpanel");
   const announcement = finished
     ? {
         title: "اشتراک پایان یافته است",
@@ -1231,9 +1202,110 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     public_url: `/sub?t=${encodeURIComponent(token)}`,
     awg_ready: !finished && Boolean(row.awg_client_id),
     awg_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
+    openvpn_available: !finished && openvpnAvailable,
     provider_label: "V2Box",
     announcement: { ...announcement, service_code: serviceCode },
   });
+});
+
+router.post("/public/subscription/:token/openvpn", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).json({ error: "لینک اشتراک معتبر نیست" });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "لینک اشتراک پیدا نشد" });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "اشتراک پایان یافته است؛ برای دریافت OpenVPN آن را تمدید کنید." });
+    return;
+  }
+  try {
+    const delivery = await prepareOpenVpnAccount(
+      String(service.username),
+      Number(service.limit_gb ?? 0),
+      new Date(service.expires_at),
+      Number(service.reseller_tg_id),
+      "reseller",
+    );
+    const configBase = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/config/${encodeURIComponent(delivery.provider_key)}`;
+    const bundleUrl = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/bundle/${encodeURIComponent(delivery.provider_key)}`;
+    res.json({
+      ...delivery,
+      bundle_url: bundleUrl,
+      locations: delivery.locations.map((location) => ({
+        ...location,
+        config_url: `${configBase}/${encodeURIComponent(location.id)}`,
+      })),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "OpenVPN account setup failed.";
+    const unavailable = message.includes("No enabled AzadPanel");
+    res.status(unavailable ? 503 : 502).json({ error: message });
+  }
+});
+
+async function resolvePublicOpenVpnProfile(
+  token: string,
+  providerKey: string,
+  hostId?: string,
+): Promise<{ serviceId: string; profile: { body: string; contentType: string } } | { status: number; error: string }> {
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    return { status: 404, error: "Invalid subscription token" };
+  }
+  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey) || (hostId && !/^[A-Za-z0-9._-]{1,80}$/.test(hostId))) {
+    return { status: 400, error: "Invalid OpenVPN profile request" };
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) return { status: 404, error: "Subscription not found" };
+  if (publicOpenVpnServiceFinished(service)) return { status: 410, error: "Subscription has expired" };
+  try {
+    const profile = await downloadOpenVpnProfile(
+      String(service.username),
+      providerKey,
+      hostId,
+      Number(service.reseller_tg_id),
+      "reseller",
+    );
+    return { serviceId: String(service.id), profile };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "OpenVPN profile download failed.";
+    return { status: 502, error: message };
+  }
+}
+
+router.get("/public/subscription/:token/openvpn/config/:provider/:host", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  const result = await resolvePublicOpenVpnProfile(
+    token,
+    String(req.params.provider ?? ""),
+    String(req.params.host ?? ""),
+  );
+  if ("status" in result) {
+    res.status(result.status).send(result.error);
+    return;
+  }
+  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-disposition", `attachment; filename="Pulse-${result.serviceId}-${String(req.params.host)}.ovpn"`);
+  res.send(result.profile.body);
+});
+
+router.get("/public/subscription/:token/openvpn/bundle/:provider", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  const result = await resolvePublicOpenVpnProfile(token, String(req.params.provider ?? ""));
+  if ("status" in result) {
+    res.status(result.status).send(result.error);
+    return;
+  }
+  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-disposition", `attachment; filename="Pulse-${result.serviceId}-all.ovpn"`);
+  res.send(result.profile.body);
 });
 
 router.get("/public/subscription/:token/feed", async (req, res): Promise<void> => {
@@ -1525,7 +1597,7 @@ router.post("/panels/:key/test", requireMasterAdmin, async (req, res): Promise<v
   });
 });
 
-const providerKinds = ["marzban", "rain_admin"] as const;
+const providerKinds = ["marzban", "rain_admin", "azadpanel"] as const;
 type ProviderKind = (typeof providerKinds)[number];
 
 function isProviderKind(value: unknown): value is ProviderKind {

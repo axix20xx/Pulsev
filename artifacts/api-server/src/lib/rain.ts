@@ -35,15 +35,17 @@ export class RainApiError extends Error {
 }
 
 const tokenCache = new Map<string, string>();
+const azadPanelCoreCache = new Map<string, { core: string; expiresAt: number }>();
 
 function panelKey(panel: Panel): string {
   return panel.key?.trim() || panel.api_base;
 }
 
-function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" {
+function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" | "azadpanel" {
   const kind = panel.kind?.trim().toLowerCase();
   if (kind === "rain_admin") return "rain_admin";
   if (kind === "falcon") return "falcon";
+  if (kind === "azadpanel") return "azadpanel";
   return "marzban";
 }
 
@@ -239,6 +241,7 @@ export async function fetchPanelSubscription(
 
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
+    if (kind === "azadpanel") continue;
     const paths =
       kind === "rain_admin"
         ? [`/api/users/${encodedUsername}`, `/api/user/${encodedUsername}`]
@@ -336,6 +339,45 @@ async function tokenFor(panel: Panel, forceRefresh = false): Promise<string> {
     if (!panel.api_key) throw new RainApiError(`Panel ${key} has no API key`);
     return panel.api_key;
   }
+  if (kind === "azadpanel") {
+    if (!panel.admin_user || !panel.admin_pass) {
+      throw new RainApiError(`AzadPanel ${key} has no username or password`);
+    }
+    let response: Response;
+    try {
+      response = await fetch(`${panel.api_base}/api/admin/token`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          username: panel.admin_user,
+          password: panel.admin_pass,
+        }).toString(),
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      throw new RainApiError(`Could not authenticate with AzadPanel ${key} (network error)`);
+    }
+    const text = await response.text();
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    const token = json?.access_token ?? json?.token ?? json?.bearer;
+    if (response.ok && typeof token === "string" && token) {
+      tokenCache.set(key, token);
+      return token;
+    }
+    const retryAfter = response.headers.get("retry-after");
+    const retryHint = response.status === 429 && retryAfter
+      ? `; retry after ${retryAfter}`
+      : "";
+    throw new RainApiError(`Could not authenticate with AzadPanel ${key} (HTTP ${response.status}${retryHint})`);
+  }
 
   const paths =
     kind === "rain_admin"
@@ -420,6 +462,12 @@ export async function testPanelAuthentication(
       const response = await request(panel, "GET", "/configs?limit=1", token);
       if (response.status < 200 || response.status >= 300) {
         return { ok: false, detail: `Falcon API returned ${safeError(response)}.` };
+      }
+    }
+    if (panelKind(panel) === "azadpanel") {
+      const core = await azadPanelCore(panel, true);
+      if (core !== "openvpn") {
+        return { ok: false, detail: `AzadPanel core is ${core || "unknown"}; OpenVPN is required.` };
       }
     }
     return { ok: true, detail: "Authentication succeeded." };
@@ -509,6 +557,20 @@ async function panelRequest(
     response = await request(panel, method, path, token, body);
   }
   return response;
+}
+
+async function azadPanelCore(panel: Panel, forceRefresh = false): Promise<string> {
+  const key = panelKey(panel);
+  const cached = azadPanelCoreCache.get(key);
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.core;
+  const response = await panelRequest(panel, "GET", "/api/admin");
+  if (response.status < 200 || response.status >= 300) {
+    throw new RainApiError(`Could not read AzadPanel ${key} settings: ${safeError(response)}`);
+  }
+  const core = typeof response.json?.core === "string" ? response.json.core.trim().toLowerCase() : "";
+  if (!core) throw new RainApiError(`AzadPanel ${key} did not return a core type.`);
+  azadPanelCoreCache.set(key, { core, expiresAt: Date.now() + 5 * 60_000 });
+  return core;
 }
 
 function safeError(response: { status: number; json: any; text: string }): string {
@@ -612,6 +674,7 @@ export async function readPanelUsages(
   };
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
+    if (kind === "azadpanel") continue;
     let response: { status: number; json: any; text: string } | null = null;
     if (kind === "falcon") {
       response = await safePanelRequest(
@@ -671,8 +734,9 @@ export async function disablePanelUser(
   let attempted = 0;
   let disabled = 0;
   for (const panel of await panels(ownerId, role)) {
-    attempted += 1;
     const kind = panelKind(panel);
+    if (kind === "azadpanel") continue;
+    attempted += 1;
     const encoded = encodeURIComponent(username);
     const candidates: Array<[string, string, unknown]> = kind === "falcon"
       ? (falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [])
@@ -772,6 +836,60 @@ async function provisionRainAdmin(
   throw new RainApiError(`Rain panel ${panelKey(panel)} rejected the user: ${safeError(last)}`);
 }
 
+function azadPanelUserBody(username: string, gb: number, expiresAt: Date): Record<string, unknown> {
+  return {
+    username,
+    status: "active",
+    expire: Math.floor(expiresAt.getTime() / 1000),
+    data_limit: bytesForGb(gb),
+    data_limit_reset_strategy: "no_reset",
+    device_limit: 2,
+    note: `Pulse service ${username}`,
+    proxies: { vless: {} },
+    inbounds: {},
+  };
+}
+
+async function provisionAzadPanel(
+  panel: Panel,
+  username: string,
+  gb: number,
+  days: number,
+  resetUsage: boolean,
+): Promise<number> {
+  const core = await azadPanelCore(panel);
+  if (core !== "openvpn") {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} is configured for ${core}, not OpenVPN.`);
+  }
+  const encoded = encodeURIComponent(username);
+  const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (existing.status !== 200 && existing.status !== 404) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} could not check the user: ${safeError(existing)}`);
+  }
+  const expiresAt = new Date(Date.now() + Math.max(0, days) * 86_400_000);
+  const body = existing.status === 200
+    ? {
+        status: "active",
+        expire: Math.floor(expiresAt.getTime() / 1000),
+        data_limit: bytesForGb(gb),
+        data_limit_reset_strategy: "no_reset",
+      }
+    : azadPanelUserBody(username, gb, expiresAt);
+  const response = existing.status === 200
+    ? await panelRequest(panel, "PUT", `/api/user/${encoded}`, body)
+    : await panelRequest(panel, "POST", "/api/user", body);
+  if (response.status < 200 || response.status >= 300) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} rejected the user: ${safeError(response)}`);
+  }
+  if (resetUsage && existing.status === 200) {
+    const reset = await panelRequest(panel, "POST", `/api/user/${encoded}/reset`);
+    if (reset.status < 200 || reset.status >= 300) {
+      throw new RainApiError(`AzadPanel ${panelKey(panel)} updated the plan but could not reset usage: ${safeError(reset)}`);
+    }
+  }
+  return response.status;
+}
+
 async function provisionMarzban(
   panel: Panel,
   username: string,
@@ -863,6 +981,8 @@ export async function provisionUser(
       const status =
         kind === "rain_admin"
           ? await provisionRainAdmin(panel, username, gb, days, options?.resetUsage === true)
+          : kind === "azadpanel"
+            ? await provisionAzadPanel(panel, username, gb, days, options?.resetUsage === true)
           : kind === "falcon"
             ? await provisionFalcon(panel, gb, days, label)
             : await provisionMarzban(panel, username, gb, days);
@@ -881,6 +1001,124 @@ export async function provisionUser(
     throw new RainApiError("No configured Rain panel accepted the service.", results);
   }
   return { ok: true, results };
+}
+
+export type OpenVpnLocation = {
+  id: string;
+  name: string;
+};
+
+export type OpenVpnDelivery = {
+  provider_key: string;
+  server: string;
+  username: string;
+  password: string;
+  core: "openvpn";
+  locations: OpenVpnLocation[];
+};
+
+export async function prepareOpenVpnAccount(
+  username: string,
+  gb: number,
+  expiresAt: Date,
+  ownerId?: number,
+  role?: string,
+  requestedPanelKey?: string,
+): Promise<OpenVpnDelivery> {
+  const openVpnPanels = (await panels(ownerId, role)).filter((panel) => panelKind(panel) === "azadpanel");
+  const panel = requestedPanelKey
+    ? openVpnPanels.find((candidate) => panelKey(candidate) === requestedPanelKey)
+    : openVpnPanels[0];
+  if (!panel) throw new RainApiError("No enabled AzadPanel OpenVPN provider is configured.");
+  if (await azadPanelCore(panel) !== "openvpn") {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} is not configured for OpenVPN.`);
+  }
+
+  const encoded = encodeURIComponent(username);
+  let existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (existing.status === 404) {
+    const created = await panelRequest(panel, "POST", "/api/user", azadPanelUserBody(username, gb, expiresAt));
+    if (created.status < 200 || created.status >= 300) {
+      if (created.status !== 409) {
+        throw new RainApiError(`AzadPanel ${panelKey(panel)} could not create the OpenVPN account: ${safeError(created)}`);
+      }
+      existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+      if (existing.status !== 200) {
+        throw new RainApiError(`AzadPanel ${panelKey(panel)} could not confirm the OpenVPN account: ${safeError(existing)}`);
+      }
+    }
+  } else if (existing.status !== 200) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} could not check the OpenVPN account: ${safeError(existing)}`);
+  }
+
+  const configsResponse = await panelRequest(panel, "GET", `/api/ovpn/user/${encoded}/configs`);
+  if (configsResponse.status < 200 || configsResponse.status >= 300) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} could not read OpenVPN locations: ${safeError(configsResponse)}`);
+  }
+  const configsData = configsResponse.json?.data ?? configsResponse.json;
+  let importData = configsData?.import;
+  if (!importData || typeof importData !== "object") {
+    const importResponse = await panelRequest(panel, "GET", `/api/ovpn/user/${encoded}/import`);
+    if (importResponse.status < 200 || importResponse.status >= 300) {
+      throw new RainApiError(`AzadPanel ${panelKey(panel)} could not read OpenVPN login details: ${safeError(importResponse)}`);
+    }
+    importData = importResponse.json?.data ?? importResponse.json;
+  }
+  const rawLocations = Array.isArray(configsData?.locations)
+    ? configsData.locations
+    : Array.isArray(configsData?.endpoints)
+      ? configsData.endpoints
+      : Array.isArray(importData?.locations)
+        ? importData.locations
+        : [];
+  const locations = rawLocations.flatMap((location: any): OpenVpnLocation[] => {
+    const rawId = location?.id ?? location?.host_id ?? location?.host;
+    if (rawId === null || rawId === undefined || String(rawId).trim() === "") return [];
+    const id = String(rawId).trim();
+    const name = typeof location?.name === "string" && location.name.trim()
+      ? location.name.trim()
+      : `Location ${id}`;
+    return [{ id, name }];
+  });
+  const server = typeof importData?.server === "string" ? importData.server.trim() : "";
+  const importUsername = typeof importData?.username === "string" ? importData.username : "";
+  const password = typeof importData?.password === "string" ? importData.password : "";
+  if (!server || !importUsername || !password || !locations.length) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} returned incomplete OpenVPN import details.`);
+  }
+  return {
+    provider_key: panelKey(panel),
+    server,
+    username: importUsername,
+    password,
+    core: "openvpn",
+    locations,
+  };
+}
+
+export async function downloadOpenVpnProfile(
+  username: string,
+  providerKey: string,
+  hostId?: string,
+  ownerId?: number,
+  role?: string,
+): Promise<{ body: string; contentType: string }> {
+  const panel = (await panels(ownerId, role)).find(
+    (candidate) => panelKey(candidate) === providerKey && panelKind(candidate) === "azadpanel",
+  );
+  if (!panel) throw new RainApiError("The selected AzadPanel OpenVPN provider is unavailable.");
+  if (await azadPanelCore(panel) !== "openvpn") {
+    throw new RainApiError(`AzadPanel ${providerKey} is not configured for OpenVPN.`);
+  }
+  const encoded = encodeURIComponent(username);
+  const path = hostId
+    ? `/api/ovpn/user/${encoded}/config?host=${encodeURIComponent(hostId)}`
+    : `/api/ovpn/user/${encoded}/bundle`;
+  const response = await panelRequest(panel, "GET", path);
+  if (response.status < 200 || response.status >= 300 || !response.text.trim()) {
+    throw new RainApiError(`AzadPanel ${providerKey} could not download the OpenVPN profile: ${safeError(response)}`);
+  }
+  return { body: response.text, contentType: "text/plain; charset=utf-8" };
 }
 
 export function createServiceUsername(customerId: number): string {

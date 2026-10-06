@@ -443,6 +443,65 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Reseller"
+  /public/subscription/{token}/openvpn:
+    post:
+      operationId: createOpenVpnAccount
+      tags: [services]
+      summary: Create or retrieve OpenVPN access for a subscription
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+      responses:
+        "200":
+          description: OpenVPN account details and import locations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenVpnDelivery"
+        "404":
+          description: Subscription not found
+        "410":
+          description: Subscription is no longer active
+        "503":
+          description: No OpenVPN provider is configured
+  /public/subscription/{token}/openvpn/config/{provider}/{host}:
+    get:
+      operationId: downloadOpenVpnProfile
+      tags: [services]
+      summary: Download a private OpenVPN profile for a subscription
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+        - $ref: "#/components/parameters/OpenVpnProviderPath"
+        - $ref: "#/components/parameters/OpenVpnHostPath"
+      responses:
+        "200":
+          description: OpenVPN profile file
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          description: Subscription or provider not found
+        "410":
+          description: Subscription is no longer active
+  /public/subscription/{token}/openvpn/bundle/{provider}:
+    get:
+      operationId: downloadOpenVpnBundle
+      tags: [services]
+      summary: Download the OpenVPN profiles bundle for a subscription
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+        - $ref: "#/components/parameters/OpenVpnProviderPath"
+      responses:
+        "200":
+          description: OpenVPN profile bundle
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          description: Subscription or provider not found
+        "410":
+          description: Subscription is no longer active
 components:
   parameters:
     Id:
@@ -452,6 +511,28 @@ components:
       schema:
         type: number
         minimum: 1
+    SubscriptionToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]{12,256}$"
+    OpenVpnProviderPath:
+      name: provider
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z0-9_-]{2,64}$"
+    OpenVpnHostPath:
+      name: host
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 80
+        pattern: "^[A-Za-z0-9._-]{1,80}$"
     Search:
       name: search
       in: query
@@ -1139,4 +1220,35 @@ components:
         customer_price_per_gb:
           type: number
           minimum: 0
+    OpenVpnDelivery:
+      type: object
+      required: [provider_key, server, username, password, core, bundle_url, locations]
+      properties:
+        provider_key:
+          type: string
+        server:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        core:
+          type: string
+          enum: [openvpn]
+        bundle_url:
+          type: string
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenVpnLocation"
+    OpenVpnLocation:
+      type: object
+      required: [id, name, config_url]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        config_url:
+          type: string
 

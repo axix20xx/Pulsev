@@ -2473,6 +2473,10 @@ function PublicSubscriptionContentV2() {
   const [awgOpen, setAwgOpen] = useState(false);
   const [connectState, setConnectState] = useState<string | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
+  const [openVpnBusy, setOpenVpnBusy] = useState(false);
+  const [openVpnData, setOpenVpnData] = useState<any>(null);
+  const [openVpnError, setOpenVpnError] = useState('');
+  const [openVpnCopied, setOpenVpnCopied] = useState<'server' | 'username' | 'password' | null>(null);
 
   useEffect(() => {
     const detected = detectClientOS();
@@ -2540,6 +2544,29 @@ function PublicSubscriptionContentV2() {
     } catch {
       await copyUrl(new URL(data.awg_url, window.location.origin).toString(), 'awg');
     }
+  };
+  const prepareOpenVpn = async () => {
+    if (!token || openVpnBusy || finished) return;
+    setOpenVpnBusy(true);
+    setOpenVpnError('');
+    try {
+      const response = await fetch(`/api/public/subscription/${encodeURIComponent(token)}/openvpn`, {
+        method: 'POST',
+        cache: 'no-store',
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || 'اطلاعات OpenVPN دریافت نشد.');
+      setOpenVpnData(result);
+    } catch (cause) {
+      setOpenVpnError(cause instanceof Error ? cause.message : 'ساخت حساب OpenVPN ناموفق بود.');
+    } finally {
+      setOpenVpnBusy(false);
+    }
+  };
+  const copyOpenVpnValue = async (value: string, kind: 'server' | 'username' | 'password') => {
+    if (!(await copyTextToClipboard(value))) return;
+    setOpenVpnCopied(kind);
+    window.setTimeout(() => setOpenVpnCopied((current) => current === kind ? null : current), 1800);
   };
   const sharePage = async () => {
     if (navigator.share) {
@@ -2648,6 +2675,35 @@ function PublicSubscriptionContentV2() {
           </AnimatePresence>
 
         </section>}
+
+        {!finished && data.openvpn_available && <motion.section {...pageMotion} className="public-sub-openvpn-card" data-testid="card-public-sub-openvpn">
+          <div className="public-sub-openvpn-heading">
+            <div className="public-sub-openvpn-icon"><ShieldCheck size={20} /></div>
+            <div><p className="public-sub-kicker">دسترسی OpenVPN</p><h2>حساب OpenVPN</h2><p>برای سرویس‌های قدیمی، حساب فقط با انتخاب دکمه ساخته می‌شود.</p></div>
+          </div>
+          {!openVpnData ? <div className="public-sub-openvpn-setup">
+            <button type="button" className="public-sub-openvpn-button primary" onClick={() => void prepareOpenVpn()} disabled={openVpnBusy} data-testid="button-public-sub-openvpn-create">
+              {openVpnBusy ? <><RefreshCw size={15} className="public-sub-spin" />در حال آماده‌سازی حساب...</> : <><Plus size={15} />ساخت یا دریافت حساب OpenVPN</>}
+            </button>
+            {openVpnError && <p className="public-sub-openvpn-error" role="alert">{openVpnError}</p>}
+          </div> : <>
+            <div className="public-sub-openvpn-credentials">
+              <div><span>آدرس سرور</span><strong dir="ltr">{openVpnData.server}</strong><button type="button" onClick={() => void copyOpenVpnValue(openVpnData.server, 'server')} aria-label="کپی آدرس سرور">{openVpnCopied === 'server' ? <Check size={15} /> : <Copy size={15} />}</button></div>
+              <div><span>نام کاربری</span><strong dir="ltr">{openVpnData.username}</strong><button type="button" onClick={() => void copyOpenVpnValue(openVpnData.username, 'username')} aria-label="کپی نام کاربری">{openVpnCopied === 'username' ? <Check size={15} /> : <Copy size={15} />}</button></div>
+              <div><span>رمز عبور</span><strong dir="ltr">{openVpnData.password}</strong><button type="button" onClick={() => void copyOpenVpnValue(openVpnData.password, 'password')} aria-label="کپی رمز عبور">{openVpnCopied === 'password' ? <Check size={15} /> : <Copy size={15} />}</button></div>
+            </div>
+            <div className="public-sub-openvpn-actions">
+              <a className="public-sub-openvpn-button primary" href={openVpnData.bundle_url} download data-testid="link-public-sub-openvpn-bundle"><Download size={15} />دانلود همهٔ فایل‌ها</a>
+              <a className="public-sub-openvpn-button" href="https://apps.apple.com/us/app/openvpn-connect-openvpn-app/id590379981" target="_blank" rel="noreferrer" data-testid="link-public-sub-openvpn-ios"><ExternalLink size={14} />OpenVPN Connect · iOS</a>
+              <a className="public-sub-openvpn-button" href="https://play.google.com/store/apps/details?id=net.openvpn.openvpn" target="_blank" rel="noreferrer" data-testid="link-public-sub-openvpn-android"><ExternalLink size={14} />OpenVPN Connect · Android</a>
+            </div>
+            <p className="public-sub-openvpn-hint">در OpenVPN Connect گزینهٔ Import Profile ← URL را انتخاب کنید، آدرس سرور را وارد کنید و Next بزنید؛ سپس نام کاربری و رمز بالا را وارد کنید. اگر واردسازی URL در دسترس نبود، فایل .ovpn هر سرور را دانلود کنید.</p>
+            {openVpnData.locations?.length > 0 && <div className="public-sub-openvpn-locations">
+              <strong>فایل جداگانهٔ سرورها</strong>
+              {openVpnData.locations.map((location: any) => <a key={location.id} href={location.config_url} download><span>{location.name}</span><Download size={14} /></a>)}
+            </div>}
+          </>}
+        </motion.section>}
 
          <motion.section {...pageMotion} className={`public-sub-awg-card ${awgOpen ? 'open' : ''}`} data-testid="card-public-sub-amneziawg">
            <div className="public-sub-awg-heading"><div className="public-sub-awg-icon"><Wifi size={20} /></div><div><p className="public-sub-kicker">پروتکل اختصاصی</p><h2>AmneziaWG</h2><p>اتصال سریع‌تر با اپ رسمی AmneziaWG</p></div><span className={`public-sub-awg-status ${awgAvailable ? 'ready' : 'pending'}`}>{awgAvailable ? <><CheckCircle2 size={14} /> آماده</> : <><CircleHelp size={14} /> در انتظار کانفیگ</>}</span></div>
@@ -2915,5 +2971,69 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
       setDeleting('');
     }
   };
-  return <section className="panel-card panel-assignments"><div className="settings-heading"><div className="settings-symbol"><Server size={17} /></div><div><h2 className="section-title">مدیریت Providerهای V2Box</h2><p className="text-sm text-muted-foreground">آدرس و credential هر Provider را همین‌جا وارد کنید. رمزها پیش از ذخیره در دیتابیس رمزنگاری می‌شوند و دیگر نیازی به Secretهای جداگانهٔ Provider نیست.</p></div></div>{error && <div className="login-error mt-4">{error}</div>}<form className="provider-create-form" onSubmit={create}><div className="provider-create-heading"><div><p className="eyebrow">Provider جدید</p><strong>افزودن منبع اتصال</strong></div><span className="text-xs text-muted-foreground">فقط Providerهای دارای credential و فعال در ساخت سرویس استفاده می‌شوند.</span></div><div className="provider-fields"><Field label="کلید یکتا" value={newPanel.key} placeholder="مثلاً panel_new" onChange={(value) => setNewPanel({ ...newPanel, key: value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} /><label className="field"><span>نوع Provider</span><select value={newPanel.kind} onChange={(event) => setNewPanel({ ...newPanel, kind: event.target.value })}><option value="rain_admin">Rain Admin</option><option value="marzban">Marzban</option></select></label><Field label="آدرس API" value={newPanel.api_base} placeholder="https://panel.example.com" onChange={(value) => setNewPanel({ ...newPanel, api_base: value })} /><Field label="نام کاربری (اختیاری)" value={newPanel.username} onChange={(value) => setNewPanel({ ...newPanel, username: value })} /><Field label="رمز (اختیاری)" value={newPanel.password} type="password" onChange={(value) => setNewPanel({ ...newPanel, password: value })} /></div><div className="provider-create-actions"><label className="preference-row provider-enabled"><span><strong>فعال باشد</strong><small>بعداً هم از کارت Provider قابل تغییر است.</small></span><button type="button" className={`toggle ${newPanel.enabled ? 'on' : ''}`} onClick={() => setNewPanel({ ...newPanel, enabled: !newPanel.enabled })} aria-label="فعال بودن Provider جدید"><span /></button></label><Button type="submit" disabled={creating}>{creating ? <><RefreshCw size={14} className="spin" /> در حال افزودن...</> : <><Plus size={14} /> افزودن Provider</>}</Button></div></form><div className="list-stack">{items.map((panel) => <div className="provider-card provider-editor" key={panel.key}><div className="provider-editor-title"><strong>{panel.key}</strong><span className={`soft-badge ${panel.has_data ? '' : 'muted'}`}>{panel.has_data ? 'credential آماده' : 'credential ثبت نشده'}</span><button className={`toggle ${panel.enabled ? 'on' : ''}`} onClick={() => edit(panel.key, 'enabled', !panel.enabled)} aria-label={`فعال‌سازی ${panel.key}`}><span /></button><button type="button" className="icon-button provider-delete" onClick={() => remove(panel)} disabled={deleting === panel.key || saving === panel.key} aria-label={`حذف ${panel.key}`}>{deleting === panel.key ? <RefreshCw size={15} className="spin" /> : <Trash2 size={15} />}</button></div><div className="provider-fields"><Field label="نوع Provider" value={panel.kind} onChange={(value) => edit(panel.key, 'kind', value)} /><Field label="آدرس API" value={panel.api_base} onChange={(value) => edit(panel.key, 'api_base', value)} /><Field label="نام کاربری پنل (خالی = حفظ مقدار قبلی)" value={panel.username || ''} placeholder="username پنل" onChange={(value) => edit(panel.key, 'username', value)} /><Field label="رمز پنل (خالی = حفظ مقدار قبلی)" value={panel.password || ''} placeholder="password پنل" type="password" onChange={(value) => edit(panel.key, 'password', value)} /></div><Button variant="secondary" disabled={saving === panel.key} onClick={() => save(panel)}>{saving === panel.key ? <><RefreshCw size={14} className="spin" /> ذخیره...</> : <><Save size={14} /> ذخیره در دیتابیس</>}</Button></div>)}</div></section>;
+  return (
+    <section className="panel-card panel-assignments">
+      <div className="settings-heading">
+        <div className="settings-symbol"><Server size={17} /></div>
+        <div>
+          <h2 className="section-title">مدیریت Providerها</h2>
+          <p className="text-sm text-muted-foreground">آدرس و credential هر Provider را همین‌جا وارد کنید. رمزها پیش از ذخیره در دیتابیس رمزنگاری می‌شوند.</p>
+        </div>
+      </div>
+      {error && <div className="login-error mt-4">{error}</div>}
+      <form className="provider-create-form" onSubmit={create}>
+        <div className="provider-create-heading">
+          <div><p className="eyebrow">Provider جدید</p><strong>افزودن منبع اتصال</strong></div>
+          <span className="text-xs text-muted-foreground">فقط Providerهای دارای credential و فعال در ساخت سرویس استفاده می‌شوند.</span>
+        </div>
+        <div className="provider-fields">
+          <Field label="کلید یکتا" value={newPanel.key} placeholder="مثلاً panel_new" onChange={(value) => setNewPanel({ ...newPanel, key: value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} />
+          <label className="field">
+            <span>نوع Provider</span>
+            <select value={newPanel.kind} onChange={(event) => setNewPanel({ ...newPanel, kind: event.target.value })}>
+              <option value="rain_admin">Rain Admin</option>
+              <option value="marzban">Marzban</option>
+              <option value="azadpanel">AzadPanel · OpenVPN</option>
+            </select>
+          </label>
+          <Field label="آدرس API" value={newPanel.api_base} placeholder="https://panel.example.com" onChange={(value) => setNewPanel({ ...newPanel, api_base: value })} />
+          <Field label="نام کاربری (اختیاری)" value={newPanel.username} onChange={(value) => setNewPanel({ ...newPanel, username: value })} />
+          <Field label="رمز (اختیاری)" value={newPanel.password} type="password" onChange={(value) => setNewPanel({ ...newPanel, password: value })} />
+        </div>
+        <div className="provider-create-actions">
+          <label className="preference-row provider-enabled">
+            <span><strong>فعال باشد</strong><small>بعداً هم از کارت Provider قابل تغییر است.</small></span>
+            <button type="button" className={`toggle ${newPanel.enabled ? 'on' : ''}`} onClick={() => setNewPanel({ ...newPanel, enabled: !newPanel.enabled })} aria-label="فعال بودن Provider جدید"><span /></button>
+          </label>
+          <Button type="submit" disabled={creating}>{creating ? <><RefreshCw size={14} className="spin" /> در حال افزودن...</> : <><Plus size={14} /> افزودن Provider</>}</Button>
+        </div>
+      </form>
+      <div className="list-stack">
+        {items.map((panel) => (
+          <div className="provider-card provider-editor" key={panel.key}>
+            <div className="provider-editor-title">
+              <strong>{panel.key}</strong>
+              <span className={`soft-badge ${panel.has_data ? '' : 'muted'}`}>{panel.has_data ? 'credential آماده' : 'credential ثبت نشده'}</span>
+              <button className={`toggle ${panel.enabled ? 'on' : ''}`} onClick={() => edit(panel.key, 'enabled', !panel.enabled)} aria-label={`فعال‌سازی ${panel.key}`}><span /></button>
+              <button type="button" className="icon-button provider-delete" onClick={() => remove(panel)} disabled={deleting === panel.key || saving === panel.key} aria-label={`حذف ${panel.key}`}>{deleting === panel.key ? <RefreshCw size={15} className="spin" /> : <Trash2 size={15} />}</button>
+            </div>
+            <div className="provider-fields">
+              <label className="field">
+                <span>نوع Provider</span>
+                <select value={panel.kind} onChange={(event) => edit(panel.key, 'kind', event.target.value)}>
+                  <option value="rain_admin">Rain Admin</option>
+                  <option value="marzban">Marzban</option>
+                  <option value="azadpanel">AzadPanel · OpenVPN</option>
+                </select>
+              </label>
+              <Field label="آدرس API" value={panel.api_base} onChange={(value) => edit(panel.key, 'api_base', value)} />
+              <Field label="نام کاربری پنل (خالی = حفظ مقدار قبلی)" value={panel.username || ''} placeholder="username پنل" onChange={(value) => edit(panel.key, 'username', value)} />
+              <Field label="رمز پنل (خالی = حفظ مقدار قبلی)" value={panel.password || ''} placeholder="password پنل" type="password" onChange={(value) => edit(panel.key, 'password', value)} />
+            </div>
+            <Button variant="secondary" disabled={saving === panel.key} onClick={() => save(panel)}>{saving === panel.key ? <><RefreshCw size={14} className="spin" /> ذخیره...</> : <><Save size={14} /> ذخیره در دیتابیس</>}</Button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }

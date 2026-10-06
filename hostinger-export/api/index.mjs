@@ -45063,6 +45063,40 @@ var UpdateResellerResponse = objectType({
   "enabled": booleanType(),
   "created_at": stringType()
 });
+var createOpenVpnAccountPathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
+var CreateOpenVpnAccountParams = objectType({
+  "token": coerce.string().regex(createOpenVpnAccountPathTokenRegExp)
+});
+var CreateOpenVpnAccountResponse = objectType({
+  "provider_key": stringType(),
+  "server": stringType(),
+  "username": stringType(),
+  "password": stringType(),
+  "core": enumType(["openvpn"]),
+  "bundle_url": stringType(),
+  "locations": arrayType(objectType({
+    "id": stringType(),
+    "name": stringType(),
+    "config_url": stringType()
+  }))
+});
+var downloadOpenVpnProfilePathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
+var downloadOpenVpnProfilePathProviderRegExp = new RegExp("^[a-z0-9_-]{2,64}$");
+var downloadOpenVpnProfilePathHostMax = 80;
+var downloadOpenVpnProfilePathHostRegExp = new RegExp("^[A-Za-z0-9._-]{1,80}$");
+var DownloadOpenVpnProfileParams = objectType({
+  "token": coerce.string().regex(downloadOpenVpnProfilePathTokenRegExp),
+  "provider": coerce.string().regex(downloadOpenVpnProfilePathProviderRegExp),
+  "host": coerce.string().max(downloadOpenVpnProfilePathHostMax).regex(downloadOpenVpnProfilePathHostRegExp)
+});
+var DownloadOpenVpnProfileResponse = stringType();
+var downloadOpenVpnBundlePathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
+var downloadOpenVpnBundlePathProviderRegExp = new RegExp("^[a-z0-9_-]{2,64}$");
+var DownloadOpenVpnBundleParams = objectType({
+  "token": coerce.string().regex(downloadOpenVpnBundlePathTokenRegExp),
+  "provider": coerce.string().regex(downloadOpenVpnBundlePathProviderRegExp)
+});
+var DownloadOpenVpnBundleResponse = stringType();
 
 // src/routes/management.ts
 var import_express2 = __toESM(require_express2(), 1);
@@ -63752,6 +63786,7 @@ var RainApiError = class extends Error {
   }
 };
 var tokenCache = /* @__PURE__ */ new Map();
+var azadPanelCoreCache = /* @__PURE__ */ new Map();
 function panelKey(panel) {
   return panel.key?.trim() || panel.api_base;
 }
@@ -63759,6 +63794,7 @@ function panelKind(panel) {
   const kind = panel.kind?.trim().toLowerCase();
   if (kind === "rain_admin") return "rain_admin";
   if (kind === "falcon") return "falcon";
+  if (kind === "azadpanel") return "azadpanel";
   return "marzban";
 }
 function panelEnvCredential(key, suffix) {
@@ -63905,6 +63941,7 @@ async function fetchPanelSubscription(username, ownerId, role) {
   const encodedUsername = encodeURIComponent(username);
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
+    if (kind === "azadpanel") continue;
     const paths = kind === "rain_admin" ? [`/api/users/${encodedUsername}`, `/api/user/${encodedUsername}`] : kind === "falcon" ? [`/api/v1/configs?username=${encodedUsername}`] : [`/api/user/${encodedUsername}`];
     let links = [];
     for (const path of paths) {
@@ -63977,6 +64014,43 @@ async function tokenFor(panel, forceRefresh = false) {
     if (!panel.api_key) throw new RainApiError(`Panel ${key} has no API key`);
     return panel.api_key;
   }
+  if (kind === "azadpanel") {
+    if (!panel.admin_user || !panel.admin_pass) {
+      throw new RainApiError(`AzadPanel ${key} has no username or password`);
+    }
+    let response;
+    try {
+      response = await fetch(`${panel.api_base}/api/admin/token`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          username: panel.admin_user,
+          password: panel.admin_pass
+        }).toString(),
+        signal: AbortSignal.timeout(1e4)
+      });
+    } catch {
+      throw new RainApiError(`Could not authenticate with AzadPanel ${key} (network error)`);
+    }
+    const text2 = await response.text();
+    let json3 = null;
+    try {
+      json3 = text2 ? JSON.parse(text2) : null;
+    } catch {
+      json3 = null;
+    }
+    const token = json3?.access_token ?? json3?.token ?? json3?.bearer;
+    if (response.ok && typeof token === "string" && token) {
+      tokenCache.set(key, token);
+      return token;
+    }
+    const retryAfter = response.headers.get("retry-after");
+    const retryHint = response.status === 429 && retryAfter ? `; retry after ${retryAfter}` : "";
+    throw new RainApiError(`Could not authenticate with AzadPanel ${key} (HTTP ${response.status}${retryHint})`);
+  }
   const paths = kind === "rain_admin" ? ["/api/admins/token", "/api/admin/token", "/api/admin/token/", "/api/admins/token/"] : ["/api/admin/token", "/api/admin/token/"];
   let lastStatus = null;
   let authenticationFailureStatus = null;
@@ -64047,6 +64121,12 @@ async function testPanelAuthentication(key, ownerId, role) {
         return { ok: false, detail: `Falcon API returned ${safeError(response)}.` };
       }
     }
+    if (panelKind(panel) === "azadpanel") {
+      const core = await azadPanelCore(panel, true);
+      if (core !== "openvpn") {
+        return { ok: false, detail: `AzadPanel core is ${core || "unknown"}; OpenVPN is required.` };
+      }
+    }
     return { ok: true, detail: "Authentication succeeded." };
   } catch (error40) {
     return {
@@ -64106,6 +64186,19 @@ async function panelRequest(panel, method, path, body) {
     response = await request(panel, method, path, token, body);
   }
   return response;
+}
+async function azadPanelCore(panel, forceRefresh = false) {
+  const key = panelKey(panel);
+  const cached2 = azadPanelCoreCache.get(key);
+  if (!forceRefresh && cached2 && cached2.expiresAt > Date.now()) return cached2.core;
+  const response = await panelRequest(panel, "GET", "/api/admin");
+  if (response.status < 200 || response.status >= 300) {
+    throw new RainApiError(`Could not read AzadPanel ${key} settings: ${safeError(response)}`);
+  }
+  const core = typeof response.json?.core === "string" ? response.json.core.trim().toLowerCase() : "";
+  if (!core) throw new RainApiError(`AzadPanel ${key} did not return a core type.`);
+  azadPanelCoreCache.set(key, { core, expiresAt: Date.now() + 5 * 6e4 });
+  return core;
 }
 function safeError(response) {
   const detail = typeof response.json?.detail === "string" ? response.json.detail : typeof response.json?.message === "string" ? response.json.message : "";
@@ -64182,6 +64275,7 @@ async function readPanelUsages(username, falcoConfigId, ownerId, role) {
   };
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
+    if (kind === "azadpanel") continue;
     let response = null;
     if (kind === "falcon") {
       response = await safePanelRequest(
@@ -64233,8 +64327,9 @@ async function disablePanelUser(username, falcoConfigId, ownerId, role) {
   let attempted = 0;
   let disabled = 0;
   for (const panel of await panels(ownerId, role)) {
-    attempted += 1;
     const kind = panelKind(panel);
+    if (kind === "azadpanel") continue;
+    attempted += 1;
     const encoded = encodeURIComponent(username);
     const candidates = kind === "falcon" ? falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [] : kind === "rain_admin" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
     let success2 = false;
@@ -64317,6 +64412,48 @@ async function provisionRainAdmin(panel, username, gb, days, resetUsage) {
   }
   throw new RainApiError(`Rain panel ${panelKey(panel)} rejected the user: ${safeError(last)}`);
 }
+function azadPanelUserBody(username, gb, expiresAt) {
+  return {
+    username,
+    status: "active",
+    expire: Math.floor(expiresAt.getTime() / 1e3),
+    data_limit: bytesForGb(gb),
+    data_limit_reset_strategy: "no_reset",
+    device_limit: 2,
+    note: `Pulse service ${username}`,
+    proxies: { vless: {} },
+    inbounds: {}
+  };
+}
+async function provisionAzadPanel(panel, username, gb, days, resetUsage) {
+  const core = await azadPanelCore(panel);
+  if (core !== "openvpn") {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} is configured for ${core}, not OpenVPN.`);
+  }
+  const encoded = encodeURIComponent(username);
+  const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (existing.status !== 200 && existing.status !== 404) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} could not check the user: ${safeError(existing)}`);
+  }
+  const expiresAt = new Date(Date.now() + Math.max(0, days) * 864e5);
+  const body = existing.status === 200 ? {
+    status: "active",
+    expire: Math.floor(expiresAt.getTime() / 1e3),
+    data_limit: bytesForGb(gb),
+    data_limit_reset_strategy: "no_reset"
+  } : azadPanelUserBody(username, gb, expiresAt);
+  const response = existing.status === 200 ? await panelRequest(panel, "PUT", `/api/user/${encoded}`, body) : await panelRequest(panel, "POST", "/api/user", body);
+  if (response.status < 200 || response.status >= 300) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} rejected the user: ${safeError(response)}`);
+  }
+  if (resetUsage && existing.status === 200) {
+    const reset = await panelRequest(panel, "POST", `/api/user/${encoded}/reset`);
+    if (reset.status < 200 || reset.status >= 300) {
+      throw new RainApiError(`AzadPanel ${panelKey(panel)} updated the plan but could not reset usage: ${safeError(reset)}`);
+    }
+  }
+  return response.status;
+}
 async function provisionMarzban(panel, username, gb, days) {
   const encoded = encodeURIComponent(username);
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
@@ -64373,7 +64510,7 @@ async function provisionUser(username, gb, days, label, ownerId, role, onlyPanel
   const results = await Promise.all(configuredPanels.map(async (panel) => {
     const kind = panelKind(panel);
     try {
-      const status = kind === "rain_admin" ? await provisionRainAdmin(panel, username, gb, days, options?.resetUsage === true) : kind === "falcon" ? await provisionFalcon(panel, gb, days, label) : await provisionMarzban(panel, username, gb, days);
+      const status = kind === "rain_admin" ? await provisionRainAdmin(panel, username, gb, days, options?.resetUsage === true) : kind === "azadpanel" ? await provisionAzadPanel(panel, username, gb, days, options?.resetUsage === true) : kind === "falcon" ? await provisionFalcon(panel, gb, days, label) : await provisionMarzban(panel, username, gb, days);
       return { key: panelKey(panel), kind, status };
     } catch (error40) {
       const detail = error40 instanceof Error ? error40.message : "\u062E\u0637\u0627\u06CC \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647 \u062F\u0631 \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 Provider";
@@ -64389,6 +64526,81 @@ async function provisionUser(username, gb, days, label, ownerId, role, onlyPanel
     throw new RainApiError("No configured Rain panel accepted the service.", results);
   }
   return { ok: true, results };
+}
+async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, requestedPanelKey) {
+  const openVpnPanels = (await panels(ownerId, role)).filter((panel2) => panelKind(panel2) === "azadpanel");
+  const panel = requestedPanelKey ? openVpnPanels.find((candidate) => panelKey(candidate) === requestedPanelKey) : openVpnPanels[0];
+  if (!panel) throw new RainApiError("No enabled AzadPanel OpenVPN provider is configured.");
+  if (await azadPanelCore(panel) !== "openvpn") {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} is not configured for OpenVPN.`);
+  }
+  const encoded = encodeURIComponent(username);
+  let existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (existing.status === 404) {
+    const created = await panelRequest(panel, "POST", "/api/user", azadPanelUserBody(username, gb, expiresAt));
+    if (created.status < 200 || created.status >= 300) {
+      if (created.status !== 409) {
+        throw new RainApiError(`AzadPanel ${panelKey(panel)} could not create the OpenVPN account: ${safeError(created)}`);
+      }
+      existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+      if (existing.status !== 200) {
+        throw new RainApiError(`AzadPanel ${panelKey(panel)} could not confirm the OpenVPN account: ${safeError(existing)}`);
+      }
+    }
+  } else if (existing.status !== 200) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} could not check the OpenVPN account: ${safeError(existing)}`);
+  }
+  const configsResponse = await panelRequest(panel, "GET", `/api/ovpn/user/${encoded}/configs`);
+  if (configsResponse.status < 200 || configsResponse.status >= 300) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} could not read OpenVPN locations: ${safeError(configsResponse)}`);
+  }
+  const configsData = configsResponse.json?.data ?? configsResponse.json;
+  let importData = configsData?.import;
+  if (!importData || typeof importData !== "object") {
+    const importResponse = await panelRequest(panel, "GET", `/api/ovpn/user/${encoded}/import`);
+    if (importResponse.status < 200 || importResponse.status >= 300) {
+      throw new RainApiError(`AzadPanel ${panelKey(panel)} could not read OpenVPN login details: ${safeError(importResponse)}`);
+    }
+    importData = importResponse.json?.data ?? importResponse.json;
+  }
+  const rawLocations = Array.isArray(configsData?.locations) ? configsData.locations : Array.isArray(configsData?.endpoints) ? configsData.endpoints : Array.isArray(importData?.locations) ? importData.locations : [];
+  const locations = rawLocations.flatMap((location) => {
+    const rawId = location?.id ?? location?.host_id ?? location?.host;
+    if (rawId === null || rawId === void 0 || String(rawId).trim() === "") return [];
+    const id = String(rawId).trim();
+    const name = typeof location?.name === "string" && location.name.trim() ? location.name.trim() : `Location ${id}`;
+    return [{ id, name }];
+  });
+  const server2 = typeof importData?.server === "string" ? importData.server.trim() : "";
+  const importUsername = typeof importData?.username === "string" ? importData.username : "";
+  const password = typeof importData?.password === "string" ? importData.password : "";
+  if (!server2 || !importUsername || !password || !locations.length) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} returned incomplete OpenVPN import details.`);
+  }
+  return {
+    provider_key: panelKey(panel),
+    server: server2,
+    username: importUsername,
+    password,
+    core: "openvpn",
+    locations
+  };
+}
+async function downloadOpenVpnProfile(username, providerKey, hostId, ownerId, role) {
+  const panel = (await panels(ownerId, role)).find(
+    (candidate) => panelKey(candidate) === providerKey && panelKind(candidate) === "azadpanel"
+  );
+  if (!panel) throw new RainApiError("The selected AzadPanel OpenVPN provider is unavailable.");
+  if (await azadPanelCore(panel) !== "openvpn") {
+    throw new RainApiError(`AzadPanel ${providerKey} is not configured for OpenVPN.`);
+  }
+  const encoded = encodeURIComponent(username);
+  const path = hostId ? `/api/ovpn/user/${encoded}/config?host=${encodeURIComponent(hostId)}` : `/api/ovpn/user/${encoded}/bundle`;
+  const response = await panelRequest(panel, "GET", path);
+  if (response.status < 200 || response.status >= 300 || !response.text.trim()) {
+    throw new RainApiError(`AzadPanel ${providerKey} could not download the OpenVPN profile: ${safeError(response)}`);
+  }
+  return { body: response.text, contentType: "text/plain; charset=utf-8" };
 }
 function createServiceUsername(customerId2) {
   return `u${customerId2}_${randomBytes3(3).toString("hex")}`;
@@ -66641,63 +66853,6 @@ router2.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, asyn
   });
   res.json({ retried: true, campaignId, ...result });
 });
-async function backfillMissingCreateSales() {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(hashtext('pulse_sales_log'))");
-    const result = await client.query(
-      `WITH missing AS (
-          SELECT
-            svc.id AS service_id,
-            svc.reseller_tg_id,
-            svc.gb,
-            svc.days,
-            svc.created_at,
-            ROW_NUMBER() OVER (ORDER BY svc.id) - 1 AS row_offset
-          FROM reseller_services svc
-          WHERE NOT EXISTS (
-            SELECT 1
-            FROM reseller_sales_log sale
-            WHERE sale.service_id = svc.id
-              AND sale.action_type = 'create'
-          )
-        ),
-        next_id AS (
-          SELECT COALESCE(MAX(id), 0) + 1 AS first_id
-          FROM reseller_sales_log
-        )
-        INSERT INTO reseller_sales_log
-          (id, reseller_tg_id, service_id, action_type, gb_amount, days_amount,
-           created_at, custom_sell_price, is_paid)
-        SELECT
-          next_id.first_id + missing.row_offset,
-          missing.reseller_tg_id,
-          missing.service_id,
-          'create',
-          missing.gb,
-          missing.days,
-          missing.created_at,
-          NULL,
-          0
-        FROM missing
-        CROSS JOIN next_id
-        RETURNING service_id`
-    );
-    await client.query("COMMIT");
-    if (result.rowCount) {
-      logger.info(
-        { count: result.rowCount, serviceIds: result.rows.map((row) => Number(row.service_id)) },
-        "Backfilled missing legacy create sales"
-      );
-    }
-  } catch (error40) {
-    await client.query("ROLLBACK").catch(() => void 0);
-    throw error40;
-  } finally {
-    client.release();
-  }
-}
 var managementReady = pool.query(`
     CREATE TABLE IF NOT EXISTS panel_configs (
       key TEXT PRIMARY KEY,
@@ -66952,7 +67107,7 @@ var managementReady = pool.query(`
         WHERE panel_key IN ('xxpanel', 'fibrpanel', 'falcon');
       DELETE FROM panel_configs
         WHERE key IN ('xxpanel', 'fibrpanel', 'falcon')
-  `).then(() => backfillMissingCreateSales()).catch((error40) => {
+  `).catch((error40) => {
   console.error("Panel management schema initialization failed", error40);
   throw error40;
 });
@@ -67122,6 +67277,25 @@ router2.post("/auth/logout", async (req, res) => {
   clearSessionCookie(res);
   res.sendStatus(204);
 });
+async function loadPublicOpenVpnService(token) {
+  const result = await pool.query(
+    `SELECT svc.id, svc.reseller_tg_id, svc.rain_username AS username,
+            svc.gb::float8 AS limit_gb, svc.status, svc.expire_at AS expires_at,
+            svc.last_used_bytes, svc.last_total_bytes
+     FROM reseller_sub_tokens rst
+     JOIN reseller_services svc ON svc.id = rst.service_id
+     WHERE rst.token = $1
+     LIMIT 1`,
+    [token]
+  );
+  return result.rows[0] ?? null;
+}
+function publicOpenVpnServiceFinished(service) {
+  const expiresAt = service.expires_at ? new Date(service.expires_at).getTime() : 0;
+  const totalBytes = Number(service.last_total_bytes) > 0 ? Number(service.last_total_bytes) : Math.round(Number(service.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = Math.max(0, Number(service.last_used_bytes ?? 0));
+  return service.status === "disabled" || service.status === "expired" || totalBytes > 0 && usedBytes >= totalBytes || Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now();
+}
 router2.get("/public/subscription/:token", async (req, res) => {
   const token = String(req.params.token ?? "").trim();
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
@@ -67172,6 +67346,8 @@ router2.get("/public/subscription/:token", async (req, res) => {
   const disableReason = row.disable_reason || (quotaFinished ? "\u062D\u062C\u0645 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : dateFinished ? "\u062A\u0627\u0631\u06CC\u062E \u0627\u0639\u062A\u0628\u0627\u0631 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A" : null);
   const serviceCode = `PULSE-${String(row.id).padStart(6, "0")}`;
   const daysRemaining = expiresAt > 0 ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 864e5)) : null;
+  const availableProviders = await listAvailablePanels();
+  const openvpnAvailable = availableProviders.some((provider) => provider.kind === "azadpanel");
   const announcement = finished ? {
     title: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u0627\u06CC\u0627\u0646 \u06CC\u0627\u0641\u062A\u0647 \u0627\u0633\u062A",
     detail: `${disableReason || "\u0627\u0639\u062A\u0628\u0627\u0631 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A"}\u061B \u0628\u0631\u0627\u06CC \u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u062F\u0648\u0628\u0627\u0631\u0647 \u0628\u0627 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u062A\u0645\u0627\u0633 \u0628\u06AF\u06CC\u0631\u06CC\u062F.`,
@@ -67202,9 +67378,102 @@ router2.get("/public/subscription/:token", async (req, res) => {
     public_url: `/sub?t=${encodeURIComponent(token)}`,
     awg_ready: !finished && Boolean(row.awg_client_id),
     awg_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
+    openvpn_available: !finished && openvpnAvailable,
     provider_label: "V2Box",
     announcement: { ...announcement, service_code: serviceCode }
   });
+});
+router2.post("/public/subscription/:token/openvpn", async (req, res) => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).json({ error: "\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u0627\u06CC\u0627\u0646 \u06CC\u0627\u0641\u062A\u0647 \u0627\u0633\u062A\u061B \u0628\u0631\u0627\u06CC \u062F\u0631\u06CC\u0627\u0641\u062A OpenVPN \u0622\u0646 \u0631\u0627 \u062A\u0645\u062F\u06CC\u062F \u06A9\u0646\u06CC\u062F." });
+    return;
+  }
+  try {
+    const delivery = await prepareOpenVpnAccount(
+      String(service.username),
+      Number(service.limit_gb ?? 0),
+      new Date(service.expires_at),
+      Number(service.reseller_tg_id),
+      "reseller"
+    );
+    const configBase = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/config/${encodeURIComponent(delivery.provider_key)}`;
+    const bundleUrl = `/api/public/subscription/${encodeURIComponent(token)}/openvpn/bundle/${encodeURIComponent(delivery.provider_key)}`;
+    res.json({
+      ...delivery,
+      bundle_url: bundleUrl,
+      locations: delivery.locations.map((location) => ({
+        ...location,
+        config_url: `${configBase}/${encodeURIComponent(location.id)}`
+      }))
+    });
+  } catch (error40) {
+    const message = error40 instanceof Error ? error40.message : "OpenVPN account setup failed.";
+    const unavailable = message.includes("No enabled AzadPanel");
+    res.status(unavailable ? 503 : 502).json({ error: message });
+  }
+});
+async function resolvePublicOpenVpnProfile(token, providerKey, hostId) {
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    return { status: 404, error: "Invalid subscription token" };
+  }
+  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey) || hostId && !/^[A-Za-z0-9._-]{1,80}$/.test(hostId)) {
+    return { status: 400, error: "Invalid OpenVPN profile request" };
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) return { status: 404, error: "Subscription not found" };
+  if (publicOpenVpnServiceFinished(service)) return { status: 410, error: "Subscription has expired" };
+  try {
+    const profile = await downloadOpenVpnProfile(
+      String(service.username),
+      providerKey,
+      hostId,
+      Number(service.reseller_tg_id),
+      "reseller"
+    );
+    return { serviceId: String(service.id), profile };
+  } catch (error40) {
+    const message = error40 instanceof Error ? error40.message : "OpenVPN profile download failed.";
+    return { status: 502, error: message };
+  }
+}
+router2.get("/public/subscription/:token/openvpn/config/:provider/:host", async (req, res) => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  const result = await resolvePublicOpenVpnProfile(
+    token,
+    String(req.params.provider ?? ""),
+    String(req.params.host ?? "")
+  );
+  if ("status" in result) {
+    res.status(result.status).send(result.error);
+    return;
+  }
+  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-disposition", `attachment; filename="Pulse-${result.serviceId}-${String(req.params.host)}.ovpn"`);
+  res.send(result.profile.body);
+});
+router2.get("/public/subscription/:token/openvpn/bundle/:provider", async (req, res) => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  const result = await resolvePublicOpenVpnProfile(token, String(req.params.provider ?? ""));
+  if ("status" in result) {
+    res.status(result.status).send(result.error);
+    return;
+  }
+  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-disposition", `attachment; filename="Pulse-${result.serviceId}-all.ovpn"`);
+  res.send(result.profile.body);
 });
 router2.get("/public/subscription/:token/feed", async (req, res) => {
   const token = String(req.params.token ?? "").trim();
@@ -67459,7 +67728,7 @@ router2.post("/panels/:key/test", requireMasterAdmin, async (req, res) => {
     checked_at: (/* @__PURE__ */ new Date()).toISOString()
   });
 });
-var providerKinds = ["marzban", "rain_admin"];
+var providerKinds = ["marzban", "rain_admin", "azadpanel"];
 function isProviderKind(value) {
   return typeof value === "string" && providerKinds.includes(value);
 }

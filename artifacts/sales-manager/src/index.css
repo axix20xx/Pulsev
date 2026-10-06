@@ -3366,6 +3366,34 @@ table td { font-size: 11px; }
 .public-sub-v3 .public-sub-quick-action, .public-sub-v3 .public-sub-copy-action, .public-sub-v3 .public-sub-install-action { min-height:38px; border-radius:10px; padding-inline:11px; font-size:10px; font-weight:800; }
 .public-sub-v3 .public-sub-quick-action { background:var(--sub-navy); }
 .public-sub-v3 .public-sub-copy-action, .public-sub-v3 .public-sub-install-action { border:1px solid var(--sub-line); background:var(--sub-surface-2); color:var(--sub-ink); }
+.public-sub-openvpn-card { margin-top:14px; border:1px solid var(--sub-line); border-radius:25px; background:rgba(255,255,255,.94); padding:20px; box-shadow:0 22px 42px -30px rgba(25,79,82,.58), inset 0 1px 0 rgba(255,255,255,.9); }
+.public-sub-openvpn-heading { display:flex; align-items:center; gap:13px; }
+.public-sub-openvpn-heading h2 { margin:0; color:var(--sub-ink); font:800 21px var(--app-font-sans); letter-spacing:-.05em; }
+.public-sub-openvpn-heading p:last-child { margin:5px 0 0; color:var(--sub-muted); font-size:10px; line-height:1.7; }
+.public-sub-openvpn-icon { display:grid; width:43px; height:43px; flex:0 0 auto; place-items:center; border-radius:15px; background:#e0f4ed; color:var(--sub-teal); }
+.public-sub-openvpn-setup { display:grid; justify-items:start; gap:10px; margin-top:17px; }
+.public-sub-openvpn-button { display:inline-flex; min-height:42px; align-items:center; justify-content:center; gap:7px; border:1px solid var(--sub-line); border-radius:12px; background:#f4f9f7; padding:0 13px; color:var(--sub-ink); font:800 10px var(--app-font-sans); text-decoration:none; cursor:pointer; }
+.public-sub-openvpn-button:disabled { opacity:.62; cursor:wait; }
+.public-sub-openvpn-button.primary { border-color:var(--sub-teal); background:var(--sub-teal); color:#fff; }
+.public-sub-openvpn-error { margin:0; color:var(--sub-danger); font-size:10px; line-height:1.7; }
+.public-sub-openvpn-credentials { display:grid; gap:8px; margin-top:17px; }
+.public-sub-openvpn-credentials > div { display:grid; grid-template-columns:minmax(72px, .55fr) minmax(0, 1.45fr) 34px; align-items:center; gap:9px; min-height:45px; border:1px solid var(--sub-line); border-radius:12px; background:#f7fbfa; padding:6px 9px; }
+.public-sub-openvpn-credentials span { color:var(--sub-muted); font-size:10px; }
+.public-sub-openvpn-credentials strong { overflow-wrap:anywhere; color:var(--sub-ink); font:700 11px var(--app-font-mono); text-align:left; }
+.public-sub-openvpn-credentials button { display:grid; width:32px; height:32px; place-items:center; border:0; border-radius:9px; background:#e5f2ef; color:var(--sub-teal); }
+.public-sub-openvpn-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.public-sub-openvpn-hint { margin:12px 0 0; color:var(--sub-muted); font-size:10px; line-height:1.9; }
+.public-sub-openvpn-locations { display:grid; gap:7px; margin-top:13px; }
+.public-sub-openvpn-locations > strong { color:var(--sub-ink); font-size:11px; }
+.public-sub-openvpn-locations a { display:flex; min-height:39px; align-items:center; justify-content:space-between; gap:10px; border:1px solid var(--sub-line); border-radius:11px; background:#fff; padding:0 11px; color:var(--sub-teal); font-size:10px; font-weight:700; text-decoration:none; }
+.public-sub-openvpn-locations a span { overflow:hidden; color:var(--sub-ink); text-overflow:ellipsis; white-space:nowrap; }
+.public-sub-openvpn-locations a svg { flex:0 0 auto; }
+@media (max-width: 520px) {
+  .public-sub-openvpn-card { padding:16px; border-radius:21px; }
+  .public-sub-openvpn-credentials > div { grid-template-columns:68px minmax(0,1fr) 32px; gap:6px; }
+  .public-sub-openvpn-actions { display:grid; grid-template-columns:1fr; }
+  .public-sub-openvpn-button { width:100%; }
+}
 
 /* Final light audit for the public subscription route. */
 html body #root .public-sub-route { background:#eef5f4 !important; color:#142d3b !important; }

@@ -425,6 +425,29 @@ export interface ResellerUpdate {
   customer_price_per_gb?: number;
 }
 
+export type OpenVpnDeliveryCore = typeof OpenVpnDeliveryCore[keyof typeof OpenVpnDeliveryCore];
+
+
+export const OpenVpnDeliveryCore = {
+  openvpn: 'openvpn',
+} as const;
+
+export interface OpenVpnLocation {
+  id: string;
+  name: string;
+  config_url: string;
+}
+
+export interface OpenVpnDelivery {
+  provider_key: string;
+  server: string;
+  username: string;
+  password: string;
+  core: OpenVpnDeliveryCore;
+  bundle_url: string;
+  locations: OpenVpnLocation[];
+}
+
 export type SearchParameter = string;
 
 export type LimitParameter = number;

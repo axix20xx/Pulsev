@@ -1,25 +1,32 @@
 {
-  "name": "morrow — digital gifts with a pulse",
-  "short_name": "morrow",
-  "description": "A beautifully presented digital gift card studio.",
-  "start_url": "/",
-  "scope": "/",
+  "name": "مرکز فروش پالس",
+  "short_name": "پالس",
+  "description": "مدیریت مشتری، سرویس، فروش و تمدید VPN",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": ".",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#f5f1e9",
-  "theme_color": "#20242c",
-  "orientation": "portrait-primary",
+  "background_color": "#f7fafc",
+  "theme_color": "#0f766e",
   "icons": [
     {
-      "src": "/apple-touch-icon.svg",
-      "sizes": "180x180",
+      "src": "favicon.svg",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/favicon.svg",
-      "sizes": "64x64",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

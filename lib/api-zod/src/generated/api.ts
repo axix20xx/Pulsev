@@ -865,3 +865,63 @@ export const UpdateResellerResponse = zod.object({
 })
 
 
+/**
+ * @summary Create or retrieve OpenVPN access for a subscription
+ */
+export const createOpenVpnAccountPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+
+
+export const CreateOpenVpnAccountParams = zod.object({
+  "token": zod.coerce.string().regex(createOpenVpnAccountPathTokenRegExp)
+})
+
+export const CreateOpenVpnAccountResponse = zod.object({
+  "provider_key": zod.string(),
+  "server": zod.string(),
+  "username": zod.string(),
+  "password": zod.string(),
+  "core": zod.enum(['openvpn']),
+  "bundle_url": zod.string(),
+  "locations": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "config_url": zod.string()
+}))
+})
+
+
+/**
+ * @summary Download a private OpenVPN profile for a subscription
+ */
+export const downloadOpenVpnProfilePathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+export const downloadOpenVpnProfilePathProviderRegExp = new RegExp('^[a-z0-9_-]{2,64}$');
+export const downloadOpenVpnProfilePathHostMax = 80;
+
+
+export const downloadOpenVpnProfilePathHostRegExp = new RegExp('^[A-Za-z0-9._-]{1,80}$');
+
+
+export const DownloadOpenVpnProfileParams = zod.object({
+  "token": zod.coerce.string().regex(downloadOpenVpnProfilePathTokenRegExp),
+  "provider": zod.coerce.string().regex(downloadOpenVpnProfilePathProviderRegExp),
+  "host": zod.coerce.string().max(downloadOpenVpnProfilePathHostMax).regex(downloadOpenVpnProfilePathHostRegExp)
+})
+
+export const DownloadOpenVpnProfileResponse = zod.string()
+
+
+/**
+ * @summary Download the OpenVPN profiles bundle for a subscription
+ */
+export const downloadOpenVpnBundlePathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+export const downloadOpenVpnBundlePathProviderRegExp = new RegExp('^[a-z0-9_-]{2,64}$');
+
+
+export const DownloadOpenVpnBundleParams = zod.object({
+  "token": zod.coerce.string().regex(downloadOpenVpnBundlePathTokenRegExp),
+  "provider": zod.coerce.string().regex(downloadOpenVpnBundlePathProviderRegExp)
+})
+
+export const DownloadOpenVpnBundleResponse = zod.string()
+
+
