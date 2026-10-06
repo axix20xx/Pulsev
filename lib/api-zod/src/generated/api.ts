@@ -31,11 +31,15 @@ export const GetPublicStorefrontParams = zod.object({
   "slug": zod.coerce.string().min(getPublicStorefrontPathSlugMin).max(getPublicStorefrontPathSlugMax).regex(getPublicStorefrontPathSlugRegExp)
 })
 
+export const getPublicStorefrontResponseOffersItemIdMultipleOf = 1;
 
 export const getPublicStorefrontResponseOffersItemGbExclusiveMin = 0;
 
+export const getPublicStorefrontResponseOffersItemDaysMultipleOf = 1;
 
 export const getPublicStorefrontResponseOffersItemPriceMin = 0;
+
+export const getPublicStorefrontResponseOffersItemSortOrderMultipleOf = 1;
 
 
 
@@ -45,14 +49,14 @@ export const GetPublicStorefrontResponse = zod.object({
   "description": zod.string(),
   "whatsapp_phone": zod.string().nullable(),
   "offers": zod.array(zod.object({
-  "id": zod.int().min(1),
+  "id": zod.number().min(1).multipleOf(getPublicStorefrontResponseOffersItemIdMultipleOf),
   "title": zod.string(),
   "description": zod.string(),
   "gb": zod.number().gt(getPublicStorefrontResponseOffersItemGbExclusiveMin),
-  "days": zod.int().min(1),
+  "days": zod.number().min(1).multipleOf(getPublicStorefrontResponseOffersItemDaysMultipleOf),
   "price": zod.number().min(getPublicStorefrontResponseOffersItemPriceMin),
   "enabled": zod.boolean(),
-  "sort_order": zod.int()
+  "sort_order": zod.number().multipleOf(getPublicStorefrontResponseOffersItemSortOrderMultipleOf)
 }))
 })
 
@@ -104,6 +108,7 @@ export const createPublicStorefrontLeadBodyCustomerNameMax = 120;
 export const createPublicStorefrontLeadBodyPhoneMin = 7;
 export const createPublicStorefrontLeadBodyPhoneMax = 30;
 
+export const createPublicStorefrontLeadBodyOfferIdMultipleOf = 1;
 
 export const createPublicStorefrontLeadBodyMessageMax = 500;
 
@@ -116,14 +121,18 @@ export const createPublicStorefrontLeadBodyWebsiteMax = 200;
 export const CreatePublicStorefrontLeadBody = zod.object({
   "customer_name": zod.string().min(createPublicStorefrontLeadBodyCustomerNameMin).max(createPublicStorefrontLeadBodyCustomerNameMax),
   "phone": zod.string().min(createPublicStorefrontLeadBodyPhoneMin).max(createPublicStorefrontLeadBodyPhoneMax),
-  "offer_id": zod.int().min(1),
+  "offer_id": zod.number().min(1).multipleOf(createPublicStorefrontLeadBodyOfferIdMultipleOf),
   "message": zod.string().max(createPublicStorefrontLeadBodyMessageMax),
   "source": zod.string().max(createPublicStorefrontLeadBodySourceMax),
   "website": zod.string().max(createPublicStorefrontLeadBodyWebsiteMax)
 })
 
+export const createPublicStorefrontLeadResponseLeadIdMultipleOf = 1;
+
+
+
 export const CreatePublicStorefrontLeadResponse = zod.object({
-  "lead_id": zod.int(),
+  "lead_id": zod.number().multipleOf(createPublicStorefrontLeadResponseLeadIdMultipleOf),
   "whatsapp_url": zod.string().nullable()
 })
 
@@ -131,17 +140,24 @@ export const CreatePublicStorefrontLeadResponse = zod.object({
 /**
  * @summary Get the current seller's storefront, offers, and performance
  */
+export const getResellerStorefrontResponseOffersItemIdMultipleOf = 1;
 
 export const getResellerStorefrontResponseOffersItemGbExclusiveMin = 0;
 
+export const getResellerStorefrontResponseOffersItemDaysMultipleOf = 1;
 
 export const getResellerStorefrontResponseOffersItemPriceMin = 0;
 
+export const getResellerStorefrontResponseOffersItemSortOrderMultipleOf = 1;
+
 export const getResellerStorefrontResponseStatsViewsMin = 0;
+export const getResellerStorefrontResponseStatsViewsMultipleOf = 1;
 
 export const getResellerStorefrontResponseStatsInquiriesMin = 0;
+export const getResellerStorefrontResponseStatsInquiriesMultipleOf = 1;
 
 export const getResellerStorefrontResponseStatsConversionsMin = 0;
+export const getResellerStorefrontResponseStatsConversionsMultipleOf = 1;
 
 export const getResellerStorefrontResponseStatsAttributedRevenueMin = 0;
 
@@ -154,19 +170,19 @@ export const GetResellerStorefrontResponse = zod.object({
   "whatsapp_phone": zod.string().nullable(),
   "enabled": zod.boolean(),
   "offers": zod.array(zod.object({
-  "id": zod.int().min(1),
+  "id": zod.number().min(1).multipleOf(getResellerStorefrontResponseOffersItemIdMultipleOf),
   "title": zod.string(),
   "description": zod.string(),
   "gb": zod.number().gt(getResellerStorefrontResponseOffersItemGbExclusiveMin),
-  "days": zod.int().min(1),
+  "days": zod.number().min(1).multipleOf(getResellerStorefrontResponseOffersItemDaysMultipleOf),
   "price": zod.number().min(getResellerStorefrontResponseOffersItemPriceMin),
   "enabled": zod.boolean(),
-  "sort_order": zod.int()
+  "sort_order": zod.number().multipleOf(getResellerStorefrontResponseOffersItemSortOrderMultipleOf)
 })),
   "stats": zod.object({
-  "views": zod.int().min(getResellerStorefrontResponseStatsViewsMin),
-  "inquiries": zod.int().min(getResellerStorefrontResponseStatsInquiriesMin),
-  "conversions": zod.int().min(getResellerStorefrontResponseStatsConversionsMin),
+  "views": zod.number().min(getResellerStorefrontResponseStatsViewsMin).multipleOf(getResellerStorefrontResponseStatsViewsMultipleOf),
+  "inquiries": zod.number().min(getResellerStorefrontResponseStatsInquiriesMin).multipleOf(getResellerStorefrontResponseStatsInquiriesMultipleOf),
+  "conversions": zod.number().min(getResellerStorefrontResponseStatsConversionsMin).multipleOf(getResellerStorefrontResponseStatsConversionsMultipleOf),
   "attributed_revenue": zod.number().min(getResellerStorefrontResponseStatsAttributedRevenueMin)
 })
 })
@@ -186,6 +202,7 @@ export const updateResellerStorefrontBodyDescriptionMax = 500;
 
 export const updateResellerStorefrontBodyWhatsappPhoneMax = 30;
 
+export const updateResellerStorefrontBodyOffersItemIdMultipleOf = 1;
 
 export const updateResellerStorefrontBodyOffersItemTitleMax = 80;
 
@@ -195,12 +212,14 @@ export const updateResellerStorefrontBodyOffersItemGbExclusiveMin = 0;
 export const updateResellerStorefrontBodyOffersItemGbMax = 5000;
 
 export const updateResellerStorefrontBodyOffersItemDaysMax = 3650;
+export const updateResellerStorefrontBodyOffersItemDaysMultipleOf = 1;
 
 export const updateResellerStorefrontBodyOffersItemPriceMin = 0;
 export const updateResellerStorefrontBodyOffersItemPriceMax = 1000000000000;
 
 export const updateResellerStorefrontBodyOffersItemSortOrderMin = 0;
 export const updateResellerStorefrontBodyOffersItemSortOrderMax = 100;
+export const updateResellerStorefrontBodyOffersItemSortOrderMultipleOf = 1;
 
 export const updateResellerStorefrontBodyOffersMax = 20;
 
@@ -213,28 +232,35 @@ export const UpdateResellerStorefrontBody = zod.object({
   "whatsapp_phone": zod.string().max(updateResellerStorefrontBodyWhatsappPhoneMax).nullable(),
   "enabled": zod.boolean(),
   "offers": zod.array(zod.object({
-  "id": zod.int().min(1).nullable(),
+  "id": zod.number().min(1).multipleOf(updateResellerStorefrontBodyOffersItemIdMultipleOf).nullable(),
   "title": zod.string().min(1).max(updateResellerStorefrontBodyOffersItemTitleMax),
   "description": zod.string().max(updateResellerStorefrontBodyOffersItemDescriptionMax),
   "gb": zod.number().gt(updateResellerStorefrontBodyOffersItemGbExclusiveMin).max(updateResellerStorefrontBodyOffersItemGbMax),
-  "days": zod.int().min(1).max(updateResellerStorefrontBodyOffersItemDaysMax),
+  "days": zod.number().min(1).max(updateResellerStorefrontBodyOffersItemDaysMax).multipleOf(updateResellerStorefrontBodyOffersItemDaysMultipleOf),
   "price": zod.number().min(updateResellerStorefrontBodyOffersItemPriceMin).max(updateResellerStorefrontBodyOffersItemPriceMax),
   "enabled": zod.boolean(),
-  "sort_order": zod.int().min(updateResellerStorefrontBodyOffersItemSortOrderMin).max(updateResellerStorefrontBodyOffersItemSortOrderMax)
+  "sort_order": zod.number().min(updateResellerStorefrontBodyOffersItemSortOrderMin).max(updateResellerStorefrontBodyOffersItemSortOrderMax).multipleOf(updateResellerStorefrontBodyOffersItemSortOrderMultipleOf)
 })).max(updateResellerStorefrontBodyOffersMax)
 })
 
+export const updateResellerStorefrontResponseOffersItemIdMultipleOf = 1;
 
 export const updateResellerStorefrontResponseOffersItemGbExclusiveMin = 0;
 
+export const updateResellerStorefrontResponseOffersItemDaysMultipleOf = 1;
 
 export const updateResellerStorefrontResponseOffersItemPriceMin = 0;
 
+export const updateResellerStorefrontResponseOffersItemSortOrderMultipleOf = 1;
+
 export const updateResellerStorefrontResponseStatsViewsMin = 0;
+export const updateResellerStorefrontResponseStatsViewsMultipleOf = 1;
 
 export const updateResellerStorefrontResponseStatsInquiriesMin = 0;
+export const updateResellerStorefrontResponseStatsInquiriesMultipleOf = 1;
 
 export const updateResellerStorefrontResponseStatsConversionsMin = 0;
+export const updateResellerStorefrontResponseStatsConversionsMultipleOf = 1;
 
 export const updateResellerStorefrontResponseStatsAttributedRevenueMin = 0;
 
@@ -247,19 +273,19 @@ export const UpdateResellerStorefrontResponse = zod.object({
   "whatsapp_phone": zod.string().nullable(),
   "enabled": zod.boolean(),
   "offers": zod.array(zod.object({
-  "id": zod.int().min(1),
+  "id": zod.number().min(1).multipleOf(updateResellerStorefrontResponseOffersItemIdMultipleOf),
   "title": zod.string(),
   "description": zod.string(),
   "gb": zod.number().gt(updateResellerStorefrontResponseOffersItemGbExclusiveMin),
-  "days": zod.int().min(1),
+  "days": zod.number().min(1).multipleOf(updateResellerStorefrontResponseOffersItemDaysMultipleOf),
   "price": zod.number().min(updateResellerStorefrontResponseOffersItemPriceMin),
   "enabled": zod.boolean(),
-  "sort_order": zod.int()
+  "sort_order": zod.number().multipleOf(updateResellerStorefrontResponseOffersItemSortOrderMultipleOf)
 })),
   "stats": zod.object({
-  "views": zod.int().min(updateResellerStorefrontResponseStatsViewsMin),
-  "inquiries": zod.int().min(updateResellerStorefrontResponseStatsInquiriesMin),
-  "conversions": zod.int().min(updateResellerStorefrontResponseStatsConversionsMin),
+  "views": zod.number().min(updateResellerStorefrontResponseStatsViewsMin).multipleOf(updateResellerStorefrontResponseStatsViewsMultipleOf),
+  "inquiries": zod.number().min(updateResellerStorefrontResponseStatsInquiriesMin).multipleOf(updateResellerStorefrontResponseStatsInquiriesMultipleOf),
+  "conversions": zod.number().min(updateResellerStorefrontResponseStatsConversionsMin).multipleOf(updateResellerStorefrontResponseStatsConversionsMultipleOf),
   "attributed_revenue": zod.number().min(updateResellerStorefrontResponseStatsAttributedRevenueMin)
 })
 })
@@ -277,21 +303,31 @@ export const ListResellerStorefrontLeadsQueryParams = zod.object({
   "limit": zod.coerce.number().min(1).max(listResellerStorefrontLeadsQueryLimitMax).default(listResellerStorefrontLeadsQueryLimitDefault)
 })
 
+export const listResellerStorefrontLeadsResponseIdMultipleOf = 1;
+
+export const listResellerStorefrontLeadsResponseOfferIdMultipleOf = 1;
+
+export const listResellerStorefrontLeadsResponseDaysMultipleOf = 1;
+
+export const listResellerStorefrontLeadsResponseConvertedSaleIdMultipleOf = 1;
+
+
+
 export const ListResellerStorefrontLeadsResponseItem = zod.object({
-  "id": zod.int(),
+  "id": zod.number().multipleOf(listResellerStorefrontLeadsResponseIdMultipleOf),
   "customer_name": zod.string(),
   "phone": zod.string(),
-  "offer_id": zod.int().nullable(),
+  "offer_id": zod.number().multipleOf(listResellerStorefrontLeadsResponseOfferIdMultipleOf).nullable(),
   "offer_name": zod.string(),
   "gb": zod.number(),
-  "days": zod.int(),
+  "days": zod.number().multipleOf(listResellerStorefrontLeadsResponseDaysMultipleOf),
   "offer_price": zod.number(),
   "message": zod.string().nullable(),
   "source": zod.string().nullable(),
   "status": zod.enum(['new', 'contacted', 'converted', 'closed']),
   "seller_note": zod.string().nullable(),
   "created_at": zod.string(),
-  "converted_sale_id": zod.int().nullable()
+  "converted_sale_id": zod.number().multipleOf(listResellerStorefrontLeadsResponseConvertedSaleIdMultipleOf).nullable()
 })
 export const ListResellerStorefrontLeadsResponse = zod.array(ListResellerStorefrontLeadsResponseItem)
 
@@ -306,21 +342,31 @@ export const GetResellerStorefrontLeadParams = zod.object({
   "id": zod.coerce.number().min(1)
 })
 
+export const getResellerStorefrontLeadResponseIdMultipleOf = 1;
+
+export const getResellerStorefrontLeadResponseOfferIdMultipleOf = 1;
+
+export const getResellerStorefrontLeadResponseDaysMultipleOf = 1;
+
+export const getResellerStorefrontLeadResponseConvertedSaleIdMultipleOf = 1;
+
+
+
 export const GetResellerStorefrontLeadResponse = zod.object({
-  "id": zod.int(),
+  "id": zod.number().multipleOf(getResellerStorefrontLeadResponseIdMultipleOf),
   "customer_name": zod.string(),
   "phone": zod.string(),
-  "offer_id": zod.int().nullable(),
+  "offer_id": zod.number().multipleOf(getResellerStorefrontLeadResponseOfferIdMultipleOf).nullable(),
   "offer_name": zod.string(),
   "gb": zod.number(),
-  "days": zod.int(),
+  "days": zod.number().multipleOf(getResellerStorefrontLeadResponseDaysMultipleOf),
   "offer_price": zod.number(),
   "message": zod.string().nullable(),
   "source": zod.string().nullable(),
   "status": zod.enum(['new', 'contacted', 'converted', 'closed']),
   "seller_note": zod.string().nullable(),
   "created_at": zod.string(),
-  "converted_sale_id": zod.int().nullable()
+  "converted_sale_id": zod.number().multipleOf(getResellerStorefrontLeadResponseConvertedSaleIdMultipleOf).nullable()
 })
 
 
@@ -343,21 +389,31 @@ export const UpdateResellerStorefrontLeadBody = zod.object({
   "seller_note": zod.string().max(updateResellerStorefrontLeadBodySellerNoteMax).nullable()
 })
 
+export const updateResellerStorefrontLeadResponseIdMultipleOf = 1;
+
+export const updateResellerStorefrontLeadResponseOfferIdMultipleOf = 1;
+
+export const updateResellerStorefrontLeadResponseDaysMultipleOf = 1;
+
+export const updateResellerStorefrontLeadResponseConvertedSaleIdMultipleOf = 1;
+
+
+
 export const UpdateResellerStorefrontLeadResponse = zod.object({
-  "id": zod.int(),
+  "id": zod.number().multipleOf(updateResellerStorefrontLeadResponseIdMultipleOf),
   "customer_name": zod.string(),
   "phone": zod.string(),
-  "offer_id": zod.int().nullable(),
+  "offer_id": zod.number().multipleOf(updateResellerStorefrontLeadResponseOfferIdMultipleOf).nullable(),
   "offer_name": zod.string(),
   "gb": zod.number(),
-  "days": zod.int(),
+  "days": zod.number().multipleOf(updateResellerStorefrontLeadResponseDaysMultipleOf),
   "offer_price": zod.number(),
   "message": zod.string().nullable(),
   "source": zod.string().nullable(),
   "status": zod.enum(['new', 'contacted', 'converted', 'closed']),
   "seller_note": zod.string().nullable(),
   "created_at": zod.string(),
-  "converted_sale_id": zod.int().nullable()
+  "converted_sale_id": zod.number().multipleOf(updateResellerStorefrontLeadResponseConvertedSaleIdMultipleOf).nullable()
 })
 
 
@@ -940,6 +996,8 @@ export const createServiceBodyGbExclusiveMin = 0;
 export const createServiceBodySellPriceMin = 0;
 
 export const createServiceBodyIsPaidDefault = true;
+export const createServiceBodyStorefrontLeadIdMultipleOf = 1;
+
 
 
 export const CreateServiceBody = zod.object({
@@ -950,7 +1008,7 @@ export const CreateServiceBody = zod.object({
   "days": zod.number().min(1),
   "sell_price": zod.number().min(createServiceBodySellPriceMin).nullish(),
   "is_paid": zod.boolean().default(createServiceBodyIsPaidDefault),
-  "storefront_lead_id": zod.int().min(1).nullish()
+  "storefront_lead_id": zod.number().min(1).multipleOf(createServiceBodyStorefrontLeadIdMultipleOf).nullish()
 })
 
 export const CreateServiceResponse = zod.object({

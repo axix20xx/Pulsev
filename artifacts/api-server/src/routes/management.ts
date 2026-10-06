@@ -105,6 +105,11 @@ import {
 } from "../lib/subscription-formats";
 import { logger } from "../lib/logger";
 import { getAwgUsageWorkerLog, recordAwgUsagePollEvent } from "../lib/awg-usage-poll";
+import {
+  ensureStorefrontSchema,
+  normalizeStorefrontPhone,
+  storefrontRouter,
+} from "./storefront";
 
 const MASTER_ADMIN_COST_PER_GB = 2500;
 const resellerCostPerGbSql = (alias = "r") =>
@@ -906,6 +911,9 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
           ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL)
        ON CONFLICT (key) DO NOTHING;
   `)
+  .then(async () => {
+    await ensureStorefrontSchema();
+  })
    .catch((error) => {
     console.error("Panel management schema initialization failed", error);
     throw error;
@@ -918,6 +926,7 @@ router.use(async (_req, _res, next) => {
     next(error);
   }
 });
+router.use(storefrontRouter);
 
 const sessionResponse = (context: Awaited<ReturnType<typeof getAuthContext>>) =>
   GetAuthSessionResponse.parse(
@@ -4038,6 +4047,37 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
       }
     }
 
+    const storefrontLeadId = body.data.storefront_lead_id ?? null;
+    if (storefrontLeadId !== null) {
+      const leadResult = await client.query<{
+        phone_normalized: string;
+        status: string;
+        converted_sale_id: number | null;
+      }>(
+        `SELECT phone_normalized, status, converted_sale_id
+         FROM reseller_storefront_leads
+         WHERE id = $1 AND reseller_tg_id = $2
+         FOR UPDATE`,
+        [storefrontLeadId, ownerId],
+      );
+      const lead = leadResult.rows[0];
+      if (!lead) {
+        await client.query("ROLLBACK");
+        res.status(404).json({ error: "درخواست فروشگاه پیدا نشد" });
+        return;
+      }
+      if (lead.status === "converted" || lead.status === "closed" || lead.converted_sale_id) {
+        await client.query("ROLLBACK");
+        res.status(409).json({ error: "این درخواست قبلاً بسته یا تبدیل شده است" });
+        return;
+      }
+      if (normalizeStorefrontPhone(body.data.phone) !== lead.phone_normalized) {
+        await client.query("ROLLBACK");
+        res.status(400).json({ error: "شماره مشتری با درخواست فروشگاه مطابقت ندارد" });
+        return;
+      }
+    }
+
     const customer = await client.query<{ id: number }>(
       req.auth?.role === "master_admin"
          ? `SELECT id FROM reseller_customers WHERE phone::text = $1::text ORDER BY id LIMIT 1`
@@ -4143,10 +4183,28 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
     const sellPrice = body.data.sell_price ?? body.data.gb * customerPricePerGb;
     await client.query(
       `INSERT INTO reseller_sales_log
-       (id, reseller_tg_id, service_id, action_type, gb_amount, days_amount, created_at, custom_sell_price, is_paid)
-       VALUES ($1, $2, $3, 'create', $4, $5, NOW(), $6, $7)`,
-      [saleId, ownerId, serviceId, body.data.gb, body.data.days, sellPrice, body.data.is_paid ? 1 : 0],
+       (id, reseller_tg_id, service_id, action_type, gb_amount, days_amount, created_at,
+        custom_sell_price, is_paid, source_storefront_lead_id)
+       VALUES ($1, $2, $3, 'create', $4, $5, NOW(), $6, $7, $8)`,
+      [
+        saleId,
+        ownerId,
+        serviceId,
+        body.data.gb,
+        body.data.days,
+        sellPrice,
+        body.data.is_paid ? 1 : 0,
+        storefrontLeadId,
+      ],
     );
+    if (storefrontLeadId !== null) {
+      await client.query(
+        `UPDATE reseller_storefront_leads
+         SET status = 'converted', converted_sale_id = $1, updated_at = NOW()
+         WHERE id = $2 AND reseller_tg_id = $3`,
+        [saleId, storefrontLeadId, ownerId],
+      );
+    }
     const queueNext = await client.query<{ id: number }>(
       "SELECT COALESCE(MAX(id), 0) + 1 AS id FROM reseller_sync_queue",
     );

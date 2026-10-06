@@ -6,7 +6,7 @@ import { Activity, Apple, ArrowUpLeft, Bell, CalendarDays, Check, CheckCircle2, 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import QRCode from 'qrcode';
 import { Link, useLocation, useParams } from 'wouter';
-import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useRepairServiceProvider, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, type AdminSale } from '@workspace/api-client-react';
+import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useRepairServiceProvider, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, useGetResellerStorefrontLead, getGetResellerStorefrontLeadQueryKey, getGetResellerStorefrontQueryKey, getListResellerStorefrontLeadsQueryKey, type AdminSale } from '@workspace/api-client-react';
 import { Customer, Service, Sale, dateLabel, dateTimeLabel, daysUntil, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, jalaliToGregorian, money, todayLabel } from '@/lib/pulse-data';
 import { Avatar, PageHeader, StatusPill } from '@/components/pulse-shell';
 import { PulseNetworkAccent } from '@/components/pulse-network-accent';
@@ -19,7 +19,7 @@ type Prefs = { businessName: string; currency: string; reminderDays: string; com
 type PulseContextValue = {
   sales: Sale[]; services: Service[]; customers: Customer[]; servicesLoading: boolean; servicesError: string | null; refreshServices: () => Promise<void>; prefs: Prefs; session: { authenticated?: boolean; role?: string; telegram_id?: number | null; reseller_id?: number | null; display_name?: string | null; customer_price_per_gb?: number | null } | null;
   sessionLoading: boolean; authFallback: boolean; dashboard: any | null; resellers: { id: number; telegram_id: number; title?: string | null; enabled: boolean; used_gb: number; total_gb: number; per_gig_price?: number; customer_price_per_gb?: number }[];
-  addSale: (sale: Sale) => void; updateSale: (sale: Sale) => Promise<void>; createService: (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean }) => Promise<Service>; updateService: (service: Service) => void; renewService: (service: Service, days?: number, gb?: number, sellPrice?: number | null, isPaid?: boolean, requestId?: string) => Promise<Service>; openRenewWizard: (service: Service) => void; resetServiceToken: (service: Service) => Promise<string>; setPrefs: (prefs: Prefs) => void; updateReseller: (id: number, enabled: boolean) => void;
+  addSale: (sale: Sale) => void; updateSale: (sale: Sale) => Promise<void>; createService: (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean; storefront_lead_id?: number | null }) => Promise<Service>; updateService: (service: Service) => void; renewService: (service: Service, days?: number, gb?: number, sellPrice?: number | null, isPaid?: boolean, requestId?: string) => Promise<Service>; openRenewWizard: (service: Service) => void; resetServiceToken: (service: Service) => Promise<string>; setPrefs: (prefs: Prefs) => void; updateReseller: (id: number, enabled: boolean) => void;
 };
 const PulseContext = createContext<PulseContextValue | null>(null);
 const LIVE_DATA_STALE_MS = 30_000;
@@ -310,7 +310,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   };
   const refreshServices = async () => { await servicesQuery.refetch(); };
   const refreshRealData = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey() }), queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() }), queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() }), queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() })]); };
-  const createService = async (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean }) => { const result = await createServiceApi.mutateAsync({ data: input }); await refreshRealData(); return mapService(result.service); };
+  const createService = async (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean; storefront_lead_id?: number | null }) => { const result = await createServiceApi.mutateAsync({ data: input }); await refreshRealData(); if (input.storefront_lead_id) await Promise.all([queryClient.invalidateQueries({ queryKey: getGetResellerStorefrontLeadQueryKey(input.storefront_lead_id) }), queryClient.invalidateQueries({ queryKey: getListResellerStorefrontLeadsQueryKey() }), queryClient.invalidateQueries({ queryKey: getGetResellerStorefrontQueryKey() })]); return mapService(result.service); };
   const renewService = async (service: Service, days = 30, gb = service.limitGb, sellPrice: number | null = null, isPaid = true, requestId?: string) => { const id = Number(service.id.replace(/\D/g, '')); if (!canLoadApi || !Number.isFinite(id) || id <= 0) throw new Error('برای تمدید باید وارد سامانه شوید.'); const renewed = await renewServiceApi.mutateAsync({ id, data: { days, gb, sell_price: sellPrice, is_paid: isPaid, request_id: requestId } }); await Promise.all([refreshRealData(), queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) })]); return mapService(renewed); };
   const resetServiceToken = async (service: Service) => { const id = Number(service.id.replace(/\D/g, '')); if (!canLoadApi || !Number.isFinite(id) || id <= 0) throw new Error('سرویس معتبر نیست.'); const result = await resetServiceTokenApi.mutateAsync({ id }); await queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) }); return result.subscription_url; };
   const updateReseller = (id: number, enabled: boolean) => { setLocalResellers((items) => items.map((item) => item.id === id ? { ...item, enabled } : item)); if (canLoadApi && sessionQuery.data?.role === 'master_admin') updateResellerApi.mutate({ id, data: { enabled } }); };
@@ -1055,6 +1055,12 @@ export function ResellerAccounting() {
 
 function PointOfSaleContent() {
   const { customers, session, createService } = usePulse();
+  const leadQueryId = Number(new URLSearchParams(window.location.search).get('storefront_lead') || 0);
+  const validLeadQueryId = Number.isInteger(leadQueryId) && leadQueryId > 0;
+  const storefrontLeadQuery = useGetResellerStorefrontLead(validLeadQueryId ? leadQueryId : 0, {
+    query: { enabled: validLeadQueryId, queryKey: getGetResellerStorefrontLeadQueryKey(validLeadQueryId ? leadQueryId : 0) },
+  });
+  const leadInitialized = useRef<number | null>(null);
   const [form, setForm] = useState({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', sellPrice: '', isPaid: true });
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [created, setCreated] = useState<Service | null>(null);
@@ -1063,6 +1069,13 @@ function PointOfSaleContent() {
   const [submitting, setSubmitting] = useState(false);
   const [creationSeconds, setCreationSeconds] = useState(0);
   const [error, setError] = useState('');
+  useEffect(() => {
+    const lead = storefrontLeadQuery.data;
+    if (!lead || leadInitialized.current === lead.id) return;
+    leadInitialized.current = lead.id;
+    setForm({ customerName: lead.customer_name, phone: lead.phone, label: lead.offer_name || 'سرویس ویژه', gb: String(lead.gb), days: String(lead.days), sellPrice: String(lead.offer_price), isPaid: true });
+    setSelectedCustomerId(null);
+  }, [storefrontLeadQuery.data]);
   const normalize = (value: string) => value.replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/[^\d]/g, '');
   const query = normalize(form.phone) || form.customerName.trim().toLowerCase();
   const customerMatches = query.length >= 2
@@ -1083,6 +1096,10 @@ function PointOfSaleContent() {
   const message = created ? customerWhatsAppMessage(created, Number(form.days), { phone: mobileOtpPhone || form.phone, otp: mobileOtp }) : '';
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (validLeadQueryId && storefrontLeadQuery.isLoading) {
+      setError('در حال دریافت درخواست مشتری هستیم؛ پس از تکمیل اطلاعات، دوباره ثبت کنید.');
+      return;
+    }
     if (normalize(form.phone).length < 10 || !form.customerName.trim() || Number(form.gb) <= 0 || Number(form.days) <= 0) {
       setError('نام، شماره موبایل، حجم و مدت معتبر را وارد کنید.');
       return;
@@ -1098,6 +1115,7 @@ function PointOfSaleContent() {
         days: Number(form.days),
         sell_price: form.sellPrice !== '' ? Number(form.sellPrice) : isReseller && tariffPrice > 0 ? tariffPrice : null,
         is_paid: form.isPaid,
+        ...(validLeadQueryId && storefrontLeadQuery.data?.id === leadQueryId ? { storefront_lead_id: leadQueryId } : {}),
       });
        try {
          const mobileAccess = await generateCustomerMobileOtp(Number(service.customerId));
@@ -1171,10 +1189,13 @@ function PointOfSaleContent() {
     </div>;
   }
   return <div className="pos-page"><PageHeader eyebrow="فروش حضوری" title="پایانه فروش فروشنده" description="برای ثبت سریع فروش، مشتری را پیدا کنید، بسته را انتخاب کنید و لینک تحویل را همان‌جا کپی کنید." action={<Link href="/sales" className="button button-secondary"><ShoppingBag size={15} /> دفتر فروش</Link>} />
+     {validLeadQueryId && storefrontLeadQuery.isLoading && <div className="panel-card" role="status">در حال دریافت درخواست مشتری…</div>}
+     {validLeadQueryId && storefrontLeadQuery.isError && <div className="login-error" role="alert">درخواست ویترین دریافت نشد یا به این حساب تعلق ندارد. می‌توانید اطلاعات فروش را دستی وارد کنید. <button type="button" onClick={()=>storefrontLeadQuery.refetch()}>تلاش دوباره</button></div>}
+     {validLeadQueryId && storefrontLeadQuery.data && <div className="panel-card" style={{marginBottom:14,borderColor:'hsl(var(--primary) / .3)'}}><strong>درخواست ویترین {numberFa(leadQueryId)} آمادهٔ ثبت است</strong><span className="text-sm text-muted-foreground"> اطلاعات بسته و مشتری پیش‌پر شده؛ فقط با ثبت صریح شما، سرویس ساخته و فروش به درخواست منتسب می‌شود.</span></div>}
     <div className="pos-layout"><form className="panel-card pos-form" onSubmit={submit}><div className="pos-form-heading"><div className="pos-kicker"><CreditCard size={16} /> POS سریع</div><h2>ثبت یک فروش جدید</h2><p>همه جزئیات فروش، پرداخت و ساخت سرویس با یک تأیید ثبت می‌شود.</p></div>
       <div className="pos-section"><div className="pos-section-title"><span>۰۱</span><div><strong>مشتری</strong><small>شماره را وارد کنید تا مشتری قبلی پیدا شود.</small></div></div><label className="finder-input"><Phone size={18} /><input autoFocus inputMode="tel" dir="ltr" value={form.phone} placeholder="۰۹۱۲۱۲۳۴۵۶۷" onChange={(event) => { setForm({ ...form, phone: event.target.value }); setSelectedCustomerId(null); }} /><span>موبایل</span></label>{customerMatches.length > 0 && <div className="finder-results">{customerMatches.map((customer) => <button type="button" className={`finder-result ${selectedCustomerId === customer.id ? 'selected' : ''}`} key={customer.id} onClick={() => { setSelectedCustomerId(customer.id); setForm({ ...form, customerName: customer.name, phone: customer.phone }); }}><Avatar name={customer.name} /><span><strong>{customer.name}</strong><small dir="ltr">{customer.phone}</small></span><Check size={16} /></button>)}</div>}<div className="form-grid"><Field label="نام مشتری" value={form.customerName} onChange={(customerName) => setForm({ ...form, customerName })} placeholder="نام و نام خانوادگی" /><Field label="عنوان سرویس" value={form.label} onChange={(label) => setForm({ ...form, label })} placeholder="مثلاً سرویس ویژه" /></div></div>
       <div className="pos-section"><div className="pos-section-title"><span>۰۲</span><div><strong>بسته و قیمت</strong><small>بسته آماده یا مقدار دلخواه را انتخاب کنید.</small></div></div><div className="pos-package-grid">{recentPackages.map((item) => <button type="button" key={`${item.gb}-${item.days}`} className={Number(form.gb) === item.gb && Number(form.days) === item.days ? 'selected' : ''} onClick={() => setForm({ ...form, gb: String(item.gb), days: String(item.days) })}><strong>{numberFa(item.gb)} GB</strong><small>{item.label} · {numberFa(item.days, 0)} روز</small></button>)}</div><div className="form-grid"><Field label="حجم (گیگابایت)" type="number" value={form.gb} onChange={(gb) => setForm({ ...form, gb })} /><Field label="مدت (روز)" type="number" value={form.days} onChange={(days) => setForm({ ...form, days })} /><Field label="قیمت دلخواه فروش به مشتری (تومان)" type="number" value={form.sellPrice} onChange={(sellPrice) => setForm({ ...form, sellPrice })} placeholder={tariffPrice > 0 ? `پیشنهادی: ${numberFa(tariffPrice, 0)}` : 'مبلغ فروش'} /></div><div className="pos-price-row"><span>قیمت نهایی فروش به مشتری</span><strong>{form.sellPrice !== '' || tariffPrice > 0 ? money(totalPrice) : 'قابل تعیین'}</strong></div><div className="pos-payment-row"><div><strong>وضعیت پرداخت</strong><small>{form.isPaid ? 'مبلغ در محل دریافت شده است.' : 'این فروش در فهرست وصول باقی می‌ماند.'}</small></div><button type="button" className={`toggle ${form.isPaid ? 'on' : ''}`} onClick={() => setForm({ ...form, isPaid: !form.isPaid })} aria-label="تغییر وضعیت پرداخت"><span /></button></div></div>
-      {error && <div className="login-error">{error}</div>}<Button type="submit" disabled={submitting} className="pos-submit" testId="button-pos-submit">{submitting ? <><RefreshCw size={15} className="spin" /> در حال ساخت سرویس...</> : <><Check size={15} /> ثبت فروش و ساخت سرویس</>}</Button>
+       {error && <div className="login-error">{error}</div>}<Button type="submit" disabled={submitting || (validLeadQueryId && storefrontLeadQuery.isLoading)} className="pos-submit" testId="button-pos-submit">{submitting ? <><RefreshCw size={15} className="spin" /> در حال ساخت سرویس...</> : <><Check size={15} /> ثبت فروش و ساخت سرویس</>}</Button>
     </form><aside className="panel-card pos-receipt"><div className="pos-receipt-top"><span className="pos-receipt-icon"><ReceiptIcon /></span><div><p className="eyebrow">پیش‌نمایش رسید</p><h3>تحویل فوری</h3></div></div><div className="pos-receipt-line"><span>مشتری</span><strong>{form.customerName || 'نام مشتری'}</strong></div><div className="pos-receipt-line"><span>بسته</span><strong>{numberFa(Number(form.gb))} گیگ · {numberFa(Number(form.days), 0)} روز</strong></div><div className="pos-receipt-line"><span>انقضای تقریبی</span><strong>{dateLabel(projectedExpiry)}</strong></div><div className="pos-receipt-total"><span>مبلغ نهایی</span><strong>{form.sellPrice !== '' || tariffPrice > 0 ? money(totalPrice) : 'قابل تعیین'}</strong></div><div className="notice"><Wifi size={15} /><span>پس از ثبت، لینک عمومی، QR و گزینه دانلود AWG در همین صفحه آماده می‌شود.</span></div><div className="pos-receipt-foot"><span>ثبت در دفتر فروش</span><Check size={15} /></div></aside></div>
   </div>;
 }

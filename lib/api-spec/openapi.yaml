@@ -955,7 +955,8 @@ components:
       required: [id, title, description, gb, days, price, enabled, sort_order]
       properties:
         id:
-          type: integer
+          type: number
+          multipleOf: 1
           minimum: 1
         title:
           type: string
@@ -965,7 +966,8 @@ components:
           type: number
           exclusiveMinimum: 0
         days:
-          type: integer
+          type: number
+          multipleOf: 1
           minimum: 1
         price:
           type: number
@@ -973,13 +975,15 @@ components:
         enabled:
           type: boolean
         sort_order:
-          type: integer
+          type: number
+          multipleOf: 1
     StorefrontOfferInput:
       type: object
       required: [id, title, description, gb, days, price, enabled, sort_order]
       properties:
         id:
-          type: ["integer", "null"]
+          type: ["number", "null"]
+          multipleOf: 1
           minimum: 1
         title:
           type: string
@@ -993,7 +997,8 @@ components:
           exclusiveMinimum: 0
           maximum: 5000
         days:
-          type: integer
+          type: number
+          multipleOf: 1
           minimum: 1
           maximum: 3650
         price:
@@ -1003,7 +1008,8 @@ components:
         enabled:
           type: boolean
         sort_order:
-          type: integer
+          type: number
+          multipleOf: 1
           minimum: 0
           maximum: 100
     StorefrontStats:
@@ -1011,13 +1017,16 @@ components:
       required: [views, inquiries, conversions, attributed_revenue]
       properties:
         views:
-          type: integer
+          type: number
+          multipleOf: 1
           minimum: 0
         inquiries:
-          type: integer
+          type: number
+          multipleOf: 1
           minimum: 0
         conversions:
-          type: integer
+          type: number
+          multipleOf: 1
           minimum: 0
         attributed_revenue:
           type: number
@@ -1027,19 +1036,22 @@ components:
       required: [id, customer_name, phone, offer_id, offer_name, gb, days, offer_price, message, source, status, seller_note, created_at, converted_sale_id]
       properties:
         id:
-          type: integer
+          type: number
+          multipleOf: 1
         customer_name:
           type: string
         phone:
           type: string
         offer_id:
-          type: ["integer", "null"]
+          type: ["number", "null"]
+          multipleOf: 1
         offer_name:
           type: string
         gb:
           type: number
         days:
-          type: integer
+          type: number
+          multipleOf: 1
         offer_price:
           type: number
         message:
@@ -1054,7 +1066,8 @@ components:
         created_at:
           type: string
         converted_sale_id:
-          type: ["integer", "null"]
+          type: ["number", "null"]
+          multipleOf: 1
     ResellerStorefront:
       type: object
       required: [slug, store_name, description, whatsapp_phone, enabled, offers, stats]
@@ -1143,7 +1156,8 @@ components:
           minLength: 7
           maxLength: 30
         offer_id:
-          type: integer
+          type: number
+          multipleOf: 1
           minimum: 1
         message:
           type: string
@@ -1159,7 +1173,8 @@ components:
       required: [lead_id, whatsapp_url]
       properties:
         lead_id:
-          type: integer
+          type: number
+          multipleOf: 1
         whatsapp_url:
           type: ["string", "null"]
     StorefrontLeadUpdateInput:
@@ -1199,7 +1214,8 @@ components:
           type: boolean
           default: true
         storefront_lead_id:
-          type: ["integer", "null"]
+          type: ["number", "null"]
+          multipleOf: 1
           minimum: 1
     AuthSession:
       type: object

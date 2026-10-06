@@ -31,6 +31,7 @@ import {
   NotificationStatusPage,
 } from '@/pages/notification-pages';
 import NotFound from '@/pages/not-found';
+import { StorefrontManagerPage } from '@/pages/storefront';
 
 function ProviderAccountAuditRoute() {
   const { session } = usePulse();
@@ -57,6 +58,7 @@ export default function ManagementApp() {
             <Route path="/login" component={LoginPage} />
             <Route path="/sales" component={Sales} />
             <Route path="/pos" component={PointOfSale} />
+            <Route path="/storefront" component={StorefrontManagerPage} />
             <Route path="/admin-sales" component={AdminSales} />
             <Route path="/reseller-accounting" component={ResellerAccounting} />
             <Route path="/action-requests" component={ActionRequests} />

@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bell, BellRing, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, Wifi, X, LogOut, ShieldAlert, ShieldEllipsis, Check, Sparkles, Copy, Search, Send } from 'lucide-react';
+import { Activity, BarChart3, Bell, BellRing, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, Wifi, X, LogOut, ShieldAlert, ShieldEllipsis, Check, Sparkles, Copy, Search, Send, Store } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -27,6 +27,7 @@ const nav = [
   { href: '/services', label: 'سرویس‌ها', icon: Package },
   { href: '/customers', label: 'مشتری‌ها', icon: Users },
   { href: '/reports', label: 'گزارش‌ها', icon: BarChart3 },
+  { href: '/storefront', label: 'ویترین فروش', icon: Store },
 ];
 const awgUsageNav = { href: '/awg-usage', label: 'مصرف AWG', icon: Wifi };
 const awgUsageLogNav = { href: '/awg-usage-log', label: 'لاگ زنده AWG', icon: Activity };

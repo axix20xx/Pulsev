@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { useLocation, Router as WouterRouter } from 'wouter';
+import { useLocation, Router as WouterRouter, Route, Switch } from 'wouter';
 
 const queryClient = new QueryClient();
 const ManagementApp = lazy(() => import('@/management-app'));
@@ -11,6 +11,9 @@ const MobileApp = lazy(() =>
 );
 const PublicSubscription = lazy(() =>
   import('@/pages/pulse-pages').then((module) => ({ default: module.PublicSubscription })),
+);
+const PublicStorefront = lazy(() =>
+  import('@/pages/storefront').then((module) => ({ default: module.PublicStorefrontPage })),
 );
 const isMobileBuild = import.meta.env.BASE_URL.replace(/\/$/, '').endsWith('/mobile');
 
@@ -44,6 +47,9 @@ function Router() {
 
   if (isSubscriptionPath) {
     return <Suspense fallback={<RouteLoading />}><PublicSubscription /></Suspense>;
+  }
+  if (location.startsWith('/store/')) {
+    return <Suspense fallback={<RouteLoading />}><Switch><Route path="/store/:slug" component={PublicStorefront} /><Route component={() => <RouteLoading />} /></Switch></Suspense>;
   }
   if (isMobileBuild || isMobilePath) {
     return <Suspense fallback={<RouteLoading />}><MobileApp /></Suspense>;
