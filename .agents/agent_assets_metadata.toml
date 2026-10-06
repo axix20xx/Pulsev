@@ -1080,3 +1080,17 @@ mtime_ms = 1791305804821
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b2015f32-718c-4531-a432-4cca193b98f9/4b6021c0-56a0-46f1-92cf-e68822009151"
 storage_version_token = "1791305826233884"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "AjoQiGU8HsQ7IZZRf4Y93"
+uri = "file://exports/pulse-hostinger-fast-full-migration-2026-10-06.zip"
+type = "unspecified"
+title = "Pulse Hostinger Full Migration ZIP"
+description = "Optimized Hostinger deployment bundle with API, admin/mobile/public-subscription/showcase builds, precompressed static assets, and the included legacy and Supabase SQL migration files. Contains migration data; keep the ZIP private."
+logical_id = "8284794e-8732-40fc-ae4f-840a95cffce5"
+content_hash = "sha256:8e3f56793a7919c4e4117daf5b2374ee67ce692e10ceabcd0d17911bc0882f62"
+size = 28736160
+mtime_ms = 1791308414217
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8284794e-8732-40fc-ae4f-840a95cffce5/2bf2e942-b96e-4d2d-bd4d-5ef9ed255cf8"
+storage_version_token = "1791308458299211"
+content_type = "application/octet-stream"

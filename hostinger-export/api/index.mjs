@@ -64895,7 +64895,7 @@ async function downloadOpenVpnProfile(username, providerKey, hostId, ownerId, ro
   return { body: response.text, contentType: "text/plain; charset=utf-8" };
 }
 function createServiceUsername(customerId2) {
-  return `u${customerId2}_${randomBytes3(3).toString("hex")}`;
+  return `u${customerId2}_${randomBytes3(8).toString("hex")}`;
 }
 function createSubscriptionToken() {
   return randomBytes3(16).toString("hex");
@@ -64904,11 +64904,15 @@ function createSubscriptionToken() {
 // src/lib/amneziawg.ts
 import { randomUUID } from "node:crypto";
 var AwgApiError = class extends Error {
-  constructor(message) {
+  constructor(message, kind) {
     super(message);
+    this.kind = kind;
     this.name = "AwgApiError";
   }
 };
+var AWG_STATS_ROUTE_COOLDOWN_MS = 5 * 6e4;
+var statsEndpointByApiUrl = /* @__PURE__ */ new Map();
+var statsRouteUnavailableUntil = /* @__PURE__ */ new Map();
 function responseError(status, text2) {
   const raw = text2.trim();
   if (!raw) return `AmneziaWG returned HTTP ${status}`;
@@ -64936,8 +64940,8 @@ async function config2() {
     apiToken: row.awg_api_token
   };
 }
-async function request2(method, endpoint, body) {
-  const awg = await config2();
+async function request2(method, endpoint, body, configured) {
+  const awg = configured === void 0 ? await config2() : configured;
   if (!awg) return { configured: false, status: 0, text: "" };
   const response = await fetch(`${awg.apiUrl}${endpoint}`, {
     method,
@@ -65023,23 +65027,51 @@ async function getAwgConfiguration(clientId) {
   return response.text;
 }
 async function getAwgStats(clientId) {
+  const awg = await config2();
+  if (!awg) throw new AwgApiError("AmneziaWG API is not configured.");
+  const unavailableUntil = statsRouteUnavailableUntil.get(awg.apiUrl) ?? 0;
+  if (unavailableUntil > Date.now()) {
+    throw new AwgApiError(
+      "AmneziaWG stats routes are temporarily unavailable after repeated route-level 404 responses.",
+      "stats-route-unavailable"
+    );
+  }
+  statsRouteUnavailableUntil.delete(awg.apiUrl);
   const encodedId = encodeURIComponent(clientId);
-  const endpoints = [
+  const routeCandidates = [
     `/api/clients/${encodedId}/stats`,
     `/api/clients/${encodedId}`,
     `/api/client/${encodedId}`,
     `/api/client/${encodedId}/stats`,
     `/api/stats/${encodedId}`
   ];
+  const preferredEndpoint = statsEndpointByApiUrl.get(awg.apiUrl);
+  const endpoints = preferredEndpoint ? [preferredEndpoint, ...routeCandidates.filter((endpoint) => endpoint !== preferredEndpoint)] : routeCandidates;
   let response = null;
+  let routeNotFoundCount = 0;
   for (const endpoint of endpoints) {
-    const candidate = await request2("GET", endpoint);
+    const candidate = await request2("GET", endpoint, void 0, awg);
     if (!candidate.configured) throw new AwgApiError("AmneziaWG API is not configured.");
     response = candidate;
-    if (candidate.status >= 200 && candidate.status < 300) break;
+    if (candidate.status >= 200 && candidate.status < 300) {
+      statsEndpointByApiUrl.set(awg.apiUrl, endpoint);
+      break;
+    }
+    if (candidate.status === 404 && /^404 page not found$/i.test(candidate.text.trim())) {
+      routeNotFoundCount += 1;
+      if (endpoint === preferredEndpoint) statsEndpointByApiUrl.delete(awg.apiUrl);
+      continue;
+    }
     if (candidate.status !== 404 && candidate.status !== 405) break;
   }
   if (!response || response.status < 200 || response.status >= 300) {
+    if (routeNotFoundCount === endpoints.length) {
+      statsRouteUnavailableUntil.set(awg.apiUrl, Date.now() + AWG_STATS_ROUTE_COOLDOWN_MS);
+      throw new AwgApiError(
+        "All supported AmneziaWG stats routes returned a route-level 404.",
+        "stats-route-unavailable"
+      );
+    }
     throw new AwgApiError(
       response ? responseError(response.status, response.text) : "AmneziaWG returned HTTP 0"
     );
@@ -65114,6 +65146,24 @@ async function recreateAwgClient(clientId) {
   }
 }
 
+// src/lib/service-disable-guard.ts
+async function hasOtherActiveServiceWithUsername(username, serviceId) {
+  const normalizedUsername = username.trim();
+  if (!normalizedUsername) return false;
+  const result = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM reseller_services sibling
+       WHERE sibling.rain_username = $1
+         AND sibling.id <> $2
+         AND sibling.status IN ('active', 'expiring')
+         AND (sibling.expire_at IS NULL OR sibling.expire_at > NOW())
+     ) AS has_other_service`,
+    [normalizedUsername, serviceId]
+  );
+  return result.rows[0]?.has_other_service === true;
+}
+
 // src/lib/logger.ts
 var import_pino = __toESM(require_pino(), 1);
 var isProduction = process.env.NODE_ENV === "production";
@@ -65136,6 +65186,17 @@ var logger = (0, import_pino.default)({
 var BYTES_PER_GB = 1024 ** 3;
 var DEFAULT_INTERVAL_MS = 6e4;
 var running = false;
+var lastAwgRouteWarningAt = 0;
+var AWG_ROUTE_WARNING_INTERVAL_MS = 5 * 6e4;
+function shouldLogAwgUsageError(error40) {
+  if (!(error40 instanceof AwgApiError) || error40.kind !== "stats-route-unavailable") {
+    return true;
+  }
+  const now = Date.now();
+  if (now - lastAwgRouteWarningAt < AWG_ROUTE_WARNING_INTERVAL_MS) return false;
+  lastAwgRouteWarningAt = now;
+  return true;
+}
 function epochSeconds(date6) {
   if (!date6) return null;
   const time4 = new Date(date6).getTime();
@@ -65203,27 +65264,58 @@ async function syncServiceUnlocked(service) {
         [awgRx, awgTx, rawAwgBytes, offset, service.id]
       );
     } catch (error40) {
-      logger.warn({ serviceId: service.id, err: error40 }, "AWG usage sync skipped");
+      if (shouldLogAwgUsageError(error40)) {
+        logger.warn({ serviceId: service.id, err: error40 }, "AWG usage sync skipped");
+      }
     }
   }
   const combinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
   const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB));
-  const expired = Boolean(service.expire_at && new Date(service.expire_at).getTime() <= Date.now());
+  const expired = service.expired_in_db;
   const quotaReached = limitBytes > 0 && combinedBytes >= limitBytes;
   const alreadyDisabled = service.status === "disabled";
   const shouldDisable = alreadyDisabled || expired || quotaReached;
   const needsRemoteDisable = !alreadyDisabled || Number(service.remote_disable_pending) === 1;
   let remoteDisabled = alreadyDisabled && !needsRemoteDisable;
   let awgDisabled = !service.awg_client_id;
+  if (shouldDisable && !alreadyDisabled) {
+    logger.warn(
+      {
+        serviceId: service.id,
+        username: service.rain_username,
+        trigger: quotaReached ? "quota" : "expiry",
+        usedBytes: combinedBytes,
+        limitBytes,
+        expireAt: service.expire_at,
+        providerReadings: panelUsages.map((usage) => ({
+          provider: usage.panelKey,
+          usedBytes: usage.usedBytes,
+          stale: usage.stale
+        })),
+        awgUsedBytes
+      },
+      "Automatic service disable threshold reached"
+    );
+  }
   if (shouldDisable && needsRemoteDisable) {
-    const panelResult = await disablePanelUser(
+    const sharedUsername = await hasOtherActiveServiceWithUsername(
+      service.rain_username,
+      service.id
+    );
+    if (sharedUsername && (!alreadyDisabled || Number(service.remote_disable_pending) !== 1)) {
+      logger.warn(
+        { serviceId: service.id, username: service.rain_username },
+        "Provider disable deferred because another active service shares this username"
+      );
+    }
+    const panelResult = sharedUsername ? { attempted: 0, disabled: 0 } : await disablePanelUser(
       service.rain_username,
       service.falco_config_id,
       Number(service.reseller_tg_id),
       "reseller"
     );
     awgDisabled = service.awg_client_id ? await disableAwgClient(service.awg_client_id) : true;
-    const providersDisabled = panelResult.attempted > 0 && panelResult.disabled === panelResult.attempted;
+    const providersDisabled = !sharedUsername && panelResult.attempted > 0 && panelResult.disabled === panelResult.attempted;
     remoteDisabled = providersDisabled && awgDisabled;
   }
   const remainingBytes = limitBytes > 0 ? Math.max(0, limitBytes - combinedBytes) : 0;
@@ -65294,6 +65386,7 @@ async function syncService(service) {
     const fresh = await pool.query(
       `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
               svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
               svc.lifecycle_version, svc.remote_disable_pending
        FROM reseller_services svc
@@ -65312,6 +65405,7 @@ async function syncServiceUsageById(serviceId) {
   const result = await pool.query(
     `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
             svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+            COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
              svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
              svc.lifecycle_version, svc.remote_disable_pending
      FROM reseller_services svc
@@ -65332,6 +65426,7 @@ async function runUsageSync() {
     const result = await pool.query(
       `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
                svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
                svc.lifecycle_version, svc.remote_disable_pending
        FROM reseller_services svc
@@ -69209,6 +69304,12 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
   let shouldDisableService = false;
   if (validDecision(cancelDecision) && current.cancel_service_status === "pending") {
     if (cancelDecision === "approve" && current.service_status && current.service_status !== "disabled") {
+      if (current.rain_username && await hasOtherActiveServiceWithUsername(current.rain_username, current.service_id)) {
+        res.status(409).json({
+          error: "\u0627\u06CC\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC Provider \u0628\u0627 \u0633\u0631\u0648\u06CC\u0633 \u0641\u0639\u0627\u0644 \u062F\u06CC\u06AF\u0631\u06CC \u0645\u0634\u062A\u0631\u06A9 \u0627\u0633\u062A\u061B \u0627\u0628\u062A\u062F\u0627 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0634\u062A\u0631\u06A9 \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F"
+        });
+        return;
+      }
       let panelResult = { attempted: 0, disabled: 0 };
       try {
         panelResult = await disablePanelUser(
@@ -70223,7 +70324,7 @@ router2.patch("/services/:id", requireAuth, async (req, res) => {
   let remoteWarning = null;
   if (body.data.status === "disabled") {
     const current = await pool.query(
-      `SELECT svc.rain_username, svc.falco_config_id, svc.awg_client_id
+      `SELECT svc.rain_username, svc.falco_config_id, svc.awg_client_id, svc.status
        FROM reseller_services svc
        WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
       [params.data.id, ...owner.params]
@@ -70233,34 +70334,42 @@ router2.patch("/services/:id", requireAuth, async (req, res) => {
       res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
       return;
     }
-    let panelResult = { attempted: 0, disabled: 0 };
-    let awgDisabled = true;
-    try {
-      panelResult = await disablePanelUser(
-        service.rain_username,
-        service.falco_config_id,
-        Number(req.auth?.telegramId),
-        req.auth?.role
-      );
-    } catch {
-      remoteWarning = "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC provider\u0647\u0627 \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F";
-    }
-    if (service.awg_client_id) {
-      awgDisabled = await disableAwgClient(service.awg_client_id);
-    }
-    const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
-    if (!providersDisabled || !awgDisabled) {
-      remoteWarning = "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0647\u0645\u0647 provider\u0647\u0627 \u0648 AWG \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F";
-    }
-    if (remoteWarning) {
-      res.status(502).json({ error: remoteWarning });
-      return;
+    if (service.status !== "disabled") {
+      if (await hasOtherActiveServiceWithUsername(service.rain_username, params.data.id)) {
+        res.status(409).json({
+          error: "\u0627\u06CC\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC Provider \u0628\u0627 \u0633\u0631\u0648\u06CC\u0633 \u0641\u0639\u0627\u0644 \u062F\u06CC\u06AF\u0631\u06CC \u0645\u0634\u062A\u0631\u06A9 \u0627\u0633\u062A\u061B \u0628\u0631\u0627\u06CC \u062C\u0644\u0648\u06AF\u06CC\u0631\u06CC \u0627\u0632 \u0642\u0637\u0639 \u0633\u0631\u0648\u06CC\u0633\u060C \u0627\u06CC\u0646 \u0645\u0648\u0631\u062F \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0646\u0634\u062F"
+        });
+        return;
+      }
+      let panelResult = { attempted: 0, disabled: 0 };
+      let awgDisabled = true;
+      try {
+        panelResult = await disablePanelUser(
+          service.rain_username,
+          service.falco_config_id,
+          Number(req.auth?.telegramId),
+          req.auth?.role
+        );
+      } catch {
+        remoteWarning = "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC provider\u0647\u0627 \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F";
+      }
+      if (service.awg_client_id) {
+        awgDisabled = await disableAwgClient(service.awg_client_id);
+      }
+      const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+      if (!providersDisabled || !awgDisabled) {
+        remoteWarning = "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0647\u0645\u0647 provider\u0647\u0627 \u0648 AWG \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F";
+      }
+      if (remoteWarning) {
+        res.status(502).json({ error: remoteWarning });
+        return;
+      }
     }
   }
   if (body.data.status !== void 0) {
     values.push(body.data.status);
     updates.push(`status = $${values.length}`);
-    updates.push(`disabled_at = CASE WHEN $${values.length} = 'disabled' THEN NOW() ELSE NULL END`);
+    updates.push(`disabled_at = CASE WHEN $${values.length} = 'disabled' THEN COALESCE(disabled_at, NOW()) ELSE NULL END`);
     if (body.data.status === "disabled") {
       updates.push("admin_notes = CASE WHEN NULLIF(admin_notes, '') IS NULL THEN '\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u062F\u0633\u062A\u06CC' ELSE admin_notes END");
     }

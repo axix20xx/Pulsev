@@ -1,4 +1,5 @@
 import { access, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 const requiredFiles = [
   "app.js",
@@ -58,6 +59,27 @@ if (!/["']\/panel-sub-assets\//.test(subscriptionIndex)) {
   throw new Error(
     "Hostinger subscription bundle must use its isolated asset path.",
   );
+}
+
+const assetPages = [
+  "web/index.html",
+  "web/panel/index.html",
+  "web/mobile/index.html",
+  "web/showcase/index.html",
+  "web/sub-app/index.html",
+];
+for (const page of assetPages) {
+  const html = await readFile(page, "utf8");
+  const references = [...html.matchAll(/(?:src|href)=["'](\/[^"']+\.(?:css|js))["']/g)];
+  if (!references.length) throw new Error(`No JavaScript or CSS assets were found in ${page}.`);
+  for (const [, assetUrl] of references) {
+    const assetPath = path.resolve("web", assetUrl.slice(1));
+    if (!assetPath.startsWith(`${path.resolve("web")}${path.sep}`)) {
+      throw new Error(`Asset path escapes the web bundle: ${assetUrl}`);
+    }
+    await access(assetPath);
+    await access(`${assetPath}.gz`);
+  }
 }
 
 console.log(`Pulse production bundle verified (${requiredFiles.length} files, including panel and showcase).`);

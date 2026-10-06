@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import '@designcodeio/threeui/style.css';
 
 const LazyConstellationField = lazy(() =>
   import('@designcodeio/threeui/components/ConstellationField').then((module) => ({

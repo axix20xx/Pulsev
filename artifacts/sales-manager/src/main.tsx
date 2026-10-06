@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from '@/components/error-boundary';
 
-import '@designcodeio/threeui/style.css';
 import './index.css';
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

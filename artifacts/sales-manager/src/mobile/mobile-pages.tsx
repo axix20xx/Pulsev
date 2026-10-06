@@ -3,6 +3,7 @@ import { Link, Route, Switch, useLocation, useParams } from 'wouter';
 import { ArrowDownToLine, Bell, Check, ChevronLeft, Download, LockKeyhole, LogOut, MoreHorizontal, Phone, Plus, RefreshCw, Settings, Share2, ShieldCheck, Smartphone, X } from 'lucide-react';
 import { arrayFrom, faNumber, formatMobileDate, mobileRequest, objectFrom, type MobileDashboard, type MobileNotification, type MobileSettings, type MobileSubscription, useMobileFetch } from './mobile-api';
 import { AccessActions, BrandLockup, MobileFrame, MobileLogo, MobileOfflineBanner, MobileState, NotificationRow, SubscriptionCard, UsageRing } from './mobile-ui';
+import './mobile.css';
 
 const mobileAssetBaseUrl = import.meta.env.BASE_URL.endsWith('/mobile/')
   ? import.meta.env.BASE_URL

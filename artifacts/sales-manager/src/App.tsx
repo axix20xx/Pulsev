@@ -1,75 +1,54 @@
-import { type ReactNode } from 'react';
+import { lazy, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import NotFound from '@/pages/not-found';
-import {
-  Route,
-  Switch,
-  useLocation,
-  Router as WouterRouter,
-} from 'wouter';
-import { Shell } from '@/components/pulse-shell';
-import { ActionRequests, AdminSales, Connections, CustomerDetail, Customers, LoginPage, Monitoring, Overview, PointOfSale, PublicSubscription, PulseProvider, Reports, ResellerAccounting, Sales, Services, SettingsPage, usePulse } from '@/pages/pulse-pages';
-import { InsightDetailPage, SmartCenter } from '@/pages/smart-center';
-import { OperationsCenter } from '@/pages/operations-center';
-import ProviderAccountAuditPage from '@/pages/provider-account-audit';
-import { MobileApp } from '@/mobile/mobile-pages';
-import { NotificationAnalyticsPage, NotificationSendPage, NotificationStatusPage } from '@/pages/notification-pages';
-import '@/mobile/mobile.css';
+import { useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
+const ManagementApp = lazy(() => import('@/management-app'));
+const MobileApp = lazy(() =>
+  import('@/mobile/mobile-pages').then((module) => ({ default: module.MobileApp })),
+);
+const PublicSubscription = lazy(() =>
+  import('@/pages/pulse-pages').then((module) => ({ default: module.PublicSubscription })),
+);
+const isMobileBuild = import.meta.env.BASE_URL.replace(/\/$/, '').endsWith('/mobile');
 
-function ProviderAccountAuditRoute() {
-  const { session } = usePulse();
-  return session?.role === 'master_admin' ? <ProviderAccountAuditPage /> : <NotFound />;
+function RouteLoading() {
+  return (
+    <main
+      role="status"
+      aria-live="polite"
+      style={{
+        minHeight: '100dvh',
+        display: 'grid',
+        placeItems: 'center',
+        color: '#53666a',
+        background: '#f7f7f2',
+        fontFamily: 'system-ui, sans-serif',
+      }}
+    >
+      در حال بارگذاری…
+    </main>
+  );
 }
 
 function Router() {
   const [location] = useLocation();
-  if (location === '/mobile/sub' || location.startsWith('/mobile/sub/')) return <PublicSubscription />;
-  if (location === '/mobile' || location.startsWith('/mobile/')) return <MobileApp />;
-  return (
-    // Keep a shared shell (sidebar, navbar) outside the boundary so it
-    // survives a page crash.
-    <RoutedErrorBoundary>
-      <PulseProvider>
-        <Shell>
-          <Switch>
-            <Route path="/sub" component={PublicSubscription} />
-            <Route path="/" component={Overview} />
-             <Route path="/login" component={LoginPage} />
-            <Route path="/sales" component={Sales} />
-             <Route path="/pos" component={PointOfSale} />
-             <Route path="/admin-sales" component={AdminSales} />
-             <Route path="/reseller-accounting" component={ResellerAccounting} />
-            <Route path="/action-requests" component={ActionRequests} />
-            <Route path="/services" component={Services} />
-            <Route path="/customers" component={Customers} />
-            <Route path="/customers/:id" component={CustomerDetail} />
-            <Route path="/reports" component={Reports} />
-             <Route path="/monitoring" component={Monitoring} />
-             <Route path="/connections" component={Connections} />
-             <Route path="/operations" component={OperationsCenter} />
-            <Route path="/provider-account-audit" component={ProviderAccountAuditRoute} />
-              <Route path="/insights/:focus" component={InsightDetailPage} />
-             <Route path="/insights" component={SmartCenter} />
-             <Route path="/notification-status" component={NotificationStatusPage} />
-             <Route path="/notification-send" component={NotificationSendPage} />
-              <Route path="/notification-analytics" component={NotificationAnalyticsPage} />
-            <Route path="/settings" component={SettingsPage} />
-            <Route component={NotFound} />
-          </Switch>
-        </Shell>
-      </PulseProvider>
-    </RoutedErrorBoundary>
-  );
-}
+  const isSubscriptionPath =
+    location === '/sub' ||
+    location.startsWith('/sub/') ||
+    location === '/mobile/sub' ||
+    location.startsWith('/mobile/sub/');
+  const isMobilePath = location === '/mobile' || location.startsWith('/mobile/');
 
-function RoutedErrorBoundary({ children }: { children: ReactNode }) {
-  const [location] = useLocation();
-  return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
+  if (isSubscriptionPath) {
+    return <Suspense fallback={<RouteLoading />}><PublicSubscription /></Suspense>;
+  }
+  if (isMobileBuild || isMobilePath) {
+    return <Suspense fallback={<RouteLoading />}><MobileApp /></Suspense>;
+  }
+  return <Suspense fallback={<RouteLoading />}><ManagementApp /></Suspense>;
 }
 
 function App() {

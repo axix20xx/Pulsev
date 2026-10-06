@@ -875,6 +875,28 @@ const contentTypes = {
   ".ico": "image/x-icon",
 };
 
+function acceptsGzip(header) {
+  return String(header || "").split(",").some((value) => {
+    const [encoding, ...parameters] = value.trim().split(";");
+    if (encoding.toLowerCase() !== "gzip") return false;
+    const quality = parameters
+      .map((parameter) => parameter.trim().match(/^q\s*=\s*([0-9.]+)$/i)?.[1])
+      .find((parameter) => parameter !== undefined);
+    return quality === undefined || Number(quality) > 0;
+  });
+}
+
+function staticCacheControl(filePath) {
+  const name = path.basename(filePath);
+  if (name === "index.html" || name === "sw.js" || name === "manifest.webmanifest") {
+    return "no-cache";
+  }
+  if (path.dirname(filePath).split(path.sep).includes("assets")) {
+    return "public, max-age=31536000, immutable";
+  }
+  return "public, max-age=86400";
+}
+
 function proxyApi(req, res) {
   // The frontend and this proxy share the same public origin. Do not forward
   // the browser's Origin header to the internal API, otherwise the API treats
@@ -1021,14 +1043,39 @@ async function serveWeb(req, res) {
   try {
     const stat = await fs.stat(filePath);
     if (!stat.isFile()) throw new Error("Not a file");
+    let responsePath = filePath;
+    let responseStat = stat;
+    let contentEncoding;
+    if (
+      acceptsGzip(req.headers["accept-encoding"]) &&
+      [".css", ".html", ".js", ".json", ".svg", ".webmanifest"].includes(
+        path.extname(filePath).toLowerCase(),
+      )
+    ) {
+      try {
+        const compressedPath = `${filePath}.gz`;
+        const compressedStat = await fs.stat(compressedPath);
+        if (compressedStat.isFile() && compressedStat.size < stat.size) {
+          responsePath = compressedPath;
+          responseStat = compressedStat;
+          contentEncoding = "gzip";
+        }
+      } catch {
+        // Uncompressed response remains available when no sidecar was packaged.
+      }
+    }
     res.writeHead(200, {
       "content-type": contentTypes[path.extname(filePath).toLowerCase()] || "application/octet-stream",
-      "cache-control":
-        path.basename(filePath) === "index.html"
-          ? "no-cache"
-          : "public, max-age=31536000, immutable",
+      "content-length": responseStat.size,
+      "cache-control": staticCacheControl(filePath),
+      vary: "Accept-Encoding",
+      ...(contentEncoding ? { "content-encoding": contentEncoding } : {}),
     });
-    createReadStream(filePath).pipe(res);
+    if (req.method === "HEAD") {
+      res.end();
+    } else {
+      createReadStream(responsePath).pipe(res);
+    }
   } catch {
     res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     res.end("Not found");
