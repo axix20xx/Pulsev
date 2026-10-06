@@ -65247,11 +65247,13 @@ async function syncServiceUnlocked(service) {
   let awgUsedBytes = Math.max(0, Number(service.awg_total ?? 0) - Number(service.awg_offset_bytes ?? 0));
   let awgRx = 0;
   let awgTx = 0;
+  let awgStatsFresh = !service.awg_client_id;
   if (service.awg_client_id) {
     try {
       const stats = await getAwgStats(service.awg_client_id);
       awgRx = stats.rxBytes;
       awgTx = stats.txBytes;
+      awgStatsFresh = true;
       const rawAwgBytes = awgRx + awgTx;
       const previousAwgBytes = Number(service.awg_total ?? 0);
       let offset = Number(service.awg_offset_bytes ?? 0);
@@ -65272,7 +65274,8 @@ async function syncServiceUnlocked(service) {
   const combinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
   const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB));
   const expired = service.expired_in_db;
-  const quotaReached = limitBytes > 0 && combinedBytes >= limitBytes;
+  const usageSnapshotFresh = awgStatsFresh && panelUsages.every((usage) => !usage.stale);
+  const quotaReached = usageSnapshotFresh && limitBytes > 0 && combinedBytes >= limitBytes;
   const alreadyDisabled = service.status === "disabled";
   const shouldDisable = alreadyDisabled || expired || quotaReached;
   const needsRemoteDisable = !alreadyDisabled || Number(service.remote_disable_pending) === 1;
