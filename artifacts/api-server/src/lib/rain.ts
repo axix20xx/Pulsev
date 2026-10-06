@@ -36,6 +36,8 @@ export class RainApiError extends Error {
 
 const tokenCache = new Map<string, string>();
 const azadPanelCoreCache = new Map<string, { core: string; expiresAt: number }>();
+const providerAuditQueues = new Map<string, Promise<void>>();
+const providerAuditLastRequest = new Map<string, number>();
 
 function panelKey(panel: Panel): string {
   return panel.key?.trim() || panel.api_base;
@@ -642,7 +644,7 @@ function usedBytesValue(payload: any): number | null {
       "traffic_used",
       "usedTraffic",
     ],
-    ["used_gb", "usage_gb", "data_used_gb"],
+    ["used_gb", "usage_gb", "data_used_gb", "traffic_used_gb", "used_traffic_gb", "data_limit_used_gb"],
   );
   if (direct !== null) return direct;
   const upload = bytesValue(payload, ["upload", "upload_bytes", "up", "uplink"]);
@@ -791,6 +793,224 @@ export async function disablePanelUser(
     if (success) disabled += 1;
   }
   return { attempted, disabled };
+}
+
+export type ProviderAccountAuditService = {
+  username: string;
+  falcoConfigId: number | null;
+  expiresAt: string;
+  quotaBytes: number;
+  usedBytes: number;
+};
+
+export type ProviderAccountAuditMatch = {
+  providerKey: string;
+  providerKind: string;
+  providerStatus: string;
+  expiresAt: string;
+  remainingBytes: number;
+};
+
+export type ProviderAccountAuditIssue = {
+  providerKey: string;
+  providerKind: string;
+  message: string;
+};
+
+export type ProviderAccountAuditScan = {
+  enabledPanelCount: number;
+  matches: ProviderAccountAuditMatch[];
+  issues: ProviderAccountAuditIssue[];
+};
+
+async function pacedAuditPanelRequest(
+  panel: Panel,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<{ status: number; json: any; text: string }> {
+  const key = panelKey(panel);
+  const previous = providerAuditQueues.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const queued = previous.then(() => gate);
+  providerAuditQueues.set(key, queued);
+  await previous;
+  const waitMs = Math.max(0, 1_000 - (Date.now() - (providerAuditLastRequest.get(key) ?? 0)));
+  if (waitMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+  providerAuditLastRequest.set(key, Date.now());
+  try {
+    return await panelRequest(panel, method, path, body);
+  } finally {
+    release();
+    if (providerAuditQueues.get(key) === queued) providerAuditQueues.delete(key);
+  }
+}
+
+function providerAccountPath(
+  panel: Panel,
+  username: string,
+  falcoConfigId: number | null,
+): string | null {
+  if (panelKind(panel) === "falcon") {
+    return falcoConfigId
+      ? `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`
+      : `/api/v1/configs?username=${encodeURIComponent(username)}`;
+  }
+  return `/api/user/${encodeURIComponent(username)}`;
+}
+
+function providerAccountStatus(payload: any): string {
+  const status = String(payload?.status ?? payload?.state ?? payload?.account_status ?? "")
+    .trim()
+    .toLowerCase();
+  if (status) return status;
+  if (
+    payload?.is_disabled === true ||
+    payload?.enabled === false ||
+    payload?.enabled === 0 ||
+    payload?.is_active === false ||
+    payload?.is_active === 0
+  ) {
+    return "disabled";
+  }
+  return "";
+}
+
+function isProviderAccountDisabled(status: string): boolean {
+  return ["disabled", "inactive", "deactivated"].includes(status);
+}
+
+async function inspectProviderAccount(
+  panel: Panel,
+  service: ProviderAccountAuditService,
+): Promise<{
+  found: boolean;
+  status: string;
+  expiresAt: string | null;
+  remainingBytes: number;
+}> {
+  const path = providerAccountPath(panel, service.username, service.falcoConfigId);
+  if (!path) return { found: false, status: "", expiresAt: null, remainingBytes: 0 };
+  const response = await pacedAuditPanelRequest(panel, "GET", path);
+  if (response.status === 404) {
+    return { found: false, status: "", expiresAt: null, remainingBytes: 0 };
+  }
+  if (response.status < 200 || response.status >= 300) {
+    throw new RainApiError(`HTTP ${response.status}`);
+  }
+  const payload = findUserPayload(response.json, service.username) ?? nestedPayload(response.json);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new RainApiError("Provider returned no account details.");
+  }
+  const status = providerAccountStatus(payload);
+  const remoteExpiry = expiryValue(payload);
+  const expiresAt = remoteExpiry ?? service.expiresAt;
+  const expiry = new Date(expiresAt);
+  const localRemaining = Math.max(0, service.quotaBytes - service.usedBytes);
+  const providerQuota = bytesValue(
+    payload,
+    ["data_limit", "data_limit_bytes", "total_bytes", "quota_bytes", "traffic_limit_bytes"],
+    ["data_limit_gb", "limit_gb", "quota_gb", "traffic_limit_gb"],
+  );
+  const providerUsed = usedBytesValue(payload);
+  const remoteRemaining =
+    providerQuota !== null && providerQuota > 0 && providerUsed !== null
+      ? Math.max(0, providerQuota - providerUsed)
+      : null;
+  const remainingBytes =
+    remoteRemaining === null ? localRemaining : Math.min(localRemaining, remoteRemaining);
+  return {
+    found: true,
+    status,
+    expiresAt,
+    remainingBytes,
+  };
+}
+
+export async function scanProviderAccountsForService(
+  service: ProviderAccountAuditService,
+): Promise<ProviderAccountAuditScan> {
+  const configured = await panels();
+  const matches: ProviderAccountAuditMatch[] = [];
+  const issues: ProviderAccountAuditIssue[] = [];
+  for (const panel of configured) {
+    const key = panelKey(panel);
+    const kind = panelKind(panel);
+    try {
+      const account = await inspectProviderAccount(panel, service);
+      if (
+        account.found &&
+        isProviderAccountDisabled(account.status) &&
+        account.expiresAt !== null &&
+        new Date(account.expiresAt).getTime() > Date.now() &&
+        account.remainingBytes > 0
+      ) {
+        matches.push({
+          providerKey: key,
+          providerKind: kind,
+          providerStatus: account.status,
+          expiresAt: account.expiresAt,
+          remainingBytes: account.remainingBytes,
+        });
+      }
+    } catch (error) {
+      issues.push({
+        providerKey: key,
+        providerKind: kind,
+        message: error instanceof RainApiError && /^HTTP \d{3}$/.test(error.message)
+          ? `پاسخ پنل: ${error.message}`
+          : "جزئیات حساب از پنل خوانده نشد؛ هیچ اصلاحی انجام نشد.",
+      });
+    }
+  }
+  return { enabledPanelCount: configured.length, matches, issues };
+}
+
+export async function reactivateProviderAccountStatus(
+  service: ProviderAccountAuditService,
+  providerKey: string,
+): Promise<{ outcome: "repaired" | "skipped"; message: string }> {
+  const panel = (await panels()).find((candidate) => panelKey(candidate) === providerKey);
+  if (!panel) throw new RainApiError("Provider is not enabled or has no configured credentials.");
+
+  const account = await inspectProviderAccount(panel, service);
+  if (!account.found) throw new RainApiError("Provider account was not found.");
+  if (
+    !isProviderAccountDisabled(account.status) ||
+    !account.expiresAt ||
+    new Date(account.expiresAt).getTime() <= Date.now() ||
+    account.remainingBytes <= 0
+  ) {
+    return {
+      outcome: "skipped",
+      message: "Provider account changed or no longer has remaining time and quota; no update was sent.",
+    };
+  }
+
+  const kind = panelKind(panel);
+  const path = providerAccountPath(panel, service.username, service.falcoConfigId);
+  if (!path) throw new RainApiError("Provider account cannot be safely identified.");
+  const candidates: Array<[string, string]> = kind === "falcon"
+    ? [["PATCH", path]]
+    : kind === "rain_admin" || kind === "azadpanel"
+      ? [["PUT", path]]
+      : [["PATCH", path], ["PUT", path]];
+
+  let last = { status: 0, json: null, text: "" };
+  for (const [method, candidatePath] of candidates) {
+    last = await pacedAuditPanelRequest(panel, method, candidatePath, { status: "active" });
+    if (last.status >= 200 && last.status < 300) {
+      return {
+        outcome: "repaired",
+        message: "Account status was reactivated; quota, expiry, and traffic counters were not changed.",
+      };
+    }
+    if (![405, 422].includes(last.status)) break;
+  }
+  throw new RainApiError(`Provider rejected the status-only repair: ${safeError(last)}`);
 }
 
 function groupIdsFromUser(value: any): number[] {

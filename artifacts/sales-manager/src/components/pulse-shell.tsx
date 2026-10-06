@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bell, BellRing, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, Wifi, X, LogOut, ShieldAlert, Check, Sparkles, Copy, Search, Send } from 'lucide-react';
+import { Activity, BarChart3, Bell, BellRing, CircleHelp, CreditCard, Gauge, LayoutDashboard, Menu, Package, Settings, ShoppingBag, Users, Wifi, X, LogOut, ShieldAlert, ShieldEllipsis, Check, Sparkles, Copy, Search, Send } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,6 +38,7 @@ const smartNav = { href: '/insights', label: 'مرکز هوشمند', icon: Spar
 const notificationStatusNav = { href: '/notification-status', label: 'وضعیت اعلان‌ها', icon: BellRing };
 const notificationSendNav = { href: '/notification-send', label: 'ارسال پیام', icon: Send };
 const notificationAnalyticsNav = { href: '/notification-analytics', label: 'تحلیل اعلان‌ها', icon: BarChart3 };
+const providerAccountAuditNav = { href: '/provider-account-audit', label: 'بازبینی وضعیت Providerها', icon: ShieldEllipsis };
 
 const panelBasePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const panelRelativePath = () => {
@@ -255,6 +256,9 @@ export function Shell({ children }: { children: ReactNode }) {
               </Link>
               <Link href={notificationAnalyticsNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(notificationAnalyticsNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`}>
                 <notificationAnalyticsNav.icon size={18} strokeWidth={isNavActive(notificationAnalyticsNav.href) ? 2.5 : 2} /><span className="text-sm font-semibold tracking-tight">{notificationAnalyticsNav.label}</span>
+              </Link>
+              <Link href={providerAccountAuditNav.href} className={`side-link group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${isNavActive(providerAccountAuditNav.href) ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' : 'text-foreground/80 hover:bg-foreground/5 hover:text-foreground'}`} data-testid="link-provider-account-audit">
+                <providerAccountAuditNav.icon size={18} strokeWidth={isNavActive(providerAccountAuditNav.href) ? 2.5 : 2} /><span className="text-sm font-semibold tracking-tight">{providerAccountAuditNav.label}</span>
               </Link>
             </>}
           </nav>

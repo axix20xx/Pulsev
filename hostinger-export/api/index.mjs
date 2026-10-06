@@ -44960,6 +44960,47 @@ var RepairServiceProviderResponse = objectType({
   "repaired": booleanType(),
   "usage_reset": booleanType()
 });
+var scanProviderAccountAuditBodyAfterServiceIdMin = 0;
+var ScanProviderAccountAuditBody = objectType({
+  "after_service_id": numberType().min(scanProviderAccountAuditBodyAfterServiceIdMin)
+});
+var ScanProviderAccountAuditResponse = objectType({
+  "candidate_total": numberType(),
+  "checked_count": numberType(),
+  "done": booleanType(),
+  "next_cursor": numberType(),
+  "enabled_panel_count": numberType(),
+  "matches": arrayType(objectType({
+    "service_id": numberType(),
+    "service_code": stringType(),
+    "customer_name": stringType(),
+    "username": stringType(),
+    "plan": stringType(),
+    "provider_key": stringType(),
+    "provider_kind": stringType(),
+    "provider_status": stringType(),
+    "expires_at": stringType().nullable(),
+    "remaining_bytes": numberType()
+  })),
+  "issues": arrayType(objectType({
+    "service_id": numberType(),
+    "service_code": stringType(),
+    "provider_key": stringType(),
+    "provider_kind": stringType(),
+    "message": stringType()
+  }))
+});
+var repairProviderAccountAuditBodyProviderKeyMax = 255;
+var RepairProviderAccountAuditBody = objectType({
+  "service_id": numberType().min(1),
+  "provider_key": stringType().min(1).max(repairProviderAccountAuditBodyProviderKeyMax)
+});
+var RepairProviderAccountAuditResponse = objectType({
+  "service_id": numberType(),
+  "provider_key": stringType(),
+  "outcome": enumType(["repaired", "skipped"]),
+  "message": stringType()
+});
 var DownloadServiceAwgParams = objectType({
   "id": coerce.number().min(1)
 });
@@ -63826,6 +63867,8 @@ var RainApiError = class extends Error {
 };
 var tokenCache = /* @__PURE__ */ new Map();
 var azadPanelCoreCache = /* @__PURE__ */ new Map();
+var providerAuditQueues = /* @__PURE__ */ new Map();
+var providerAuditLastRequest = /* @__PURE__ */ new Map();
 function panelKey(panel) {
   return panel.key?.trim() || panel.api_base;
 }
@@ -64290,7 +64333,7 @@ function usedBytesValue(payload) {
       "traffic_used",
       "usedTraffic"
     ],
-    ["used_gb", "usage_gb", "data_used_gb"]
+    ["used_gb", "usage_gb", "data_used_gb", "traffic_used_gb", "used_traffic_gb", "data_limit_used_gb"]
   );
   if (direct !== null) return direct;
   const upload = bytesValue(payload, ["upload", "upload_bytes", "up", "uplink"]);
@@ -64419,6 +64462,133 @@ async function disablePanelUser(username, falcoConfigId, ownerId, role) {
     if (success2) disabled += 1;
   }
   return { attempted, disabled };
+}
+async function pacedAuditPanelRequest(panel, method, path, body) {
+  const key = panelKey(panel);
+  const previous = providerAuditQueues.get(key) ?? Promise.resolve();
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const queued = previous.then(() => gate);
+  providerAuditQueues.set(key, queued);
+  await previous;
+  const waitMs = Math.max(0, 1e3 - (Date.now() - (providerAuditLastRequest.get(key) ?? 0)));
+  if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  providerAuditLastRequest.set(key, Date.now());
+  try {
+    return await panelRequest(panel, method, path, body);
+  } finally {
+    release();
+    if (providerAuditQueues.get(key) === queued) providerAuditQueues.delete(key);
+  }
+}
+function providerAccountPath(panel, username, falcoConfigId) {
+  if (panelKind(panel) === "falcon") {
+    return falcoConfigId ? `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}` : `/api/v1/configs?username=${encodeURIComponent(username)}`;
+  }
+  return `/api/user/${encodeURIComponent(username)}`;
+}
+function providerAccountStatus(payload) {
+  const status = String(payload?.status ?? payload?.state ?? payload?.account_status ?? "").trim().toLowerCase();
+  if (status) return status;
+  if (payload?.is_disabled === true || payload?.enabled === false || payload?.enabled === 0 || payload?.is_active === false || payload?.is_active === 0) {
+    return "disabled";
+  }
+  return "";
+}
+function isProviderAccountDisabled(status) {
+  return ["disabled", "inactive", "deactivated"].includes(status);
+}
+async function inspectProviderAccount(panel, service) {
+  const path = providerAccountPath(panel, service.username, service.falcoConfigId);
+  if (!path) return { found: false, status: "", expiresAt: null, remainingBytes: 0 };
+  const response = await pacedAuditPanelRequest(panel, "GET", path);
+  if (response.status === 404) {
+    return { found: false, status: "", expiresAt: null, remainingBytes: 0 };
+  }
+  if (response.status < 200 || response.status >= 300) {
+    throw new RainApiError(`HTTP ${response.status}`);
+  }
+  const payload = findUserPayload(response.json, service.username) ?? nestedPayload(response.json);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new RainApiError("Provider returned no account details.");
+  }
+  const status = providerAccountStatus(payload);
+  const remoteExpiry = expiryValue(payload);
+  const expiresAt = remoteExpiry ?? service.expiresAt;
+  const expiry = new Date(expiresAt);
+  const localRemaining = Math.max(0, service.quotaBytes - service.usedBytes);
+  const providerQuota = bytesValue(
+    payload,
+    ["data_limit", "data_limit_bytes", "total_bytes", "quota_bytes", "traffic_limit_bytes"],
+    ["data_limit_gb", "limit_gb", "quota_gb", "traffic_limit_gb"]
+  );
+  const providerUsed = usedBytesValue(payload);
+  const remoteRemaining = providerQuota !== null && providerQuota > 0 && providerUsed !== null ? Math.max(0, providerQuota - providerUsed) : null;
+  const remainingBytes = remoteRemaining === null ? localRemaining : Math.min(localRemaining, remoteRemaining);
+  return {
+    found: true,
+    status,
+    expiresAt,
+    remainingBytes
+  };
+}
+async function scanProviderAccountsForService(service) {
+  const configured = await panels();
+  const matches = [];
+  const issues = [];
+  for (const panel of configured) {
+    const key = panelKey(panel);
+    const kind = panelKind(panel);
+    try {
+      const account = await inspectProviderAccount(panel, service);
+      if (account.found && isProviderAccountDisabled(account.status) && account.expiresAt !== null && new Date(account.expiresAt).getTime() > Date.now() && account.remainingBytes > 0) {
+        matches.push({
+          providerKey: key,
+          providerKind: kind,
+          providerStatus: account.status,
+          expiresAt: account.expiresAt,
+          remainingBytes: account.remainingBytes
+        });
+      }
+    } catch (error40) {
+      issues.push({
+        providerKey: key,
+        providerKind: kind,
+        message: error40 instanceof RainApiError && /^HTTP \d{3}$/.test(error40.message) ? `\u067E\u0627\u0633\u062E \u067E\u0646\u0644: ${error40.message}` : "\u062C\u0632\u0626\u06CC\u0627\u062A \u062D\u0633\u0627\u0628 \u0627\u0632 \u067E\u0646\u0644 \u062E\u0648\u0627\u0646\u062F\u0647 \u0646\u0634\u062F\u061B \u0647\u06CC\u0686 \u0627\u0635\u0644\u0627\u062D\u06CC \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F."
+      });
+    }
+  }
+  return { enabledPanelCount: configured.length, matches, issues };
+}
+async function reactivateProviderAccountStatus(service, providerKey) {
+  const panel = (await panels()).find((candidate) => panelKey(candidate) === providerKey);
+  if (!panel) throw new RainApiError("Provider is not enabled or has no configured credentials.");
+  const account = await inspectProviderAccount(panel, service);
+  if (!account.found) throw new RainApiError("Provider account was not found.");
+  if (!isProviderAccountDisabled(account.status) || !account.expiresAt || new Date(account.expiresAt).getTime() <= Date.now() || account.remainingBytes <= 0) {
+    return {
+      outcome: "skipped",
+      message: "Provider account changed or no longer has remaining time and quota; no update was sent."
+    };
+  }
+  const kind = panelKind(panel);
+  const path = providerAccountPath(panel, service.username, service.falcoConfigId);
+  if (!path) throw new RainApiError("Provider account cannot be safely identified.");
+  const candidates = kind === "falcon" ? [["PATCH", path]] : kind === "rain_admin" || kind === "azadpanel" ? [["PUT", path]] : [["PATCH", path], ["PUT", path]];
+  let last = { status: 0, json: null, text: "" };
+  for (const [method, candidatePath] of candidates) {
+    last = await pacedAuditPanelRequest(panel, method, candidatePath, { status: "active" });
+    if (last.status >= 200 && last.status < 300) {
+      return {
+        outcome: "repaired",
+        message: "Account status was reactivated; quota, expiry, and traffic counters were not changed."
+      };
+    }
+    if (![405, 422].includes(last.status)) break;
+  }
+  throw new RainApiError(`Provider rejected the status-only repair: ${safeError(last)}`);
 }
 function groupIdsFromUser(value) {
   const payload = nestedPayload(value);
@@ -69508,6 +69678,192 @@ router2.get("/pasarguard/connections", requireAuth, async (req, res) => {
     return { ...user, customer_name: local.customer_name, phone: local.phone };
   }).filter((user) => Boolean(user));
   res.json({ generated_at: (/* @__PURE__ */ new Date()).toISOString(), users });
+});
+router2.post("/admin/provider-account-audit/scan", requireMasterAdmin, async (req, res) => {
+  await managementReady;
+  const parsed = ScanProviderAccountAuditBody.safeParse(req.body);
+  if (!parsed.success || !Number.isSafeInteger(parsed.data.after_service_id)) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0627\u062F\u0627\u0645\u0647 \u0627\u0633\u06A9\u0646 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  const afterServiceId = parsed.data.after_service_id;
+  const eligibility = `svc.status = 'active'
+    AND svc.expire_at > NOW()
+    AND svc.gb > 0
+    AND svc.last_used_bytes IS NOT NULL
+    AND svc.last_used_bytes < svc.gb * 1073741824
+    AND NULLIF(BTRIM(svc.rain_username), '') IS NOT NULL`;
+  const countResult = await pool.query(
+    `SELECT COUNT(*)::float8 AS candidate_total
+     FROM reseller_services svc
+     WHERE ${eligibility}`
+  );
+  const nextResult = await pool.query(
+    `SELECT svc.id,
+            'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+            COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
+            svc.rain_username AS username,
+            COALESCE(svc.label, '\u0633\u0631\u0648\u06CC\u0633') AS plan,
+            svc.expire_at AS expires_at,
+            svc.gb::float8 AS gb,
+            svc.last_used_bytes::float8 AS used_bytes,
+            svc.falco_config_id
+     FROM reseller_services svc
+     LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+     WHERE svc.id > $1 AND ${eligibility}
+     ORDER BY svc.id
+     LIMIT 1`,
+    [afterServiceId]
+  );
+  const candidateTotal = Number(countResult.rows[0]?.candidate_total ?? 0);
+  const service = nextResult.rows[0];
+  if (!service) {
+    const enabledPanelCount = (await listAvailablePanels()).length;
+    res.json(ScanProviderAccountAuditResponse.parse({
+      candidate_total: candidateTotal,
+      checked_count: 0,
+      done: true,
+      next_cursor: afterServiceId,
+      enabled_panel_count: enabledPanelCount,
+      matches: [],
+      issues: []
+    }));
+    return;
+  }
+  const serviceId = Number(service.id);
+  const expiresAt = new Date(service.expires_at);
+  const audit = await scanProviderAccountsForService({
+    username: service.username,
+    falcoConfigId: service.falco_config_id === null ? null : Number(service.falco_config_id),
+    expiresAt: expiresAt.toISOString(),
+    quotaBytes: Math.max(0, Number(service.gb) * 1024 ** 3),
+    usedBytes: Math.max(0, Number(service.used_bytes))
+  });
+  res.json(ScanProviderAccountAuditResponse.parse({
+    candidate_total: candidateTotal,
+    checked_count: 1,
+    done: false,
+    next_cursor: serviceId,
+    enabled_panel_count: audit.enabledPanelCount,
+    matches: audit.matches.map((match) => ({
+      service_id: serviceId,
+      service_code: service.service_code,
+      customer_name: service.customer_name,
+      username: service.username,
+      plan: service.plan,
+      provider_key: match.providerKey,
+      provider_kind: match.providerKind,
+      provider_status: match.providerStatus,
+      expires_at: match.expiresAt,
+      remaining_bytes: match.remainingBytes
+    })),
+    issues: audit.issues.map((issue2) => ({
+      service_id: serviceId,
+      service_code: service.service_code,
+      provider_key: issue2.providerKey,
+      provider_kind: issue2.providerKind,
+      message: issue2.message
+    }))
+  }));
+});
+router2.post("/admin/provider-account-audit/repair", requireMasterAdmin, async (req, res) => {
+  await managementReady;
+  const parsed = RepairProviderAccountAuditBody.safeParse(req.body);
+  if (!parsed.success || !Number.isSafeInteger(parsed.data.service_id)) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0633\u0631\u0648\u06CC\u0633 \u06CC\u0627 Provider \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  const { service_id: serviceId, provider_key: providerKey } = parsed.data;
+  const lifecycleLock = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lifecycleLock.query(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [serviceId]
+    );
+    if (!lockResult.rows[0]?.locked) {
+      res.status(409).json({ error: "\u0639\u0645\u0644\u06CC\u0627\u062A \u062F\u06CC\u06AF\u0631\u06CC \u0631\u0648\u06CC \u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631 \u062D\u0627\u0644 \u0627\u0646\u062C\u0627\u0645 \u0627\u0633\u062A." });
+      return;
+    }
+    lockAcquired = true;
+    const currentResult = await pool.query(
+      `SELECT svc.rain_username AS username,
+              svc.gb::float8 AS gb,
+              svc.expire_at AS expires_at,
+              svc.status,
+              svc.last_used_bytes::float8 AS used_bytes,
+              svc.falco_config_id
+       FROM reseller_services svc
+       WHERE svc.id = $1`,
+      [serviceId]
+    );
+    const current = currentResult.rows[0];
+    if (!current) {
+      res.status(404).json({ error: "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+      return;
+    }
+    const expiresAt = new Date(current.expires_at);
+    const quotaBytes = Math.max(0, Number(current.gb) * 1024 ** 3);
+    const usedBytes = current.used_bytes === null ? Number.NaN : Number(current.used_bytes);
+    if (current.status !== "active" || !Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now() || !Number.isFinite(usedBytes) || quotaBytes <= usedBytes) {
+      res.status(409).json({
+        error: "\u062A\u0639\u0645\u06CC\u0631 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0633\u0631\u0648\u06CC\u0633\u06CC \u0628\u0627 \u0648\u0636\u0639\u06CC\u062A \u0645\u062D\u0644\u06CC \u0641\u0639\u0627\u0644\u060C \u0632\u0645\u0627\u0646 \u0648 \u062D\u062C\u0645 \u0628\u0627\u0642\u06CC\u0645\u0627\u0646\u062F\u0647 \u0627\u0646\u062C\u0627\u0645 \u0645\u06CC\u200C\u0634\u0648\u062F."
+      });
+      return;
+    }
+    try {
+      const repaired = await reactivateProviderAccountStatus({
+        username: current.username,
+        falcoConfigId: current.falco_config_id === null ? null : Number(current.falco_config_id),
+        expiresAt: expiresAt.toISOString(),
+        quotaBytes,
+        usedBytes
+      }, providerKey);
+      if (repaired.outcome === "repaired") {
+        try {
+          await recordAudit(
+            req,
+            "provider_account_reactivated",
+            "provider_account",
+            `${serviceId}:${providerKey}`,
+            {
+              username: current.username,
+              provider_key: providerKey,
+              previous_status: "disabled",
+              new_status: "active",
+              quota_changed: false,
+              expiry_changed: false,
+              usage_reset: false
+            }
+          );
+        } catch (auditError) {
+          logger.error({ err: auditError, serviceId, providerKey }, "Provider account repair succeeded but audit logging failed");
+        }
+      }
+      res.json(RepairProviderAccountAuditResponse.parse({
+        service_id: serviceId,
+        provider_key: providerKey,
+        outcome: repaired.outcome,
+        message: repaired.message
+      }));
+    } catch (error40) {
+      const message = error40 instanceof Error ? error40.message : "Provider repair failed.";
+      if (/not enabled|not found/i.test(message)) {
+        res.status(404).json({ error: message });
+        return;
+      }
+      res.status(502).json({
+        error: error40 instanceof RainApiError ? message : "Provider request failed; inspect the account status before retrying."
+      });
+    }
+  } finally {
+    if (lockAcquired) {
+      await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [serviceId]).catch(() => void 0);
+    }
+    lifecycleLock.release();
+  }
 });
 router2.get("/services", requireAuth, async (req, res) => {
   const parsed = ListServicesQueryParams.parse(req.query);

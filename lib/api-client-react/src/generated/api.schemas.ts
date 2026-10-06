@@ -359,6 +359,68 @@ export interface ServiceProviderRepairResult {
   usage_reset: boolean;
 }
 
+export interface ProviderAccountAuditScanInput {
+  /** @minimum 0 */
+  after_service_id: number;
+}
+
+export interface ProviderAccountAuditMatch {
+  service_id: number;
+  service_code: string;
+  customer_name: string;
+  username: string;
+  plan: string;
+  provider_key: string;
+  provider_kind: string;
+  provider_status: string;
+  /** @nullable */
+  expires_at: string | null;
+  remaining_bytes: number;
+}
+
+export interface ProviderAccountAuditIssue {
+  service_id: number;
+  service_code: string;
+  provider_key: string;
+  provider_kind: string;
+  message: string;
+}
+
+export interface ProviderAccountAuditScanResult {
+  candidate_total: number;
+  checked_count: number;
+  done: boolean;
+  next_cursor: number;
+  enabled_panel_count: number;
+  matches: ProviderAccountAuditMatch[];
+  issues: ProviderAccountAuditIssue[];
+}
+
+export interface ProviderAccountAuditRepairInput {
+  /** @minimum 1 */
+  service_id: number;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  provider_key: string;
+}
+
+export type ProviderAccountAuditRepairResultOutcome = typeof ProviderAccountAuditRepairResultOutcome[keyof typeof ProviderAccountAuditRepairResultOutcome];
+
+
+export const ProviderAccountAuditRepairResultOutcome = {
+  repaired: 'repaired',
+  skipped: 'skipped',
+} as const;
+
+export interface ProviderAccountAuditRepairResult {
+  service_id: number;
+  provider_key: string;
+  outcome: ProviderAccountAuditRepairResultOutcome;
+  message: string;
+}
+
 export type CreateServiceResultSyncStatus = typeof CreateServiceResultSyncStatus[keyof typeof CreateServiceResultSyncStatus];
 
 

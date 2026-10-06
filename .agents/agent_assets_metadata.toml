@@ -1052,3 +1052,17 @@ mtime_ms = 1791300924678
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/d2c6ae92-2c56-4614-a462-011e90c0fbe9/9a0baba7-c488-4275-a1fd-eef7708c9d16"
 storage_version_token = "1791300955645254"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Ik6o9ybMXdaZAtcjQn6wq"
+uri = "file://exports/pulse-hostinger-provider-account-recovery-2026-10-06.zip"
+type = "unspecified"
+title = "Hostinger ZIP — Rain account recovery"
+description = "Full Hostinger migration bundle with the manual master-admin account audit page, API routes, and refreshed root, panel, mobile, and subscription assets."
+logical_id = "0e1eb355-186c-42a7-ad25-c36890cd404e"
+content_hash = "sha256:c2da3557ba655dbce588f2b6f75904683856722ab2250082e4f26dd6c77e063a"
+size = 28725130
+mtime_ms = 1791304912778
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/0e1eb355-186c-42a7-ad25-c36890cd404e/813df8b6-397d-4508-a4b0-c299a8b94b14"
+storage_version_token = "1791304976358985"
+content_type = "application/octet-stream"

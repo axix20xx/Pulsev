@@ -30,6 +30,10 @@ import {
   RepairServiceProviderBody,
   RepairServiceProviderParams,
   RepairServiceProviderResponse,
+  ScanProviderAccountAuditBody,
+  ScanProviderAccountAuditResponse,
+  RepairProviderAccountAuditBody,
+  RepairProviderAccountAuditResponse,
   UpdateResellerBody,
   UpdateResellerParams,
   UpdateResellerResponse,
@@ -67,6 +71,8 @@ import {
   prepareOpenVpnAccount,
   provisionUser,
   repairXrayProviderUser,
+  scanProviderAccountsForService,
+  reactivateProviderAccountStatus,
   RainApiError,
   testPanelAuthentication,
   legacySubscriptionUrl,
@@ -3398,6 +3404,220 @@ router.get("/pasarguard/connections", requireAuth, async (req, res): Promise<voi
     })
     .filter((user): user is NonNullable<typeof user> => Boolean(user));
   res.json({ generated_at: new Date().toISOString(), users });
+});
+
+router.post("/admin/provider-account-audit/scan", requireMasterAdmin, async (req, res): Promise<void> => {
+  await managementReady;
+  const parsed = ScanProviderAccountAuditBody.safeParse(req.body);
+  if (!parsed.success || !Number.isSafeInteger(parsed.data.after_service_id)) {
+    res.status(400).json({ error: "شناسه ادامه اسکن معتبر نیست." });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  const afterServiceId = parsed.data.after_service_id;
+  const eligibility = `svc.status = 'active'
+    AND svc.expire_at > NOW()
+    AND svc.gb > 0
+    AND svc.last_used_bytes IS NOT NULL
+    AND svc.last_used_bytes < svc.gb * 1073741824
+    AND NULLIF(BTRIM(svc.rain_username), '') IS NOT NULL`;
+  const countResult = await pool.query<{ candidate_total: number }>(
+    `SELECT COUNT(*)::float8 AS candidate_total
+     FROM reseller_services svc
+     WHERE ${eligibility}`,
+  );
+  const nextResult = await pool.query<{
+    id: string | number;
+    service_code: string;
+    customer_name: string;
+    username: string;
+    plan: string;
+    expires_at: Date | string;
+    gb: number | string;
+    used_bytes: number | string;
+    falco_config_id: number | string | null;
+  }>(
+    `SELECT svc.id,
+            'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+            COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
+            svc.rain_username AS username,
+            COALESCE(svc.label, 'سرویس') AS plan,
+            svc.expire_at AS expires_at,
+            svc.gb::float8 AS gb,
+            svc.last_used_bytes::float8 AS used_bytes,
+            svc.falco_config_id
+     FROM reseller_services svc
+     LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+     WHERE svc.id > $1 AND ${eligibility}
+     ORDER BY svc.id
+     LIMIT 1`,
+    [afterServiceId],
+  );
+  const candidateTotal = Number(countResult.rows[0]?.candidate_total ?? 0);
+  const service = nextResult.rows[0];
+  if (!service) {
+    const enabledPanelCount = (await listAvailablePanels()).length;
+    res.json(ScanProviderAccountAuditResponse.parse({
+      candidate_total: candidateTotal,
+      checked_count: 0,
+      done: true,
+      next_cursor: afterServiceId,
+      enabled_panel_count: enabledPanelCount,
+      matches: [],
+      issues: [],
+    }));
+    return;
+  }
+
+  const serviceId = Number(service.id);
+  const expiresAt = new Date(service.expires_at);
+  const audit = await scanProviderAccountsForService({
+    username: service.username,
+    falcoConfigId: service.falco_config_id === null ? null : Number(service.falco_config_id),
+    expiresAt: expiresAt.toISOString(),
+    quotaBytes: Math.max(0, Number(service.gb) * 1024 ** 3),
+    usedBytes: Math.max(0, Number(service.used_bytes)),
+  });
+  res.json(ScanProviderAccountAuditResponse.parse({
+    candidate_total: candidateTotal,
+    checked_count: 1,
+    done: false,
+    next_cursor: serviceId,
+    enabled_panel_count: audit.enabledPanelCount,
+    matches: audit.matches.map((match) => ({
+      service_id: serviceId,
+      service_code: service.service_code,
+      customer_name: service.customer_name,
+      username: service.username,
+      plan: service.plan,
+      provider_key: match.providerKey,
+      provider_kind: match.providerKind,
+      provider_status: match.providerStatus,
+      expires_at: match.expiresAt,
+      remaining_bytes: match.remainingBytes,
+    })),
+    issues: audit.issues.map((issue) => ({
+      service_id: serviceId,
+      service_code: service.service_code,
+      provider_key: issue.providerKey,
+      provider_kind: issue.providerKind,
+      message: issue.message,
+    })),
+  }));
+});
+
+router.post("/admin/provider-account-audit/repair", requireMasterAdmin, async (req, res): Promise<void> => {
+  await managementReady;
+  const parsed = RepairProviderAccountAuditBody.safeParse(req.body);
+  if (!parsed.success || !Number.isSafeInteger(parsed.data.service_id)) {
+    res.status(400).json({ error: "شناسه سرویس یا Provider معتبر نیست." });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  const { service_id: serviceId, provider_key: providerKey } = parsed.data;
+  const lifecycleLock = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lifecycleLock.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [serviceId],
+    );
+    if (!lockResult.rows[0]?.locked) {
+      res.status(409).json({ error: "عملیات دیگری روی این سرویس در حال انجام است." });
+      return;
+    }
+    lockAcquired = true;
+    const currentResult = await pool.query<{
+      username: string;
+      gb: number | string;
+      expires_at: Date | string;
+      status: string;
+      used_bytes: number | string | null;
+      falco_config_id: number | string | null;
+    }>(
+      `SELECT svc.rain_username AS username,
+              svc.gb::float8 AS gb,
+              svc.expire_at AS expires_at,
+              svc.status,
+              svc.last_used_bytes::float8 AS used_bytes,
+              svc.falco_config_id
+       FROM reseller_services svc
+       WHERE svc.id = $1`,
+      [serviceId],
+    );
+    const current = currentResult.rows[0];
+    if (!current) {
+      res.status(404).json({ error: "سرویس پیدا نشد." });
+      return;
+    }
+    const expiresAt = new Date(current.expires_at);
+    const quotaBytes = Math.max(0, Number(current.gb) * 1024 ** 3);
+    const usedBytes = current.used_bytes === null ? Number.NaN : Number(current.used_bytes);
+    if (
+      current.status !== "active" ||
+      !Number.isFinite(expiresAt.getTime()) ||
+      expiresAt.getTime() <= Date.now() ||
+      !Number.isFinite(usedBytes) ||
+      quotaBytes <= usedBytes
+    ) {
+      res.status(409).json({
+        error: "تعمیر فقط برای سرویسی با وضعیت محلی فعال، زمان و حجم باقیمانده انجام می‌شود.",
+      });
+      return;
+    }
+    try {
+      const repaired = await reactivateProviderAccountStatus({
+        username: current.username,
+        falcoConfigId: current.falco_config_id === null ? null : Number(current.falco_config_id),
+        expiresAt: expiresAt.toISOString(),
+        quotaBytes,
+        usedBytes,
+      }, providerKey);
+      if (repaired.outcome === "repaired") {
+        try {
+          await recordAudit(
+            req,
+            "provider_account_reactivated",
+            "provider_account",
+            `${serviceId}:${providerKey}`,
+            {
+              username: current.username,
+              provider_key: providerKey,
+              previous_status: "disabled",
+              new_status: "active",
+              quota_changed: false,
+              expiry_changed: false,
+              usage_reset: false,
+            },
+          );
+        } catch (auditError) {
+          logger.error({ err: auditError, serviceId, providerKey }, "Provider account repair succeeded but audit logging failed");
+        }
+      }
+      res.json(RepairProviderAccountAuditResponse.parse({
+        service_id: serviceId,
+        provider_key: providerKey,
+        outcome: repaired.outcome,
+        message: repaired.message,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Provider repair failed.";
+      if (/not enabled|not found/i.test(message)) {
+        res.status(404).json({ error: message });
+        return;
+      }
+      res.status(502).json({
+        error: error instanceof RainApiError
+          ? message
+          : "Provider request failed; inspect the account status before retrying.",
+      });
+    }
+  } finally {
+    if (lockAcquired) {
+      await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [serviceId]).catch(() => undefined);
+    }
+    lifecycleLock.release();
+  }
 });
 
 router.get("/services", requireAuth, async (req, res): Promise<void> => {

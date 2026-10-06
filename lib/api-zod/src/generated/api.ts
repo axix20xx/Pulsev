@@ -722,6 +722,66 @@ export const RepairServiceProviderResponse = zod.object({
 
 
 /**
+ * @summary Scan the next eligible service across enabled provider panels
+ */
+export const scanProviderAccountAuditBodyAfterServiceIdMin = 0;
+
+
+
+export const ScanProviderAccountAuditBody = zod.object({
+  "after_service_id": zod.number().min(scanProviderAccountAuditBodyAfterServiceIdMin)
+})
+
+export const ScanProviderAccountAuditResponse = zod.object({
+  "candidate_total": zod.number(),
+  "checked_count": zod.number(),
+  "done": zod.boolean(),
+  "next_cursor": zod.number(),
+  "enabled_panel_count": zod.number(),
+  "matches": zod.array(zod.object({
+  "service_id": zod.number(),
+  "service_code": zod.string(),
+  "customer_name": zod.string(),
+  "username": zod.string(),
+  "plan": zod.string(),
+  "provider_key": zod.string(),
+  "provider_kind": zod.string(),
+  "provider_status": zod.string(),
+  "expires_at": zod.string().nullable(),
+  "remaining_bytes": zod.number()
+})),
+  "issues": zod.array(zod.object({
+  "service_id": zod.number(),
+  "service_code": zod.string(),
+  "provider_key": zod.string(),
+  "provider_kind": zod.string(),
+  "message": zod.string()
+}))
+})
+
+
+/**
+ * @summary Reactivate one reviewed provider account without changing quota or usage
+ */
+
+export const repairProviderAccountAuditBodyProviderKeyMax = 255;
+
+
+
+export const RepairProviderAccountAuditBody = zod.object({
+  "service_id": zod.number().min(1),
+  "provider_key": zod.string().min(1).max(repairProviderAccountAuditBodyProviderKeyMax)
+})
+
+export const RepairProviderAccountAuditResponse = zod.object({
+  "service_id": zod.number(),
+  "provider_key": zod.string(),
+  "outcome": zod.enum(['repaired', 'skipped']),
+  "message": zod.string()
+})
+
+
+/**
  * @summary Download an AmneziaWG configuration
  */
 

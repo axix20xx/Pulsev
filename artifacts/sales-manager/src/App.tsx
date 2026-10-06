@@ -11,14 +11,20 @@ import {
   Router as WouterRouter,
 } from 'wouter';
 import { Shell } from '@/components/pulse-shell';
- import { ActionRequests, AdminSales, Connections, CustomerDetail, Customers, LoginPage, Monitoring, Overview, PointOfSale, PublicSubscription, PulseProvider, Reports, ResellerAccounting, Sales, Services, SettingsPage } from '@/pages/pulse-pages';
- import { InsightDetailPage, SmartCenter } from '@/pages/smart-center';
- import { OperationsCenter } from '@/pages/operations-center';
+import { ActionRequests, AdminSales, Connections, CustomerDetail, Customers, LoginPage, Monitoring, Overview, PointOfSale, PublicSubscription, PulseProvider, Reports, ResellerAccounting, Sales, Services, SettingsPage, usePulse } from '@/pages/pulse-pages';
+import { InsightDetailPage, SmartCenter } from '@/pages/smart-center';
+import { OperationsCenter } from '@/pages/operations-center';
+import ProviderAccountAuditPage from '@/pages/provider-account-audit';
 import { MobileApp } from '@/mobile/mobile-pages';
 import { NotificationAnalyticsPage, NotificationSendPage, NotificationStatusPage } from '@/pages/notification-pages';
 import '@/mobile/mobile.css';
 
 const queryClient = new QueryClient();
+
+function ProviderAccountAuditRoute() {
+  const { session } = usePulse();
+  return session?.role === 'master_admin' ? <ProviderAccountAuditPage /> : <NotFound />;
+}
 
 function Router() {
   const [location] = useLocation();
@@ -46,6 +52,7 @@ function Router() {
              <Route path="/monitoring" component={Monitoring} />
              <Route path="/connections" component={Connections} />
              <Route path="/operations" component={OperationsCenter} />
+            <Route path="/provider-account-audit" component={ProviderAccountAuditRoute} />
               <Route path="/insights/:focus" component={InsightDetailPage} />
              <Route path="/insights" component={SmartCenter} />
              <Route path="/notification-status" component={NotificationStatusPage} />

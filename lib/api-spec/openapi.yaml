@@ -392,6 +392,56 @@ paths:
           description: Service is expired, disabled, out of quota, or busy
         "502":
           description: Provider rejected the repair
+  /admin/provider-account-audit/scan:
+    post:
+      operationId: scanProviderAccountAudit
+      tags: [admin]
+      summary: Scan the next eligible service across enabled provider panels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderAccountAuditScanInput"
+      responses:
+        "200":
+          description: Read-only provider status scan results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderAccountAuditScanResult"
+        "400":
+          description: Invalid scan cursor
+        "403":
+          description: Master admin access required
+  /admin/provider-account-audit/repair:
+    post:
+      operationId: repairProviderAccountAudit
+      tags: [admin]
+      summary: Reactivate one reviewed provider account without changing quota or usage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderAccountAuditRepairInput"
+      responses:
+        "200":
+          description: Account repaired or safely skipped after revalidation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderAccountAuditRepairResult"
+        "400":
+          description: Invalid repair request
+        "403":
+          description: Master admin access required
+        "404":
+          description: Service or provider account no longer exists
+        "409":
+          description: Service is no longer eligible or is busy
+        "502":
+          description: Provider rejected the status update
   /services/{id}/awg/config:
     get:
       operationId: downloadServiceAwg
@@ -1167,6 +1217,97 @@ components:
           type: boolean
         usage_reset:
           type: boolean
+    ProviderAccountAuditScanInput:
+      type: object
+      required: [after_service_id]
+      properties:
+        after_service_id:
+          type: number
+          minimum: 0
+    ProviderAccountAuditScanResult:
+      type: object
+      required: [candidate_total, checked_count, done, next_cursor, enabled_panel_count, matches, issues]
+      properties:
+        candidate_total:
+          type: number
+        checked_count:
+          type: number
+        done:
+          type: boolean
+        next_cursor:
+          type: number
+        enabled_panel_count:
+          type: number
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProviderAccountAuditMatch"
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProviderAccountAuditIssue"
+    ProviderAccountAuditMatch:
+      type: object
+      required: [service_id, service_code, customer_name, username, plan, provider_key, provider_kind, provider_status, expires_at, remaining_bytes]
+      properties:
+        service_id:
+          type: number
+        service_code:
+          type: string
+        customer_name:
+          type: string
+        username:
+          type: string
+        plan:
+          type: string
+        provider_key:
+          type: string
+        provider_kind:
+          type: string
+        provider_status:
+          type: string
+        expires_at:
+          type: [string, "null"]
+        remaining_bytes:
+          type: number
+    ProviderAccountAuditIssue:
+      type: object
+      required: [service_id, service_code, provider_key, provider_kind, message]
+      properties:
+        service_id:
+          type: number
+        service_code:
+          type: string
+        provider_key:
+          type: string
+        provider_kind:
+          type: string
+        message:
+          type: string
+    ProviderAccountAuditRepairInput:
+      type: object
+      required: [service_id, provider_key]
+      properties:
+        service_id:
+          type: number
+          minimum: 1
+        provider_key:
+          type: string
+          minLength: 1
+          maxLength: 255
+    ProviderAccountAuditRepairResult:
+      type: object
+      required: [service_id, provider_key, outcome, message]
+      properties:
+        service_id:
+          type: number
+        provider_key:
+          type: string
+        outcome:
+          type: string
+          enum: [repaired, skipped]
+        message:
+          type: string
     AwgUsage:
       type: object
       required: [rx_gb, tx_gb, raw_total_gb, used_gb, offset_gb, last_updated]

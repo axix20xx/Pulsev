@@ -34,6 +34,10 @@ import type {
   ListSalesParams,
   ListServicesParams,
   OpenVpnDelivery,
+  ProviderAccountAuditRepairInput,
+  ProviderAccountAuditRepairResult,
+  ProviderAccountAuditScanInput,
+  ProviderAccountAuditScanResult,
   RenewServiceInput,
   Reseller,
   ResellerCreditSale,
@@ -1661,6 +1665,148 @@ export const useRepairServiceProvider = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRepairServiceProviderMutationOptions(options));
+    }
+
+export const getScanProviderAccountAuditUrl = () => {
+
+
+
+
+  return `/api/admin/provider-account-audit/scan`
+}
+
+/**
+ * @summary Scan the next eligible service across enabled provider panels
+ */
+export const scanProviderAccountAudit = async (providerAccountAuditScanInput: ProviderAccountAuditScanInput, options?: Parameters<typeof customFetch>[1]): Promise<ProviderAccountAuditScanResult> => {
+
+  return customFetch<ProviderAccountAuditScanResult>(getScanProviderAccountAuditUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(providerAccountAuditScanInput)
+  }
+);}
+
+
+
+
+
+export const getScanProviderAccountAuditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scanProviderAccountAudit>>, TError,{data: BodyType<ProviderAccountAuditScanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof scanProviderAccountAudit>>, TError,{data: BodyType<ProviderAccountAuditScanInput>}, TContext> => {
+
+const mutationKey = ['scanProviderAccountAudit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof scanProviderAccountAudit>>, {data: BodyType<ProviderAccountAuditScanInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  scanProviderAccountAudit(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ScanProviderAccountAuditMutationResult = NonNullable<Awaited<ReturnType<typeof scanProviderAccountAudit>>>
+    export type ScanProviderAccountAuditMutationBody = BodyType<ProviderAccountAuditScanInput>
+    export type ScanProviderAccountAuditMutationError = ErrorType<void>
+
+    /**
+ * @summary Scan the next eligible service across enabled provider panels
+ */
+export const useScanProviderAccountAudit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scanProviderAccountAudit>>, TError,{data: BodyType<ProviderAccountAuditScanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof scanProviderAccountAudit>>,
+        TError,
+        {data: BodyType<ProviderAccountAuditScanInput>},
+        TContext
+      > => {
+      return useMutation(getScanProviderAccountAuditMutationOptions(options));
+    }
+
+export const getRepairProviderAccountAuditUrl = () => {
+
+
+
+
+  return `/api/admin/provider-account-audit/repair`
+}
+
+/**
+ * @summary Reactivate one reviewed provider account without changing quota or usage
+ */
+export const repairProviderAccountAudit = async (providerAccountAuditRepairInput: ProviderAccountAuditRepairInput, options?: Parameters<typeof customFetch>[1]): Promise<ProviderAccountAuditRepairResult> => {
+
+  return customFetch<ProviderAccountAuditRepairResult>(getRepairProviderAccountAuditUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(providerAccountAuditRepairInput)
+  }
+);}
+
+
+
+
+
+export const getRepairProviderAccountAuditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairProviderAccountAudit>>, TError,{data: BodyType<ProviderAccountAuditRepairInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof repairProviderAccountAudit>>, TError,{data: BodyType<ProviderAccountAuditRepairInput>}, TContext> => {
+
+const mutationKey = ['repairProviderAccountAudit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof repairProviderAccountAudit>>, {data: BodyType<ProviderAccountAuditRepairInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  repairProviderAccountAudit(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RepairProviderAccountAuditMutationResult = NonNullable<Awaited<ReturnType<typeof repairProviderAccountAudit>>>
+    export type RepairProviderAccountAuditMutationBody = BodyType<ProviderAccountAuditRepairInput>
+    export type RepairProviderAccountAuditMutationError = ErrorType<void>
+
+    /**
+ * @summary Reactivate one reviewed provider account without changing quota or usage
+ */
+export const useRepairProviderAccountAudit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repairProviderAccountAudit>>, TError,{data: BodyType<ProviderAccountAuditRepairInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof repairProviderAccountAudit>>,
+        TError,
+        {data: BodyType<ProviderAccountAuditRepairInput>},
+        TContext
+      > => {
+      return useMutation(getRepairProviderAccountAuditMutationOptions(options));
     }
 
 export const getDownloadServiceAwgUrl = (id: number,) => {
