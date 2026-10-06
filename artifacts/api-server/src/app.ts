@@ -68,6 +68,31 @@ app.use(express.urlencoded({ extended: true, limit: "64kb" }));
 
 app.use("/api", router);
 
+const isDatabaseUnavailableError = (error: unknown) => {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const message =
+    typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+  return new Set([
+    "08000",
+    "08001",
+    "08003",
+    "08006",
+    "53300",
+    "57P01",
+    "57P02",
+    "57P03",
+    "ECONNRESET",
+    "ECONNREFUSED",
+    "ETIMEDOUT",
+  ]).has(code) ||
+    message.includes("connection terminated") ||
+    message.includes("connection timeout") ||
+    message.includes("timeout exceeded when trying to connect") ||
+    message.includes("read etimedout");
+};
+
 app.use(
   (
     error: unknown,
@@ -79,7 +104,11 @@ app.use(
       next(error);
       return;
     }
+    const databaseUnavailable = isDatabaseUnavailableError(error);
     const status =
+      databaseUnavailable
+        ? 503
+        :
       typeof error === "object" &&
       error !== null &&
       "status" in error &&
@@ -92,6 +121,7 @@ app.use(
           ? Number(error.statusCode)
           : 500;
     const safeStatus = status >= 400 && status < 600 ? status : 500;
+    if (databaseUnavailable) res.setHeader("Retry-After", "5");
     if (safeStatus >= 500) {
       req.log.error({ err: error }, "Unhandled API request error");
     } else {
@@ -99,7 +129,9 @@ app.use(
     }
     res.status(safeStatus).json({
       error:
-        safeStatus === 413
+        databaseUnavailable
+          ? "پایگاه داده موقتاً در دسترس نیست؛ چند لحظه بعد دوباره تلاش کنید"
+          : safeStatus === 413
           ? "درخواست بیش از حد بزرگ است"
           : safeStatus >= 500
             ? "خطای داخلی سامانه"

@@ -63646,6 +63646,13 @@ var pool = new Pool3({
   keepAliveInitialDelayMillis: 1e4,
   connectionTimeoutMillis: Number.isFinite(configuredConnectionTimeout) && configuredConnectionTimeout > 0 ? configuredConnectionTimeout : 15e3
 });
+pool.on("connect", (client) => {
+  client.on("error", (error40) => {
+    if (client.listenerCount("error") === 1) {
+      console.error("[db] checked-out PostgreSQL client error", error40);
+    }
+  });
+});
 pool.on("error", (error40) => {
   console.error("[db] idle PostgreSQL client error", error40);
 });
@@ -71758,21 +71765,42 @@ app.use((0, import_cookie_parser.default)());
 app.use(import_express5.default.json({ limit: "256kb" }));
 app.use(import_express5.default.urlencoded({ extended: true, limit: "64kb" }));
 app.use("/api", routes_default);
+var isDatabaseUnavailableError = (error40) => {
+  if (!error40 || typeof error40 !== "object") return false;
+  const candidate = error40;
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+  return (/* @__PURE__ */ new Set([
+    "08000",
+    "08001",
+    "08003",
+    "08006",
+    "53300",
+    "57P01",
+    "57P02",
+    "57P03",
+    "ECONNRESET",
+    "ECONNREFUSED",
+    "ETIMEDOUT"
+  ])).has(code) || message.includes("connection terminated") || message.includes("connection timeout") || message.includes("timeout exceeded when trying to connect") || message.includes("read etimedout");
+};
 app.use(
   (error40, req, res, next) => {
     if (res.headersSent) {
       next(error40);
       return;
     }
-    const status = typeof error40 === "object" && error40 !== null && "status" in error40 && Number.isInteger(Number(error40.status)) ? Number(error40.status) : typeof error40 === "object" && error40 !== null && "statusCode" in error40 && Number.isInteger(Number(error40.statusCode)) ? Number(error40.statusCode) : 500;
+    const databaseUnavailable = isDatabaseUnavailableError(error40);
+    const status = databaseUnavailable ? 503 : typeof error40 === "object" && error40 !== null && "status" in error40 && Number.isInteger(Number(error40.status)) ? Number(error40.status) : typeof error40 === "object" && error40 !== null && "statusCode" in error40 && Number.isInteger(Number(error40.statusCode)) ? Number(error40.statusCode) : 500;
     const safeStatus = status >= 400 && status < 600 ? status : 500;
+    if (databaseUnavailable) res.setHeader("Retry-After", "5");
     if (safeStatus >= 500) {
       req.log.error({ err: error40 }, "Unhandled API request error");
     } else {
       req.log.warn({ err: error40 }, "Rejected API request");
     }
     res.status(safeStatus).json({
-      error: safeStatus === 413 ? "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0628\u06CC\u0634 \u0627\u0632 \u062D\u062F \u0628\u0632\u0631\u06AF \u0627\u0633\u062A" : safeStatus >= 500 ? "\u062E\u0637\u0627\u06CC \u062F\u0627\u062E\u0644\u06CC \u0633\u0627\u0645\u0627\u0646\u0647" : "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A"
+      error: databaseUnavailable ? "\u067E\u0627\u06CC\u06AF\u0627\u0647 \u062F\u0627\u062F\u0647 \u0645\u0648\u0642\u062A\u0627\u064B \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A\u061B \u0686\u0646\u062F \u0644\u062D\u0638\u0647 \u0628\u0639\u062F \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F" : safeStatus === 413 ? "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0628\u06CC\u0634 \u0627\u0632 \u062D\u062F \u0628\u0632\u0631\u06AF \u0627\u0633\u062A" : safeStatus >= 500 ? "\u062E\u0637\u0627\u06CC \u062F\u0627\u062E\u0644\u06CC \u0633\u0627\u0645\u0627\u0646\u0647" : "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A"
     });
   }
 );
@@ -71978,7 +72006,10 @@ async function processOneJob(job) {
     lockClient.release();
   }
 }
+var tickRunning = false;
 async function tick() {
+  if (tickRunning) return;
+  tickRunning = true;
   try {
     const job = await claimJob();
     if (job) {
@@ -71986,6 +72017,8 @@ async function tick() {
     }
   } catch (error40) {
     logger.error({ err: error40 }, "Provisioning worker tick failed");
+  } finally {
+    tickRunning = false;
   }
 }
 function startProvisioningWorker() {

@@ -1066,3 +1066,17 @@ mtime_ms = 1791304912778
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/0e1eb355-186c-42a7-ad25-c36890cd404e/813df8b6-397d-4508-a4b0-c299a8b94b14"
 storage_version_token = "1791304976358985"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "DyPAZS5BVVIpku7zCcSjl"
+uri = "file://exports/pulse-hostinger-api-db-availability-fix-2026-10-06.zip"
+type = "unspecified"
+title = "Hostinger ZIP — API database timeout recovery"
+description = "Full Hostinger package with protection against PostgreSQL socket timeouts terminating the API process."
+logical_id = "b2015f32-718c-4531-a432-4cca193b98f9"
+content_hash = "sha256:8cffcfb4262d4432bb2895c963dc883ae3f3715b38284a3f56450cd3cfbdb953"
+size = 28725604
+mtime_ms = 1791305804821
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b2015f32-718c-4531-a432-4cca193b98f9/4b6021c0-56a0-46f1-92cf-e68822009151"
+storage_version_token = "1791305826233884"
+content_type = "application/octet-stream"

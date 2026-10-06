@@ -236,7 +236,11 @@ async function processOneJob(job: ProvisionJob) {
   }
 }
 
+let tickRunning = false;
+
 async function tick() {
+  if (tickRunning) return;
+  tickRunning = true;
   try {
     const job = await claimJob();
     if (job) {
@@ -244,6 +248,8 @@ async function tick() {
     }
   } catch (error) {
     logger.error({ err: error }, "Provisioning worker tick failed");
+  } finally {
+    tickRunning = false;
   }
 }
 

@@ -23660,6 +23660,13 @@ var pool = new Pool3({
   keepAliveInitialDelayMillis: 1e4,
   connectionTimeoutMillis: Number.isFinite(configuredConnectionTimeout) && configuredConnectionTimeout > 0 ? configuredConnectionTimeout : 15e3
 });
+pool.on("connect", (client) => {
+  client.on("error", (error40) => {
+    if (client.listenerCount("error") === 1) {
+      console.error("[db] checked-out PostgreSQL client error", error40);
+    }
+  });
+});
 pool.on("error", (error40) => {
   console.error("[db] idle PostgreSQL client error", error40);
 });

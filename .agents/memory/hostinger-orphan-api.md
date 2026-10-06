@@ -32,3 +32,9 @@ Bind the Hostinger-only API child explicitly to IPv4 loopback (`127.0.0.1`), mat
 **Why:** A wildcard/default address can select an address family that does not match the supervisor's IPv4 probe on some hosts.
 
 **How to apply:** Set a Hostinger-specific child environment flag and branch the API listener address on that flag, rather than changing the shared API's default host.
+
+For PostgreSQL socket failures, `Pool.on("error")` handles idle clients only. Attach a persistent error listener to each connected client so a failure during an active query is consumed instead of terminating Node. Keep API liveness independent from database availability, report database-backed request failures as temporary 503s, and prevent slow worker ticks from overlapping.
+
+**Why:** A transient database timeout emitted an unhandled `pg.Client` error, killing the API child and triggering Hostinger's restart loop even though the HTTP server itself was recoverable.
+
+**How to apply:** Add the client listener on the pool's `connect` event, keep the pool's own idle-error listener, single-flight periodic DB workers, and do not restart the API solely because a database-backed request failed.

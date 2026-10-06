@@ -23,6 +23,15 @@ export const pool = new Pool({
       ? configuredConnectionTimeout
       : 15_000,
 });
+pool.on("connect", (client) => {
+  client.on("error", (error) => {
+    // pg-pool only listens for errors while a client is idle. A socket failure
+    // during an active query otherwise becomes an unhandled EventEmitter error.
+    if (client.listenerCount("error") === 1) {
+      console.error("[db] checked-out PostgreSQL client error", error);
+    }
+  });
+});
 pool.on("error", (error) => {
   console.error("[db] idle PostgreSQL client error", error);
 });
