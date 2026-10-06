@@ -10,6 +10,7 @@ export class AwgApiError extends Error {
   constructor(
     message: string,
     readonly kind?: "stats-route-unavailable",
+    readonly status?: number,
   ) {
     super(message);
     this.name = "AwgApiError";
@@ -210,7 +211,7 @@ export async function getAwgConfiguration(clientId: string): Promise<string> {
     throw new AwgApiError("AmneziaWG API is not configured.");
   }
   if (response.status < 200 || response.status >= 300) {
-    throw new AwgApiError(responseError(response.status, response.text));
+    throw new AwgApiError(responseError(response.status, response.text), undefined, response.status);
   }
   if (!response.text.trim()) throw new AwgApiError("AmneziaWG returned an empty configuration.");
   return response.text;

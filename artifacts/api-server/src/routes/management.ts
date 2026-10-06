@@ -50,7 +50,7 @@ import {
   UpdateServiceResponse,
 } from "@workspace/api-zod";
 import { pool } from "@workspace/db";
-import { serviceUsageBytes, storedPanelUsageSql } from "../lib/service-usage-snapshot";
+import { serviceCanUseAwg, serviceUsageBytes, storedPanelUsageSql } from "../lib/service-usage-snapshot";
 import {
   attachAuth,
   clearSessionCookie,
@@ -85,8 +85,8 @@ import {
   subscriptionUrl,
   type OpenVpnDelivery,
 } from "../lib/rain";
-import { syncServiceUsageById } from "../lib/usage-sync";
 import { hasOtherActiveServiceWithUsername } from "../lib/service-disable-guard";
+import { awgOffsetForReplacementClient, reconcileAwgCounter } from "../lib/awg-counters";
 import {
   AwgApiError,
   createAwgClient,
@@ -905,10 +905,6 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
          ('phonepanel', 'rain_admin', 'https://videobazi.com', NULL, NULL, NULL),
           ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL)
        ON CONFLICT (key) DO NOTHING;
-      DELETE FROM reseller_panel_assignments
-        WHERE panel_key IN ('xxpanel', 'fibrpanel', 'falcon');
-      DELETE FROM panel_configs
-        WHERE key IN ('xxpanel', 'fibrpanel', 'falcon')
   `)
    .catch((error) => {
     console.error("Panel management schema initialization failed", error);
@@ -1033,7 +1029,7 @@ const awgUsageItemSelect = `SELECT svc.id::float8 AS id,
        COALESCE(svc.awg_rx, 0)::float8 / ${AWG_BYTES_PER_GB} AS rx_gb,
        COALESCE(svc.awg_tx, 0)::float8 / ${AWG_BYTES_PER_GB} AS tx_gb,
        COALESCE(svc.awg_total, 0)::float8 / ${AWG_BYTES_PER_GB} AS raw_total_gb,
-       COALESCE(svc.awg_offset_bytes, 0)::float8 / ${AWG_BYTES_PER_GB} AS offset_gb,
+       GREATEST(0, COALESCE(svc.awg_offset_bytes, 0))::float8 / ${AWG_BYTES_PER_GB} AS offset_gb,
        svc.awg_client_id,
        COALESCE(svc.awg_rx, 0)::float8 AS awg_rx_bytes,
        COALESCE(svc.awg_tx, 0)::float8 AS awg_tx_bytes,
@@ -1195,9 +1191,8 @@ router.post("/awg-usage/:id/refresh", requireAuth, async (req, res): Promise<voi
       const rxBytes = Math.max(0, Math.round(stats.rxBytes));
       const txBytes = Math.max(0, Math.round(stats.txBytes));
       const rawBytes = rxBytes + txBytes;
-      const previousBytes = Math.max(0, Number(row.awg_total_bytes ?? 0));
-      let offsetBytes = Math.max(0, Number(row.awg_offset_bytes ?? 0));
-      if (previousBytes > 0 && rawBytes < previousBytes * 0.5) offsetBytes = rawBytes;
+      const counter = reconcileAwgCounter(rawBytes, row.awg_total_bytes, row.awg_offset_bytes);
+      const offsetBytes = counter.offsetBytes;
 
       const updated = await client.query(
         `UPDATE reseller_services
@@ -1425,24 +1420,6 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
   if (!row) {
     res.status(404).json({ error: "لینک اشتراک پیدا نشد" });
     return;
-  }
-  try {
-    await Promise.race([
-      syncServiceUsageById(Number(row.id)),
-      new Promise((resolve) => setTimeout(resolve, 8_000)),
-    ]);
-    const fresh = await pool.query(
-      `SELECT status, expire_at AS expires_at, disable_reason, awg_client_id,
-              last_used_bytes, last_total_bytes, last_remaining_bytes,
-              COALESCE(awg_total, 0)::float8 AS awg_total_bytes,
-              COALESCE(awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
-              ${storedPanelUsageSql("svc")} AS panel_usage_bytes
-       FROM reseller_services svc WHERE svc.id = $1 LIMIT 1`,
-      [row.id],
-    );
-    Object.assign(row, fresh.rows[0] ?? {});
-  } catch (error) {
-    req.log.warn({ err: error, serviceId: row.id }, "Public usage refresh failed");
   }
   const usedBytes = serviceUsageBytes({
     lastUsedBytes: row.last_used_bytes,
@@ -1777,22 +1754,6 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     res.status(404).send("Subscription not found");
     return;
   }
-  try {
-    await Promise.race([
-      syncServiceUsageById(Number(row.id)),
-      new Promise((resolve) => setTimeout(resolve, 8_000)),
-    ]);
-    const fresh = await pool.query(
-      `SELECT status, disable_reason, expire_at AS expires_at,
-              last_used_bytes, last_total_bytes, last_remaining_bytes
-       FROM reseller_services WHERE id = $1 LIMIT 1`,
-      [row.id],
-    );
-    Object.assign(row, fresh.rows[0] ?? {});
-  } catch (error) {
-    req.log.warn({ err: error, serviceId: row.id }, "Feed usage refresh failed");
-  }
-
   const finishedTotalBytes = Number(row.last_total_bytes) > 0
     ? Number(row.last_total_bytes)
     : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
@@ -1952,10 +1913,18 @@ router.get("/public/subscription/:token/awg", async (req, res): Promise<void> =>
     limit_gb: number;
     last_used_bytes: number | null;
     last_total_bytes: number | null;
+    awg_total_bytes: number | null;
+    awg_offset_bytes: number | null;
+    panel_usage_bytes: number | null;
+    remote_disable_pending: number | null;
   }>(
     `SELECT svc.awg_client_id, svc.rain_username AS username, svc.status,
             svc.disable_reason, svc.expire_at AS expires_at, svc.gb::float8 AS limit_gb,
-            svc.last_used_bytes, svc.last_total_bytes
+            svc.last_used_bytes, svc.last_total_bytes,
+            COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+            COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+            ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+            COALESCE(svc.remote_disable_pending, 0)::int AS remote_disable_pending
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
      WHERE rst.token = $1
@@ -1966,11 +1935,21 @@ router.get("/public/subscription/:token/awg", async (req, res): Promise<void> =>
   const totalBytes = Number(row?.last_total_bytes) > 0
     ? Number(row?.last_total_bytes)
     : Math.round(Number(row?.limit_gb ?? 0) * 1024 ** 3);
-  const usedBytes = Math.max(0, Number(row?.last_used_bytes ?? 0));
-  const expiresAt = row?.expires_at ? new Date(row.expires_at).getTime() : 0;
-  const finished = row?.status === "disabled"
-    || (totalBytes > 0 && usedBytes >= totalBytes)
-    || (Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now());
+  const usedBytes = row
+    ? serviceUsageBytes({
+        lastUsedBytes: row.last_used_bytes,
+        panelUsageBytes: row.panel_usage_bytes,
+        awgTotalBytes: row.awg_total_bytes,
+        awgOffsetBytes: row.awg_offset_bytes,
+      })
+    : 0;
+  const finished = row ? !serviceCanUseAwg({
+    status: row.status,
+    expiresAt: row.expires_at,
+    totalBytes,
+    usedBytes,
+    remoteDisablePending: row.remote_disable_pending,
+  }) : false;
   if (row && finished) {
     res.status(410).json({
       error: row.disable_reason || (usedBytes >= totalBytes ? "حجم اشتراک به پایان رسیده است" : "اعتبار اشتراک به پایان رسیده است"),
@@ -4013,7 +3992,7 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
          'tx_gb', COALESCE(svc.awg_tx, 0) / 1073741824.0,
          'raw_total_gb', COALESCE(svc.awg_total, 0) / 1073741824.0,
          'used_gb', GREATEST(0, COALESCE(svc.awg_total, 0) - COALESCE(svc.awg_offset_bytes, 0)) / 1073741824.0,
-         'offset_gb', COALESCE(svc.awg_offset_bytes, 0) / 1073741824.0,
+         'offset_gb', GREATEST(0, COALESCE(svc.awg_offset_bytes, 0)) / 1073741824.0,
          'last_updated', CASE WHEN svc.last_usage_updated_at IS NULL THEN NULL ELSE to_timestamp(svc.last_usage_updated_at) END
         )
         END AS awg_usage
@@ -4281,7 +4260,38 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "اطلاعات سرویس معتبر نیست" });
     return;
   }
+  const lifecycleLock = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lifecycleLock.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [params.data.id],
+    );
+    if (!lockResult.rows[0]?.locked) {
+      res.status(409).json({ error: "عملیات دیگری روی این سرویس در حال انجام است." });
+      return;
+    }
+    lockAcquired = true;
   const owner = ownership("svc", req);
+  if (body.data.status === "active") {
+    const currentStatus = await pool.query<{ status: string }>(
+      `SELECT svc.status FROM reseller_services svc
+       WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+      [params.data.id, ...owner.params],
+    );
+    const status = currentStatus.rows[0]?.status;
+    if (!status) {
+      res.status(404).json({ error: "سرویس پیدا نشد" });
+      return;
+    }
+    if (status !== "active" && status !== "expiring") {
+      res.status(409).json({
+        code: "REMOTE_REACTIVATION_REQUIRED",
+        error: "تغییر وضعیت محلی کافی نیست؛ برای سرویس غیرفعال از بازیابی یک Provider یا تمدید استفاده کنید.",
+      });
+      return;
+    }
+  }
   const values: unknown[] = [];
   const updates: string[] = ["updated_at = NOW()"];
   let remoteWarning: string | null = null;
@@ -4355,11 +4365,27 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
   const result = await pool.query(
     `UPDATE reseller_services svc
      SET ${updates.join(", ")}
-     WHERE svc.id = $${values.length} AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
+     WHERE svc.id = $${values.length}
+       AND ${owner.sql.replace("$1", `$${values.length + 1}`)}
+       ${body.data.status === "active" ? "AND svc.status IN ('active', 'expiring')" : ""}
      RETURNING svc.id`,
     [...values, ...owner.params],
   );
   if (!result.rows[0]) {
+    if (body.data.status === "active") {
+      const stillExists = await pool.query(
+        `SELECT svc.id FROM reseller_services svc
+         WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+        [params.data.id, ...owner.params],
+      );
+      if (stillExists.rows[0]) {
+        res.status(409).json({
+          code: "REMOTE_REACTIVATION_REQUIRED",
+          error: "وضعیت سرویس هم‌زمان تغییر کرد؛ فعال‌سازی محلی انجام نشد.",
+        });
+        return;
+      }
+    }
     res.status(404).json({ error: "سرویس پیدا نشد" });
     return;
   }
@@ -4381,6 +4407,12 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
     [params.data.id],
   );
   res.json(UpdateServiceResponse.parse(fresh.rows[0]));
+  } finally {
+    if (lockAcquired) {
+      await lifecycleLock.query("SELECT pg_advisory_unlock(74421, $1)", [params.data.id]).catch(() => undefined);
+    }
+    lifecycleLock.release();
+  }
 });
 
 router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> => {
@@ -4834,46 +4866,131 @@ router.post("/services/:id/awg", requireAuth, async (req, res): Promise<void> =>
     return;
   }
   const owner = ownership("svc", req);
-  const current = await pool.query<{ awg_client_id: string | null }>(
-    `SELECT svc.awg_client_id FROM reseller_services svc
-     WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
-    [params.data.id, ...owner.params],
-  );
-  if (!current.rows[0]) {
-    res.status(404).json({ error: "سرویس پیدا نشد" });
-    return;
-  }
-  if (current.rows[0].awg_client_id) {
-    try {
-      await getAwgConfiguration(current.rows[0].awg_client_id);
-      res.json({ awg_ready: true, awg_config_url: `/api/services/${params.data.id}/awg/config` });
-      return;
-    } catch {
-      await recreateAwgClient(current.rows[0].awg_client_id);
-      await pool.query(
-        `UPDATE reseller_services
-         SET awg_rx = 0, awg_tx = 0, awg_total = 0, awg_offset_bytes = 0, updated_at = NOW()
-         WHERE id = $1`,
-        [params.data.id],
-      );
-      res.status(201).json({
-        awg_ready: true,
-        awg_repaired: true,
-        awg_config_url: `/api/services/${params.data.id}/awg/config`,
-      });
+  const serviceId = params.data.id;
+  const lockClient = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lockClient.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(74421, $1) AS locked",
+      [serviceId],
+    );
+    if (!lockResult.rows[0]?.locked) {
+      res.status(409).json({ error: "روی این سرویس عملیات دیگری در حال انجام است." });
       return;
     }
+    lockAcquired = true;
+    const current = await pool.query<{
+      awg_client_id: string | null;
+      status: string;
+      expires_at: Date | string | null;
+      limit_gb: number;
+      last_used_bytes: number | null;
+      last_total_bytes: number | null;
+      awg_total_bytes: number | null;
+      awg_offset_bytes: number | null;
+      panel_usage_bytes: number | null;
+      remote_disable_pending: number | null;
+    }>(
+      `SELECT svc.awg_client_id, svc.status, svc.expire_at AS expires_at,
+              svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes,
+              COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+              COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+              ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+              COALESCE(svc.remote_disable_pending, 0)::int AS remote_disable_pending
+       FROM reseller_services svc
+       WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
+      [serviceId, ...owner.params],
+    );
+    const row = current.rows[0];
+    if (!row) {
+      res.status(404).json({ error: "سرویس پیدا نشد" });
+      return;
+    }
+    const totalBytes = Number(row.last_total_bytes) > 0
+      ? Number(row.last_total_bytes)
+      : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+    const usedBytes = serviceUsageBytes({
+      lastUsedBytes: row.last_used_bytes,
+      panelUsageBytes: row.panel_usage_bytes,
+      awgTotalBytes: row.awg_total_bytes,
+      awgOffsetBytes: row.awg_offset_bytes,
+    });
+    if (!serviceCanUseAwg({
+      status: row.status,
+      expiresAt: row.expires_at,
+      totalBytes,
+      usedBytes,
+      remoteDisablePending: row.remote_disable_pending,
+    })) {
+      res.status(409).json({ error: "ساخت یا تعمیر AWG فقط برای سرویس فعال با حجم و زمان باقیمانده مجاز است." });
+      return;
+    }
+
+    if (row.awg_client_id) {
+      try {
+        await getAwgConfiguration(row.awg_client_id);
+        res.json({ awg_ready: true, awg_config_url: `/api/services/${serviceId}/awg/config` });
+        return;
+      } catch (error) {
+        if (!(error instanceof AwgApiError) || error.status !== 404) {
+          res.status(502).json({
+            error: error instanceof Error ? error.message : "خواندن کانفیگ AWG ناموفق بود؛ اطلاعات قبلی حفظ شد.",
+          });
+          return;
+        }
+        try {
+          await recreateAwgClient(row.awg_client_id);
+        } catch (repairError) {
+          res.status(502).json({
+            error: repairError instanceof Error ? repairError.message : "تعمیر کلاینت AWG ناموفق بود.",
+          });
+          return;
+        }
+        const offsetBytes = awgOffsetForReplacementClient(row.awg_total_bytes, row.awg_offset_bytes);
+        const saved = await pool.query(
+          `UPDATE reseller_services
+           SET awg_rx = 0, awg_tx = 0, awg_total = 0, awg_offset_bytes = $1, updated_at = NOW()
+           WHERE id = $2 AND awg_client_id = $3
+           RETURNING id`,
+          [offsetBytes, serviceId, row.awg_client_id],
+        );
+        if (!saved.rows[0]) {
+          res.status(409).json({ error: "سرویس هنگام تعمیر تغییر کرد؛ دوباره وضعیت را بررسی کنید." });
+          return;
+        }
+        res.status(201).json({
+          awg_ready: true,
+          awg_repaired: true,
+          awg_config_url: `/api/services/${serviceId}/awg/config`,
+        });
+        return;
+      }
+    }
+
+    const awg = await createAwgClient();
+    if (!awg.clientId) {
+      res.status(502).json({ error: awg.error ?? "ساخت AmneziaWG انجام نشد" });
+      return;
+    }
+    const saved = await pool.query(
+      `UPDATE reseller_services
+       SET awg_client_id = $1, updated_at = NOW()
+       WHERE id = $2 AND awg_client_id IS NULL
+         AND status IN ('active', 'expiring')
+       RETURNING id`,
+      [awg.clientId, serviceId],
+    );
+    if (!saved.rows[0]) {
+      res.status(409).json({ error: "سرویس هنگام ساخت AWG تغییر کرد؛ وضعیت را دوباره بررسی کنید." });
+      return;
+    }
+    res.status(201).json({ awg_ready: true, awg_config_url: `/api/services/${serviceId}/awg/config` });
+  } finally {
+    if (lockAcquired) {
+      await lockClient.query("SELECT pg_advisory_unlock(74421, $1)", [serviceId]).catch(() => undefined);
+    }
+    lockClient.release();
   }
-  const awg = await createAwgClient();
-  if (!awg.clientId) {
-    res.status(502).json({ error: awg.error ?? "ساخت AmneziaWG انجام نشد" });
-    return;
-  }
-  await pool.query(
-    "UPDATE reseller_services SET awg_client_id = $1, updated_at = NOW() WHERE id = $2",
-    [awg.clientId, params.data.id],
-  );
-  res.status(201).json({ awg_ready: true, awg_config_url: `/api/services/${params.data.id}/awg/config` });
 });
 
 router.get("/services/:id/awg/config", requireAuth, async (req, res): Promise<void> => {
@@ -4883,21 +5000,62 @@ router.get("/services/:id/awg/config", requireAuth, async (req, res): Promise<vo
     return;
   }
   const owner = ownership("svc", req);
-  const current = await pool.query<{ awg_client_id: string | null }>(
-    `SELECT svc.awg_client_id FROM reseller_services svc
+  const current = await pool.query<{
+    awg_client_id: string | null;
+    status: string;
+    expires_at: Date | string | null;
+    limit_gb: number;
+    last_used_bytes: number | null;
+    last_total_bytes: number | null;
+    awg_total_bytes: number | null;
+    awg_offset_bytes: number | null;
+    panel_usage_bytes: number | null;
+    remote_disable_pending: number | null;
+  }>(
+    `SELECT svc.awg_client_id, svc.status, svc.expire_at AS expires_at,
+            svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes,
+            COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+            COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+            ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+            COALESCE(svc.remote_disable_pending, 0)::int AS remote_disable_pending
+     FROM reseller_services svc
      WHERE svc.id = $1 AND ${owner.sql.replace("$1", "$2")}`,
     [params.data.id, ...owner.params],
   );
-  if (!current.rows[0]?.awg_client_id) {
+  const row = current.rows[0];
+  if (!row) {
+    res.status(404).json({ error: "سرویس پیدا نشد" });
+    return;
+  }
+  if (!row.awg_client_id) {
     res.status(404).json({ error: "کلاینت AmneziaWG پیدا نشد" });
     return;
   }
+  const totalBytes = Number(row.last_total_bytes) > 0
+    ? Number(row.last_total_bytes)
+    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = serviceUsageBytes({
+    lastUsedBytes: row.last_used_bytes,
+    panelUsageBytes: row.panel_usage_bytes,
+    awgTotalBytes: row.awg_total_bytes,
+    awgOffsetBytes: row.awg_offset_bytes,
+  });
+  if (!serviceCanUseAwg({
+    status: row.status,
+    expiresAt: row.expires_at,
+    totalBytes,
+    usedBytes,
+    remoteDisablePending: row.remote_disable_pending,
+  })) {
+    res.status(409).json({ error: "کانفیگ AWG برای سرویس غیرفعال، منقضی یا تمام‌شده ارائه نمی‌شود." });
+    return;
+  }
   try {
-    const configuration = await getAwgConfiguration(current.rows[0].awg_client_id);
+    const configuration = await getAwgConfiguration(row.awg_client_id);
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${current.rows[0].awg_client_id}.conf"`,
+      `attachment; filename="${row.awg_client_id}.conf"`,
     );
     res.send(configuration);
   } catch (error) {
@@ -5136,7 +5294,7 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
             tx_gb: Number(service.awg_tx ?? 0) / 1073741824,
             raw_total_gb: Number(service.awg_total ?? 0) / 1073741824,
             used_gb: Math.max(0, Number(service.awg_total ?? 0) - Number(service.awg_offset_bytes ?? 0)) / 1073741824,
-            offset_gb: Number(service.awg_offset_bytes ?? 0) / 1073741824,
+            offset_gb: Math.max(0, Number(service.awg_offset_bytes ?? 0)) / 1073741824,
             last_updated: service.last_usage_updated_at
               ? new Date(Number(service.last_usage_updated_at) * 1000).toISOString()
               : null,

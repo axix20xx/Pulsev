@@ -3,7 +3,8 @@ import { createHash, randomBytes } from "node:crypto";
 import webpush from "web-push";
 import { pool } from "@workspace/db";
 import { serviceUsageBytes, storedPanelUsageSql } from "../lib/service-usage-snapshot";
-import { consumeMobileOtp, findActiveMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
+import { allowMobileAuthAttempt, consumeMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
+import { isAllowedPushEndpoint } from "../lib/mobile-push-url";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -445,7 +446,11 @@ const sendPush = async (
       [notification.campaignId ?? null, notification.id ?? null, customerId, subscription.id],
     );
     const attemptId = attempt.rows[0]?.id;
+    const pushEndpointAllowed = isAllowedPushEndpoint(subscription.endpoint);
     try {
+      if (!pushEndpointAllowed) {
+        throw Object.assign(new Error("Unsupported push endpoint host"), { statusCode: 410 });
+      }
       await webpush.sendNotification(
         { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
         JSON.stringify({
@@ -473,7 +478,7 @@ const sendPush = async (
       const statusCode = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) : 0;
       const responseBody = error && typeof error === "object" && "body" in error && typeof error.body === "string" ? error.body : "";
       const badJwtToken = responseBody.includes("BadJwtToken");
-      if (statusCode === 404 || statusCode === 410 || badJwtToken) {
+      if (!pushEndpointAllowed || statusCode === 404 || statusCode === 410 || badJwtToken) {
         await pool.query("UPDATE mobile_push_subscriptions SET is_active = 0, updated_at = NOW() WHERE id = $1", [subscription.id]);
       }
       if (attemptId) {
@@ -915,21 +920,20 @@ router.post("/mobile/auth/otp/request", async (req, res): Promise<void> => {
     res.status(400).json({ error: "شماره موبایل معتبر نیست." });
     return;
   }
-  const result = await findCustomerByPhone(candidates);
-  const row = result.rows[0];
-  if (!row) {
-    res.status(404).json({ error: "برای این شماره موبایل مشتری یا سرویسی پیدا نشد." });
-    return;
-  }
-  const challengeId = await findActiveMobileOtp(row.customer_id, row.phone);
-  if (!challengeId) {
-    res.status(409).json({ error: "کد ورود را از فروشنده یا مدیر اصلی دریافت کنید." });
+  const rateLimit = await allowMobileAuthAttempt(
+    "request",
+    [...candidates].sort().join("|"),
+    req.ip ?? req.socket.remoteAddress ?? "unknown",
+  );
+  if (!rateLimit.allowed) {
+    res.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
+    res.status(429).json({ error: "تعداد درخواست‌های ورود زیاد است؛ کمی بعد دوباره تلاش کنید." });
     return;
   }
   res.json({
-    challenge_id: challengeId,
-    expires_at: null,
-    customer: { name: row.customer_name, phone: row.phone },
+    // This is an opaque client nonce, not a customer or OTP record identifier.
+    challenge_id: randomBytes(24).toString("hex"),
+    expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
   });
 });
 
@@ -938,19 +942,29 @@ router.post("/mobile/auth/otp/verify", async (req, res): Promise<void> => {
   const candidates = phoneCandidates(req.body?.phone);
   const challengeId = typeof req.body?.challenge_id === "string" ? req.body.challenge_id.trim() : "";
   const otp = normalizeMobileOtp(req.body?.otp);
-   if (!candidates.length || !challengeId || otp.length !== 4) {
+  if (!candidates.length || !/^[A-Fa-f0-9]{48}$/.test(challengeId) || otp.length !== 4) {
     res.status(400).json({ error: "شماره موبایل و کد ورود معتبر وارد کنید." });
+    return;
+  }
+  const rateLimit = await allowMobileAuthAttempt(
+    "verify",
+    [...candidates].sort().join("|"),
+    req.ip ?? req.socket.remoteAddress ?? "unknown",
+  );
+  if (!rateLimit.allowed) {
+    res.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
+    res.status(429).json({ error: "تعداد تلاش‌های ورود زیاد است؛ کمی بعد دوباره تلاش کنید." });
     return;
   }
   const result = await findCustomerByPhone(candidates);
   const row = result.rows[0];
   if (!row) {
-    res.status(404).json({ error: "برای این شماره موبایل مشتری یا سرویسی پیدا نشد." });
+    res.status(401).json({ error: "شماره موبایل یا کد ورود معتبر نیست یا منقضی شده است." });
     return;
   }
   const verification = await consumeMobileOtp(challengeId, row.customer_id, row.phone, otp);
   if (!verification.ok) {
-    res.status(401).json({ error: verification.reason });
+    res.status(401).json({ error: "شماره موبایل یا کد ورود معتبر نیست یا منقضی شده است." });
     return;
   }
   await createMobileSession(res, row.customer_id, row.customer_name, row.phone, row.service_id ?? null);
@@ -1081,7 +1095,7 @@ router.post("/mobile/push/subscribe", requireMobileAuth, async (req, res): Promi
   const endpoint = typeof subscription?.endpoint === "string" ? subscription.endpoint.trim() : "";
   const p256dh = typeof subscription?.keys?.p256dh === "string" ? subscription.keys.p256dh.trim() : "";
   const auth = typeof subscription?.keys?.auth === "string" ? subscription.keys.auth.trim() : "";
-  if (!endpoint.startsWith("https://") || endpoint.length > 2048 || !p256dh || !auth || p256dh.length > 512 || auth.length > 512) {
+  if (!isAllowedPushEndpoint(endpoint) || endpoint.length > 2048 || !p256dh || !auth || p256dh.length > 512 || auth.length > 512) {
     res.status(400).json({ error: "اطلاعات اعلان معتبر نیست." });
     return;
   }

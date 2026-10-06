@@ -10,6 +10,11 @@ function nonNegativeBytes(value: number | null | undefined): number {
   return Number.isFinite(number) ? Math.max(0, number) : 0;
 }
 
+function signedBytes(value: number | null | undefined): number {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? Math.round(number) : 0;
+}
+
 /**
  * last_used_bytes is already combined by the usage worker. Compare it with a
  * fresh sum of persisted provider and AWG counters, then use the larger value:
@@ -20,9 +25,26 @@ export function serviceUsageBytes(snapshot: ServiceUsageSnapshot): number {
   const providers = nonNegativeBytes(snapshot.panelUsageBytes);
   const awg = Math.max(
     0,
-    nonNegativeBytes(snapshot.awgTotalBytes) - nonNegativeBytes(snapshot.awgOffsetBytes),
+    nonNegativeBytes(snapshot.awgTotalBytes) - signedBytes(snapshot.awgOffsetBytes),
   );
   return Math.max(storedCombined, providers + awg);
+}
+
+export function serviceCanUseAwg(input: {
+  status: string;
+  expiresAt: Date | string | null | undefined;
+  totalBytes: number;
+  usedBytes: number;
+  remoteDisablePending?: number | null;
+}): boolean {
+  const expiry = input.expiresAt ? new Date(input.expiresAt).getTime() : null;
+  return (input.status === "active" || input.status === "expiring")
+    && (expiry === null || (Number.isFinite(expiry) && expiry > Date.now()))
+    && Number(input.remoteDisablePending ?? 0) !== 1
+    && Number.isFinite(input.totalBytes)
+    && input.totalBytes > 0
+    && Number.isFinite(input.usedBytes)
+    && input.usedBytes < input.totalBytes;
 }
 
 /**

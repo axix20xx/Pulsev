@@ -284,11 +284,6 @@ export function startProvisioningWorker() {
     }
   }).catch((error) => logger.error({ err: error }, "Failed to recover stale provisioning jobs"));
   void pool.query(
-    `UPDATE service_provision_jobs
-     SET next_attempt_at = NOW(), updated_at = NOW()
-     WHERE status = 'retrying'`,
-  ).catch((error) => logger.error({ err: error }, "Failed to wake retrying provisioning jobs"));
-  void pool.query(
     `UPDATE service_provision_jobs job
      SET status = 'retrying',
          lifecycle_version = svc.lifecycle_version,

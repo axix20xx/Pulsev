@@ -2,10 +2,12 @@ import { pool } from "@workspace/db";
 import { AwgApiError, disableAwgClient, getAwgStats } from "./amneziawg";
 import { disablePanelUser, readPanelUsages } from "./rain";
 import { hasOtherActiveServiceWithUsername } from "./service-disable-guard";
+import { effectiveAwgBytes, reconcileAwgCounter } from "./awg-counters";
 import { logger } from "./logger";
 
 const BYTES_PER_GB = 1024 ** 3;
 const DEFAULT_INTERVAL_MS = 60_000;
+const COMBINED_WORKER_LOCK_NAMESPACE = 74424;
 let running = false;
 const lastAwgUsageWarningAt = new Map<string, number>();
 const AWG_ROUTE_WARNING_INTERVAL_MS = 5 * 60_000;
@@ -89,7 +91,7 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
       : await updatePanelUsage(service.rain_username, usage.panelKey, usage.usedBytes);
   }
 
-  let awgUsedBytes = Math.max(0, Number(service.awg_total ?? 0) - Number(service.awg_offset_bytes ?? 0));
+  let awgUsedBytes = effectiveAwgBytes(service.awg_total, service.awg_offset_bytes);
   let awgRx = 0;
   let awgTx = 0;
   let awgStatsFresh = !service.awg_client_id;
@@ -100,10 +102,9 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
       awgTx = stats.txBytes;
       awgStatsFresh = true;
       const rawAwgBytes = awgRx + awgTx;
-      const previousAwgBytes = Number(service.awg_total ?? 0);
-      let offset = Number(service.awg_offset_bytes ?? 0);
-      if (previousAwgBytes > 0 && rawAwgBytes < previousAwgBytes * 0.5) offset = rawAwgBytes;
-      awgUsedBytes = Math.max(0, rawAwgBytes - offset);
+      const counter = reconcileAwgCounter(rawAwgBytes, service.awg_total, service.awg_offset_bytes);
+      const offset = counter.offsetBytes;
+      awgUsedBytes = counter.effectiveBytes;
       await pool.query(
         `UPDATE reseller_services
          SET awg_rx = $1, awg_tx = $2, awg_total = $3, awg_offset_bytes = $4
@@ -289,8 +290,25 @@ export async function syncServiceUsageById(serviceId: number): Promise<boolean> 
 export async function runUsageSync(): Promise<void> {
   if (running) return;
   running = true;
+  let unlockWorkerLock: (() => Promise<void>) | undefined;
+  let releaseWorkerLock: (() => void) | undefined;
+  let workerLockAcquired = false;
   try {
-    const result = await pool.query<ServiceRow>(
+    const workerLockClient = await pool.connect();
+    unlockWorkerLock = async () => {
+      await workerLockClient.query(
+        "SELECT pg_advisory_unlock($1, $2)",
+        [COMBINED_WORKER_LOCK_NAMESPACE, 1],
+      );
+    };
+    releaseWorkerLock = () => workerLockClient.release();
+    const lockResult = await workerLockClient.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock($1, $2) AS locked",
+      [COMBINED_WORKER_LOCK_NAMESPACE, 1],
+    );
+    if (!lockResult.rows[0]?.locked) return;
+    workerLockAcquired = true;
+    const result = await workerLockClient.query<ServiceRow>(
       `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
               COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
@@ -313,6 +331,8 @@ export async function runUsageSync(): Promise<void> {
   } catch (error) {
     logger.error({ err: error }, "Combined usage sync failed");
   } finally {
+    if (workerLockAcquired) await unlockWorkerLock?.().catch(() => undefined);
+    releaseWorkerLock?.();
     running = false;
   }
 }

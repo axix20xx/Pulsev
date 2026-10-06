@@ -1,10 +1,11 @@
 import { pool } from "@workspace/db";
 import { AwgApiError, getAwgStats, type AwgStats } from "./amneziawg";
+import { effectiveAwgBytes, reconcileAwgCounter } from "./awg-counters";
 import { logger } from "./logger";
 
 const AWG_USAGE_POLL_INTERVAL_MS = 5 * 60_000;
 const AWG_USAGE_POLL_START_DELAY_MS = 5_000;
-const AWG_USAGE_POLL_MIN_GAP_MS = 500;
+const AWG_USAGE_POLL_CONCURRENCY = 3;
 const SERVICE_LOCK_NAMESPACE = 74421;
 const AWG_WORKER_LOCK_NAMESPACE = 74423;
 let running = false;
@@ -85,8 +86,6 @@ type AwgServiceRow = {
 
 type PollResult = AwgUsagePollEvent["status"];
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 function safeErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : "AWG API request failed.";
   return message
@@ -120,7 +119,7 @@ function recordServiceEvent(
     raw_total_bytes: rawTotal,
     effective_bytes: rawTotal === null
       ? null
-      : Math.max(0, rawTotal - Math.max(0, options.offsetBytes ?? 0)),
+      : effectiveAwgBytes(rawTotal, options.offsetBytes),
   });
 }
 
@@ -166,12 +165,13 @@ async function pollServiceAwgUsage(identity: AwgUsagePollIdentity): Promise<Poll
     const stats = await getAwgStats(service.awg_client_id);
     const rxBytes = Math.max(0, Math.round(stats.rxBytes));
     const txBytes = Math.max(0, Math.round(stats.txBytes));
-    const rawBytes = Math.max(0, rxBytes + txBytes);
-    const previousBytes = Math.max(0, Number(service.awg_total ?? 0));
-    let offsetBytes = Math.max(0, Number(service.awg_offset_bytes ?? 0));
-    if (previousBytes > 0 && rawBytes < previousBytes * 0.5) {
-      offsetBytes = rawBytes;
-    }
+    const counter = reconcileAwgCounter(
+      rxBytes + txBytes,
+      service.awg_total,
+      service.awg_offset_bytes,
+    );
+    const rawBytes = counter.rawBytes;
+    const offsetBytes = counter.offsetBytes;
 
     const updated = await client.query(
       `UPDATE reseller_services
@@ -271,28 +271,32 @@ export async function runAwgUsagePoll(): Promise<void> {
        ORDER BY svc.id`,
     );
 
-    for (let index = 0; index < services.rows.length; index += 1) {
-      const result = await pollServiceAwgUsage(services.rows[index]);
-      workerStatus.last_scanned += 1;
-      if (result === "updated") workerStatus.last_updated += 1;
-      else if (result === "failed") {
-        workerStatus.last_failed += 1;
-        workerStatus.last_error = "برای یک یا چند سرویس دریافت آمار ناموفق بود.";
+    let stopForMissingRoute = false;
+    for (let index = 0; index < services.rows.length; index += AWG_USAGE_POLL_CONCURRENCY) {
+      const batch = services.rows.slice(index, index + AWG_USAGE_POLL_CONCURRENCY);
+      const results = await Promise.all(batch.map((service) => pollServiceAwgUsage(service)));
+      workerStatus.last_scanned += batch.length;
+      for (const result of results) {
+        if (result === "updated") workerStatus.last_updated += 1;
+        else if (result === "failed") {
+          workerStatus.last_failed += 1;
+          workerStatus.last_error = "برای یک یا چند سرویس دریافت آمار ناموفق بود.";
+        } else if (result === "route-unavailable") {
+          workerStatus.last_failed += 1;
+          workerStatus.last_error = "مسیرهای آمار AWG در دسترس نیستند؛ این چرخه برای جلوگیری از درخواست‌های تکراری متوقف شد.";
+          stopForMissingRoute = true;
+        } else workerStatus.last_skipped += 1;
       }
-      else if (result === "route-unavailable") {
-        workerStatus.last_failed += 1;
-        workerStatus.last_error = "مسیرهای آمار AWG در دسترس نیستند؛ این چرخه برای جلوگیری از درخواست‌های تکراری متوقف شد.";
+      if (stopForMissingRoute) {
         logger.warn("AWG stats routes are unavailable; pausing this polling cycle without changing saved counters");
         break;
-      } else workerStatus.last_skipped += 1;
-
-      if (index < services.rows.length - 1) await wait(AWG_USAGE_POLL_MIN_GAP_MS);
+      }
     }
 
     if (services.rows.length) {
       logger.info(
         {
-          scanned: services.rows.length,
+          scanned: workerStatus.last_scanned,
           updated: workerStatus.last_updated,
           skipped: workerStatus.last_skipped,
           failed: workerStatus.last_failed,

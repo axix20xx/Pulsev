@@ -11,7 +11,7 @@ const { outputFiles } = await build({
   write: false,
 });
 const code = Buffer.from(outputFiles[0].text).toString("base64");
-const { serviceUsageBytes, storedPanelUsageSql } = await import(`data:text/javascript;base64,${code}`);
+const { serviceCanUseAwg, serviceUsageBytes, storedPanelUsageSql } = await import(`data:text/javascript;base64,${code}`);
 
 test("adds effective AWG usage when the saved combined total is behind", () => {
   assert.equal(serviceUsageBytes({
@@ -38,6 +38,29 @@ test("never lowers a previously saved combined total when a source snapshot is s
     awgTotalBytes: 8,
     awgOffsetBytes: 3,
   }), 25);
+});
+
+test("signed AWG carry-forward offsets preserve quota usage after a remote counter reset", () => {
+  assert.equal(serviceUsageBytes({
+    lastUsedBytes: 0,
+    panelUsageBytes: 5,
+    awgTotalBytes: 10,
+    awgOffsetBytes: -5,
+  }), 20);
+});
+
+test("AWG actions require an active, unexpired service with quota remaining", () => {
+  const active = {
+    status: "active",
+    expiresAt: new Date(Date.now() + 60_000),
+    totalBytes: 100,
+    usedBytes: 99,
+  };
+  assert.equal(serviceCanUseAwg(active), true);
+  assert.equal(serviceCanUseAwg({ ...active, usedBytes: 100 }), false);
+  assert.equal(serviceCanUseAwg({ ...active, status: "disabled" }), false);
+  assert.equal(serviceCanUseAwg({ ...active, expiresAt: new Date(Date.now() - 1) }), false);
+  assert.equal(serviceCanUseAwg({ ...active, remoteDisablePending: 1 }), false);
 });
 
 test("panel snapshot SQL reads only the latest saved row per configured panel", () => {

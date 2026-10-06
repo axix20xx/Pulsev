@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, createContext, useContext, useId, useRef, type ReactNode, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 import { Activity, Apple, ArrowUpLeft, Bell, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Filter, Gauge, Globe2, History, KeyRound, Laptop, Lock, Monitor, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, QrCode, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Smartphone, Sparkles, Tag, Terminal, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import QRCode from 'qrcode';
@@ -224,6 +225,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const [prefs, setPrefs] = usePersisted<Prefs>('prefs', { businessName: 'مرکز فروش پالس', currency: 'تومان', reminderDays: '۷', compact: false });
   const [localResellers, setLocalResellers] = useState<PulseContextValue['resellers']>([]);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const sessionQuery = useGetAuthSession({ query: { queryKey: getGetAuthSessionQueryKey() } });
   const canLoadApi = sessionQuery.data?.authenticated === true;
   const authScope = sessionQuery.data?.authenticated
@@ -292,7 +294,16 @@ export function PulseProvider({ children }: { children: ReactNode }) {
             void queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() });
             if (statusChanged) void queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey() });
           },
-          onError: () => void queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() }),
+          onError: () => {
+            void queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() });
+            toast({
+              title: 'ذخیره تغییر انجام نشد',
+              description: statusChanged && status === 'active'
+                ? 'فعال‌سازی محلی برای سرویس غیرفعال مجاز نیست؛ از مسیر بازیابی Provider یا تمدید استفاده کنید.'
+                : 'درخواست انجام نشد. وضعیت سرویس دوباره بارگذاری شد.',
+              variant: 'destructive',
+            });
+          },
         },
       );
     }
