@@ -13,6 +13,12 @@ import { PulseNetworkAccent } from '@/components/pulse-network-accent';
 import { copyTextToClipboard } from '@/lib/browser-utils';
 import './public-sub-lux.css';
 import { openVpnConnectImportUrl } from '@/lib/openvpn-connect-link';
+import {
+  PublicSubscriptionWizard,
+  type PublicSubscriptionAppRecommendation,
+  type PublicSubscriptionOS,
+  type PublicSubscriptionProtocol,
+} from './public-subscription-wizard';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
@@ -2575,14 +2581,14 @@ function PublicSubscriptionContent() {
 
 function PublicSubscriptionContentV2() {
   const reduceMotion = useReducedMotion();
-  const [token, setToken] = useState(() => new URLSearchParams(window.location.search).get('t') || '');
+  const [token, setToken] = useState(() => subscriptionTokenFromUrl(new URL(window.location.href)) || '');
   const [data, setData] = useState<any>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [activeOS, setActiveOS] = useState<ClientOS>('iOS');
   const [copied, setCopied] = useState<'page' | 'feed' | 'awg' | null>(null);
   const [shared, setShared] = useState(false);
-  const [awgOpen, setAwgOpen] = useState(false);
   const [connectState, setConnectState] = useState<string | null>(null);
+  const [selectedProtocol, setSelectedProtocol] = useState<PublicSubscriptionProtocol | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [openVpnBusy, setOpenVpnBusy] = useState(false);
   const [openVpnLoading, setOpenVpnLoading] = useState(false);
@@ -2593,7 +2599,7 @@ function PublicSubscriptionContentV2() {
   useEffect(() => {
     const detected = detectClientOS();
     setActiveOS(detected === 'Other' ? 'iOS' : detected);
-    const nextToken = new URLSearchParams(window.location.search).get('t') || '';
+    const nextToken = subscriptionTokenFromUrl(new URL(window.location.href)) || '';
     setToken(nextToken);
     if (!nextToken) { setState('error'); return; }
     let active = true;
@@ -2726,7 +2732,7 @@ function PublicSubscriptionContentV2() {
     return () => { document.title = 'پالس'; };
   }, [data?.plan]);
 
-  type AppRecommendation = { id: string; name: string; description: string; compatibility: string; subscriptionUrl: string; schemeUrl?: string; storeUrl?: string; directUrl?: string; icon: typeof Activity; isPrimary?: boolean };
+  type AppRecommendation = PublicSubscriptionAppRecommendation;
   const getApps = (os: ClientOS): AppRecommendation[] => {
     const name = encodeURIComponent(data?.plan || 'Pulse');
     const uri = feedUrl;
@@ -2735,13 +2741,13 @@ function PublicSubscriptionContentV2() {
     const encodedClash = encodeURIComponent(clash);
     if (os === 'iOS') return [
       { id: 'clash-plus', name: 'Clash Plus', description: 'کانفیگ اختصاصی سازگار با Mihomo', compatibility: 'iOS', subscriptionUrl: clash, schemeUrl: `clash://install-config?url=${encodedClash}&name=${name}`, storeUrl: 'https://apps.apple.com/us/app/clash-plus-smart-proxy-tool/id6774378761', icon: Activity, isPrimary: true },
-      { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', compatibility: 'iOS', subscriptionUrl: uri, schemeUrl: `v2box://install-sub?url=${uri}&name=${name}`, storeUrl: 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690', icon: Globe2 },
+      { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', compatibility: 'iOS', subscriptionUrl: uri, schemeUrl: `v2box://install-sub?url=${encodedUri}&name=${name}`, storeUrl: 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690', icon: Globe2 },
       { id: 'streisand', name: 'Streisand', description: 'لینک را از کلیپ‌بورد وارد کنید', compatibility: 'iOS', subscriptionUrl: uri, storeUrl: 'https://apps.apple.com/us/app/streisand/id6450534064', icon: ShieldCheck },
       { id: 'shadowrocket', name: 'Shadowrocket', description: 'لینک را کپی و داخل برنامه اضافه کنید', compatibility: 'iOS', subscriptionUrl: uri, storeUrl: 'https://apps.apple.com/us/app/shadowrocket/id932747118', icon: Settings2 },
     ];
     if (os === 'Android') return [
       { id: 'clash-meta', name: 'Clash Meta', description: 'کانفیگ اختصاصی سازگار با Mihomo', compatibility: 'Android', subscriptionUrl: clash, schemeUrl: `clash://install-config?url=${encodedClash}&name=${name}`, directUrl: 'https://github.com/MetaCubeX/ClashMetaForAndroid/releases', icon: Activity, isPrimary: true },
-      { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', compatibility: 'Android', subscriptionUrl: uri, schemeUrl: `v2box://install-sub?url=${uri}&name=${name}`, storeUrl: 'https://play.google.com/store/apps/details?id=dev.hexasoftware.v2box', icon: Globe2 },
+      { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', compatibility: 'Android', subscriptionUrl: uri, schemeUrl: `v2box://install-sub?url=${encodedUri}&name=${name}`, storeUrl: 'https://play.google.com/store/apps/details?id=dev.hexasoftware.v2box', icon: Globe2 },
       { id: 'v2rayng', name: 'v2rayNG', description: 'کلاینت قدرتمند و حرفه‌ای', compatibility: 'Android', subscriptionUrl: uri, schemeUrl: `v2rayng://install-sub?url=${encodedUri}#${name}`, storeUrl: 'https://play.google.com/store/apps/details?id=com.v2ray.ang', icon: Server },
       { id: 'hiddify', name: 'Hiddify', description: 'ساده و کاربرپسند', compatibility: 'Android', subscriptionUrl: uri, schemeUrl: `hiddify://import/${encodedUri}#${name}`, storeUrl: 'https://play.google.com/store/apps/details?id=app.hiddify.com', icon: ShieldCheck },
     ];
@@ -2756,19 +2762,12 @@ function PublicSubscriptionContentV2() {
     ];
     return [
       { id: 'clash-verge', name: 'Clash Verge Rev', description: 'کانفیگ اختصاصی Clash برای macOS', compatibility: 'macOS', subscriptionUrl: clash, directUrl: 'https://github.com/clash-verge-rev/clash-verge-rev/releases', icon: Activity, isPrimary: true },
-      { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', compatibility: 'macOS', subscriptionUrl: uri, schemeUrl: `v2box://install-sub?url=${uri}&name=${name}`, storeUrl: 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690', icon: Globe2 },
+      { id: 'v2box', name: 'V2Box', description: 'اتصال سریع با لینک استاندارد', compatibility: 'macOS', subscriptionUrl: uri, schemeUrl: `v2box://install-sub?url=${encodedUri}&name=${name}`, storeUrl: 'https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690', icon: Globe2 },
       { id: 'surge', name: 'Surge', description: 'کلاینت حرفه‌ای شبکه', compatibility: 'macOS', subscriptionUrl: uri, schemeUrl: `surge:///install-config?url=${encodedUri}`, directUrl: 'https://nssurge.com/', icon: Activity },
     ];
   };
-  const platformLabels: ClientOS[] = ['iOS', 'Android', 'Windows', 'macOS', 'Linux'];
-  const apps = state === 'ready' && !finished ? getApps(activeOS) : [];
-  const awgPlatforms: Array<{ id: string; label: string; detail: string; href: string; icon: typeof Apple; isAlternative?: boolean }> = [
-    { id: 'ios', label: 'iOS', detail: 'اپ رسمی AmneziaWG از App Store', href: 'https://apps.apple.com/app/amneziawg/id6478942365', icon: Apple },
-    { id: 'android', label: 'Android', detail: 'اپ رسمی AmneziaWG در Google Play', href: 'https://play.google.com/store/apps/details?id=org.amnezia.awg', icon: Smartphone },
-    { id: 'windows', label: 'Windows', detail: 'نسخه رسمی برای ویندوز', href: 'https://github.com/amnezia-vpn/amneziawg-windows-client/releases/latest', icon: Monitor },
-    { id: 'macos', label: 'macOS', detail: 'Streisand؛ جایگزین مستند رسمی', href: 'https://docs.amnezia.org/documentation/alternative-clients', icon: Laptop, isAlternative: true },
-    { id: 'linux', label: 'Linux', detail: 'Nekoray؛ جایگزین مستند رسمی', href: 'https://docs.amnezia.org/documentation/alternative-clients', icon: Terminal, isAlternative: true },
-  ];
+  const wizardOS: PublicSubscriptionOS = activeOS === 'Other' ? 'iOS' : activeOS;
+  const apps = state === 'ready' && !finished ? getApps(wizardOS) : [];
   const pageMotion = reduceMotion ? {} : { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: .45, ease: 'easeOut' as const } };
 
   if (state === 'loading') return <div className="public-sub-v3 public-sub-lux public-sub-state" dir="rtl"><div className="public-sub-loading-card"><span className="pulse-mark large"><span /></span><div className="public-sub-loading-copy"><strong>پالس</strong><span>در حال آماده‌سازی فضای اشتراک شما</span></div><div className="public-sub-loading-bar wide" /><div className="public-sub-loading-bar" /></div></div>;
@@ -2776,99 +2775,44 @@ function PublicSubscriptionContentV2() {
 
   return (
     <>
-    <div className={`public-sub-v3 public-sub-lux ${statusTone}`} dir="rtl">
-      <main className="public-sub-app-shell">
-        <motion.header {...pageMotion} className="public-sub-appbar">
-          <div className="public-sub-v3-brand"><span className="pulse-mark"><span /></span><div><strong>پالس</strong><small>فضای اتصال شخصی</small></div></div>
-          <div className="public-sub-appbar-actions"><span className="public-sub-secure-chip" data-testid="status-public-sub-private"><Lock size={13} /> لینک خصوصی</span><button type="button" className="public-sub-icon-button" onClick={() => void sharePage()} aria-label={shared ? 'ارسال شد' : 'اشتراک‌گذاری صفحه'} title={shared ? 'ارسال شد' : 'اشتراک‌گذاری صفحه'} data-testid="button-public-sub-share"><ArrowUpLeft size={17} /></button></div>
-        </motion.header>
-
-        <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .08, duration: .5 }} className="public-sub-hero-card" data-testid="card-public-sub-hero">
-          <div className="public-sub-hero-top"><span className={`public-sub-status-pill ${statusTone}`} data-testid="status-public-sub-subscription"><span className="public-sub-status-dot" />{statusLabel}</span><span className="public-sub-hero-caption"><ShieldCheck size={14} /> اشتراک شخصی شما</span></div>
-          <div className="public-sub-hero-copy"><p className="public-sub-kicker">{finished ? 'اشتراک شما پایان یافته است' : 'اتصال شما آماده است'}</p><h1 data-testid="text-public-sub-plan">{data.plan || 'سرویس ویژه'}</h1><p className="public-sub-username" dir="ltr" data-testid="text-public-sub-username">@{data.username}</p></div>
-          <div className="public-sub-hero-meta"><div><span>انقضا</span><strong data-testid="text-public-sub-expiry">{dateLabel(data.expires_at)}</strong></div><div><span>حجم باقی‌مانده</span><strong data-testid="text-public-sub-remaining">{number(remainingGb, 0)} GB</strong></div><div><span>سرور</span><strong>{data.provider_label || 'پالس'}</strong></div></div>
-          <div className="public-sub-hero-actions">{!finished && <button type="button" className="public-sub-hero-action primary" onClick={() => document.getElementById('public-sub-connect')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })} data-testid="button-public-sub-connect"><Wifi size={15} />انتخاب برنامه اتصال</button>}<button type="button" className="public-sub-hero-action secondary" onClick={() => void copyUrl(pageUrl, 'page')} data-testid="button-public-sub-copy-page"><Copy size={15} />{copied === 'page' ? 'لینک کپی شد' : 'کپی لینک صفحه'}</button></div>
-        </motion.section>
-
-        <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .15, duration: .5 }} className={`public-sub-status-card ${statusTone}`} data-testid="card-public-sub-status">
-          <span className="public-sub-status-icon">{finished ? '!' : <Check size={17} />}</span><div className="public-sub-status-copy"><span className="public-sub-status-overline">{finished ? 'وضعیت اشتراک' : expiring ? 'زمان تمدید نزدیک است' : 'دسترسی شما'}</span><strong>{finished ? finishedReason : expiring ? `${number(remaining, 0)} روز تا پایان اعتبار` : 'اشتراک فعال و آماده استفاده است'}</strong></div><span className="public-sub-status-arrow"><ChevronLeft size={18} /></span>
-        </motion.section>
-         {data?.announcement?.title && <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .19, duration: .5 }} className={`public-sub-status-card ${data.announcement.tone === 'danger' ? 'danger' : data.announcement.tone === 'warning' ? 'warn' : 'ok'}`}>
-           <span className="public-sub-status-icon"><Sparkles size={16} /></span><div className="public-sub-status-copy"><span className="public-sub-status-overline">اعلان سرویس</span><strong>{data.announcement.title}</strong><small>{data.announcement.detail || `شناسه سرویس: ${data?.service_code || 'در دسترس نیست'}`}</small></div><span className="public-sub-status-arrow"><span dir="ltr">{data?.service_code || '—'}</span></span>
-         </motion.section>}
-
-        <div className="public-sub-overview-grid">
-          <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .22, duration: .55 }} className="public-sub-surface public-sub-usage-card" data-testid="card-public-sub-usage">
-            <div className="public-sub-card-heading"><div><p className="public-sub-kicker">مصرف اینترنت</p><h2>حجم اشتراک</h2></div><span className="public-sub-percent">{number(ratio, 0)}٪</span></div>
-            <div className="public-sub-usage-ring-row"><div className="public-sub-usage-ring" style={{ background: `conic-gradient(#66d4c5 ${ratio}%, rgba(255,255,255,.13) ${ratio}% 100%)`, '--lx-r': `${ratio}%` } as React.CSSProperties}><div className="public-sub-usage-ring-center"><strong>{number(remainingGb, 0)}</strong><span>گیگ باقی‌مانده</span></div></div><div className="public-sub-usage-summary"><div><span>مصرف شده</span><strong>{number(usedGb)} <em>GB</em></strong></div><div><span>حجم کل</span><strong>{number(limitGb, 0)} <em>GB</em></strong></div></div></div>
-            <div className="public-sub-usage-foot"><span><CalendarDays size={13} /> انقضا: {dateLabel(data.expires_at)}</span><span>{number(remaining, 0)} روز اعتبار</span></div>
-          </motion.section>
-          <motion.section {...pageMotion} transition={reduceMotion ? undefined : { delay: .28, duration: .55 }} className="public-sub-surface public-sub-details-card">
-            <div className="public-sub-card-heading"><div><p className="public-sub-kicker">اطلاعات سرویس</p><h2>جزئیات</h2></div><span className={`public-sub-card-badge ${finished ? 'danger' : expiring ? 'warn' : ''}`}><Sparkles size={13} /> {finished ? 'پایان‌یافته' : expiring ? 'نزدیک انقضا' : 'فعال'}</span></div>
-             <div className="public-sub-detail-list"><div className="public-sub-detail-row"><span><CalendarDays size={16} />اعتبار باقی‌مانده</span><strong>{number(remaining, 0)} روز</strong></div><div className="public-sub-detail-row"><span><Globe2 size={16} />ارائه‌دهنده</span><strong>{data.provider_label || 'پالس'}</strong></div><div className="public-sub-detail-row"><span><ShieldCheck size={16} />شناسه سرویس</span><strong dir="ltr">{data.service_code || '—'}</strong></div><div className="public-sub-detail-row"><span><UserRound size={16} />شناسه کاربری</span><strong dir="ltr">@{data.username}</strong></div></div>
-          </motion.section>
-        </div>
-
-        {finished ? <motion.section {...pageMotion} className="public-sub-finished-card" data-testid="card-public-sub-finished"><div className="public-sub-finished-icon"><RefreshCw size={21} /></div><div><strong>برای تمدید با فروشنده تماس بگیرید</strong><p>{finishedReason} کانفیگ‌های Provider و AmneziaWG دیگر ارائه نمی‌شوند.</p></div></motion.section> : <section className="public-sub-connections-card" id="public-sub-connect" data-testid="card-public-sub-connect">
-          <div className="public-sub-section-heading"><div><p className="public-sub-kicker">اتصال سریع</p><h2>برنامه مناسب خود را انتخاب کنید</h2><span>با یک لمس، اشتراک را به کلاینت منتقل کنید.</span></div><div className="public-sub-connection-icon"><Wifi size={19} /></div></div>
-          <div className="public-sub-platforms" role="tablist" aria-label="انتخاب پلتفرم">{platformLabels.map((os) => <button type="button" role="tab" aria-selected={activeOS === os} key={os} onClick={() => setActiveOS(os)} className={activeOS === os ? 'active' : ''} data-testid={`button-public-sub-platform-${os.toLowerCase()}`}>{activeOS === os && <motion.span layoutId="public-sub-platform-pill" className="public-sub-platform-pill" transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 450, damping: 35 }} />}{os}</button>)}</div>
-          <AnimatePresence mode="wait">
-            <motion.div key={activeOS} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={reduceMotion ? { opacity: 1 } : { opacity: 0, x: -8 }} transition={reduceMotion ? { duration: 0 } : { duration: .28 }} className="public-sub-app-list">
-              {apps.map((app, index) => { const Icon = app.icon; const isConnecting = connectState === app.id; return <motion.article key={app.id} initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={reduceMotion ? { duration: 0 } : { delay: index * .045, duration: .3 }} className={`public-sub-app-item ${app.isPrimary ? 'recommended' : ''}`}><div className="public-sub-app-icon"><Icon size={20} /></div><div className="public-sub-app-copy"><div className="public-sub-app-title"><strong>{app.name}</strong>{app.isPrimary && <span>پیشنهاد پالس</span>}</div><p>{app.description}</p><small>{app.compatibility}</small></div><div className="public-sub-app-actions">{app.schemeUrl ? <a href={app.schemeUrl} className="public-sub-quick-action" onClick={() => { setConnectState(app.id); window.setTimeout(() => setConnectState(null), 1600); }}>{isConnecting ? <RefreshCw size={14} className="public-sub-spin" /> : <ExternalLink size={14} />}{isConnecting ? 'در حال باز کردن' : 'اتصال سریع'}</a> : <button type="button" className="public-sub-copy-action" onClick={() => void copyUrl(app.subscriptionUrl, 'feed')}><Copy size={14} />کپی لینک</button>}{(app.storeUrl || app.directUrl) && <a className="public-sub-install-action" href={app.storeUrl || app.directUrl} target="_blank" rel="noreferrer"><Download size={14} />نصب</a>}</div></motion.article>; })}
-            </motion.div>
-          </AnimatePresence>
-
-        </section>}
-
-        {!finished && <motion.section {...pageMotion} className="public-sub-openvpn-card" data-testid="card-public-sub-openvpn">
-          <div className="public-sub-openvpn-heading">
-            <div className="public-sub-openvpn-icon"><ShieldCheck size={20} /></div>
-            <div><p className="public-sub-kicker">دسترسی OpenVPN</p><h2>حساب OpenVPN</h2><p>اگر حساب قبلاً ساخته شده باشد بازیابی می‌شود؛ در غیر این صورت فقط با انتخاب شما ساخته خواهد شد.</p></div>
-          </div>
-          {openVpnLoading ? <div className="public-sub-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی حساب ذخیره‌شدهٔ OpenVPN...</div> : !openVpnData ? <div className="public-sub-openvpn-setup">
-            <button type="button" className="public-sub-openvpn-button primary" onClick={() => void prepareOpenVpn()} disabled={openVpnBusy} data-testid="button-public-sub-openvpn-create">
-              {openVpnBusy ? <><RefreshCw size={15} className="public-sub-spin" />در حال آماده‌سازی حساب...</> : <><Plus size={15} />ساخت یا دریافت حساب OpenVPN</>}
-            </button>
-            {openVpnError && <p className="public-sub-openvpn-error" role="alert">{openVpnError}</p>}
-          </div> : <>
-            <div className="public-sub-openvpn-credentials">
-              <div><span>آدرس سرور</span><strong dir="ltr">{openVpnData.server}</strong><button type="button" onClick={() => void copyOpenVpnValue(openVpnData.server, 'server')} aria-label="کپی آدرس سرور">{openVpnCopied === 'server' ? <Check size={15} /> : <Copy size={15} />}</button></div>
-              <div><span>نام کاربری</span><strong dir="ltr">{openVpnData.username}</strong><button type="button" onClick={() => void copyOpenVpnValue(openVpnData.username, 'username')} aria-label="کپی نام کاربری">{openVpnCopied === 'username' ? <Check size={15} /> : <Copy size={15} />}</button></div>
-              <div><span>رمز عبور</span><strong dir="ltr">{openVpnData.password}</strong><button type="button" onClick={() => void copyOpenVpnValue(openVpnData.password, 'password')} aria-label="کپی رمز عبور">{openVpnCopied === 'password' ? <Check size={15} /> : <Copy size={15} />}</button></div>
-            </div>
-            <div className="public-sub-openvpn-actions">
-              <a className="public-sub-openvpn-button primary" href={openVpnData.bundle_url} download data-testid="link-public-sub-openvpn-bundle"><Download size={15} />دانلود همهٔ فایل‌ها</a>
-              {activeOS === 'iOS' && openVpnBundleImportHref && <a className="public-sub-openvpn-button" href={openVpnBundleImportHref} referrerPolicy="no-referrer" data-testid="link-public-sub-openvpn-import-ios"><ExternalLink size={14} />واردکردن همه در OpenVPN · iOS</a>}
-              <a className="public-sub-openvpn-button" href="https://apps.apple.com/us/app/openvpn-connect-openvpn-app/id590379981" target="_blank" rel="noreferrer" data-testid="link-public-sub-openvpn-ios"><ExternalLink size={14} />OpenVPN Connect · iOS</a>
-              <a className="public-sub-openvpn-button" href="https://play.google.com/store/apps/details?id=net.openvpn.openvpn" target="_blank" rel="noreferrer" data-testid="link-public-sub-openvpn-android"><ExternalLink size={14} />OpenVPN Connect · Android</a>
-            </div>
-            <p className="public-sub-openvpn-hint">در iPhone با دکمهٔ واردکردن، پروفایل مستقیم در OpenVPN Connect باز می‌شود. برای دستگاه‌های دیگر، در برنامه Import Profile ← URL را انتخاب کنید و آدرس سرور را وارد کنید؛ فایل هر سرور هم جداگانه قابل دانلود است.</p>
-              {openVpnData.locations?.length > 0 && <div className="public-sub-openvpn-locations">
-              <strong>سرورها</strong>
-                {openVpnData.locations.map((location: any) => {
-                  const importHref = openVpnConnectImportUrl(location.import_url, window.location.origin);
-                  return <div className="public-sub-openvpn-location" key={location.id}>
-                    <span>{location.name}</span>
-                    {activeOS === 'iOS' && importHref && <a href={importHref} referrerPolicy="no-referrer" data-testid={`link-public-sub-openvpn-import-ios-${location.id}`}><ExternalLink size={13} />واردکردن</a>}
-                    <a href={location.config_url} download data-testid={`link-public-sub-openvpn-config-${location.id}`}><Download size={13} />دانلود</a>
-                  </div>;
-                })}
-            </div>}
-          </>}
-        </motion.section>}
-
-         <motion.section {...pageMotion} className={`public-sub-awg-card ${awgOpen ? 'open' : ''}`} data-testid="card-public-sub-amneziawg">
-           <div className="public-sub-awg-heading"><div className="public-sub-awg-icon"><Wifi size={20} /></div><div><p className="public-sub-kicker">پروتکل اختصاصی</p><h2>AmneziaWG</h2><p>اتصال سریع‌تر با اپ رسمی AmneziaWG</p></div><span className={`public-sub-awg-status ${awgAvailable ? 'ready' : 'pending'}`}>{awgAvailable ? <><CheckCircle2 size={14} /> آماده</> : <><CircleHelp size={14} /> در انتظار کانفیگ</>}</span></div>
-           {awgAvailable ? <><button type="button" className="public-sub-awg-trigger" onClick={() => setAwgOpen((open) => !open)} aria-expanded={awgOpen} data-testid="button-public-sub-awg-toggle"><span>دریافت کانفیگ واقعی اشتراک</span><ChevronLeft size={18} className={awgOpen ? 'rotate-90' : ''} /></button><AnimatePresence initial={false}>{awgOpen && <motion.div initial={reduceMotion ? { opacity: 1, height: 'auto' } : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }} className="public-sub-awg-body"><p>فایل کانفیگ را در اپ وارد کنید یا متن واقعی آن را کپی کنید. این لینک فقط برای اشتراک شماست.</p><div><a href={data.awg_url} className="public-sub-awg-action primary" download data-testid="link-public-sub-awg-download"><Download size={15} />دانلود فایل کانفیگ</a><button type="button" className="public-sub-awg-action" onClick={() => void copyAwg()} data-testid="button-public-sub-awg-copy"><Copy size={15} />{copied === 'awg' ? 'کپی شد' : 'کپی متن کانفیگ'}</button></div></motion.div>}</AnimatePresence></> : <div className="public-sub-awg-unavailable"><strong>کانفیگ AmneziaWG هنوز آماده نیست</strong><p>در حال حاضر لینک کانفیگ واقعی از سرویس دریافت نشده است. می‌توانید اپ رسمی را مستقل از کانفیگ نصب کنید.</p></div>}
-           <div className="public-sub-awg-divider"><span>دانلود اپ رسمی و راهنمای هر دستگاه</span><a href="https://amnezia.org/downloads" target="_blank" rel="noreferrer" data-testid="link-public-sub-awg-official-downloads"><ExternalLink size={13} />دانلودهای رسمی</a></div>
-           <div className="public-sub-awg-grid">{awgPlatforms.map((platform) => { const Icon = platform.icon; return <a key={platform.id} href={platform.href} target="_blank" rel="noreferrer" className="public-sub-awg-platform" data-testid={`link-public-sub-awg-${platform.id}`}><span className="public-sub-awg-platform-icon"><Icon size={18} /></span><span><strong>{platform.label}</strong><small>{platform.detail}</small></span><ExternalLink size={14} /></a>; })}</div>
-         </motion.section>
-
-         {finished ? <motion.section {...pageMotion} className="public-sub-expired-config-card"><div className="public-sub-expired-config-heading"><div className="public-sub-expired-config-icon"><Wifi size={17} /></div><div><p className="public-sub-kicker">کانفیگ نمایشی</p><strong>اتصال در دسترس نیست</strong></div></div><p>{finishedReason}؛ تا تمدید اشتراک، هیچ کانفیگ واقعی یا لینک اتصال نمایش داده نمی‌شود.</p><div className="public-sub-expired-config-placeholder" dir="ltr">subscription://expired</div><small>این مقدار فقط برای توضیح وضعیت است و قابل اتصال نیست.</small></motion.section> : <section className="public-sub-share-card"><div className="public-sub-share-copy"><div className="public-sub-share-icon"><Copy size={17} /></div><div><p className="public-sub-kicker">لینک اشتراک</p><strong>در همه دستگاه‌ها در دسترس شماست</strong><span dir="ltr">{pageUrl}</span></div></div><button type="button" onClick={() => void copyUrl(feedUrl, 'feed')} className="public-sub-copy-link">{copied === 'feed' ? <Check size={17} /> : <Copy size={17} />}{copied === 'feed' ? 'کپی شد' : 'کپی لینک'}</button></section>}
-         <footer className="public-sub-footer-v3"><div className="public-sub-footer-copy"><ShieldCheck size={16} /><span>این صفحه ایمن و اختصاصی است. لینک اشتراک را فقط با دستگاه‌های شخصی خود به اشتراک بگذارید.</span></div><button type="button" className="public-sub-qr-button" onClick={() => setQrOpen(true)} data-testid="button-public-sub-qr"><QrCode size={16} />نمایش QR</button><div className="public-sub-qr-v3"><SubscriptionQr url={pageUrl} /></div></footer>
-      </main>
-    </div>
-    {qrOpen && data && pageUrl ? <div className="public-sub-qr-modal public-sub-lux-modal" role="dialog" aria-modal="true" onClick={() => setQrOpen(false)}><div className="public-sub-qr-dialog" onClick={(event) => event.stopPropagation()}><button type="button" className="public-sub-qr-close" onClick={() => setQrOpen(false)} data-testid="button-public-sub-qr-close">بستن</button><h2>QR اشتراک</h2><p>این کد را با برنامه VPN اسکن کنید.</p><div className="public-sub-qr-dialog-code"><SubscriptionQr url={pageUrl} /></div><span dir="ltr">{pageUrl}</span></div></div> : null}
+      <PublicSubscriptionWizard
+        data={data}
+        pageUrl={pageUrl}
+        feedUrl={feedUrl}
+        statusTone={statusTone}
+        statusLabel={statusLabel}
+        finished={finished}
+        expiring={expiring}
+        finishedReason={finishedReason}
+        remaining={remaining}
+        remainingGb={remainingGb}
+        ratio={ratio}
+        number={number}
+        selectedProtocol={selectedProtocol}
+        setSelectedProtocol={setSelectedProtocol}
+        activeOS={wizardOS}
+        setActiveOS={setActiveOS}
+        apps={apps}
+        awgAvailable={awgAvailable}
+        openVpnLoading={openVpnLoading}
+        openVpnBusy={openVpnBusy}
+        openVpnData={openVpnData}
+        openVpnError={openVpnError}
+        openVpnCopied={openVpnCopied}
+        openVpnBundleImportHref={openVpnBundleImportHref}
+        prepareOpenVpn={prepareOpenVpn}
+        copyOpenVpnValue={copyOpenVpnValue}
+        copied={copied}
+        copyUrl={copyUrl}
+        copyAwg={copyAwg}
+        activeConnectApp={connectState}
+        setActiveConnectApp={setConnectState}
+        sharePage={sharePage}
+        shared={shared}
+        openQr={() => setQrOpen(true)}
+        reduceMotion={Boolean(reduceMotion)}
+      />
+      {qrOpen && data && pageUrl ? <div className="public-sub-qr-modal public-sub-lux-modal" role="dialog" aria-modal="true" onClick={() => setQrOpen(false)}><div className="public-sub-qr-dialog" onClick={(event) => event.stopPropagation()}><button type="button" className="public-sub-qr-close" onClick={() => setQrOpen(false)} data-testid="button-public-sub-qr-close">بستن</button><h2>QR اشتراک</h2><p>این کد برای بازکردن همین صفحهٔ اشتراک است.</p><div className="public-sub-qr-dialog-code"><SubscriptionQr url={pageUrl} /></div><span dir="ltr">{pageUrl}</span></div></div> : null}
     </>
   );
 }

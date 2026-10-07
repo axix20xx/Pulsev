@@ -32,3 +32,9 @@ Imported Provider tokens may be longer than the locally generated 32-character t
 **Why:** Replacing or truncating a legacy token breaks already-distributed subscription links, while rejecting a second token alias makes the canonical imported URL resolve to an invalid page.
 
 **How to apply:** Store tokens in a variable-length column large enough for Provider values, backfill legacy `/sub/<token>` values as aliases without deleting local tokens, and resolve all aliases to the same service.
+
+Previously distributed `/sub/<token>` page links must keep resolving alongside `/sub?t=...`; customers may already have saved the direct route in a VPN app. New page and QR links remain query-style, while app imports use the separate feed URL.
+
+**Why:** Changing a saved direct link can make an existing client subscription open an invalid page even when its token is still valid.
+
+**How to apply:** Parse both path-token and query-token forms on the public page, preserve `/sub?t=...` for generated share/QR URLs, and never substitute the page URL for a VPN feed link.

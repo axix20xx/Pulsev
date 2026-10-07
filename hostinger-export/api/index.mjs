@@ -20700,11 +20700,11 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router5;
+    module.exports = Router6;
     module.exports.Route = Route;
-    function Router5(options) {
-      if (!(this instanceof Router5)) {
-        return new Router5(options);
+    function Router6(options) {
+      if (!(this instanceof Router6)) {
+        return new Router6(options);
       }
       const opts = options || {};
       function router5(req, res, next) {
@@ -20718,9 +20718,9 @@ var require_router = __commonJS({
       router5.stack = [];
       return router5;
     }
-    Router5.prototype = function() {
+    Router6.prototype = function() {
     };
-    Router5.prototype.param = function param(name, fn) {
+    Router6.prototype.param = function param(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20740,7 +20740,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router5.prototype.handle = function handle(req, res, callback) {
+    Router6.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20867,7 +20867,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router5.prototype.use = function use(handler) {
+    Router6.prototype.use = function use(handler) {
       let offset = 0;
       let path = "/";
       if (typeof handler !== "function") {
@@ -20900,7 +20900,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router5.prototype.route = function route(path) {
+    Router6.prototype.route = function route(path) {
       const route2 = new Route(path);
       const layer = new Layer(path, {
         sensitive: this.caseSensitive,
@@ -20915,7 +20915,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router5.prototype[method] = function(path) {
+      Router6.prototype[method] = function(path) {
         const route = this.route(path);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -21098,7 +21098,7 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router5 = require_router();
+    var Router6 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
@@ -21114,7 +21114,7 @@ var require_application = __commonJS({
         enumerable: true,
         get: function getrouter() {
           if (router5 === null) {
-            router5 = new Router5({
+            router5 = new Router6({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
@@ -23783,7 +23783,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router5 = require_router();
+    var Router6 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23805,8 +23805,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router5.Route;
-    exports.Router = Router5;
+    exports.Route = Router6.Route;
+    exports.Router = Router6;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -40542,16 +40542,16 @@ import { readlinkSync, writeSync } from "node:fs";
 import { get } from "node:http";
 
 // src/app.ts
-var import_express5 = __toESM(require_express2(), 1);
+var import_express6 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 var import_cookie_parser = __toESM(require_cookie_parser(), 1);
 
 // src/routes/index.ts
-var import_express4 = __toESM(require_express2(), 1);
+var import_express5 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
-var import_express3 = __toESM(require_express2(), 1);
+var import_express4 = __toESM(require_express2(), 1);
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/helpers/util.js
 var util;
@@ -44443,6 +44443,256 @@ var coerce = {
 var HealthCheckResponse = objectType({
   "status": stringType()
 });
+var getPublicStorefrontPathSlugMin = 3;
+var getPublicStorefrontPathSlugMax = 48;
+var getPublicStorefrontPathSlugRegExp = new RegExp("^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$");
+var GetPublicStorefrontParams = objectType({
+  "slug": coerce.string().min(getPublicStorefrontPathSlugMin).max(getPublicStorefrontPathSlugMax).regex(getPublicStorefrontPathSlugRegExp)
+});
+var getPublicStorefrontResponseOffersItemIdMultipleOf = 1;
+var getPublicStorefrontResponseOffersItemGbExclusiveMin = 0;
+var getPublicStorefrontResponseOffersItemDaysMultipleOf = 1;
+var getPublicStorefrontResponseOffersItemPriceMin = 0;
+var getPublicStorefrontResponseOffersItemSortOrderMultipleOf = 1;
+var GetPublicStorefrontResponse = objectType({
+  "slug": stringType(),
+  "store_name": stringType(),
+  "description": stringType(),
+  "whatsapp_phone": stringType().nullable(),
+  "offers": arrayType(objectType({
+    "id": numberType().min(1).multipleOf(getPublicStorefrontResponseOffersItemIdMultipleOf),
+    "title": stringType(),
+    "description": stringType(),
+    "gb": numberType().gt(getPublicStorefrontResponseOffersItemGbExclusiveMin),
+    "days": numberType().min(1).multipleOf(getPublicStorefrontResponseOffersItemDaysMultipleOf),
+    "price": numberType().min(getPublicStorefrontResponseOffersItemPriceMin),
+    "enabled": booleanType(),
+    "sort_order": numberType().multipleOf(getPublicStorefrontResponseOffersItemSortOrderMultipleOf)
+  }))
+});
+var recordPublicStorefrontViewPathSlugMin = 3;
+var recordPublicStorefrontViewPathSlugMax = 48;
+var recordPublicStorefrontViewPathSlugRegExp = new RegExp("^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$");
+var RecordPublicStorefrontViewParams = objectType({
+  "slug": coerce.string().min(recordPublicStorefrontViewPathSlugMin).max(recordPublicStorefrontViewPathSlugMax).regex(recordPublicStorefrontViewPathSlugRegExp)
+});
+var recordPublicStorefrontViewBodySourceMax = 80;
+var RecordPublicStorefrontViewBody = objectType({
+  "source": stringType().max(recordPublicStorefrontViewBodySourceMax)
+});
+var RecordPublicStorefrontViewResponse = objectType({
+  "recorded": booleanType()
+});
+var createPublicStorefrontLeadPathSlugMin = 3;
+var createPublicStorefrontLeadPathSlugMax = 48;
+var createPublicStorefrontLeadPathSlugRegExp = new RegExp("^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$");
+var CreatePublicStorefrontLeadParams = objectType({
+  "slug": coerce.string().min(createPublicStorefrontLeadPathSlugMin).max(createPublicStorefrontLeadPathSlugMax).regex(createPublicStorefrontLeadPathSlugRegExp)
+});
+var createPublicStorefrontLeadBodyCustomerNameMin = 2;
+var createPublicStorefrontLeadBodyCustomerNameMax = 120;
+var createPublicStorefrontLeadBodyPhoneMin = 7;
+var createPublicStorefrontLeadBodyPhoneMax = 30;
+var createPublicStorefrontLeadBodyOfferIdMultipleOf = 1;
+var createPublicStorefrontLeadBodyMessageMax = 500;
+var createPublicStorefrontLeadBodySourceMax = 80;
+var createPublicStorefrontLeadBodyWebsiteMax = 200;
+var CreatePublicStorefrontLeadBody = objectType({
+  "customer_name": stringType().min(createPublicStorefrontLeadBodyCustomerNameMin).max(createPublicStorefrontLeadBodyCustomerNameMax),
+  "phone": stringType().min(createPublicStorefrontLeadBodyPhoneMin).max(createPublicStorefrontLeadBodyPhoneMax),
+  "offer_id": numberType().min(1).multipleOf(createPublicStorefrontLeadBodyOfferIdMultipleOf),
+  "message": stringType().max(createPublicStorefrontLeadBodyMessageMax),
+  "source": stringType().max(createPublicStorefrontLeadBodySourceMax),
+  "website": stringType().max(createPublicStorefrontLeadBodyWebsiteMax)
+});
+var createPublicStorefrontLeadResponseLeadIdMultipleOf = 1;
+var CreatePublicStorefrontLeadResponse = objectType({
+  "lead_id": numberType().multipleOf(createPublicStorefrontLeadResponseLeadIdMultipleOf),
+  "whatsapp_url": stringType().nullable()
+});
+var getResellerStorefrontResponseOffersItemIdMultipleOf = 1;
+var getResellerStorefrontResponseOffersItemGbExclusiveMin = 0;
+var getResellerStorefrontResponseOffersItemDaysMultipleOf = 1;
+var getResellerStorefrontResponseOffersItemPriceMin = 0;
+var getResellerStorefrontResponseOffersItemSortOrderMultipleOf = 1;
+var getResellerStorefrontResponseStatsViewsMin = 0;
+var getResellerStorefrontResponseStatsViewsMultipleOf = 1;
+var getResellerStorefrontResponseStatsInquiriesMin = 0;
+var getResellerStorefrontResponseStatsInquiriesMultipleOf = 1;
+var getResellerStorefrontResponseStatsConversionsMin = 0;
+var getResellerStorefrontResponseStatsConversionsMultipleOf = 1;
+var getResellerStorefrontResponseStatsAttributedRevenueMin = 0;
+var GetResellerStorefrontResponse = objectType({
+  "slug": stringType(),
+  "store_name": stringType(),
+  "description": stringType(),
+  "whatsapp_phone": stringType().nullable(),
+  "enabled": booleanType(),
+  "offers": arrayType(objectType({
+    "id": numberType().min(1).multipleOf(getResellerStorefrontResponseOffersItemIdMultipleOf),
+    "title": stringType(),
+    "description": stringType(),
+    "gb": numberType().gt(getResellerStorefrontResponseOffersItemGbExclusiveMin),
+    "days": numberType().min(1).multipleOf(getResellerStorefrontResponseOffersItemDaysMultipleOf),
+    "price": numberType().min(getResellerStorefrontResponseOffersItemPriceMin),
+    "enabled": booleanType(),
+    "sort_order": numberType().multipleOf(getResellerStorefrontResponseOffersItemSortOrderMultipleOf)
+  })),
+  "stats": objectType({
+    "views": numberType().min(getResellerStorefrontResponseStatsViewsMin).multipleOf(getResellerStorefrontResponseStatsViewsMultipleOf),
+    "inquiries": numberType().min(getResellerStorefrontResponseStatsInquiriesMin).multipleOf(getResellerStorefrontResponseStatsInquiriesMultipleOf),
+    "conversions": numberType().min(getResellerStorefrontResponseStatsConversionsMin).multipleOf(getResellerStorefrontResponseStatsConversionsMultipleOf),
+    "attributed_revenue": numberType().min(getResellerStorefrontResponseStatsAttributedRevenueMin)
+  })
+});
+var updateResellerStorefrontBodySlugMin = 3;
+var updateResellerStorefrontBodySlugMax = 48;
+var updateResellerStorefrontBodySlugRegExp = new RegExp("^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$");
+var updateResellerStorefrontBodyStoreNameMax = 100;
+var updateResellerStorefrontBodyDescriptionMax = 500;
+var updateResellerStorefrontBodyWhatsappPhoneMax = 30;
+var updateResellerStorefrontBodyOffersItemIdMultipleOf = 1;
+var updateResellerStorefrontBodyOffersItemTitleMax = 80;
+var updateResellerStorefrontBodyOffersItemDescriptionMax = 280;
+var updateResellerStorefrontBodyOffersItemGbExclusiveMin = 0;
+var updateResellerStorefrontBodyOffersItemGbMax = 5e3;
+var updateResellerStorefrontBodyOffersItemDaysMax = 3650;
+var updateResellerStorefrontBodyOffersItemDaysMultipleOf = 1;
+var updateResellerStorefrontBodyOffersItemPriceMin = 0;
+var updateResellerStorefrontBodyOffersItemPriceMax = 1e12;
+var updateResellerStorefrontBodyOffersItemSortOrderMin = 0;
+var updateResellerStorefrontBodyOffersItemSortOrderMax = 100;
+var updateResellerStorefrontBodyOffersItemSortOrderMultipleOf = 1;
+var updateResellerStorefrontBodyOffersMax = 20;
+var UpdateResellerStorefrontBody = objectType({
+  "slug": stringType().min(updateResellerStorefrontBodySlugMin).max(updateResellerStorefrontBodySlugMax).regex(updateResellerStorefrontBodySlugRegExp),
+  "store_name": stringType().min(1).max(updateResellerStorefrontBodyStoreNameMax),
+  "description": stringType().max(updateResellerStorefrontBodyDescriptionMax),
+  "whatsapp_phone": stringType().max(updateResellerStorefrontBodyWhatsappPhoneMax).nullable(),
+  "enabled": booleanType(),
+  "offers": arrayType(objectType({
+    "id": numberType().min(1).multipleOf(updateResellerStorefrontBodyOffersItemIdMultipleOf).nullable(),
+    "title": stringType().min(1).max(updateResellerStorefrontBodyOffersItemTitleMax),
+    "description": stringType().max(updateResellerStorefrontBodyOffersItemDescriptionMax),
+    "gb": numberType().gt(updateResellerStorefrontBodyOffersItemGbExclusiveMin).max(updateResellerStorefrontBodyOffersItemGbMax),
+    "days": numberType().min(1).max(updateResellerStorefrontBodyOffersItemDaysMax).multipleOf(updateResellerStorefrontBodyOffersItemDaysMultipleOf),
+    "price": numberType().min(updateResellerStorefrontBodyOffersItemPriceMin).max(updateResellerStorefrontBodyOffersItemPriceMax),
+    "enabled": booleanType(),
+    "sort_order": numberType().min(updateResellerStorefrontBodyOffersItemSortOrderMin).max(updateResellerStorefrontBodyOffersItemSortOrderMax).multipleOf(updateResellerStorefrontBodyOffersItemSortOrderMultipleOf)
+  })).max(updateResellerStorefrontBodyOffersMax)
+});
+var updateResellerStorefrontResponseOffersItemIdMultipleOf = 1;
+var updateResellerStorefrontResponseOffersItemGbExclusiveMin = 0;
+var updateResellerStorefrontResponseOffersItemDaysMultipleOf = 1;
+var updateResellerStorefrontResponseOffersItemPriceMin = 0;
+var updateResellerStorefrontResponseOffersItemSortOrderMultipleOf = 1;
+var updateResellerStorefrontResponseStatsViewsMin = 0;
+var updateResellerStorefrontResponseStatsViewsMultipleOf = 1;
+var updateResellerStorefrontResponseStatsInquiriesMin = 0;
+var updateResellerStorefrontResponseStatsInquiriesMultipleOf = 1;
+var updateResellerStorefrontResponseStatsConversionsMin = 0;
+var updateResellerStorefrontResponseStatsConversionsMultipleOf = 1;
+var updateResellerStorefrontResponseStatsAttributedRevenueMin = 0;
+var UpdateResellerStorefrontResponse = objectType({
+  "slug": stringType(),
+  "store_name": stringType(),
+  "description": stringType(),
+  "whatsapp_phone": stringType().nullable(),
+  "enabled": booleanType(),
+  "offers": arrayType(objectType({
+    "id": numberType().min(1).multipleOf(updateResellerStorefrontResponseOffersItemIdMultipleOf),
+    "title": stringType(),
+    "description": stringType(),
+    "gb": numberType().gt(updateResellerStorefrontResponseOffersItemGbExclusiveMin),
+    "days": numberType().min(1).multipleOf(updateResellerStorefrontResponseOffersItemDaysMultipleOf),
+    "price": numberType().min(updateResellerStorefrontResponseOffersItemPriceMin),
+    "enabled": booleanType(),
+    "sort_order": numberType().multipleOf(updateResellerStorefrontResponseOffersItemSortOrderMultipleOf)
+  })),
+  "stats": objectType({
+    "views": numberType().min(updateResellerStorefrontResponseStatsViewsMin).multipleOf(updateResellerStorefrontResponseStatsViewsMultipleOf),
+    "inquiries": numberType().min(updateResellerStorefrontResponseStatsInquiriesMin).multipleOf(updateResellerStorefrontResponseStatsInquiriesMultipleOf),
+    "conversions": numberType().min(updateResellerStorefrontResponseStatsConversionsMin).multipleOf(updateResellerStorefrontResponseStatsConversionsMultipleOf),
+    "attributed_revenue": numberType().min(updateResellerStorefrontResponseStatsAttributedRevenueMin)
+  })
+});
+var listResellerStorefrontLeadsQueryLimitDefault = 100;
+var listResellerStorefrontLeadsQueryLimitMax = 200;
+var ListResellerStorefrontLeadsQueryParams = objectType({
+  "limit": coerce.number().min(1).max(listResellerStorefrontLeadsQueryLimitMax).default(listResellerStorefrontLeadsQueryLimitDefault)
+});
+var listResellerStorefrontLeadsResponseIdMultipleOf = 1;
+var listResellerStorefrontLeadsResponseOfferIdMultipleOf = 1;
+var listResellerStorefrontLeadsResponseDaysMultipleOf = 1;
+var listResellerStorefrontLeadsResponseConvertedSaleIdMultipleOf = 1;
+var ListResellerStorefrontLeadsResponseItem = objectType({
+  "id": numberType().multipleOf(listResellerStorefrontLeadsResponseIdMultipleOf),
+  "customer_name": stringType(),
+  "phone": stringType(),
+  "offer_id": numberType().multipleOf(listResellerStorefrontLeadsResponseOfferIdMultipleOf).nullable(),
+  "offer_name": stringType(),
+  "gb": numberType(),
+  "days": numberType().multipleOf(listResellerStorefrontLeadsResponseDaysMultipleOf),
+  "offer_price": numberType(),
+  "message": stringType().nullable(),
+  "source": stringType().nullable(),
+  "status": enumType(["new", "contacted", "converted", "closed"]),
+  "seller_note": stringType().nullable(),
+  "created_at": stringType(),
+  "converted_sale_id": numberType().multipleOf(listResellerStorefrontLeadsResponseConvertedSaleIdMultipleOf).nullable()
+});
+var ListResellerStorefrontLeadsResponse = arrayType(ListResellerStorefrontLeadsResponseItem);
+var GetResellerStorefrontLeadParams = objectType({
+  "id": coerce.number().min(1)
+});
+var getResellerStorefrontLeadResponseIdMultipleOf = 1;
+var getResellerStorefrontLeadResponseOfferIdMultipleOf = 1;
+var getResellerStorefrontLeadResponseDaysMultipleOf = 1;
+var getResellerStorefrontLeadResponseConvertedSaleIdMultipleOf = 1;
+var GetResellerStorefrontLeadResponse = objectType({
+  "id": numberType().multipleOf(getResellerStorefrontLeadResponseIdMultipleOf),
+  "customer_name": stringType(),
+  "phone": stringType(),
+  "offer_id": numberType().multipleOf(getResellerStorefrontLeadResponseOfferIdMultipleOf).nullable(),
+  "offer_name": stringType(),
+  "gb": numberType(),
+  "days": numberType().multipleOf(getResellerStorefrontLeadResponseDaysMultipleOf),
+  "offer_price": numberType(),
+  "message": stringType().nullable(),
+  "source": stringType().nullable(),
+  "status": enumType(["new", "contacted", "converted", "closed"]),
+  "seller_note": stringType().nullable(),
+  "created_at": stringType(),
+  "converted_sale_id": numberType().multipleOf(getResellerStorefrontLeadResponseConvertedSaleIdMultipleOf).nullable()
+});
+var UpdateResellerStorefrontLeadParams = objectType({
+  "id": coerce.number().min(1)
+});
+var updateResellerStorefrontLeadBodySellerNoteMax = 500;
+var UpdateResellerStorefrontLeadBody = objectType({
+  "status": enumType(["new", "contacted", "closed"]),
+  "seller_note": stringType().max(updateResellerStorefrontLeadBodySellerNoteMax).nullable()
+});
+var updateResellerStorefrontLeadResponseIdMultipleOf = 1;
+var updateResellerStorefrontLeadResponseOfferIdMultipleOf = 1;
+var updateResellerStorefrontLeadResponseDaysMultipleOf = 1;
+var updateResellerStorefrontLeadResponseConvertedSaleIdMultipleOf = 1;
+var UpdateResellerStorefrontLeadResponse = objectType({
+  "id": numberType().multipleOf(updateResellerStorefrontLeadResponseIdMultipleOf),
+  "customer_name": stringType(),
+  "phone": stringType(),
+  "offer_id": numberType().multipleOf(updateResellerStorefrontLeadResponseOfferIdMultipleOf).nullable(),
+  "offer_name": stringType(),
+  "gb": numberType(),
+  "days": numberType().multipleOf(updateResellerStorefrontLeadResponseDaysMultipleOf),
+  "offer_price": numberType(),
+  "message": stringType().nullable(),
+  "source": stringType().nullable(),
+  "status": enumType(["new", "contacted", "converted", "closed"]),
+  "seller_note": stringType().nullable(),
+  "created_at": stringType(),
+  "converted_sale_id": numberType().multipleOf(updateResellerStorefrontLeadResponseConvertedSaleIdMultipleOf).nullable()
+});
 var GetAuthSessionResponse = objectType({
   "authenticated": booleanType(),
   "role": enumType(["signed_out", "master_admin", "reseller"]),
@@ -44866,6 +45116,7 @@ var createServiceBodyLabelMax = 64;
 var createServiceBodyGbExclusiveMin = 0;
 var createServiceBodySellPriceMin = 0;
 var createServiceBodyIsPaidDefault = true;
+var createServiceBodyStorefrontLeadIdMultipleOf = 1;
 var CreateServiceBody = objectType({
   "customer_name": stringType().min(1),
   "phone": stringType().min(createServiceBodyPhoneMin),
@@ -44873,7 +45124,8 @@ var CreateServiceBody = objectType({
   "gb": numberType().gt(createServiceBodyGbExclusiveMin),
   "days": numberType().min(1),
   "sell_price": numberType().min(createServiceBodySellPriceMin).nullish(),
-  "is_paid": booleanType().default(createServiceBodyIsPaidDefault)
+  "is_paid": booleanType().default(createServiceBodyIsPaidDefault),
+  "storefront_lead_id": numberType().min(1).multipleOf(createServiceBodyStorefrontLeadIdMultipleOf).nullish()
 });
 var CreateServiceResponse = objectType({
   "service": objectType({
@@ -63905,7 +64157,7 @@ function isBackgroundWorkersPaused(value = process.env.PULSE_WORKERS_PAUSED) {
 }
 
 // src/routes/management.ts
-var import_express2 = __toESM(require_express2(), 1);
+var import_express3 = __toESM(require_express2(), 1);
 import { randomBytes as randomBytes6 } from "node:crypto";
 
 // src/lib/service-usage-snapshot.ts
@@ -67089,11 +67341,593 @@ function startAwgUsagePollWorker() {
   logger.info({ intervalMs: AWG_USAGE_POLL_INTERVAL_MS }, "AWG-only usage poll worker started");
 }
 
+// src/routes/storefront.ts
+var import_express2 = __toESM(require_express2(), 1);
+var storefrontRouter = (0, import_express2.Router)();
+var storefrontSchemaReady = null;
+function ensureStorefrontSchema() {
+  if (!storefrontSchemaReady) {
+    storefrontSchemaReady = pool.query(`
+        CREATE TABLE IF NOT EXISTS reseller_storefronts (
+          reseller_tg_id BIGINT PRIMARY KEY,
+          slug TEXT NOT NULL UNIQUE,
+          store_name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          whatsapp_phone TEXT,
+          is_enabled SMALLINT NOT NULL DEFAULT 0 CHECK (is_enabled IN (0, 1)),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS reseller_storefronts_slug_lower_idx
+          ON reseller_storefronts (LOWER(slug));
+        CREATE TABLE IF NOT EXISTS reseller_storefront_offers (
+          id BIGSERIAL PRIMARY KEY,
+          reseller_tg_id BIGINT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          gb NUMERIC(10,2) NOT NULL CHECK (gb > 0 AND gb <= 5000),
+          days INTEGER NOT NULL CHECK (days > 0 AND days <= 3650),
+          price NUMERIC(14,2) NOT NULL CHECK (price >= 0),
+          is_enabled SMALLINT NOT NULL DEFAULT 1 CHECK (is_enabled IN (0, 1)),
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          UNIQUE (reseller_tg_id, id)
+        );
+        CREATE INDEX IF NOT EXISTS reseller_storefront_offers_public_idx
+          ON reseller_storefront_offers (reseller_tg_id, is_enabled, sort_order, id);
+        CREATE TABLE IF NOT EXISTS reseller_storefront_leads (
+          id BIGSERIAL PRIMARY KEY,
+          reseller_tg_id BIGINT NOT NULL,
+          offer_id BIGINT,
+          customer_name TEXT NOT NULL,
+          phone TEXT NOT NULL,
+          phone_normalized TEXT NOT NULL,
+          offer_name TEXT NOT NULL,
+          gb NUMERIC(10,2) NOT NULL,
+          days INTEGER NOT NULL,
+          offer_price NUMERIC(14,2) NOT NULL,
+          message TEXT,
+          source TEXT,
+          status TEXT NOT NULL DEFAULT 'new'
+            CHECK (status IN ('new', 'contacted', 'converted', 'closed')),
+          seller_note TEXT,
+          converted_sale_id BIGINT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS reseller_storefront_leads_owner_created_idx
+          ON reseller_storefront_leads (reseller_tg_id, created_at DESC, id DESC);
+        CREATE INDEX IF NOT EXISTS reseller_storefront_leads_phone_idx
+          ON reseller_storefront_leads (reseller_tg_id, phone_normalized, created_at DESC);
+        CREATE UNIQUE INDEX IF NOT EXISTS reseller_storefront_leads_sale_idx
+          ON reseller_storefront_leads (converted_sale_id)
+          WHERE converted_sale_id IS NOT NULL;
+        CREATE TABLE IF NOT EXISTS reseller_storefront_daily_views (
+          reseller_tg_id BIGINT NOT NULL,
+          viewed_on DATE NOT NULL,
+          source TEXT NOT NULL DEFAULT '',
+          views BIGINT NOT NULL DEFAULT 0 CHECK (views >= 0),
+          PRIMARY KEY (reseller_tg_id, viewed_on, source)
+        );
+        ALTER TABLE reseller_sales_log
+          ADD COLUMN IF NOT EXISTS source_storefront_lead_id BIGINT;
+        CREATE UNIQUE INDEX IF NOT EXISTS reseller_sales_log_storefront_lead_idx
+          ON reseller_sales_log (source_storefront_lead_id)
+          WHERE source_storefront_lead_id IS NOT NULL;
+      `).then(() => void 0).catch((error40) => {
+      storefrontSchemaReady = null;
+      console.error("Storefront schema initialization failed", error40);
+      throw error40;
+    });
+  }
+  return storefrontSchemaReady;
+}
+var asciiDigits = (value) => value.replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 1776)).replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
+var normalizeStorefrontPhone = (value) => {
+  let digits = asciiDigits(value).replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("0") && digits.length === 11) digits = `98${digits.slice(1)}`;
+  return digits;
+};
+var sourceLabel = (value) => (value ?? "").trim().slice(0, 80);
+var ownerIdFromRequest = (req) => {
+  const ownerId = Number(req.auth?.telegramId);
+  return Number.isSafeInteger(ownerId) && ownerId > 0 ? ownerId : null;
+};
+var offerSelect = (activeOnly) => `
+  SELECT id::float8 AS id, title, description, gb::float8 AS gb,
+         days::float8 AS days, price::float8 AS price,
+         (is_enabled = 1) AS enabled, sort_order::float8 AS sort_order
+  FROM reseller_storefront_offers
+  WHERE reseller_tg_id = $1 ${activeOnly ? "AND is_enabled = 1" : ""}
+  ORDER BY sort_order ASC, id ASC
+`;
+var leadSelect = `
+  SELECT id::float8 AS id, customer_name, phone, offer_id::float8 AS offer_id,
+         offer_name, gb::float8 AS gb, days::float8 AS days,
+         offer_price::float8 AS offer_price, message, source, status, seller_note,
+         created_at::text AS created_at, converted_sale_id::float8 AS converted_sale_id
+  FROM reseller_storefront_leads
+`;
+async function loadResellerStorefront(ownerId) {
+  const [sellerResult, configResult, offersResult, viewsResult, statsResult] = await Promise.all([
+    pool.query(
+      `SELECT title FROM resellers WHERE tg_id::text = $1::text LIMIT 1`,
+      [ownerId]
+    ),
+    pool.query(
+      `SELECT slug, store_name, description, whatsapp_phone, is_enabled
+         FROM reseller_storefronts WHERE reseller_tg_id = $1`,
+      [ownerId]
+    ),
+    pool.query(offerSelect(false), [ownerId]),
+    pool.query(
+      `SELECT COALESCE(SUM(views), 0)::float8 AS views
+         FROM reseller_storefront_daily_views WHERE reseller_tg_id = $1`,
+      [ownerId]
+    ),
+    pool.query(
+      `SELECT
+           COUNT(DISTINCT lead.id)::float8 AS inquiries,
+           COUNT(DISTINCT CASE
+             WHEN lead.status = 'converted' AND sale.id IS NOT NULL THEN lead.id
+           END)::float8 AS conversions,
+           COALESCE(SUM(sale.custom_sell_price), 0)::float8 AS attributed_revenue
+         FROM reseller_storefront_leads lead
+         LEFT JOIN reseller_sales_log sale
+           ON sale.source_storefront_lead_id = lead.id
+          AND sale.reseller_tg_id = lead.reseller_tg_id
+         WHERE lead.reseller_tg_id = $1`,
+      [ownerId]
+    )
+  ]);
+  const seller = sellerResult.rows[0];
+  if (!seller) return null;
+  const config3 = configResult.rows[0];
+  const stats = statsResult.rows[0];
+  return GetResellerStorefrontResponse.parse({
+    slug: config3?.slug ?? `seller-${ownerId}`,
+    store_name: config3?.store_name ?? seller.title?.trim() ?? "\u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u0641\u0631\u0648\u0634\u0646\u062F\u0647",
+    description: config3?.description ?? "",
+    whatsapp_phone: config3?.whatsapp_phone ?? null,
+    enabled: Number(config3?.is_enabled ?? 0) === 1,
+    offers: offersResult.rows,
+    stats: {
+      views: Number(viewsResult.rows[0]?.views ?? 0),
+      inquiries: Number(stats?.inquiries ?? 0),
+      conversions: Number(stats?.conversions ?? 0),
+      attributed_revenue: Number(stats?.attributed_revenue ?? 0)
+    }
+  });
+}
+async function loadOwnerLead(ownerId, id) {
+  const result = await pool.query(leadSelect + " WHERE reseller_tg_id = $1 AND id = $2", [
+    ownerId,
+    id
+  ]);
+  const lead = result.rows[0];
+  return lead ? GetResellerStorefrontLeadResponse.parse(lead) : null;
+}
+var publicStorefrontRow = async (slug) => pool.query(
+  `SELECT store.reseller_tg_id::float8 AS reseller_tg_id, store.slug,
+            store.store_name, store.description, store.whatsapp_phone
+     FROM reseller_storefronts store
+     JOIN resellers reseller
+       ON reseller.tg_id::text = store.reseller_tg_id::text
+     WHERE store.slug = $1
+       AND store.is_enabled = 1
+       AND reseller.is_enabled = 1
+     LIMIT 1`,
+  [slug]
+);
+storefrontRouter.get("/public/storefronts/:slug", async (req, res, next) => {
+  const params = GetPublicStorefrontParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "\u0646\u0634\u0627\u0646\u06CC \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  try {
+    const storeResult = await publicStorefrontRow(params.data.slug);
+    const store = storeResult.rows[0];
+    if (!store) {
+      res.status(404).json({ error: "\u0627\u06CC\u0646 \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A" });
+      return;
+    }
+    const offersResult = await pool.query(offerSelect(true), [store.reseller_tg_id]);
+    if (!offersResult.rows.length) {
+      res.status(404).json({ error: "\u0627\u06CC\u0646 \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A" });
+      return;
+    }
+    res.json(
+      GetPublicStorefrontResponse.parse({
+        slug: store.slug,
+        store_name: store.store_name,
+        description: store.description,
+        whatsapp_phone: store.whatsapp_phone,
+        offers: offersResult.rows
+      })
+    );
+  } catch (error40) {
+    next(error40);
+  }
+});
+storefrontRouter.post(
+  "/public/storefronts/:slug/views",
+  async (req, res, next) => {
+    const params = RecordPublicStorefrontViewParams.safeParse(req.params);
+    const body = RecordPublicStorefrontViewBody.safeParse(req.body ?? {});
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062B\u0628\u062A \u0628\u0627\u0632\u062F\u06CC\u062F \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+      return;
+    }
+    try {
+      const storeResult = await publicStorefrontRow(params.data.slug);
+      const store = storeResult.rows[0];
+      if (!store) {
+        res.status(404).json({ error: "\u0627\u06CC\u0646 \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A" });
+        return;
+      }
+      await pool.query(
+        `INSERT INTO reseller_storefront_daily_views
+           (reseller_tg_id, viewed_on, source, views)
+         VALUES ($1, (NOW() AT TIME ZONE 'Asia/Tehran')::date, $2, 1)
+         ON CONFLICT (reseller_tg_id, viewed_on, source)
+         DO UPDATE SET views = reseller_storefront_daily_views.views + 1`,
+        [store.reseller_tg_id, sourceLabel(body.data.source)]
+      );
+      res.json(RecordPublicStorefrontViewResponse.parse({ recorded: true }));
+    } catch (error40) {
+      next(error40);
+    }
+  }
+);
+storefrontRouter.post(
+  "/public/storefronts/:slug/leads",
+  async (req, res, next) => {
+    const params = CreatePublicStorefrontLeadParams.safeParse(req.params);
+    const body = CreatePublicStorefrontLeadBody.safeParse(req.body ?? {});
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+      return;
+    }
+    try {
+      const storeResult = await publicStorefrontRow(params.data.slug);
+      const store = storeResult.rows[0];
+      if (!store) {
+        res.status(404).json({ error: "\u0627\u06CC\u0646 \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A" });
+        return;
+      }
+      if (body.data.website.trim()) {
+        res.status(201).json(
+          CreatePublicStorefrontLeadResponse.parse({
+            lead_id: 0,
+            whatsapp_url: null
+          })
+        );
+        return;
+      }
+      const phone = asciiDigits(body.data.phone.trim());
+      const phoneKey = normalizeStorefrontPhone(phone);
+      if (phoneKey.length < 7 || phoneKey.length > 15) {
+        res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u062A\u0645\u0627\u0633 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+        return;
+      }
+      const offerResult = await pool.query(
+        `SELECT id::float8 AS id, title, gb::float8 AS gb,
+                days::float8 AS days, price::float8 AS price
+         FROM reseller_storefront_offers
+         WHERE reseller_tg_id = $1 AND id = $2 AND is_enabled = 1
+         LIMIT 1`,
+        [store.reseller_tg_id, body.data.offer_id]
+      );
+      const offer = offerResult.rows[0];
+      if (!offer) {
+        res.status(404).json({ error: "\u0627\u06CC\u0646 \u0628\u0633\u062A\u0647 \u062F\u06CC\u06AF\u0631 \u0641\u0639\u0627\u0644 \u0646\u06CC\u0633\u062A" });
+        return;
+      }
+      const recent = await pool.query(
+        `SELECT 1 FROM reseller_storefront_leads
+         WHERE reseller_tg_id = $1
+           AND phone_normalized = $2
+           AND created_at > NOW() - INTERVAL '60 seconds'
+         LIMIT 1`,
+        [store.reseller_tg_id, phoneKey]
+      );
+      if (recent.rows.length) {
+        res.status(429).json({ error: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0634\u0645\u0627 \u0628\u0647\u200C\u062A\u0627\u0632\u06AF\u06CC \u062B\u0628\u062A \u0634\u062F\u0647 \u0627\u0633\u062A" });
+        return;
+      }
+      const message = body.data.message.trim().slice(0, 500) || null;
+      const source = sourceLabel(body.data.source) || "direct";
+      const inserted = await pool.query(
+        `INSERT INTO reseller_storefront_leads
+           (reseller_tg_id, offer_id, customer_name, phone, phone_normalized,
+            offer_name, gb, days, offer_price, message, source, status,
+            created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'new', NOW(), NOW())
+         RETURNING id::float8 AS id`,
+        [
+          store.reseller_tg_id,
+          offer.id,
+          body.data.customer_name.trim(),
+          phone,
+          phoneKey,
+          offer.title,
+          offer.gb,
+          offer.days,
+          offer.price,
+          message,
+          source
+        ]
+      );
+      const whatsappPhone = store.whatsapp_phone ? normalizeStorefrontPhone(store.whatsapp_phone) : "";
+      const whatsappUrl = whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(
+        `\u0633\u0644\u0627\u0645\u060C \u0628\u0631\u0627\u06CC \u0628\u0633\u062A\u0647\u0654 ${offer.title} \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062B\u0628\u062A \u06A9\u0631\u062F\u0645.`
+      )}` : null;
+      res.status(201).json(
+        CreatePublicStorefrontLeadResponse.parse({
+          lead_id: Number(inserted.rows[0].id),
+          whatsapp_url: whatsappUrl
+        })
+      );
+    } catch (error40) {
+      next(error40);
+    }
+  }
+);
+storefrontRouter.get("/storefront", requireAuth, async (req, res, next) => {
+  const ownerId = ownerIdFromRequest(req);
+  if (!ownerId) {
+    res.status(403).json({ error: "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  try {
+    const payload = await loadResellerStorefront(ownerId);
+    if (!payload) {
+      res.status(404).json({ error: "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+      return;
+    }
+    res.json(payload);
+  } catch (error40) {
+    next(error40);
+  }
+});
+storefrontRouter.put("/storefront", requireAuth, async (req, res, next) => {
+  const ownerId = ownerIdFromRequest(req);
+  const body = UpdateResellerStorefrontBody.safeParse(req.body ?? {});
+  if (!ownerId) {
+    res.status(403).json({ error: "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  if (!body.success) {
+    res.status(400).json({ error: "\u0645\u0634\u062E\u0635\u0627\u062A \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  const config3 = body.data;
+  const slug = config3.slug.trim().toLowerCase();
+  const reservedSlugs = /* @__PURE__ */ new Set([
+    "api",
+    "admin",
+    "login",
+    "mobile",
+    "panel",
+    "sub",
+    "store",
+    "storefront"
+  ]);
+  if (reservedSlugs.has(slug)) {
+    res.status(400).json({ error: "\u0627\u06CC\u0646 \u0646\u0634\u0627\u0646\u06CC \u0628\u0631\u0627\u06CC \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u0642\u0627\u0628\u0644 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  const activeOffers = config3.offers.filter((offer) => offer.enabled);
+  if (config3.enabled && activeOffers.length === 0) {
+    res.status(400).json({ error: "\u0628\u0631\u0627\u06CC \u0641\u0639\u0627\u0644 \u06A9\u0631\u062F\u0646 \u0641\u0631\u0648\u0634\u06AF\u0627\u0647\u060C \u062F\u0633\u062A\u200C\u06A9\u0645 \u06CC\u06A9 \u0628\u0633\u062A\u0647 \u0641\u0639\u0627\u0644 \u06A9\u0646\u06CC\u062F" });
+    return;
+  }
+  const whatsappRaw = config3.whatsapp_phone?.trim() ?? "";
+  const whatsappPhone = whatsappRaw ? normalizeStorefrontPhone(whatsappRaw) : null;
+  if (whatsappRaw && (!whatsappPhone || whatsappPhone.length < 8 || whatsappPhone.length > 15)) {
+    res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0648\u0627\u062A\u0633\u200C\u0627\u067E \u0628\u0627\u06CC\u062F \u0647\u0645\u0631\u0627\u0647 \u0628\u0627 \u06A9\u062F \u06A9\u0634\u0648\u0631 \u0648 \u0645\u0639\u062A\u0628\u0631 \u0628\u0627\u0634\u062F" });
+    return;
+  }
+  const existingIds = config3.offers.map((offer) => offer.id).filter((id) => id !== null);
+  if (new Set(existingIds).size !== existingIds.length) {
+    res.status(400).json({ error: "\u06CC\u06A9 \u0628\u0633\u062A\u0647 \u0628\u06CC\u0634 \u0627\u0632 \u06CC\u06A9\u200C\u0628\u0627\u0631 \u0627\u0646\u062A\u062E\u0627\u0628 \u0634\u062F\u0647 \u0627\u0633\u062A" });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const seller = await client.query(
+      `SELECT 1 FROM resellers WHERE tg_id::text = $1::text LIMIT 1`,
+      [ownerId]
+    );
+    if (!seller.rows.length) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+      return;
+    }
+    if (existingIds.length) {
+      const owned = await client.query(
+        `SELECT id FROM reseller_storefront_offers
+         WHERE reseller_tg_id = $1 AND id = ANY($2::bigint[])`,
+        [ownerId, existingIds]
+      );
+      if (owned.rows.length !== existingIds.length) {
+        await client.query("ROLLBACK");
+        res.status(400).json({ error: "\u06CC\u06A9\u06CC \u0627\u0632 \u0628\u0633\u062A\u0647\u200C\u0647\u0627 \u0628\u0647 \u0627\u06CC\u0646 \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u062A\u0639\u0644\u0642 \u0646\u062F\u0627\u0631\u062F" });
+        return;
+      }
+    }
+    await client.query(
+      `INSERT INTO reseller_storefronts
+         (reseller_tg_id, slug, store_name, description, whatsapp_phone, is_enabled, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+       ON CONFLICT (reseller_tg_id) DO UPDATE SET
+         slug = EXCLUDED.slug,
+         store_name = EXCLUDED.store_name,
+         description = EXCLUDED.description,
+         whatsapp_phone = EXCLUDED.whatsapp_phone,
+         is_enabled = EXCLUDED.is_enabled,
+         updated_at = NOW()`,
+      [
+        ownerId,
+        slug,
+        config3.store_name.trim(),
+        config3.description.trim(),
+        whatsappPhone,
+        config3.enabled ? 1 : 0
+      ]
+    );
+    await client.query(
+      `UPDATE reseller_storefront_offers
+       SET is_enabled = 0, updated_at = NOW()
+       WHERE reseller_tg_id = $1`,
+      [ownerId]
+    );
+    for (const offer of config3.offers) {
+      const values = [
+        offer.title.trim(),
+        offer.description.trim(),
+        offer.gb,
+        offer.days,
+        offer.price,
+        offer.enabled ? 1 : 0,
+        offer.sort_order,
+        ownerId
+      ];
+      if (offer.id === null) {
+        await client.query(
+          `INSERT INTO reseller_storefront_offers
+             (title, description, gb, days, price, is_enabled, sort_order, reseller_tg_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
+          values
+        );
+      } else {
+        await client.query(
+          `UPDATE reseller_storefront_offers
+           SET title = $1, description = $2, gb = $3, days = $4, price = $5,
+               is_enabled = $6, sort_order = $7, updated_at = NOW()
+           WHERE reseller_tg_id = $8 AND id = $9`,
+          [...values, offer.id]
+        );
+      }
+    }
+    await client.query("COMMIT");
+    const payload = await loadResellerStorefront(ownerId);
+    if (!payload) {
+      res.status(404).json({ error: "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+      return;
+    }
+    res.json(UpdateResellerStorefrontResponse.parse(payload));
+  } catch (error40) {
+    await client.query("ROLLBACK").catch(() => void 0);
+    if (error40?.code === "23505") {
+      res.status(409).json({ error: "\u0627\u06CC\u0646 \u0646\u0634\u0627\u0646\u06CC \u0642\u0628\u0644\u0627\u064B \u0627\u0646\u062A\u062E\u0627\u0628 \u0634\u062F\u0647 \u0627\u0633\u062A" });
+      return;
+    }
+    next(error40);
+  } finally {
+    client.release();
+  }
+});
+storefrontRouter.get("/storefront/leads", requireAuth, async (req, res, next) => {
+  const ownerId = ownerIdFromRequest(req);
+  const query = ListResellerStorefrontLeadsQueryParams.safeParse(req.query);
+  if (!ownerId) {
+    res.status(403).json({ error: "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  if (!query.success) {
+    res.status(400).json({ error: "\u0641\u06CC\u0644\u062A\u0631 \u062F\u0631\u062E\u0648\u0627\u0633\u062A\u200C\u0647\u0627 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  try {
+    const result = await pool.query(
+      `${leadSelect}
+       WHERE reseller_tg_id = $1
+       ORDER BY created_at DESC, id DESC
+       LIMIT $2`,
+      [ownerId, query.data.limit]
+    );
+    res.json(ListResellerStorefrontLeadsResponse.parse(result.rows));
+  } catch (error40) {
+    next(error40);
+  }
+});
+storefrontRouter.get("/storefront/leads/:id", requireAuth, async (req, res, next) => {
+  const ownerId = ownerIdFromRequest(req);
+  const params = GetResellerStorefrontLeadParams.safeParse(req.params);
+  if (!ownerId) {
+    res.status(403).json({ error: "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  if (!params.success) {
+    res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  try {
+    const lead = await loadOwnerLead(ownerId, params.data.id);
+    if (!lead) {
+      res.status(404).json({ error: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+      return;
+    }
+    res.json(lead);
+  } catch (error40) {
+    next(error40);
+  }
+});
+storefrontRouter.patch("/storefront/leads/:id", requireAuth, async (req, res, next) => {
+  const ownerId = ownerIdFromRequest(req);
+  const params = UpdateResellerStorefrontLeadParams.safeParse(req.params);
+  const body = UpdateResellerStorefrontLeadBody.safeParse(req.body ?? {});
+  if (!ownerId) {
+    res.status(403).json({ error: "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "\u062A\u063A\u06CC\u06CC\u0631 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  try {
+    const updated = await pool.query(
+      `UPDATE reseller_storefront_leads
+       SET status = $1, seller_note = $2, updated_at = NOW()
+       WHERE id = $3 AND reseller_tg_id = $4 AND status <> 'converted'
+       RETURNING id`,
+      [
+        body.data.status,
+        body.data.seller_note?.trim() || null,
+        params.data.id,
+        ownerId
+      ]
+    );
+    if (!updated.rows.length) {
+      const existing = await loadOwnerLead(ownerId, params.data.id);
+      if (!existing) {
+        res.status(404).json({ error: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+        return;
+      }
+      res.status(409).json({ error: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062A\u0628\u062F\u06CC\u0644\u200C\u0634\u062F\u0647 \u0642\u0627\u0628\u0644 \u062A\u063A\u06CC\u06CC\u0631 \u0646\u06CC\u0633\u062A" });
+      return;
+    }
+    const lead = await loadOwnerLead(ownerId, params.data.id);
+    if (!lead) {
+      res.status(404).json({ error: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+      return;
+    }
+    res.json(UpdateResellerStorefrontLeadResponse.parse(lead));
+  } catch (error40) {
+    next(error40);
+  }
+});
+
 // src/routes/management.ts
 var MASTER_ADMIN_COST_PER_GB = 2500;
 var resellerCostPerGbSql = (alias = "r") => `CASE WHEN ${alias}.tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${alias}.per_gig_price, 0) END`;
 var saleAmountToAdminSql = (saleAlias = "s", resellerAlias = "r") => `CASE WHEN ${saleAlias}.reseller_tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${resellerAlias}.per_gig_price, 0) END`;
-var router2 = (0, import_express2.Router)();
+var router2 = (0, import_express3.Router)();
 router2.use(attachAuth);
 var campaignTargets = /* @__PURE__ */ new Set(["all", "recipient", "expiring_3d", "expiring_7d", "expired", "low_traffic", "no_push", "unpaid"]);
 var notificationHref = (value) => {
@@ -67846,7 +68680,9 @@ var managementReady = pool.query(`
          ('phonepanel', 'rain_admin', 'https://videobazi.com', NULL, NULL, NULL),
           ('speedur', 'rain_admin', 'https://www.speedur.org:2096', NULL, NULL, NULL)
        ON CONFLICT (key) DO NOTHING;
-  `).catch((error40) => {
+  `).then(async () => {
+  await ensureStorefrontSchema();
+}).catch((error40) => {
   console.error("Panel management schema initialization failed", error40);
   throw error40;
 });
@@ -67858,6 +68694,7 @@ router2.use(async (_req, _res, next) => {
     next(error40);
   }
 });
+router2.use(storefrontRouter);
 var sessionResponse = (context) => GetAuthSessionResponse.parse(
   context ? {
     authenticated: true,
@@ -70694,6 +71531,32 @@ router2.post("/services", requireAuth, async (req, res) => {
         return;
       }
     }
+    const storefrontLeadId = body.data.storefront_lead_id ?? null;
+    if (storefrontLeadId !== null) {
+      const leadResult = await client.query(
+        `SELECT phone_normalized, status, converted_sale_id
+         FROM reseller_storefront_leads
+         WHERE id = $1 AND reseller_tg_id = $2
+         FOR UPDATE`,
+        [storefrontLeadId, ownerId]
+      );
+      const lead = leadResult.rows[0];
+      if (!lead) {
+        await client.query("ROLLBACK");
+        res.status(404).json({ error: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+        return;
+      }
+      if (lead.status === "converted" || lead.status === "closed" || lead.converted_sale_id) {
+        await client.query("ROLLBACK");
+        res.status(409).json({ error: "\u0627\u06CC\u0646 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0642\u0628\u0644\u0627\u064B \u0628\u0633\u062A\u0647 \u06CC\u0627 \u062A\u0628\u062F\u06CC\u0644 \u0634\u062F\u0647 \u0627\u0633\u062A" });
+        return;
+      }
+      if (normalizeStorefrontPhone(body.data.phone) !== lead.phone_normalized) {
+        await client.query("ROLLBACK");
+        res.status(400).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0634\u062A\u0631\u06CC \u0628\u0627 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u0645\u0637\u0627\u0628\u0642\u062A \u0646\u062F\u0627\u0631\u062F" });
+        return;
+      }
+    }
     const customer = await client.query(
       req.auth?.role === "master_admin" ? `SELECT id FROM reseller_customers WHERE phone::text = $1::text ORDER BY id LIMIT 1` : `SELECT id FROM reseller_customers
             WHERE phone::text = $1::text
@@ -70789,10 +71652,28 @@ router2.post("/services", requireAuth, async (req, res) => {
     const sellPrice = body.data.sell_price ?? body.data.gb * customerPricePerGb;
     await client.query(
       `INSERT INTO reseller_sales_log
-       (id, reseller_tg_id, service_id, action_type, gb_amount, days_amount, created_at, custom_sell_price, is_paid)
-       VALUES ($1, $2, $3, 'create', $4, $5, NOW(), $6, $7)`,
-      [saleId, ownerId, serviceId, body.data.gb, body.data.days, sellPrice, body.data.is_paid ? 1 : 0]
+       (id, reseller_tg_id, service_id, action_type, gb_amount, days_amount, created_at,
+        custom_sell_price, is_paid, source_storefront_lead_id)
+       VALUES ($1, $2, $3, 'create', $4, $5, NOW(), $6, $7, $8)`,
+      [
+        saleId,
+        ownerId,
+        serviceId,
+        body.data.gb,
+        body.data.days,
+        sellPrice,
+        body.data.is_paid ? 1 : 0,
+        storefrontLeadId
+      ]
     );
+    if (storefrontLeadId !== null) {
+      await client.query(
+        `UPDATE reseller_storefront_leads
+         SET status = 'converted', converted_sale_id = $1, updated_at = NOW()
+         WHERE id = $2 AND reseller_tg_id = $3`,
+        [saleId, storefrontLeadId, ownerId]
+      );
+    }
     const queueNext = await client.query(
       "SELECT COALESCE(MAX(id), 0) + 1 AS id FROM reseller_sync_queue"
     );
@@ -72534,7 +73415,7 @@ router2.get("/insights", requireAuth, async (req, res) => {
 var management_default = router2;
 
 // src/routes/health.ts
-var router3 = (0, import_express3.Router)();
+var router3 = (0, import_express4.Router)();
 var readinessState = "starting";
 void Promise.all([managementReady, mobileReady, mobileOtpReady]).then(
   () => {
@@ -72564,7 +73445,7 @@ router3.get("/readyz", async (_req, res) => {
 var health_default = router3;
 
 // src/routes/index.ts
-var router4 = (0, import_express4.Router)();
+var router4 = (0, import_express5.Router)();
 router4.use(health_default);
 router4.use(management_default);
 router4.use(mobile_default);
@@ -72852,7 +73733,7 @@ function startUsageSyncWorker() {
 }
 
 // src/app.ts
-var app = (0, import_express5.default)();
+var app = (0, import_express6.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -72898,8 +73779,8 @@ app.use((req, res, next) => {
   })(req, res, next);
 });
 app.use((0, import_cookie_parser.default)());
-app.use(import_express5.default.json({ limit: "256kb" }));
-app.use(import_express5.default.urlencoded({ extended: true, limit: "64kb" }));
+app.use(import_express6.default.json({ limit: "256kb" }));
+app.use(import_express6.default.urlencoded({ extended: true, limit: "64kb" }));
 app.use("/api", routes_default);
 var isDatabaseUnavailableError = (error40) => {
   if (!error40 || typeof error40 !== "object") return false;
