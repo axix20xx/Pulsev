@@ -1,0 +1,170 @@
+Results
+
+{
+    "authentication": "Success",
+    "Admin": {
+        "http_status": 200,
+        "data": {
+            "username": "Applenia_l2tp",
+            "is_sudo": false,
+            "telegram_id": 1026368027,
+            "discord_webhook": null,
+            "users_usage": 2411071486,
+            "group_id": 27,
+            "can_rename_config": false,
+            "can_reorder_config": false,
+            "can_customize_sub": false,
+            "can_add_subdomain": false,
+            "subdomain": null,
+            "can_custom_uuid": false,
+            "can_extra_configs": false,
+            "can_rename_panel": false,
+            "panel_name": null,
+            "can_support": false,
+            "support_id": null,
+            "lock_inbounds": false,
+            "core": "ipsec"
+        },
+        "error": null
+    },
+    "Core": {
+        "http_status": 200,
+        "data": {
+            "version": "26.3.27",
+            "started": true,
+            "logs_websocket": "/api/core/logs"
+        },
+        "error": null
+    },
+    "System": {
+        "http_status": 200,
+        "data": {
+            "version": "1.8.0",
+            "mem_total": 0,
+            "mem_used": 0,
+            "cpu_cores": 0,
+            "cpu_usage": 0,
+            "total_user": 1,
+            "online_users": 0,
+            "users_today": 1,
+            "users_active": 1,
+            "users_on_hold": 0,
+            "users_disabled": 0,
+            "users_expired": 0,
+            "users_limited": 0,
+            "incoming_bandwidth": 2411071486,
+            "outgoing_bandwidth": 0,
+            "incoming_bandwidth_speed": 0,
+            "outgoing_bandwidth_speed": 0
+        },
+        "error": null
+    },
+    "Inbounds": {
+        "http_status": 200,
+        "data": {
+            "wireguard": [
+                {
+                    "tag": "wireguard",
+                    "protocol": "wireguard",
+                    "network": "udp",
+                    "tls": "none",
+                    "port": 0,
+                    "sni": "",
+                    "host": "",
+                    "path": "",
+                    "header_type": "",
+                    "is_fallback": false,
+                    "alpn": "",
+                    "fp": ""
+                }
+            ]
+        },
+        "error": null
+    },
+    "Users (first 100)": {
+        "http_status": 200,
+        "data": {
+            "users": [
+                {
+                    "proxies": {
+                        "vless": {
+                            "id": "ae23f3cc-e472-4707-b0f6-fe121eb59920",
+                            "flow": ""
+                        }
+                    },
+                    "expire": null,
+                    "data_limit": null,
+                    "device_limit": 5,
+                    "data_limit_reset_strategy": "no_reset",
+                    "inbounds": [],
+                    "wg_hosts": [],
+                    "note": "",
+                    "sub_updated_at": "2026-10-10T18:41:04",
+                    "sub_last_user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0.1 Mobile/15E148 Safari/604.1",
+                    "online_at": "2026-10-09T20:25:26",
+                    "on_hold_expire_duration": null,
+                    "on_hold_timeout": null,
+                    "auto_delete_in_days": null,
+                    "next_plan": null,
+                    "username": "Applenia",
+                    "core": "ipsec",
+                    "status": "active",
+                    "used_traffic": 2413659049,
+                    "lifetime_used_traffic": 2413659049,
+                    "created_at": "2026-10-06T15:23:54",
+                    "expire_set_at": null,
+                    "links": [
+                        "https://azadsell.asan-ps.ir/sub/QXBwbGVuaWEsMTc5MTY1Nzg1OACtwSscUUGV",
+                        "https://azadsell.asan-ps.ir/sub/QXBwbGVuaWEsMTc5MTY1Nzg1OACtwSscUUGV?file=apple",
+                        "https://azadsell.asan-ps.ir/sub/QXBwbGVuaWEsMTc5MTY1Nzg1OACtwSscUUGV?file=windows",
+                        "https://azadsell.asan-ps.ir/sub/QXBwbGVuaWEsMTc5MTY1Nzg1OACtwSscUUGV?file=mikrotik"
+                    ],
+                    "subscription_url": "https://azadsell.asan-ps.ir/sub/QXBwbGVuaWEsMTc5MTY1Nzg1OACtwSscUUGV",
+                    "excluded_inbounds": {
+                        "vless": []
+                    },
+                    "excluded_hosts": [],
+                    "host_group_id": null,
+                    "sub_client": {
+                        "name": "مرورگر",
+                        "icon": "🌐"
+                    },
+                    "admin": {
+                        "username": "Applenia_l2tp",
+                        "is_sudo": false,
+                        "telegram_id": 1026368027,
+                        "discord_webhook": null,
+                        "users_usage": 2411071486,
+                        "group_id": 27,
+                        "can_rename_config": false,
+                        "can_reorder_config": false,
+                        "can_customize_sub": false,
+                        "can_add_subdomain": false,
+                        "subdomain": null,
+                        "can_custom_uuid": false,
+                        "can_extra_configs": false,
+                        "can_rename_panel": false,
+                        "panel_name": null,
+                        "can_support": false,
+                        "support_id": null,
+                        "lock_inbounds": false,
+                        "core": "ipsec"
+                    },
+                    "status_notice": ""
+                }
+            ],
+            "total": 1
+        },
+        "error": null
+    },
+    "IPsec": {
+        "http_status": 404,
+        "data": {
+            "detail": "Not Found"
+        },
+        "error": null
+    },
+    "Customer": {
+        "http_status": 403,
+        "data": {
+            "detail": "You're not allowed"

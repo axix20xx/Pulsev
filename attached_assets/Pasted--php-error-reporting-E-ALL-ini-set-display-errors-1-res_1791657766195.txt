@@ -1,0 +1,213 @@
+<?php
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+$result = null;
+function apiRequest($base, $path, $token = null) {
+    $ch = curl_init(rtrim($base, '/') . $path);
+    $headers = ['Accept: application/json'];
+    if ($token) {
+        $headers[] = 'Authorization: Bearer ' . $token;
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
+    ]);
+    $body = curl_exec($ch);
+    $error = curl_error($ch);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    $json = json_decode($body ?: '', true);
+    return [
+        'http_status' => $status,
+        'data' => $json ?? $body,
+        'error' => $error ?: null,
+    ];
+}
+function showResult($base, $path, $token) {
+    return apiRequest($base, $path, $token);
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $base = rtrim(trim($_POST['base'] ?? ''), '/');
+    $username = trim($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $customer = trim($_POST['customer'] ?? '');
+    if (
+        !filter_var($base, FILTER_VALIDATE_URL) ||
+        !in_array(parse_url($base, PHP_URL_SCHEME), ['https', 'http'], true) ||
+        !$username || !$password
+    ) {
+        $result = ['error' => 'Enter a valid panel URL, username and password.'];
+    } else {
+        // Authenticate using form-urlencoded credentials.
+        $ch = curl_init($base . '/api/admin/token');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => http_build_query([
+                'username' => $username,
+                'password' => $password,
+            ]),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/x-www-form-urlencoded',
+                'Accept: application/json',
+            ],
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+        ]);
+        $body = curl_exec($ch);
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        $auth = json_decode($body ?: '', true);
+        if ($error || $status !== 200 || empty($auth['access_token'])) {
+            $result = [
+                'authentication' => [
+                    'http_status' => $status,
+                    'error' => $error ?: null,
+                    'response' => $auth ?? $body,
+                ],
+            ];
+        } else {
+            $token = $auth['access_token'];
+            $paths = [
+                'Admin' => '/api/admin',
+                'Core' => '/api/core',
+                'System' => '/api/system',
+                'Inbounds' => '/api/inbounds',
+                'Users (first 100)' => '/api/users?offset=0&limit=100',
+                'IPsec' => '/api/ipsec',
+            ];
+            $result = ['authentication' => 'Success'];
+            foreach ($paths as $label => $path) {
+                $result[$label] = showResult($base, $path, $token);
+            }
+            // Fetch configs for a specific customer if provided.
+            if ($customer !== '') {
+                $u = rawurlencode($customer);
+                $user = showResult(
+                    $base, "/api/user/$u", $token
+                );
+                $result['Customer'] = $user;
+                $core = $user['data']['core'] ?? '';
+                if ($user['http_status'] === 200) {
+                    if ($core === 'xray') {
+                        $configPaths = [
+                            'Xray Link' =>
+                                "/api/xray/user/$u/link",
+                            'Xray Configs' =>
+                                "/api/xray/user/$u/configs",
+                        ];
+                    } elseif ($core === 'wireguard') {
+                        $configPaths = [
+                            'WireGuard Configs' =>
+                                "/api/wg/user/$u/configs",
+                            'WireGuard Bundle' =>
+                                "/api/wg/user/$u/bundle",
+                        ];
+                    } elseif ($core === 'openvpn') {
+                        $configPaths = [
+                            'OpenVPN Configs' =>
+                                "/api/ovpn/user/$u/configs",
+                            'OpenVPN Import' =>
+                                "/api/ovpn/user/$u/import",
+                        ];
+                    } else {
+                        $configPaths = [];
+                        $result['Customer Config Error'] =
+                            'Unknown or unsupported core.';
+                    }
+                    foreach ($configPaths as $label => $path) {
+                        $result[$label] = showResult(
+                            $base, $path, $token
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AzadPanel API Tester</title>
+<style>
+body {
+    font: 15px system-ui, sans-serif;
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 0 16px;
+    background: #f5f6fa;
+    color: #202436;
+}
+form, pre {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+}
+input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12px;
+    margin: 7px 0 14px;
+    border: 1px solid #ccc;
+    border-radius: 7px;
+}
+button {
+    padding: 12px 20px;
+    background: #4038ca;
+    color: white;
+    border: 0;
+    border-radius: 7px;
+    cursor: pointer;
+}
+pre {
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+h2 { margin-top: 28px; }
+</style>
+</head>
+<body>
+<h1>AzadPanel API Tester</h1>
+<form method="post">
+    <label>Panel URL</label>
+    <input name="base"
+           placeholder="https://panel.example.com"
+           value="<?= htmlspecialchars($_POST['base'] ?? '') ?>"
+           required>
+    <label>Reseller Username</label>
+    <input name="username" autocomplete="username"
+           value="<?= htmlspecialchars($_POST['username'] ?? '') ?>"
+           required>
+    <label>Reseller Password</label>
+    <input type="password" name="password"
+           autocomplete="current-password" required>
+    <label>Customer Username (optional)</label>
+    <input name="customer"
+           placeholder="cust_1042"
+           value="<?= htmlspecialchars($_POST['customer'] ?? '') ?>">
+    <button type="submit">Login & Fetch Configs</button>
+</form>
+<?php if ($result !== null): ?>
+<h2>API Results</h2>
+<pre><?= htmlspecialchars(
+    json_encode(
+        $result,
+        JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE |
+        JSON_UNESCAPED_SLASHES
+    ) ?: '{}'
+) ?></pre>
+<?php endif; ?>
+</body>
+</html>
