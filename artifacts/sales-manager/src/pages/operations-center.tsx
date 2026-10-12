@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { AlertTriangle, ArrowLeft, Check, Clipboard, Cloud, Copy, Download, FileText, Link2, RefreshCw, ShieldCheck, ShoppingCart, Trash2, Users, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, Clipboard, Cloud, Clock3, Copy, Download, FileText, Link2, RefreshCw, ShieldCheck, ShoppingCart, Trash2, Users, Wallet, Wifi } from 'lucide-react';
 import { Link } from 'wouter';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateLabel, dateTimeLabel, money } from '@/lib/pulse-data';
-import { PageHeader } from '@/components/pulse-shell';
+import { PageHeader } from '@/components/admin-console-primitives';
+import { MetricTile, StatePanel } from '@/components/admin-console-primitives';
 import { copyTextToClipboard } from '@/lib/browser-utils';
 
 type JsonRecord = Record<string, any>;
@@ -71,37 +72,37 @@ const exportCsv = (filename: string, rows: Array<Record<string, unknown>>) => {
 
 function StateCard({ kind, onRetry }: { kind: 'loading' | 'error' | 'empty'; onRetry?: () => void }) {
   if (kind === 'loading') {
-    return <div className="ops-state"><div className="ops-skeleton" aria-label="در حال بارگذاری"><span className="ops-skeleton-line" /><span className="ops-skeleton-line" /><span className="ops-skeleton-line" /></div><strong>در حال دریافت نمای عملیاتی</strong></div>;
+    return <StatePanel kind="loading" title="در حال دریافت نمای عملیاتی" detail="اطلاعات واقعی مرکز فرمان در حال بارگذاری است." />;
   }
   if (kind === 'error') {
-    return <div className="ops-state"><AlertTriangle size={22} /><strong>دریافت اطلاعات انجام نشد</strong><p>اتصال به مرکز عملیات برقرار نشد. وضعیت شبکه و دسترسی حساب را بررسی کنید و دوباره تلاش کنید.</p>{onRetry && <button className="button button-secondary" type="button" onClick={onRetry}><RefreshCw size={14} /> تلاش دوباره</button>}</div>;
+    return <StatePanel kind="error" title="دریافت اطلاعات انجام نشد" detail="اتصال به مرکز عملیات برقرار نشد. وضعیت شبکه و دسترسی حساب را بررسی کنید." action={onRetry && <button className="console-action console-action-secondary" type="button" onClick={onRetry}><RefreshCw size={14} /> تلاش دوباره</button>} />;
   }
-  return <div className="ops-state"><Clipboard size={22} /><strong>هنوز داده‌ای برای نمایش نیست</strong><p>وقتی اطلاعات عملیاتی از سرور در دسترس باشد، این بخش به‌صورت خودکار تکمیل می‌شود.</p></div>;
+  return <StatePanel title="هنوز داده‌ای برای نمایش نیست" detail="وقتی اطلاعات عملیاتی از سرور در دسترس باشد، این بخش به‌صورت خودکار تکمیل می‌شود." />;
 }
 
 function SummaryStrip({ summary, admin }: { summary: JsonRecord; admin?: boolean }) {
   const metrics = admin
     ? [
-        ['فروشنده‌ها', first(summary, ['resellers', 'reseller_count']), (value: unknown) => countValue(value)],
-        ['سرویس فعال', first(summary, ['active_services']), (value: unknown) => countValue(value)],
-        ['درآمد این ماه', first(summary, ['month_income', 'income']), (value: unknown) => moneyValue(value)],
-        ['سود این ماه', first(summary, ['month_profit', 'profit']), (value: unknown) => moneyValue(value)],
-        ['مانده وصول', first(summary, ['unpaid_amount', 'unpaid_income']), (value: unknown) => moneyValue(value)],
-        ['job ناموفق', first(summary, ['failed_jobs']), (value: unknown) => countValue(value)],
+        ['فروشنده‌ها', first(summary, ['resellers', 'reseller_count']), countValue, Users],
+        ['سرویس فعال', first(summary, ['active_services']), countValue, Wifi],
+        ['درآمد این ماه', first(summary, ['month_income', 'income']), moneyValue, Wallet],
+        ['سود این ماه', first(summary, ['month_profit', 'profit']), moneyValue, ShieldCheck],
+        ['مانده وصول', first(summary, ['unpaid_amount', 'unpaid_income']), moneyValue, Wallet],
+        ['job ناموفق', first(summary, ['failed_jobs']), countValue, AlertTriangle],
       ]
     : [
-        ['سرویس فعال', first(summary, ['active_services']), (value: unknown) => countValue(value)],
-        ['نزدیک انقضا', first(summary, ['expiring_soon']), (value: unknown) => countValue(value)],
-        ['درآمد این ماه', first(summary, ['month_income', 'income']), (value: unknown) => moneyValue(value)],
-        ['سود این ماه', first(summary, ['month_profit', 'profit']), (value: unknown) => moneyValue(value)],
-        ['حجم پوشش', first(summary, ['balance_gb', 'remaining_gb']), (value: unknown) => decimalValue(value, ' GB')],
-        ['روزهای پوشش', first(summary, ['balance_days', 'days_remaining']), (value: unknown) => decimalValue(value, ' روز')],
+        ['سرویس فعال', first(summary, ['active_services']), countValue, Wifi],
+        ['نزدیک انقضا', first(summary, ['expiring_soon']), countValue, Clock3],
+        ['درآمد این ماه', first(summary, ['month_income', 'income']), moneyValue, Wallet],
+        ['سود این ماه', first(summary, ['month_profit', 'profit']), moneyValue, ShieldCheck],
+        ['حجم پوشش', first(summary, ['balance_gb', 'remaining_gb']), (value: unknown) => decimalValue(value, ' GB'), Cloud],
+        ['روزهای پوشش', first(summary, ['balance_days', 'days_remaining']), (value: unknown) => decimalValue(value, ' روز'), Clock3],
       ];
-  return <div className={`ops-summary-strip ${admin ? 'admin' : ''}`}>{metrics.map(([label, value, format]) => <div className="ops-summary-item" key={String(label)}><span>{label}</span><strong>{(format as (value: unknown) => string)(value)}</strong></div>)}</div>;
+  return <div className={`console-metrics-grid ops-summary-strip ${admin ? 'admin' : ''}`}>{metrics.map(([label, value, format, icon]) => <MetricTile key={String(label)} label={String(label)} value={(format as (value: unknown) => string)(value)} icon={icon as typeof Users} />)}</div>;
 }
 
 function SectionHead({ kicker, title, detail, count, action }: { kicker: string; title: string; detail?: string; count?: string; action?: ReactNode }) {
-  return <div className="ops-card-head"><div><p className="ops-kicker">{kicker}</p><h2 className="ops-card-title">{title}</h2>{detail && <p className="ops-card-copy">{detail}</p>}</div><div className="ops-mobile-stack">{count && <span className="ops-count">{count}</span>}{action}</div></div>;
+  return <header className="console-surface-head ops-card-head"><div><p className="console-eyebrow">{kicker}</p><h2 className="console-section-title ops-card-title">{title}</h2>{detail && <p className="console-section-copy ops-card-copy">{detail}</p>}</div><div className="ops-mobile-stack">{count && <span className="ops-count">{count}</span>}{action}</div></header>;
 }
 
 function StatusTreatment({ status, label }: { status: unknown; label?: string }) {
@@ -314,8 +315,8 @@ function OperationsCenterContent() {
   const handleAdminExport = () => exportCsv('سلامت-فروشنده‌ها.csv', health.map((item) => ({ فروشنده: first(item, ['name', 'title', 'reseller_name']) ?? '', وضعیت: first(item, ['status', 'health', 'state']) ?? '', حجم_باقی‌مانده: first(item, ['remaining_gb', 'available_gb', 'credit_remaining_gb']) ?? '', فروش_امروز: first(item, ['sales_today', 'sales_count', 'sale_count']) ?? '', درآمد_امروز: first(item, ['revenue_today', 'revenue', 'customer_revenue']) ?? '' })));
   const refresh = () => setRefreshToken((value) => value + 1);
 
-  return <div className="ops-page" dir="rtl">
-    <PageHeader eyebrow="مرکز عملیات" title="اتاق کنترل فروش" description={`تصمیم‌های مهم، در یک نمای زنده · نقش: ${roleLabel}`} action={<div className="ops-toolbar"><button className="button button-secondary" type="button" onClick={refresh} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> به‌روزرسانی</button>{!loading && Boolean(commandData) && <span className="ops-header-meta"><i className="ops-live-dot" /> اتصال زنده</span>}</div>} />
+  return <div className="admin-console ops-page console-page" dir="rtl">
+    <PageHeader eyebrow="مرکز عملیات" title="اتاق کنترل فروش" description={`تصمیم‌های مهم، در یک نمای زنده · نقش: ${roleLabel}`} action={<div className="console-page-actions"><button className="console-action console-action-secondary" type="button" onClick={refresh} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> به‌روزرسانی</button>{!loading && Boolean(commandData) && <span className="ops-header-meta"><i className="ops-live-dot" /> اتصال زنده</span>}</div>} />
     {loading || sessionLoading ? <StateCard kind="loading" /> : error ? <StateCard kind="error" onRetry={refresh} /> : !commandData ? <StateCard kind="empty" /> : <>{isAdmin ? <AdminView command={command} audit={auditData as JsonRecord[]} auditError={auditError} onExport={handleAdminExport} /> : <ResellerView command={command} onExport={handleResellerExport} />}</>}
   </div>;
 }

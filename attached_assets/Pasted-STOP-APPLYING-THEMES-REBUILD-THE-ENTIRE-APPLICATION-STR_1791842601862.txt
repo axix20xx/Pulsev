@@ -1,0 +1,20 @@
+STOP APPLYING THEMES. REBUILD THE ENTIRE APPLICATION STRUCTURE.
+
+Your previous changes only modified colors and styling. That is not what I requested.
+
+Act as a senior software architect. Refactor the actual codebase, not just its CSS.
+
+1. Inspect every route, page, layout, component, navigation system, modal, form, table, and floating action.
+2. Replace the existing application shell and fundamentally restructure the UI/UX. Rewrite and split components where necessary; remove obsolete components and conflicting CSS.
+3. Redesign EVERY existing page using a consistent, modern, premium Super Admin architecture—not just the dashboard.
+4. Rebuild the navigation, page hierarchy, content grouping, responsive layouts, KPI grids, tables, forms, dialogs, and shared component system.
+5. Implement the «فروش سریع» floating action properly, with a functional workflow connected to existing business logic.
+6. Create reusable components and a centralized design system. Preserve existing APIs, database logic, authentication, permissions, and routes.
+7. Make the Persian RTL experience mobile-first, with a proper navigation drawer and no overlapping or oversized stacked cards.
+8. Run the application, test every route, and verify the actual rendered results on mobile and desktop.
+
+NON-NEGOTIABLE: Do not merely change themes, colors, fonts, spacing, Tailwind classes, or CSS. Do not preserve the old structure and wrap it in new styles. Make actual structural changes to the source code: refactor layouts, replace components, reorganize page composition, and update navigation architecture.
+
+First identify the exact files responsible for the current structure. Then edit those files and migrate every page to the new architecture. Verify the code diff and rendered application before declaring completion.
+
+Definition of done: The underlying component hierarchy, page structure, and navigation are genuinely different—not just visually restyled. If you have only changed CSS or theme settings, the task is NOT complete.

@@ -1,5 +1,5 @@
 import './pulse-shell-redesigned.css';
-import './management-page-layouts.css';
+import './admin-console.css';
 import { Activity, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronLeft, CircleHelp, Command, Copy, CreditCard, Gauge, LayoutDashboard, LogOut, Menu, Package, PanelRightClose, PanelRightOpen, Search, Send, Settings, ShieldAlert, ShieldEllipsis, ShoppingBag, Sparkles, Store, Users, Wifi, X } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Link, useLocation } from 'wouter';
@@ -214,13 +214,13 @@ export function Shell({ children }: { children: ReactNode }) {
   }, [signedOut, location, navigate, session?.authenticated]);
 
   if (relativePath() === '/login' || window.location.pathname.startsWith('/sub')) {
-    return <div className="min-h-[100dvh] bg-background text-foreground">{children}</div>;
+    return <div className="admin-console console-auth-shell">{children}</div>;
   }
   if (sessionLoading || signedOut) {
     return <div className="pulse-auth-loading" role="status" aria-live="polite"><span className="pulse-mark"><span /></span><p>در حال احراز هویت…</p></div>;
   }
   return (
-    <div className={`pulse-workspace control-center-shell ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''}`} dir="rtl">
+    <div className={`pulse-workspace admin-console control-center-shell ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''}`} dir="rtl">
       <aside className="pulse-shell-sidebar" aria-label="ناوبری اصلی">
         <div className="pulse-brand">
           <Link href="/" className="pulse-brand-link" data-testid="link-logo">
@@ -302,7 +302,13 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="pulse-notification-list">{notifications.length ? notifications.map((item) => <button key={item.id} type="button" className={`pulse-notification ${item.read ? 'is-read' : ''}`} onClick={() => void openNotification(item)}><span className={`pulse-notification-icon tone-${item.tone || 'info'}`}><Bell size={16} /></span><span className="pulse-notification-copy"><strong>{item.title}</strong>{item.service_code && <code dir="ltr">{item.service_code}</code>}<small>{item.detail}</small><time>{dateTimeLabel(item.created_at)}</time></span></button>) : <div className="pulse-notification-empty"><Bell size={19} /><strong>اعلان تازه‌ای ندارید</strong><span>اعلان‌های مربوط به سرویس‌ها و پیگیری‌ها اینجا نمایش داده می‌شوند.</span></div>}</div>
         </section>}
         {topbarPanel === 'help' && <section className="pulse-popover pulse-help" aria-label="راهنما"><div className="pulse-popover-head"><div><small>پشتیبانی فضای کاری</small><h2>به راهنما نیاز دارید؟</h2></div><CircleHelp size={20} /></div><p>برای پیدا کردن اطلاعات، از جست‌وجوی بالای صفحه استفاده کنید یا از منوی کناری وارد بخش مربوط شوید.</p><button type="button" onClick={() => { setTopbarPanel(null); searchInputRef.current?.focus(); }}>رفتن به جست‌وجو <Search size={14} /></button></section>}
-        <div className="pulse-page-wrap"><div className="pulse-page-content">{children}</div></div>
+         <div className="pulse-page-wrap console-page">
+           <div className="pulse-page-content">{children}</div>
+           <footer className="pulse-page-footer">
+             <span><span className="pulse-footer-mark"><Sparkles size={12} /></span><strong>پالس</strong><span>مرکز مدیریت فروش و عملیات</span></span>
+             <span>دسترسی‌ها بر اساس نقش کاربری شما تنظیم شده‌اند</span>
+           </footer>
+         </div>
       </main>
       <nav className="pulse-phone-nav" aria-label="دسترسی سریع">
         {[

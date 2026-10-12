@@ -1,7 +1,7 @@
 import { Activity, ArrowRight, CircleAlert, Clock3, RefreshCw, Wifi } from "lucide-react";
 import { Link } from "wouter";
 import { getGetAwgUsageWorkerLogQueryKey, useGetAwgUsageWorkerLog } from "@workspace/api-client-react";
-import { PageHeader } from "@/components/pulse-shell";
+import { PageHeader } from "@/components/admin-console-primitives";
 import { usePulse } from "@/pages/pulse-pages";
 
 const countFormat = new Intl.NumberFormat("fa-IR");
@@ -58,21 +58,21 @@ export default function AwgUsageLogPage() {
       : "شروع نشده";
 
   return (
-    <main className="pulse-surface pulse-surface-awg-log" data-surface="awg-usage-log">
-      <div className="surface-layout surface-layout-awg-usage-log">
+    <main className="admin-console awg-log-page" data-surface="awg-usage-log">
+      <div className="console-page surface-layout-awg-usage-log">
       <PageHeader
         eyebrow="ویژه مدیر اصلی"
         title="لاگ زنده worker مصرف AWG"
         description="آخرین وضعیت worker و حداکثر ۱۰۰ نتیجهٔ بررسی سرویس؛ صفحه هر ۱۰ ثانیه فقط وضعیت حافظهٔ API را می‌خواند."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Link href="/awg-usage" className="button button-secondary" data-testid="link-back-awg-usage">
+            <Link href="/awg-usage" className="console-action console-action-secondary" data-testid="link-back-awg-usage">
               <ArrowRight size={15} />
               فهرست مصرف AWG
             </Link>
             <button
               type="button"
-              className="button button-secondary"
+              className="console-action console-action-secondary"
               onClick={() => void logQuery.refetch()}
               disabled={logQuery.isFetching}
               data-testid="button-refresh-awg-log"
@@ -84,7 +84,7 @@ export default function AwgUsageLogPage() {
         }
       />
 
-      <div className="mb-4 flex items-start gap-3 rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4 text-sm leading-7" role="note">
+      <div className="console-surface awg-log-note mb-4 flex items-start gap-3 p-4 text-sm leading-7" role="note">
         <Clock3 size={17} className="mt-1 shrink-0 text-sky-700" />
         <p className="m-0 text-foreground/80">
           این گزارش درخواست جدیدی به AWG یا Providerها نمی‌فرستد؛ فقط نتیجه‌هایی را نشان می‌دهد که worker یا
@@ -94,14 +94,14 @@ export default function AwgUsageLogPage() {
       </div>
 
       {logQuery.isError && (
-        <div className="notice notice-danger mb-4" role="alert" data-testid="error-awg-log">
+        <div className="console-state is-error mb-4" role="alert" data-testid="error-awg-log">
           <span>خواندن وضعیت worker ناموفق بود: {logQuery.error instanceof Error ? logQuery.error.message : "خطای نامشخص"}</span>
           <button type="button" className="button button-secondary" onClick={() => void logQuery.refetch()} disabled={logQuery.isFetching}><RefreshCw size={13} className={logQuery.isFetching ? "spin" : ""} /> تلاش دوباره</button>
         </div>
       )}
 
       <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="وضعیت worker AWG">
-        <div className="panel-card p-4" data-testid="status-awg-worker">
+        <div className="console-surface p-4" data-testid="status-awg-worker">
           <div className="flex items-center gap-3">
             <span className={`monitoring-metric-icon ${worker?.running ? "teal" : ""}`}><Activity size={17} /></span>
             <div>
@@ -110,22 +110,22 @@ export default function AwgUsageLogPage() {
             </div>
           </div>
         </div>
-        <div className="panel-card p-4">
+        <div className="console-surface p-4">
           <small className="text-muted-foreground">فاصلهٔ اجرا</small>
           <strong className="mt-1 block text-xl font-extrabold">{countFormat.format(intervalMinutes)} دقیقه</strong>
         </div>
-        <div className="panel-card p-4">
+        <div className="console-surface p-4">
           <small className="text-muted-foreground">آخرین شروع</small>
           <strong className="mt-1 block text-sm font-bold">{timeLabel(worker?.last_started_at)}</strong>
         </div>
-        <div className="panel-card p-4">
+        <div className="console-surface p-4">
           <small className="text-muted-foreground">آخرین پایان</small>
           <strong className="mt-1 block text-sm font-bold">{timeLabel(worker?.last_completed_at)}</strong>
         </div>
       </section>
 
       {worker?.last_error && (
-        <div className="notice notice-danger mb-4 flex items-start gap-2" role="alert" data-testid="error-awg-worker-run">
+        <div className="console-state is-error mb-4 flex items-start gap-2" role="alert" data-testid="error-awg-worker-run">
           <CircleAlert size={16} className="mt-1 shrink-0" />
           <span>{worker.last_error}</span>
         </div>
@@ -138,14 +138,14 @@ export default function AwgUsageLogPage() {
           ["ردشده", worker?.last_skipped ?? 0],
           ["ناموفق", worker?.last_failed ?? 0],
         ].map(([label, value]) => (
-          <div className="panel-card p-4" key={label}>
+          <div className="console-surface p-4" key={label}>
             <small className="text-muted-foreground">{label}</small>
             <strong className="mt-1 block text-xl font-extrabold">{countFormat.format(Number(value))}</strong>
           </div>
         ))}
       </section>
 
-      <section className="panel-card p-4 sm:p-5">
+      <section className="console-surface p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="eyebrow">تا ۱۰۰ نتیجهٔ تازه‌تر</p>

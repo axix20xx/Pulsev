@@ -13,6 +13,7 @@ import {
   ShieldEllipsis,
   X,
 } from 'lucide-react';
+import { PageHeader } from '@/components/admin-console-primitives';
 import {
   useRepairProviderAccountAudit,
   useScanProviderAccountAudit,
@@ -217,24 +218,11 @@ function ProviderAccountAuditPage() {
   const failedCount = Object.values(repairStates).filter((item) => item.outcome === 'failed').length;
 
   return (
-    <main className="provider-audit" data-surface="provider-account-audit" dir="rtl">
-      <div className="audit-wrap">
-        <header className="audit-header">
-          <div className="audit-heading">
-            <div className="audit-icon"><ShieldEllipsis size={23} strokeWidth={1.8} /></div>
-            <div>
-              <p className="audit-eyebrow">کنترل پنل‌های ارائه‌دهنده</p>
-              <h1>بازبینی وضعیت حساب‌ها</h1>
-              <p className="audit-lede">حساب‌های غیرفعال را در پنل‌های فعال Rain پیدا کنید و پیش از هر اصلاح، نتیجه را مرور کنید.</p>
-            </div>
-          </div>
-          <div className="audit-mode-chip" data-testid="status-audit-manual-mode">
-            <span className="audit-live-dot" />
-            بررسی دستی
-          </div>
-        </header>
+    <main className="admin-console provider-audit" data-surface="provider-account-audit" dir="rtl">
+      <div className="audit-wrap console-page">
+        <PageHeader eyebrow="کنترل پنل‌های ارائه‌دهنده" title="بازبینی وضعیت حساب‌ها" description="حساب‌های غیرفعال را در پنل‌های فعال Rain پیدا کنید و پیش از هر اصلاح، نتیجه را مرور کنید." action={<span className="console-status"><i /> بررسی دستی</span>} />
 
-        <section className="audit-safety" aria-label="محدوده عملیات">
+        <section className="audit-safety console-surface" aria-label="محدوده عملیات">
           <div className="audit-safety-mark"><ShieldCheck size={19} /></div>
           <div>
             <strong>اصلاح فقط وضعیت حساب است</strong>
@@ -243,7 +231,7 @@ function ProviderAccountAuditPage() {
           <span className="audit-safety-tag">فقط وضعیت</span>
         </section>
 
-        <section className="audit-scan-panel" aria-labelledby="scan-title">
+        <section className="audit-scan-panel console-surface" aria-labelledby="scan-title">
           <div className="audit-panel-top">
             <div className="audit-panel-title">
               <span className="audit-step">۰۱</span>
@@ -311,7 +299,7 @@ function ProviderAccountAuditPage() {
         </section>
 
         <div className="audit-review-workbench">
-        <section className="audit-results" aria-labelledby="results-title">
+        <section className="audit-results console-surface" aria-labelledby="results-title">
           <div className="audit-results-heading">
             <div>
               <p className="audit-eyebrow">نتیجه بررسی</p>
@@ -424,7 +412,7 @@ function ProviderAccountAuditPage() {
             </div>
           )}
         </section>
-        <section className="audit-issues" aria-labelledby="issues-title">
+        <section className="audit-issues console-surface" aria-labelledby="issues-title">
           <div className="audit-issues-heading">
             <div className="audit-issues-icon"><AlertTriangle size={18} /></div>
             <div><h2 id="issues-title">خطاهای خواندن ارائه‌دهنده</h2><p>خطای خواندن این پنل ثبت شده؛ اسکن سرویس بعدی را ادامه می‌دهد.</p></div>

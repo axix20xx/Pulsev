@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Activity, AlertTriangle, BarChart3, Check, ChevronLeft, CircleHelp, Clock3, Copy, Download, FileWarning, Gauge, Layers3, Package, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Target, Users, Wallet, Wifi, Zap } from 'lucide-react';
 import { Link, useParams } from 'wouter';
-import { PageHeader } from '@/components/pulse-shell';
+import { PageHeader } from '@/components/admin-console-primitives';
+import { SectionPanel } from '@/components/admin-console-primitives';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateLabel, money } from '@/lib/pulse-data';
 
@@ -69,7 +70,7 @@ function InsightMetric({ icon: Icon, label, value, detail, href, tone = '' }: { 
 }
 
 function SmartCard({ kicker, title, detail, children, action }: { kicker: string; title: string; detail?: string; children: ReactNode; action?: ReactNode }) {
-  return <section className="smart-card"><div className="smart-card-head"><div><p className="smart-kicker">{kicker}</p><h2>{title}</h2>{detail && <p>{detail}</p>}</div>{action}</div>{children}</section>;
+  return <SectionPanel className="smart-card" eyebrow={kicker} title={title} description={detail} action={action}>{children}</SectionPanel>;
 }
 
 function StatusChip({ tone, children }: { tone: 'ok' | 'warn' | 'bad' | 'neutral'; children: ReactNode }) {
@@ -255,14 +256,14 @@ export function InsightDetailPage() {
 
   const generatedAt = insights?.generated_at ?? command?.generated_at;
   const issueCount = rows.filter((row) => asNumber(row.value ?? row.priority ?? 1) > 0).length;
-  return <main className="pulse-surface pulse-surface-insights smart-route-frame" data-surface={`insights-${focus}`} dir="rtl"><div className="surface-layout surface-layout-insight-detail">
+  return <main className="admin-console smart-route-frame" data-surface={`insights-${focus}`} dir="rtl"><div className="console-page surface-layout-insight-detail">
     <PageHeader
       eyebrow={meta.kicker}
       title={meta.title}
       description={`${meta.description} · ${generatedAt ? dateLabel(generatedAt) : 'در حال دریافت'}`}
-      action={<div className="smart-header-actions"><Link href="/insights" className="button button-secondary"><ChevronLeft size={14} /> بازگشت به مرکز هوشمند</Link><Link href="/operations" className="button button-primary"><Gauge size={14} /> مرکز عملیات</Link></div>}
+      action={<div className="console-page-actions"><Link href="/insights" className="console-action console-action-secondary"><ChevronLeft size={14} /> بازگشت به مرکز هوشمند</Link><Link href="/operations" className="console-action console-action-primary"><Gauge size={14} /> مرکز عملیات</Link></div>}
     />
-    {error && <div className="notice danger"><AlertTriangle size={15} /> {error}</div>}
+    {error && <div className="console-state is-error" role="alert"><AlertTriangle size={15} /> {error}</div>}
      {loading && !insights ? <div className="smart-loading"><RefreshCw size={20} className="spin" /><strong>در حال دریافت جزئیات...</strong><span>صف اختصاصی این کارت از دادهٔ تازهٔ سرور ساخته می‌شود.</span></div> : <><div className="smart-detail-summary"><div><span>تعداد موارد</span><strong>{count(rows.length)}</strong></div><div><span>اولویت‌های فوری</span><strong>{count(rows.filter((row) => asNumber(row.priority) >= 90 || asNumber(row.value) > 0).length)}</strong></div><div><span>آخرین بروزرسانی</span><strong>{generatedAt ? dateLabel(generatedAt) : '—'}</strong></div></div><section className={`smart-focus-workbench focus-${focus}`} aria-label={`صف اقدام ${meta.title}`}><header className="smart-focus-heading"><div><span className="smart-focus-overline">{meta.kicker} / ACTION QUEUE</span><h2>{meta.title} · موارد نیازمند اقدام</h2><p>{meta.description}</p></div><span className="smart-focus-total">{count(rows.length)} مورد</span></header><div className="smart-detail-list">{rows.length ? rows.slice(0, 100).map((row, index) => {
       const title = text(row.title ?? row.customer_name ?? row.name ?? row.plan, 'مورد عملیاتی');
       const detail = text(row.next_action ?? row.detail ?? row.recommendation ?? row.plan, 'برای مشاهدهٔ مسیر اقدام باز کنید.');
@@ -320,9 +321,9 @@ function SmartCenterContent() {
   const exportPackages = () => downloadCsv('pulse-package-report.csv', packageRows);
   const generatedAt = data?.generated_at ?? command?.generated_at;
   const isStale = generatedAt ? Date.now() - new Date(generatedAt).getTime() > 90_000 : false;
-  return <section className="smart-center-page" data-view="insights-overview" dir="rtl">
-     <PageHeader eyebrow="هوش عملیاتی" title="امروز چه چیزی مهم است؟" description={`نمای اقدام‌محور · ${generatedAt ? dateLabel(generatedAt) : 'در حال دریافت'}`} action={<div className="smart-header-actions"><span className={`smart-freshness ${isStale ? 'stale' : ''}`}><Clock3 size={13} /> {generatedAt ? isStale ? 'داده نیازمند بروزرسانی' : `تازه تا ${dateLabel(generatedAt)}` : 'در حال دریافت'}</span><button className="button button-secondary" type="button" onClick={() => setRefreshToken((value) => value + 1)} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> بروزرسانی</button><Link href="/operations" className="button button-primary"><Gauge size={14} /> مرکز عملیات</Link></div>} />
-     {error && <div className="notice danger"><AlertTriangle size={15} /> {error}<button type="button" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={14} /></button></div>}
+  return <section className="admin-console smart-center-page console-page" data-view="insights-overview" dir="rtl">
+      <PageHeader eyebrow="هوش عملیاتی" title="امروز چه چیزی مهم است؟" description={`نمای اقدام‌محور · ${generatedAt ? dateLabel(generatedAt) : 'در حال دریافت'}`} action={<div className="console-page-actions"><span className={`smart-freshness ${isStale ? 'stale' : ''}`}><Clock3 size={13} /> {generatedAt ? isStale ? 'داده نیازمند بروزرسانی' : `تازه تا ${dateLabel(generatedAt)}` : 'در حال دریافت'}</span><button className="console-action console-action-secondary" type="button" onClick={() => setRefreshToken((value) => value + 1)} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> بروزرسانی</button><Link href="/operations" className="console-action console-action-primary"><Gauge size={14} /> مرکز عملیات</Link></div>} />
+      {error && <div className="console-state is-error" role="alert"><AlertTriangle size={15} /> {error}<button className="console-action console-action-secondary" type="button" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={14} /> تلاش دوباره</button></div>}
      {loading && !data ? <div className="smart-loading"><RefreshCw size={20} className="spin" /><strong>در حال ساخت نمای هوشمند...</strong><span>اطلاعات مشتری، سرویس، فروش و Providerها از SQL خوانده می‌شود.</span></div> : data && <><section className="smart-hero"><div><span className="smart-hero-icon"><Sparkles size={18} /></span><div><p className="smart-kicker">Today command center</p><h2>یک نگاه، چند اقدام روشن</h2><p>اولویت‌ها بر اساس انقضا، مصرف، وصول، کیفیت داده و سلامت زیرساخت مرتب شده‌اند.</p></div></div><div className="smart-hero-links"><Link href="/pos"><ShoppingBag size={15} /> فروش جدید</Link><Link href="/customers"><Users size={15} /> CRM</Link><Link href="/reports"><BarChart3 size={15} /> گزارش</Link></div></section>
         <nav className="smart-queue-navigator" aria-label="صفوف اولویت‌دار">
           <Link href="/insights/renewals"><span><Clock3 size={14} /> تمدیدهای نزدیک</span><strong>{count(today.expiring_urgent)}</strong><small>بررسی و پیگیری</small><ChevronLeft size={14} /></Link>
@@ -339,5 +340,5 @@ function SmartCenterContent() {
 }
 
 export function SmartCenter() {
-  return <main className="pulse-surface pulse-surface-insights smart-route-frame" data-surface="insights" dir="rtl"><div className="surface-layout surface-layout-insights"><SmartCenterContent /></div></main>;
+  return <main className="admin-console smart-route-frame" data-surface="insights" dir="rtl"><div className="console-page surface-layout-insights"><SmartCenterContent /></div></main>;
 }

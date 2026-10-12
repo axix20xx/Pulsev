@@ -16,7 +16,7 @@ import {
   useListAwgUsage,
   useRefreshAwgUsage,
 } from "@workspace/api-client-react";
-import { PageHeader } from "@/components/pulse-shell";
+import { MetricTile, PageHeader, SectionPanel, StatePanel } from "@/components/admin-console-primitives";
 import { usePulse } from "@/pages/pulse-pages";
 
 const PAGE_SIZE = 25;
@@ -112,8 +112,8 @@ export default function AwgUsagePage() {
   };
 
   return (
-    <main className="pulse-surface pulse-surface-awg-usage" data-surface="awg-usage">
-      <div className="surface-layout surface-layout-awg-usage">
+    <main className="admin-console pulse-surface pulse-surface-awg-usage" data-surface="awg-usage">
+      <div className="console-page surface-layout surface-layout-awg-usage">
       <PageHeader
         eyebrow="گزارش جداگانه"
         title="مصرف AmneziaWG"
@@ -121,14 +121,14 @@ export default function AwgUsagePage() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             {session?.role === "master_admin" && (
-              <Link href="/awg-usage-log" className="button button-secondary" data-testid="link-awg-worker-log">
+              <Link href="/awg-usage-log" className="console-action console-action-secondary" data-testid="link-awg-worker-log">
                 <Activity size={15} />
                 لاگ زنده worker
               </Link>
             )}
             <button
               type="button"
-              className="button button-secondary"
+              className="console-action console-action-secondary"
               onClick={() => void reloadList()}
               disabled={usageQuery.isFetching}
               data-testid="button-refresh-awg-usage"
@@ -141,7 +141,7 @@ export default function AwgUsagePage() {
       />
 
       <div
-        className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 text-sm leading-7"
+        className="console-surface awg-usage-note mb-4 flex items-start gap-3 p-4 text-sm leading-7"
         role="note"
         data-testid="notice-awg-usage-source"
       >
@@ -154,37 +154,13 @@ export default function AwgUsagePage() {
         </p>
       </div>
 
-      <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="خلاصه مصرف AmneziaWG">
-        <div className="panel-card p-4" data-testid="metric-awg-active-services">
-          <div className="flex items-center gap-3">
-            <span className="monitoring-metric-icon teal"><Wifi size={17} /></span>
-            <div>
-              <small className="text-muted-foreground">سرویس‌های فعال دارای AWG</small>
-              <strong className="mt-1 block text-xl font-extrabold">{countFormat.format(total)}</strong>
-            </div>
-          </div>
-        </div>
-        <div className="panel-card p-4" data-testid="metric-awg-visible-zero">
-          <div className="flex items-center gap-3">
-            <span className="monitoring-metric-icon amber"><Activity size={17} /></span>
-            <div>
-              <small className="text-muted-foreground">مصرف صفر در این صفحه</small>
-              <strong className="mt-1 block text-xl font-extrabold">{countFormat.format(zeroCount)}</strong>
-            </div>
-          </div>
-        </div>
-        <div className="panel-card p-4" data-testid="metric-awg-page-total">
-          <div className="flex items-center gap-3">
-            <span className="monitoring-metric-icon"><Database size={17} /></span>
-            <div>
-              <small className="text-muted-foreground">جمع مصرف مؤثر این صفحه</small>
-              <strong className="mt-1 block text-xl font-extrabold">{trafficLabel(totalUsage)}</strong>
-            </div>
-          </div>
-        </div>
+      <section className="console-metrics-grid awg-usage-metrics" aria-label="خلاصه مصرف AmneziaWG">
+        <MetricTile label="سرویس‌های فعال دارای AWG" value={countFormat.format(total)} detail="کل نتایج منطبق با جست‌وجو" icon={Wifi} tone="sage" testId="metric-awg-active-services" />
+        <MetricTile label="مصرف صفر در این صفحه" value={countFormat.format(zeroCount)} detail="آمار ذخیره‌شده" icon={Activity} tone="amber" testId="metric-awg-visible-zero" />
+        <MetricTile label="جمع مصرف مؤثر این صفحه" value={trafficLabel(totalUsage)} detail="فقط همین صفحه از نتایج" icon={Database} testId="metric-awg-page-total" />
       </section>
 
-      <section className="panel-card p-4 sm:p-5">
+      <SectionPanel className="awg-usage-ledger p-4 sm:p-5" eyebrow="مصرف به تفکیک کاربر" title="کاربران فعال AWG">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="eyebrow">مصرف به تفکیک کاربر</p>
@@ -201,7 +177,7 @@ export default function AwgUsagePage() {
           )}
         </div>
 
-        <label className="search-field mb-4" htmlFor="awg-usage-search">
+        <label className="console-search mb-4" htmlFor="awg-usage-search">
           <Search size={16} />
           <input
             id="awg-usage-search"
@@ -214,21 +190,11 @@ export default function AwgUsagePage() {
         </label>
 
         {usageQuery.isLoading ? (
-          <div className="monitoring-empty" role="status" data-testid="loading-awg-usage">
-            <RefreshCw size={18} className="spin" />
-            <p>در حال دریافت فهرست کاربران فعال...</p>
-          </div>
+          <StatePanel kind="loading" title="در حال دریافت فهرست کاربران فعال" detail="دادهٔ مصرف از مخزن سرور خوانده می‌شود." />
         ) : usageQuery.isError ? (
-          <div className="notice notice-danger mb-4 awg-query-error" role="alert" data-testid="error-awg-usage">
-            <span>دریافت فهرست AWG ناموفق بود: {readError(usageQuery.error)}</span>
-            <button type="button" className="button button-secondary" onClick={() => void usageQuery.refetch()} disabled={usageQuery.isFetching}><RefreshCw size={13} className={usageQuery.isFetching ? "spin" : ""} /> تلاش دوباره</button>
-          </div>
+          <StatePanel kind="error" title="دریافت فهرست AWG ناموفق بود" detail={readError(usageQuery.error)} action={<button type="button" className="console-action console-action-secondary" onClick={() => void usageQuery.refetch()} disabled={usageQuery.isFetching}><RefreshCw size={13} className={usageQuery.isFetching ? "spin" : ""} /> تلاش دوباره</button>} />
         ) : items.length === 0 ? (
-          <div className="monitoring-empty" data-testid="empty-awg-usage">
-            <Wifi size={18} />
-            <p>{debouncedSearch ? "کاربر فعالی با این جست‌وجو پیدا نشد." : "سرویس فعال دارای شناسهٔ AWG پیدا نشد."}</p>
-            <small>سرویس‌های غیرفعال و منقضی در این فهرست نمایش داده نمی‌شوند.</small>
-          </div>
+          <StatePanel title={debouncedSearch ? "کاربر فعالی با این جست‌وجو پیدا نشد" : "سرویس فعال دارای شناسهٔ AWG پیدا نشد"} detail="سرویس‌های غیرفعال و منقضی در این فهرست نمایش داده نمی‌شوند." />
         ) : (
           <div className="grid gap-3" data-testid="list-awg-usage">
             {items.map((item) => {
@@ -300,7 +266,7 @@ export default function AwgUsagePage() {
                     </div>
                     <button
                       type="button"
-                      className="button button-secondary"
+                      className="console-action console-action-secondary"
                       onClick={() => void checkLive(item.id)}
                       disabled={refreshingId !== null}
                       data-testid={`button-live-awg-${item.id}`}
@@ -325,7 +291,7 @@ export default function AwgUsagePage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                className="button button-secondary"
+                className="console-action console-action-secondary"
                 onClick={() => setPage((value) => Math.max(0, value - 1))}
                 disabled={page === 0 || usageQuery.isFetching}
                 data-testid="button-awg-previous-page"
@@ -334,7 +300,7 @@ export default function AwgUsagePage() {
               </button>
               <button
                 type="button"
-                className="button button-secondary"
+                className="console-action console-action-secondary"
                 onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
                 disabled={page >= pageCount - 1 || usageQuery.isFetching}
                 data-testid="button-awg-next-page"
@@ -344,7 +310,7 @@ export default function AwgUsagePage() {
             </div>
           </div>
         )}
-      </section>
+      </SectionPanel>
       </div>
     </main>
   );

@@ -1,35 +1,28 @@
-import { AlertCircle, ArrowLeft, ArrowRight, ArrowUpRight, Home, Map, RotateCcw } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowUpRight, Home, RotateCcw } from 'lucide-react';
 import { Link } from 'wouter';
 
 export default function NotFound() {
   return (
-    <main className="not-found-screen" dir="rtl">
-      <section className="not-found-command">
-        <header className="not-found-topline">
-          <Link href="/" className="not-found-brand"><span className="not-found-brand-mark">P</span><span>Pulse <small>CONTROL ROOM</small></span></Link>
-          <span className="not-found-route"><Map size={14} /> مسیر مدیریت / ناموجود</span>
-        </header>
-        <div className="not-found-main">
-          <div className="not-found-copy">
-            <div className="not-found-code"><span>ERROR CODE</span><strong>404</strong><i aria-hidden="true" /></div>
-            <p className="eyebrow"><AlertCircle size={14} /> مسیر نامعتبر</p>
-            <h1>این مقصد<br /><em>در نقشه نیست.</em></h1>
-            <p className="not-found-description">نشانی واردشده در فضای مدیریت پالس پیدا نشد. آدرس را بررسی کنید یا از مسیرهای اصلی به کار برگردید.</p>
-            <div className="not-found-actions">
-              <Link href="/" className="button button-primary not-found-home" data-testid="link-back-dashboard"><Home size={16} /> داشبورد</Link>
-              <button type="button" className="button button-secondary" onClick={() => window.history.back()}><ArrowLeft size={15} /> صفحه قبل</button>
-              <button type="button" className="not-found-retry" onClick={() => window.location.reload()}><RotateCcw size={14} /> بارگذاری دوباره</button>
-            </div>
-          </div>
-          <aside className="not-found-map" aria-label="مسیرهای کاربردی">
-            <div className="not-found-map-head"><span>QUICK ROUTES</span><ArrowUpRight size={15} /></div>
-            <Link href="/sales"><span className="route-index">۰۱</span><span><strong>دفتر فروش</strong><small>ثبت و پیگیری تراکنش‌ها</small></span><ArrowLeft size={14} /></Link>
-            <Link href="/customers"><span className="route-index">۰۲</span><span><strong>مشتری‌ها</strong><small>پرونده و ارتباط با مشتری</small></span><ArrowLeft size={14} /></Link>
-            <Link href="/services"><span className="route-index">۰۳</span><span><strong>سرویس‌ها</strong><small>دسترسی، مصرف و تمدید</small></span><ArrowLeft size={14} /></Link>
-            <Link href="/operations"><span className="route-index">۰۴</span><span><strong>مرکز عملیات</strong><small>صف‌ها و سلامت روزانه</small></span><ArrowLeft size={14} /></Link>
-          </aside>
+    <main className="admin-console console-not-found" dir="rtl">
+      <section className="console-not-found-card">
+        <header className="console-not-found-head"><Link href="/" className="console-login-brand"><span className="console-login-mark">P</span><span><strong>پالس</strong><small>مرکز عملیات</small></span></Link><span className="console-not-found-tag"><AlertCircle size={13} /> مسیر ناموجود</span></header>
+        <div className="console-not-found-grid">
+          <section className="console-not-found-copy">
+            <span className="console-not-found-code">404</span>
+            <p className="console-eyebrow">یک پیچ اشتباه</p>
+            <h1>این مقصد<br /><em>روی نقشه نیست.</em></h1>
+            <p>نشانی واردشده پیدا نشد. از مسیرهای زیر به کار برگردید یا صفحه را دوباره بارگذاری کنید.</p>
+            <div className="console-page-actions"><Link href="/" className="console-action console-action-primary" data-testid="link-back-dashboard"><Home size={15} /> داشبورد</Link><button type="button" className="console-action console-action-secondary" onClick={() => window.history.back()}><ArrowLeft size={14} /> صفحهٔ قبل</button><button type="button" className="console-action console-action-quiet" onClick={() => window.location.reload()}><RotateCcw size={14} /> بارگذاری دوباره</button></div>
+          </section>
+          <nav className="console-not-found-routes" aria-label="مسیرهای کاربردی">
+            <div className="console-not-found-routes-head"><span>پرکاربردها</span><ArrowUpRight size={15} /></div>
+            <Link href="/sales"><span>دفتر فروش</span><small>تراکنش‌ها و تسویه</small><ArrowLeft size={14} /></Link>
+            <Link href="/customers"><span>مشتری‌ها</span><small>پرونده و ارتباط</small><ArrowLeft size={14} /></Link>
+            <Link href="/services"><span>سرویس‌ها</span><small>دسترسی و مصرف</small><ArrowLeft size={14} /></Link>
+            <Link href="/operations"><span>مرکز عملیات</span><small>صف‌ها و سلامت</small><ArrowLeft size={14} /></Link>
+          </nav>
         </div>
-        <footer className="not-found-footer"><span>Pulse / Control room</span><span>مسیرها را از نوار کناری دنبال کنید</span></footer>
+        <footer className="console-not-found-foot"><span>Pulse · Control center</span><span>پایین‌ترین مرحلهٔ بازیابی: داشبورد</span></footer>
       </section>
     </main>
   );

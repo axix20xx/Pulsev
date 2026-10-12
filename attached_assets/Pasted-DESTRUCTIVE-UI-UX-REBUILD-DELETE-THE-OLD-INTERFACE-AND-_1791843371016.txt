@@ -1,0 +1,81 @@
+DESTRUCTIVE UI/UX REBUILD — DELETE THE OLD INTERFACE AND REBUILD FROM ZERO
+
+STOP PATCHING THE EXISTING UI. STOP CHANGING THEMES. START OVER.
+
+The previous attempts have failed because the old component hierarchy, page layouts, navigation, and UI structure remain intact.
+
+I explicitly authorize you to remove and replace the existing frontend UI/UX implementation and build a completely new application interface from scratch.
+
+STEP 1 — REMOVE THE OLD UI
+
+Inspect the repository and identify all files responsible for the current frontend structure.
+
+Remove or replace the obsolete:
+
+* Application shells and page layouts.
+* Dashboard and page components.
+* Navigation bars, sidebars, and bottom navigation.
+* Oversized KPI cards and old content sections.
+* Duplicated UI components.
+* Conflicting layout CSS and obsolete styling rules.
+* Old responsive layouts and positioning logic.
+* Existing UI composition that prevents a clean redesign.
+
+Do not preserve the old interface by wrapping it in new components or applying new styles.
+
+Delete the old UI implementation before building the replacement.
+
+Preserve backend code, APIs, database schemas, authentication, authorization, business logic, environment configuration, and required integrations. Do not delete the project itself or remove functionality needed by the new interface.
+
+STEP 2 — BUILD A COMPLETELY NEW FRONTEND
+
+Create a new application architecture with:
+
+* A new shared application shell.
+* A completely redesigned navigation system.
+* New page layouts and content hierarchy.
+* A reusable component library.
+* A centralized design system.
+* Responsive desktop, tablet, and mobile experiences.
+* Proper Persian RTL support throughout.
+
+Redesign every existing route and page. Do not stop at the dashboard.
+
+Use a premium modern SaaS/Super Admin visual direction with refined violet accents, clean surfaces, compact information-dense layouts, professional icons, consistent typography, and restrained animations.
+
+STEP 3 — REBUILD ALL PAGE STRUCTURES
+
+Recreate the dashboard, sales, customers, services, reports, settings, and every other existing page according to the actual routes and capabilities in the repository.
+
+Replace the old page compositions instead of reusing them.
+
+Implement proper tables, filters, forms, dialogs, status indicators, loading states, error states, and empty states where relevant.
+
+STEP 4 — IMPLEMENT «فروش سریع»
+
+Build a new, properly integrated «فروش سریع» action with a working sales workflow using the existing APIs and business rules.
+
+Ensure the floating action does not overlap content or navigation on mobile.
+
+STEP 5 — VERIFY THE REBUILD
+
+Run the application and inspect the actual rendered pages.
+
+Verify that:
+
+* The old application shell is gone.
+* The old page layouts are gone.
+* Every existing route uses the new architecture.
+* Old UI components are no longer rendered.
+* Existing backend functionality remains intact.
+* All important interactions work.
+* Persian RTL works correctly.
+* Mobile and desktop layouts are genuinely different where appropriate.
+
+ABSOLUTE ACCEPTANCE RULE
+
+A theme change, CSS-only update, color adjustment, or cosmetic component refresh is a FAILURE.
+
+The task is complete only after the old frontend UI has been removed or replaced and the new frontend has been implemented, integrated, and verified.
+
+Start by identifying and removing the old UI files. Then build the replacement. Do not stop to ask me whether I want a full rebuild—I have explicitly requested it. Do not report completion until you have verified the actual code changes and rendered application.
