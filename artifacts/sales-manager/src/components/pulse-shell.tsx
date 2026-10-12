@@ -438,16 +438,16 @@ export function Shell({ children }: { children: ReactNode }) {
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description?: string; action?: ReactNode }) {
   return (
-    <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6 mb-6 md:mb-10 pb-4 md:pb-6 border-b border-border/30 w-full overflow-hidden">
-      <div className="flex flex-col min-w-0 flex-1">
-        <div className="flex items-center gap-2.5 mb-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.6)]" aria-hidden="true" />
-          <p className="eyebrow text-[10px] tracking-widest text-primary/80 font-bold uppercase truncate">{eyebrow}</p>
+    <header className="page-header management-page-header">
+      <div className="management-page-heading">
+        <div className="management-page-kicker">
+          <span className="management-page-signal" aria-hidden="true" />
+          <p className="eyebrow">{eyebrow}</p>
         </div>
-        <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-[-.05em] text-foreground mb-2 sm:mb-3 leading-tight break-words">{title}</h1>
-        {description && <p className="text-xs sm:text-sm font-medium text-muted-foreground max-w-2xl leading-relaxed break-words">{description}</p>}
+        <h1>{title}</h1>
+        {description && <p className="management-page-description">{description}</p>}
       </div>
-      {action && <div className="page-header-actions w-full md:w-auto flex-shrink-0 mt-2 md:mt-0">{action}</div>}
+      {action && <div className="page-header-actions management-page-actions">{action}</div>}
     </header>
   );
 }

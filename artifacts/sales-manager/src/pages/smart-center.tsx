@@ -255,7 +255,7 @@ export function InsightDetailPage() {
 
   const generatedAt = insights?.generated_at ?? command?.generated_at;
   const issueCount = rows.filter((row) => asNumber(row.value ?? row.priority ?? 1) > 0).length;
-  return <div className="pulse-surface pulse-surface-insights smart-route-frame" dir="rtl">
+  return <main className="pulse-surface pulse-surface-insights smart-route-frame" data-surface={`insights-${focus}`} dir="rtl"><div className="surface-layout surface-layout-insight-detail">
     <PageHeader
       eyebrow={meta.kicker}
       title={meta.title}
@@ -272,7 +272,7 @@ export function InsightDetailPage() {
       return <Link href={href} className={`smart-detail-row ${tone}`} key={String(row.id ?? `${focus}-${index}`)} data-testid={`link-smart-detail-${focus}-${row.id ?? index}`}><span className="smart-detail-icon"><Icon size={16} /></span><span className="smart-detail-copy"><strong>{title}</strong><small>{detail}</small><em>{why}</em></span><span className="smart-detail-value">{row.amount !== undefined ? moneyValue(row.amount) : row.value !== undefined ? count(row.value) : row.priority !== undefined ? `اولویت ${count(row.priority)}` : ''}</span><ChevronLeft size={15} /></Link>;
     }) : <div className="smart-empty"><Check size={18} /><span>در این بخش موردی برای نمایش وجود ندارد.</span></div>}</div></SmartCard></>}
     {!loading && !insights && !error && <div className="smart-empty-page"><CircleHelp size={22} /><strong>جزئیات در دسترس نیست.</strong></div>}
-  </div>;
+  </div></main>;
 }
 
 function SmartCenterContent() {
@@ -320,7 +320,7 @@ function SmartCenterContent() {
   const exportPackages = () => downloadCsv('pulse-package-report.csv', packageRows);
   const generatedAt = data?.generated_at ?? command?.generated_at;
   const isStale = generatedAt ? Date.now() - new Date(generatedAt).getTime() > 90_000 : false;
-  return <div className="smart-center-page" dir="rtl">
+  return <section className="smart-center-page" data-view="insights-overview" dir="rtl">
      <PageHeader eyebrow="هوش عملیاتی" title="امروز چه چیزی مهم است؟" description={`نمای اقدام‌محور · ${generatedAt ? dateLabel(generatedAt) : 'در حال دریافت'}`} action={<div className="smart-header-actions"><span className={`smart-freshness ${isStale ? 'stale' : ''}`}><Clock3 size={13} /> {generatedAt ? isStale ? 'داده نیازمند بروزرسانی' : `تازه تا ${dateLabel(generatedAt)}` : 'در حال دریافت'}</span><button className="button button-secondary" type="button" onClick={() => setRefreshToken((value) => value + 1)} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> بروزرسانی</button><Link href="/operations" className="button button-primary"><Gauge size={14} /> مرکز عملیات</Link></div>} />
     {error && <div className="notice danger"><AlertTriangle size={15} /> {error}<button type="button" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={14} /></button></div>}
     {loading && !data ? <div className="smart-loading"><RefreshCw size={20} className="spin" /><strong>در حال ساخت نمای هوشمند...</strong><span>اطلاعات مشتری، سرویس، فروش و Providerها از SQL خوانده می‌شود.</span></div> : data && <><section className="smart-hero"><div><span className="smart-hero-icon"><Sparkles size={18} /></span><div><p className="smart-kicker">Today command center</p><h2>یک نگاه، چند اقدام روشن</h2><p>اولویت‌ها بر اساس انقضا، مصرف، وصول، کیفیت داده و سلامت زیرساخت مرتب شده‌اند.</p></div></div><div className="smart-hero-links"><Link href="/pos"><ShoppingBag size={15} /> فروش جدید</Link><Link href="/customers"><Users size={15} /> CRM</Link><Link href="/reports"><BarChart3 size={15} /> گزارش</Link></div></section>
@@ -329,9 +329,9 @@ function SmartCenterContent() {
       <div className="smart-main-grid"><div className="smart-main-column"><LifecycleCard rows={data.lifecycle.customers} segments={data.lifecycle.segments} /><ProviderCard providers={data.providers} /><QualityCard quality={data.quality} /></div><div className="smart-side-column"><CommandLinks /><CreditCard rows={data.credit} admin={data.role === 'master_admin'} /><SavedViewsCard views={views} onChange={setViews} /><SmartCard kicker="گزارش و پشتیبان" title="داده‌ها را با خود ببرید" detail="خروجی‌های bounded از دادهٔ قابل مشاهده تولید می‌شوند؛ این عملیات فقط خواندنی است."><div className="smart-export-list"><button type="button" onClick={exportOperational} disabled={!backupRows.length}><Download size={15} /><span><strong>خروجی مشتری و سلامت</strong><small>{count(backupRows.length)} رکورد lifecycle</small></span></button><button type="button" onClick={exportPackages} disabled={!packageRows.length}><Package size={15} /><span><strong>گزارش بسته‌ها</strong><small>{count(packageRows.length)} بستهٔ پرتکرار</small></span></button><Link href="/reports"><BarChart3 size={15} /><span><strong>گزارش کامل مالی</strong><small>بازه، وصول و سود</small></span></Link></div></SmartCard></div></div>
     </>}
     {!loading && !data && !error && <div className="smart-empty-page"><CircleHelp size={22} /><strong>داده‌ای برای نمایش وجود ندارد.</strong></div>}
-  </div>;
+  </section>;
 }
 
 export function SmartCenter() {
-  return <div className="pulse-surface pulse-surface-insights smart-route-frame" dir="rtl"><SmartCenterContent /></div>;
+  return <main className="pulse-surface pulse-surface-insights smart-route-frame" data-surface="insights" dir="rtl"><div className="surface-layout surface-layout-insights"><SmartCenterContent /></div></main>;
 }

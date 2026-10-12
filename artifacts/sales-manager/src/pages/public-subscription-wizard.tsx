@@ -235,6 +235,8 @@ export function PublicSubscriptionWizard(props: Props) {
           </div>
         </motion.header>
 
+        <div className="public-sub-workspace">
+          <aside className="public-sub-summary-rail" aria-label="خلاصه اشتراک">
         <motion.section
           {...motionProps}
           className="public-sub-hero-card public-sub-protocol-hero"
@@ -279,6 +281,8 @@ export function PublicSubscriptionWizard(props: Props) {
           </motion.section>
         )}
 
+          </aside>
+          <div className="public-sub-connect-workspace">
         <AnimatePresence mode="wait" initial={false}>
           {!selectedProtocol ? (
             <motion.section
@@ -440,6 +444,8 @@ export function PublicSubscriptionWizard(props: Props) {
           <div className="public-sub-protocol-feed"><span>لینک اتصال برای برنامه‌ها</span><button type="button" onClick={() => void copyUrl(feedUrl, 'feed')} data-testid="button-public-sub-footer-copy-feed"><Copy size={14} />{copied === 'feed' ? 'کپی شد' : 'کپی لینک'}</button></div>
           <span className="public-sub-qr-v3"><span dir="ltr">{pageUrl}</span></span>
         </footer>
+          </div>
+        </div>
       </main>
     </div>
   );

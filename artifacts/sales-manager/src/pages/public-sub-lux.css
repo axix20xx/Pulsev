@@ -1,10 +1,10 @@
 /* Pulse /sub — "Porcelain & Lacquer" luxury pass. Scoped to .public-sub-lux only.
    High specificity + !important deliberately beats legacy /sub layers in index.css. */
 html body #root .public-sub-lux, html body .public-sub-lux-modal {
-  --lx-bg: #f3eee5; --lx-bg-2: #ebe4d7; --lx-surface: #fbf8f2; --lx-line: #e2d9c9; --lx-line-2: #d6cab5;
-  --lx-ink: #14202b; --lx-ink-2: #3d4a55; --lx-muted: #6c727a;
-  --lx-lacquer: #0f2930; --lx-lacquer-2: #17404a; --lx-champ: #b38d55; --lx-champ-soft: #e7d6b7;
-  --lx-jade: #2a7566; --lx-jade-soft: #dcece6; --lx-warn: #94661a; --lx-warn-soft: #f4e6c8; --lx-danger: #9e3d39; --lx-danger-soft: #f5dfdb;
+  --lx-bg: #f5f1e9; --lx-bg-2: #ece5d8; --lx-surface: #fffdf9; --lx-line: #e4dccf; --lx-line-2: #d4c8b5;
+  --lx-ink: #2b2639; --lx-ink-2: #514b5d; --lx-muted: #746e79;
+  --lx-lacquer: #30264a; --lx-lacquer-2: #49386d; --lx-champ: #b38d55; --lx-champ-soft: #e7d6b7;
+  --lx-jade: #7359bb; --lx-jade-soft: #e9e1f5; --lx-warn: #94661a; --lx-warn-soft: #f4e6c8; --lx-danger: #9e3d39; --lx-danger-soft: #f5dfdb;
   --lx-ease: cubic-bezier(.22,1,.36,1);
   font-family: 'Vazirmatn', sans-serif !important;
 }
@@ -267,28 +267,28 @@ html body #root .public-sub-lux .public-sub-spin { animation: lx-spin .9s linear
    when the phone or authenticated shell is using dark mode. */
 html body #root .public-sub-lux, html body .public-sub-lux-modal {
   color-scheme: light !important;
-  --lx-bg: #f4f1e9 !important;
-  --lx-bg-2: #ebe5d9 !important;
-  --lx-surface: #fffdf8 !important;
-  --lx-line: #d9d1c4 !important;
-  --lx-line-2: #c7baa3 !important;
-  --lx-ink: #142a34 !important;
-  --lx-ink-2: #354a55 !important;
-  --lx-muted: #4b5d67 !important;
-  --lx-lacquer: #14343d !important;
-  --lx-lacquer-2: #20515b !important;
-  --lx-champ: #72521c !important;
-  --sub-bg: #f4f1e9 !important;
-  --sub-surface: #fffdf8 !important;
-  --sub-surface-2: #ebe5d9 !important;
-  --sub-ink: #142a34 !important;
-  --sub-muted: #4b5d67 !important;
+  --lx-bg: #f5f1e9 !important;
+  --lx-bg-2: #ece5d8 !important;
+  --lx-surface: #fffdf9 !important;
+  --lx-line: #e4dccf !important;
+  --lx-line-2: #d4c8b5 !important;
+  --lx-ink: #2b2639 !important;
+  --lx-ink-2: #514b5d !important;
+  --lx-muted: #746e79 !important;
+  --lx-lacquer: #30264a !important;
+  --lx-lacquer-2: #49386d !important;
+  --lx-champ: #80643c !important;
+  --sub-bg: #f5f1e9 !important;
+  --sub-surface: #fffdf9 !important;
+  --sub-surface-2: #ece5d8 !important;
+  --sub-ink: #2b2639 !important;
+  --sub-muted: #746e79 !important;
 }
 html body #root .public-sub-lux {
-  color: #142a34 !important;
-  background: radial-gradient(120% 60% at 100% 0%, #fffaf0 0%, transparent 60%), #f4f1e9 !important;
+  color: #2b2639 !important;
+  background: radial-gradient(120% 60% at 100% 0%, #f3edf8 0%, transparent 60%), #f5f1e9 !important;
 }
-html body #root .public-sub-lux .public-sub-kicker { color: #72521c !important; font-size: 12px !important; letter-spacing: .02em !important; }
+html body #root .public-sub-lux .public-sub-kicker { color: #80643c !important; font-size: 12px !important; letter-spacing: .02em !important; }
 html body #root .public-sub-lux .public-sub-v3-brand small,
 html body #root .public-sub-lux .public-sub-secure-chip,
 html body #root .public-sub-lux .public-sub-status-overline,
@@ -296,9 +296,9 @@ html body #root .public-sub-lux .public-sub-awg-download-heading,
 html body #root .public-sub-lux .public-sub-openvpn-locations > strong { color: #465964 !important; font-size: 13px !important; }
 html body #root .public-sub-lux .public-sub-hero-card {
   border-color: #d8cfbe !important;
-  color: #142a34 !important;
-  background: radial-gradient(100% 80% at 0% 0%, rgba(179,141,85,.15), transparent 58%), linear-gradient(145deg, #fffdf8, #eee7da) !important;
-  box-shadow: 0 18px 44px -30px rgba(20,42,52,.28), 0 1px 0 rgba(255,255,255,.8) inset !important;
+  color: #2b2639 !important;
+  background: radial-gradient(100% 80% at 0% 0%, rgba(115,89,187,.16), transparent 58%), linear-gradient(145deg, #fffdf9, #eee8f4) !important;
+  box-shadow: 0 18px 44px -30px rgba(48,38,74,.28), 0 1px 0 rgba(255,255,255,.8) inset !important;
 }
 html body #root .public-sub-lux .public-sub-hero-card::after { border-color: rgba(114,82,28,.16) !important; box-shadow: 0 0 0 28px rgba(114,82,28,.035), 0 0 0 56px rgba(114,82,28,.025) !important; }
 html body #root .public-sub-lux .public-sub-status-pill { color: #175c49 !important; border-color: #c1ddce !important; background: #e2f0e8 !important; font-size: 13px !important; }
@@ -308,7 +308,7 @@ html body #root .public-sub-lux .public-sub-hero-caption,
 html body #root .public-sub-lux .public-sub-hero-meta span { color: #4b5d67 !important; font-size: 13px !important; }
 html body #root .public-sub-lux .public-sub-hero-copy .public-sub-kicker { color: #72521c !important; }
 html body #root .public-sub-lux .public-sub-hero-copy h1,
-html body #root .public-sub-lux .public-sub-hero-meta strong { color: #142a34 !important; }
+html body #root .public-sub-lux .public-sub-hero-meta strong { color: #2b2639 !important; }
 html body #root .public-sub-lux .public-sub-username { color: #354a55 !important; font-size: 15px !important; }
 html body #root .public-sub-lux .public-sub-hero-meta { border-color: #d8cfbe !important; }
 html body #root .public-sub-lux .public-sub-hero-meta > div { border-color: #d8cfbe !important; }
@@ -337,20 +337,41 @@ html body #root .public-sub-lux .public-sub-awg-hint { color: #263943 !important
 html body #root .public-sub-lux .public-sub-openvpn-location span { color: #142a34 !important; font-size: 15px !important; }
 html body #root .public-sub-lux .public-sub-openvpn-location a { color: #173943 !important; font-size: 13px !important; }
 html body #root .public-sub-lux .public-sub-error-card h1 {
-  color: #142a34 !important;
-  -webkit-text-fill-color: #142a34 !important;
+  color: #2b2639 !important;
+  -webkit-text-fill-color: #2b2639 !important;
   background: none !important;
   opacity: 1 !important;
   font-size: 25px !important;
 }
-html body #root .public-sub-lux .public-sub-error-card p:not(.public-sub-kicker) { color: #354a55 !important; font-size: 14px !important; }
-html body #root .public-sub-lux .public-sub-error-card .public-sub-kicker { color: #72521c !important; }
-html body #root .public-sub-lux-modal { background: rgba(27,39,44,.38) !important; }
+html body #root .public-sub-lux .public-sub-error-card p:not(.public-sub-kicker) { color: #514b5d !important; font-size: 14px !important; }
+html body #root .public-sub-lux .public-sub-error-card .public-sub-kicker { color: #80643c !important; }
+html body #root .public-sub-lux-modal { background: rgba(43,38,57,.38) !important; }
 
 /* Focused protocol-choice and guide stages; scoped to the public subscription route only. */
 html body #root .public-sub-lux .public-sub-protocol-shell {
-  width: min(100%, 780px) !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  width: min(100%, 1120px) !important;
   padding-bottom: max(28px, env(safe-area-inset-bottom)) !important;
+}
+html body #root .public-sub-lux .public-sub-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, .74fr) minmax(0, 1.26fr);
+  align-items: start;
+  gap: 20px;
+}
+html body #root .public-sub-lux .public-sub-summary-rail {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 14px;
+}
+html body #root .public-sub-lux .public-sub-protocol-hero { margin-bottom: 0 !important; }
+html body #root .public-sub-lux .public-sub-connect-workspace {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 14px;
 }
 html body #root .public-sub-lux .public-sub-appbar-actions { gap: 8px !important; }
 html body #root .public-sub-lux .public-sub-protocol-hero {
@@ -475,7 +496,7 @@ html body #root .public-sub-lux .public-sub-protocol-footer { gap: 10px !importa
 html body #root .public-sub-lux .public-sub-protocol-feed { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; max-width: 440px; padding-top: 10px; border-top: 1px solid #ddd7c9; color: #6b7778; font-size: 10px; }
 html body #root .public-sub-lux .public-sub-protocol-feed button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid #d4cebf; border-radius: 10px; color: #335a57; background: #faf9f4; font-size: 10px; font-weight: 800; cursor: pointer; }
 @media (min-width: 720px) {
-  html body #root .public-sub-lux .public-sub-protocol-shell { width: min(100% - 48px, 780px) !important; }
+  html body #root .public-sub-lux .public-sub-protocol-shell { width: min(100% - 48px, 1120px) !important; }
   html body #root .public-sub-lux .public-sub-protocol-grid { grid-template-columns: repeat(3,minmax(0,1fr)); align-items: stretch; }
   html body #root .public-sub-lux .public-sub-protocol-choice { grid-template-columns: 43px minmax(0,1fr) 18px; align-content: start; min-height: 158px; padding: 15px 12px; }
   html body #root .public-sub-lux .public-sub-protocol-choice-copy > span { min-height: 32px; }
@@ -493,6 +514,11 @@ html body #root .public-sub-lux .public-sub-protocol-feed button { display: inli
   html body #root .public-sub-lux .public-sub-protocol-detail-head > .public-sub-protocol-ready { grid-column: 2; }
   html body #root .public-sub-lux .public-sub-protocol-privacy { align-items: flex-start; flex-wrap: wrap; }
   html body #root .public-sub-lux .public-sub-protocol-privacy > span { min-width: calc(100% - 32px); }
+}
+@media (max-width: 760px) {
+  html body #root .public-sub-lux .public-sub-workspace { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  html body #root .public-sub-lux .public-sub-summary-rail { position: static; }
+  html body #root .public-sub-lux .public-sub-protocol-hero { padding: 18px 15px 16px !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   html body #root .public-sub-lux .public-sub-protocol-choice,

@@ -63,7 +63,16 @@ export function MobileNav({ unread = 0 }: { unread?: number }) {
 }
 
 export function MobileFrame({ children, unread, title, back, action, noNav = false }: { children: ReactNode; unread?: number; title?: string; back?: boolean; action?: ReactNode; noNav?: boolean }) {
-  return <div className="mobile-app" dir="rtl" data-testid="screen-mobile"><MobileOfflineBanner /><MobileTopbar title={title} back={back} action={action} /><main className={`mobile-main ${noNav ? 'mobile-main-plain' : ''}`}>{children}</main>{!noNav && <MobileNav unread={unread} />}</div>;
+  const [location] = useLocation();
+  const page = location.split('/').filter(Boolean).slice(1).join('-') || 'dashboard';
+  return <div className="mobile-app" dir="rtl" data-mobile-page={page} data-testid="screen-mobile">
+    <MobileOfflineBanner />
+    <MobileTopbar title={title} back={back} action={action} />
+    <main className={`mobile-main ${noNav ? 'mobile-main-plain' : ''}`}>
+      <div className={`mobile-page-layout mobile-page-layout-${page}`}>{children}</div>
+    </main>
+    {!noNav && <MobileNav unread={unread} />}
+  </div>;
 }
 
 export function BrandLockup() {

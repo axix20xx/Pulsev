@@ -1,5 +1,6 @@
 import './pulse-shell-redesigned.css';
-import { Activity, BarChart3, Bell, CalendarDays, Check, ChevronLeft, CircleHelp, Command, Copy, CreditCard, Gauge, LayoutDashboard, LogOut, Menu, MoreHorizontal, Package, PanelRightClose, PanelRightOpen, Search, Send, Settings, ShieldAlert, ShieldEllipsis, ShoppingBag, Sparkles, Store, Users, Wifi, X } from 'lucide-react';
+import './management-page-layouts.css';
+import { Activity, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronLeft, CircleHelp, Command, Copy, CreditCard, Gauge, LayoutDashboard, LogOut, Menu, MoreHorizontal, Package, PanelRightClose, PanelRightOpen, Search, Send, Settings, ShieldAlert, ShieldEllipsis, ShoppingBag, Sparkles, Store, Users, Wifi, X } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
@@ -25,7 +26,7 @@ const groups: { title: string; items: NavItem[] }[] = [
   { title: 'نمای کلی', items: [{ href: '/', label: 'داشبورد', icon: LayoutDashboard }] },
   { title: 'فروش و مشتری', items: [
     { href: '/sales', label: 'دفتر فروش', icon: ShoppingBag },
-    { href: '/pos', label: 'پایانه فروش', icon: CreditCard },
+    { href: '/pos', label: 'فروش سریع', icon: ShoppingBag },
     { href: '/storefront', label: 'ویترین فروش', icon: Store },
     { href: '/customers', label: 'مشتری‌ها', icon: Users },
     { href: '/services', label: 'سرویس‌ها', icon: Package },
@@ -65,6 +66,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const logout = useLogout();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<number[]>([]);
   const prefersReducedMotion = useReducedMotion();
   const [topbarPanel, setTopbarPanel] = useState<'notifications' | 'help' | null>(null);
   const [searchText, setSearchText] = useState('');
@@ -88,6 +90,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const isActive = (href: string) => location === href || (href !== '/' && location.startsWith(`${href}/`));
 
   useEffect(() => { setDrawerOpen(false); setTopbarPanel(null); }, [location]);
+  useEffect(() => {
+    const activeGroup = groups.findIndex((group) => group.items.some((item) => isActive(item.href)));
+    if (activeGroup >= 0) setCollapsedGroups((current) => current.filter((index) => index !== activeGroup));
+  }, [location]);
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(searchText.trim()), 250);
     return () => window.clearTimeout(timer);
@@ -208,39 +214,42 @@ export function Shell({ children }: { children: ReactNode }) {
     return <div className="pulse-auth-loading" role="status" aria-live="polite"><span className="pulse-mark"><span /></span><p>در حال احراز هویت…</p></div>;
   }
   return (
-    <div className={`pulse-workspace ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''}`} dir="rtl">
+    <div className={`pulse-workspace control-center-shell ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''}`} dir="rtl">
       <aside className="pulse-shell-sidebar" aria-label="ناوبری اصلی">
         <div className="pulse-brand">
           <Link href="/" className="pulse-brand-link" data-testid="link-logo">
             <span className="pulse-mark"><span /></span>
-            <span><strong>پالس</strong><small>پنل مدیریت</small></span>
+            <span className="pulse-brand-copy"><strong>پالس</strong><small>مرکز کنترل</small></span>
           </Link>
-          <span className="pulse-version">WORKSPACE</span>
           <button className="pulse-collapse-toggle" type="button" onClick={() => setSidebarCollapsed((collapsed) => !collapsed)} aria-label={sidebarCollapsed ? 'گسترش نوار کناری' : 'جمع‌کردن نوار کناری'} aria-pressed={sidebarCollapsed} title={sidebarCollapsed ? 'گسترش نوار کناری' : 'جمع‌کردن نوار کناری'} data-testid="button-toggle-sidebar">
             {sidebarCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
           </button>
         </div>
+        <div className="pulse-sidebar-workspace"><span className="pulse-sidebar-workspace-mark"><Activity size={13} /></span><span><small>فضای کاری</small><strong>{isMaster ? 'مدیریت اصلی' : 'فروشنده'}</strong></span><span className="pulse-sidebar-online" title="نشست کاربری فعال" /></div>
         <nav className="pulse-nav" aria-label="صفحات فضای کاری">
-          {groups.map((group) => {
+          {groups.map((group, index) => {
             const available = group.items.filter((item) => !item.admin || isMaster);
             if (!available.length) return null;
+            const collapsed = collapsedGroups.includes(index);
             return <section className="pulse-nav-group" key={group.title}>
-              <h2>{group.title}</h2>
-              {available.map(({ href, label, icon: Icon }) => (
-                <Link key={href} href={href} className={`pulse-nav-link ${isActive(href) ? 'is-active' : ''}`} aria-label={sidebarCollapsed ? label : undefined} title={sidebarCollapsed ? label : undefined} aria-current={isActive(href) ? 'page' : undefined} data-testid={`nav-${href === '/' ? 'overview' : href.slice(1)}`}>
-                  <Icon size={17} strokeWidth={1.9} /><span>{label}</span>{isActive(href) && <i aria-hidden="true" />}
-                </Link>
-              ))}
+              <h2><button type="button" className="pulse-nav-group-toggle" aria-expanded={!collapsed} aria-controls={`pulse-nav-items-${index}`} onClick={() => setCollapsedGroups((current) => collapsed ? current.filter((item) => item !== index) : [...current, index])}><span>{group.title}</span><ChevronDown size={13} aria-hidden="true" /></button></h2>
+              <div id={`pulse-nav-items-${index}`} hidden={collapsed}>
+                {available.map(({ href, label, icon: Icon }) => (
+                  <Link key={href} href={href} className={`pulse-nav-link ${isActive(href) ? 'is-active' : ''}`} aria-label={sidebarCollapsed ? label : undefined} title={sidebarCollapsed ? label : undefined} aria-current={isActive(href) ? 'page' : undefined} data-testid={`nav-${href === '/' ? 'overview' : href.slice(1)}`}>
+                    <Icon size={17} strokeWidth={1.9} /><span>{label}</span>{isActive(href) && <i aria-hidden="true" />}
+                  </Link>
+                ))}
+              </div>
             </section>;
           })}
         </nav>
         <div className="pulse-sidebar-footer">
-          <div className="pulse-connection-state"><span /> نشست کاربری فعال</div>
           <div className="pulse-user">
             <span className="pulse-avatar">{name.slice(0, 1)}</span>
             <span className="pulse-user-copy"><strong>{name}</strong><small>{isMaster ? 'مدیر اصلی' : 'فروشنده'}</small></span>
             <button type="button" onClick={() => void signOut()} disabled={logout.isPending} aria-label="خروج از حساب" title="خروج از حساب" data-testid="button-logout"><LogOut size={16} /></button>
           </div>
+          <div className="pulse-sidebar-build"><span>Pulse Control</span><span>● LIVE</span></div>
         </div>
       </aside>
       {drawerOpen && <button className="pulse-drawer-scrim" onClick={() => setDrawerOpen(false)} aria-label="بستن ناوبری" tabIndex={-1} />}
@@ -277,6 +286,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
           <div className="pulse-top-actions">
             <div className="pulse-desktop-profile"><span className="pulse-avatar">{name.slice(0, 1)}</span><span><strong>{name}</strong><small>{isMaster ? 'مدیر اصلی' : 'فروشنده'}</small></span></div>
+            <Link href="/pos" className="pulse-quick-sale" data-testid="link-quick-sale-toolbar"><ShoppingBag size={16} /><span>فروش سریع</span></Link>
             <button className={`pulse-tool-button ${topbarPanel === 'notifications' ? 'is-selected' : ''}`} type="button" onClick={() => { setTopbarPanel((current) => current === 'notifications' ? null : 'notifications'); void loadNotifications(); }} aria-label={`اعلان‌ها${unread.length ? `، ${unread.length} خوانده‌نشده` : ''}`} aria-expanded={topbarPanel === 'notifications'} data-testid="button-notifications"><Bell size={18} />{unread.length > 0 && <i />}</button>
             <button className={`pulse-tool-button ${topbarPanel === 'help' ? 'is-selected' : ''}`} type="button" onClick={() => setTopbarPanel((current) => current === 'help' ? null : 'help')} aria-label="راهنما" aria-expanded={topbarPanel === 'help'}><CircleHelp size={18} /></button>
           </div>
@@ -303,6 +313,9 @@ export function Shell({ children }: { children: ReactNode }) {
           <MoreHorizontal size={19} strokeWidth={1.9} /><span>بیشتر</span>
         </button>
       </nav>
+      <Link href="/pos" className="pulse-quick-sale-fab" aria-label="فروش سریع" data-testid="link-quick-sale-mobile">
+        <ShoppingBag size={19} strokeWidth={2} /><span>فروش سریع</span>
+      </Link>
     </div>
   );
 }

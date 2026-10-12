@@ -103,14 +103,55 @@ function DashboardPage({ dashboard, reload }: { dashboard: MobileDashboard; relo
 function SubscriptionsPage() {
   const { data, loading, error, reload } = useMobileFetch<unknown>('/api/mobile/subscriptions');
   const subscriptions = arrayFrom<MobileSubscription>(data, 'subscriptions');
-  return <MobileFrame title="اشتراک‌های من"><div className="mobile-page-heading"><span className="mobile-eyebrow">مدیریت دسترسی</span><h1>اشتراک‌ها</h1><p>وضعیت و حجم هر اتصال را یک‌جا ببینید.</p></div><MobileState loading={loading} error={error} empty={!subscriptions.length} onRetry={reload}><div className="mobile-sub-list">{subscriptions.map((item) => <Link href={`/mobile/subscriptions/${item.id}`} key={item.id} className="mobile-card-link"><SubscriptionCard item={item} /></Link>)}</div></MobileState></MobileFrame>;
+  const activeCount = subscriptions.filter((item) => item.status === 'active').length;
+  const remainingTotal = subscriptions.reduce((sum, item) => sum + Math.max(0, Number(item.remaining_gb ?? 0)), 0);
+  return <MobileFrame title="اشتراک‌های من">
+    <header className="mobile-customer-ledger-heading">
+      <div><span className="mobile-eyebrow">مدیریت دسترسی</span><h1>اشتراک‌ها</h1><p>وضعیت و حجم هر اتصال را یک‌جا ببینید.</p></div>
+      <button className="mobile-icon-button" onClick={reload} aria-label="تازه‌سازی اشتراک‌ها" data-testid="button-mobile-subscriptions-refresh"><RefreshCw size={17} /></button>
+    </header>
+    <section className="mobile-subscriptions-overview" aria-label="خلاصه اشتراک‌ها">
+      <div><span>اشتراک فعال</span><strong>{faNumber(activeCount)}</strong></div>
+      <div><span>حجم باقی‌مانده</span><strong>{faNumber(remainingTotal, { maximumFractionDigits: 1 })} <small>GB</small></strong></div>
+      <div className="mobile-overview-emblem"><ShieldCheck size={23} /></div>
+    </section>
+    <div className="mobile-section-head mobile-subscriptions-list-heading"><div><span className="mobile-eyebrow">دفتر اتصال</span><h2>همه اشتراک‌ها</h2></div><span className="mobile-list-count">{faNumber(subscriptions.length)} مورد</span></div>
+    <MobileState loading={loading} error={error} empty={!subscriptions.length} onRetry={reload}>
+      <div className="mobile-sub-list">{subscriptions.map((item) => <Link href={`/mobile/subscriptions/${item.id}`} key={item.id} className="mobile-card-link"><SubscriptionCard item={item} /></Link>)}</div>
+    </MobileState>
+  </MobileFrame>;
 }
 
 function SubscriptionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data, loading, error, reload } = useMobileFetch<MobileSubscription>(id ? `/api/mobile/subscriptions/${encodeURIComponent(id)}` : null, [id]);
   const item = objectFrom<MobileSubscription>(data, 'subscription');
-  return <MobileFrame title="جزئیات اشتراک" back>{data ? <div className="mobile-detail"><div className="mobile-detail-head"><span className="mobile-eyebrow">اتصال خصوصی</span><h1>{item.plan}</h1><span className={`mobile-status status-${item.status}`}><i />{item.status === 'active' ? 'اتصال فعال است' : item.status === 'expired' ? 'اشتراک منقضی شده' : item.status}</span></div><div className="mobile-detail-visual"><UsageRing item={item} /><div><span className="mobile-eyebrow">حجم باقی‌مانده</span><strong>{faNumber(item.remaining_gb ?? 0, { maximumFractionDigits: 1 })} <small>GB</small></strong><p>از مجموع {faNumber(item.total_gb ?? 0, { maximumFractionDigits: 1 })} گیگابایت</p></div></div><div className="mobile-detail-grid"><div><span>تاریخ شروع</span><strong>{formatMobileDate(item.started_at)}</strong></div><div><span>تاریخ انقضا</span><strong>{formatMobileDate(item.expires_at)}</strong></div><div><span>سرور</span><strong>{item.server || 'ثبت نشده'}</strong></div><div><span>نام کاربری</span><strong dir="ltr">{item.username || 'ثبت نشده'}</strong></div></div><section className="mobile-access-section"><div className="mobile-section-head"><div><span className="mobile-eyebrow">اتصال امن</span><h2>دریافت لینک</h2></div><LockKeyhole size={18} /></div><p>لینک را در برنامه سازگار با VPN وارد کنید. اطلاعات دسترسی را با دیگران به اشتراک نگذارید.</p><AccessActions item={item} /></section></div> : <MobileState loading={loading} error={error} onRetry={reload}>{null}</MobileState>}</MobileFrame>;
+  return <MobileFrame title="جزئیات اشتراک" back>
+    {data ? <article className="mobile-detail" data-testid={`panel-mobile-subscription-${item.id}`}>
+      <header className="mobile-detail-head">
+        <div className="mobile-detail-title"><span className="mobile-eyebrow">پرونده اتصال</span><h1>{item.plan}</h1><span className="mobile-detail-code" dir="ltr">{item.service_code || `#${item.id}`}</span></div>
+        <span className={`mobile-status status-${item.status}`}><i />{item.status === 'active' ? 'اتصال فعال است' : item.status === 'expired' ? 'اشتراک منقضی شده' : item.status}</span>
+      </header>
+      <section className="mobile-detail-visual" aria-label="مصرف اشتراک">
+        <UsageRing item={item} />
+        <div className="mobile-detail-usage"><span className="mobile-eyebrow">حجم باقی‌مانده</span><strong>{faNumber(item.remaining_gb ?? 0, { maximumFractionDigits: 1 })} <small>GB</small></strong><p>از مجموع {faNumber(item.total_gb ?? 0, { maximumFractionDigits: 1 })} گیگابایت</p></div>
+      </section>
+      <section className="mobile-detail-facts" aria-label="جزئیات سرویس">
+        <div className="mobile-detail-facts-heading"><span className="mobile-eyebrow">مشخصات سرویس</span><span>{item.plan}</span></div>
+        <dl className="mobile-detail-grid">
+          <div><dt>تاریخ شروع</dt><dd>{formatMobileDate(item.started_at)}</dd></div>
+          <div><dt>تاریخ انقضا</dt><dd>{formatMobileDate(item.expires_at)}</dd></div>
+          <div><dt>سرور</dt><dd>{item.server || 'ثبت نشده'}</dd></div>
+          <div><dt>نام کاربری</dt><dd dir="ltr">{item.username || 'ثبت نشده'}</dd></div>
+        </dl>
+      </section>
+      <section className="mobile-access-section">
+        <div className="mobile-section-head"><div><span className="mobile-eyebrow">اتصال امن</span><h2>دریافت لینک</h2></div><LockKeyhole size={18} /></div>
+        <p>لینک را در برنامه سازگار با VPN وارد کنید. اطلاعات دسترسی را با دیگران به اشتراک نگذارید.</p>
+        <AccessActions item={item} />
+      </section>
+    </article> : <MobileState loading={loading} error={error} empty={!loading && !error} onRetry={reload}><span /></MobileState>}
+  </MobileFrame>;
 }
 
 function NotificationsPage() {

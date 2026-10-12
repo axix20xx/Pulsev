@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
 type PulseContextValue = {
   sales: Sale[]; services: Service[]; customers: Customer[]; servicesLoading: boolean; servicesError: string | null; refreshServices: () => Promise<void>; prefs: Prefs; session: { authenticated?: boolean; role?: string; telegram_id?: number | null; reseller_id?: number | null; display_name?: string | null; customer_price_per_gb?: number | null } | null;
-  sessionLoading: boolean; authFallback: boolean; dashboard: any | null; resellers: { id: number; telegram_id: number; title?: string | null; enabled: boolean; used_gb: number; total_gb: number; per_gig_price?: number; customer_price_per_gb?: number }[];
+  sessionLoading: boolean; authFallback: boolean; dashboard: any | null; dashboardLoading: boolean; dashboardError: string | null; refreshDashboard: () => Promise<void>; resellers: { id: number; telegram_id: number; title?: string | null; enabled: boolean; used_gb: number; total_gb: number; per_gig_price?: number; customer_price_per_gb?: number }[];
   addSale: (sale: Sale) => void; updateSale: (sale: Sale) => Promise<void>; createService: (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean; storefront_lead_id?: number | null }) => Promise<Service>; updateService: (service: Service) => void; renewService: (service: Service, days?: number, gb?: number, sellPrice?: number | null, isPaid?: boolean, requestId?: string) => Promise<Service>; openRenewWizard: (service: Service) => void; resetServiceToken: (service: Service) => Promise<string>; setPrefs: (prefs: Prefs) => void; updateReseller: (id: number, enabled: boolean) => void;
 };
 const PulseContext = createContext<PulseContextValue | null>(null);
@@ -320,7 +320,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const renewService = async (service: Service, days = 30, gb = service.limitGb, sellPrice: number | null = null, isPaid = true, requestId?: string) => { const id = Number(service.id.replace(/\D/g, '')); if (!canLoadApi || !Number.isFinite(id) || id <= 0) throw new Error('برای تمدید باید وارد سامانه شوید.'); const renewed = await renewServiceApi.mutateAsync({ id, data: { days, gb, sell_price: sellPrice, is_paid: isPaid, request_id: requestId } }); await Promise.all([refreshRealData(), queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) })]); return mapService(renewed); };
   const resetServiceToken = async (service: Service) => { const id = Number(service.id.replace(/\D/g, '')); if (!canLoadApi || !Number.isFinite(id) || id <= 0) throw new Error('سرویس معتبر نیست.'); const result = await resetServiceTokenApi.mutateAsync({ id }); await queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) }); return result.subscription_url; };
   const updateReseller = (id: number, enabled: boolean) => { setLocalResellers((items) => items.map((item) => item.id === id ? { ...item, enabled } : item)); if (canLoadApi && sessionQuery.data?.role === 'master_admin') updateResellerApi.mutate({ id, data: { enabled } }); };
-  return <PulseContext.Provider value={{ sales: visibleBusinessData ? sales : [], services: visibleBusinessData ? services : [], customers, servicesLoading: servicesQuery.isLoading, servicesError: servicesQuery.isError ? (servicesQuery.error instanceof Error ? servicesQuery.error.message : 'فهرست سرویس‌ها دریافت نشد.') : null, refreshServices, prefs, session: displaySession, sessionLoading: sessionQuery.isLoading, authFallback, dashboard: canLoadApi ? dashboardQuery.data ?? null : null, resellers: canLoadApi ? resellers : [], addSale: (sale) => setSales((items) => [sale, ...items]), updateSale, createService, updateService, renewService, openRenewWizard: setRenewTarget, resetServiceToken, setPrefs, updateReseller }}>{children}{renewTarget && <RenewWizard service={renewTarget} onClose={() => setRenewTarget(null)} onRenew={renewService} />}</PulseContext.Provider>;
+  return <PulseContext.Provider value={{ sales: visibleBusinessData ? sales : [], services: visibleBusinessData ? services : [], customers, servicesLoading: servicesQuery.isLoading, servicesError: servicesQuery.isError ? (servicesQuery.error instanceof Error ? servicesQuery.error.message : 'فهرست سرویس‌ها دریافت نشد.') : null, refreshServices, prefs, session: displaySession, sessionLoading: sessionQuery.isLoading, authFallback, dashboard: canLoadApi ? dashboardQuery.data ?? null : null, dashboardLoading: dashboardQuery.isLoading, dashboardError: dashboardQuery.isError ? (dashboardQuery.error instanceof Error ? dashboardQuery.error.message : 'خلاصهٔ داشبورد دریافت نشد.') : null, refreshDashboard: async () => { await dashboardQuery.refetch(); }, resellers: canLoadApi ? resellers : [], addSale: (sale) => setSales((items) => [sale, ...items]), updateSale, createService, updateService, renewService, openRenewWizard: setRenewTarget, resetServiceToken, setPrefs, updateReseller }}>{children}{renewTarget && <RenewWizard service={renewTarget} onClose={() => setRenewTarget(null)} onRenew={renewService} />}</PulseContext.Provider>;
 }
 export const usePulse = () => { const value = useContext(PulseContext); if (!value) throw new Error('PulseProvider missing'); return value; };
 
@@ -344,106 +344,91 @@ function LoginPageContent() {
   };
 
   return (
-    <div className="flex w-full max-w-[420px] flex-col items-center justify-center p-6 mx-auto min-h-[100dvh] relative z-10 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
-      <div className="w-full flex flex-col items-center animate-in fade-in zoom-in-95 duration-700">
-        <div className="relative flex h-24 w-24 items-center justify-center mb-8">
-          <div className="absolute inset-0 rounded-3xl bg-primary/20 blur-xl animate-pulse"></div>
-          <div className="pulse-mark scale-[2.5] shadow-xl shadow-primary/20 ring-1 ring-primary/30"><span /></div>
+    <main className="login-workspace" dir="rtl">
+      <section className="login-identity-panel" aria-label="هویت فضای مدیریت پالس">
+        <div className="login-identity-brand">
+          <span className="login-logo"><span className="pulse-mark"><span /></span></span>
+          <span><strong>پالس</strong><small>فضای امن مدیریت</small></span>
         </div>
-        
-        <div className="w-full text-center space-y-3 mb-10">
-          <p className="eyebrow text-primary/80 font-bold tracking-[0.2em] uppercase">فضای امنیتی پالس</p>
-          <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground">احراز هویت سامانه</h1>
-          <p className="text-[13px] font-medium text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
-            دسترسی به این پنل محدود است. برای ورود، شناسه عددی تلگرام خود را وارد کنید.
-          </p>
+        <div className="login-identity-copy">
+          <p className="eyebrow">فضای کاری تیم</p>
+          <h1>همه‌چیز برای<br /><em>تصمیم دقیق‌تر.</em></h1>
+          <p>فروش، سرویس و سلامت زیرساخت در یک فضای عملیاتی یکپارچه.</p>
         </div>
-
-        <div className="w-full bg-card/80 backdrop-blur-2xl border border-border/60 rounded-[2rem] p-6 sm:p-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
-          
+        <div className="login-identity-index">
+          <div><span>01</span><strong>فروش و تسویه</strong></div>
+          <div><span>02</span><strong>سرویس و مشتری</strong></div>
+          <div><span>03</span><strong>پایش زیرساخت</strong></div>
+        </div>
+        <div className="login-identity-footer"><ShieldCheck size={16} /><span>دسترسی فقط برای حساب‌های مجاز</span></div>
+      </section>
+      <section className="login-access-panel">
+        <div className="login-access-top"><span className="login-access-step">ورود امن</span><span className="login-access-lock"><Lock size={15} /> نشست رمزنگاری‌شده</span></div>
+        <div className="login-access-heading">
+          <span className="eyebrow">احراز هویت</span>
+          <h2>خوش آمدید</h2>
+          <p>برای ورود، شناسه عددی تلگرام خود را وارد کنید.</p>
+        </div>
+        <div className="login-form-surface">
           {session?.authenticated ? (
-            <div className="flex flex-col items-center gap-6 py-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                <Check className="text-emerald-500" size={32} />
+            <div className="login-success-state">
+              <div className="login-success-mark"><Check size={25} /></div>
+              <div>
+                <p>دسترسی تایید شد</p>
+                <small>در حال انتقال به مرکز عملیات...</small>
               </div>
-              <div className="text-center">
-                <p className="text-base font-bold text-foreground mb-1">دسترسی تایید شد</p>
-                <p className="text-xs text-muted-foreground">در حال انتقال به مرکز عملیات...</p>
-              </div>
-              <Link href="/" className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:shadow-primary/30 active:scale-[0.98]">
+              <Link href="/" className="button button-primary login-submit">
                 ورود به داشبورد <ChevronLeft size={18} />
               </Link>
             </div>
           ) : (
-            <form onSubmit={submit} className="flex flex-col gap-6">
-              <div className="space-y-2.5">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-between">
-                  <span>شناسه تلگرام (ID)</span>
-                  <Lock size={12} className="text-primary/70" />
+            <form onSubmit={submit} className="login-form">
+              <div className="login-field">
+                <label htmlFor="telegram-id-input">
+                  <span>شناسه تلگرام</span>
+                  <small>ID</small>
                 </label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-4 flex items-center justify-center pointer-events-none text-muted-foreground/60 group-focus-within:text-primary transition-colors">
-                    <KeyRound size={20} />
-                  </div>
-                  <input 
-                    inputMode="numeric" 
-                    dir="ltr" 
-                    autoFocus 
-                    value={telegramId} 
-                    onChange={(event) => setTelegramId(event.target.value)} 
-                    data-testid="input-telegram-id"
-                    placeholder="123456789"
-                    className="w-full h-14 bg-background/60 border border-border/80 rounded-2xl pl-12 pr-4 text-left font-mono text-lg font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/15 transition-all shadow-inner"
-                  />
-                  <div className="absolute inset-0 -z-10 rounded-2xl bg-primary/20 opacity-0 group-focus-within:opacity-100 blur-xl transition-opacity"></div>
+                <div className="login-input-wrap">
+                  <KeyRound size={18} aria-hidden="true" />
+                  <input id="telegram-id-input" inputMode="numeric" dir="ltr" autoFocus value={telegramId}
+                    onChange={(event) => setTelegramId(event.target.value)} data-testid="input-telegram-id"
+                    placeholder="123456789" autoComplete="off" />
                 </div>
+                <small className="login-field-hint">شناسه عددی حساب تلگرام شما؛ بدون علامت @</small>
               </div>
-              
-              <button 
-                type="submit"
-                className="group relative flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground font-bold shadow-[0_8px_24px_-8px_rgba(var(--primary),0.5)] transition-all hover:bg-primary/90 hover:shadow-[0_12px_32px_-8px_rgba(var(--primary),0.6)] active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none overflow-hidden" 
-                disabled={login.isPending || !telegramId.trim()} 
-                data-testid="button-login-id"
-              >
+              <button type="submit" className="button button-primary login-submit"
+                disabled={login.isPending || !telegramId.trim()} data-testid="button-login-id">
                 {login.isPending ? (
                   <><RefreshCw size={18} className="animate-spin" /> در حال احراز هویت...</>
                 ) : (
-                  <>بررسی صلاحیت <ChevronLeft size={18} className="transition-transform group-hover:-translate-x-1" /></>
+                  <>بررسی صلاحیت <ChevronLeft size={18} /></>
                 )}
               </button>
 
               {login.isError && (
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-medium animate-in fade-in slide-in-from-top-2">
-                  <ShieldCheck size={18} className="flex-shrink-0 mt-0.5" />
-                  <p className="leading-relaxed text-[13px]">این شناسه در فهرست پرسنل مجاز یافت نشد. لطفاً بررسی کنید.</p>
+                <div className="login-form-error" role="alert">
+                  <ShieldAlert size={18} />
+                  <p>این شناسه در فهرست پرسنل مجاز یافت نشد. لطفاً بررسی کنید.</p>
                 </div>
               )}
             </form>
           )}
         </div>
 
-        <div className="mt-8 flex items-center justify-center gap-2 text-[11px] font-medium text-muted-foreground/80 bg-card/40 backdrop-blur-md px-4 py-2.5 rounded-full border border-border/40 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both">
-          <Server size={12} className="text-primary/70" />
-          <span>اتصال شما به سرور اختصاصی رمزنگاری شده است</span>
+        <div className="login-security-note">
+          <Server size={15} /><span>دسترسی از طریق نشست امن و کنترل نقش انجام می‌شود.</span>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
 
 export function LoginPage() {
   return (
-    <div className="min-h-[100dvh] w-full flex flex-col bg-background text-foreground relative overflow-y-auto overflow-x-hidden selection:bg-primary/30" dir="rtl">
-      <div className="fixed inset-0 z-0 bg-[linear-gradient(to_right,hsl(var(--border)/0.2)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.2)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,#000_10%,transparent_100%)] opacity-60 pointer-events-none"></div>
-      
-      <div className="fixed top-1/4 left-1/4 w-[500px] h-[500px] bg-primary/10 blur-[120px] rounded-full pointer-events-none mix-blend-screen opacity-70"></div>
-      <div className="fixed bottom-1/4 right-1/4 w-[400px] h-[400px] bg-accent/10 blur-[100px] rounded-full pointer-events-none mix-blend-screen opacity-50"></div>
-
-      <div className="fixed inset-0 z-0 opacity-40 mix-blend-screen pointer-events-none">
+    <div className="pulse-login-screen" dir="rtl">
+      <div className="login-network-art" aria-hidden="true">
         <PulseNetworkAccent />
       </div>
-      
       <LoginPageContent />
     </div>
   );
@@ -451,10 +436,35 @@ export function LoginPage() {
 
 const Button = ({ children, onClick, variant = 'primary', type = 'button', className = '', disabled = false, testId, ariaLabel }: { children: ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'quiet' | 'danger'; type?: 'button' | 'submit'; className?: string; disabled?: boolean; testId?: string; ariaLabel?: string }) => <button type={type} onClick={onClick} disabled={disabled} className={`button button-${variant} ${className}`} data-testid={testId} aria-label={ariaLabel}>{children}</button>;
 const PrintButton = ({ label, testId = 'button-print-page' }: { label: string; testId?: string }) => <Button variant="secondary" className="print-action" onClick={() => window.print()} testId={testId} ariaLabel={label}><span className="print-action-icon" aria-hidden="true"><Printer size={15} strokeWidth={2.25} /></span><span className="print-action-label">{label}</span></Button>;
-const Metric = ({ label, value, detail, trend, icon: Icon, accent = '' }: { label: string; value: string; detail: string; trend?: string; icon: typeof TrendingUp; accent?: string }) => <div className="metric-card"><div className={`metric-icon ${accent}`}><Icon size={17} /></div><p className="metric-label">{label}</p><div className="mt-2 flex items-end justify-between gap-2"><strong className="metric-value" data-testid={`text-metric-${label}`}>{value}</strong>{trend && <span className="trend-up"><ArrowUpLeft size={13} />{trend}</span>}</div><p className="metric-detail">{detail}</p></div>;
-const EmptyState = ({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) => <div className="empty-state"><div className="empty-symbol"><Sparkles size={19} /></div><p className="font-bold">{title}</p><p className="mt-1 max-w-xs text-sm text-muted-foreground">{detail}</p>{action && <div className="mt-4">{action}</div>}</div>;
+const Metric = ({ label, value, detail, trend, icon: Icon, accent = '' }: { label: string; value: string; detail: string; trend?: string; icon: typeof TrendingUp; accent?: string }) => <article className={`metric-card ${accent ? `metric-accent-${accent}` : ''}`}><div className="metric-card-top"><span className={`metric-icon ${accent}`}><Icon size={17} /></span>{trend && <span className="trend-up"><ArrowUpLeft size={13} />{trend}</span>}</div><p className="metric-label">{label}</p><strong className="metric-value" data-testid={`text-metric-${label}`}>{value}</strong><p className="metric-detail">{detail}</p></article>;
+const EmptyState = ({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) => <section className="empty-state" role="status"><div className="empty-symbol"><Sparkles size={19} /></div><div className="empty-state-copy"><h3 className="font-bold">{title}</h3><p className="mt-1 max-w-xs text-sm text-muted-foreground">{detail}</p></div>{action && <div className="empty-state-action">{action}</div>}</section>;
+
+function RecordCard({ eyebrow, title, subtitle, status, fields, actions, testId }: {
+  eyebrow?: string;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  status?: ReactNode;
+  fields: Array<{ label: string; value: ReactNode }>;
+  actions?: ReactNode;
+  testId?: string;
+}) {
+  return <article className="record-card" data-testid={testId}>
+    <header className="record-card-heading">
+      <div className="record-card-identity">
+        {eyebrow && <span className="record-card-eyebrow">{eyebrow}</span>}
+        <strong>{title}</strong>
+        {subtitle && <small>{subtitle}</small>}
+      </div>
+      {status && <div className="record-card-status">{status}</div>}
+    </header>
+    <dl className="record-card-fields">{fields.map((field) => <div className="record-card-field" key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl>
+    {actions && <footer className="record-card-actions">{actions}</footer>}
+  </article>;
+}
 function SurfaceFrame({ name, children, signal = false }: { name: string; children: ReactNode; signal?: boolean }) {
-  return <div className={`pulse-surface pulse-surface-${name}`}>{children}</div>;
+  return <main className={`pulse-surface pulse-surface-${name}`} data-surface={name}>
+    <div className={`surface-layout surface-layout-${name}`}>{children}</div>
+  </main>;
 }
 function Overlay({ title, onClose, children, fullScreen = false }: { title: string; onClose: () => void; children: ReactNode; fullScreen?: boolean }) {
   const titleId = useId();
@@ -567,7 +577,7 @@ function OnboardingChecklist({ customers, services, sales, session }: { customer
 }
 
 function OverviewContent() {
-  const { sales, services, customers, resellers, session, dashboard } = usePulse();
+  const { sales, services, customers, resellers, session, dashboard, dashboardLoading, dashboardError, refreshDashboard } = usePulse();
   const due = services.filter((service) => daysUntil(service.expiresAt) <= 14 && service.status !== 'Disabled');
   const [liveCommand, setLiveCommand] = useState<any | null>(null);
   const [liveCommandAt, setLiveCommandAt] = useState('');
@@ -676,13 +686,14 @@ function OverviewContent() {
         action={<div className="overview-heading-actions"><Link className="overview-primary-action" href={overviewHref}>{isMasterAdmin ? <ShieldAlert size={15} /> : <CreditCard size={15} />}{isMasterAdmin ? 'فروش فروشندگان' : 'ثبت فروش'}</Link><PrintButton label="چاپ" testId="button-export-overview" /></div>}
       />
       <div className="overview-context-line"><span className="overview-live-dot" /> داده‌های متصل <span className="overview-context-separator">·</span><span>{visibleAudience}</span>{dashboard?.generated_at && <time dateTime={dashboard.generated_at}>به‌روزرسانی {dateTimeLabel(dashboard.generated_at)}</time>}</div>
+      {dashboardError && <div className="overview-dashboard-error" role="alert"><span>{dashboardError}</span><button type="button" onClick={() => void refreshDashboard()} disabled={dashboardLoading}><RefreshCw size={13} className={dashboardLoading ? 'spin' : ''} /> تلاش دوباره</button></div>}
     </header>
 
     <section className="overview-kpi-grid" aria-label="شاخص‌های اصلی">
-      <article className="overview-kpi overview-kpi-revenue" data-testid="overview-kpi-revenue"><span className="overview-kpi-icon"><TrendingUp size={17} /></span><div><h2>{isMasterAdmin ? 'قابل پرداخت فروشندگان' : 'درآمد ثبت‌شده'}</h2><strong>{headlineRevenue}</strong><p>{isMasterAdmin ? 'مبلغ عمدهٔ فروشندگان برای مدیر اصلی' : 'فروش‌های ثبت‌شده در دفتر شما'}</p></div></article>
-      <article className="overview-kpi" data-testid="overview-kpi-active"><span className="overview-kpi-icon"><Wifi size={17} /></span><div><h2>سرویس‌های فعال</h2><strong>{numberFa(activeCount, 0)}</strong><p>{visibleAudience}</p></div></article>
-      <article className="overview-kpi overview-kpi-attention" data-testid="overview-kpi-renewals"><span className="overview-kpi-icon"><RefreshCw size={17} /></span><div><h2>تمدیدهای نزدیک</h2><strong>{numberFa(renewalCount, 0)}</strong><p>موعد تمدید تا ۱۴ روز آینده</p></div></article>
-      <article className="overview-kpi overview-kpi-health" data-testid="overview-kpi-health"><span className="overview-kpi-icon"><ShieldCheck size={17} /></span><div><h2>سلامت سرویس</h2><strong>{health === null ? '—' : `${numberFa(health, 1)}٪`}</strong><p>{health === null ? 'دادهٔ سلامت هنوز در دسترس نیست' : 'خلاصهٔ وضعیت سرویس‌ها'}</p></div></article>
+      <article className="overview-kpi overview-kpi-revenue" data-testid="overview-kpi-revenue"><span className="overview-kpi-icon"><TrendingUp size={17} /></span><div><h2>{isMasterAdmin ? 'قابل پرداخت فروشندگان' : 'درآمد ثبت‌شده'}</h2><strong>{dashboardLoading ? <i className="overview-value-skeleton" aria-label="در حال بارگیری" /> : headlineRevenue}</strong><p>{isMasterAdmin ? 'مبلغ عمدهٔ فروشندگان برای مدیر اصلی' : 'فروش‌های ثبت‌شده در دفتر شما'}</p></div></article>
+      <article className="overview-kpi" data-testid="overview-kpi-active"><span className="overview-kpi-icon"><Wifi size={17} /></span><div><h2>سرویس‌های فعال</h2><strong>{dashboardLoading ? <i className="overview-value-skeleton" aria-label="در حال بارگیری" /> : numberFa(activeCount, 0)}</strong><p>{visibleAudience}</p></div></article>
+      <article className="overview-kpi overview-kpi-attention" data-testid="overview-kpi-renewals"><span className="overview-kpi-icon"><RefreshCw size={17} /></span><div><h2>تمدیدهای نزدیک</h2><strong>{dashboardLoading ? <i className="overview-value-skeleton" aria-label="در حال بارگیری" /> : numberFa(renewalCount, 0)}</strong><p>موعد تمدید تا ۱۴ روز آینده</p></div></article>
+      <article className="overview-kpi overview-kpi-health" data-testid="overview-kpi-health"><span className="overview-kpi-icon"><ShieldCheck size={17} /></span><div><h2>سلامت سرویس</h2><strong>{dashboardLoading ? <i className="overview-value-skeleton" aria-label="در حال بارگیری" /> : health === null ? '—' : `${numberFa(health, 1)}٪`}</strong><p>{health === null ? 'دادهٔ سلامت هنوز در دسترس نیست' : 'خلاصهٔ وضعیت سرویس‌ها'}</p></div></article>
     </section>
 
     <section className="overview-month-ribbon" aria-label="خلاصهٔ مالی این ماه">
@@ -705,7 +716,7 @@ function OverviewContent() {
           <div className="overview-chart-legend"><span><i className="overview-legend-sale" />فروش</span><span><i className="overview-legend-profit" />سود</span></div>
           <div className="overview-daily-chart" role="group" aria-label="نمودار فروش و سود روزانه ماه جاری">{monthDays.map((item) => <button type="button" className={`overview-day-column ${selectedDay === item.day ? 'is-selected' : ''}`} key={item.day} onClick={() => setSelectedDay(item.day)} aria-label={`${dashboardDayLabel(item.day)}، فروش ${money(item.income)}، سود ${money(item.profit)}`} aria-pressed={selectedDay === item.day} title={`${dashboardDayLabel(item.day)} · فروش ${money(item.income)} · سود ${money(item.profit)}`}><span className="overview-day-tooltip">{dashboardDayLabel(item.day)}<strong>{money(item.income)}</strong><small>سود {money(item.profit)}</small></span><span className="overview-bar-sale" style={{ height: `${Math.max(item.income ? 8 : 2, item.income / chartMax * 100)}%` }} /><span className="overview-bar-profit" style={{ height: `${Math.max(item.profit ? 5 : 2, Math.max(0, item.profit) / chartMax * 100)}%` }} /></button>)}</div>
           <div className="overview-chart-axis"><span>{monthDays[0] ? dashboardDayLabel(monthDays[0].day) : 'شروع ماه'}</span><span>{monthDays[Math.floor(monthDays.length / 2)] ? dashboardDayLabel(monthDays[Math.floor(monthDays.length / 2)].day) : ''}</span><span>{monthDays[monthDays.length - 1] ? dashboardDayLabel(monthDays[monthDays.length - 1].day) : 'امروز'}</span></div>
-        </> : <div className="overview-data-unavailable" role="status"><CalendarDays size={18} /><strong>دادهٔ ماه جاری در دسترس نیست</strong><span>پس از دریافت خلاصهٔ داشبورد، نمودار روزانه اینجا نمایش داده می‌شود.</span></div>}
+        </> : dashboardLoading ? <div className="overview-dashboard-chart-loading" role="status" aria-label="بارگذاری نمودار فروش"><span /><span /><span /><span /><span /><span /><span /><span /></div> : <div className="overview-data-unavailable" role="status"><CalendarDays size={18} /><strong>{dashboardError ? 'دادهٔ داشبورد دریافت نشد' : 'دادهٔ ماه جاری در دسترس نیست'}</strong><span>{dashboardError || 'پس از دریافت خلاصهٔ داشبورد، نمودار روزانه اینجا نمایش داده می‌شود.'}</span>{dashboardError && <button type="button" onClick={() => void refreshDashboard()}><RefreshCw size={13} /> تلاش دوباره</button>}</div>}
         {selectedDaySummary && <section className="overview-selected-day" aria-label={`جزئیات فروش روز ${dashboardDayLabel(selectedDaySummary.day)}`}>
           <header><div><p>جزئیات روز انتخاب‌شده</p><h3>{dashboardDayLabel(selectedDaySummary.day)}</h3></div><button type="button" onClick={() => setSelectedDay(null)}>بستن</button></header>
           <dl className="overview-day-facts"><div><dt>کل فروش</dt><dd>{money(selectedDaySummary.income)}</dd></div><div><dt>سود</dt><dd>{money(selectedDaySummary.profit)}</dd></div><div><dt>تعداد فروش</dt><dd>{numberFa(selectedDaySummary.sales_count, 0)}</dd></div><div><dt>حجم</dt><dd>{numberFa(selectedDaySummary.sold_gb)} گیگ</dd></div><div><dt>وصول‌شده</dt><dd>{money(selectedDaySummary.paid_income)}</dd></div><div><dt>در انتظار وصول</dt><dd>{money(selectedDaySummary.unpaid_income)}</dd></div></dl>
@@ -980,16 +991,47 @@ function SalesContent() {
   const chartMax = Math.max(1, ...resellerHistory.map((item: any) => Number(item.customer_revenue ?? 0)));
   return <><PageHeader eyebrow="دفتر مالی" title="دفتر فروش" description={isMasterAdmin ? 'فروش امروز و تسویهٔ فروشندگان؛ بدون نمایش ریز مشتری‌ها.' : 'نمایش فروش‌ها، درآمد، اعتبار خریداری‌شده و سود باقی‌مانده بر اساس تاریخ شمسی.'} action={<div className="page-header-actions"><PrintButton label="چاپ دفتر" testId="button-print-sales" />{isMasterAdmin && <Button variant="quiet" onClick={exportResellerCsv} testId="button-export-reseller-csv"><Download size={15} /> خروجی CSV</Button>}</div>} />
     <section className="sales-status-grid">{summary && (isMasterAdmin ? <><Metric label="فروش امروز فروشندگان" value={money(resellerHistoryTotals.customer_revenue)} detail={`${numberFa(resellerHistoryTotals.sold_gb)} گیگ · ${rangeLabel}`} icon={Package} accent="amber" /><Metric label="قابل پرداخت به مدیر" value={money(resellerHistoryTotals.amount_to_admin)} detail="سهم فروشندگان از فروش‌های ثبت‌شده" icon={TrendingUp} /><Metric label="سود مدیر از فروشندگان" value={money(resellerHistoryTotals.master_profit)} detail="با مبنای هزینهٔ ۲۵۰۰ تومان برای هر گیگ" icon={ShieldCheck} accent="sage" /><Metric label="ماندهٔ تسویهٔ resellerها" value={money(settlementTotals.remaining_amount)} detail={`پرداخت این بازه: ${money(settlementTotals.period_paid)}`} icon={CreditCard} accent="coral" /></> : <><Metric label="حجم فروخته‌شده" value={`${numberFa(summary.sold_gb)} گیگ`} detail={rangeLabel} icon={Package} accent="amber" /><Metric label="درآمد فروش" value={money(summary.income)} detail={`وصول‌شده: ${money(summary.paid_income)} · باقی‌مانده: ${money(summary.remaining_to_collect)}`} icon={TrendingUp} /><Metric label={isReseller ? 'قابل پرداخت به مدیر' : 'هزینه اعتبار'} value={money(summary.admin_due)} detail={`${numberFa(summary.admin_due_gb)} گیگ × نرخ خرید${summary.outstanding_admin_due ? ` · معوق: ${money(summary.outstanding_admin_due)}` : ''}`} icon={CreditCard} accent="coral" /><Metric label="سود باقی‌مانده" value={money(summary.remaining_profit)} detail={`وصول‌شده: ${money(summary.paid_profit)} · در انتظار: ${money(summary.unpaid_profit)}`} icon={ShieldCheck} accent="sage" /></>)}</section>
-    {isMasterAdmin && summary && <section className="panel-card mt-5"><div className="panel-heading"><div><p className="eyebrow">تاریخچهٔ فروشندگان</p><h2 className="section-title">فروش‌های resellerها در این بازه</h2><p className="text-sm text-muted-foreground">فقط جمع فروش هر reseller نمایش داده می‌شود؛ نام و جزئیات مشتری‌ها در این تاریخچه نشان داده نمی‌شود.</p></div><span className="soft-badge">{rangeLabel}</span></div><div className="table-scroll mt-5"><table><thead><tr><th>فروشنده</th><th>تعداد فروش</th><th>حجم</th><th>فروش مشتری</th><th>قابل پرداخت به مدیر</th><th>سود مدیر</th></tr></thead><tbody>{resellerHistory.map((item: any) => <tr key={item.reseller_tg_id}><td className="font-bold">{item.reseller_name}</td><td>{numberFa(item.sale_count, 0)}</td><td>{numberFa(item.sold_gb)} گیگ</td><td className="font-display font-bold">{money(item.customer_revenue)}</td><td className="font-display font-bold text-amber-700">{money(item.amount_to_admin)}</td><td className="font-display font-bold text-sky-700">{money(item.master_profit)}</td></tr>)}</tbody></table></div>{!resellerHistory.length && <EmptyState title="فروشنده‌ای در این بازه فروش نداشته است" detail="بازهٔ تاریخی را تغییر دهید یا پس از ثبت فروش دوباره بررسی کنید." />}</section>}
+     {isMasterAdmin && summary && <section className="record-board mt-5 reseller-history-board"><header className="record-board-header"><div><p className="eyebrow">تاریخچهٔ فروشندگان</p><h2>فروش‌های resellerها در این بازه</h2><p>فقط جمع فروش هر reseller نمایش داده می‌شود؛ جزئیات مشتری‌ها از این نما حذف شده است.</p></div><span className="soft-badge">{rangeLabel}</span></header>{resellerHistory.length ? <div className="record-card-grid">{resellerHistory.map((item: any) => <RecordCard key={item.reseller_tg_id} eyebrow={`${numberFa(item.sale_count, 0)} فروش`} title={item.reseller_name} subtitle={`${numberFa(item.sold_gb)} گیگ حجم`} fields={[
+       { label: 'فروش مشتری', value: money(item.customer_revenue) },
+       { label: 'قابل پرداخت به مدیر', value: money(item.amount_to_admin) },
+       { label: 'سود مدیر', value: money(item.master_profit) },
+     ]} />)}</div> : <EmptyState title="فروشنده‌ای در این بازه فروش نداشته است" detail="بازهٔ تاریخی را تغییر دهید یا پس از ثبت فروش دوباره بررسی کنید." />}</section>}
     {isMasterAdmin && summary && <section className="panel-card mt-5">
       <div className="panel-heading"><div><p className="eyebrow">تسویه فروشندگان</p><h2 className="section-title">بدهی به مدیر در این بازه</h2><p className="text-sm text-muted-foreground">{dateLabel(from)} تا {dateLabel(to)} · با تغییر وضعیت هر فاکتور، ماندهٔ reseller همان لحظه به‌روزرسانی می‌شود.</p></div><span className="soft-badge"><span className="status-dot online" /> قابل مدیریت</span></div>
       <div className="sales-payment-grid mt-5"><div><span>کل بدهی فروشندگان</span><strong>{money(summary.reseller_due)}</strong></div><div><span>پرداخت‌شده به مدیر</span><strong>{money(summary.reseller_paid)}</strong></div><div><span>مانده قابل دریافت</span><strong>{money(summary.reseller_remaining)}</strong></div><div><span>سود مدیر</span><strong>{money(summary.reseller_profit)}</strong></div></div>
-      <div className="table-scroll mt-5"><table><thead><tr><th>فروشنده</th><th>حجم اعتبار</th><th>کل بدهی</th><th>پرداخت‌شده</th><th>مانده</th><th>سود مدیر</th></tr></thead><tbody>{(summary.reseller_balances || []).map((item: any) => <tr key={item.reseller_tg_id}><td className="font-bold">{item.reseller_name}</td><td>{numberFa(item.due_gb)} گیگ</td><td className="font-display font-bold">{money(item.due_amount)}</td><td className="font-display text-emerald-700">{money(item.paid_amount)}</td><td className="font-display font-bold text-rose-700">{money(item.remaining_amount)}</td><td className="font-display font-bold text-sky-700">{money(item.profit_amount)}</td></tr>)}</tbody></table></div>
-      {(summary.reseller_credit_sales || []).length > 0 && <><div className="panel-heading mt-6"><div><p className="eyebrow">ریز فاکتورها</p><h3 className="font-bold">تعیین وضعیت پرداخت</h3></div></div><div className="table-scroll mt-3"><table><thead><tr><th>فروشنده</th><th>حجم</th><th>مبلغ</th><th>سود مدیر</th><th>تاریخ</th><th>وضعیت</th><th /></tr></thead><tbody>{summary.reseller_credit_sales.map((item: any) => <tr key={item.id}><td className="font-semibold">{item.reseller_name}</td><td>{numberFa(item.gb_amount)} گیگ</td><td className="font-display font-bold">{money(item.total_amount)}</td><td className="font-display font-bold text-sky-700">{money(item.profit_amount)}</td><td className="text-sm text-muted-foreground">{dateLabel(item.created_at)}</td><td><button onClick={() => toggleCreditPaid(item)} disabled={creditSaving === Number(item.id)}><StatusPill value={item.paid ? 'Paid' : 'Pending'} /></button></td><td><button className="icon-button" aria-label={item.paid ? `برگرداندن پرداخت فاکتور ${item.id}` : `ثبت پرداخت فاکتور ${item.id}`} onClick={() => toggleCreditPaid(item)} disabled={creditSaving === Number(item.id)}>{creditSaving === Number(item.id) ? <RefreshCw size={14} className="spin" /> : item.paid ? <RefreshCw size={14} /> : <Check size={14} />}</button></td></tr>)}</tbody></table></div></>}
+       {(summary.reseller_balances || []).length ? <div className="record-card-grid reseller-balance-grid">{summary.reseller_balances.map((item: any) => <RecordCard key={item.reseller_tg_id} eyebrow="وضعیت تسویه" title={item.reseller_name} subtitle={`${numberFa(item.due_gb)} گیگ اعتبار`} fields={[
+         { label: 'کل بدهی', value: money(item.due_amount) },
+         { label: 'پرداخت‌شده', value: money(item.paid_amount) },
+         { label: 'مانده', value: money(item.remaining_amount) },
+         { label: 'سود مدیر', value: money(item.profit_amount) },
+       ]} />)}</div> : <EmptyState title="تسویه‌ای در این بازه نیست" detail="پس از ثبت فروش اعتباری، مانده و سود فروشنده در اینجا نمایش داده می‌شود." />}
+       {(summary.reseller_credit_sales || []).length > 0 && <section className="sales-credit-ledger"><header className="record-board-header"><div><p className="eyebrow">ریز فاکتورها</p><h3>تعیین وضعیت پرداخت</h3><p>با ثبت پرداخت، مانده همان لحظه به‌روزرسانی می‌شود.</p></div><span className="soft-badge">{numberFa(summary.reseller_credit_sales.length, 0)} فاکتور</span></header><div className="record-card-grid">{summary.reseller_credit_sales.map((item: any) => <RecordCard key={item.id} eyebrow={`اعتبار فروشنده · ${numberFa(item.gb_amount)} گیگ`} title={item.reseller_name} subtitle={dateLabel(item.created_at)} status={<StatusPill value={item.paid ? 'Paid' : 'Pending'} />} fields={[
+         { label: 'مبلغ', value: money(item.total_amount) },
+         { label: 'سود مدیر', value: money(item.profit_amount) },
+       ]} actions={<Button variant="quiet" onClick={() => toggleCreditPaid(item)} disabled={creditSaving === Number(item.id)}>{creditSaving === Number(item.id) ? <RefreshCw size={14} className="spin" /> : item.paid ? <RefreshCw size={14} /> : <Check size={14} />}{item.paid ? 'بازگرداندن' : 'ثبت پرداخت'}</Button>} />)}</div></section>}
     </section>}
     {!isMasterAdmin && summary && <section className="sales-payment-breakdown panel-card"><div><p className="eyebrow">وضعیت وصول</p><h2 className="section-title">پرداخت و سود این بازه</h2></div><div className="sales-payment-grid"><div><span>مبلغ باقی‌مانده برای دریافت</span><strong>{money(summary.remaining_to_collect)}</strong></div><div><span>سود وصول‌شده</span><strong>{money(summary.paid_profit)}</strong></div><div><span>سود در انتظار پرداخت</span><strong>{money(summary.unpaid_profit)}</strong></div></div></section>}
     <section className="sales-period-panel report-filter panel-card"><div className="sales-period-heading"><div><p className="eyebrow">بازه زمانی</p><h2 className="section-title">{dateLabel(from)} تا {dateLabel(to)}</h2></div><span className="soft-badge">{rangeLabel}</span></div><div className="period-tabs">{([['today', 'امروز'], ['yesterday', 'دیروز'], ['week', '۷ روز اخیر'], ['month', 'این ماه'], ['custom', 'بازه دلخواه']] as [SalesPeriod, string][]).map(([value, label]) => <button key={value} className={period === value ? 'selected' : ''} onClick={() => selectPeriod(value)} data-testid={`button-sales-period-${value}`}>{label}</button>)}</div>{period === 'custom' && <div className="sales-custom-range"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button onClick={applyCustomRange} disabled={loading}>اعمال بازه</Button></div>}</section>
-        {!isMasterAdmin && <><div className="toolbar"><div className="search-field"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="جست‌وجوی مشتری، سرویس یا شناسه" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></div><div className="filter-tabs">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}{value === 'All' && <span>{numberFa(visibleSales.length, 0)}</span>}</button>)}</div></div>{error && <div className="login-error mb-4">{error}</div>}<section className="table-card"><div className="table-scroll"><table><thead><tr><th>فروش</th><th>سرویس / پنل</th><th>حجم سرویس</th><th>تاریخ فروش</th><th>وضعیت پرداخت</th><th className="text-right">مبلغ</th><th /></tr></thead><tbody>{filtered.map((sale) => <tr key={sale.id} data-testid={`row-sale-${sale.id}`}><td><div className="flex items-center gap-3"><Avatar name={sale.customerName} /><div><p className="font-bold">{sale.customerName}</p><p className="font-mono text-[10px] text-muted-foreground">{sale.id}</p></div></div></td><td><p className="font-semibold">{sale.serviceName}</p><p className="text-xs text-muted-foreground">{sale.panel}</p></td><td className="font-display font-bold">{sale.gbAmount == null ? '—' : `${numberFa(sale.gbAmount)} گیگ`}</td><td className="text-sm text-muted-foreground">{dateLabel(sale.date)}</td><td><div className="sale-payment-actions"><button type="button" className={`sale-payment-button paid ${sale.paid ? 'selected' : ''}`} onClick={() => { if (!sale.paid) togglePaid(sale); }} disabled={sale.paid} data-testid={`button-mark-paid-${sale.id}`}><Check size={12} /> پرداخت شد</button><button type="button" className={`sale-payment-button unpaid ${!sale.paid ? 'selected' : ''}`} onClick={() => { if (sale.paid) togglePaid(sale); }} disabled={!sale.paid} data-testid={`button-mark-unpaid-${sale.id}`}><Clock3 size={12} /> پرداخت نشد</button></div></td><td className="text-right font-display text-sm font-bold">{money(sale.amount)}</td><td><button className="icon-button" aria-label={`ویرایش فروش ${sale.id}`} onClick={() => openSaleEditor(sale)} data-testid={`button-edit-sale-${sale.id}`}><Pencil size={14} /></button></td></tr>)}</tbody></table></div>{!loading && !filtered.length && <EmptyState title="فروشی پیدا نشد" detail="بازه زمانی، عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." />}</section><p className="mt-3 text-xs text-muted-foreground">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · حجم و تاریخ هر سرویس بر اساس تقویم شمسی تهران</p></>}
+        {!isMasterAdmin && <>
+          <section className="sales-record-filter" aria-label="جست‌وجو و پالایش فروش">
+            <label className="search-field"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="جست‌وجوی مشتری، سرویس یا شناسه" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></label>
+            <div className="filter-tabs">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}{value === 'All' && <span>{numberFa(visibleSales.length, 0)}</span>}</button>)}</div>
+          </section>
+          {error && <div className="login-error" role="alert">{error}</div>}
+          {loading && !visibleSales.length ? <div className="record-card-skeletons" aria-label="در حال دریافت فروش‌ها"><span /><span /><span /></div> : null}
+          <section className="record-board sales-record-board" aria-label="فروش‌های این بازه">
+            <header className="record-board-header"><div><p className="eyebrow">دفتر فروش</p><h2>{numberFa(filtered.length, 0)} مورد در این فیلتر</h2><p>پرداخت، مشخصات سرویس و مبلغ هر ردیف در یک نمای قابل‌خواندن.</p></div><span className="soft-badge">{rangeLabel}</span></header>
+             {filtered.length ? <div className="sales-ledger-stream" role="list" aria-label="دفتر فروش این بازه">{filtered.map((sale, index) => <article className="sales-ledger-entry" role="listitem" key={sale.id} data-testid={`row-sale-${sale.id}`}>
+               <div className="sales-ledger-entry-index">{numberFa(index + 1, 0)}</div>
+               <div className="sales-ledger-entry-main">
+                 <header className="sales-ledger-entry-head"><div className="sales-record-customer"><Avatar name={sale.customerName} /><span><strong>{sale.customerName}</strong><small>فروش #{sale.id} · {dateLabel(sale.date)}</small></span></div><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></header>
+                 <div className="sales-ledger-entry-facts"><div><span>سرویس / پنل</span><strong>{sale.serviceName}</strong><small>{sale.panel}</small></div><div><span>حجم سرویس</span><strong>{sale.gbAmount == null ? '—' : `${numberFa(sale.gbAmount)} گیگ`}</strong></div><div><span>مبلغ فروش</span><strong>{money(sale.amount)}</strong></div></div>
+                 <div className="sales-ledger-entry-payment"><span>وضعیت وصول</span><div className="sale-payment-actions"><button type="button" className={`sale-payment-button paid ${sale.paid ? 'selected' : ''}`} onClick={() => { if (!sale.paid) togglePaid(sale); }} disabled={sale.paid} data-testid={`button-mark-paid-${sale.id}`}><Check size={12} /> پرداخت شد</button><button type="button" className={`sale-payment-button unpaid ${!sale.paid ? 'selected' : ''}`} onClick={() => { if (sale.paid) togglePaid(sale); }} disabled={!sale.paid} data-testid={`button-mark-unpaid-${sale.id}`}><Clock3 size={12} /> پرداخت نشد</button></div><button className="button button-quiet" aria-label={`ویرایش فروش ${sale.id}`} onClick={() => openSaleEditor(sale)} data-testid={`button-edit-sale-${sale.id}`}><Pencil size={14} /> ویرایش</button></div>
+               </div>
+             </article>)}</div> : !loading ? <EmptyState title="فروشی پیدا نشد" detail="بازه زمانی، عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." /> : null}
+          </section>
+          <p className="sales-record-footnote">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · حجم و تاریخ هر سرویس بر اساس تقویم شمسی تهران</p>
+        </>}
       {isMasterAdmin && error && <div className="login-error mt-4">{error}</div>}{saleEditTarget && <SaleEditModal sale={saleEditTarget} price={saleEditPrice} paid={saleEditPaid} saving={saleEditSaving} onPriceChange={setSaleEditPrice} onPaidChange={setSaleEditPaid} onClose={() => setSaleEditTarget(null)} onSave={() => void saveSaleEditor()} />}</>;
 }
 
@@ -998,7 +1040,7 @@ function SaleEditModal({ sale, price, paid, saving, onPriceChange, onPaidChange,
 }
 
 export function Sales() {
-  return <SurfaceFrame name="sales"><SalesContent /></SurfaceFrame>;
+  return <SurfaceFrame name="sales"><div className="sales-route-workspace"><SalesContent /></div></SurfaceFrame>;
 }
 
 function ResellerAccountingContent() {
@@ -1107,7 +1149,9 @@ function ResellerAccountingContent() {
       <div><p className="eyebrow">بازه حسابداری</p><h2 className="section-title">{dateLabel(from)} تا {dateLabel(to)}</h2><p className="text-xs text-muted-foreground">بدهی‌های قبلی تا پایان این بازه هم در مانده هر فروشنده لحاظ می‌شوند.</p></div>
       <div className="accounting-range-fields"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button type="submit" disabled={loading}>{loading ? 'در حال دریافت...' : 'اعمال بازه'}</Button></div>
     </form>
-    {error && <div className="login-error mt-4">{error}</div>}
+      {error && <div className="login-error mt-4">{error}</div>}
+     {loading && !report && <div className="record-card-skeletons" aria-label="در حال دریافت حسابداری"><span /><span /><span /></div>}
+     {!loading && !error && !report && <EmptyState title="بازه حسابداری را دریافت کنید" detail="اطلاعات فروشندگان با حفظ فیلتر تاریخ پس از دریافت از سرویس نمایش داده می‌شود." action={<Button variant="secondary" onClick={() => void loadReport()}>دریافت گزارش</Button>} />}
     {report && <><section className="metrics-grid accounting-metrics">
       <Metric label="کل بدهی تا این بازه" value={money(totals.due)} detail={`${formatNumber(needingPayment.length)} فروشنده نیازمند پرداخت`} icon={CreditCard} accent="coral" />
       <Metric label="پرداخت ثبت‌شده" value={money(totals.paid)} detail={`${formatNumber(paymentCoverage, { maximumFractionDigits: 1 })}٪ پوشش بدهی`} icon={Check} accent="sage" />
@@ -1118,14 +1162,23 @@ function ResellerAccountingContent() {
       <section className="panel-card accounting-status-panel"><div className="panel-heading"><div><p className="eyebrow">وضعیت تسویه</p><h2 className="section-title">چه کسی باید پرداخت کند؟</h2></div><span className="soft-badge">{formatNumber(paidCount)} تسویه‌شده</span></div><div className="accounting-progress"><div><span>درصد پوشش بدهی</span><strong>{formatNumber(paymentCoverage, { maximumFractionDigits: 1 })}٪</strong></div><div className="accounting-progress-track"><span style={{ width: `${paymentCoverage}%` }} /></div></div><div className="accounting-status-summary"><div><span className="status-dot offline" /><strong>{formatNumber(needingPayment.length)}</strong><small>نیازمند پرداخت</small></div><div><span className="status-dot online" /><strong>{formatNumber(paidCount)}</strong><small>تسویه‌شده</small></div><div><span className="status-dot pending" /><strong>{formatNumber(settlements.filter((item: any) => item.payment_status === 'partial').length)}</strong><small>پرداخت ناقص</small></div></div></section>
       <section className="panel-card accounting-payment-form"><div className="panel-heading"><div><p className="eyebrow">ثبت دریافت</p><h2 className="section-title">پرداخت مبلغ دلخواه</h2></div><span className="soft-badge">فقط مدیر اصلی</span></div><form onSubmit={recordPayment} className="accounting-payment-fields"><label className="field"><span>فروشنده</span><select value={selectedResellerId} onChange={(event) => selectReseller(event.target.value)}><option value="">انتخاب فروشنده</option>{settlements.map((item: any) => <option key={item.reseller_tg_id} value={item.reseller_tg_id}>{item.reseller_name} · مانده {money(item.remaining_amount)}</option>)}</select></label><Field label="مبلغ پرداختی" value={paymentAmount} onChange={setPaymentAmount} placeholder="مثلاً ۵۰۰۰۰۰" /><PersianDateField label="تاریخ پرداخت" value={paymentDate} onChange={setPaymentDate} /><label className="field"><span>یادداشت</span><input value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} placeholder="اختیاری؛ شماره رسید یا توضیح" /></label><Button type="submit" disabled={paymentSaving || !settlements.length}><CreditCard size={14} />{paymentSaving ? 'در حال ثبت...' : 'ثبت پرداخت'}</Button></form>{paymentMessage && <p className={`accounting-payment-message ${paymentMessage.includes('موفق') ? 'success' : 'error'}`}>{paymentMessage}</p>}</section>
     </div>
-    <section className="panel-card accounting-table-panel"><div className="panel-heading"><div><p className="eyebrow">دفتر فروشندگان</p><h2 className="section-title">مانده حساب هر reseller</h2><p className="text-xs text-muted-foreground">برای ثبت پرداخت سریع، روی «ثبت پرداخت» همان ردیف بزنید.</p></div><span className="soft-badge">{formatNumber(settlements.length)} حساب</span></div><div className="accounting-reseller-cards">{settlements.map((item: any) => { const remaining = Number(item.remaining_amount ?? 0); const percent = Math.min(100, remaining / maxRemaining * 100); return <article className={`accounting-reseller-card ${remaining > 0 ? 'has-due' : 'settled'}`} key={item.reseller_tg_id}><div className="accounting-reseller-head"><div><strong>{item.reseller_name}</strong><small dir="ltr">TG: {item.reseller_tg_id}</small></div><span className={`accounting-status ${item.payment_status}`}>{item.payment_status === 'paid' ? 'تسویه‌شده' : item.payment_status === 'overdue' ? 'معوق' : item.payment_status === 'partial' ? 'پرداخت ناقص' : item.payment_status === 'no_sales' ? 'بدون فروش' : 'نیازمند پرداخت'}</span></div><div className="accounting-reseller-values"><div><span>بدهی این بازه</span><strong>{money(item.current_due)}</strong></div><div><span>پرداخت این بازه</span><strong>{money(item.period_paid)}</strong></div><div><span>مانده نهایی</span><strong className={remaining > 0 ? 'text-rose-700' : 'text-emerald-700'}>{money(remaining)}</strong></div></div><div className="accounting-bar"><span style={{ width: `${percent}%` }} /></div><div className="accounting-reseller-footer"><small>{formatNumber(item.current_sold_gb)} گیگ · سود {money(item.current_profit)}</small><button type="button" className="button button-secondary compact-button" onClick={() => { selectReseller(String(item.reseller_tg_id)); document.querySelector('.accounting-payment-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>ثبت پرداخت</button></div></article>; })}</div>{!settlements.length && <EmptyState title="فروشنده‌ای در این بازه پیدا نشد" detail="بازه را تغییر دهید یا بعد از ثبت فروش دوباره بررسی کنید." />}</section>
-    <section className="panel-card accounting-history-panel"><div className="panel-heading"><div><p className="eyebrow">گردش پرداخت</p><h2 className="section-title">آخرین پرداخت‌های ثبت‌شده</h2></div><span className="soft-badge">{formatNumber(paymentHistory.length)} پرداخت</span></div>{paymentHistory.length ? <div className="table-scroll mt-4"><table><thead><tr><th>فروشنده</th><th>مبلغ</th><th>تاریخ پرداخت</th><th>یادداشت</th></tr></thead><tbody>{paymentHistory.map((payment: any) => <tr key={payment.id}><td className="font-bold">{payment.reseller_name}</td><td className="font-display font-bold text-emerald-700">{money(payment.amount)}</td><td>{dateLabel(payment.payment_date)}</td><td className="text-muted-foreground">{payment.note || '—'}</td></tr>)}</tbody></table></div> : <div className="request-empty"><CreditCard size={16} /> هنوز پرداختی در این بازه ثبت نشده است.</div>}</section>
+     <section className="panel-card accounting-table-panel"><div className="panel-heading"><div><p className="eyebrow">دفتر فروشندگان</p><h2 className="section-title">مانده حساب هر reseller</h2><p className="text-xs text-muted-foreground">پرداخت هر حساب را از همان ردیف آغاز کنید؛ مانده با پاسخ سرور تازه می‌شود.</p></div><span className="soft-badge">{formatNumber(settlements.length)} حساب</span></div>
+       <div className="accounting-settlement-ledger" role="list" aria-label="دفتر تسویه فروشندگان">{settlements.map((item: any) => { const remaining = Number(item.remaining_amount ?? 0); const percent = Math.min(100, remaining / maxRemaining * 100); const statusLabel = item.payment_status === 'paid' ? 'تسویه‌شده' : item.payment_status === 'overdue' ? 'معوق' : item.payment_status === 'partial' ? 'پرداخت ناقص' : item.payment_status === 'no_sales' ? 'بدون فروش' : 'نیازمند پرداخت'; return <article className={`accounting-settlement-row ${remaining > 0 ? 'has-due' : 'settled'}`} role="listitem" key={item.reseller_tg_id}>
+         <header className="accounting-settlement-identity"><span className="accounting-reseller-monogram">{String(item.reseller_name || 'ف').trim().slice(0,1)}</span><div><strong>{item.reseller_name}</strong><small dir="ltr">TG {item.reseller_tg_id}</small></div><span className={`accounting-status ${item.payment_status}`}>{statusLabel}</span></header>
+         <div className="accounting-settlement-numbers"><div><span>بدهی بازه</span><strong>{money(item.current_due)}</strong></div><div><span>پرداخت ثبت‌شده</span><strong>{money(item.period_paid)}</strong></div><div className="settlement-balance"><span>مانده نهایی</span><strong>{money(remaining)}</strong></div></div>
+         <div className="accounting-settlement-progress"><span>نسبت به بیشترین مانده</span><div className="accounting-bar"><span style={{ width: `${percent}%` }} /></div></div>
+         <footer className="accounting-settlement-footer"><small>{formatNumber(item.current_sold_gb)} گیگ فروش · سود مدیر {money(item.current_profit)}</small><button type="button" className="button button-secondary compact-button" onClick={() => { selectReseller(String(item.reseller_tg_id)); document.querySelector('.accounting-payment-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>ثبت پرداخت</button></footer>
+       </article>; })}</div>{!settlements.length && <EmptyState title="فروشنده‌ای در این بازه پیدا نشد" detail="بازه را تغییر دهید یا بعد از ثبت فروش دوباره بررسی کنید." />}</section>
+     <section className="record-board accounting-history-panel" aria-label="آخرین پرداخت‌های ثبت‌شده">
+       <header className="record-board-header"><div><p className="eyebrow">گردش پرداخت</p><h2>آخرین پرداخت‌های ثبت‌شده</h2></div><span className="soft-badge">{formatNumber(paymentHistory.length)} پرداخت</span></header>
+       {paymentHistory.length ? <div className="record-card-grid payment-history-grid">{paymentHistory.map((payment: any) => <RecordCard key={payment.id} eyebrow="دریافت فروشنده" title={payment.reseller_name} subtitle={dateLabel(payment.payment_date)} fields={[{ label: 'مبلغ', value: money(payment.amount) }, { label: 'یادداشت', value: payment.note || 'بدون یادداشت' }]} />)}</div> : <EmptyState title="هنوز پرداختی ثبت نشده" detail="پرداخت‌های این بازه با تاریخ، مبلغ و یادداشت در این دفتر ظاهر می‌شوند." />}
+     </section>
     </>}
   </div>;
 }
 
 export function ResellerAccounting() {
-  return <SurfaceFrame name="reseller-accounting"><ResellerAccountingContent /></SurfaceFrame>;
+  return <SurfaceFrame name="reseller-accounting"><div className="reseller-accounting-workspace"><ResellerAccountingContent /></div></SurfaceFrame>;
 }
 
 function PointOfSaleContent() {
@@ -1263,7 +1316,13 @@ function PointOfSaleContent() {
       </section>
     </div>;
   }
-  return <div className="pos-page"><PageHeader eyebrow="فروش حضوری" title="پایانه فروش فروشنده" description="برای ثبت سریع فروش، مشتری را پیدا کنید، بسته را انتخاب کنید و لینک تحویل را همان‌جا کپی کنید." action={<Link href="/sales" className="button button-secondary"><ShoppingBag size={15} /> دفتر فروش</Link>} />
+   return <div className="pos-page"><PageHeader eyebrow="فروش حضوری" title="پایانه فروش فروشنده" description="برای ثبت سریع فروش، مشتری را پیدا کنید، بسته را انتخاب کنید و لینک تحویل را همان‌جا کپی کنید." action={<Link href="/sales" className="button button-secondary"><ShoppingBag size={15} /> دفتر فروش</Link>} />
+     <section className="pos-live-order" aria-label="خلاصه سفارش جاری">
+       <div className="pos-live-order-lead"><span className="pos-live-order-mark"><ShoppingBag size={17} /></span><div><span>NEW SALE / LIVE DRAFT</span><strong>{form.customerName.trim() || 'سفارش جدید'}</strong><small>{selectedCustomerId ? 'مشتری موجود انتخاب شده' : 'در حال آماده‌سازی فروش'}</small></div></div>
+       <div><span>بسته</span><strong>{numberFa(Number(form.gb))} گیگ · {numberFa(Number(form.days), 0)} روز</strong></div>
+       <div><span>مبلغ نهایی</span><strong>{form.sellPrice !== '' || tariffPrice > 0 ? money(totalPrice) : 'مبلغ تعیین نشده'}</strong></div>
+       <div><span>پرداخت</span><strong className={form.isPaid ? 'is-paid' : 'is-unpaid'}>{form.isPaid ? 'پرداخت‌شده' : 'در انتظار وصول'}</strong></div>
+     </section>
      {validLeadQueryId && storefrontLeadQuery.isLoading && <div className="panel-card" role="status">در حال دریافت درخواست مشتری…</div>}
      {validLeadQueryId && storefrontLeadQuery.isError && <div className="login-error" role="alert">درخواست ویترین دریافت نشد یا به این حساب تعلق ندارد. می‌توانید اطلاعات فروش را دستی وارد کنید. <button type="button" onClick={()=>storefrontLeadQuery.refetch()}>تلاش دوباره</button></div>}
      {validLeadQueryId && storefrontLeadQuery.data && <div className="panel-card" style={{marginBottom:14,borderColor:'hsl(var(--primary) / .3)'}}><strong>درخواست ویترین {numberFa(leadQueryId)} آمادهٔ ثبت است</strong><span className="text-sm text-muted-foreground"> اطلاعات بسته و مشتری پیش‌پر شده؛ فقط با ثبت صریح شما، سرویس ساخته و فروش به درخواست منتسب می‌شود.</span></div>}
@@ -1276,7 +1335,7 @@ function PointOfSaleContent() {
 }
 
 export function PointOfSale() {
-  return <SurfaceFrame name="pos"><PointOfSaleContent /></SurfaceFrame>;
+  return <SurfaceFrame name="pos"><div className="checkout-workspace"><PointOfSaleContent /></div></SurfaceFrame>;
 }
 
 function ReceiptIcon() {
@@ -1355,27 +1414,34 @@ function AdminSalesContent() {
       </div>
     </section>
     {salesQuery.isError && <div className="login-error mt-4">دریافت فروش‌های مدیر اصلی ناموفق بود.</div>}
-    <section className="table-card admin-sales-table">
-      <div className="panel-heading"><div><p className="eyebrow">دفتر ریز فروش</p><h2 className="section-title">{salesQuery.isFetching ? 'در حال دریافت...' : `${numberFa(rows.length, 0)} فروش ثبت شده`}</h2></div><span className="soft-badge">حذف فقط لاگ فروش</span></div>
-      <div className="table-scroll"><table><thead><tr><th>فروشنده</th><th>مشتری</th><th>سرویس</th><th>حجم</th><th>مبلغ</th><th>تاریخ تهران</th><th>وضعیت</th><th /></tr></thead><tbody>
-        {rows.map((sale) => <tr key={sale.id} data-testid={`row-admin-sale-${sale.id}`}>
-          <td><strong>{sale.reseller_name}</strong><small className="admin-sales-subline">TG {sale.reseller_tg_id}</small></td>
-          <td><Link href={`/customers/${sale.customer_id}`} className="admin-sales-customer"><strong>{sale.customer_name}</strong><small>{sale.customer_phone || 'شماره ثبت نشده'}</small></Link></td>
-          <td><strong>{sale.service_name}</strong><small className="admin-sales-subline">{sale.username || `سرویس ${sale.service_id}`}</small></td>
-          <td>{numberFa(sale.gb_amount)} گیگ</td>
-          <td className="font-display font-bold">{money(sale.amount)}</td>
-          <td className="text-sm text-muted-foreground">{dateLabel(sale.date)}</td>
-          <td><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></td>
-          <td><div className="admin-sales-actions">{sale.subscription_url && <button type="button" className="icon-button" title="کپی لینک اشتراک" aria-label={`کپی لینک اشتراک فروش ${sale.id}`} onClick={() => copySubscription(sale)}>{copiedId === sale.id ? <Check size={14} /> : <Copy size={14} />}</button>}<button type="button" className="icon-button danger" title="حذف لاگ فروش" aria-label={`حذف لاگ فروش ${sale.id}`} onClick={() => removeSale(sale)} disabled={deleteSale.isPending}>{deleteSale.isPending && deleteSale.variables?.id === sale.id ? <RefreshCw size={14} className="spin" /> : <Trash2 size={14} />}</button></div></td>
-        </tr>)}
-      </tbody></table></div>
+    <section className="record-board admin-sales-record-board" aria-label="دفتر ریز فروش">
+      <header className="record-board-header"><div><p className="eyebrow">دفتر ریز فروش</p><h2>{salesQuery.isFetching ? 'در حال دریافت...' : `${numberFa(rows.length, 0)} فروش ثبت شده`}</h2></div><span className="soft-badge">حذف فقط لاگ فروش</span></header>
+      {salesQuery.isLoading && !rows.length ? <div className="record-card-skeletons" aria-label="در حال دریافت فروش‌ها"><span /><span /><span /></div> : null}
+      <div className="admin-sales-ledger" role="list" aria-label="فروش‌های ثبت‌شده">
+        {rows.map((sale, index) => <article className="admin-sale-ledger-row" role="listitem" key={sale.id} data-testid={`row-admin-sale-${sale.id}`}>
+          <div className="admin-sale-index">{numberFa(index + 1, 0).padStart(2, '۰')}</div>
+          <div className="admin-sale-main">
+            <div className="admin-sale-identity"><div><span className="record-card-eyebrow">مشتری · {sale.reseller_name}</span><strong><Link href={`/customers/${sale.customer_id}`}>{sale.customer_name}</Link></strong><small>{sale.customer_phone || 'شماره ثبت نشده'} · {dateLabel(sale.date)}</small></div><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></div>
+            <div className="admin-sale-facts">
+              <div><span>سرویس</span><strong>{sale.service_name}</strong><small dir="ltr">{sale.username || `سرویس ${sale.service_id}`}</small></div>
+              <div><span>حجم</span><strong>{numberFa(sale.gb_amount)} گیگ</strong></div>
+              <div><span>مبلغ</span><strong>{money(sale.amount)}</strong></div>
+              <div><span>شناسه فروشنده</span><strong dir="ltr">TG {sale.reseller_tg_id}</strong></div>
+            </div>
+          </div>
+          <div className="admin-sale-actions">
+            {sale.subscription_url && <button type="button" className="button button-secondary" title="کپی لینک اشتراک" aria-label={`کپی لینک اشتراک فروش ${sale.id}`} onClick={() => copySubscription(sale)}>{copiedId === sale.id ? <Check size={14} /> : <Copy size={14} />}{copiedId === sale.id ? 'کپی شد' : 'لینک'}</button>}
+            <button type="button" className="button button-quiet danger" title="حذف لاگ فروش" aria-label={`حذف لاگ فروش ${sale.id}`} onClick={() => removeSale(sale)} disabled={deleteSale.isPending}>{deleteSale.isPending && deleteSale.variables?.id === sale.id ? <RefreshCw size={14} className="spin" /> : <Trash2 size={14} />}<span>حذف لاگ</span></button>
+          </div>
+        </article>)}
+      </div>
       {!salesQuery.isFetching && !rows.length && <EmptyState title="فروشی پیدا نشد" detail="فروشنده یا عبارت جست‌وجوی دیگری را امتحان کنید." />}
     </section>
   </div>;
 }
 
 export function AdminSales() {
-  return <SurfaceFrame name="admin-sales"><AdminSalesContent /></SurfaceFrame>;
+  return <SurfaceFrame name="admin-sales"><div className="admin-sales-workspace"><AdminSalesContent /></div></SurfaceFrame>;
 }
 
 function ServiceModal({ onClose }: { onClose: () => void }) {
@@ -1818,6 +1884,13 @@ function ServicesContent() {
       });
    }, [connectionFilter, expiryFilter, issueFilter, panelFilter, quotaFilter, search, services, sortBy, status]);
    const resetFilters = () => { setSearch(''); setStatus('All'); setExpiryFilter('all'); setQuotaFilter('all'); setConnectionFilter('all'); setPanelFilter('all'); setIssueFilter('all'); setSortBy('expiry-asc'); };
+    const servicePulse = services.reduce((result, service) => {
+      const days = daysUntil(service.expiresAt);
+      if (service.status === 'Active' || service.status === 'Expiring') result.active += 1;
+      if (days !== null && days >= 0 && days <= 7) result.expiring += 1;
+      if (serviceHasRecentFailure(service)) result.failures += 1;
+      return result;
+    }, { active: 0, expiring: 0, failures: 0 });
    const toggle = (service: Service) => {
      if (
        service.status !== 'Disabled' &&
@@ -1825,10 +1898,35 @@ function ServicesContent() {
      ) return;
      updateService({ ...service, status: service.status === 'Disabled' ? 'Active' : 'Disabled' });
    };
-    return <><PageHeader eyebrow="موجودی دسترسی" title="سرویس‌ها" description="حساب‌ها، مصرف، انقضا و یادداشت‌ها را یک‌جا کنترل کنید." action={<div className="flex flex-wrap gap-2"><Link href="/awg-usage" className="button button-secondary" data-testid="link-awg-usage-report"><Wifi size={15} /> مصرف AWG</Link><button type="button" className="button button-primary" onClick={() => setModal(true)} aria-haspopup="dialog" data-testid="button-add-service"><Plus size={16} /> افزودن سرویس</button></div>} />
+     return <><PageHeader eyebrow="موجودی دسترسی" title="سرویس‌ها" description="حساب‌ها، مصرف، انقضا و یادداشت‌ها را یک‌جا کنترل کنید." action={<div className="flex flex-wrap gap-2"><Link href="/awg-usage" className="button button-secondary" data-testid="link-awg-usage-report"><Wifi size={15} /> مصرف AWG</Link><button type="button" className="button button-primary" onClick={() => setModal(true)} aria-haspopup="dialog" data-testid="button-add-service"><Plus size={16} /> افزودن سرویس</button></div>} />
+       <section className="service-control-desk" aria-label="نشانگرهای موجودی سرویس">
+         <div className="service-control-lead"><span className="service-control-symbol"><Globe2 size={19} /></span><div><span>INVENTORY / {numberFa(services.length, 0)} RECORDS</span><strong>وضعیت دسترسی‌ها</strong><small>اولویت‌های امروز از داده سرویس‌های شما</small></div></div>
+         <button type="button" className="service-pulse-metric" onClick={() => setStatus('Active')}><span>فعال و نزدیک انقضا</span><strong>{numberFa(servicePulse.expiring, 0)}</strong><small>تا ۷ روز آینده</small></button>
+         <button type="button" className="service-pulse-metric" onClick={() => setStatus('Active')}><span>دسترسی فعال</span><strong>{numberFa(servicePulse.active, 0)}</strong><small>قابل مدیریت</small></button>
+         <button type="button" className="service-pulse-metric issue" onClick={() => setIssueFilter('failed')}><span>خطای اخیر ساخت</span><strong>{numberFa(servicePulse.failures, 0)}</strong><small>۳۰ روز گذشته</small></button>
+       </section>
       <section className="service-filter-card panel-card"><div className="service-filter-head"><div><p className="eyebrow">فیلتر هوشمند</p><h2>اولویت‌بندی سرویس‌ها</h2><span>بر اساس انقضا، حجم باقی‌مانده، اتصال و وضعیت مرتب کنید.</span></div><div className="service-filter-result"><strong>{numberFa(filtered.length, 0)}</strong><span>از {numberFa(services.length, 0)} سرویس</span></div></div><div className="service-filter-search search-field"><Search size={16} /><input placeholder="شناسه، مشتری، نام کاربری، بسته، پنل یا یادداشت" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-services" /></div><div className="service-status-tabs">{([['All', 'همه'], ['Active', 'فعال'], ['Expiring', 'نزدیک انقضا'], ['Expired', 'منقضی'], ['Disabled', 'غیرفعال']] as const).map(([value, label]) => <button type="button" className={status === value ? 'selected' : ''} key={value} onClick={() => setStatus(value)}>{label}</button>)}</div><div className="service-filter-grid"><label><span>زمان انقضا</span><select value={expiryFilter} onChange={(event) => setExpiryFilter(event.target.value)}><option value="all">همه تاریخ‌ها</option><option value="7days">تا ۷ روز آینده</option><option value="14days">تا ۱۴ روز آینده</option><option value="later">بیشتر از ۱۴ روز</option><option value="expired">گذشته</option></select></label><label><span>حجم باقی‌مانده</span><select value={quotaFilter} onChange={(event) => setQuotaFilter(event.target.value)}><option value="all">همه حجم‌ها</option><option value="empty">تمام‌شده</option><option value="low">۱۰ گیگ یا کمتر</option><option value="high-usage">مصرف بالای ۸۰٪</option><option value="healthy">بیشتر از ۱۰ گیگ</option></select></label><label><span>نوع اتصال</span><select value={connectionFilter} onChange={(event) => setConnectionFilter(event.target.value)}><option value="all">همه اتصال‌ها</option><option value="awg">دارای AmneziaWG</option><option value="provider">فقط Provider</option></select></label><label><span>عملیات اخیر</span><select value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)} data-testid="select-service-issue-filter"><option value="all">همه سرویس‌ها</option><option value="failed">خطای ساخت در ۳۰ روز اخیر</option><option value="cancelled">لغوشده یا در انتظار لغو</option></select></label><label><span>پنل</span><select value={panelFilter} onChange={(event) => setPanelFilter(event.target.value)}><option value="all">همه پنل‌ها</option>{panels.map((panel) => <option value={panel} key={panel}>{panel}</option>)}</select></label><label><span>مرتب‌سازی</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value)} data-testid="select-service-sort"><option value="expiry-asc">نزدیک‌ترین انقضا</option><option value="renewed-desc">آخرین تمدید</option><option value="created-desc">جدیدترین ایجاد</option><option value="expiry-desc">دورترین انقضا</option><option value="quota-asc">کمترین حجم باقی‌مانده</option><option value="usage-desc">بیشترین درصد مصرف</option><option value="customer">نام مشتری</option></select></label><button type="button" className="service-filter-reset" onClick={resetFilters}><RefreshCw size={14} /> پاک کردن فیلترها</button></div></section>
         {filtered.length > 0 && <section className="panel-card text-sm text-muted-foreground">برای محافظت از حساب‌های Provider، توقف سرویس فقط به‌صورت جداگانه انجام می‌شود.</section>}
-        <section className="services-grid">{filtered.map((service) => <article className="service-card" key={service.id} data-testid={`card-service-${service.id}`}><div className="flex items-start justify-between"><div className="flex items-center gap-3"><div className="service-symbol"><Globe2 size={17} /></div><div><h3 className="font-bold">{service.plan}</h3><p className="font-mono text-[10px] text-primary">{serviceDisplayCode(service)}</p><p className="font-mono text-[10px] text-muted-foreground">{service.username}</p></div></div><StatusPill value={service.status} /></div><div className="mt-5 flex items-end justify-between"><div><p className="text-xs text-muted-foreground">مشتری</p><p className="mt-1 text-sm font-semibold">{service.customerName}</p></div><div className="text-right"><p className="text-xs text-muted-foreground">انقضا</p><p className="mt-1 text-sm font-semibold">{dateLabel(service.expiresAt)}</p></div></div><div className="quota"><div className="mb-1.5 flex justify-between text-[11px] text-muted-foreground"><span>مصرف</span><span className="font-mono">{service.usedGb} / {service.limitGb} گیگ</span></div><div className="quota-track"><span style={{ width: `${service.limitGb ? Math.min(100, service.usedGb / service.limitGb * 100) : 0}%` }} /></div></div><div className="mt-4 flex items-center justify-between border-t border-border/70 pt-3"><button className="text-right text-[11px] text-muted-foreground hover:text-foreground" onClick={() => setNoteService(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? `${service.panel} · یادداشت دارد` : `${service.panel} · افزودن یادداشت`}</button><div className="flex items-center gap-1"><Button variant="quiet" onClick={() => toggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Disabled' && <Button variant="quiet" onClick={() => renewService(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={12} /> تمدید</Button>}</div></div></article>)}</section>{!filtered.length && <EmptyState title="سرویسی پیدا نشد" detail="فیلتر وضعیت یا عبارت جست‌وجو را تغییر دهید." />}{modal && <ServiceModal onClose={() => setModal(false)} />}{noteService && <NoteModal service={noteService} onClose={() => setNoteService(null)} />}</>;
+        {filtered.length ? <section className="services-grid service-record-grid" aria-label="فهرست سرویس‌ها">{filtered.map((service) => {
+          const remaining = Math.max(0, Number(service.limitGb || 0) - Number(service.usedGb || 0));
+          const usedPercent = service.limitGb ? Math.min(100, Math.round(service.usedGb / service.limitGb * 100)) : 0;
+          const expiryDays = daysUntil(service.expiresAt);
+          return <article className="service-card service-record-card" key={service.id} data-testid={`card-service-${service.id}`}>
+            <header className="service-record-head">
+              <div className="service-record-identity"><span className="service-symbol"><Globe2 size={17} /></span><div><p className="eyebrow">{service.panel || 'سرویس'}</p><h3>{service.plan}</h3><span className="service-record-code" dir="ltr">{serviceDisplayCode(service)}</span></div></div>
+              <StatusPill value={service.status} />
+            </header>
+            <section className="service-record-customer"><span className="service-record-initial">{service.customerName.trim().slice(0, 1) || 'م'}</span><div><small>متعلق به</small><strong>{service.customerName}</strong></div><div className="service-record-login"><small>نام کاربری</small><b dir="ltr">{service.username}</b></div></section>
+            <section className="service-record-usage" aria-label="مصرف سرویس">
+              <div className="service-record-usage-top"><div><small>مصرف‌شده</small><strong>{service.usedGb} <span>از {service.limitGb} GB</span></strong></div><div className="service-record-remaining"><small>باقی‌مانده</small><strong>{remaining} GB</strong></div></div>
+              <div className="quota-track" role="progressbar" aria-label="درصد مصرف" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPercent}><span style={{ width: `${usedPercent}%` }} /></div>
+              <div className="service-record-expiry"><span>{expiryDays < 0 ? 'منقضی‌شده' : expiryDays <= 7 ? `${numberFa(expiryDays, 0)} روز تا انقضا` : 'انقضا'}</span><strong>{dateLabel(service.expiresAt)}</strong></div>
+            </section>
+            <footer className="service-record-actions"><button type="button" className="service-record-note" onClick={() => setNoteService(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? 'مشاهده / ویرایش یادداشت' : 'افزودن یادداشت'}</button><Button variant="quiet" onClick={() => toggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Disabled' && <Button variant="quiet" onClick={() => renewService(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={12} /> تمدید</Button>}</footer>
+          </article>;
+        })}</section> : <EmptyState title={services.length ? 'سرویسی با این فیلترها پیدا نشد' : 'هنوز سرویسی ثبت نشده است'} detail={services.length ? 'فیلتر وضعیت یا عبارت جست‌وجو را تغییر دهید.' : 'پس از ایجاد سرویس، وضعیت، مصرف و تمدید آن را از همین فهرست مدیریت کنید.'} action={services.length ? <button type="button" className="button button-secondary" onClick={resetFilters}>پاک‌کردن فیلترها</button> : undefined} />}
+         {modal && <ServiceModal onClose={() => setModal(false)} />}{noteService && <NoteModal service={noteService} onClose={() => setNoteService(null)} />}
+     </>;
 }
 
 type MonitoringJob = {
@@ -1856,7 +1954,7 @@ const monitoringStatus = (status: MonitoringJob['status']) => ({
 }[status]);
 
 export function Services() {
-  return <SurfaceFrame name="services"><ServicesContent /></SurfaceFrame>;
+  return <SurfaceFrame name="services"><div className="service-operations-workspace"><ServicesContent /></div></SurfaceFrame>;
 }
 
 function ActionRequestsContent() {
@@ -1926,17 +2024,29 @@ function ActionRequestsContent() {
   };
   const statusText = (status: ServiceActionRequest['cancel_service_status']) => ({ pending: 'در انتظار', approved: 'تأیید شد', rejected: 'رد شد', not_requested: 'درخواست نشده' }[status]);
   const statusClass = (status: ServiceActionRequest['cancel_service_status']) => status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : status === 'pending' ? 'pending' : '';
+  const outstandingRequests = requests.filter((request) => (request.cancel_service_requested && request.cancel_service_status === 'pending') || (request.delete_sale_requested && request.delete_sale_status === 'pending')).length;
+  const orderedRequests = [...requests].sort((a, b) => {
+    const aPending = (a.cancel_service_requested && a.cancel_service_status === 'pending') || (a.delete_sale_requested && a.delete_sale_status === 'pending');
+    const bPending = (b.cancel_service_requested && b.cancel_service_status === 'pending') || (b.delete_sale_requested && b.delete_sale_status === 'pending');
+    return Number(bPending) - Number(aPending) || new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime();
+  });
   if (!isMasterAdmin && !isReseller) return <><PageHeader eyebrow="دسترسی محدود" title="درخواست‌ها" description="این بخش برای فروشنده‌ها و مدیر اصلی فعال است." /><EmptyState title="دسترسی ندارید" detail="برای مشاهده درخواست‌ها وارد حساب مجاز شوید." /></>;
   return <div className="action-requests-page">
      <PageHeader eyebrow={isMasterAdmin ? 'مرکز تأیید مدیر اصلی' : 'ارتباط با مدیر اصلی'} title="درخواست‌های سرویس و لاگ فروش" description={isMasterAdmin ? 'با تأیید لغو سرویس، سرویس غیرفعال و آخرین لاگ فروش مرتبط حذف می‌شود. حذف لاگ فروش نیز به‌تنهایی قابل درخواست است.' : 'لغو سرویس پس از تأیید، سرویس را غیرفعال و آخرین لاگ فروش مرتبط را حذف می‌کند. هیچ تغییری پیش از تأیید انجام نمی‌شود.'} />
     {isReseller && <section className="panel-card action-request-form"><div className="panel-heading"><div><p className="eyebrow">درخواست جدید</p><h2 className="section-title">ارسال برای مدیر اصلی</h2></div><ArrowUpLeft size={18} className="text-muted-foreground" /></div><div className="form-grid"><label className="field"><span>سرویس</span><select value={serviceId} onChange={(event) => setServiceId(event.target.value)}><option value="">انتخاب سرویس</option>{services.filter((service) => service.status !== 'Disabled').map((service) => <option value={service.id} key={service.id}>{service.customerName} · {service.plan} · @{service.username}</option>)}</select></label><label className="field"><span>دلیل (اختیاری)</span><input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="مثلاً درخواست مشتری" /></label></div><div className="request-choice-grid"><label className="request-choice"><input type="checkbox" checked={cancelService} onChange={(event) => setCancelService(event.target.checked)} /><span><strong>لغو سرویس</strong><small>پس از تأیید، Provider و AWG قطع و آخرین لاگ فروش همین سرویس حذف می‌شود.</small></span></label><label className="request-choice"><input type="checkbox" checked={deleteSaleLog} onChange={(event) => setDeleteSaleLog(event.target.checked)} /><span><strong>حذف آخرین لاگ فروش</strong><small>برای حذف لاگ بدون لغو سرویس، این گزینه را انتخاب کنید.</small></span></label></div><Button onClick={() => void submit()} disabled={saving} testId="button-submit-action-request">{saving ? <><RefreshCw size={15} className="spin" /> در حال ارسال...</> : <><ArrowUpLeft size={15} /> ارسال درخواست</>}</Button></section>}
-    {error && <div className="login-error mt-4">{error}</div>}
-    <section className="request-list">{loading ? <div className="panel-card request-empty"><RefreshCw size={18} className="spin" /> در حال دریافت درخواست‌ها...</div> : requests.map((request) => <article className="panel-card action-request-card" key={request.id}><div className="action-request-head"><div><p className="eyebrow">درخواست #{numberFa(request.id, 0)}</p><h2 className="section-title">{request.customer_name} · {request.service_name}</h2><p className="text-xs text-muted-foreground">{isMasterAdmin ? `${request.reseller_name} · TG ${request.reseller_tg_id}` : `سرویس ${request.service_id}`} · {dateTimeLabel(request.requested_at)}</p></div><span className="soft-badge">{request.service_status === 'disabled' ? 'سرویس غیرفعال' : 'سرویس فعال'}</span></div><div className="action-request-details">{request.cancel_service_requested && <div className={`request-action-row ${statusClass(request.cancel_service_status)}`}><div><strong>لغو سرویس</strong><span>{statusText(request.cancel_service_status)}</span></div>{isMasterAdmin && request.cancel_service_status === 'pending' && <div className="request-action-buttons"><Button variant="secondary" disabled={saving} onClick={() => void review(request.id, 'cancel_service', 'reject')}>رد</Button><Button disabled={saving} onClick={() => void review(request.id, 'cancel_service', 'approve')}><Check size={14} /> تأیید لغو</Button></div>}</div>}{request.delete_sale_requested && <div className={`request-action-row ${statusClass(request.delete_sale_status)}`}><div><strong>حذف لاگ فروش {request.sale_id ? `#${numberFa(request.sale_id, 0)}` : ''}</strong><span>{statusText(request.delete_sale_status)}{request.sale_gb ? ` · ${numberFa(request.sale_gb)} گیگ` : ''}</span></div>{isMasterAdmin && request.delete_sale_status === 'pending' && <div className="request-action-buttons"><Button variant="secondary" disabled={saving} onClick={() => void review(request.id, 'delete_sale_log', 'reject')}>رد</Button><Button disabled={saving} onClick={() => void review(request.id, 'delete_sale_log', 'approve')}><Trash2 size={14} /> تأیید حذف لاگ</Button></div>}</div>}</div>{request.reason && <div className="notice mt-3"><span>توضیح فروشنده: {request.reason}</span></div>}</article>)}{!loading && !requests.length && <div className="panel-card request-empty"><Check size={18} /><span>درخواستی برای نمایش وجود ندارد.</span></div>}</section>
+     {error && <div className="login-error mt-4 action-request-error" role="alert"><span>{error}</span><Button variant="secondary" type="button" onClick={() => void load()} disabled={loading || saving}><RefreshCw size={13} className={loading ? 'spin' : ''} /> تلاش دوباره</Button></div>}
+     <section className="request-command-strip" aria-label="خلاصه درخواست‌ها">
+       <div className="request-command-lead"><span className="request-command-icon"><ShieldCheck size={18} /></span><div><span>REQUEST QUEUE</span><strong>{isMasterAdmin ? 'صف بررسی مدیر' : 'پیگیری درخواست‌ها'}</strong></div></div>
+       <div><small>کل پرونده‌ها</small><strong>{numberFa(requests.length, 0)}</strong></div>
+       <div className={outstandingRequests ? 'has-pending' : ''}><small>{isMasterAdmin ? 'نیازمند تصمیم' : 'در انتظار پاسخ'}</small><strong>{numberFa(outstandingRequests, 0)}</strong></div>
+       <button type="button" onClick={() => void load()} disabled={loading || saving}><RefreshCw size={14} className={loading ? 'spin' : ''} /> به‌روزرسانی</button>
+     </section>
+     <section className="request-list" aria-label={isMasterAdmin ? 'صف بررسی درخواست‌ها' : 'تاریخچه درخواست‌ها'}>{loading ? <div className="panel-card request-empty"><RefreshCw size={18} className="spin" /> در حال دریافت درخواست‌ها...</div> : orderedRequests.map((request) => <article className={`panel-card action-request-card ${((request.cancel_service_requested && request.cancel_service_status === 'pending') || (request.delete_sale_requested && request.delete_sale_status === 'pending')) ? 'request-needs-review' : ''}`} key={request.id}><div className="action-request-head"><div><p className="eyebrow">{((request.cancel_service_requested && request.cancel_service_status === 'pending') || (request.delete_sale_requested && request.delete_sale_status === 'pending')) ? 'نیازمند بررسی' : 'درخواست'} · #{numberFa(request.id, 0)}</p><h2 className="section-title">{request.customer_name} · {request.service_name}</h2><p className="text-xs text-muted-foreground">{isMasterAdmin ? `${request.reseller_name} · TG ${request.reseller_tg_id}` : `سرویس ${request.service_id}`} · {dateTimeLabel(request.requested_at)}</p></div><span className="soft-badge">{request.service_status === 'disabled' ? 'سرویس غیرفعال' : 'سرویس فعال'}</span></div><div className="action-request-details">{request.cancel_service_requested && <div className={`request-action-row ${statusClass(request.cancel_service_status)}`}><div><strong>لغو سرویس</strong><span>{statusText(request.cancel_service_status)}</span></div>{isMasterAdmin && request.cancel_service_status === 'pending' && <div className="request-action-buttons"><Button variant="secondary" disabled={saving} onClick={() => void review(request.id, 'cancel_service', 'reject')}>رد</Button><Button disabled={saving} onClick={() => void review(request.id, 'cancel_service', 'approve')}><Check size={14} /> تأیید لغو</Button></div>}</div>}{request.delete_sale_requested && <div className={`request-action-row ${statusClass(request.delete_sale_status)}`}><div><strong>حذف لاگ فروش {request.sale_id ? `#${numberFa(request.sale_id, 0)}` : ''}</strong><span>{statusText(request.delete_sale_status)}{request.sale_gb ? ` · ${numberFa(request.sale_gb)} گیگ` : ''}</span></div>{isMasterAdmin && request.delete_sale_status === 'pending' && <div className="request-action-buttons"><Button variant="secondary" disabled={saving} onClick={() => void review(request.id, 'delete_sale_log', 'reject')}>رد</Button><Button disabled={saving} onClick={() => void review(request.id, 'delete_sale_log', 'approve')}><Trash2 size={14} /> تأیید حذف لاگ</Button></div>}</div>}</div>{request.reason && <div className="notice mt-3"><span>توضیح فروشنده: {request.reason}</span></div>}</article>)}{!loading && !requests.length && <div className="panel-card request-empty"><Check size={18} /><span>درخواستی برای نمایش وجود ندارد.</span></div>}</section>
   </div>;
 }
 
 export function ActionRequests() {
-  return <SurfaceFrame name="action-requests"><ActionRequestsContent /></SurfaceFrame>;
+  return <SurfaceFrame name="action-requests"><div className="action-request-workspace"><ActionRequestsContent /></div></SurfaceFrame>;
 }
 
 function MonitoringContent() {
@@ -1979,22 +2089,35 @@ function MonitoringContent() {
     }
   };
   const number = (value: number) => new Intl.NumberFormat('fa-IR').format(Number(value || 0));
+  const completionRate = data.summary.total ? Math.round((data.summary.completed / data.summary.total) * 100) : 0;
   return <><PageHeader eyebrow="کنترل عملیاتی" title="مانیتورینگ ساخت سرویس" description="تلاش‌های Providerها و AmneziaWG را لحظه‌به‌لحظه پیگیری کنید." action={<Button variant="secondary" onClick={() => { setLoading(true); void loadMonitoring(); }} disabled={loading} testId="button-refresh-monitoring"><RefreshCw size={15} className={loading ? 'spin' : ''} /> بروزرسانی</Button>} />
-    {error && <div className="notice danger"><Activity size={15} /> {error}</div>}
+     {error && <div className="notice danger monitoring-error" role="alert"><Activity size={15} /><span>{error}</span><Button variant="secondary" onClick={() => { setLoading(true); void loadMonitoring(); }} disabled={loading}><RefreshCw size={13} className={loading ? 'spin' : ''} /> تلاش دوباره</Button></div>}
+     <section className="monitoring-flight-deck" aria-label="وضعیت چرخه ساخت">
+       <div className="monitoring-flight-heading"><span className="monitoring-flight-icon"><Activity size={18} /></span><div><span>PROVISIONING / LIVE</span><strong>چرخه ساخت سرویس</strong><small>به‌روزرسانی خودکار هر ۱۰ ثانیه</small></div></div>
+       <div className="monitoring-flight-progress"><div><span>تکمیل شده</span><strong>{number(completionRate)}٪</strong></div><div className="monitoring-flight-track"><span style={{ width: `${completionRate}%` }} /></div><small>{number(data.summary.completed)} از {number(data.summary.total)} تلاش</small></div>
+       <div className="monitoring-flight-states"><span><i className="pending" /> {number(data.summary.pending)} در صف</span><span><i className="running" /> {number(data.summary.running)} در حال اجرا</span></div>
+     </section>
     <section className="monitoring-metrics">
       <div className="monitoring-metric"><span className="monitoring-metric-icon amber"><Activity size={17} /></span><div><small>در انتظار / تلاش مجدد</small><strong>{number(data.summary.pending)}</strong></div></div>
       <div className="monitoring-metric"><span className="monitoring-metric-icon teal"><RefreshCw size={17} /></span><div><small>در حال اجرا</small><strong>{number(data.summary.running)}</strong></div></div>
       <div className="monitoring-metric"><span className="monitoring-metric-icon sage"><Check size={17} /></span><div><small>تکمیل‌شده</small><strong>{number(data.summary.completed)}</strong></div></div>
       <div className="monitoring-metric"><span className="monitoring-metric-icon"><Server size={17} /></span><div><small>کل jobها</small><strong>{number(data.summary.total)}</strong></div></div>
     </section>
-    <section className="panel-card monitoring-card"><div className="panel-heading"><div><p className="eyebrow">صف ساخت</p><h2 className="section-title">وضعیت همه تلاش‌ها</h2></div><span className="soft-badge">بروزرسانی خودکار · ۱۰ ثانیه</span></div>
-       {loading && !data.jobs.length ? <div className="monitoring-empty"><RefreshCw size={18} className="spin" /><p>در حال دریافت وضعیت...</p></div> : !data.jobs.length ? <div className="monitoring-empty"><Check size={18} /><p>هنوز job ساختی ثبت نشده است.</p><small>بعد از ساخت سرویس، وضعیت Providerهای ناموفق و AWG اینجا نمایش داده می‌شود.</small></div> : <div className="monitoring-table-wrap"><table className="monitoring-table"><thead><tr><th>سرویس</th><th>منبع</th><th>وضعیت</th><th>تلاش</th><th>آخرین خطا</th><th>آخرین بروزرسانی</th><th>اقدام</th></tr></thead><tbody>{data.jobs.map((job) => <tr key={job.id}><td><strong>{job.plan || 'سرویس'}</strong><small>{job.customer_name} · <span dir="ltr">{job.username}</span></small></td><td><span className="monitoring-source">{job.action === 'awg' ? 'AmneziaWG' : job.provider_keys.join('، ') || 'Providerها'}</span></td><td><span className={`monitoring-status ${job.status}`}><span />{monitoringStatus(job.status)}</span></td><td>{number(job.attempts)}</td><td className="monitoring-error" title={job.last_error || ''}>{job.last_error || '—'}</td><td>{job.updated_at ? dateTimeLabel(job.updated_at) : '—'}</td><td>{job.status !== 'completed' && <Button variant="quiet" onClick={() => void retryJob(job.id)} disabled={retryingJob === job.id} testId={`button-retry-job-${job.id}`}><RefreshCw size={12} className={retryingJob === job.id ? 'spin' : ''} /> تلاش دوباره</Button>}</td></tr>)}</tbody></table></div>}
-    </section>
+     <section className="record-board monitoring-card" aria-label="صف ساخت سرویس">
+       <header className="record-board-header"><div><p className="eyebrow">صف ساخت</p><h2>وضعیت همه تلاش‌ها</h2><p>وضعیت Provider و AWG به‌صورت خودکار هر ۱۰ ثانیه تازه می‌شود.</p></div><span className="soft-badge">{number(data.jobs.length)} job</span></header>
+       {loading && !data.jobs.length ? <div className="record-card-skeletons" aria-label="در حال دریافت وضعیت"><span /><span /><span /></div> : null}
+       {!loading && !error && !data.jobs.length ? <EmptyState title="صف ساخت خالی است" detail="پس از ثبت سرویس، تلاش‌های Provider و AmneziaWG در اینجا پیگیری می‌شوند." /> : null}
+       <div className="record-card-grid monitoring-job-grid">{data.jobs.map((job) => <RecordCard key={job.id} eyebrow={`${job.customer_name} · ${job.plan || 'سرویس'}`} title={<span dir="ltr">{job.username}</span>} subtitle={job.updated_at ? `آخرین بروزرسانی · ${dateTimeLabel(job.updated_at)}` : 'زمان بروزرسانی ثبت نشده'} status={<span className={`monitoring-status ${job.status}`}><span />{monitoringStatus(job.status)}</span>} fields={[
+         { label: 'منبع', value: <span className="monitoring-source">{job.action === 'awg' ? 'AmneziaWG' : job.provider_keys.join('، ') || 'Providerها'}</span> },
+         { label: 'تلاش‌ها', value: number(job.attempts) },
+         { label: 'آخرین خطا', value: <span className="monitoring-error">{job.last_error || 'بدون خطا'}</span> },
+       ]} actions={job.status !== 'completed' ? <Button variant="quiet" onClick={() => void retryJob(job.id)} disabled={retryingJob === job.id} testId={`button-retry-job-${job.id}`}><RefreshCw size={12} className={retryingJob === job.id ? 'spin' : ''} /> تلاش دوباره</Button> : <span className="record-complete"><Check size={14} /> پایان‌یافته</span>} />)}</div>
+     </section>
   </>;
 }
 
 export function Monitoring() {
-  return <SurfaceFrame name="monitoring" signal><MonitoringContent /></SurfaceFrame>;
+  return <SurfaceFrame name="monitoring" signal><div className="monitoring-workspace"><MonitoringContent /></div></SurfaceFrame>;
 }
 
 type ConnectionUser = {
@@ -2014,6 +2137,16 @@ type ConnectionUser = {
 function trafficLabel(bytes: number) {
   const gb = bytes / (1024 ** 3);
   return gb >= 1 ? `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(gb)} گیگ` : `${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 }).format(bytes / (1024 ** 2))} مگ`;
+}
+
+function ConnectionRecord({ user }: { user: ConnectionUser }) {
+  const usagePercent = user.data_limit && user.data_limit > 0 ? Math.min(100, Math.round(user.used_traffic / user.data_limit * 100)) : null;
+  return <article className={`connection-presence-record ${user.online ? 'is-online' : ''}`}>
+    <div className="connection-presence-person"><span className="connection-presence-mark">{user.online ? <Wifi size={15} /> : <History size={15} />}</span><div><strong>{user.customer_name}</strong><small dir="ltr">@{user.username}</small></div><span className={`connection-presence-state ${user.online ? 'online' : ''}`}>{user.online ? 'آنلاین' : 'اخیراً متصل'}</span></div>
+    <div className="connection-presence-source"><span>{user.panel_key}</span><time>{user.online_at ? dateTimeLabel(user.online_at) : 'زمان اتصال ثبت نشده'}</time></div>
+    <div className="connection-presence-usage"><div><span>مصرف</span><strong>{trafficLabel(user.used_traffic)}</strong></div><span className="connection-presence-meter"><i style={{ width: `${usagePercent ?? 0}%` }} /></span><div><span>سهمیه</span><strong>{user.data_limit ? trafficLabel(user.data_limit) : 'بدون سقف ثبت‌شده'}</strong></div></div>
+    <footer><span>{user.group_names?.join('، ') || 'بدون گروه نمایشی'}</span><span>{user.expire ? `انقضا ${dateLabel(user.expire)}` : 'بدون تاریخ انقضا'}</span></footer>
+  </article>;
 }
 
 function ConnectionsContent() {
@@ -2062,6 +2195,8 @@ function ConnectionsContent() {
       return Number(right.online) - Number(left.online) || (right.online_at ?? '').localeCompare(left.online_at ?? '');
     });
   }, [groupFilter, normalizedSearch, panelFilter, sortBy, statusFilter, users]);
+  const visibleOnlineUsers = filteredUsers.filter((user) => user.online);
+  const visibleRecentUsers = filteredUsers.filter((user) => !user.online);
   const hasFilters = Boolean(normalizedSearch || statusFilter !== 'all' || panelFilter !== 'all' || groupFilter !== 'all' || sortBy !== 'recent');
   const clearFilters = () => {
     setSearch('');
@@ -2071,7 +2206,7 @@ function ConnectionsContent() {
     setSortBy('recent');
   };
   return <><PageHeader eyebrow="پاسارگارد" title="کاربران آنلاین" description="کاربران آنلاین و کسانی که در ۲۴ ساعت اخیر به پنل پاسارگارد متصل شده‌اند." action={<Button variant="secondary" onClick={() => { setLoading(true); void load(); }} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} /> بروزرسانی</Button>} />
-    {error && <div className="notice danger"><Activity size={15} /> {error}</div>}
+    {error && <div className="notice danger connection-error" role="alert"><Activity size={15} /><span>{error}</span><Button variant="secondary" onClick={() => { setLoading(true); void load(); }} disabled={loading}><RefreshCw size={13} className={loading ? 'spin' : ''} /> تلاش دوباره</Button></div>}
     <section className="monitoring-metrics connection-metrics">
       <div className="monitoring-metric"><span className="monitoring-metric-icon teal"><Wifi size={17} /></span><div><small>همین حالا آنلاین</small><strong>{new Intl.NumberFormat('fa-IR').format(onlineUsers.length)}</strong></div></div>
       <div className="monitoring-metric"><span className="monitoring-metric-icon sage"><History size={17} /></span><div><small>اخیراً متصل‌شده</small><strong>{new Intl.NumberFormat('fa-IR').format(recentUsers.length)}</strong></div></div>
@@ -2090,13 +2225,16 @@ function ConnectionsContent() {
           <label><span>مرتب‌سازی</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)}><option value="recent">آخرین اتصال</option><option value="traffic">بیشترین مصرف</option><option value="name">نام مشتری</option></select></label>
         </div>
       </div>
-      {loading && !users.length ? <div className="monitoring-empty"><RefreshCw size={18} className="spin" /><p>در حال دریافت وضعیت کاربران...</p></div> : !users.length ? <div className="monitoring-empty"><Wifi size={18} /><p>کاربر متصل یا اخیراً فعالی پیدا نشد.</p><small>پس از اتصال کاربر، این صفحه خودکار بروزرسانی می‌شود.</small></div> : !filteredUsers.length ? <div className="monitoring-empty"><Search size={18} /><p>با فیلترهای فعلی کاربری پیدا نشد.</p><button type="button" className="button button-secondary mt-3" onClick={clearFilters}>نمایش همه کاربران</button></div> : <div className="connection-list">{filteredUsers.map((user) => <article className={`connection-user ${user.online ? 'is-online' : ''}`} key={`${user.panel_key}:${user.username}`}><div className="connection-user-avatar">{user.online ? <Wifi size={17} /> : <History size={17} />}</div><div className="connection-user-main"><div className="connection-user-heading"><strong>{user.customer_name}</strong><span className={user.online ? 'connection-live' : 'connection-recent'}>{user.online ? 'آنلاین' : 'اخیراً متصل'}</span></div><p dir="ltr">@{user.username}</p><small>{user.panel_key} · {user.online_at ? dateTimeLabel(user.online_at) : 'زمان اتصال ثبت نشده'}</small></div><div className="connection-user-meta"><strong>{trafficLabel(user.used_traffic)}</strong><span>مصرف ثبت‌شده</span><small>{user.group_names?.join('، ') || 'بدون گروه نمایشی'}</small></div></article>)}</div>}
+        {loading && !users.length ? <div className="connection-loading-grid" role="status" aria-label="در حال دریافت اتصال‌ها"><i /><i /><i /></div> : !users.length ? <div className="monitoring-empty"><Wifi size={18} /><p>کاربر متصل یا اخیراً فعالی پیدا نشد.</p><small>پس از اتصال کاربر، این صفحه خودکار بروزرسانی می‌شود.</small></div> : !filteredUsers.length ? <div className="monitoring-empty"><Search size={18} /><p>با فیلترهای فعلی کاربری پیدا نشد.</p><button type="button" className="button button-secondary mt-3" onClick={clearFilters}>نمایش همه کاربران</button></div> : <div className="connection-presence-board" aria-label="نمای لحظه‌ای اتصال‌ها">
+          <section className="connection-presence-zone"><header><div><span>LIVE NOW</span><h3>همین حالا آنلاین</h3></div><strong>{new Intl.NumberFormat('fa-IR').format(visibleOnlineUsers.length)}</strong></header>{visibleOnlineUsers.length ? visibleOnlineUsers.map((user) => <ConnectionRecord user={user} key={`${user.panel_key}:${user.username}`} />) : <div className="connection-zone-empty"><Wifi size={16} /><span>اتصال آنلاین در فیلتر فعلی نیست.</span></div>}</section>
+          <section className="connection-presence-zone recent"><header><div><span>LAST 24 HOURS</span><h3>اخیراً متصل‌شده</h3></div><strong>{new Intl.NumberFormat('fa-IR').format(visibleRecentUsers.length)}</strong></header>{visibleRecentUsers.length ? visibleRecentUsers.map((user) => <ConnectionRecord user={user} key={`${user.panel_key}:${user.username}`} />) : <div className="connection-zone-empty"><History size={16} /><span>اتصال اخیر در فیلتر فعلی نیست.</span></div>}</section>
+        </div>}
     </section>
   </>;
 }
 
 export function Connections() {
-  return <SurfaceFrame name="connections" signal><ConnectionsContent /></SurfaceFrame>;
+  return <SurfaceFrame name="connections" signal><div className="connections-workspace"><ConnectionsContent /></div></SurfaceFrame>;
 }
 
 function CustomersContent() {
@@ -2175,11 +2313,38 @@ function CustomersContent() {
     setPage(0);
   };
   const clearSearch = () => updateSearch('');
-  return <><PageHeader eyebrow="ارتباط با مشتری" title="مشتری‌ها" description={`${numberFormat.format(visibleTotal)} مشتری در بخش ${tab === 'active' ? 'فعال' : 'غیرفعال'} نمایش داده می‌شود.`} action={<div className="directory-stat"><UserRound size={15} /> {numberFormat.format(visibleTotal)} {tab === 'active' ? 'حساب فعال' : 'مشتری غیرفعال'}</div>} /><div className="customer-toolbar"><div className="search-field wide"><Search size={16} /><input placeholder="جست‌وجوی نام، ایمیل یا شماره" value={search} onChange={(event) => updateSearch(event.target.value)} data-testid="input-search-customers" /><span className={`customer-search-state ${loading ? 'is-loading' : ''}`}>{loading ? 'در حال جست‌وجو' : 'جست‌وجوی زنده'}</span></div><Button variant="secondary" onClick={clearSearch} disabled={!search} testId="button-clear-customer-search">پاک کردن جست‌وجو</Button></div><div className="customer-tabs" role="tablist" aria-label="فیلتر وضعیت مشتری"><button type="button" role="tab" aria-selected={tab === 'active'} className={tab === 'active' ? 'selected' : ''} onClick={() => selectTab('active')} data-testid="button-customers-active">فعال</button><button type="button" role="tab" aria-selected={tab === 'inactive'} className={tab === 'inactive' ? 'selected' : ''} onClick={() => selectTab('inactive')} data-testid="button-customers-inactive">غیرفعال</button></div>{error && <div className="login-error mb-4">{error}</div>}{loading && !visibleCustomers.length ? <div className="customer-list-state"><RefreshCw size={18} className="spin" /><span>در حال دریافت مشتری‌ها...</span></div> : <section className="customer-list">{visibleCustomers.map((customer, index) => <Link href={`/customers/${customer.id}`} className="customer-row" key={customer.id} data-testid={`row-customer-${customer.id}`}><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><div className="min-w-0 flex-1"><p className="font-bold">{customer.name}</p><p className="text-xs text-muted-foreground">{customer.email} · {customer.phone}</p></div><div className="customer-col"><span className="text-xs text-muted-foreground">سرویس فعال</span><strong>{numberFormat.format(customer.activeServices)}</strong></div><div className="customer-col hidden sm:flex"><span className="text-xs text-muted-foreground">مجموع خرید</span><strong>{money(customer.totalSpend)}</strong></div><div className="customer-col hidden md:flex"><span className="text-xs text-muted-foreground">آخرین خرید</span><strong>{dateLabel(customer.lastPurchase)}</strong></div><ChevronLeft size={17} className="ml-2 text-muted-foreground" /></Link>)}</section>}{!loading && !visibleCustomers.length && <EmptyState title={tab === 'active' ? 'مشتری فعال پیدا نشد' : 'مشتری غیرفعالی پیدا نشد'} detail={search ? 'عبارت جست‌وجو یا تب وضعیت را تغییر دهید.' : 'با ثبت سرویس فعال، مشتری در این بخش نمایش داده می‌شود.'} />}{totalPages > 1 && <nav className="customer-pagination" aria-label="صفحه‌بندی مشتری‌ها"><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0 || loading} data-testid="button-customers-previous"><ChevronRight size={15} /> قبلی</button><span>صفحه {numberFormat.format(page + 1)} از {numberFormat.format(totalPages)}</span><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))} disabled={page >= totalPages - 1 || loading} data-testid="button-customers-next">بعدی <ChevronLeft size={15} /></button></nav>}</>;
+  return <>
+    <PageHeader eyebrow="ارتباط با مشتری" title="مشتری‌ها" description={`${numberFormat.format(visibleTotal)} مشتری در بخش ${tab === 'active' ? 'فعال' : 'غیرفعال'} نمایش داده می‌شود.`} action={<div className="directory-stat"><UserRound size={15} /> {numberFormat.format(visibleTotal)} {tab === 'active' ? 'حساب فعال' : 'مشتری غیرفعال'}</div>} />
+    <section className="customer-directory-controls" aria-label="جست‌وجو و فیلتر مشتری‌ها">
+      <div className="customer-toolbar">
+        <div className="search-field wide"><Search size={16} /><input placeholder="جست‌وجوی نام، ایمیل یا شماره" value={search} onChange={(event) => updateSearch(event.target.value)} data-testid="input-search-customers" /><span className={`customer-search-state ${loading ? 'is-loading' : ''}`}>{loading ? 'در حال جست‌وجو' : 'جست‌وجوی زنده'}</span></div>
+        <Button variant="secondary" onClick={clearSearch} disabled={!search} testId="button-clear-customer-search">پاک کردن جست‌وجو</Button>
+      </div>
+      <div className="customer-tabs" role="tablist" aria-label="فیلتر وضعیت مشتری">
+        <button type="button" role="tab" aria-selected={tab === 'active'} className={tab === 'active' ? 'selected' : ''} onClick={() => selectTab('active')} data-testid="button-customers-active">فعال</button>
+        <button type="button" role="tab" aria-selected={tab === 'inactive'} className={tab === 'inactive' ? 'selected' : ''} onClick={() => selectTab('inactive')} data-testid="button-customers-inactive">غیرفعال</button>
+      </div>
+    </section>
+    {error && <div className="login-error" role="alert">{error}</div>}
+    {loading && !visibleCustomers.length ? <div className="record-card-skeletons" aria-label="در حال دریافت مشتری‌ها"><span /><span /><span /></div> : null}
+    {!loading && visibleCustomers.length > 0 && <section className="customer-file-register" role="list" aria-label="فهرست پرونده‌های مشتری">
+       {visibleCustomers.map((customer, index) => <Link href={`/customers/${customer.id}`} className="customer-file-entry" role="listitem" key={customer.id} data-testid={`row-customer-${customer.id}`}>
+         <div className="customer-file-identity"><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><div><span className="record-card-eyebrow">پرونده · {numberFormat.format(page * CUSTOMER_PAGE_SIZE + index + 1)}</span><strong>{customer.name}</strong><small>{customer.phone || 'شماره ثبت نشده'}{customer.email ? ` · ${customer.email}` : ''}</small></div></div>
+         <dl className="customer-file-facts">
+           <div><dt>سرویس فعال</dt><dd>{numberFormat.format(customer.activeServices)}</dd></div>
+           <div><dt>مجموع خرید</dt><dd>{money(customer.totalSpend)}</dd></div>
+           <div><dt>آخرین خرید</dt><dd>{dateLabel(customer.lastPurchase)}</dd></div>
+         </dl>
+         <span className="customer-file-open">پرونده <ChevronLeft size={15} /></span>
+       </Link>)}
+    </section>}
+    {!loading && !visibleCustomers.length && <EmptyState title={tab === 'active' ? 'مشتری فعال پیدا نشد' : 'مشتری غیرفعالی پیدا نشد'} detail={search ? 'عبارت جست‌وجو یا تب وضعیت را تغییر دهید.' : 'با ثبت سرویس فعال، مشتری در این بخش نمایش داده می‌شود.'} />}
+    {totalPages > 1 && <nav className="customer-pagination" aria-label="صفحه‌بندی مشتری‌ها"><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0 || loading} data-testid="button-customers-previous"><ChevronRight size={15} /> قبلی</button><span>صفحه {numberFormat.format(page + 1)} از {numberFormat.format(totalPages)}</span><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))} disabled={page >= totalPages - 1 || loading} data-testid="button-customers-next">بعدی <ChevronLeft size={15} /></button></nav>}
+  </>;
 }
 
 export function Customers() {
-  return <SurfaceFrame name="customers"><CustomersContent /></SurfaceFrame>;
+  return <SurfaceFrame name="customers"><div className="customer-directory-workspace"><CustomersContent /></div></SurfaceFrame>;
 }
 
 function CustomerServiceControls({ services, tab, issueFilter, search, onTabChange, onIssueFilterChange, onSearchChange }: { services: Service[]; tab: CustomerServiceTab; issueFilter: string; search: string; onTabChange: (tab: CustomerServiceTab) => void; onIssueFilterChange: (value: string) => void; onSearchChange: (value: string) => void }) {
@@ -2373,13 +2538,15 @@ function CustomerDetailContent() {
       setWorking('');
     }
   };
-  if (!customer) return <EmptyState title="مشتری پیدا نشد" detail="این مشتری در دفتر شما وجود ندارد." action={<Link href="/customers" className="button button-secondary" data-testid="link-back-customers">بازگشت به مشتری‌ها</Link>} />;
+   if (customerDetailQuery.isLoading && !customer) return <section className="customer-detail-loading" role="status" aria-label="در حال دریافت پرونده مشتری"><span /><span /><span /></section>;
+   if (customerDetailQuery.isError && !customer) return <section className="customer-detail-load-error" role="alert"><ShieldAlert size={22} /><h1>پرونده مشتری دریافت نشد</h1><p>اطلاعات زندهٔ این مشتری در دسترس نیست. دوباره تلاش کنید یا به فهرست برگردید.</p><div><button type="button" className="button button-primary" onClick={() => void customerDetailQuery.refetch()}>تلاش دوباره</button><Link href="/customers" className="button button-secondary" data-testid="link-back-customers">بازگشت به مشتری‌ها</Link></div></section>;
+   if (!customer) return <EmptyState title="مشتری پیدا نشد" detail="این مشتری در دفتر شما وجود ندارد." action={<Link href="/customers" className="button button-secondary" data-testid="link-back-customers">بازگشت به مشتری‌ها</Link>} />;
      const crmPagination = crm?.timeline_pagination;
-     return <><Link href="/customers" className="back-link" data-testid="link-back-customers"><ChevronLeft size={15} /> مشتری‌ها</Link><div className="detail-hero"><div className="flex items-center gap-4"><Avatar name={customer.name} color="teal" /><div><p className="eyebrow">پرونده مشتری و V2Box</p><h1 className="page-title">{customer.name}</h1><p className="page-description">{customer.phone} · اطلاعات واقعی SQL</p></div></div></div>{notice && <div className="notice"><Check size={15} /> {notice}<button onClick={() => setNotice('')} aria-label="بستن پیام"><X size={14} /></button></div>}<div className="detail-metrics"><div><span>مجموع خرید</span><strong>{money(customer.totalSpend)}</strong></div><div><span>سرویس فعال</span><strong>{new Intl.NumberFormat('fa-IR').format(customer.activeServices)}</strong></div><div><span>آخرین خرید</span><strong>{dateLabel(customer.lastPurchase)}</strong></div></div><section className="panel-card crm-card"><div className="panel-heading"><div><p className="eyebrow">CRM سبک و سریع</p><h2 className="section-title">یادداشت، برچسب و timeline</h2><p className="text-xs text-muted-foreground">اطلاعات این پرونده فقط در محدوده دسترسی شما ذخیره و نمایش داده می‌شود.</p></div><History size={18} className="text-muted-foreground" /></div>{crmLoading ? <div className="crm-state">در حال دریافت پرونده...</div> : crmError ? <div className="crm-state crm-state-error">{crmError}</div> : <div className="crm-layout"><div><form className="crm-form" onSubmit={addCrmTag}><label htmlFor="crm-tag">برچسب جدید</label><div className="crm-inline"><input id="crm-tag" value={crmTag} onChange={(event) => setCrmTag(event.target.value)} maxLength={32} placeholder="مثلاً مشتری وفادار" /><button className="button button-secondary" type="submit" disabled={working === 'crm-tag' || !crmTag.trim()}><Tag size={14} /> افزودن</button></div></form><div className="crm-tags">{(crm?.tags ?? []).map((tag) => <span className="crm-tag" key={tag}>{tag}<button type="button" onClick={() => void removeCrmTag(tag)} disabled={working === `crm-remove-${tag}`} aria-label={`حذف برچسب ${tag}`}><X size={12} /></button></span>)}{!(crm?.tags ?? []).length && <span className="crm-muted">هنوز برچسبی ثبت نشده است.</span>}</div><form className="crm-form crm-note-form" onSubmit={addCrmNote}><label htmlFor="crm-note">یادداشت داخلی</label><textarea id="crm-note" value={crmNote} onChange={(event) => setCrmNote(event.target.value)} maxLength={1000} placeholder="نکته‌ای برای تمدید بعدی یا پیگیری مشتری..." /><button className="button button-primary" type="submit" disabled={working === 'crm-note' || !crmNote.trim()}><Plus size={14} /> ثبت یادداشت</button></form></div><div className="crm-timeline"><div className="crm-subheading"><strong>timeline مشتری</strong><span>{new Intl.NumberFormat('fa-IR').format(crmPagination?.total ?? crm?.timeline?.length ?? 0)} رویداد</span></div>{(crm?.timeline ?? []).map((event, index) => <div className="crm-event" key={`${event.type}-${event.id}-${index}`}><span className="crm-event-dot" /><div><strong>{event.title}</strong><p>{event.detail}</p><time>{dateTimeLabel(event.created_at)}</time></div></div>)}{!(crm?.timeline ?? []).length && <div className="crm-muted">هنوز رویدادی برای این مشتری ثبت نشده است.</div>}{crmPagination && crmPagination.total_pages > 1 && <div className="crm-pagination"><button className="button button-quiet" type="button" onClick={() => void changeCrmPage(crmPagination.page - 1)} disabled={!crmPagination.has_previous || crmPageLoading}>قبلی</button><span>صفحه {new Intl.NumberFormat('fa-IR').format(crmPagination.page)} از {new Intl.NumberFormat('fa-IR').format(crmPagination.total_pages)}</span><button className="button button-quiet" type="button" onClick={() => void changeCrmPage(crmPagination.page + 1)} disabled={!crmPagination.has_next || crmPageLoading}>بعدی</button></div>}</div></div>}</section><div className="detail-grid mt-5"><section className="panel-card"><div className="panel-heading"><div><p className="eyebrow">دسترسی</p><h2 className="section-title">اشتراک‌ها و V2Box</h2></div><Link href="/services" className="button button-quiet"><Plus size={14} /> سرویس جدید</Link></div><div className="service-detail-list">{customerServices.map((service) => { const ratio = service.limitGb ? Math.min(100, Math.round(service.usedGb / service.limitGb * 100)) : 0; const publicUrl = service.publicSubscriptionUrl ?? service.subscriptionUrl; const hasSaleLog = customerSales.some((sale) => sale.serviceId === service.id); const latestRequest = actionRequests.find((request) => String(request.service_id) === service.id); const requestStatusItems = latestRequest ? [latestRequest.cancel_service_requested ? ['حذف سرویس', latestRequest.cancel_service_status] : null, latestRequest.delete_sale_requested ? ['فقط حذف لاگ فروش', latestRequest.delete_sale_status] : null].filter(Boolean) as [string, ServiceActionRequest['cancel_service_status']][] : []; return <article className="subscription-card" key={service.id}><div className="subscription-head"><div><p className="font-bold">{service.plan}</p><p className="font-mono text-xs text-muted-foreground" dir="ltr">@{service.username}</p></div><StatusPill value={service.status} /></div><div className="usage-summary"><div className="usage-ring" style={{ '--usage': `${ratio * 3.6}deg` } as any}><span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪</span></div><div className="usage-copy"><strong>{service.usedGb} از {service.limitGb} گیگ</strong><p>انقضا: {dateLabel(service.expiresAt)}</p><p>{Math.max(0, daysUntil(service.expiresAt))} روز باقی‌مانده</p></div></div><ServiceUsageBreakdown service={service} />{service.subscriptionUrl ? <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl || service.subscriptionUrl} /><div className="subscription-share-copy"><strong>لینک جدید اشتراک</strong><span>این لینک دامنه‌دار صفحهٔ اشتراک جدید است؛ برای import مستقیم از دکمهٔ V2Box استفاده کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => navigator.clipboard.writeText(publicUrl || service.subscriptionUrl || '')}><Copy size={14} /> کپی لینک جدید</button><a className="button button-primary" href={v2boxUrl(service)} target="_blank" rel="noreferrer"><ExternalLink size={14} /> V2Box</a>{service.awgReady && service.awgConfigUrl ? <a className="button button-secondary" href={service.awgConfigUrl} download data-testid={`link-awg-${service.id}`}><Download size={14} /> دانلود AWG</a> : <button className="button button-secondary" disabled title="کانفیگ AWG هنوز آماده نشده است"><Wifi size={14} /> AWG در انتظار</button>}<button className="button button-ghost" disabled={working === service.id} onClick={() => resetToken(service)}><RefreshCw size={14} className={working === service.id ? 'spin' : ''} /> توکن جدید</button><button className="button button-quiet" disabled={working === service.id} onClick={() => renew(service)}><Plus size={14} /> تمدید ۳۰ روزه</button></div></> : <div className="notice mt-3"><ShieldCheck size={15} /> لینک اشتراک این سرویس قدیمی ثبت نشده است.</div>}{session?.role === 'reseller' && requestStatusItems.length > 0 && <div className="service-request-status"><span>آخرین درخواست</span>{requestStatusItems.map(([label, status]) => <span className={`service-request-status-pill ${status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : status === 'pending' ? 'pending' : ''}`} key={label}>{label}: {status === 'pending' ? 'در انتظار بررسی' : status === 'approved' ? 'تأیید شد' : status === 'rejected' ? 'رد شد' : 'ثبت نشده'}</span>)}<Link href="/action-requests" className="service-request-status-link">جزئیات</Link></div>}{session?.role === 'reseller' && (service.status !== 'Disabled' || hasSaleLog) && <div className="service-request-action"><Button variant="quiet" onClick={() => setActionRequestService(service)}><Trash2 size={13} /> درخواست حذف سرویس / لاگ فروش</Button></div>}</article>; })}</div>{!customerServices.length && <EmptyState title="اشتراکی ثبت نشده" detail="اولین سرویس واقعی این مشتری را از صفحه سرویس‌ها بسازید." />}</section><section className="panel-card"><div className="panel-heading"><div><p className="eyebrow">تراکنش‌ها</p><h2 className="section-title">سابقه فروش</h2></div><CreditCard size={18} className="text-muted-foreground" /></div><div className="list-stack">{customerSales.map((sale) => <div className="history-row" key={sale.id}><div><p className="font-semibold">{sale.serviceName}</p><p className="text-xs text-muted-foreground">{dateLabel(sale.date)} · {sale.id}</p></div><div className="text-right"><p className="font-display font-bold">{money(sale.amount)}</p><span className={sale.paid ? 'paid-text' : 'pending-text'}>{sale.paid ? 'پرداخت‌شده' : 'در انتظار'}</span></div></div>)}</div>{!customerSales.length && <EmptyState title="سابقه‌ای وجود ندارد" detail="فروش‌های این مشتری در اینجا نمایش داده می‌شود." />}</section></div>{actionRequestService && <ServiceActionRequestModal service={actionRequestService} hasSaleLog={customerSales.some((sale) => sale.serviceId === actionRequestService.id)} onClose={() => setActionRequestService(null)} onSubmitted={async () => { await customerDetailQuery.refetch(); await refreshActionRequests(); setNotice('درخواست برای بررسی مدیر اصلی ارسال شد.'); }} />}</>;
+      return <><Link href="/customers" className="back-link" data-testid="link-back-customers"><ChevronLeft size={15} /> مشتری‌ها</Link><div className="detail-hero"><div className="flex items-center gap-4"><Avatar name={customer.name} color="teal" /><div><p className="eyebrow">پرونده مشتری و V2Box</p><h1 className="page-title">{customer.name}</h1><p className="page-description">{customer.phone} · اطلاعات واقعی SQL</p></div></div></div>{notice && <div className="notice"><Check size={15} /> {notice}<button onClick={() => setNotice('')} aria-label="بستن پیام"><X size={14} /></button></div>}<div className="detail-metrics"><div><span>مجموع خرید</span><strong>{money(customer.totalSpend)}</strong></div><div><span>سرویس فعال</span><strong>{new Intl.NumberFormat('fa-IR').format(customer.activeServices)}</strong></div><div><span>آخرین خرید</span><strong>{dateLabel(customer.lastPurchase)}</strong></div></div><nav className="customer-detail-rail" aria-label="بخش‌های پرونده"><a href="#customer-crm"><History size={14} /> CRM و timeline</a><a href="#customer-access"><Wifi size={14} /> سرویس‌ها و اشتراک‌ها</a><a href="#customer-sales"><CreditCard size={14} /> سابقه فروش</a></nav><section className="panel-card crm-card" id="customer-crm"><div className="panel-heading"><div><p className="eyebrow">CRM سبک و سریع</p><h2 className="section-title">یادداشت، برچسب و timeline</h2><p className="text-xs text-muted-foreground">اطلاعات این پرونده فقط در محدوده دسترسی شما ذخیره و نمایش داده می‌شود.</p></div><History size={18} className="text-muted-foreground" /></div>{crmLoading ? <div className="crm-state">در حال دریافت پرونده...</div> : crmError ? <div className="crm-state crm-state-error">{crmError}</div> : <div className="crm-layout"><div><form className="crm-form" onSubmit={addCrmTag}><label htmlFor="crm-tag">برچسب جدید</label><div className="crm-inline"><input id="crm-tag" value={crmTag} onChange={(event) => setCrmTag(event.target.value)} maxLength={32} placeholder="مثلاً مشتری وفادار" /><button className="button button-secondary" type="submit" disabled={working === 'crm-tag' || !crmTag.trim()}><Tag size={14} /> افزودن</button></div></form><div className="crm-tags">{(crm?.tags ?? []).map((tag) => <span className="crm-tag" key={tag}>{tag}<button type="button" onClick={() => void removeCrmTag(tag)} disabled={working === `crm-remove-${tag}`} aria-label={`حذف برچسب ${tag}`}><X size={12} /></button></span>)}{!(crm?.tags ?? []).length && <span className="crm-muted">هنوز برچسبی ثبت نشده است.</span>}</div><form className="crm-form crm-note-form" onSubmit={addCrmNote}><label htmlFor="crm-note">یادداشت داخلی</label><textarea id="crm-note" value={crmNote} onChange={(event) => setCrmNote(event.target.value)} maxLength={1000} placeholder="نکته‌ای برای تمدید بعدی یا پیگیری مشتری..." /><button className="button button-primary" type="submit" disabled={working === 'crm-note' || !crmNote.trim()}><Plus size={14} /> ثبت یادداشت</button></form></div><div className="crm-timeline"><div className="crm-subheading"><strong>timeline مشتری</strong><span>{new Intl.NumberFormat('fa-IR').format(crmPagination?.total ?? crm?.timeline?.length ?? 0)} رویداد</span></div>{(crm?.timeline ?? []).map((event, index) => <div className="crm-event" key={`${event.type}-${event.id}-${index}`}><span className="crm-event-dot" /><div><strong>{event.title}</strong><p>{event.detail}</p><time>{dateTimeLabel(event.created_at)}</time></div></div>)}{!(crm?.timeline ?? []).length && <div className="crm-muted">هنوز رویدادی برای این مشتری ثبت نشده است.</div>}{crmPagination && crmPagination.total_pages > 1 && <div className="crm-pagination"><button className="button button-quiet" type="button" onClick={() => void changeCrmPage(crmPagination.page - 1)} disabled={!crmPagination.has_previous || crmPageLoading}>قبلی</button><span>صفحه {new Intl.NumberFormat('fa-IR').format(crmPagination.page)} از {new Intl.NumberFormat('fa-IR').format(crmPagination.total_pages)}</span><button className="button button-quiet" type="button" onClick={() => void changeCrmPage(crmPagination.page + 1)} disabled={!crmPagination.has_next || crmPageLoading}>بعدی</button></div>}</div></div>}</section><div className="detail-grid mt-5"><section className="panel-card" id="customer-access"><div className="panel-heading"><div><p className="eyebrow">دسترسی</p><h2 className="section-title">اشتراک‌ها و V2Box</h2></div><Link href="/services" className="button button-quiet"><Plus size={14} /> سرویس جدید</Link></div><div className="service-detail-list">{customerServices.map((service) => { const ratio = service.limitGb ? Math.min(100, Math.round(service.usedGb / service.limitGb * 100)) : 0; const publicUrl = service.publicSubscriptionUrl ?? service.subscriptionUrl; const hasSaleLog = customerSales.some((sale) => sale.serviceId === service.id); const latestRequest = actionRequests.find((request) => String(request.service_id) === service.id); const requestStatusItems = latestRequest ? [latestRequest.cancel_service_requested ? ['حذف سرویس', latestRequest.cancel_service_status] : null, latestRequest.delete_sale_requested ? ['فقط حذف لاگ فروش', latestRequest.delete_sale_status] : null].filter(Boolean) as [string, ServiceActionRequest['cancel_service_status']][] : []; return <article className="subscription-card" key={service.id}><div className="subscription-head"><div><p className="font-bold">{service.plan}</p><p className="font-mono text-xs text-muted-foreground" dir="ltr">@{service.username}</p></div><StatusPill value={service.status} /></div><div className="usage-summary"><div className="usage-ring" style={{ '--usage': `${ratio * 3.6}deg` } as any}><span>{new Intl.NumberFormat('fa-IR').format(ratio)}٪</span></div><div className="usage-copy"><strong>{service.usedGb} از {service.limitGb} گیگ</strong><p>انقضا: {dateLabel(service.expiresAt)}</p><p>{Math.max(0, daysUntil(service.expiresAt))} روز باقی‌مانده</p></div></div><ServiceUsageBreakdown service={service} />{service.subscriptionUrl ? <><div className="subscription-box" dir="ltr">{publicUrl}</div><div className="subscription-share"><SubscriptionQr url={publicUrl || service.subscriptionUrl} /><div className="subscription-share-copy"><strong>لینک جدید اشتراک</strong><span>این لینک دامنه‌دار صفحهٔ اشتراک جدید است؛ برای import مستقیم از دکمهٔ V2Box استفاده کنید.</span></div></div><div className="quick-actions"><button className="button button-secondary" onClick={() => navigator.clipboard.writeText(publicUrl || service.subscriptionUrl || '')}><Copy size={14} /> کپی لینک جدید</button><a className="button button-primary" href={v2boxUrl(service)} target="_blank" rel="noreferrer"><ExternalLink size={14} /> V2Box</a>{service.awgReady && service.awgConfigUrl ? <a className="button button-secondary" href={service.awgConfigUrl} download data-testid={`link-awg-${service.id}`}><Download size={14} /> دانلود AWG</a> : <button className="button button-secondary" disabled title="کانفیگ AWG هنوز آماده نشده است"><Wifi size={14} /> AWG در انتظار</button>}<button className="button button-ghost" disabled={working === service.id} onClick={() => resetToken(service)}><RefreshCw size={14} className={working === service.id ? 'spin' : ''} /> توکن جدید</button><button className="button button-quiet" disabled={working === service.id} onClick={() => renew(service)}><Plus size={14} /> تمدید ۳۰ روزه</button></div></> : <div className="notice mt-3"><ShieldCheck size={15} /> لینک اشتراک این سرویس قدیمی ثبت نشده است.</div>}{session?.role === 'reseller' && requestStatusItems.length > 0 && <div className="service-request-status"><span>آخرین درخواست</span>{requestStatusItems.map(([label, status]) => <span className={`service-request-status-pill ${status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : status === 'pending' ? 'pending' : ''}`} key={label}>{label}: {status === 'pending' ? 'در انتظار بررسی' : status === 'approved' ? 'تأیید شد' : status === 'rejected' ? 'رد شد' : 'ثبت نشده'}</span>)}<Link href="/action-requests" className="service-request-status-link">جزئیات</Link></div>}{session?.role === 'reseller' && (service.status !== 'Disabled' || hasSaleLog) && <div className="service-request-action"><Button variant="quiet" onClick={() => setActionRequestService(service)}><Trash2 size={13} /> درخواست حذف سرویس / لاگ فروش</Button></div>}</article>; })}</div>{!customerServices.length && <EmptyState title="اشتراکی ثبت نشده" detail="اولین سرویس واقعی این مشتری را از صفحه سرویس‌ها بسازید." />}</section><section className="panel-card" id="customer-sales"><div className="panel-heading"><div><p className="eyebrow">تراکنش‌ها</p><h2 className="section-title">سابقه فروش</h2></div><CreditCard size={18} className="text-muted-foreground" /></div><div className="list-stack">{customerSales.map((sale) => <div className="history-row" key={sale.id}><div><p className="font-semibold">{sale.serviceName}</p><p className="text-xs text-muted-foreground">{dateLabel(sale.date)} · {sale.id}</p></div><div className="text-right"><p className="font-display font-bold">{money(sale.amount)}</p><span className={sale.paid ? 'paid-text' : 'pending-text'}>{sale.paid ? 'پرداخت‌شده' : 'در انتظار'}</span></div></div>)}</div>{!customerSales.length && <EmptyState title="سابقه‌ای وجود ندارد" detail="فروش‌های این مشتری در اینجا نمایش داده می‌شود." />}</section></div>{actionRequestService && <ServiceActionRequestModal service={actionRequestService} hasSaleLog={customerSales.some((sale) => sale.serviceId === actionRequestService.id)} onClose={() => setActionRequestService(null)} onSubmitted={async () => { await customerDetailQuery.refetch(); await refreshActionRequests(); setNotice('درخواست برای بررسی مدیر اصلی ارسال شد.'); }} />}</>;
 }
 
 export function CustomerDetail() {
-  return <SurfaceFrame name="customer-detail"><CustomerDetailContent /></SurfaceFrame>;
+  return <SurfaceFrame name="customer-detail"><div className="customer-profile-workspace"><CustomerDetailContent /></div></SurfaceFrame>;
 }
 
 type ClientOS = 'iOS' | 'Android' | 'Windows' | 'macOS' | 'Linux' | 'Other';
@@ -2943,13 +3110,43 @@ function SettingsPageContent() {
 }
 
 export function SettingsPage() {
-  return <SurfaceFrame name="settings"><SettingsPageContent /></SurfaceFrame>;
+  return <SurfaceFrame name="settings"><div className="settings-workspace"><SettingsPageContent /></div></SurfaceFrame>;
 }
 
 function LegacySettingsPage() {
   const { prefs, setPrefs, session, resellers, updateReseller } = usePulse(); const [draft, setDraft] = useState(prefs); const [saved, setSaved] = useState(false);
   const save = () => { setPrefs(draft); setSaved(true); setTimeout(() => setSaved(false), 2400); };
-  return <><PageHeader eyebrow="مرکز کنترل" title="تنظیمات" description="پیش‌فرض‌هایی برای اداره آرام‌تر فروش و تمدیدها." action={<Button onClick={save} testId="button-save-settings"><Save size={15} /> ذخیره تغییرات</Button>} /><div className="settings-grid"><section className="panel-card"><div className="settings-heading"><div className="settings-symbol"><SlidersHorizontal size={17} /></div><div><h2 className="section-title">پیش‌فرض‌های فروشنده</h2><p className="text-sm text-muted-foreground">برای فروش‌ها و سرویس‌های جدید استفاده می‌شود.</p></div></div><div className="settings-fields"><Field label="نام کسب‌وکار" value={draft.businessName} onChange={(businessName) => setDraft({ ...draft, businessName })} /><Field label="واحد پول" value={draft.currency} onChange={(currency) => setDraft({ ...draft, currency })} /><Field label="یادآوری تمدید (روز)" value={draft.reminderDays} onChange={(reminderDays) => setDraft({ ...draft, reminderDays })} /></div></section><section className="panel-card"><div className="settings-heading"><div className="settings-symbol amber"><ShieldCheck size={17} /></div><div><h2 className="section-title">ورود موقت تلگرام</h2><p className="text-sm text-muted-foreground">نشست عددی مدیر و فروشندگان با کنترل دسترسی سرور.</p></div></div><div className="notice mt-5"><span className={`status-dot ${session?.authenticated ? 'online' : ''}`} /><div><strong>{session?.authenticated ? 'نشست معتبر برقرار است' : 'وارد سامانه نشده‌اید'}</strong><p className="mt-1">هر فروشنده فقط داده و پنل اختصاص‌یافته خودش را دریافت می‌کند.</p></div></div></section>{session?.role === 'master_admin' && <section className="panel-card"><div className="settings-heading"><div className="settings-symbol sage"><Settings2 size={17} /></div><div><h2 className="section-title">مدیریت فروشندگان</h2><p className="text-sm text-muted-foreground">دسترسی و مصرف هر فروشنده را کنترل کنید.</p></div></div><div className="list-stack mt-5">{resellers.map((reseller) => <div className="panel-row" key={reseller.id}><div className="avatar avatar-sage">ف</div><div className="min-w-0 flex-1"><p className="text-sm font-bold">{reseller.title || `فروشنده ${reseller.id}`}</p><p className="text-xs text-muted-foreground">{new Intl.NumberFormat('fa-IR').format(reseller.used_gb)} از {new Intl.NumberFormat('fa-IR').format(reseller.total_gb)} گیگ مصرف</p></div><button className={`toggle ${reseller.enabled ? 'on' : ''}`} onClick={() => updateReseller(reseller.id, !reseller.enabled)}><span /></button></div>)}</div></section>}{session?.role === 'master_admin' && <PanelAssignments resellers={resellers} />}<section className="panel-card"><div className="settings-heading"><div className="settings-symbol sage"><Sparkles size={17} /></div><div><h2 className="section-title">نمایش</h2><p className="text-sm text-muted-foreground">تراکم اطلاعات در دفترهای عملیاتی.</p></div></div><div className="preference-row"><div><p className="font-bold">ردیف‌های فشرده</p><p className="text-xs text-muted-foreground">اطلاعات بیشتری در صفحه فروش ببینید.</p></div><button className={`toggle ${draft.compact ? 'on' : ''}`} onClick={() => setDraft({ ...draft, compact: !draft.compact })}><span /></button></div></section></div>{saved && <div className="save-toast"><Check size={15} /> تغییرات ذخیره شد</div>}</>;
+  return <>
+    <PageHeader eyebrow="مرکز کنترل" title="تنظیمات" description="پیش‌فرض‌هایی برای اداره آرام‌تر فروش و تمدیدها." action={<Button onClick={save} testId="button-save-settings"><Save size={15} /> ذخیره تغییرات</Button>} />
+    <div className="settings-console">
+      <nav className="settings-console-nav" aria-label="بخش‌های تنظیمات">
+        <a href="#settings-business"><SlidersHorizontal size={15} /> پیش‌فرض‌ها</a>
+        <a href="#settings-session"><ShieldCheck size={15} /> نشست و امنیت</a>
+        {session?.role === 'master_admin' && <a href="#settings-resellers"><Settings2 size={15} /> فروشندگان</a>}
+        <a href="#settings-display"><Sparkles size={15} /> نمایش</a>
+      </nav>
+      <div className="settings-console-sections">
+        <section className="panel-card settings-section" id="settings-business">
+          <div className="settings-heading"><div className="settings-symbol"><SlidersHorizontal size={17} /></div><div><span className="record-card-eyebrow">فروش و سرویس جدید</span><h2 className="section-title">پیش‌فرض‌های فروشنده</h2><p className="text-sm text-muted-foreground">برای فروش‌ها و سرویس‌های جدید استفاده می‌شود.</p></div></div>
+          <div className="settings-fields"><Field label="نام کسب‌وکار" value={draft.businessName} onChange={(businessName) => setDraft({ ...draft, businessName })} /><Field label="واحد پول" value={draft.currency} onChange={(currency) => setDraft({ ...draft, currency })} /><Field label="یادآوری تمدید (روز)" value={draft.reminderDays} onChange={(reminderDays) => setDraft({ ...draft, reminderDays })} /></div>
+        </section>
+        <section className="panel-card settings-section" id="settings-session">
+          <div className="settings-heading"><div className="settings-symbol amber"><ShieldCheck size={17} /></div><div><span className="record-card-eyebrow">حفاظت دسترسی</span><h2 className="section-title">ورود موقت تلگرام</h2><p className="text-sm text-muted-foreground">نشست عددی مدیر و فروشندگان با کنترل دسترسی سرور.</p></div></div>
+          <div className="notice mt-5"><span className={`status-dot ${session?.authenticated ? 'online' : ''}`} /><div><strong>{session?.authenticated ? 'نشست معتبر برقرار است' : 'وارد سامانه نشده‌اید'}</strong><p className="mt-1">هر فروشنده فقط داده و پنل اختصاص‌یافته خودش را دریافت می‌کند.</p></div></div>
+        </section>
+        {session?.role === 'master_admin' && <section className="panel-card settings-section" id="settings-resellers">
+          <div className="settings-heading"><div className="settings-symbol sage"><Settings2 size={17} /></div><div><span className="record-card-eyebrow">دسترسی و ظرفیت</span><h2 className="section-title">مدیریت فروشندگان</h2><p className="text-sm text-muted-foreground">دسترسی و مصرف هر فروشنده را کنترل کنید.</p></div></div>
+          <div className="list-stack mt-5">{resellers.map((reseller) => <div className="panel-row" key={reseller.id}><div className="avatar avatar-sage">ف</div><div className="min-w-0 flex-1"><p className="text-sm font-bold">{reseller.title || `فروشنده ${reseller.id}`}</p><p className="text-xs text-muted-foreground">{new Intl.NumberFormat('fa-IR').format(reseller.used_gb)} از {new Intl.NumberFormat('fa-IR').format(reseller.total_gb)} گیگ مصرف</p></div><button className={`toggle ${reseller.enabled ? 'on' : ''}`} onClick={() => updateReseller(reseller.id, !reseller.enabled)} aria-label={`تغییر دسترسی ${reseller.title || reseller.id}`}><span /></button></div>)}</div>
+        </section>}
+        {session?.role === 'master_admin' && <PanelAssignments resellers={resellers} />}
+        <section className="panel-card settings-section" id="settings-display">
+          <div className="settings-heading"><div className="settings-symbol sage"><Sparkles size={17} /></div><div><span className="record-card-eyebrow">چیدمان عملیاتی</span><h2 className="section-title">نمایش</h2><p className="text-sm text-muted-foreground">تراکم اطلاعات در دفترهای عملیاتی.</p></div></div>
+          <div className="preference-row"><div><p className="font-bold">ردیف‌های فشرده</p><p className="text-xs text-muted-foreground">اطلاعات بیشتری در صفحه فروش ببینید.</p></div><button className={`toggle ${draft.compact ? 'on' : ''}`} onClick={() => setDraft({ ...draft, compact: !draft.compact })} aria-pressed={draft.compact}><span /></button></div>
+        </section>
+      </div>
+    </div>
+    {saved && <div className="save-toast" role="status"><Check size={15} /> تغییرات ذخیره شد</div>}
+  </>;
 }
 
 function AdminPricing({ resellers }: { resellers: PulseContextValue['resellers'] }) {
@@ -3015,11 +3212,40 @@ function ReportsContent() {
       profit: null,
     })),
   ] : [];
-  return <div className="report-page"><PageHeader eyebrow="مرکز گزارش" title="گزارش کامل فروش" description="گزارش مدیر اصلی با تفکیک مبلغ کامل مشتری و مبلغی که هر فروشنده به مدیر اصلی می‌پردازد، بر اساس تاریخ شمسی تهران." action={<Button variant="secondary" onClick={() => window.print()} testId="button-print-report"><Printer size={15} /> چاپ گزارش</Button>} /><form className="report-filter panel-card" onSubmit={loadReport}><div className="report-date-field"><PersianDateField label="از تاریخ شمسی" value={from} onChange={setFrom} /></div><div className="report-date-field"><PersianDateField label="تا تاریخ شمسی" value={to} onChange={setTo} /></div><Button type="submit" disabled={loading}>{loading ? 'در حال دریافت...' : 'نمایش گزارش'}</Button></form>{error && <div className="login-error mt-4">{error}</div>}{summary && <><div className="metrics-grid report-metrics"><Metric label="مبلغ کامل فروش مشتری" value={money(summary.customer_revenue)} detail={`${new Intl.NumberFormat('fa-IR').format(summary.customer_sales)} تراکنش`} icon={TrendingUp} /><Metric label="قابل پرداخت فروشنده به مدیر" value={money(summary.customer_amount_to_admin)} detail="بدهی عمده از فروش مشتری" icon={CreditCard} /><Metric label="سود مدیر از فروش مشتری" value={money(summary.customer_admin_profit)} detail="مبلغ کامل منهای سهم مدیر" icon={ShieldCheck} /><Metric label="دریافتی کامل مشتری" value={money(summary.paid_customer_revenue)} detail="فقط پرداخت‌های ثبت‌شده" icon={Check} /></div><section className="table-card mt-4"><div className="panel-heading p-5"><div><p className="eyebrow">بازه گزارش</p><h2 className="section-title">{dateLabel(report.from)} تا {dateLabel(report.to)}</h2></div><span className="soft-badge">نمایش فقط برای مدیر اصلی</span></div><div className="table-scroll report-table-scroll"><table className="report-table"><thead><tr><th>نوع</th><th>فروشنده / مشتری</th><th>حجم</th><th>مبلغ کامل مشتری</th><th>پرداخت فروشنده به مدیر</th><th>سود مدیر</th><th>تاریخ تهران</th></tr></thead><tbody>{reportRows.map((item: any, index: number) => <tr key={`${item.kind}-${item.id}-${index}`}><td data-label="نوع">{item.kind}</td><td data-label="فروشنده / مشتری">{item.person}</td><td data-label="حجم">{item.gb_amount} گیگ</td><td data-label="مبلغ کامل مشتری">{item.fullAmount === null ? '—' : money(Number(item.fullAmount))}</td><td data-label="پرداخت فروشنده به مدیر">{money(Number(item.amountToAdmin))}</td><td data-label="سود مدیر">{item.profit === null ? '—' : money(Number(item.profit))}</td><td data-label="تاریخ تهران">{dateLabel(item.created_at)}</td></tr>)}</tbody></table></div></section></>}</div>;
+  return <div className="report-page">
+    <PageHeader eyebrow="مرکز گزارش" title="گزارش کامل فروش" description="گزارش مدیر اصلی با تفکیک مبلغ کامل مشتری و مبلغی که هر فروشنده به مدیر اصلی می‌پردازد، بر اساس تاریخ شمسی تهران." action={<Button variant="secondary" onClick={() => window.print()} testId="button-print-report"><Printer size={15} /> چاپ گزارش</Button>} />
+    <form className="report-filter panel-card" onSubmit={loadReport}>
+      <div className="report-date-field"><PersianDateField label="از تاریخ شمسی" value={from} onChange={setFrom} /></div>
+      <div className="report-date-field"><PersianDateField label="تا تاریخ شمسی" value={to} onChange={setTo} /></div>
+      <Button type="submit" disabled={loading}>{loading ? <><RefreshCw size={14} className="spin" /> در حال دریافت...</> : 'نمایش گزارش'}</Button>
+    </form>
+    {error && <div className="login-error mt-4" role="alert">{error}</div>}
+    {loading && !report && <div className="record-card-skeletons" aria-label="در حال ساخت گزارش"><span /><span /><span /></div>}
+    {!loading && !error && !report && <EmptyState title="گزارشی برای نمایش نیست" detail="برای دریافت داده‌های این بازه، دوباره گزارش را درخواست کنید." action={<Button variant="secondary" onClick={() => void loadReport()}>دریافت گزارش</Button>} />}
+    {summary && <>
+      <section className="metrics-grid report-metrics" aria-label="خلاصه مالی">
+        <Metric label="مبلغ کامل فروش مشتری" value={money(summary.customer_revenue)} detail={`${new Intl.NumberFormat('fa-IR').format(summary.customer_sales)} تراکنش`} icon={TrendingUp} />
+        <Metric label="قابل پرداخت فروشنده به مدیر" value={money(summary.customer_amount_to_admin)} detail="بدهی عمده از فروش مشتری" icon={CreditCard} />
+        <Metric label="سود مدیر از فروش مشتری" value={money(summary.customer_admin_profit)} detail="مبلغ کامل منهای سهم مدیر" icon={ShieldCheck} />
+        <Metric label="دریافتی کامل مشتری" value={money(summary.paid_customer_revenue)} detail="فقط پرداخت‌های ثبت‌شده" icon={Check} />
+      </section>
+      <section className="record-board report-record-board" aria-label="جزئیات گزارش">
+        <header className="record-board-header"><div><p className="eyebrow">بازه گزارش</p><h2>{dateLabel(report.from)} تا {dateLabel(report.to)}</h2><p>فروش و اعتبار ثبت‌شده در بازه انتخاب‌شده.</p></div><span className="soft-badge">مدیر اصلی</span></header>
+        {reportRows.length ? <div className="report-financial-ledger" role="list">{reportRows.map((item: any, index: number) => <article className="report-financial-row" role="listitem" key={`${item.kind}-${item.id}-${index}`}>
+          <div className="report-row-origin"><span>{numberFa(index + 1, 0)}</span><small>{item.kind}</small></div>
+          <div className="report-row-party"><strong>{item.person}</strong><small>{dateLabel(item.created_at)}</small></div>
+          <div className="report-row-value"><span>حجم</span><strong>{numberFa(item.gb_amount)} گیگ</strong></div>
+          <div className="report-row-value"><span>مبلغ کامل مشتری</span><strong>{item.fullAmount === null ? '—' : money(Number(item.fullAmount))}</strong></div>
+          <div className="report-row-value report-admin-due"><span>قابل پرداخت به مدیر</span><strong>{money(Number(item.amountToAdmin))}</strong></div>
+          <div className="report-row-value"><span>سود مدیر</span><strong>{item.profit === null ? '—' : money(Number(item.profit))}</strong></div>
+        </article>)}</div> : <EmptyState title="تراکنشی در این بازه نیست" detail="تاریخ شروع و پایان را بررسی کنید یا بازه دیگری انتخاب کنید." />}
+      </section>
+    </>}
+  </div>;
 }
 
 export function Reports() {
-  return <SurfaceFrame name="reports"><ReportsContent /></SurfaceFrame>;
+  return <SurfaceFrame name="reports"><div className="reports-workspace"><ReportsContent /></div></SurfaceFrame>;
 }
 
 type ProviderConnectionResult = {

@@ -58,7 +58,8 @@ export default function AwgUsageLogPage() {
       : "شروع نشده";
 
   return (
-    <div className="pulse-surface pulse-surface-awg-log">
+    <main className="pulse-surface pulse-surface-awg-log" data-surface="awg-usage-log">
+      <div className="surface-layout surface-layout-awg-usage-log">
       <PageHeader
         eyebrow="ویژه مدیر اصلی"
         title="لاگ زنده worker مصرف AWG"
@@ -94,7 +95,8 @@ export default function AwgUsageLogPage() {
 
       {logQuery.isError && (
         <div className="notice notice-danger mb-4" role="alert" data-testid="error-awg-log">
-          خواندن وضعیت worker ناموفق بود: {logQuery.error instanceof Error ? logQuery.error.message : "خطای نامشخص"}
+          <span>خواندن وضعیت worker ناموفق بود: {logQuery.error instanceof Error ? logQuery.error.message : "خطای نامشخص"}</span>
+          <button type="button" className="button button-secondary" onClick={() => void logQuery.refetch()} disabled={logQuery.isFetching}><RefreshCw size={13} className={logQuery.isFetching ? "spin" : ""} /> تلاش دوباره</button>
         </div>
       )}
 
@@ -166,50 +168,22 @@ export default function AwgUsageLogPage() {
             <small>پس از اجرای worker یا یک بررسی دستی، نتیجه‌ها اینجا نمایش داده می‌شوند.</small>
           </div>
         ) : (
-          <div className="grid gap-3" data-testid="list-awg-worker-events">
+          <div className="awg-event-timeline" data-testid="list-awg-worker-events">
             {events.map((event) => {
               const state = statusCopy[event.status] ?? statusCopy.failed;
               const apiReturnedZero = event.status === "updated" && event.raw_total_bytes === 0 && event.stats_source === "api";
               return (
-                <article
-                  className="rounded-2xl border border-border bg-background/60 p-4"
-                  key={event.event_id}
-                  data-testid={`awg-worker-event-${event.event_id}`}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <strong className="font-bold">{event.customer_name}</strong>
-                      <p className="mt-1 break-all text-xs text-muted-foreground" dir="ltr">
-                        @{event.username} · {event.service_code}
-                      </p>
-                    </div>
-                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${state.style}`}>
-                      {state.label}
-                    </span>
-                  </div>
-
-                  <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {[
-                      ["RX دریافت", traffic(event.rx_bytes)],
-                      ["TX ارسال", traffic(event.tx_bytes)],
-                      ["خام RX + TX", traffic(event.raw_total_bytes)],
-                      ["مصرف مؤثر", traffic(event.effective_bytes)],
-                    ].map(([label, value]) => (
-                      <div className="rounded-xl border border-border/70 bg-card/70 p-3" key={label}>
-                        <dt className="text-[11px] leading-5 text-muted-foreground">{label}</dt>
-                        <dd className="mt-1 text-sm font-bold">{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3 text-xs text-muted-foreground">
-                    <span>
-                      {event.source === "manual" ? "بررسی دستی" : "worker"}
-                      {event.stats_source === "api" ? " · پاسخ تازهٔ API" : event.stats_source === "cache" ? " · پاسخ cache" : ""}
-                      {" · "}{timeLabel(event.checked_at)}
-                    </span>
-                    {apiReturnedZero && <span className="font-semibold text-amber-700">پاسخ مستقیم AWG مقدار صفر داشت.</span>}
-                    {event.message && <span className="text-rose-600">{event.message}</span>}
+                <article className={`awg-event-row ${event.status === "failed" || event.status === "route-unavailable" ? "is-failed" : ""}`} key={event.event_id} data-testid={`awg-worker-event-${event.event_id}`}>
+                  <div className="awg-event-time"><span className={`awg-event-marker ${event.status}`} /><time>{timeLabel(event.checked_at)}</time><small>{event.source === "manual" ? "بررسی دستی" : "worker"}{event.stats_source === "api" ? " · API" : event.stats_source === "cache" ? " · cache" : ""}</small></div>
+                  <div className="awg-event-core">
+                    <div className="awg-event-identity"><div><strong>{event.customer_name}</strong><small dir="ltr">@{event.username} · {event.service_code}</small></div><span className={`awg-event-status ${state.style}`}>{state.label}</span></div>
+                    <dl className="awg-event-telemetry">
+                      <div><dt>RX دریافت</dt><dd>{traffic(event.rx_bytes)}</dd></div>
+                      <div><dt>TX ارسال</dt><dd>{traffic(event.tx_bytes)}</dd></div>
+                      <div><dt>خام RX + TX</dt><dd>{traffic(event.raw_total_bytes)}</dd></div>
+                      <div><dt>مصرف مؤثر</dt><dd>{traffic(event.effective_bytes)}</dd></div>
+                    </dl>
+                    {(apiReturnedZero || event.message) && <p className={`awg-event-note ${event.message ? "error" : ""}`}>{event.message || "پاسخ مستقیم AWG مقدار صفر داشت."}</p>}
                   </div>
                 </article>
               );
@@ -217,6 +191,7 @@ export default function AwgUsageLogPage() {
           </div>
         )}
       </section>
-    </div>
+      </div>
+    </main>
   );
 }

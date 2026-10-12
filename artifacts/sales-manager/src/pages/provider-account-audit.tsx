@@ -217,7 +217,7 @@ function ProviderAccountAuditPage() {
   const failedCount = Object.values(repairStates).filter((item) => item.outcome === 'failed').length;
 
   return (
-    <div className="provider-audit" dir="rtl">
+    <main className="provider-audit" data-surface="provider-account-audit" dir="rtl">
       <div className="audit-wrap">
         <header className="audit-header">
           <div className="audit-heading">
@@ -475,7 +475,7 @@ function ProviderAccountAuditPage() {
           </section>
         </div>
       )}
-    </div>
+    </main>
   );
 }
 

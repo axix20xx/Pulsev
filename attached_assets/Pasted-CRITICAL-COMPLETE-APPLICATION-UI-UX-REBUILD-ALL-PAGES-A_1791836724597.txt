@@ -1,0 +1,443 @@
+CRITICAL: COMPLETE APPLICATION UI/UX REBUILD — ALL PAGES, ALL COMPONENTS, ALL NAVIGATION
+
+You have repeatedly failed to implement the requested redesign. The latest screenshot proves that the existing structure is still present.
+
+This is no longer a request to adjust colors, spacing, cards, or a single dashboard page.
+
+I REQUIRE A COMPLETE, APPLICATION-WIDE UI/UX AND INFORMATION ARCHITECTURE REBUILD.
+
+Act as a principal product designer, enterprise SaaS UX architect, and senior frontend engineer. Work directly in the existing repository and implement the changes. Do not return a proposal instead of implementation.
+
+The existing screenshot is a reference for the current functionality only. Its layout is not acceptable and must not be preserved.
+
+1. Mandatory repository audit
+
+Before coding, inspect the complete project.
+
+Identify:
+
+* The actual frontend framework and entry points.
+* All routes and pages.
+* All shared layouts and components.
+* All navigation definitions.
+* All CSS, Tailwind classes, theme files, and global styles.
+* All mobile breakpoints and fixed-position elements.
+* All modals, dropdowns, forms, tables, charts, and floating actions.
+* All API endpoints and data dependencies.
+* Authentication, user roles, permission checks, and administrative functions.
+* Existing tests and build commands.
+
+Search for every occurrence of the current dashboard shell, KPI card component, bottom navigation, and quick-sale action.
+
+Determine why previous changes did not materially alter the rendered interface. Remove the actual structural cause instead of applying more CSS patches.
+
+Do not stop after the audit. Proceed to implementation.
+
+2. Establish a new application architecture
+
+Create a coherent application shell that is shared across all authenticated pages.
+
+Required architectural areas:
+
+* Global application layout.
+* Responsive navigation system.
+* Global header and search.
+* Breadcrumbs and page headers.
+* Main page content container.
+* Reusable action system.
+* Reusable data presentation components.
+* Modal, drawer, toast, and confirmation infrastructure.
+* Consistent loading, error, and empty states.
+* Centralized design tokens.
+* Permission-aware navigation.
+
+Refactor existing pages to use the new shell.
+
+Do not maintain separate, inconsistent versions of the header, sidebar, navigation, or card styles across different pages.
+
+Do not rewrite the backend or replace working APIs just to achieve the redesign.
+
+3. New visual design system
+
+Use a premium, modern SaaS administration aesthetic inspired by high-quality dashboard products and the attached Dashboard V3 reference.
+
+Design direction:
+
+* Refined violet or purple primary accent.
+* Warm white or neutral background.
+* Clean, high-contrast typography.
+* Compact, information-dense layouts.
+* Subtle borders and restrained shadows.
+* Carefully controlled gradients.
+* Consistent professional line icons.
+* Small, meaningful motion effects.
+* Clear visual hierarchy and generous but disciplined spacing.
+
+Use shadcn/ui patterns, Tailwind CSS, Lucide icons, and Framer Motion if compatible with the existing stack. Do not migrate frameworks unnecessarily.
+
+Create a real design-token system for colors, spacing, typography, borders, radii, shadows, component heights, and breakpoints.
+
+Avoid:
+
+* Huge headings and oversized page headers.
+* Full-width KPI cards stacked endlessly.
+* Every section being enclosed in a rounded rectangle.
+* Giant empty areas.
+* Excessive glassmorphism.
+* Excessive animation.
+* Random icon colors.
+* Multiple competing navigation systems.
+* A desktop layout compressed into a mobile viewport.
+* CSS overrides layered on top of the broken old design.
+
+4. Rebuild every page, not only the dashboard
+
+Create a complete route inventory from the actual repository.
+
+For every existing route:
+
+1. Inspect its current UI.
+2. Identify its user goal and primary action.
+3. Preserve its existing functionality and API connections.
+4. Rebuild its layout using the new design system.
+5. Apply the correct desktop, tablet, and mobile patterns.
+6. Verify navigation into and out of the page.
+7. Test every visible interaction.
+
+Do not leave secondary pages with the old design.
+
+Do not merely change the dashboard and claim the application has been redesigned.
+
+Do not invent missing business functionality. Organize and redesign the functionality that actually exists.
+
+5. Super Admin information architecture
+
+If the application supports a genuine super administrator role, organize the existing routes into logical navigation groups.
+
+Possible groups, subject to the real functionality in the repository:
+
+OVERVIEW
+
+* Dashboard
+* Analytics
+* Activity center
+
+CUSTOMERS AND SALES
+
+* Customers
+* Sales
+* Transactions
+* Invoices or records, if supported
+
+SERVICES
+
+* Service management
+* Active services
+* Upcoming renewals
+* Expired services
+
+INFRASTRUCTURE
+
+* Servers or service health, if supported
+* Operational logs
+* System monitoring
+
+ADMINISTRATION
+
+* Users and staff
+* Roles and permissions
+* Settings
+* Audit logs
+
+These are organizational examples, not permission to create fake pages.
+
+Discover the actual routes and capabilities first. Map existing features into suitable groups, preserve all important destinations, and identify missing destinations explicitly.
+
+If the application is a seller dashboard rather than a global super admin console, maintain its proper seller scope. Do not expose global administrative actions to unauthorized users.
+
+6. Desktop navigation
+
+At desktop widths, implement a polished application shell with:
+
+* A right-positioned RTL sidebar for the Persian interface.
+* A collapsible navigation rail.
+* Grouped and expandable navigation sections.
+* Consistent Lucide icons.
+* Clear active route highlighting.
+* Tooltips in collapsed mode.
+* A compact top toolbar.
+* Search, notifications, and administrator controls.
+* Breadcrumbs and contextual page actions.
+
+Navigation must be functional and derived from actual routes and permissions.
+
+7. Mobile navigation
+
+The current mobile navigation is too crowded and must be redesigned.
+
+At approximately 390 × 844 pixels:
+
+* Use a compact header.
+* Open the main navigation in an accessible RTL drawer.
+* Do not show a desktop sidebar and a competing full bottom navigation simultaneously.
+* If bottom navigation is retained, restrict it to four or five high-frequency destinations.
+* Put less frequently used destinations in the drawer.
+* Preserve safe-area insets.
+* Prevent fixed elements from covering page content.
+* Ensure buttons remain large enough to use comfortably.
+* Avoid horizontal overflow.
+* Keep important actions accessible without consuming excessive screen space.
+
+The mobile application must feel deliberately designed for a phone, not like a desktop webpage scaled down.
+
+8. Dashboard redesign
+
+Rebuild the dashboard composition from scratch.
+
+Compact page header
+
+Use a concise title, short description, and contextual actions.
+
+Do not put the entire page identity, date, and actions inside an oversized banner.
+
+KPI grid
+
+Display actual relevant metrics in a responsive grid.
+
+Examples based on the existing interface:
+
+* Registered revenue.
+* Active services.
+* Upcoming renewals.
+* Service health.
+* Monthly sales.
+* Expired services.
+
+Desktop: generally four columns when space permits.
+
+Tablet: two or three columns as appropriate.
+
+Mobile: generally two columns when values remain legible.
+
+Each metric should contain a concise label, appropriately sized value, consistent icon, and optional real trend information.
+
+Never fabricate metrics or trends.
+
+Analytical content
+
+Organize the available data into useful modules such as revenue trends, renewal activity, service status, recent transactions, and actionable alerts.
+
+Use real API data and meaningful charts.
+
+Avoid repeating the same information across multiple widgets.
+
+Activity table
+
+Use a proper responsive table on desktop and a compact list or data-card layout on mobile.
+
+Preserve relevant filters, sorting, pagination, status indicators, and row actions.
+
+Operational alerts
+
+Show real events requiring attention, with clear severity and useful destinations.
+
+Ensure the dashboard has intentional loading, error, and empty states.
+
+9. Mandatory floating «فروش سریع» action
+
+The existing floating quick-sale button must be redesigned and implemented as a first-class application action.
+
+It must not be an arbitrary oversized floating bubble that overlaps content or navigation.
+
+Desktop behavior
+
+* Provide a compact, visually prominent quick-sale action in the appropriate global toolbar or action area.
+* If a floating action is appropriate, position it so that it does not obscure tables, forms, or other controls.
+* Make its purpose clear through the Persian label «فروش سریع».
+* Use a consistent shopping or sales icon.
+* Keep the action available on relevant sales-management pages.
+
+Mobile behavior
+
+Implement an accessible, compact quick-sale floating action.
+
+Requirements:
+
+* Persian label: «فروش سریع».
+* Clear sales icon.
+* Fixed positioning that respects safe-area insets.
+* No overlap with the bottom navigation, browser controls, page buttons, or form fields.
+* Appropriate stacking order.
+* Responsive sizing.
+* Keyboard accessibility and a visible focus state.
+
+When the user activates the action, open a dedicated quick-sale workflow using the existing application capabilities.
+
+The workflow should reuse existing customer, service, pricing, and sales logic where available.
+
+The intended flow is:
+
+1. Select or identify the customer if required.
+2. Select an available service or product.
+3. Review applicable price and quantity.
+4. Validate the selection.
+5. Review the final sale.
+6. Confirm through the existing authorized sales operation.
+7. Show the actual result and any relevant receipt or transaction reference.
+
+Do not invent API endpoints, bypass payment requirements, or mark a sale as successful before the backend confirms it.
+
+If the application already has a sale form, reuse and improve it rather than creating a duplicate sales engine.
+
+If the current system cannot complete one of these steps, identify the missing dependency and implement only the functionality supported by the existing backend.
+
+10. Global search and actions
+
+Inspect and improve the existing search.
+
+Where supported, allow searching across relevant customers, services, transactions, and administrative records.
+
+Implement:
+
+* Search input and clear action.
+* Useful result grouping.
+* Loading and no-result states.
+* Keyboard interaction.
+* Correct navigation to existing record pages.
+
+Do not create a decorative search box that cannot perform a real search.
+
+11. All forms, tables, and dialogs
+
+Audit every existing component throughout the application.
+
+Forms:
+
+* Consistent labels and validation.
+* Clear required fields.
+* Helpful inline errors.
+* Disabled, loading, success, and failure states.
+
+Tables:
+
+* Consistent density and column alignment.
+* Responsive behavior.
+* Search and filters where appropriate.
+* Sorting and pagination where supported.
+* Clear row actions.
+
+Dialogs and drawers:
+
+* Correct RTL positioning.
+* Appropriate focus management.
+* Escape-key handling where appropriate.
+* Confirmation for consequential actions.
+* No accidental dismissal during critical operations.
+
+Notifications:
+
+* Clear success, warning, and error states.
+* No misleading success messages.
+
+12. Persian RTL correctness
+
+Persian RTL is a core requirement.
+
+* Set the appropriate language and document direction.
+* Use a consistent Persian font stack.
+* Correctly align labels, inputs, navigation, cards, tables, and menus.
+* Mirror directional icons only when appropriate.
+* Keep URLs, technical identifiers, IP addresses, and phone numbers readable.
+* Use appropriate Persian currency and date formatting.
+* Prevent text clipping and unexpected wrapping.
+* Ensure mobile drawers open from the correct side.
+
+Do not treat RTL as a single CSS declaration applied to an otherwise LTR design.
+
+13. Functional and security preservation
+
+Preserve:
+
+* Existing authentication.
+* Authorization and role checks.
+* API contracts.
+* Business rules.
+* Data integrity.
+* Existing sale and service workflows.
+* Route protection.
+* Existing integrations.
+
+Do not rely on frontend visibility alone for security.
+
+Every privileged operation must remain protected by server-side authorization.
+
+Do not replace live data with static demo values.
+
+14. Mandatory testing
+
+Run the project and inspect the actual rendered interface.
+
+Test these viewport sizes:
+
+* 320 × 700
+* 375 × 812
+* 390 × 844
+* 430 × 932
+* 768 × 1024
+* 1024 × 768
+* 1440 × 900
+* 1920 × 1080
+
+Verify:
+
+* Every existing route.
+* Every navigation item.
+* Desktop sidebar collapse.
+* Mobile drawer.
+* Global search.
+* Quick-sale workflow.
+* Forms and validation.
+* Tables and filters.
+* Dialogs and notifications.
+* Loading and error states.
+* RTL layout.
+* Safe-area behavior.
+* No horizontal overflow.
+* No content hidden behind fixed elements.
+* No broken API integrations.
+* No browser console errors.
+* No broken build or runtime errors.
+
+Test the actual rendered pages rather than relying solely on source-code inspection.
+
+15. Definition of done
+
+The task is NOT complete merely because:
+
+* The theme color changed.
+* A few cards became smaller.
+* A new component was added.
+* The dashboard header changed.
+* A floating button was added.
+* The project compiled successfully.
+
+The task is complete only when the actual application has a coherent new shell, redesigned navigation, redesigned dashboard, redesigned existing pages, consistent shared components, and a working quick-sale action.
+
+Final execution instructions
+
+Work in the current repository.
+
+First audit the real implementation. Then refactor the shared application shell and design system. Next migrate every existing page and implement the quick-sale workflow. Finally run the application and test the rendered results.
+
+Do not stop after the dashboard. Do not ask me to manually repeat the requirements. Do not claim completion without verification.
+
+At the end, provide a concise report containing:
+
+1. Pages and routes redesigned.
+2. Components replaced or refactored.
+3. Quick-sale behavior implemented.
+4. APIs and business logic preserved.
+5. Tests actually performed.
+6. Remaining blockers, if any.
+
+I want a genuinely rebuilt, production-oriented admin application, not another cosmetic update.

@@ -112,7 +112,8 @@ export default function AwgUsagePage() {
   };
 
   return (
-    <div className="pulse-surface pulse-surface-awg-usage">
+    <main className="pulse-surface pulse-surface-awg-usage" data-surface="awg-usage">
+      <div className="surface-layout surface-layout-awg-usage">
       <PageHeader
         eyebrow="گزارش جداگانه"
         title="مصرف AmneziaWG"
@@ -218,8 +219,9 @@ export default function AwgUsagePage() {
             <p>در حال دریافت فهرست کاربران فعال...</p>
           </div>
         ) : usageQuery.isError ? (
-          <div className="notice notice-danger mb-4" role="alert" data-testid="error-awg-usage">
-            دریافت فهرست AWG ناموفق بود: {readError(usageQuery.error)}
+          <div className="notice notice-danger mb-4 awg-query-error" role="alert" data-testid="error-awg-usage">
+            <span>دریافت فهرست AWG ناموفق بود: {readError(usageQuery.error)}</span>
+            <button type="button" className="button button-secondary" onClick={() => void usageQuery.refetch()} disabled={usageQuery.isFetching}><RefreshCw size={13} className={usageQuery.isFetching ? "spin" : ""} /> تلاش دوباره</button>
           </div>
         ) : items.length === 0 ? (
           <div className="monitoring-empty" data-testid="empty-awg-usage">
@@ -235,12 +237,14 @@ export default function AwgUsagePage() {
               const isRefreshing = refreshingId === item.id;
               return (
                 <article
-                  className="rounded-2xl border border-border bg-background/60 p-4"
+                  className="awg-usage-entry"
                   key={item.id}
                   data-testid={`card-awg-usage-${item.id}`}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
+                  <header className="awg-usage-entry-head">
+                    <div className="awg-usage-entry-person">
+                      <span className="awg-usage-entry-mark"><Wifi size={16} /></span>
+                      <div className="min-w-0">
                       {item.customer_id ? (
                         <Link
                           href={`/customers/${item.customer_id}`}
@@ -264,9 +268,11 @@ export default function AwgUsagePage() {
                     >
                       فعال در سرویس AWG
                     </span>
-                  </div>
+                    </div>
+                    <div className="awg-usage-current"><span>مصرف مؤثر</span><strong>{trafficLabel(item.used_gb)}</strong><small>RX {trafficLabel(item.rx_gb)} · TX {trafficLabel(item.tx_gb)}</small></div>
+                  </header>
 
-                  <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+                  <dl className="awg-usage-measurements">
                     {[
                       { id: "effective", label: "مصرف مؤثر", value: trafficLabel(item.used_gb) },
                       { id: "rx", label: "دریافت · RX", value: trafficLabel(item.rx_gb) },
@@ -275,7 +281,7 @@ export default function AwgUsagePage() {
                       { id: "offset", label: "مبنای کسرشده", value: trafficLabel(item.offset_gb) },
                     ].map((metric) => (
                       <div
-                        className="min-w-0 rounded-xl border border-border/70 bg-card/70 p-3"
+                        className="awg-usage-measurement"
                         key={metric.id}
                         data-testid={`metric-awg-${metric.id}-${item.id}`}
                       >
@@ -285,7 +291,7 @@ export default function AwgUsagePage() {
                     ))}
                   </dl>
 
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-3">
+                  <footer className="awg-usage-entry-footer">
                     <div className="min-w-0 text-xs text-muted-foreground">
                       {checkedAt
                         ? `بررسی دستی: ${checkedLabel(checkedAt)}`
@@ -304,7 +310,7 @@ export default function AwgUsagePage() {
                         : <ExternalLink size={15} />}
                       دریافت زنده از AWG
                     </button>
-                  </div>
+                  </footer>
                 </article>
               );
             })}
@@ -339,6 +345,7 @@ export default function AwgUsagePage() {
           </div>
         )}
       </section>
-    </div>
+      </div>
+    </main>
   );
 }
