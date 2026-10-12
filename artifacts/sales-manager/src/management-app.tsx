@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Route, Switch, useLocation } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
-import { Shell } from '@/components/pulse-shell';
+import { Shell } from '@/components/pulse-shell-redesigned';
 import {
   ActionRequests,
   AdminSales,

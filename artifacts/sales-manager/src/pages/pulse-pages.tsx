@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, createContext, useContext, useId, useRef,
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { Activity, Apple, ArrowUpLeft, Bell, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Filter, Gauge, Globe2, History, KeyRound, Laptop, Lock, Monitor, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, QrCode, RefreshCw, Save, Search, Server, Settings2, ShieldCheck, ShoppingBag, SlidersHorizontal, Smartphone, Sparkles, Tag, Terminal, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
+import { Activity, Apple, ArrowUpLeft, Bell, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Filter, Gauge, Globe2, History, KeyRound, Laptop, Lock, Monitor, MoreHorizontal, Package, Pencil, Phone, Plus, Printer, QrCode, RefreshCw, Save, Search, Server, Settings2, ShieldAlert, ShieldCheck, ShoppingBag, SlidersHorizontal, Smartphone, Sparkles, Tag, Terminal, TrendingUp, Trash2, UserPlus, UserRound, Wifi, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import QRCode from 'qrcode';
 import { Link, useLocation, useParams } from 'wouter';
@@ -558,12 +558,16 @@ function OnboardingChecklist({ customers, services, sales, session }: { customer
     { label: 'لینک اشتراک قابل تحویل است', detail: services.some((service) => Boolean(service.publicSubscriptionUrl || service.subscriptionUrl)) ? 'حداقل یک لینک عمومی آماده است' : 'بعد از ساخت سرویس لینک تولید می‌شود', done: services.some((service) => Boolean(service.publicSubscriptionUrl || service.subscriptionUrl)) },
   ];
   const completed = steps.filter((step) => step.done).length;
-  if (completed === steps.length) return <section className="panel-card mt-5"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600"><Check size={18} /></span><div><p className="eyebrow">آمادهٔ کار</p><h2 className="section-title">راه‌اندازی کامل شد</h2><p className="mt-1 text-sm text-muted-foreground">مراحل پایه تکمیل شده‌اند؛ حالا روی تمدید و رشد فروش تمرکز کنید.</p></div><Link className="button button-secondary mr-auto" href="/operations">مرکز عملیات <ChevronLeft size={14} /></Link></div></section>;
-  return <section className="panel-card mt-5"><div className="panel-heading"><div><p className="eyebrow">شروع سریع</p><h2 className="section-title">چک‌لیست راه‌اندازی</h2><p className="mt-1 text-sm text-muted-foreground">برای شروع روان، این مسیر کوتاه را کامل کنید.</p></div><span className="soft-badge">{numberFa(completed, 0)} از {numberFa(steps.length, 0)}</span></div><div className="mt-5 grid gap-3 md:grid-cols-2">{steps.map((step) => <div className={`flex items-center gap-3 rounded-2xl border p-3 ${step.done ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-border bg-muted/20'}`} key={step.label}><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${step.done ? 'bg-emerald-500 text-white' : 'bg-background text-muted-foreground'}`}>{step.done ? <Check size={15} /> : <span className="text-xs font-bold">{steps.indexOf(step) + 1}</span>}</span><div className="min-w-0"><strong className="block text-sm">{step.label}</strong><span className="block text-xs text-muted-foreground">{step.detail}</span></div>{!step.done && <Link className="mr-auto text-xs font-bold text-primary" href={steps.indexOf(step) === 1 ? '/customers' : steps.indexOf(step) === 2 ? '/services' : steps.indexOf(step) === 3 ? '/pos' : '/settings'}>باز کردن</Link>}</div>)}</div></section>;
+  if (completed === steps.length) return <section className="overview-setup-panel is-complete" aria-label="وضعیت راه‌اندازی"><span className="overview-setup-check"><Check size={16} /></span><div><strong>راه‌اندازی کامل است</strong><p>مراحل پایه تکمیل شده‌اند؛ روی تمدید و رشد فروش تمرکز کنید.</p></div><Link href="/operations">مرکز عملیات <ChevronLeft size={14} /></Link></section>;
+  const stepHrefs = ['/settings', '/customers', '/services', '/pos', '/settings'];
+  return <section className="overview-setup-panel" aria-label="چک‌لیست شروع کار">
+    <header className="overview-setup-heading"><div><p>شروع سریع</p><h2>راه‌اندازی فضای کار</h2></div><span>{numberFa(completed, 0)} از {numberFa(steps.length, 0)} مرحله</span></header>
+    <ul className="overview-setup-list">{steps.map((step, index) => <li className={step.done ? 'is-done' : ''} key={step.label}><span className="overview-setup-index">{step.done ? <Check size={13} /> : numberFa(index + 1, 0)}</span><span className="overview-setup-copy"><strong>{step.label}</strong><small>{step.detail}</small></span>{!step.done && <Link href={stepHrefs[index]}>باز کردن</Link>}</li>)}</ul>
+  </section>;
 }
 
 function OverviewContent() {
-  const { sales, services, customers, session, dashboard } = usePulse();
+  const { sales, services, customers, resellers, session, dashboard } = usePulse();
   const due = services.filter((service) => daysUntil(service.expiresAt) <= 14 && service.status !== 'Disabled');
   const [liveCommand, setLiveCommand] = useState<any | null>(null);
   const [liveCommandAt, setLiveCommandAt] = useState('');
@@ -623,15 +627,16 @@ function OverviewContent() {
   const total = Number(dashboard?.revenue ?? sales.reduce((sum, sale) => sum + sale.amount, 0));
   const activeCount = Number(dashboard?.active_services ?? services.filter((s) => s.status === 'Active' || s.status === 'Expiring').length);
   const renewalCount = Number(dashboard?.renewals_due ?? due.length);
-  const health = Number(dashboard?.service_health ?? 100);
+  const health = dashboard ? Number(dashboard.service_health) : null;
   const today = todayLabel();
   const recentActivities = Array.isArray(dashboard?.recent_activity) ? dashboard.recent_activity : [];
-  const monthIncome = Number(dashboard?.month_income ?? 0);
-  const monthSalesCount = Number(dashboard?.month_sales_count ?? 0);
-  const monthSoldGb = Number(dashboard?.month_sold_gb ?? 0);
-  const monthPaidIncome = Number(dashboard?.month_paid_income ?? 0);
-  const monthUnpaidIncome = Number(dashboard?.month_unpaid_income ?? 0);
-  const disabledToday = Number(dashboard?.disabled_today ?? 0);
+  const monthIncome = dashboard ? Number(dashboard.month_income) : null;
+  const monthSalesCount = dashboard ? Number(dashboard.month_sales_count) : null;
+  const monthSoldGb = dashboard ? Number(dashboard.month_sold_gb) : null;
+  const monthPaidIncome = dashboard ? Number(dashboard.month_paid_income) : null;
+  const monthUnpaidIncome = dashboard ? Number(dashboard.month_unpaid_income) : null;
+  const monthProfit = dashboard ? Number(dashboard.month_profit) : null;
+  const disabledToday = dashboard ? Number(dashboard.disabled_today) : null;
   const isMasterAdmin = session?.role === 'master_admin';
   const role = isMasterAdmin ? 'مدیر اصلی' : 'فروشنده';
   const monthDays = useMemo(() => dashboardMonthDays((dashboard?.month_daily ?? []) as DashboardDay[]), [dashboard?.month_daily]);
@@ -657,13 +662,77 @@ function OverviewContent() {
       .finally(() => { if (active) setSelectedDayLoading(false); });
     return () => { active = false; };
   }, [selectedDay]);
-  return <><div className="overview-home-header"><PageHeader eyebrow={`امروز · ${today}`} title={session?.display_name || 'مدیر فروش'} description={`داشبورد زنده · ${role}`} action={<PrintButton label="چاپ گزارش" testId="button-export-overview" />} /></div>
-     <div className="metrics-grid"><Metric label={isMasterAdmin ? 'قابل پرداخت resellerها' : 'درآمد ثبت‌شده'} value={money(total)} detail={isMasterAdmin ? 'مبلغ عمدهٔ فروشندگان برای مدیر اصلی' : 'فروش‌های پرداخت‌شده در دیتابیس'} icon={TrendingUp} /><Metric label="سرویس‌های فعال" value={new Intl.NumberFormat('fa-IR').format(activeCount)} detail={`${new Intl.NumberFormat('fa-IR').format(dashboard?.visible_customers ?? customers.length)} مشتری قابل مشاهده`} icon={Wifi} accent="amber" /><Metric label="تمدیدهای نزدیک" value={new Intl.NumberFormat('fa-IR').format(renewalCount)} detail="در ۱۴ روز آینده" icon={RefreshCw} accent="coral" /><Metric label="سلامت سرویس" value={`${new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 }).format(health)}٪`} detail="برگرفته از وضعیت سرویس‌های SQL" icon={ShieldCheck} accent="sage" /><Metric label={isMasterAdmin ? 'بدهی resellerها در ماه' : 'فروش ماه جاری'} value={money(monthIncome)} detail={`${new Intl.NumberFormat('fa-IR').format(monthSalesCount)} فروش · ${new Intl.NumberFormat('fa-IR').format(monthSoldGb)} گیگ`} icon={TrendingUp} accent="sage" /><Metric label="غیرفعال‌شده امروز" value={new Intl.NumberFormat('fa-IR').format(disabledToday)} detail="با ثبت زمان و دلیل در دیتابیس" icon={Wifi} accent="coral" /></div><OnboardingChecklist customers={customers} services={services} sales={sales} session={session} />
-     <div className="overview-grid mt-5"><section className="panel-card revenue-panel"><div className="panel-heading"><div><p className="eyebrow">ماه جاری · تقویم شمسی</p><h2 className="section-title">فروش و سود روزانه</h2></div><span className="soft-badge"><CalendarDays size={13} /> {dashboardDayLabel(isoStartOfPersianMonth())} تا امروز</span></div><div className="chart-wrap"><div className="chart-amount">{money(monthIncome)}<span> فروش این ماه</span></div><div className="chart-subline"><span>{numberFa(monthSalesCount, 0)} فروش · {numberFa(monthSoldGb)} گیگ</span><span>{money(Number((dashboard?.month_profit ?? 0)))} سود</span></div><div className="chart-legend"><span><i className="legend-sale" /> فروش</span><span><i className="legend-profit" /> سود</span></div><div className="bar-chart month-bar-chart" aria-label="نمودار فروش و سود روزانه ماه جاری">{monthDays.map((item) => <button type="button" className={`chart-column ${selectedDay === item.day ? 'selected' : ''}`} key={item.day} onClick={() => setSelectedDay(item.day)} aria-label={`${dashboardDayLabel(item.day)}، فروش ${money(item.income)}، سود ${money(item.profit)}`} title={`${dashboardDayLabel(item.day)} · فروش ${money(item.income)} · سود ${money(item.profit)}`}><span className="chart-tooltip">{dashboardDayLabel(item.day)}<strong>{money(item.income)}</strong><small>سود {money(item.profit)}</small></span><div className="chart-bar" style={{ height: `${Math.max(item.income ? 8 : 2, item.income / chartMax * 100)}%` }} /><div className="chart-profit-bar" style={{ height: `${Math.max(item.profit ? 5 : 2, Math.max(0, item.profit) / chartMax * 100)}%` }} /></button>)}</div><div className="chart-labels month-chart-labels"><span>{monthDays[0] ? dashboardDayLabel(monthDays[0].day) : 'شروع ماه'}</span><span>{monthDays[Math.floor(monthDays.length / 2)] ? dashboardDayLabel(monthDays[Math.floor(monthDays.length / 2)].day) : ''}</span><span>{monthDays[monthDays.length - 1] ? dashboardDayLabel(monthDays[monthDays.length - 1].day) : 'امروز'}</span></div></div>{selectedDaySummary ? <section className="day-detail"><div className="panel-heading"><div><p className="eyebrow">جزئیات کامل روز انتخاب‌شده</p><h3 className="section-title">{dashboardDayLabel(selectedDaySummary.day)}</h3></div><button type="button" className="button button-quiet" onClick={() => setSelectedDay(null)}>بستن</button></div><div className="day-detail-metrics"><div><span>کل فروش</span><strong>{money(selectedDaySummary.income)}</strong></div><div><span>سود</span><strong>{money(selectedDaySummary.profit)}</strong></div><div><span>تعداد فروش</span><strong>{numberFa(selectedDaySummary.sales_count, 0)}</strong></div><div><span>حجم فروخته‌شده</span><strong>{numberFa(selectedDaySummary.sold_gb)} گیگ</strong></div><div><span>وصول‌شده</span><strong>{money(selectedDaySummary.paid_income)}</strong></div><div><span>در انتظار وصول</span><strong>{money(selectedDaySummary.unpaid_income)}</strong></div></div><div className="day-sales-list">{selectedDayLoading ? <p className="text-sm text-muted-foreground">در حال دریافت فروش‌های این روز...</p> : selectedDaySales.length ? selectedDaySales.map((sale) => <div className="day-sale-row" key={sale.id}><div><strong>{session?.role === 'master_admin' ? sale.resellerName || 'فروشنده' : sale.customerName}</strong><span>{sale.serviceName} · {sale.id}</span></div><div><strong>{money(sale.amount)}</strong><span className={sale.paid ? 'paid-text' : 'pending-text'}>{sale.paid ? 'پرداخت‌شده' : 'در انتظار'}</span></div></div>) : <p className="text-sm text-muted-foreground">در این روز فروش ثبت نشده است.</p>}</div></section> : <div className="chart-empty-hint">برای دیدن جمع فروش، سود و جزئیات کامل هر روز روی ستون همان روز کلیک کنید.</div>}</section>
-       <section className="panel-card"><div className="panel-heading"><div><p className="eyebrow">نیازمند توجه · داده زنده</p><h2 className="section-title">صف اقدام امروز</h2></div><div className="flex items-center gap-3"><span className="soft-badge"><span className="status-dot online" /> {liveCommandAt ? `بروزرسانی ${dateTimeLabel(liveCommandAt)}` : 'در حال اتصال'}</span><Link href="/services" className="text-link" data-testid="link-view-renewals">مشاهده همه <ChevronLeft size={14} /></Link></div></div>{attentionRows.length ? <div className="list-stack">{attentionRows.slice(0, 4).map((item) => <Link href={`/customers/${item.customerId || 'C-01'}`} className="renewal-row" key={item.id} data-testid={`row-attention-${item.id}`}><Avatar name={item.customerName} color={item.kind === 'low_volume' ? 'coral' : 'amber'} /><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{item.customerName}</p><p className="text-xs text-muted-foreground">{item.serviceName} · {item.kind === 'low_volume' ? item.detail : item.detail}</p></div><ChevronLeft size={15} className="text-muted-foreground" /></Link>)}</div> : <EmptyState title="صف اقدام خالی است" detail="در حال حاضر مورد فوری برای پیگیری ندارید." />}</section>
+  const visibleAudience = isMasterAdmin
+    ? `${numberFa(Number(dashboard?.visible_resellers ?? resellers.length), 0)} فروشنده قابل مشاهده`
+    : `${numberFa(Number(dashboard?.visible_customers ?? customers.length), 0)} مشتری قابل مشاهده`;
+  const overviewHref = isMasterAdmin ? '/admin-sales' : '/pos';
+  const headlineRevenue = dashboard ? money(total) : '—';
+  return <div className="overview-dashboard">
+    <header className="overview-page-heading">
+      <PageHeader
+        eyebrow={`${today} · نمای عملیاتی`}
+        title={session?.display_name || 'مدیر فروش'}
+        description={`خلاصهٔ ${role} بر پایهٔ اطلاعات ثبت‌شده در فضای کاری`}
+        action={<div className="overview-heading-actions"><Link className="overview-primary-action" href={overviewHref}>{isMasterAdmin ? <ShieldAlert size={15} /> : <CreditCard size={15} />}{isMasterAdmin ? 'فروش فروشندگان' : 'ثبت فروش'}</Link><PrintButton label="چاپ" testId="button-export-overview" /></div>}
+      />
+      <div className="overview-context-line"><span className="overview-live-dot" /> داده‌های متصل <span className="overview-context-separator">·</span><span>{visibleAudience}</span>{dashboard?.generated_at && <time dateTime={dashboard.generated_at}>به‌روزرسانی {dateTimeLabel(dashboard.generated_at)}</time>}</div>
+    </header>
+
+    <section className="overview-kpi-grid" aria-label="شاخص‌های اصلی">
+      <article className="overview-kpi overview-kpi-revenue" data-testid="overview-kpi-revenue"><span className="overview-kpi-icon"><TrendingUp size={17} /></span><div><h2>{isMasterAdmin ? 'قابل پرداخت فروشندگان' : 'درآمد ثبت‌شده'}</h2><strong>{headlineRevenue}</strong><p>{isMasterAdmin ? 'مبلغ عمدهٔ فروشندگان برای مدیر اصلی' : 'فروش‌های ثبت‌شده در دفتر شما'}</p></div></article>
+      <article className="overview-kpi" data-testid="overview-kpi-active"><span className="overview-kpi-icon"><Wifi size={17} /></span><div><h2>سرویس‌های فعال</h2><strong>{numberFa(activeCount, 0)}</strong><p>{visibleAudience}</p></div></article>
+      <article className="overview-kpi overview-kpi-attention" data-testid="overview-kpi-renewals"><span className="overview-kpi-icon"><RefreshCw size={17} /></span><div><h2>تمدیدهای نزدیک</h2><strong>{numberFa(renewalCount, 0)}</strong><p>موعد تمدید تا ۱۴ روز آینده</p></div></article>
+      <article className="overview-kpi overview-kpi-health" data-testid="overview-kpi-health"><span className="overview-kpi-icon"><ShieldCheck size={17} /></span><div><h2>سلامت سرویس</h2><strong>{health === null ? '—' : `${numberFa(health, 1)}٪`}</strong><p>{health === null ? 'دادهٔ سلامت هنوز در دسترس نیست' : 'خلاصهٔ وضعیت سرویس‌ها'}</p></div></article>
+    </section>
+
+    <section className="overview-month-ribbon" aria-label="خلاصهٔ مالی این ماه">
+      <div className="overview-ribbon-heading"><span className="overview-ribbon-icon"><CalendarDays size={16} /></span><div><p>مرور ماه شمسی</p><strong>{dashboardDayLabel(isoStartOfPersianMonth())} تا امروز</strong></div></div>
+      <div className="overview-ribbon-stat"><span>{isMasterAdmin ? 'بدهی فروشندگان' : 'فروش این ماه'}</span><strong>{monthIncome === null ? '—' : money(monthIncome)}</strong></div>
+      <div className="overview-ribbon-stat"><span>{isMasterAdmin ? 'وصول‌شده از فروشندگان' : 'وصول‌شده'}</span><strong>{monthPaidIncome === null ? '—' : money(monthPaidIncome)}</strong></div>
+      <div className="overview-ribbon-stat"><span>{isMasterAdmin ? 'در انتظار تسویه' : 'در انتظار وصول'}</span><strong>{monthUnpaidIncome === null ? '—' : money(monthUnpaidIncome)}</strong></div>
+      <div className="overview-ribbon-stat"><span>{isMasterAdmin ? 'سود مدیر' : 'سود ثبت‌شده'}</span><strong>{monthProfit === null ? '—' : money(monthProfit)}</strong></div>
+      <div className="overview-ribbon-tail"><span>{monthSalesCount === null ? '—' : numberFa(monthSalesCount, 0)} فروش</span><span>{monthSoldGb === null ? '—' : numberFa(monthSoldGb)} گیگ</span>{disabledToday !== null && <span>{numberFa(disabledToday, 0)} غیرفعال امروز</span>}</div>
+    </section>
+
+    <div className="overview-workbench">
+      <section className="overview-chart-panel" aria-labelledby="overview-chart-title">
+        <header className="overview-section-heading">
+          <div><p>روند واقعی ثبت‌شده</p><h2 id="overview-chart-title">فروش روزانه و سود</h2></div>
+          <span className="overview-period-label"><CalendarDays size={13} /> {dashboardDayLabel(isoStartOfPersianMonth())} تا امروز</span>
+        </header>
+        {dashboard ? <>
+          <div className="overview-chart-summary"><strong>{money(monthIncome ?? 0)}</strong><span>فروش ماه جاری</span><span className="overview-summary-divider" /><span>{numberFa(monthSalesCount ?? 0, 0)} فروش</span><span>{numberFa(monthSoldGb ?? 0)} گیگ</span><span className="overview-chart-profit">سود {money(monthProfit ?? 0)}</span></div>
+          <div className="overview-chart-legend"><span><i className="overview-legend-sale" />فروش</span><span><i className="overview-legend-profit" />سود</span></div>
+          <div className="overview-daily-chart" role="group" aria-label="نمودار فروش و سود روزانه ماه جاری">{monthDays.map((item) => <button type="button" className={`overview-day-column ${selectedDay === item.day ? 'is-selected' : ''}`} key={item.day} onClick={() => setSelectedDay(item.day)} aria-label={`${dashboardDayLabel(item.day)}، فروش ${money(item.income)}، سود ${money(item.profit)}`} aria-pressed={selectedDay === item.day} title={`${dashboardDayLabel(item.day)} · فروش ${money(item.income)} · سود ${money(item.profit)}`}><span className="overview-day-tooltip">{dashboardDayLabel(item.day)}<strong>{money(item.income)}</strong><small>سود {money(item.profit)}</small></span><span className="overview-bar-sale" style={{ height: `${Math.max(item.income ? 8 : 2, item.income / chartMax * 100)}%` }} /><span className="overview-bar-profit" style={{ height: `${Math.max(item.profit ? 5 : 2, Math.max(0, item.profit) / chartMax * 100)}%` }} /></button>)}</div>
+          <div className="overview-chart-axis"><span>{monthDays[0] ? dashboardDayLabel(monthDays[0].day) : 'شروع ماه'}</span><span>{monthDays[Math.floor(monthDays.length / 2)] ? dashboardDayLabel(monthDays[Math.floor(monthDays.length / 2)].day) : ''}</span><span>{monthDays[monthDays.length - 1] ? dashboardDayLabel(monthDays[monthDays.length - 1].day) : 'امروز'}</span></div>
+        </> : <div className="overview-data-unavailable" role="status"><CalendarDays size={18} /><strong>دادهٔ ماه جاری در دسترس نیست</strong><span>پس از دریافت خلاصهٔ داشبورد، نمودار روزانه اینجا نمایش داده می‌شود.</span></div>}
+        {selectedDaySummary && <section className="overview-selected-day" aria-label={`جزئیات فروش روز ${dashboardDayLabel(selectedDaySummary.day)}`}>
+          <header><div><p>جزئیات روز انتخاب‌شده</p><h3>{dashboardDayLabel(selectedDaySummary.day)}</h3></div><button type="button" onClick={() => setSelectedDay(null)}>بستن</button></header>
+          <dl className="overview-day-facts"><div><dt>کل فروش</dt><dd>{money(selectedDaySummary.income)}</dd></div><div><dt>سود</dt><dd>{money(selectedDaySummary.profit)}</dd></div><div><dt>تعداد فروش</dt><dd>{numberFa(selectedDaySummary.sales_count, 0)}</dd></div><div><dt>حجم</dt><dd>{numberFa(selectedDaySummary.sold_gb)} گیگ</dd></div><div><dt>وصول‌شده</dt><dd>{money(selectedDaySummary.paid_income)}</dd></div><div><dt>در انتظار وصول</dt><dd>{money(selectedDaySummary.unpaid_income)}</dd></div></dl>
+          <div className="overview-day-sales" aria-live="polite">{selectedDayLoading ? <p role="status">در حال دریافت فروش‌های این روز…</p> : selectedDaySales.length ? selectedDaySales.map((sale) => <div className="overview-day-sale" key={sale.id}><div><strong>{isMasterAdmin ? sale.resellerName || 'فروشنده' : sale.customerName}</strong><span>{sale.serviceName} · {sale.id}</span></div><div><strong>{money(sale.amount)}</strong><span className={sale.paid ? 'is-paid' : 'is-unpaid'}>{sale.paid ? 'پرداخت‌شده' : 'در انتظار'}</span></div></div>) : <p>در این روز فروش ثبت نشده است.</p>}</div>
+        </section>}
+        {dashboard && !selectedDaySummary && <p className="overview-chart-hint">برای مشاهدهٔ ریز فروش یک روز، ستون همان روز را انتخاب کنید.</p>}
+      </section>
+
+      <aside className="overview-attention-panel" aria-labelledby="overview-attention-title">
+        <header className="overview-section-heading">
+          <div><p>اولویت پیگیری</p><h2 id="overview-attention-title">صف اقدام</h2></div>
+          <span className="overview-live-status"><i />{liveCommandAt ? `به‌روزرسانی ${dateTimeLabel(liveCommandAt)}` : 'در حال همگام‌سازی'}</span>
+        </header>
+        <div className="overview-attention-intro"><strong>{numberFa(attentionRows.length, 0)}</strong><span>مورد برای پیگیری</span><Link href="/services">رفتن به سرویس‌ها <ChevronLeft size={13} /></Link></div>
+        {attentionRows.length ? <ul className="overview-attention-list">{attentionRows.slice(0, 6).map((item) => <li key={item.id} data-testid={`row-attention-${item.id}`}><Link href={item.customerId ? `/customers/${item.customerId}` : '/services'}><span className={`overview-attention-mark ${item.kind}`}><i /></span><span className="overview-attention-copy"><strong>{item.customerName}</strong><small>{item.serviceName}</small><small>{item.detail}</small></span><ChevronLeft size={15} /></Link></li>)}</ul> :
+          <div className="overview-empty-state"><ShieldCheck size={21} /><strong>صف اقدام خالی است</strong><span>در حال حاضر موردی برای پیگیری ندارید.</span></div>}
+      </aside>
     </div>
-     <div className="lower-grid mt-5"><section className="panel-card"><div className="panel-heading"><div><p className="eyebrow">جریان زنده SQL · هر ۳۰ ثانیه</p><h2 className="section-title">فعالیت‌های اخیر</h2></div><span className="soft-badge"><span className="status-dot online" /> زنده</span></div><div className="activity-list">{recentActivities.map((item: any) => <div className="activity-row" key={item.id} data-testid={`activity-${item.id}`}><div className={`activity-icon ${item.type}`}><span /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{item.title}</p><p className="text-xs text-muted-foreground">{item.detail}</p></div><span className="whitespace-nowrap text-[11px] text-muted-foreground">{dateLabel(item.created_at)}</span></div>)}</div>{!recentActivities.length && <EmptyState title="فعالیتی ثبت نشده" detail="فروش، ساخت سرویس، تمدید یا غیرفعال‌سازی جدید اینجا نمایش داده می‌شود." />}</section><section className="panel-card panels-panel"><div className="panel-heading"><div><p className="eyebrow">این ماه</p><h2 className="section-title">وضعیت فروش reseller</h2></div><span className="soft-badge">{new Intl.NumberFormat('fa-IR').format(monthSalesCount)} فروش</span></div><div className="notice mt-4"><TrendingUp size={17} /><div><strong>{money(monthIncome)} فروش ثبت‌شده</strong><p className="mt-1">{money(monthPaidIncome)} وصول شده · {money(monthUnpaidIncome)} در انتظار وصول</p><p className="mt-1 text-xs text-muted-foreground">این اعداد از دفتر فروش همین reseller و با مرز ماه شمسی تهران محاسبه می‌شوند.</p></div></div></section></div>
-  </>;
+
+    <div className="overview-followup-grid">
+      <section className="overview-activity-panel" aria-labelledby="overview-activity-title">
+        <header className="overview-section-heading"><div><p>رویدادهای ثبت‌شده</p><h2 id="overview-activity-title">فعالیت‌های اخیر</h2></div><span className="overview-activity-period">آخرین فعالیت‌ها</span></header>
+        {recentActivities.length ? <ol className="overview-activity-list">{recentActivities.map((item: any) => <li key={item.id} data-testid={`activity-${item.id}`}><span className={`overview-activity-mark ${item.type}`}><i /></span><div><strong>{item.title}</strong><small>{item.detail}</small></div><time dateTime={item.created_at}>{dateLabel(item.created_at)}</time></li>)}</ol> : <div className="overview-empty-state overview-empty-activity"><Activity size={19} /><strong>فعالیتی ثبت نشده</strong><span>فروش، ساخت سرویس، تمدید یا غیرفعال‌سازی جدید اینجا نمایش داده می‌شود.</span></div>}
+      </section>
+      <OnboardingChecklist customers={customers} services={services} sales={sales} session={session} />
+    </div>
+  </div>;
 }
 
 export function Overview() {
