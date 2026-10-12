@@ -1,0 +1,434 @@
+MASTER PROMPT — COMPLETE SUPER ADMIN DASHBOARD REDESIGN
+
+Project Objective
+
+Act as a principal product designer, senior UX architect, and senior frontend engineer specializing in premium SaaS dashboards, enterprise administration systems, and mobile-first responsive web applications.
+
+I do NOT like the current dashboard structure. I want you to completely rethink and rebuild its UI/UX architecture.
+
+The attached screenshot shows the current dashboard. Use it only to understand the existing product, available information, and functionality. Do NOT copy its layout, card sizes, navigation structure, spacing, or visual hierarchy.
+
+Transform the existing interface into a polished, modern, premium, delightful, professional SUPER ADMIN PANEL.
+
+The result must feel like a professionally designed SaaS product, not a generic template, a basic PHP admin page, or a mobile website with oversized cards.
+
+This is a complete structural redesign, not a cosmetic refresh.
+
+⸻
+
+PHASE 1 — AUDIT BEFORE CODING
+
+Before changing any code:
+
+1. Inspect the entire existing repository.
+2. Identify the framework, routing system, component library, styling approach, authentication, authorization, API endpoints, database schema, and existing business logic.
+3. Identify every existing page, navigation item, dashboard metric, action, and user role.
+4. Trace where each displayed value comes from.
+5. Identify the existing responsive behavior and any mobile-specific CSS.
+6. Determine which functionality must be preserved and which layouts must be replaced.
+7. Find existing duplicated components, conflicting CSS rules, excessive nested containers, and fixed-height or fixed-position elements that break mobile layouts.
+
+Do not guess the stack. Adapt the implementation to the actual repository.
+
+Do not replace working business logic with mock implementations. Do not delete existing features simply because the layout is being redesigned.
+
+After this audit, implement the new design directly. Do not stop after producing an analysis or a proposed plan.
+
+PHASE 2 — DESIGN RESEARCH
+
+Review these references before implementation:
+
+* shadcn/ui dashboard blocks: https://ui.shadcn.com/blocks?category=dashboard
+* shadcn/ui sidebar patterns: https://ui.shadcn.com/blocks/sidebar
+* shadcn/ui component library: https://ui.shadcn.com/
+
+Research modern SaaS administration interfaces, compact operational dashboards, responsive navigation, accessible data tables, information hierarchy, and mobile interaction patterns.
+
+Use these references for design principles and component ideas, not for blindly copying an entire template.
+
+Choose one coherent design direction and implement it consistently across every page.
+
+PHASE 3 — VISUAL DESIGN DIRECTION
+
+Create a distinctive design system with these characteristics:
+
+Personality: Premium, modern, intelligent, friendly, slightly playful, and trustworthy.
+
+Visual language: Clean SaaS interface, refined typography, subtle depth, elegant surfaces, compact information presentation, excellent alignment, and intentional whitespace.
+
+Avoid:
+
+* Giant cards stacked vertically.
+* Excessive rounded rectangles.
+* Every element inside its own container.
+* Oversized empty spaces.
+* Huge headings on mobile.
+* Excessive gradients and glassmorphism.
+* Randomly colored icons.
+* Heavy shadows on every component.
+* Emoji replacing professional interface icons.
+* Desktop dashboards squeezed onto mobile screens.
+* Multiple competing navigation systems.
+* Decorative charts that communicate no useful information.
+* Placeholder buttons that do nothing.
+
+Use a restrained neutral background, clear surface contrast, a primary brand color derived from the existing product branding, and semantic colors for success, warning, error, and informational states.
+
+Use a consistent spacing scale, typography scale, border system, icon sizing, and elevation system.
+
+Make the interface beautiful through composition and hierarchy, not through excessive decoration.
+
+PHASE 4 — REBUILD THE INFORMATION ARCHITECTURE
+
+Design a proper administrative application shell.
+
+A. Desktop and tablet
+
+Use a professional layout with:
+
+* A persistent, collapsible navigation sidebar.
+* A compact top header.
+* Breadcrumb navigation.
+* Contextual page titles and descriptions.
+* Global search.
+* Notification access.
+* Administrator profile and account menu.
+* A content area with consistent maximum widths and responsive grids.
+
+Because the application is Persian and RTL, the sidebar should normally be positioned on the right.
+
+The sidebar should support grouped navigation, expandable sections, clear active states, and icon-only collapsed mode.
+
+Avoid putting every feature into one flat list.
+
+B. Mobile
+
+Design a separate, intentional mobile experience.
+
+At approximately 390 × 844 pixels:
+
+* Do not squeeze the desktop sidebar into the page.
+* Use a compact header with a menu trigger, contextual page title, and essential actions.
+* Open navigation in an accessible RTL drawer or sheet.
+* Use a compact, responsive KPI layout.
+* Keep important operational actions immediately accessible.
+* Use a bottom navigation bar only if it meaningfully improves frequent navigation.
+* Limit the bottom navigation to four or five carefully selected destinations.
+* Place less frequently used destinations inside the navigation drawer.
+* Do not combine a full desktop navigation, a crowded bottom navigation, and a floating action button that obstructs content.
+* Respect iPhone safe areas, browser viewport behavior, and fixed-position elements.
+* Ensure the last content item is never hidden behind sticky navigation.
+
+The mobile version should feel like a premium native application when opened in Safari or installed as a PWA.
+
+C. Information hierarchy
+
+Every page must answer three questions quickly:
+
+1. Where am I?
+2. What matters right now?
+3. What action should I take next?
+
+Use compact sections, meaningful labels, contextual summaries, and clear primary actions.
+
+Do not make users scroll through a long sequence of oversized metric cards to understand the system’s current state.
+
+PHASE 5 — REDESIGN THE MAIN DASHBOARD
+
+Rebuild the current dashboard from scratch.
+
+Use the following hierarchy as a starting point, adapting it to the actual product and available data.
+
+1. Compact page header
+
+Show:
+
+* Page title.
+* Short contextual description.
+* Current date where relevant.
+* A discreet system-status indicator.
+* One primary contextual action where appropriate.
+
+Do not devote an entire large card to the administrator’s identity or the current date.
+
+2. KPI overview
+
+Display the most important metrics in a compact responsive grid.
+
+Potential metrics from the existing screenshot include:
+
+* Registered revenue.
+* Active services.
+* Upcoming renewals.
+* Service health.
+* Current-month sales.
+* Expired services.
+
+Preserve only metrics that are actually relevant and available in the application.
+
+Each KPI should contain:
+
+* A small, consistent icon.
+* A concise label.
+* A prominent but appropriately sized value.
+* An optional comparison or trend, if reliable data exists.
+* A subtle contextual indicator when useful.
+
+Desktop: use a responsive grid, generally four columns when space permits.
+
+Tablet: use two or three columns as appropriate.
+
+Mobile: use two columns where legible; use a full-width layout only for metrics that genuinely need it.
+
+Do not make every KPI a full-width card on mobile.
+
+Avoid fake percentage changes, fabricated sales, invented customer counts, and meaningless decorative charts.
+
+3. Operational insights
+
+Below the KPI grid, create a deliberate two-column desktop layout where appropriate.
+
+Possible modules:
+
+* Revenue trend.
+* Service availability.
+* Renewal activity.
+* Recent sales.
+* System health.
+* Important alerts.
+
+Use compact charts only when they provide real analytical value.
+
+Use sensible empty states when there is no data.
+
+On mobile, reorder these sections according to operational importance and display them in a natural vertical flow.
+
+4. Recent activity
+
+Create a clean, compact activity table or list.
+
+Show relevant information such as:
+
+* Activity type.
+* Customer or service identifier.
+* Amount, where relevant.
+* Status.
+* Date and time.
+* Contextual actions.
+
+Desktop should use a proper table with appropriate column widths.
+
+Mobile should use compact rows or intelligently designed data cards, not a horizontally overflowing desktop table.
+
+Include useful filters, sorting, pagination, and loading states where applicable.
+
+5. Alerts and action center
+
+Create a focused area for actionable events such as:
+
+* Upcoming renewals.
+* Expired services.
+* Failed operations.
+* Degraded service health.
+* Pending administrative tasks.
+
+Prioritize items by severity and urgency.
+
+Every alert must have a meaningful destination or action.
+
+Avoid displaying the same information repeatedly in the KPI area, activity list, and alerts.
+
+PHASE 6 — CREATE A CONSISTENT SUPER ADMIN EXPERIENCE
+
+If the existing application supports a true super administrator role, design the administration interface around the capabilities actually present in the codebase.
+
+Audit and organize existing features into logical groups, for example:
+
+Overview
+
+* Dashboard
+* Analytics
+* Activity center
+
+Business operations
+
+* Customers
+* Services
+* Sales and transactions
+* Renewals
+* Expired services
+
+Infrastructure
+
+* Service health
+* Server status
+* Operational logs
+
+Administration
+
+* Administrators and staff
+* Roles and permissions
+* System settings
+* Audit logs
+
+These are organizational examples, not permission to invent missing modules. Retain existing features and map the real routes into the appropriate groups.
+
+If the screenshot represents a seller-specific dashboard rather than a true super admin dashboard, preserve the seller’s scope. Do not expose global administrative capabilities to an ordinary seller.
+
+The visual system should support both roles without confusing their permissions or responsibilities.
+
+PHASE 7 — COMPONENT ARCHITECTURE
+
+Create a reusable component system rather than styling each page independently.
+
+Where appropriate, build:
+
+* ApplicationShell
+* DesktopSidebar
+* MobileNavigationDrawer
+* ResponsiveHeader
+* Breadcrumbs
+* PageHeader
+* KPIGrid
+* MetricCard
+* TrendIndicator
+* ChartPanel
+* ActivityTable
+* MobileActivityList
+* StatusBadge
+* AlertList
+* EmptyState
+* LoadingSkeleton
+* ConfirmationDialog
+* SearchCommand
+* NotificationMenu
+* UserMenu
+* FilterBar
+* Pagination
+* ToastNotifications
+
+Use the existing framework and component library where sensible.
+
+If the project uses React and Tailwind CSS, consider shadcn/ui primitives, Lucide icons, and a suitable chart library already present in the repository.
+
+Do not introduce a large new dependency merely for a simple visual effect.
+
+Define reusable design tokens for:
+
+* Colors.
+* Typography.
+* Spacing.
+* Radius.
+* Borders.
+* Shadows.
+* Layout widths.
+* Responsive breakpoints.
+* Focus states.
+
+Use semantic HTML, accessible interactions, and consistent component APIs.
+
+PHASE 8 — PERSIAN RTL AND TYPOGRAPHY
+
+Persian support is a core requirement, not a later adjustment.
+
+* Set the appropriate document language and RTL direction.
+* Use proper Persian typography and a consistent font stack.
+* Ensure text alignment, icons, breadcrumbs, menus, and directional controls behave correctly in RTL.
+* Mirror directional icons only when their meaning requires it.
+* Keep telephone numbers, URLs, technical identifiers, IP addresses, and Latin product codes readable.
+* Format currency and dates consistently with the existing business requirements.
+* Prevent Persian labels from wrapping awkwardly or colliding with values.
+* Use tabular numerals for financial metrics where supported.
+
+Verify that the entire layout works in RTL rather than merely applying direction: rtl to an LTR layout.
+
+PHASE 9 — INTERACTION AND FUNCTIONALITY
+
+Every visible control must work.
+
+Implement or preserve:
+
+* Sidebar expansion and collapse.
+* Mobile drawer open and close.
+* Active route highlighting.
+* Global search behavior.
+* Notification interactions.
+* Date-range filtering where applicable.
+* Chart range selection where applicable.
+* Table sorting and filtering.
+* Pagination.
+* Dropdown menus.
+* Dialogs and confirmations.
+* Loading, error, empty, and success states.
+* Keyboard navigation and visible focus indicators.
+
+Connect the interface to existing APIs and data sources.
+
+Do not silently replace real data with hardcoded demonstration values.
+
+If an existing endpoint is unavailable, handle the error explicitly and provide a clear interface state.
+
+Do not expose privileged administrative actions merely by hiding their buttons. Preserve and verify backend authorization.
+
+PHASE 10 — RESPONSIVE QUALITY ASSURANCE
+
+Test the actual application at these viewport sizes:
+
+* 320 × 700
+* 375 × 812
+* 390 × 844
+* 430 × 932
+* 768 × 1024
+* 1024 × 768
+* 1440 × 900
+* 1920 × 1080
+
+Check:
+
+* No horizontal overflow.
+* No clipped Persian text.
+* No overlapping cards.
+* No hidden actions.
+* No content obscured by fixed navigation.
+* No excessively tall KPI cards.
+* No broken RTL alignment.
+* No inaccessible menus.
+* No console errors.
+* No broken routes.
+* No regression in existing business functionality.
+
+Use real browser previews and inspect the rendered application. Do not assume that successful compilation means the redesign is finished.
+
+PHASE 11 — STRICT IMPLEMENTATION RULES
+
+1. Actually modify the existing codebase.
+2. Do not merely describe what should be changed.
+3. Do not return only a design proposal.
+4. Do not preserve the existing layout just because it already exists.
+5. Do not append another layer of CSS overrides to fight the old design.
+6. Refactor conflicting styles and components when necessary.
+7. Preserve backend logic, database compatibility, authentication, and existing API contracts.
+8. Avoid unnecessary migrations and unrelated changes.
+9. Do not remove working functionality without a documented technical reason.
+10. Keep the implementation maintainable and production-oriented.
+
+If the existing application has accumulated conflicting styling, remove or consolidate the responsible rules instead of adding more overrides.
+
+FINAL ACCEPTANCE CRITERIA
+
+The redesign is complete only when:
+
+* The entire dashboard structure is visibly different and substantially improved.
+* The mobile interface is deliberately designed rather than compressed.
+* Desktop and mobile use appropriate navigation patterns.
+* Information density is improved without sacrificing readability.
+* The interface feels like one coherent, premium SaaS product.
+* Persian RTL works throughout the application.
+* Existing data and functionality remain connected.
+* Navigation and interactive controls work.
+* No major responsive defects remain.
+* The application runs successfully.
+
+Final instruction: Start by auditing the repository, then rebuild the layout and component hierarchy. Prioritize architecture, information hierarchy, responsive behavior, and interaction quality before decorative styling.
+
+Do not finish until you have inspected the actual rendered result at both mobile and desktop sizes and corrected the remaining defects.
