@@ -702,11 +702,19 @@ export function NotificationAnalyticsPage() {
 
   if (session?.role !== 'master_admin') return <NotificationPageFrame><AdminOnlyNotice /></NotificationPageFrame>;
   const total = summary ? maybeNumber(summary, ['total', 'target_count', 'audience']) : null;
+  const accepted = summary ? maybeNumber(summary, ['push_accepted', 'accepted', 'sent', 'delivered']) : null;
+  const failed = summary ? maybeNumber(summary, ['push_failed', 'failed']) : null;
+  const deliveryCoverage = total !== null && accepted !== null && total > 0 ? Math.round(accepted / total * 100) : null;
   return (
     <NotificationPageFrame>
       <PageHeader eyebrow="مرکز کنترل اعلان" title="تحلیل و گزارش کمپین‌ها" description="تعداد ثبت‌شده کافی نیست؛ وضعیت پذیرش، شکست، غیرفعال‌شدن دستگاه و رفتار کاربر را جداگانه ببینید." action={<Link className="button button-primary" href="/notification-send"><Send size={15} /> کمپین جدید</Link>} />
       <NotificationNav active="analytics" />
       {error ? <div className="login-error mt-5 flex items-center justify-between gap-3"><span>{error}</span><button className="button button-secondary" type="button" onClick={() => void loadCampaigns()}>تلاش دوباره</button></div> : null}
+      {selectedCampaign && !loadingDetail ? <section className="notification-delivery-command" aria-label="خلاصه تحویل کمپین">
+        <div><span>DELIVERY REPORT</span><strong>{selectedCampaign.title || selectedCampaign.name || 'اعلان بدون عنوان'}</strong><small>{deliveryCoverage === null ? 'پوشش تحویل در دادهٔ این کمپین در دسترس نیست.' : `${faNumber(deliveryCoverage)}٪ از مخاطبان هدف پذیرفته شده‌اند.`}</small></div>
+        <div className="notification-delivery-meter"><div><span>پذیرفته‌شده</span><strong>{accepted === null ? '—' : faNumber(accepted)}</strong></div><span className="notification-delivery-track"><i style={{ width: `${deliveryCoverage ?? 0}%` }} /></span><small>{total === null ? 'مخاطب نامشخص' : `از ${faNumber(total)} مخاطب`}</small></div>
+        <div className="notification-delivery-failure"><span>ناموفق</span><strong>{failed === null ? '—' : faNumber(failed)}</strong></div>
+      </section> : null}
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(220px,0.7fr)_minmax(0,2fr)]">
         <section className="panel-card min-w-0 notification-campaign-rail" aria-labelledby="campaign-history-title">
           <header className="notification-history-head"><div><p className="eyebrow">آرشیو پیام‌رسانی</p><h2 id="campaign-history-title" className="text-sm font-bold">سابقه کمپین‌ها</h2><p className="mt-1 text-xs text-muted-foreground">{faNumber(campaigns.length)} کمپین اخیر</p></div><button className="icon-button" type="button" onClick={() => void loadCampaigns()} aria-label="به‌روزرسانی"><RefreshCw size={16} className={loadingCampaigns ? 'spin' : ''} /></button></header>

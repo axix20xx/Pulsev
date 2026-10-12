@@ -23,6 +23,15 @@
 .provider-audit *::before,
 .provider-audit *::after { box-sizing: border-box; }
 
+.provider-audit .audit-review-workbench { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(270px, .65fr); align-items: start; gap: 14px; }
+.provider-audit .audit-results { min-width: 0; }
+.provider-audit .audit-issues { position: sticky; top: 16px; min-width: 0; margin-top: 0; }
+.provider-audit .audit-issues-heading { grid-template-columns: auto minmax(0, 1fr) auto; }
+@media (max-width: 920px) {
+  .provider-audit .audit-review-workbench { grid-template-columns: minmax(0, 1fr); }
+  .provider-audit .audit-issues { position: static; }
+}
+
 .provider-audit .audit-wrap { width: min(100%, 1160px); margin-inline: auto; }
 .provider-audit .audit-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
 .provider-audit .audit-heading { display: flex; align-items: flex-start; gap: 14px; min-width: 0; }

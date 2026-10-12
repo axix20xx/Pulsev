@@ -310,6 +310,7 @@ function ProviderAccountAuditPage() {
           )}
         </section>
 
+        <div className="audit-review-workbench">
         <section className="audit-results" aria-labelledby="results-title">
           <div className="audit-results-heading">
             <div>
@@ -423,7 +424,6 @@ function ProviderAccountAuditPage() {
             </div>
           )}
         </section>
-
         <section className="audit-issues" aria-labelledby="issues-title">
           <div className="audit-issues-heading">
             <div className="audit-issues-icon"><AlertTriangle size={18} /></div>
@@ -448,6 +448,7 @@ function ProviderAccountAuditPage() {
             </div>
           )}
         </section>
+        </div>
       </div>
 
       {confirmOpen && (

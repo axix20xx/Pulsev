@@ -107,5 +107,26 @@
 .store-status.contacted { background:#deebf0; color:#426c7b; }.store-status.converted { background:#dcefe2; color:#35724f; }.store-status.closed { background:#ece9e4; color:#6f6c66; }
 .store-skeleton-line { height:18px; margin:12px 0; }
 .store-empty { border:1px dashed #cbd9cd; border-radius:15px; padding:24px; color:var(--sf-muted); text-align:center; font-size:13px; line-height:1.9; }
+.store-performance-deck { display:grid; grid-template-columns:minmax(190px,1.1fr) minmax(95px,.7fr) auto minmax(95px,.7fr) auto minmax(110px,.8fr) minmax(145px,.9fr); align-items:center; gap:10px; margin:23px 0; padding:15px; border:1px solid var(--sf-line); border-radius:17px; background:var(--sf-card); }
+.store-performance-intro { min-width:0; }
+.store-performance-intro > strong,.store-performance-intro > small { display:block; }
+.store-performance-intro > strong { margin-top:7px; font-size:14px; }
+.store-performance-intro > small { margin-top:4px; color:var(--sf-muted); font-size:10px; line-height:1.6; }
+.store-live-state { display:inline-flex; align-items:center; gap:6px; color:var(--sf-muted); font-size:9px; font-weight:800; }
+.store-live-state i { width:7px; height:7px; border-radius:50%; background:#aaa2b1; }
+.store-live-state.is-live { color:#56427f; }
+.store-live-state.is-live i { background:#7359bb; }
+.store-funnel-stage { min-width:0; padding:8px 10px; border-inline-start:1px solid var(--sf-line); }
+.store-funnel-stage > span,.store-funnel-stage > strong,.store-funnel-stage > small { display:block; }
+.store-funnel-stage > span { color:var(--sf-muted); font-size:9px; }
+.store-funnel-stage > strong { margin-top:5px; font-size:17px; }
+.store-funnel-stage > small { margin-top:3px; color:var(--sf-muted); font-size:8px; }
+.store-funnel-connector { color:#aa9bbf; font-size:15px; }
+.store-performance-revenue { padding:10px 12px; border-radius:12px; background:#eee8f7; }
+.store-performance-revenue > span,.store-performance-revenue > strong { display:block; }
+.store-performance-revenue > span { color:#65567c; font-size:9px; }
+.store-performance-revenue > strong { margin-top:4px; color:#3e315b; font-size:13px; }
+@media(max-width:1000px) { .store-performance-deck { grid-template-columns:minmax(0,1fr) repeat(3,minmax(80px,.7fr)); } .store-performance-intro { grid-column:1/-1; } .store-funnel-connector { display:none; } .store-performance-revenue { grid-column:1/-1; } }
+@media(max-width:580px) { .store-performance-deck { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; } .store-performance-intro,.store-performance-revenue { grid-column:1/-1; } .store-funnel-stage { border:1px solid var(--sf-line); border-radius:11px; } }
 @media(max-width:850px) { .store-hero { grid-template-columns:1fr; gap:20px; }.store-hero-side { justify-self:start; width:min(100%,380px); }.store-public-workspace { grid-template-columns:1fr; }.store-public-workspace .store-inquiry { position:static; grid-template-columns:.8fr 1.2fr; }.store-offers { grid-template-columns:repeat(2,minmax(0,1fr)); }.store-manager-grid { grid-template-columns:1fr; } }
 @media(max-width:580px) { .store-wrap { width:min(100% - 24px,1120px); padding-top:15px; }.store-hero { margin-top:19px; border-radius:24px 24px 24px 6px; padding:27px 22px; }.store-hero h1 { font-size:38px; }.store-hero-side { display:none; }.store-section-head { align-items:start; flex-direction:column; margin-top:31px; }.store-offers { grid-template-columns:1fr; }.store-offer { min-height:190px; }.store-inquiry { grid-template-columns:1fr; gap:8px; margin-top:24px; padding:19px; }.store-form { grid-template-columns:1fr; }.store-field.full { grid-column:auto; }.store-form .store-button { position:sticky; bottom:12px; box-shadow:0 6px 22px #164a3630; }.store-footer { flex-direction:column; }.store-manage { padding-top:19px; }.store-manage-head { flex-direction:column; }.store-manage-head h1 { font-size:27px; }.store-manage-actions { width:100%; }.store-manage-actions .store-button { flex:1; }.store-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }.store-metric { padding:13px; }.store-metric strong { font-size:19px; }.store-panel { padding:15px; }.store-edit-grid { grid-template-columns:1fr; }.store-edit-grid .store-field.full { grid-column:auto; }.store-offer-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }.store-offer-fields .store-field:nth-child(1),.store-offer-fields .store-field:nth-child(2) { grid-column:span 2; }.store-lead-controls { grid-template-columns:1fr 1fr; }.store-lead-controls button { min-height:38px; grid-column:1/-1; } }

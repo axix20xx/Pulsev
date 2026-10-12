@@ -111,6 +111,7 @@ export function StorefrontManagerPage() {
   };
   const copyLink=async(url:string,success:string)=>{try{await navigator.clipboard.writeText(url);setNotice(success)}catch{setNotice('کپی خودکار ممکن نشد؛ نشانی را از نوار مرورگر کپی کنید.')}};
   const campaignUrl=`${publicUrl}?source=campaign&campaign=${encodeURIComponent(campaignValue.trim()||'campaign')}`;
+  const conversionRate=store.stats.views>0?Math.round((store.stats.conversions/store.stats.views)*1000)/10:null;
   const validDraft=/^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$/.test(draft.slug)&&Boolean(draft.store_name.trim())&&draft.offers.every((o)=>o.title.trim().length>0&&o.gb>0&&o.days>=1&&o.price>=0)&&(!draft.enabled||draft.offers.some((offer)=>offer.enabled));
   const updateLeadLocal=(lead:StorefrontLead,data:StorefrontLeadUpdateInput)=>updateLead.mutate({id:lead.id,data},{onSuccess:(updated)=>{
     const key=getListResellerStorefrontLeadsQueryKey({limit:100});
@@ -121,7 +122,15 @@ export function StorefrontManagerPage() {
   const changeOffer=(index:number,patch:Partial<StorefrontOfferInput>)=>patchDraft({offers:draft.offers.map((offer,i)=>i===index?{...offer,...patch}:offer)});
   return <main className="pulse-store" dir="rtl"><div className="store-wrap store-manage">
     <header className="store-manage-head"><div><span className="store-kicker">ابزار فروش آنلاین</span><h1>ویترین شما</h1><p>یک نشانی برای معرفی بسته‌ها و دریافت درخواست‌های مشتری.</p></div><div className="store-manage-actions"><button className="store-button secondary" onClick={()=>void copyLink(publicUrl,'نشانی ویترین کپی شد.')}><Copy size={16}/> کپی نشانی</button><a className="store-button" href={publicUrl} target="_blank" rel="noreferrer"><ExternalLink size={16}/> مشاهده ویترین</a></div></header>
-    <section className="store-metrics">{[['بازدید',store.stats.views],['درخواست‌ها',store.stats.inquiries],['تبدیل به فروش',store.stats.conversions],['درآمد منتسب',rial(store.stats.attributed_revenue)]].map(([label,value])=><article className="store-metric" key={String(label)}><span>{label}</span><strong>{typeof value==='number'?faNumber(value):value}</strong></article>)}</section>
+     <section className="store-performance-deck" aria-label="عملکرد واقعی ویترین">
+       <div className="store-performance-intro"><span className={`store-live-state ${store.enabled?'is-live':''}`}><i />{store.enabled?'ویترین منتشرشده':'ویترین متوقف'}</span><strong>مسیر تبدیل ویترین</strong><small>شمارنده‌ها از آمار واقعی همین نشانی می‌آیند.</small></div>
+       <div className="store-funnel-stage"><span>بازدید</span><strong>{faNumber(store.stats.views)}</strong><small>ورود به ویترین</small></div>
+       <div className="store-funnel-connector" aria-hidden="true">←</div>
+       <div className="store-funnel-stage"><span>درخواست</span><strong>{faNumber(store.stats.inquiries)}</strong><small>ثبت‌شده توسط مشتری</small></div>
+       <div className="store-funnel-connector" aria-hidden="true">←</div>
+       <div className="store-funnel-stage"><span>تبدیل به فروش</span><strong>{faNumber(store.stats.conversions)}</strong><small>{conversionRate===null?'نرخ تبدیل نامشخص':`${faNumber(conversionRate)}٪ از بازدید`}</small></div>
+       <div className="store-performance-revenue"><span>درآمد منتسب</span><strong>{rial(store.stats.attributed_revenue)}</strong></div>
+     </section>
     {notice&&<div className="store-notice" role="status" style={{marginBottom:14}}>{notice}</div>}
     <div className="store-manager-grid"><section className="store-panel"><h2>مشخصات و بسته‌ها</h2><div className="store-edit-grid">
       <div className="store-field"><label>نشانی کوتاه ویترین</label><input dir="ltr" value={draft.slug} onChange={(e)=>patchDraft({slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')})} placeholder="my-store"/></div>

@@ -249,7 +249,13 @@ function AdminView({ command, audit, auditError, onExport }: { command: JsonReco
   const health = arrayAt(command, ['reseller_health', 'resellers_health', 'resellerHealth']);
   const financeSource = asObject(first(command, ['finance_reconciliation', 'finance_summary', 'finance', 'reconciliation']));
   const finance = asObject(financeSource.summary ?? financeSource.totals ?? financeSource);
-  return <div className="ops-column"><SummaryStrip summary={summary} admin /><div className="ops-admin-grid"><ProviderControlTower providers={providers} /><FinanceReconciliation finance={finance} /></div><ResellerHealth rows={health} /><AuditLog entries={audit} error={auditError} /><div className="ops-toolbar"><button className="button button-secondary" type="button" onClick={onExport} disabled={!health.length}><Download size={14} /> خروجی CSV سلامت فروشنده‌ها</button></div></div>;
+  return <div className="ops-column">
+    <section className="ops-command-deck" aria-label="خلاصه تصمیم‌های مدیریتی"><SummaryStrip summary={summary} admin /><div className="ops-command-priority"><span className="ops-command-priority-icon"><ShieldCheck size={17} /></span><div><small>MANAGER VIEW</small><strong>اول تطبیق مالی، بعد سلامت زیرساخت</strong><p>همه شمارنده‌ها مستقیماً از مرکز فرمان دریافت شده‌اند.</p></div></div></section>
+    <div className="ops-admin-grid ops-admin-grid-priority"><FinanceReconciliation finance={finance} /><ProviderControlTower providers={providers} /></div>
+    <section className="ops-reseller-zone"><div className="ops-zone-heading"><div><span>RESELLER NETWORK</span><h2>سلامت شبکه فروش</h2></div><strong>{numberFormat.format(health.length)} فروشنده</strong></div><ResellerHealth rows={health} /></section>
+    <section className="ops-audit-zone"><div className="ops-zone-heading"><div><span>TRACE / AUDIT</span><h2>ردپای تصمیم‌ها</h2></div><span>آخرین رویدادهای مدیریتی</span></div><AuditLog entries={audit} error={auditError} /></section>
+    <div className="ops-toolbar ops-export-bar"><span>خروجی براساس داده‌های قابل مشاهده در این نمای مدیریتی است.</span><button className="button button-secondary" type="button" onClick={onExport} disabled={!health.length}><Download size={14} /> خروجی CSV سلامت فروشنده‌ها</button></div>
+  </div>;
 }
 
 function OperationsCenterContent() {

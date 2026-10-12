@@ -3106,18 +3106,24 @@ function AdminMobileNotificationComposer({ customers }: { customers: Customer[] 
 
 function SettingsPageContent() {
   const { session, resellers } = usePulse();
-  return <><LegacySettingsPage />{session?.role === 'master_admin' && <AdminPricing resellers={resellers} />}</>;
+  return <><SettingsConsole />{session?.role === 'master_admin' && <AdminPricing resellers={resellers} />}</>;
 }
 
 export function SettingsPage() {
   return <SurfaceFrame name="settings"><div className="settings-workspace"><SettingsPageContent /></div></SurfaceFrame>;
 }
 
-function LegacySettingsPage() {
+function SettingsConsole() {
   const { prefs, setPrefs, session, resellers, updateReseller } = usePulse(); const [draft, setDraft] = useState(prefs); const [saved, setSaved] = useState(false);
   const save = () => { setPrefs(draft); setSaved(true); setTimeout(() => setSaved(false), 2400); };
   return <>
     <PageHeader eyebrow="مرکز کنترل" title="تنظیمات" description="پیش‌فرض‌هایی برای اداره آرام‌تر فروش و تمدیدها." action={<Button onClick={save} testId="button-save-settings"><Save size={15} /> ذخیره تغییرات</Button>} />
+    <section className="settings-operating-context" aria-label="وضعیت فضای کاری">
+      <div className="settings-context-brand"><span><Settings2 size={17} /></span><div><small>WORKSPACE CONTROL</small><strong>{draft.businessName || 'فضای کاری فروش'}</strong><em>پیش‌فرض‌های محلی این نشست</em></div></div>
+      <div className="settings-context-fact"><span>دسترسی فعلی</span><strong>{session?.role === 'master_admin' ? 'مدیر اصلی' : session?.authenticated ? 'فروشنده' : 'بدون نشست'}</strong></div>
+      {session?.role === 'master_admin' && <div className="settings-context-fact"><span>فروشندگان در فهرست</span><strong>{new Intl.NumberFormat('fa-IR').format(resellers.length)}</strong></div>}
+      <div className={`settings-context-state ${saved ? 'just-saved' : ''}`} role="status">{saved ? <><Check size={14} /> ذخیره شد</> : <><ShieldCheck size={14} /> تغییرات پس از ذخیره اعمال می‌شوند</>}</div>
+    </section>
     <div className="settings-console">
       <nav className="settings-console-nav" aria-label="بخش‌های تنظیمات">
         <a href="#settings-business"><SlidersHorizontal size={15} /> پیش‌فرض‌ها</a>
