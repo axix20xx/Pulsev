@@ -1,6 +1,6 @@
 import './pulse-shell-redesigned.css';
 import './management-page-layouts.css';
-import { Activity, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronLeft, CircleHelp, Command, Copy, CreditCard, Gauge, LayoutDashboard, LogOut, Menu, MoreHorizontal, Package, PanelRightClose, PanelRightOpen, Search, Send, Settings, ShieldAlert, ShieldEllipsis, ShoppingBag, Sparkles, Store, Users, Wifi, X } from 'lucide-react';
+import { Activity, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronLeft, CircleHelp, Command, Copy, CreditCard, Gauge, LayoutDashboard, LogOut, Menu, Package, PanelRightClose, PanelRightOpen, Search, Send, Settings, ShieldAlert, ShieldEllipsis, ShoppingBag, Sparkles, Store, Users, Wifi, X } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
@@ -24,27 +24,33 @@ const subscriptionPageHref = (raw: string | null | undefined): string | null => 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; admin?: boolean };
 const groups: { title: string; items: NavItem[] }[] = [
   { title: 'نمای کلی', items: [{ href: '/', label: 'داشبورد', icon: LayoutDashboard }] },
-  { title: 'فروش و مشتری', items: [
+  { title: 'فروش', items: [
     { href: '/sales', label: 'دفتر فروش', icon: ShoppingBag },
     { href: '/pos', label: 'فروش سریع', icon: ShoppingBag },
     { href: '/storefront', label: 'ویترین فروش', icon: Store },
+  ] },
+  { title: 'مشتری و سرویس', items: [
     { href: '/customers', label: 'مشتری‌ها', icon: Users },
     { href: '/services', label: 'سرویس‌ها', icon: Package },
-    { href: '/reseller-accounting', label: 'حسابداری فروشندگان', icon: CreditCard, admin: true },
-    { href: '/admin-sales', label: 'فروش فروشندگان', icon: ShieldAlert, admin: true },
-  ] },
-  { title: 'پایش و عملیات', items: [
     { href: '/action-requests', label: 'درخواست‌های عملیات', icon: ShieldAlert },
-    { href: '/awg-usage', label: 'مصرف AWG', icon: Wifi },
+  ] },
+  { title: 'عملیات شبکه', items: [
+    { href: '/provider-account-audit', label: 'بازبینی حساب Provider', icon: ShieldEllipsis, admin: true },
     { href: '/connections', label: 'کاربران آنلاین', icon: Wifi },
     { href: '/monitoring', label: 'مانیتورینگ', icon: Activity },
     { href: '/operations', label: 'مرکز عملیات', icon: Gauge },
+    { href: '/awg-usage', label: 'مصرف AWG', icon: Wifi },
     { href: '/awg-usage-log', label: 'لاگ زنده AWG', icon: Activity, admin: true },
-    { href: '/provider-account-audit', label: 'بازبینی حساب Provider', icon: ShieldEllipsis, admin: true },
   ] },
-  { title: 'تحلیل و مدیریت', items: [
+  { title: 'مالی', items: [
+    { href: '/reseller-accounting', label: 'حسابداری فروشندگان', icon: CreditCard, admin: true },
+    { href: '/admin-sales', label: 'فروش فروشندگان', icon: ShieldAlert, admin: true },
+  ] },
+  { title: 'تحلیل', items: [
     { href: '/reports', label: 'گزارش‌ها', icon: BarChart3 },
     { href: '/insights', label: 'مرکز هوشمند', icon: Sparkles },
+  ] },
+  { title: 'سیستم', items: [
     { href: '/notification-status', label: 'وضعیت اعلان‌ها', icon: Bell, admin: true },
     { href: '/notification-send', label: 'ارسال پیام', icon: Send, admin: true },
     { href: '/notification-analytics', label: 'تحلیل اعلان‌ها', icon: BarChart3, admin: true },
@@ -308,10 +314,6 @@ export function Shell({ children }: { children: ReactNode }) {
           {isActive(href) && <motion.span className="pulse-phone-active-marker" layoutId="pulse-phone-active-marker" aria-hidden="true" transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 34 }} />}
           <Icon size={18} strokeWidth={1.9} /><span>{label}</span>
         </Link>)}
-          <button className={`pulse-phone-nav-link pulse-phone-more ${drawerOpen ? 'is-active' : ''}`} type="button" onClick={openDrawer} aria-label="بیشتر، باز کردن منوی کامل" aria-expanded={drawerOpen} aria-controls="pulse-drawer" data-testid="phone-nav-more">
-          {drawerOpen && <motion.span className="pulse-phone-active-marker" layoutId="pulse-phone-active-marker" aria-hidden="true" transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 34 }} />}
-          <MoreHorizontal size={19} strokeWidth={1.9} /><span>بیشتر</span>
-        </button>
       </nav>
       <Link href="/pos" className="pulse-quick-sale-fab" aria-label="فروش سریع" data-testid="link-quick-sale-mobile">
         <ShoppingBag size={19} strokeWidth={2} /><span>فروش سریع</span>

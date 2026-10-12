@@ -15,7 +15,7 @@
 }
 .pulse-workspace, .pulse-workspace * { box-sizing: border-box; }
 .pulse-workspace :focus-visible { outline: 3px solid hsl(var(--ws-teal) / .55); outline-offset: 2px; }
-.pulse-shell-sidebar { position: fixed; z-index: 35; inset: 0 0 0 auto; display: flex; width: 232px; height: 100dvh; flex-direction: column; border-left: 1px solid hsl(267 56% 52%); background: linear-gradient(165deg,hsl(267 72% 45%),hsl(269 69% 39%) 63%,hsl(271 71% 35%)); color: hsl(260 33% 97%); box-shadow: -10px 0 32px hsl(267 52% 27% / .15); }
+.pulse-shell-sidebar { position: fixed; z-index: 35; inset: 0 0 0 auto; display: flex; width: 232px; height: 100dvh; flex-direction: column; border-left: 1px solid hsl(260 14% 30%); background: linear-gradient(165deg,hsl(258 16% 18%),hsl(258 17% 15%) 63%,hsl(260 18% 13%)); color: hsl(40 30% 96%); box-shadow: -10px 0 32px hsl(258 20% 10% / .2); }
 .pulse-brand { position: relative; display: flex; height: 72px; flex: 0 0 72px; align-items: center; justify-content: space-between; border-bottom: 1px solid hsl(260 34% 88% / .18); padding: 0 15px; }
 .pulse-brand-link { display: flex; align-items: center; gap: 11px; color: inherit; text-decoration: none; }
 .pulse-brand-copy { display: grid; gap: 2px; }
@@ -26,7 +26,7 @@
 .pulse-collapse-toggle { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; border: 1px solid hsl(260 34% 88% / .34); border-radius: 8px; background: hsl(260 42% 78% / .12); color: hsl(260 28% 98%); cursor: pointer; }
 .pulse-collapse-toggle:hover { background: hsl(260 47% 83% / .24); color: white; }
 .pulse-sidebar-workspace { display: flex; min-height: 57px; align-items: center; gap: 9px; margin: 12px 11px 3px; border: 1px solid hsl(260 34% 88% / .2); border-radius: 10px; background: hsl(0 0% 100% / .09); padding: 7px 9px; }
-.pulse-sidebar-workspace-mark { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border: 1px solid hsl(0 0% 100% / .17); border-radius: 8px; background: hsl(0 0% 100% / .12); color: hsl(43 95% 82%); }
+.pulse-sidebar-workspace-mark { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border: 1px solid hsl(267 84% 72% / .24); border-radius: 8px; background: hsl(267 84% 72% / .14); color: hsl(267 90% 82%); }
 .pulse-sidebar-workspace > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 2px; }
 .pulse-sidebar-workspace small { color: hsl(260 30% 88%); font-size: 8px; }
 .pulse-sidebar-workspace strong { overflow: hidden; color: white; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
@@ -43,9 +43,9 @@
 .pulse-nav-link { position: relative; display: flex; min-height: 36px; align-items: center; gap: 10px; border-radius: 8px; padding: 0 10px; color: hsl(260 30% 94%); font-size: 10px; font-weight: 650; text-decoration: none; transition: background-color .16s ease, color .16s ease; }
 .pulse-nav-link svg { flex: 0 0 auto; color: hsl(260 25% 86%); }
 .pulse-nav-link:hover { background: hsl(260 49% 72% / .22); color: white; }
-.pulse-nav-link.is-active { color: white; background: hsl(260 55% 72% / .27); box-shadow: inset 0 0 0 1px hsl(260 57% 91% / .21); }
+.pulse-nav-link.is-active { color: white; background: hsl(267 78% 68% / .23); box-shadow: inset 0 0 0 1px hsl(267 82% 82% / .2); }
 .pulse-nav-link.is-active svg { color: white; }
-.pulse-nav-link.is-active i { position: absolute; inset: 7px auto 7px 0; width: 3px; border-radius: 2px; background: hsl(43 95% 76%); }
+.pulse-nav-link.is-active i { position: absolute; inset: 7px auto 7px 0; width: 3px; border-radius: 2px; background: hsl(267 91% 77%); }
 .pulse-sidebar-footer { border-top: 1px solid hsl(260 34% 88% / .2); padding: 11px 12px max(12px, env(safe-area-inset-bottom)); }
 .pulse-connection-state { display: flex; align-items: center; gap: 7px; margin: 0 2px 12px; color: hsl(260 26% 88%); font-size: 9px; }
 .pulse-connection-state > span { width: 7px; height: 7px; border-radius: 50%; background: hsl(153 49% 58%); }
@@ -254,6 +254,10 @@
 .overview-attention-mark i { width: 7px; height: 7px; border-radius: 50%; background: hsl(34 67% 43%); }
 .overview-attention-mark.low_volume { background: hsl(7 75% 95%); }
 .overview-attention-mark.low_volume i { background: hsl(7 64% 50%); }
+.overview-attention-mark.failed_job,.overview-attention-mark.provider { background: hsl(0 65% 95%); }
+.overview-attention-mark.failed_job i,.overview-attention-mark.provider i { background: hsl(1 61% 51%); }
+.overview-attention-mark.finance { background: hsl(267 64% 94%); }
+.overview-attention-mark.finance i { background: hsl(267 71% 51%); }
 .overview-attention-copy { display: grid; min-width: 0; flex: 1; gap: 2px; }
 .overview-attention-copy strong { overflow: hidden; color: hsl(var(--ws-ink)); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .overview-attention-copy small { overflow: hidden; color: hsl(var(--ws-muted)); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }

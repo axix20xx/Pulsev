@@ -1218,6 +1218,14 @@
 .customer-detail-rail a:hover { color: hsl(var(--primary)); background: hsl(var(--primary) / .07); }
 .crm-card, #customer-access, #customer-sales { scroll-margin-top: 76px; }
 @media (max-width: 640px) { .customer-detail-rail { position: sticky; inset-inline: 0; width: 100%; } .customer-detail-rail a { padding-inline: 8px; } }
+.customer-detail-launchpad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 16px; }
+.customer-detail-launchpad > a { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; min-width: 0; padding: 11px 13px; border: 1px solid hsl(var(--border)); border-radius: 13px; color: inherit; background: hsl(var(--card)); text-decoration: none; }
+.customer-detail-launchpad > a > span { display: flex; align-items: center; gap: 6px; color: hsl(var(--muted-foreground)); font-size: 9px; }
+.customer-detail-launchpad > a > span svg { color: hsl(var(--primary)); }
+.customer-detail-launchpad > a > strong { grid-column: 1; font: 750 17px var(--font-display); }
+.customer-detail-launchpad > a > small { grid-column: 1; color: hsl(var(--muted-foreground)); font-size: 8px; }
+.customer-detail-launchpad > a:hover { border-color: hsl(var(--primary) / .35); background: hsl(var(--primary) / .035); }
+@media (max-width: 560px) { .customer-detail-launchpad { grid-template-columns: minmax(0, 1fr); } }
 .pos-live-order { display: grid; grid-template-columns: minmax(220px, 1.2fr) repeat(3, minmax(120px, .7fr)); gap: 10px; align-items: center; margin: 18px 0 12px; padding: 12px; border: 1px solid hsl(var(--border)); border-radius: 17px; background: hsl(var(--card)); }
 .pos-live-order-lead { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px; }
 .pos-live-order-mark { display: grid; place-items: center; flex: 0 0 auto; width: 36px; height: 36px; border-radius: 12px; color: hsl(var(--primary)); background: hsl(var(--primary) / .11); }

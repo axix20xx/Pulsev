@@ -1,0 +1,53 @@
+Here’s a specific from-scratch concept for **this VPN reseller/admin system**, not a generic dashboard.
+
+## Concept: Pulse Operations Console
+
+The admin panel should feel like one place to run sales, reseller accounts, customers, VPN services, and provider health. Its main job is to answer: **What needs attention, and what can I do about it?**
+
+### Visual system
+
+- **Layout:** charcoal navigation rail, light warm-gray workspace, white content surfaces.
+- **Color:** vivid violet for the selected page and primary actions; green, amber, and red only for operational status.
+- **Typography:** keep the existing Persian font, clear Persian RTL alignment, and LTR treatment for usernames, IDs, URLs, and provider data.
+- **Components:** compact headings, restrained borders, consistent status chips, and tables that become readable record cards on phones. Avoid a page full of unrelated KPI cards.
+- **Motion:** subtle navigation and drawer transitions; respect reduced-motion settings.
+
+### Navigation
+
+Group the real management areas by task:
+
+1. **Overview**
+2. **Sales:** sales ledger, quick sale, storefront manager
+3. **Customers & Services:** customer directory, customer details, services, action requests
+4. **Network Operations:** provider audit, connections, monitoring, AWG usage, AWG worker log, operations
+5. **Finance:** reseller accounting, admin sales
+6. **Analysis:** reports, insights
+7. **System:** notifications and settings
+
+The rail can collapse on desktop; groups expand and collapse. Admin-only pages remain hidden from resellers. On phones, use a navigation drawer, a four-item bottom bar for the most-used sections, and a separate quick-sale action.
+
+### Overview dashboard
+
+The home screen is an **action center**, not just a KPI grid:
+
+- A narrow summary row for active services, current sales, outstanding reseller balances, and provider health—using only available API data.
+- A prioritized queue for failed provisioning jobs, services nearing expiry or quota, provider problems, and reseller balances needing attention.
+- Sales and usage trends below that, followed by recent sales and operational events.
+- Each alert links to its existing management page. Any repair, retry, or payment action must use the existing action and permission checks.
+
+### Page structure
+
+- **Sales:** date range and payment filters, financial summary, then a searchable ledger. Mobile turns each sale into a compact record with payment state and edit action.
+- **Quick sale:** customer and package entry beside a live order summary; keep the existing create-service, provisioning, and receipt flow.
+- **Customers:** searchable customer register; opening a customer shows account facts, services, sales, and activity in clearly separated sections.
+- **Services:** filterable service desk showing customer, provider, usage, quota, expiry, and current status, with only the actions currently supported.
+- **Provider and network pages:** separate provider health, active/recent connections, provisioning issues, and AWG usage/worker history so those signals are not mixed together.
+- **Finance:** reseller balances, payment history, and admin sales are distinct ledgers; master-admin-only data stays role-gated.
+- **Reports and insights:** filters first, then real charts and supporting records, with clear no-data and error states.
+- **Notifications and settings:** organize device readiness, sending, analytics, and configuration into separate focused sections.
+
+### Consistent behavior
+
+Every route gets the same page header, search/filter placement, loading and retry states, and action placement. Desktop tables switch to mobile record cards; details open in a side panel on desktop and a full-screen view on phones. This keeps the existing API data, URLs, permissions, and business flows while changing the way the admin work is organized and presented.
+
+That’s the design direction I’d implement. Does this match what you mean by a completely new admin panel?
