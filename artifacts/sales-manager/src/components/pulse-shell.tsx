@@ -438,7 +438,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description?: string; action?: ReactNode }) {
   return (
-    <header className="page-header management-page-header">
+    <header className="management-page-header">
       <div className="management-page-heading">
         <div className="management-page-kicker">
           <span className="management-page-signal" aria-hidden="true" />
@@ -454,41 +454,35 @@ export function PageHeader({ eyebrow, title, description, action }: { eyebrow: s
 
 export function StatusPill({ value }: { value: string }) {
   const toneMap: Record<string, string> = {
-    active: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    completed: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    paid: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    pending: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-    expiring: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-    expired: 'bg-destructive/10 text-destructive border-destructive/20',
-    disabled: 'bg-muted text-muted-foreground border-border',
-    refunded: 'bg-muted text-muted-foreground border-border',
-    offline: 'bg-destructive/10 text-destructive border-destructive/20',
-    online: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    degraded: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    active: 'positive',
+    completed: 'positive',
+    paid: 'positive',
+    pending: 'warning',
+    expiring: 'warning',
+    expired: 'critical',
+    disabled: 'quiet',
+    refunded: 'quiet',
+    offline: 'critical',
+    online: 'positive',
+    degraded: 'warning',
   };
   
   const key = value.toLowerCase().replace(' ', '_');
-  const tone = toneMap[key] || 'bg-secondary text-secondary-foreground border-border';
+  const tone = toneMap[key] || 'quiet';
   
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${tone}`}>
-      <span className="w-1 h-1 rounded-full bg-current opacity-60" />
+    <span className={`console-status is-${tone}`}>
+      <i aria-hidden="true" />
       {statusLabel(value)}
     </span>
   );
 }
 
 export function Avatar({ name, color = 'primary' }: { name: string; color?: string }) {
-  const colorMap: Record<string, string> = {
-    primary: 'bg-primary/10 text-primary',
-    teal: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
-    amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-    rose: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-  };
-  const tone = colorMap[color] || colorMap.primary;
+  const tone = ['teal', 'amber', 'rose', 'primary'].includes(color) ? color : 'primary';
   
   return (
-    <span className={`inline-flex items-center justify-center w-9 h-9 rounded-2xl font-mono text-[11px] font-bold tracking-wider ${tone}`}>
+    <span className={`console-avatar is-${tone}`} aria-label={name}>
       {name.split(' ').map((part) => part[0]).join('').slice(0, 2)}
     </span>
   );

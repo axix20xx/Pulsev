@@ -7,6 +7,9 @@
   --ws-petrol: var(--app-primary-deep);
   --ws-teal: var(--app-primary);
   --ws-teal-soft: var(--app-primary-soft);
+  --ws-violet: var(--app-primary);
+  --ws-violet-wash: var(--app-primary-soft);
+  --ws-wash: var(--app-table-head);
   display: flex;
   min-height: 100dvh;
   color: hsl(var(--ws-ink));
@@ -431,6 +434,16 @@
 .pulse-workspace .management-page-header h1 { margin: 0; color: hsl(var(--ws-ink)); font-family: var(--app-font-sans); font-size: clamp(21px, 2vw, 28px); font-weight: 820; letter-spacing: -.045em; line-height: 1.27; }
 .management-page-description { max-width: 720px; margin: 1px 0 0; color: hsl(var(--ws-muted)); font-size: 11px; line-height: 1.75; }
 .management-page-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 7px; }
+.console-status { display: inline-flex; min-height: 23px; align-items: center; gap: 6px; border: 1px solid transparent; border-radius: 999px; padding: 2px 8px; font-size: 9px; font-weight: 800; line-height: 1.5; white-space: nowrap; }
+.console-status i { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: currentColor; opacity: .75; }
+.console-status.is-positive { border-color: hsl(151 36% 80%); color: hsl(151 44% 31%); background: hsl(151 45% 94%); }
+.console-status.is-warning { border-color: hsl(38 59% 79%); color: hsl(34 74% 34%); background: hsl(40 78% 94%); }
+.console-status.is-critical { border-color: hsl(4 51% 83%); color: hsl(4 59% 41%); background: hsl(4 65% 96%); }
+.console-status.is-quiet { border-color: hsl(var(--ws-line)); color: hsl(var(--ws-muted)); background: hsl(var(--ws-wash)); }
+.console-avatar { display: inline-grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border: 1px solid hsl(var(--ws-line)); border-radius: 11px 11px 11px 4px; color: hsl(var(--ws-violet)); background: hsl(var(--ws-violet-wash)); font: 800 11px var(--app-font-mono); }
+.console-avatar.is-teal { color: hsl(175 52% 32%); background: hsl(175 45% 92%); }
+.console-avatar.is-amber { color: hsl(33 70% 34%); background: hsl(39 75% 91%); }
+.console-avatar.is-rose { color: hsl(3 54% 40%); background: hsl(3 66% 94%); }
 .pulse-workspace .eyebrow { color: hsl(var(--ws-teal)); font-family: var(--app-font-sans); font-size: 9px; font-weight: 750; }
 .pulse-workspace .panel-card, .pulse-workspace .metric-card, .pulse-workspace .modal-card {
   border: 1px solid hsl(var(--ws-line) / .92); border-radius: 11px; background: hsl(var(--ws-surface));
