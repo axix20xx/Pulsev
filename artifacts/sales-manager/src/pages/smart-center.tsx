@@ -203,6 +203,7 @@ export function InsightDetailPage() {
   const [command, setCommand] = useState<CommandCenterResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
   const meta = detailMeta[focus] ?? detailMeta.renewals;
   const Icon = meta.icon;
 
@@ -234,7 +235,7 @@ export function InsightDetailPage() {
       active = false;
       window.clearInterval(interval);
     };
-  }, [focus, session?.authenticated]);
+  }, [focus, refreshToken, session?.authenticated]);
 
   const rows = useMemo(() => {
     if (!insights || !command) return [];
@@ -263,7 +264,7 @@ export function InsightDetailPage() {
       description={`${meta.description} · ${generatedAt ? dateLabel(generatedAt) : 'در حال دریافت'}`}
       action={<div className="console-page-actions"><Link href="/insights" className="console-action console-action-secondary"><ChevronLeft size={14} /> بازگشت به مرکز هوشمند</Link><Link href="/operations" className="console-action console-action-primary"><Gauge size={14} /> مرکز عملیات</Link></div>}
     />
-    {error && <div className="console-state is-error" role="alert"><AlertTriangle size={15} /> {error}</div>}
+    {error && <div className="console-state is-error" role="alert"><AlertTriangle size={15} /> <span>{error}</span><button type="button" className="console-action console-action-secondary mr-auto" onClick={() => setRefreshToken((value) => value + 1)} disabled={loading}><RefreshCw size={13} className={loading ? 'spin' : ''} /> تلاش دوباره</button></div>}
      {loading && !insights ? <div className="smart-loading"><RefreshCw size={20} className="spin" /><strong>در حال دریافت جزئیات...</strong><span>صف اختصاصی این کارت از دادهٔ تازهٔ سرور ساخته می‌شود.</span></div> : <><div className="smart-detail-summary"><div><span>تعداد موارد</span><strong>{count(rows.length)}</strong></div><div><span>اولویت‌های فوری</span><strong>{count(rows.filter((row) => asNumber(row.priority) >= 90 || asNumber(row.value) > 0).length)}</strong></div><div><span>آخرین بروزرسانی</span><strong>{generatedAt ? dateLabel(generatedAt) : '—'}</strong></div></div><section className={`smart-focus-workbench focus-${focus}`} aria-label={`صف اقدام ${meta.title}`}><header className="smart-focus-heading"><div><span className="smart-focus-overline">{meta.kicker} / ACTION QUEUE</span><h2>{meta.title} · موارد نیازمند اقدام</h2><p>{meta.description}</p></div><span className="smart-focus-total">{count(rows.length)} مورد</span></header><div className="smart-detail-list">{rows.length ? rows.slice(0, 100).map((row, index) => {
       const title = text(row.title ?? row.customer_name ?? row.name ?? row.plan, 'مورد عملیاتی');
       const detail = text(row.next_action ?? row.detail ?? row.recommendation ?? row.plan, 'برای مشاهدهٔ مسیر اقدام باز کنید.');

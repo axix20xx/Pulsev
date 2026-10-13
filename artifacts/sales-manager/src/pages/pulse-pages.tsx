@@ -672,7 +672,7 @@ function OverviewContent() {
   const overviewHref = isMasterAdmin ? '/admin-sales' : '/pos';
   const headlineRevenue = dashboard ? money(total) : '—';
   return <div className="overview-dashboard">
-    <header className="overview-page-heading">
+    <div className="overview-page-heading">
       <PageHeader
         eyebrow={`${today} · نمای عملیاتی`}
         title={session?.display_name || 'مدیر فروش'}
@@ -681,7 +681,7 @@ function OverviewContent() {
       />
       <div className="overview-context-line"><span className="overview-live-dot" /> داده‌های متصل <span className="overview-context-separator">·</span><span>{visibleAudience}</span>{dashboard?.generated_at && <time dateTime={dashboard.generated_at}>به‌روزرسانی {dateTimeLabel(dashboard.generated_at)}</time>}</div>
       {dashboardError && <div className="overview-dashboard-error" role="alert"><span>{dashboardError}</span><button type="button" onClick={() => void refreshDashboard()} disabled={dashboardLoading}><RefreshCw size={13} className={dashboardLoading ? 'spin' : ''} /> تلاش دوباره</button></div>}
-    </header>
+    </div>
 
     <section className="overview-kpi-grid" aria-label="شاخص‌های اصلی">
       <article className="overview-kpi overview-kpi-revenue" data-testid="overview-kpi-revenue"><span className="overview-kpi-icon"><TrendingUp size={17} /></span><div><h2>{isMasterAdmin ? 'قابل پرداخت فروشندگان' : 'درآمد ثبت‌شده'}</h2><strong>{dashboardLoading ? <i className="overview-value-skeleton" aria-label="در حال بارگیری" /> : headlineRevenue}</strong><p>{isMasterAdmin ? 'مبلغ عمدهٔ فروشندگان برای مدیر اصلی' : 'فروش‌های ثبت‌شده در دفتر شما'}</p></div></article>
@@ -1367,6 +1367,7 @@ function AdminSalesContent() {
   const rows: AdminSale[] = Array.isArray(salesQuery.data) ? salesQuery.data : [];
   const totalAmount = rows.reduce((sum, sale) => sum + Number(sale.amount ?? 0), 0);
   const totalGb = rows.reduce((sum, sale) => sum + Number(sale.gb_amount ?? 0), 0);
+  const noSalesSummary = (salesQuery.isLoading || salesQuery.isError) && !rows.length;
   const subscriptionHref = (raw: string | null) => {
     if (!raw) return null;
     try {
@@ -1400,10 +1401,10 @@ function AdminSalesContent() {
       description="ریز فروش‌های مشتریان را به تفکیک فروشنده بررسی کنید. در این صفحه فقط امکان حذف لاگ فروش وجود دارد."
       action={<Button variant="secondary" onClick={() => window.print()} testId="button-print-admin-sales"><Printer size={15} /> چاپ گزارش</Button>}
     />
-    <section className="admin-sales-metrics">
-      <Metric label="تعداد فروش" value={numberFa(rows.length, 0)} detail="نتیجه‌های قابل مشاهده" icon={ShoppingBag} accent="amber" />
-      <Metric label="حجم فروش" value={`${numberFa(totalGb)} گیگ`} detail="جمع حجم سرویس‌های فروخته‌شده" icon={Package} />
-      <Metric label="مبلغ فروش" value={money(totalAmount)} detail="بر اساس قیمت ثبت‌شده در لاگ" icon={CreditCard} accent="sage" />
+    <section className={`admin-sales-metrics ${noSalesSummary ? 'is-loading' : ''}`} aria-label="خلاصه فروش">
+      <Metric label="تعداد فروش" value={noSalesSummary ? '—' : numberFa(rows.length, 0)} detail={noSalesSummary ? salesQuery.isError ? 'دریافت نشد' : 'در حال دریافت' : 'نتیجه‌های قابل مشاهده'} icon={ShoppingBag} accent="amber" />
+      <Metric label="حجم فروش" value={noSalesSummary ? '—' : `${numberFa(totalGb)} گیگ`} detail="جمع حجم سرویس‌های فروخته‌شده" icon={Package} />
+      <Metric label="مبلغ فروش" value={noSalesSummary ? '—' : money(totalAmount)} detail="بر اساس قیمت ثبت‌شده در لاگ" icon={CreditCard} accent="sage" />
     </section>
     <SectionPanel className="admin-sales-filters" eyebrow="جست‌وجو و پالایش" title="فروش‌ها" description="نام مشتری، موبایل، نام کاربری، سرویس یا شناسه فروش را جست‌وجو کنید." action={<Filter size={17} aria-hidden="true" />}>
       <div className="admin-sales-filter-fields">
@@ -1836,7 +1837,7 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
 }
 
 function ServicesContent() {
-  const { services, updateService, openRenewWizard: renewService } = usePulse();
+  const { services, servicesLoading, servicesError, refreshServices, updateService, openRenewWizard: renewService } = usePulse();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [expiryFilter, setExpiryFilter] = useState('all');
@@ -1892,6 +1893,7 @@ function ServicesContent() {
       if (serviceHasRecentFailure(service)) result.failures += 1;
       return result;
     }, { active: 0, expiring: 0, failures: 0 });
+    const servicesUnknown = !services.length && (servicesLoading || Boolean(servicesError));
    const toggle = (service: Service) => {
      if (
        service.status !== 'Disabled' &&
@@ -1901,14 +1903,16 @@ function ServicesContent() {
    };
      return <><PageHeader eyebrow="موجودی دسترسی" title="سرویس‌ها" description="حساب‌ها، مصرف، انقضا و یادداشت‌ها را یک‌جا کنترل کنید." action={<div className="flex flex-wrap gap-2"><Link href="/awg-usage" className="button button-secondary" data-testid="link-awg-usage-report"><Wifi size={15} /> مصرف AWG</Link><button type="button" className="button button-primary" onClick={() => setModal(true)} aria-haspopup="dialog" data-testid="button-add-service"><Plus size={16} /> افزودن سرویس</button></div>} />
        <section className="service-control-desk" aria-label="نشانگرهای موجودی سرویس">
-         <div className="service-control-lead"><span className="service-control-symbol"><Globe2 size={19} /></span><div><span>INVENTORY / {numberFa(services.length, 0)} RECORDS</span><strong>وضعیت دسترسی‌ها</strong><small>اولویت‌های امروز از داده سرویس‌های شما</small></div></div>
-         <button type="button" className="service-pulse-metric" onClick={() => setStatus('Active')}><span>فعال و نزدیک انقضا</span><strong>{numberFa(servicePulse.expiring, 0)}</strong><small>تا ۷ روز آینده</small></button>
-         <button type="button" className="service-pulse-metric" onClick={() => setStatus('Active')}><span>دسترسی فعال</span><strong>{numberFa(servicePulse.active, 0)}</strong><small>قابل مدیریت</small></button>
-         <button type="button" className="service-pulse-metric issue" onClick={() => setIssueFilter('failed')}><span>خطای اخیر ساخت</span><strong>{numberFa(servicePulse.failures, 0)}</strong><small>۳۰ روز گذشته</small></button>
+          <div className="service-control-lead"><span className="service-control-symbol"><Globe2 size={19} /></span><div><span>INVENTORY / {servicesUnknown ? '—' : numberFa(services.length, 0)} RECORDS</span><strong>وضعیت دسترسی‌ها</strong><small>{servicesUnknown ? 'در حال دریافت موجودی سرویس' : 'اولویت‌های امروز از داده سرویس‌های شما'}</small></div></div>
+          <button type="button" className="service-pulse-metric" onClick={() => setStatus('Active')}><span>فعال و نزدیک انقضا</span><strong>{servicesUnknown ? '—' : numberFa(servicePulse.expiring, 0)}</strong><small>تا ۷ روز آینده</small></button>
+          <button type="button" className="service-pulse-metric" onClick={() => setStatus('Active')}><span>دسترسی فعال</span><strong>{servicesUnknown ? '—' : numberFa(servicePulse.active, 0)}</strong><small>قابل مدیریت</small></button>
+          <button type="button" className="service-pulse-metric issue" onClick={() => setIssueFilter('failed')}><span>خطای اخیر ساخت</span><strong>{servicesUnknown ? '—' : numberFa(servicePulse.failures, 0)}</strong><small>۳۰ روز گذشته</small></button>
        </section>
        <section className="service-filter-card console-surface"><div className="service-filter-head"><div><p className="console-eyebrow">فیلتر هوشمند</p><h2>اولویت‌بندی سرویس‌ها</h2><span>بر اساس انقضا، حجم باقی‌مانده، اتصال و وضعیت مرتب کنید.</span></div><div className="service-filter-result"><strong>{numberFa(filtered.length, 0)}</strong><span>از {numberFa(services.length, 0)} سرویس</span></div></div><div className="service-filter-search console-search"><Search size={16} /><input placeholder="شناسه، مشتری، نام کاربری، بسته، پنل یا یادداشت" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-services" /></div><div className="service-status-tabs">{([['All', 'همه'], ['Active', 'فعال'], ['Expiring', 'نزدیک انقضا'], ['Expired', 'منقضی'], ['Disabled', 'غیرفعال']] as const).map(([value, label]) => <button type="button" className={status === value ? 'selected' : ''} key={value} onClick={() => setStatus(value)}>{label}</button>)}</div><div className="service-filter-grid"><label><span>زمان انقضا</span><select value={expiryFilter} onChange={(event) => setExpiryFilter(event.target.value)}><option value="all">همه تاریخ‌ها</option><option value="7days">تا ۷ روز آینده</option><option value="14days">تا ۱۴ روز آینده</option><option value="later">بیشتر از ۱۴ روز</option><option value="expired">گذشته</option></select></label><label><span>حجم باقی‌مانده</span><select value={quotaFilter} onChange={(event) => setQuotaFilter(event.target.value)}><option value="all">همه حجم‌ها</option><option value="empty">تمام‌شده</option><option value="low">۱۰ گیگ یا کمتر</option><option value="high-usage">مصرف بالای ۸۰٪</option><option value="healthy">بیشتر از ۱۰ گیگ</option></select></label><label><span>نوع اتصال</span><select value={connectionFilter} onChange={(event) => setConnectionFilter(event.target.value)}><option value="all">همه اتصال‌ها</option><option value="awg">دارای AmneziaWG</option><option value="provider">فقط Provider</option></select></label><label><span>عملیات اخیر</span><select value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)} data-testid="select-service-issue-filter"><option value="all">همه سرویس‌ها</option><option value="failed">خطای ساخت در ۳۰ روز اخیر</option><option value="cancelled">لغوشده یا در انتظار لغو</option></select></label><label><span>پنل</span><select value={panelFilter} onChange={(event) => setPanelFilter(event.target.value)}><option value="all">همه پنل‌ها</option>{panels.map((panel) => <option value={panel} key={panel}>{panel}</option>)}</select></label><label><span>مرتب‌سازی</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value)} data-testid="select-service-sort"><option value="expiry-asc">نزدیک‌ترین انقضا</option><option value="renewed-desc">آخرین تمدید</option><option value="created-desc">جدیدترین ایجاد</option><option value="expiry-desc">دورترین انقضا</option><option value="quota-asc">کمترین حجم باقی‌مانده</option><option value="usage-desc">بیشترین درصد مصرف</option><option value="customer">نام مشتری</option></select></label><button type="button" className="service-filter-reset" onClick={resetFilters}><RefreshCw size={14} /> پاک کردن فیلترها</button></div></section>
-         {filtered.length > 0 && <section className="console-surface text-sm text-muted-foreground">برای محافظت از حساب‌های Provider، توقف سرویس فقط به‌صورت جداگانه انجام می‌شود.</section>}
-         {filtered.length ? <SectionPanel className="services-grid service-record-grid" eyebrow="فهرست دسترسی‌ها" title={`${numberFa(filtered.length, 0)} سرویس در نمای انتخاب‌شده`} description="وضعیت، ظرفیت و کنترل‌های اصلی هر اشتراک؛ عملیات روی همان سرویس اعمال می‌شوند.">{filtered.map((service) => {
+        {servicesError && <StatePanel kind="error" title="فهرست سرویس‌ها به‌روز نشد" detail={servicesError} action={<Button variant="secondary" onClick={() => void refreshServices()} disabled={servicesLoading}><RefreshCw size={13} className={servicesLoading ? 'spin' : ''} /> تلاش دوباره</Button>} />}
+        {filtered.length > 0 && <section className="console-surface text-sm text-muted-foreground">برای محافظت از حساب‌های Provider، توقف سرویس فقط به‌صورت جداگانه انجام می‌شود.</section>}
+        {servicesLoading && !services.length ? <StatePanel kind="loading" title="در حال دریافت سرویس‌ها" detail="موجودی دسترسی و وضعیت اتصال از حساب شما همگام می‌شود." /> : null}
+          {filtered.length ? <SectionPanel className="services-grid service-record-grid" eyebrow="فهرست دسترسی‌ها" title={`${numberFa(filtered.length, 0)} سرویس در نمای انتخاب‌شده`} description="وضعیت، ظرفیت و کنترل‌های اصلی هر اشتراک؛ عملیات روی همان سرویس اعمال می‌شوند.">{filtered.map((service) => {
           const remaining = Math.max(0, Number(service.limitGb || 0) - Number(service.usedGb || 0));
           const usedPercent = service.limitGb ? Math.min(100, Math.round(service.usedGb / service.limitGb * 100)) : 0;
           const expiryDays = daysUntil(service.expiresAt);
@@ -1925,7 +1929,7 @@ function ServicesContent() {
             </section>
             <footer className="service-record-actions"><button type="button" className="service-record-note" onClick={() => setNoteService(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? 'مشاهده / ویرایش یادداشت' : 'افزودن یادداشت'}</button><Button variant="quiet" onClick={() => toggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Disabled' && <Button variant="quiet" onClick={() => renewService(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={12} /> تمدید</Button>}</footer>
           </article>;
-         })}</SectionPanel> : <StatePanel title={services.length ? 'سرویسی با این فیلترها پیدا نشد' : 'هنوز سرویسی ثبت نشده است'} detail={services.length ? 'فیلتر وضعیت یا عبارت جست‌وجو را تغییر دهید.' : 'پس از ایجاد سرویس، وضعیت، مصرف و تمدید آن را از همین فهرست مدیریت کنید.'} action={services.length ? <Button variant="secondary" onClick={resetFilters}>پاک‌کردن فیلترها</Button> : undefined} />}
+          })}</SectionPanel> : !servicesLoading && !servicesError ? <StatePanel title={services.length ? 'سرویسی با این فیلترها پیدا نشد' : 'هنوز سرویسی ثبت نشده است'} detail={services.length ? 'فیلتر وضعیت یا عبارت جست‌وجو را تغییر دهید.' : 'پس از ایجاد سرویس، وضعیت، مصرف و تمدید آن را از همین فهرست مدیریت کنید.'} action={services.length ? <Button variant="secondary" onClick={resetFilters}>پاک‌کردن فیلترها</Button> : undefined} /> : null}
          {modal && <ServiceModal onClose={() => setModal(false)} />}{noteService && <NoteModal service={noteService} onClose={() => setNoteService(null)} />}
      </>;
 }
@@ -2038,8 +2042,8 @@ function ActionRequestsContent() {
       {error && <StatePanel kind="error" title={error} action={<Button variant="secondary" type="button" onClick={() => void load()} disabled={loading || saving}><RefreshCw size={13} className={loading ? 'spin' : ''} /> تلاش دوباره</Button>} />}
      <section className="request-command-strip" aria-label="خلاصه درخواست‌ها">
        <div className="request-command-lead"><span className="request-command-icon"><ShieldCheck size={18} /></span><div><span>REQUEST QUEUE</span><strong>{isMasterAdmin ? 'صف بررسی مدیر' : 'پیگیری درخواست‌ها'}</strong></div></div>
-       <div><small>کل پرونده‌ها</small><strong>{numberFa(requests.length, 0)}</strong></div>
-       <div className={outstandingRequests ? 'has-pending' : ''}><small>{isMasterAdmin ? 'نیازمند تصمیم' : 'در انتظار پاسخ'}</small><strong>{numberFa(outstandingRequests, 0)}</strong></div>
+        <div><small>کل پرونده‌ها</small><strong>{loading ? '—' : numberFa(requests.length, 0)}</strong></div>
+        <div className={outstandingRequests ? 'has-pending' : ''}><small>{isMasterAdmin ? 'نیازمند تصمیم' : 'در انتظار پاسخ'}</small><strong>{loading ? '—' : numberFa(outstandingRequests, 0)}</strong></div>
        <button type="button" onClick={() => void load()} disabled={loading || saving}><RefreshCw size={14} className={loading ? 'spin' : ''} /> به‌روزرسانی</button>
      </section>
        <SectionPanel className="request-list" eyebrow={isMasterAdmin ? 'صف بررسی' : 'پیگیری'} title={isMasterAdmin ? 'درخواست‌های نیازمند بررسی' : 'درخواست‌های ثبت‌شده'} description="هر درخواست برای لغو سرویس یا حذف لاگ به‌صورت مستقل و با وضعیت واقعی نمایش داده می‌شود.">{loading ? <StatePanel kind="loading" title="در حال دریافت درخواست‌ها" /> : orderedRequests.map((request) => <article className={`console-surface action-request-card ${((request.cancel_service_requested && request.cancel_service_status === 'pending') || (request.delete_sale_requested && request.delete_sale_status === 'pending')) ? 'request-needs-review' : ''}`} key={request.id}><div className="action-request-head"><div><p className="eyebrow">{((request.cancel_service_requested && request.cancel_service_status === 'pending') || (request.delete_sale_requested && request.delete_sale_status === 'pending')) ? 'نیازمند بررسی' : 'درخواست'} · #{numberFa(request.id, 0)}</p><h2 className="section-title">{request.customer_name} · {request.service_name}</h2><p className="text-xs text-muted-foreground">{isMasterAdmin ? `${request.reseller_name} · TG ${request.reseller_tg_id}` : `سرویس ${request.service_id}`} · {dateTimeLabel(request.requested_at)}</p></div><span className="soft-badge">{request.service_status === 'disabled' ? 'سرویس غیرفعال' : 'سرویس فعال'}</span></div><div className="action-request-details">{request.cancel_service_requested && <div className={`request-action-row ${statusClass(request.cancel_service_status)}`}><div><strong>لغو سرویس</strong><span>{statusText(request.cancel_service_status)}</span></div>{isMasterAdmin && request.cancel_service_status === 'pending' && <div className="request-action-buttons"><Button variant="secondary" disabled={saving} onClick={() => void review(request.id, 'cancel_service', 'reject')}>رد</Button><Button disabled={saving} onClick={() => void review(request.id, 'cancel_service', 'approve')}><Check size={14} /> تأیید لغو</Button></div>}</div>}{request.delete_sale_requested && <div className={`request-action-row ${statusClass(request.delete_sale_status)}`}><div><strong>حذف لاگ فروش {request.sale_id ? `#${numberFa(request.sale_id, 0)}` : ''}</strong><span>{statusText(request.delete_sale_status)}{request.sale_gb ? ` · ${numberFa(request.sale_gb)} گیگ` : ''}</span></div>{isMasterAdmin && request.delete_sale_status === 'pending' && <div className="request-action-buttons"><Button variant="secondary" disabled={saving} onClick={() => void review(request.id, 'delete_sale_log', 'reject')}>رد</Button><Button disabled={saving} onClick={() => void review(request.id, 'delete_sale_log', 'approve')}><Trash2 size={14} /> تأیید حذف لاگ</Button></div>}</div>}</div>{request.reason && <div className="console-surface request-reason"><span>توضیح فروشنده: {request.reason}</span></div>}</article>)}{!loading && !requests.length && <StatePanel title="درخواستی برای نمایش وجود ندارد" detail="درخواست‌های جدید پس از ثبت یا ارسال فروشنده در این صف ظاهر می‌شوند." />}</SectionPanel>
@@ -2093,7 +2097,8 @@ function MonitoringContent() {
   const completionRate = data.summary.total ? Math.round((data.summary.completed / data.summary.total) * 100) : 0;
   return <><PageHeader eyebrow="کنترل عملیاتی" title="مانیتورینگ ساخت سرویس" description="تلاش‌های Providerها و AmneziaWG را لحظه‌به‌لحظه پیگیری کنید." action={<Button variant="secondary" onClick={() => { setLoading(true); void loadMonitoring(); }} disabled={loading} testId="button-refresh-monitoring"><RefreshCw size={15} className={loading ? 'spin' : ''} /> بروزرسانی</Button>} />
      {error && <div className="console-state is-error monitoring-error" role="alert"><Activity size={15} /><span>{error}</span><Button variant="secondary" onClick={() => { setLoading(true); void loadMonitoring(); }} disabled={loading}><RefreshCw size={13} className={loading ? 'spin' : ''} /> تلاش دوباره</Button></div>}
-      <section className="console-surface monitoring-flight-deck" aria-label="وضعیت چرخه ساخت">
+      {!error && loading && !data.jobs.length ? <section className="console-metrics-grid sales-kpi-skeleton" role="status" aria-label="در حال دریافت خلاصه چرخه ساخت"><i /><i /><i /><i /></section> : !error ? <>
+       <section className="console-surface monitoring-flight-deck" aria-label="وضعیت چرخه ساخت">
         <div className="monitoring-flight-heading"><span className="monitoring-flight-icon"><Activity size={18} /></span><div><span>وضعیت زندهٔ ساخت</span><strong>چرخه ساخت سرویس</strong><small>به‌روزرسانی خودکار هر ۱۰ ثانیه</small></div></div>
         <div className="monitoring-flight-progress"><div><span>تکمیل شده</span><strong>{number(completionRate)}٪</strong></div><div className="monitoring-flight-track"><span style={{ width: `${completionRate}%` }} /></div><small>{number(data.summary.completed)} از {number(data.summary.total)} تلاش</small></div>
         <div className="monitoring-flight-states"><span><i className="pending" /> {number(data.summary.pending)} در صف</span><span><i className="running" /> {number(data.summary.running)} در حال اجرا</span></div>
@@ -2104,6 +2109,7 @@ function MonitoringContent() {
        <MetricTile label="تکمیل‌شده" value={number(data.summary.completed)} icon={Check} tone="sage" />
        <MetricTile label="کل jobها" value={number(data.summary.total)} icon={Server} />
      </section>
+      </> : null}
       <section className="console-surface monitoring-card" aria-label="صف ساخت سرویس">
         <header className="console-surface-head record-board-header"><div><p className="console-eyebrow">صف ساخت</p><h2 className="console-section-title">وضعیت همه تلاش‌ها</h2><p className="console-section-copy">وضعیت Provider و AWG به‌صورت خودکار هر ۱۰ ثانیه تازه می‌شود.</p></div><span className="soft-badge">{number(data.jobs.length)} job</span></header>
         {loading && !data.jobs.length ? <div className="console-skeleton record-card-skeletons" aria-label="در حال دریافت وضعیت"><span /><span /><span /></div> : null}
@@ -2118,7 +2124,7 @@ function MonitoringContent() {
 }
 
 export function Monitoring() {
-  return <SurfaceFrame name="monitoring" signal><div className="admin-console monitoring-workspace"><MonitoringContent /></div></SurfaceFrame>;
+  return <SurfaceFrame name="monitoring" signal><div className="monitoring-workspace"><MonitoringContent /></div></SurfaceFrame>;
 }
 
 type ConnectionUser = {
@@ -2208,10 +2214,10 @@ function ConnectionsContent() {
   };
   return <><PageHeader eyebrow="پاسارگارد" title="کاربران آنلاین" description="کاربران آنلاین و کسانی که در ۲۴ ساعت اخیر به پنل پاسارگارد متصل شده‌اند." action={<Button variant="secondary" onClick={() => { setLoading(true); void load(); }} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} /> بروزرسانی</Button>} />
     {error && <div className="notice danger connection-error" role="alert"><Activity size={15} /><span>{error}</span><Button variant="secondary" onClick={() => { setLoading(true); void load(); }} disabled={loading}><RefreshCw size={13} className={loading ? 'spin' : ''} /> تلاش دوباره</Button></div>}
-    <section className="console-metrics-grid connection-metrics">
-      <MetricTile label="همین حالا آنلاین" value={new Intl.NumberFormat('fa-IR').format(onlineUsers.length)} detail="کاربران فعال" icon={Wifi} tone="sage" />
-      <MetricTile label="اخیراً متصل‌شده" value={new Intl.NumberFormat('fa-IR').format(recentUsers.length)} detail="در بازه ۲۴ ساعت اخیر" icon={History} tone="amber" />
-      <MetricTile label="Providerهای پاسارگارد" value={new Set(users.map((user) => user.panel_key)).size.toLocaleString('fa-IR')} detail="بر اساس پاسخ API" icon={Server} />
+    <section className="console-metrics-grid connection-metrics" aria-label="خلاصه اتصال‌ها">
+      <MetricTile label="همین حالا آنلاین" value={(loading || error) && !users.length ? '—' : new Intl.NumberFormat('fa-IR').format(onlineUsers.length)} detail={loading && !users.length ? 'در حال دریافت' : error && !users.length ? 'دریافت نشد' : 'کاربران فعال'} icon={Wifi} tone="sage" />
+      <MetricTile label="اخیراً متصل‌شده" value={(loading || error) && !users.length ? '—' : new Intl.NumberFormat('fa-IR').format(recentUsers.length)} detail="در بازه ۲۴ ساعت اخیر" icon={History} tone="amber" />
+      <MetricTile label="Providerهای پاسارگارد" value={(loading || error) && !users.length ? '—' : new Set(users.map((user) => user.panel_key)).size.toLocaleString('fa-IR')} detail="بر اساس پاسخ API" icon={Server} />
       <MetricTile label="بازه به‌روزرسانی" value="۳۰ ثانیه" detail="تازه‌سازی خودکار وضعیت" icon={RefreshCw} />
     </section>
     <section className="console-surface connections-card">
@@ -2245,7 +2251,7 @@ function CustomersContent() {
   const [page, setPage] = useState(0);
   const [remoteCustomers, setRemoteCustomers] = useState<Customer[] | null>(null);
   const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(session?.authenticated === true);
   const [error, setError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
   const numberFormat = new Intl.NumberFormat('fa-IR');
@@ -2629,7 +2635,7 @@ function CustomerDetailContent() {
       </>;
 }
 export function CustomerDetail() {
-  return <SurfaceFrame name="customer-detail"><div className="admin-console customer-detail-console"><div className="customer-profile-workspace console-page"><CustomerDetailContent /></div></div></SurfaceFrame>;
+  return <SurfaceFrame name="customer-detail"><div className="customer-profile-workspace"><CustomerDetailContent /></div></SurfaceFrame>;
 }
 
 type ClientOS = 'iOS' | 'Android' | 'Windows' | 'macOS' | 'Linux' | 'Other';
@@ -3262,7 +3268,7 @@ function ReportsContent() {
   const [to, setTo] = useState(() => isoToday());
   const [report, setReport] = useState<any>(null);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const loadReport = async (event?: FormEvent) => {
     event?.preventDefault();
     setLoading(true);
@@ -3297,7 +3303,7 @@ function ReportsContent() {
       profit: null,
     })),
   ] : [];
-  return <div className="admin-console report-page console-page">
+  return <div className="report-page">
     <PageHeader eyebrow="مرکز گزارش" title="گزارش کامل فروش" description="گزارش مدیر اصلی با تفکیک مبلغ کامل مشتری و مبلغی که هر فروشنده به مدیر اصلی می‌پردازد، بر اساس تاریخ شمسی تهران." action={<Button variant="secondary" onClick={() => window.print()} testId="button-print-report"><Printer size={15} /> چاپ گزارش</Button>} />
     <form className="report-filter console-surface" onSubmit={loadReport}>
       <div className="report-date-field"><PersianDateField label="از تاریخ شمسی" value={from} onChange={setFrom} /></div>

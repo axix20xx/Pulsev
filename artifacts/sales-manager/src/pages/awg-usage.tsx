@@ -92,6 +92,7 @@ export default function AwgUsagePage() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const zeroCount = items.filter((item) => item.used_gb <= 0).length;
   const totalUsage = items.reduce((sum, item) => sum + item.used_gb, 0);
+  const summaryUnavailable = usageQuery.isLoading || usageQuery.isError;
 
   const reloadList = async () => {
     await usageQuery.refetch();
@@ -151,22 +152,18 @@ export default function AwgUsagePage() {
           </p></div>
         </div>
         <section className="console-metrics-grid awg-usage-metrics" aria-label="خلاصه مصرف AmneziaWG">
-          <MetricTile label="سرویس‌های فعال دارای AWG" value={countFormat.format(total)} detail="کل نتایج منطبق با جست‌وجو" icon={Wifi} tone="sage" testId="metric-awg-active-services" />
-          <MetricTile label="مصرف صفر در این صفحه" value={countFormat.format(zeroCount)} detail="آمار ذخیره‌شده" icon={Activity} tone="amber" testId="metric-awg-visible-zero" />
-          <MetricTile label="جمع مصرف مؤثر این صفحه" value={trafficLabel(totalUsage)} detail="فقط همین صفحه از نتایج" icon={Database} testId="metric-awg-page-total" />
+          <MetricTile label="سرویس‌های فعال دارای AWG" value={summaryUnavailable ? "—" : countFormat.format(total)} detail={summaryUnavailable ? usageQuery.isError ? "دریافت نشد" : "در حال دریافت" : "کل نتایج منطبق با جست‌وجو"} icon={Wifi} tone="sage" testId="metric-awg-active-services" />
+          <MetricTile label="مصرف صفر در این صفحه" value={summaryUnavailable ? "—" : countFormat.format(zeroCount)} detail={summaryUnavailable ? "داده در دسترس نیست" : "آمار ذخیره‌شده"} icon={Activity} tone="amber" testId="metric-awg-visible-zero" />
+          <MetricTile label="جمع مصرف مؤثر این صفحه" value={summaryUnavailable ? "—" : trafficLabel(totalUsage)} detail={summaryUnavailable ? "داده در دسترس نیست" : "فقط همین صفحه از نتایج"} icon={Database} testId="metric-awg-page-total" />
         </section>
       </section>
 
       <SectionPanel className="awg-usage-ledger p-4 sm:p-5" eyebrow="مصرف به تفکیک کاربر" title="کاربران فعال AWG">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="eyebrow">مصرف به تفکیک کاربر</p>
-            <h2 className="section-title">کاربران فعال AWG</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {countFormat.format(items.length)} مورد از {countFormat.format(total)}
-              {zeroCount > 0 ? ` · ${countFormat.format(zeroCount)} مورد با مصرف ذخیره‌شدهٔ صفر` : ""}
-            </p>
-          </div>
+        <div className="awg-usage-ledger-meta mb-4">
+          <span>
+            {countFormat.format(items.length)} مورد از {countFormat.format(total)}
+            {zeroCount > 0 ? ` · ${countFormat.format(zeroCount)} مورد با مصرف ذخیره‌شدهٔ صفر` : ""}
+          </span>
           {usageQuery.isFetching && usageQuery.data && (
             <span className="inline-flex items-center gap-2 text-xs text-muted-foreground" role="status">
               <RefreshCw size={13} className="spin" /> به‌روزرسانی فهرست

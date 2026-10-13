@@ -50,7 +50,7 @@ export default function AwgUsageLogPage() {
   });
   const worker = logQuery.data?.worker;
   const events = logQuery.data?.events ?? [];
-  const intervalMinutes = worker ? Math.round(worker.interval_ms / 60_000) : 5;
+  const intervalMinutes = worker ? Math.round(worker.interval_ms / 60_000) : null;
   const workerLabel = worker?.running
     ? "در حال بررسی سرویس‌ها"
     : worker?.started_at
@@ -113,7 +113,7 @@ export default function AwgUsageLogPage() {
         </div>
         <div className="console-surface p-4">
           <small className="text-muted-foreground">فاصلهٔ اجرا</small>
-          <strong className="mt-1 block text-xl font-extrabold">{countFormat.format(intervalMinutes)} دقیقه</strong>
+          <strong className="mt-1 block text-xl font-extrabold">{intervalMinutes === null ? "—" : `${countFormat.format(intervalMinutes)} دقیقه`}</strong>
         </div>
         <div className="console-surface p-4">
           <small className="text-muted-foreground">آخرین شروع</small>
@@ -134,14 +134,14 @@ export default function AwgUsageLogPage() {
 
       <section className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="نتیجه آخرین اجرای worker">
         {[
-          ["بررسی‌شده", worker?.last_scanned ?? 0],
-          ["به‌روزرسانی‌شده", worker?.last_updated ?? 0],
-          ["ردشده", worker?.last_skipped ?? 0],
-          ["ناموفق", worker?.last_failed ?? 0],
+          ["بررسی‌شده", worker?.last_scanned ?? null],
+          ["به‌روزرسانی‌شده", worker?.last_updated ?? null],
+          ["ردشده", worker?.last_skipped ?? null],
+          ["ناموفق", worker?.last_failed ?? null],
         ].map(([label, value]) => (
           <div className="console-surface p-4" key={label}>
             <small className="text-muted-foreground">{label}</small>
-            <strong className="mt-1 block text-xl font-extrabold">{countFormat.format(Number(value))}</strong>
+            <strong className="mt-1 block text-xl font-extrabold">{value === null && logQuery.isLoading ? "—" : countFormat.format(Number(value ?? 0))}</strong>
           </div>
         ))}
       </section>

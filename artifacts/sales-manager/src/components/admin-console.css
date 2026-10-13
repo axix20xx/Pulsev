@@ -265,6 +265,7 @@
 .admin-console .awg-usage-note { align-items: flex-start; margin-block: 12px; border-color: hsl(var(--console-warn) / .25); background: hsl(43 94% 95%); padding: 12px; color: hsl(var(--console-ink)); }
 .admin-console .awg-usage-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-block: 12px; }
 .admin-console .awg-usage-ledger > .console-surface-head { margin-bottom: 12px; }
+.admin-console .awg-usage-ledger-meta { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid hsl(var(--console-line) / .72); padding-bottom: 11px; color: hsl(var(--console-muted)); font-size: 10px; }
 .admin-console .awg-usage-entry { border-color: hsl(var(--console-line)); border-radius: 11px; background: hsl(var(--console-surface-raised)); }
 .admin-console .awg-usage-measurement { border-color: hsl(var(--console-line)); border-radius: 8px; background: hsl(var(--console-canvas)); }
 .admin-console.console-login { display: grid; min-height: 100dvh; grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr); align-items: center; gap: clamp(22px, 7vw, 96px); padding: clamp(24px, 7vw, 96px); background: radial-gradient(ellipse at 18% 8%, hsl(268 76% 91% / .7), transparent 42%), hsl(var(--console-canvas)); }
@@ -1503,4 +1504,180 @@
   .admin-console .sales-summary-state { display: none; }
   .admin-console .period-tabs button { flex: 1 1 auto; }
   .admin-console .sales-payment-filter-tabs button { flex: 1; padding-inline: 5px; font-size: 8px; }
+}
+
+/* Route-specific compositions: the operational pages share materials, not layouts. */
+.admin-console.pulse-surface-overview { --route-accent: hsl(174 46% 37%); }
+.admin-console.pulse-surface-overview .surface-module-context-mark { background: hsl(174 42% 91%); color: hsl(174 46% 31%); }
+.admin-console.pulse-surface-overview .overview-kpi { min-height: 132px; border-radius: 19px; background: linear-gradient(150deg,hsl(var(--console-surface-raised) / .94),hsl(174 38% 95% / .72)); box-shadow: 0 12px 28px hsl(188 30% 27% / .055), inset 0 1px white; }
+.admin-console.pulse-surface-overview .overview-kpi-revenue { background: linear-gradient(135deg,hsl(174 42% 89% / .95),hsl(189 43% 95% / .86)); }
+.admin-console.pulse-surface-overview .overview-chart-panel,
+.admin-console.pulse-surface-overview .overview-attention-panel,
+.admin-console.pulse-surface-overview .overview-activity-panel { border-radius: 20px; box-shadow: 0 12px 30px hsl(188 30% 27% / .05), inset 0 1px white; }
+
+.admin-console.console-login .console-login-intro { position: relative; isolation: isolate; }
+.admin-console.console-login .console-login-copy h1 { max-width: 9ch; font-size: clamp(52px,7vw,88px); line-height: .98; letter-spacing: -.055em; }
+.admin-console.console-login .console-login-promises article { border-radius: 13px; background: hsl(var(--console-surface) / .54); box-shadow: inset 0 1px white; }
+.admin-console.console-login .console-login-panel { border: 1px solid hsl(var(--console-line) / .78); }
+
+.admin-console.pulse-surface-sales { --route-accent: hsl(38 68% 49%); }
+.admin-console.pulse-surface-sales .surface-module-context-mark { background: hsl(39 82% 91%); color: hsl(31 68% 38%); }
+.admin-console.pulse-surface-sales .sales-status-grid .console-metric { min-height: 112px; border-radius: 16px; background: linear-gradient(145deg,hsl(var(--console-surface-raised) / .95),hsl(39 53% 96% / .7)); }
+.admin-console.pulse-surface-sales .sales-record-board { overflow: hidden; border-radius: 20px; background: linear-gradient(160deg,hsl(var(--console-surface-raised) / .96),hsl(39 34% 97% / .78)); }
+.admin-console.pulse-surface-sales .sales-ledger-entry { border-inline-start: 3px solid hsl(39 67% 64%); border-radius: 15px; background: hsl(var(--console-surface) / .83); box-shadow: 0 7px 20px hsl(38 35% 26% / .045), inset 0 1px white; }
+
+.admin-console.pulse-surface-pos { --route-accent: hsl(12 58% 51%); }
+.admin-console.pulse-surface-pos .surface-module-context-mark { background: hsl(12 79% 93%); color: hsl(12 58% 45%); }
+.admin-console.pulse-surface-pos .pos-live-order { border-radius: 18px; background: linear-gradient(115deg,hsl(12 61% 96% / .95),hsl(var(--console-surface-raised) / .88)); box-shadow: 0 10px 24px hsl(12 31% 28% / .06), inset 0 1px white; }
+.admin-console.pulse-surface-pos .pos-layout { grid-template-columns: minmax(0,1fr) minmax(280px,.62fr); align-items: start; }
+.admin-console.pulse-surface-pos .pos-receipt { position: sticky; top: 18px; border-radius: 19px; background: linear-gradient(155deg,hsl(var(--console-surface-raised)),hsl(12 40% 97%)); box-shadow: 0 16px 36px hsl(12 30% 28% / .07), inset 0 1px white; }
+.admin-console.pulse-surface-pos .pos-form { border-radius: 19px; }
+
+.admin-console.store-manager-console .store-manager-overview { min-height: 78px; }
+.admin-console.store-manager-console .store-manager-grid > .store-panel:first-child { border-top: 3px solid hsl(174 48% 43%); }
+.admin-console.store-manager-console .store-manager-grid > .store-panel:last-child { border-top: 3px solid hsl(38 70% 55%); }
+.admin-console.store-manager-console .store-lead { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; gap: 10px; }
+.admin-console.store-manager-console .store-lead-controls { grid-column: 1 / -1; }
+
+.admin-console.pulse-surface-admin-sales { --route-accent: hsl(269 38% 51%); }
+.admin-console.pulse-surface-admin-sales .surface-module-context-mark { background: hsl(268 42% 93%); color: hsl(269 38% 44%); }
+.admin-console.pulse-surface-admin-sales .admin-sales-metrics .console-metric { min-height: 116px; border-radius: 17px; background: linear-gradient(145deg,hsl(var(--console-surface-raised)),hsl(268 34% 97% / .8)); }
+.admin-console.pulse-surface-admin-sales .admin-sales-record-board { border-top: 3px solid hsl(268 42% 66%); }
+.admin-console.pulse-surface-admin-sales .admin-sale-ledger-row { border-inline-start: 3px solid hsl(268 45% 74%); border-radius: 15px; background: hsl(var(--console-surface-raised) / .9); box-shadow: 0 8px 20px hsl(260 27% 28% / .05), inset 0 1px white; }
+
+.admin-console.pulse-surface-reseller-accounting { --route-accent: hsl(153 37% 40%); }
+.admin-console.pulse-surface-reseller-accounting .surface-module-context-mark { background: hsl(153 38% 91%); color: hsl(153 38% 32%); }
+.admin-console.pulse-surface-reseller-accounting .accounting-settlement-row { border-radius: 17px; background: linear-gradient(145deg,hsl(var(--console-surface-raised) / .96),hsl(153 32% 97% / .76)); box-shadow: 0 8px 22px hsl(153 25% 25% / .045), inset 0 1px white; }
+.admin-console.pulse-surface-reseller-accounting .accounting-settlement-numbers { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.admin-console.pulse-surface-reseller-accounting .accounting-payment-form { border: 1px solid hsl(153 32% 74% / .65); border-radius: 18px; background: linear-gradient(145deg,hsl(153 42% 95% / .88),hsl(var(--console-surface-raised) / .94)); }
+.admin-console.pulse-surface-reseller-accounting .accounting-history-panel { border-radius: 18px; }
+
+.admin-console.pulse-surface-action-requests { --route-accent: hsl(12 58% 51%); }
+.admin-console.pulse-surface-action-requests .surface-module-context-mark { background: hsl(12 78% 93%); color: hsl(12 58% 45%); }
+.admin-console.pulse-surface-action-requests .request-command-strip { border-radius: 17px; background: linear-gradient(100deg,hsl(12 54% 96% / .92),hsl(var(--console-surface-raised) / .92)); box-shadow: 0 9px 22px hsl(12 31% 28% / .05), inset 0 1px white; }
+.admin-console.pulse-surface-action-requests .action-request-form { border-inline-start: 3px solid hsl(12 60% 65%); border-radius: 17px; }
+.admin-console.pulse-surface-action-requests .action-request-card { border-radius: 15px; box-shadow: 0 7px 18px hsl(12 24% 27% / .045), inset 0 1px white; }
+
+.admin-console.pulse-surface-services { --route-accent: hsl(185 42% 42%); }
+.admin-console.pulse-surface-services .surface-module-context-mark { background: hsl(185 41% 91%); color: hsl(185 44% 34%); }
+.admin-console.pulse-surface-services .service-control-desk { grid-template-columns: minmax(220px,1.25fr) repeat(3,minmax(120px,.7fr)); border-radius: 19px; background: linear-gradient(110deg,hsl(185 36% 94% / .94),hsl(var(--console-surface-raised) / .9)); }
+.admin-console.pulse-surface-services .service-filter-card { border-radius: 18px; box-shadow: 0 10px 25px hsl(190 26% 25% / .045), inset 0 1px white; }
+.admin-console.pulse-surface-services .service-record-card { border-radius: 17px; background: linear-gradient(155deg,hsl(var(--console-surface-raised) / .96),hsl(185 30% 97% / .77)); }
+.admin-console.pulse-surface-services .service-record-usage { border-radius: 12px; background: hsl(185 34% 95% / .78); padding: 12px; }
+
+.admin-console.pulse-surface-awg-usage { --route-accent: hsl(183 48% 39%); }
+.admin-console.pulse-surface-awg-usage .awg-usage-metrics .console-metric { min-height: 107px; border-radius: 16px; background: linear-gradient(145deg,hsl(var(--console-surface-raised)),hsl(183 34% 96% / .76)); }
+.admin-console.pulse-surface-awg-usage .awg-usage-ledger { border-top: 3px solid hsl(183 48% 54%); }
+.admin-console.pulse-surface-awg-usage .awg-usage-entry { display: grid; grid-template-columns: minmax(0,1fr); align-items: stretch; gap: 12px; }
+
+.admin-console.awg-log-page { --route-accent: hsl(204 48% 47%); }
+.admin-console.awg-log-page .surface-layout-awg-usage-log > .console-page-heading { border-inline-start: 3px solid hsl(204 48% 56%); }
+.admin-console.awg-log-page .awg-worker-overview > .console-surface { border-radius: 15px; background: linear-gradient(145deg,hsl(var(--console-surface-raised)),hsl(204 35% 96% / .8)); }
+.admin-console.awg-log-page .awg-event-ledger { border-top: 3px solid hsl(204 48% 57%); }
+.admin-console.awg-log-page .awg-event-timeline { display: grid; gap: 10px; }
+
+.admin-console.pulse-surface-customers { --route-accent: hsl(174 45% 39%); }
+.admin-console.pulse-surface-customers .customer-directory-controls { border-radius: 19px; background: linear-gradient(145deg,hsl(var(--console-surface-raised) / .96),hsl(174 37% 96% / .78)); }
+.admin-console.pulse-surface-customers .customer-file-register { border-top: 3px solid hsl(174 45% 52%); }
+.admin-console.pulse-surface-customers .customer-file-entry { grid-template-columns: minmax(0,1.1fr) minmax(88px,.4fr) minmax(220px,.9fr) auto; border-radius: 14px; background: hsl(var(--console-surface-raised) / .72); }
+.admin-console.pulse-surface-customers .customer-file-entry:hover { box-shadow: 0 10px 24px hsl(174 35% 24% / .08); }
+
+.admin-console.pulse-surface-customer-detail { --route-accent: hsl(270 37% 52%); }
+.admin-console.pulse-surface-customer-detail .customer-profile-metrics .console-metric { min-height: 112px; border-radius: 17px; background: linear-gradient(145deg,hsl(var(--console-surface-raised)),hsl(268 31% 97% / .76)); }
+.admin-console.pulse-surface-customer-detail .customer-console-jumpbar { position: sticky; top: 8px; z-index: 5; border-radius: 14px; background: hsl(var(--console-surface-raised) / .88); box-shadow: 0 7px 18px hsl(260 26% 25% / .06), inset 0 1px white; backdrop-filter: blur(12px); }
+.admin-console.pulse-surface-customer-detail .customer-crm-workspace { border-top: 3px solid hsl(270 38% 67%); }
+.admin-console.pulse-surface-customer-detail .customer-services-workspace { border-top: 3px solid hsl(174 44% 53%); }
+.admin-console.pulse-surface-customer-detail .customer-sales-workspace { border-top: 3px solid hsl(38 66% 60%); }
+
+.admin-console.pulse-surface-reports { --route-accent: hsl(38 68% 48%); }
+.admin-console.pulse-surface-reports .report-filter { display: grid; grid-template-columns: minmax(0,1fr) auto; border-radius: 18px; background: linear-gradient(100deg,hsl(39 52% 95% / .84),hsl(var(--console-surface-raised) / .96)); }
+.admin-console.pulse-surface-reports .report-metrics .console-metric { border-radius: 15px; background: linear-gradient(145deg,hsl(var(--console-surface-raised)),hsl(39 38% 97% / .82)); }
+.admin-console.pulse-surface-reports .report-record-board { border-top: 3px solid hsl(38 66% 57%); }
+.admin-console.pulse-surface-reports .report-financial-row { border-radius: 13px; background: hsl(var(--console-surface-raised) / .82); }
+
+.admin-console.pulse-surface-monitoring { --route-accent: hsl(12 57% 50%); }
+.admin-console.pulse-surface-monitoring .monitoring-flight-deck { display: grid; grid-template-columns: minmax(180px,.75fr) minmax(260px,1.2fr) auto; align-items: center; border-radius: 20px; background: linear-gradient(112deg,hsl(12 54% 96% / .95),hsl(var(--console-surface-raised) / .94)); }
+.admin-console.pulse-surface-monitoring .monitoring-card { border-top: 3px solid hsl(12 56% 58%); }
+.admin-console.pulse-surface-monitoring .monitoring-job-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.admin-console.pulse-surface-monitoring .record-card { border-radius: 15px; }
+
+.admin-console.pulse-surface-connections { --route-accent: hsl(182 46% 39%); }
+.admin-console.pulse-surface-connections .connection-metrics .console-metric { border-radius: 15px; background: linear-gradient(145deg,hsl(var(--console-surface-raised)),hsl(182 31% 96% / .76)); }
+.admin-console.pulse-surface-connections .connections-card { border-radius: 20px; }
+.admin-console.pulse-surface-connections .connection-presence-board { grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; gap: 13px; }
+.admin-console.pulse-surface-connections .connection-presence-zone { border-radius: 16px; background: hsl(182 30% 96% / .56); padding: 12px; }
+
+.admin-console.ops-page { --route-accent: hsl(154 40% 39%); }
+.admin-console.ops-page > .console-page-heading { border-inline-start: 3px solid hsl(154 44% 52%); }
+.admin-console.ops-page .ops-command-deck { border-radius: 20px; background: linear-gradient(115deg,hsl(154 34% 94% / .9),hsl(var(--console-surface-raised) / .92)); }
+.admin-console.ops-page .ops-admin-grid { gap: 13px; }
+.admin-console.ops-page .ops-reseller-zone,
+.admin-console.ops-page .ops-audit-zone { border-radius: 18px; background: hsl(var(--console-surface) / .56); padding: clamp(13px,2vw,20px); }
+
+.admin-console.provider-audit { --route-accent: hsl(12 58% 50%); }
+.admin-console.provider-audit .audit-wrap { display: grid; gap: 14px; }
+.admin-console.provider-audit .audit-scan-panel { border-inline-start: 3px solid hsl(12 60% 62%); }
+.admin-console.provider-audit .audit-results { border-top: 3px solid hsl(174 42% 54%); }
+.admin-console.provider-audit .audit-match-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.admin-console.provider-audit .audit-match { border-radius: 14px; background: hsl(var(--console-surface) / .8); }
+
+.admin-console.smart-center-page { --route-accent: hsl(269 39% 53%); }
+.admin-console.smart-center-page .smart-hero { border-radius: 20px; background: linear-gradient(112deg,hsl(267 38% 93% / .9),hsl(190 40% 96% / .84)); box-shadow: 0 12px 30px hsl(260 25% 28% / .06), inset 0 1px white; }
+.admin-console.smart-center-page .smart-queue-navigator { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.admin-console.smart-center-page .smart-metrics-grid { grid-template-columns: repeat(5,minmax(0,1fr)); }
+.admin-console.smart-center-page .smart-card { border-top: 2px solid hsl(269 35% 78%); }
+.admin-console.smart-route-frame .smart-detail-summary { border-radius: 17px; background: linear-gradient(110deg,hsl(267 38% 94% / .9),hsl(var(--console-surface-raised) / .92)); }
+.admin-console.smart-route-frame .smart-focus-workbench { border-top: 3px solid hsl(269 39% 63%); }
+.admin-console.smart-route-frame .smart-detail-row { grid-template-columns: 40px minmax(0,1fr) minmax(85px,.35fr) 16px; border-radius: 13px; }
+
+.admin-console.notification-status-page .notification-readiness-board { border-radius: 18px; background: linear-gradient(110deg,hsl(183 36% 94% / .92),hsl(var(--console-surface-raised) / .92)); padding: 12px; }
+.admin-console.notification-status-page .notification-device-card { border-inline-start: 3px solid hsl(183 40% 65%); }
+.admin-console.notification-send-page .notification-composer { border-inline-start: 3px solid hsl(268 43% 68%); border-radius: 19px; background: linear-gradient(145deg,hsl(268 30% 97% / .9),hsl(var(--console-surface-raised) / .96)); }
+.admin-console.notification-send-page .notification-recipient-picker,
+.admin-console.notification-send-page .notification-audience-block { border-radius: 16px; }
+.admin-console.notification-analytics-page .notification-delivery-command { border-radius: 18px; background: linear-gradient(110deg,hsl(39 46% 95% / .86),hsl(var(--console-surface-raised) / .92)); }
+.admin-console.notification-analytics-page .notification-campaign-rail,
+.admin-console.notification-analytics-page .notification-evidence-panel { border-radius: 16px; }
+
+.admin-console.pulse-surface-settings { --route-accent: hsl(270 36% 52%); }
+.admin-console.pulse-surface-settings .settings-operating-context { border-radius: 19px; background: linear-gradient(110deg,hsl(270 32% 95% / .86),hsl(var(--console-surface-raised) / .94)); }
+.admin-console.pulse-surface-settings .settings-console-nav { position: sticky; top: 12px; align-self: start; border-radius: 15px; background: hsl(var(--console-surface-raised) / .84); box-shadow: inset 0 1px white; backdrop-filter: blur(12px); }
+.admin-console.pulse-surface-settings .settings-section { border-radius: 17px; }
+.admin-console.pulse-surface-settings .admin-pricing-card { border-top: 3px solid hsl(38 66% 58%); }
+
+.admin-console.console-not-found { --route-accent: hsl(12 57% 51%); }
+.admin-console.console-not-found .console-not-found-card { overflow: hidden; }
+.admin-console.console-not-found .console-not-found-code { color: hsl(12 55% 57% / .25); font-size: clamp(90px,17vw,190px); }
+.admin-console.console-not-found .console-not-found-routes a { border-radius: 12px; background: hsl(var(--console-surface-raised) / .62); }
+
+@media (max-width: 920px) {
+  .admin-console.pulse-surface-services .service-control-desk { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-console.pulse-surface-services .service-control-lead { grid-column: 1 / -1; }
+  .admin-console.pulse-surface-pos .pos-layout { grid-template-columns: minmax(0,1fr) minmax(250px,.7fr); }
+  .admin-console.pulse-surface-monitoring .monitoring-flight-deck { grid-template-columns: 1fr 1fr; }
+  .admin-console.pulse-surface-monitoring .monitoring-flight-states { grid-column: 1 / -1; }
+  .admin-console.pulse-surface-customers .customer-file-entry { grid-template-columns: minmax(0,1fr) auto; }
+  .admin-console.pulse-surface-customers .customer-file-facts { grid-column: 1 / -1; }
+  .admin-console.smart-center-page .smart-queue-navigator { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-console.smart-center-page .smart-metrics-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .admin-console.provider-audit .audit-match-list { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .admin-console.pulse-surface-services .service-control-desk { grid-template-columns: 1fr 1fr; }
+  .admin-console.pulse-surface-services .service-control-lead { grid-column: 1 / -1; }
+  .admin-console.pulse-surface-pos .pos-layout,
+  .admin-console.pulse-surface-connections .connection-presence-board { grid-template-columns: 1fr; }
+  .admin-console.pulse-surface-pos .pos-receipt { position: static; }
+  .admin-console.pulse-surface-monitoring .monitoring-flight-deck { grid-template-columns: 1fr; }
+  .admin-console.pulse-surface-monitoring .monitoring-job-grid { grid-template-columns: 1fr; }
+  .admin-console.pulse-surface-reports .report-filter { grid-template-columns: 1fr; }
+  .admin-console.pulse-surface-reseller-accounting .accounting-settlement-numbers { grid-template-columns: 1fr 1fr; }
+  .admin-console.pulse-surface-awg-usage .awg-usage-entry { grid-template-columns: 1fr; }
+  .admin-console.smart-center-page .smart-queue-navigator,
+  .admin-console.smart-center-page .smart-metrics-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-console.smart-route-frame .smart-detail-row { grid-template-columns: 34px minmax(0,1fr) auto; }
+  .admin-console.smart-route-frame .smart-detail-row > svg:last-child { display: none; }
+  .admin-console.pulse-surface-settings .settings-console-nav { position: static; }
+  .admin-console.store-manager-console .store-lead { grid-template-columns: 1fr; }
+  .admin-console.store-manager-console .store-lead-controls { grid-column: auto; }
 }

@@ -207,8 +207,8 @@ function AdminOnlyNotice() {
   );
 }
 
-function NotificationPageFrame({ children }: { children: ReactNode }) {
-  return <main className="admin-console notification-page-frame" data-surface="notifications" dir="rtl">
+function NotificationPageFrame({ children, section }: { children: ReactNode; section: 'send' | 'status' | 'analytics' }) {
+  return <main className={`admin-console notification-page-frame notification-${section}-page`} data-surface={`notifications-${section}`} dir="rtl">
     <div className="notification-workspace console-page">
       <div className="notification-context-band">
         <span className="notification-context-mark"><Bell size={15} /></span>
@@ -258,11 +258,12 @@ export function NotificationStatusPage() {
   const [search, setSearch] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [items, setItems] = useState<StatusItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(session?.role === 'master_admin');
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (session?.role !== 'master_admin') return;
+    setLoading(true);
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setLoading(true);
@@ -284,12 +285,12 @@ export function NotificationStatusPage() {
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [refreshKey, search, session?.role]);
 
-  if (session?.role !== 'master_admin') return <NotificationPageFrame><AdminOnlyNotice /></NotificationPageFrame>;
+  if (session?.role !== 'master_admin') return <NotificationPageFrame section="status"><AdminOnlyNotice /></NotificationPageFrame>;
   const readyCount = items.filter((item) => item.status === 'ready' && item.notification_enabled !== false).length;
   const disabledCount = items.filter((item) => item.notification_enabled === false).length;
   const knownDevices = items.reduce((sum, item) => sum + Number(item.active_devices || 0), 0);
   return (
-    <NotificationPageFrame>
+    <NotificationPageFrame section="status">
       <PageHeader eyebrow="مدیریت Push" title="آمادگی دستگاه‌های مشتریان" description="پیش از ارسال، ببینید هر مشتری دستگاه فعال برای دریافت اعلان دارد یا نه." action={<Link className="console-action console-action-primary" href="/notification-send"><Send size={15} /> ارسال پیام</Link>} />
       <NotificationNav active="status" />
       <section className="notification-readiness-board" aria-label="خلاصه آمادگی اعلان">
@@ -561,9 +562,9 @@ export function NotificationSendPage() {
     }
   };
 
-  if (session?.role !== 'master_admin') return <NotificationPageFrame><AdminOnlyNotice /></NotificationPageFrame>;
+  if (session?.role !== 'master_admin') return <NotificationPageFrame section="send"><AdminOnlyNotice /></NotificationPageFrame>;
   return (
-    <NotificationPageFrame>
+    <NotificationPageFrame section="send">
       <PageHeader eyebrow="پیام‌رسانی مشتریان" title="ارسال اعلان" description="یک پیام عملیاتی برای یک مشتری یا کل مشتریان آماده کنید و نتیجه واقعی ارسال را ببینید." action={<Link className="console-action console-action-secondary" href="/notification-analytics"><BarChart3 size={15} /> گزارش کمپین‌ها</Link>} />
       <NotificationNav active="send" />
         <form className="console-surface mt-5 notification-composer" onSubmit={send}>
@@ -642,7 +643,7 @@ export function NotificationAnalyticsPage() {
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [daily, setDaily] = useState<AnalyticsPoint[]>([]);
   const [logs, setLogs] = useState<DeliveryLog[]>([]);
-  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState('');
@@ -716,13 +717,13 @@ export function NotificationAnalyticsPage() {
     }
   };
 
-  if (session?.role !== 'master_admin') return <NotificationPageFrame><AdminOnlyNotice /></NotificationPageFrame>;
+  if (session?.role !== 'master_admin') return <NotificationPageFrame section="analytics"><AdminOnlyNotice /></NotificationPageFrame>;
   const total = summary ? maybeNumber(summary, ['total', 'target_count', 'audience']) : null;
   const accepted = summary ? maybeNumber(summary, ['push_accepted', 'accepted', 'sent', 'delivered']) : null;
   const failed = summary ? maybeNumber(summary, ['push_failed', 'failed']) : null;
   const deliveryCoverage = total !== null && accepted !== null && total > 0 ? Math.round(accepted / total * 100) : null;
   return (
-    <NotificationPageFrame>
+    <NotificationPageFrame section="analytics">
       <PageHeader eyebrow="مرکز کنترل اعلان" title="تحلیل و گزارش کمپین‌ها" description="تعداد ثبت‌شده کافی نیست؛ وضعیت پذیرش، شکست، غیرفعال‌شدن دستگاه و رفتار کاربر را جداگانه ببینید." action={<Link className="console-action console-action-primary" href="/notification-send"><Send size={15} /> کمپین جدید</Link>} />
       <NotificationNav active="analytics" />
       {error ? <div className="console-state is-error mt-5 flex items-center justify-between gap-3" role="alert"><span>{error}</span><button className="console-action console-action-secondary" type="button" onClick={() => void loadCampaigns()}>تلاش دوباره</button></div> : null}
