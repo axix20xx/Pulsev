@@ -32,6 +32,7 @@ import {
 } from '@/pages/notification-pages';
 import NotFound from '@/pages/not-found';
 import { StorefrontManagerPage } from '@/pages/storefront';
+import '@/components/pulse-hope-redesign.css';
 
 function ProviderAccountAuditRoute() {
   const { session } = usePulse();
