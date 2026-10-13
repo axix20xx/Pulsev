@@ -23,7 +23,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { Link } from 'wouter';
-import { PageHeader } from '@/components/admin-console-primitives';
+import { Badge, Btn, Callout, Card, DataTable, EmptyState, ErrorAlert, Field, FormGrid, Kpi, KpiGrid, Meter, Page, PageHead, RefreshBtn, SearchInput, Section, SkeletonRows, Stat, StatRow, SubNav, Switch, Toolbar, Workbench, type Tone } from '@/admin/ui';
 import { usePulse } from './pulse-pages';
 
 type Recipient = {
@@ -186,10 +186,10 @@ const statusText = (value: unknown) => {
   return typeof value === 'string' ? labels[value] || value : '—';
 };
 
-const statusTone = (value: unknown) => {
-  if (value === 'failed' || value === 'deactivated') return 'status-pill-danger';
-  if (value === 'pending' || value === 'scheduled' || value === 'processing') return 'status-pill-warning';
-  return 'status-pill-success';
+const statusTone = (value: unknown): Tone => {
+  if (value === 'failed' || value === 'deactivated') return 'bad';
+  if (value === 'pending' || value === 'scheduled' || value === 'processing') return 'warn';
+  return 'good';
 };
 
 const tehranDateTimeToIso = (value: string) => {
@@ -197,46 +197,19 @@ const tehranDateTimeToIso = (value: string) => {
   return new Date(`${value}:00+03:30`).toISOString();
 };
 
-function AdminOnlyNotice() {
-  return (
-    <div className="console-empty">
-      <AlertTriangle size={19} />
-      <strong>دسترسی فقط برای مدیر اصلی</strong>
-      <span>مدیریت اعلان‌های مشتریان برای فروشندگان عادی فعال نیست.</span>
-    </div>
-  );
+function AdminOnlyNotice({ surface }: { surface: string }) {
+  return <Page surface={surface}><Card><EmptyState icon={AlertTriangle} title="دسترسی فقط برای مدیر اصلی" detail="مدیریت اعلان‌های مشتریان برای فروشندگان عادی فعال نیست." /></Card></Page>;
 }
 
 function NotificationNav({ active }: { active: 'send' | 'status' | 'analytics' }) {
-  const links = [
-    { key: 'send' as const, href: '/notification-send', label: 'ارسال پیام', icon: Send },
-    { key: 'status' as const, href: '/notification-status', label: 'آمادگی دستگاه‌ها', icon: Smartphone },
-    { key: 'analytics' as const, href: '/notification-analytics', label: 'تحلیل و گزارش', icon: BarChart3 },
-  ];
-  return (
-    <nav className="mt-5 flex max-w-full gap-2 overflow-x-auto pb-1" aria-label="مدیریت اعلان">
-      {links.map(({ key, href, label, icon: Icon }) => (
-        <Link key={key} href={href} className={`console-action whitespace-nowrap ${active === key ? 'console-action-primary' : 'console-action-secondary'}`}>
-          <Icon size={15} />{label}
-        </Link>
-      ))}
-    </nav>
-  );
+  return <SubNav label="مدیریت اعلان" active={active} items={[
+    { key: 'send', href: '/notification-send', label: 'ارسال پیام', icon: Send },
+    { key: 'status', href: '/notification-status', label: 'آمادگی دستگاه‌ها', icon: Smartphone },
+    { key: 'analytics', href: '/notification-analytics', label: 'تحلیل و گزارش', icon: BarChart3 },
+  ]} />;
 }
 
-function StatTile({ label, value, icon: Icon, tone = 'default' }: { label: string; value: unknown; icon: typeof Bell; tone?: 'default' | 'success' | 'danger' | 'warning' }) {
-  return (
-    <div className="console-surface flex items-center gap-3 p-4">
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone === 'success' ? 'bg-emerald-500/10 text-emerald-600' : tone === 'danger' ? 'bg-destructive/10 text-destructive' : tone === 'warning' ? 'bg-amber-500/10 text-amber-600' : 'bg-primary/10 text-primary'}`}>
-        <Icon size={18} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
-        <strong className="mt-1 block text-xl tracking-tight">{typeof value === 'number' ? faNumber(value) : value === null || value === undefined ? '—' : String(value)}</strong>
-      </div>
-    </div>
-  );
-}
+const show = (value: unknown) => typeof value === 'number' ? faNumber(value) : value === null || value === undefined ? '—' : String(value);
 
 export function NotificationStatusPage() {
   const { session } = usePulse();
@@ -270,44 +243,32 @@ export function NotificationStatusPage() {
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [refreshKey, search, session?.role]);
 
-  if (session?.role !== 'master_admin') return <main className="admin-console hope-admin-page hope-pattern-table hope-notification-status"><AdminOnlyNotice /></main>;
+  if (session?.role !== 'master_admin') return <AdminOnlyNotice surface="notification-status" />;
   const readyCount = items.filter((item) => item.status === 'ready' && item.notification_enabled !== false).length;
   const disabledCount = items.filter((item) => item.notification_enabled === false).length;
   const knownDevices = items.reduce((sum, item) => sum + Number(item.active_devices || 0), 0);
   return (
-    <main className="admin-console hope-admin-page hope-pattern-table hope-notification-status notification-page-frame notification-status-page">
-      <div className="hope-notification-status-layout">
-      <PageHeader eyebrow="مدیریت Push" title="آمادگی دستگاه‌های مشتریان" description="پیش از ارسال، ببینید هر مشتری دستگاه فعال برای دریافت اعلان دارد یا نه." action={<Link className="console-action console-action-primary" href="/notification-send"><Send size={15} /> ارسال پیام</Link>} />
+    <Page surface="notification-status">
+      <PageHead eyebrow="مدیریت Push" title="آمادگی دستگاه‌های مشتریان" lede="پیش از ارسال، ببینید هر مشتری دستگاه فعال برای دریافت اعلان دارد یا نه." actions={<><RefreshBtn onClick={() => setRefreshKey((value) => value + 1)} loading={loading} /><Link className="ax-btn is-primary" href="/notification-send"><Send size={15} /> ارسال پیام</Link></>} />
       <NotificationNav active="status" />
-      <section className="notification-readiness-board" aria-label="خلاصه آمادگی اعلان">
-        <div className="notification-readiness-lead"><span className="notification-readiness-mark"><Smartphone size={18} /></span><div><span>DELIVERY READINESS</span><strong>آمادگی دستگاه‌ها</strong><small>بر اساس مشتریان بازگشتی از API</small></div></div>
-        <StatTile label="مشتری آماده" value={faNumber(readyCount)} icon={CheckCircle2} tone="success" />
-        <StatTile label="دستگاه فعال" value={faNumber(knownDevices)} icon={Smartphone} />
-        <StatTile label="اعلان خاموش" value={faNumber(disabledCount)} icon={XCircle} tone="warning" />
-      </section>
-      <div className="console-surface mt-5">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-bold">دستگاه‌های ثبت‌شده</p>
-            <p className="mt-1 text-xs text-muted-foreground">این وضعیت از داده واقعی مشتریان خوانده می‌شود؛ تعداد دستگاه، تضمین تحویل نیست.</p>
-          </div>
-          <label className="field min-w-0 md:min-w-[280px]"><span>جست‌وجوی مشتری</span><div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="نام یا شماره موبایل" /></div></label>
-        </div>
-        {error ? <div className="console-state is-error mt-5 flex items-center justify-between gap-3" role="alert"><span>{error}</span><button className="console-action console-action-secondary" type="button" onClick={() => setRefreshKey((value) => value + 1)}>تلاش دوباره</button></div> : null}
-        {loading ? <div className="notification-device-skeletons" role="status" aria-label="در حال دریافت وضعیت">{[0, 1, 2].map((key) => <span key={key} />)}</div> : items.length === 0 ? <div className="empty-state py-14" role="status"><Bell size={20} /><div><p className="font-bold">مشتری مطابق جست‌وجو پیدا نشد</p><p className="mt-1 text-xs text-muted-foreground">عبارت جست‌وجو را تغییر دهید یا دستگاه‌های ثبت‌شده را دوباره بررسی کنید.</p></div></div> : (
-          <div className="hope-table-scroll"><table className="hope-data-table" aria-label="وضعیت دستگاه‌های مشتریان">
-            <thead><tr><th scope="col">مشتری</th><th scope="col">کانال</th><th scope="col">آمادگی</th><th scope="col">دستگاه فعال</th></tr></thead>
-            <tbody>{items.map((item) => <tr key={String(item.id)}>
-              <td><div className="hope-table-person"><span className="notification-device-avatar"><Smartphone size={16} /></span><span><strong>{item.name}</strong><small dir="ltr">{item.phone || 'شماره ثبت نشده'}</small></span></div></td>
-              <td><span className="hope-channel-label"><Smartphone size={13} /> Web Push</span></td>
-              <td>{item.notification_enabled === false ? <span className="status-pill status-pill-danger"><XCircle size={13} /> اعلان خاموش</span> : <span className={item.status === 'ready' ? 'status-pill status-pill-success' : 'status-pill status-pill-warning'}>{item.status === 'ready' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}{item.status === 'ready' ? 'آماده دریافت' : 'بدون دستگاه فعال'}</span>}</td>
-              <td><strong className="hope-table-amount">{faNumber(item.active_devices)}</strong></td>
-            </tr>)}</tbody>
-          </table></div>
+      <KpiGrid label="خلاصه آمادگی اعلان">
+        <Kpi label="مشتری آماده" value={faNumber(readyCount)} detail="دستگاه فعال و اعلان روشن" icon={CheckCircle2} tone="good" loading={loading} />
+        <Kpi label="دستگاه فعال" value={faNumber(knownDevices)} detail="بر اساس مشتریان بازگشتی از API" icon={Smartphone} loading={loading} />
+        <Kpi label="اعلان خاموش" value={faNumber(disabledCount)} detail="مشتریانی که دریافت را بسته‌اند" icon={XCircle} tone="warn" loading={loading} />
+      </KpiGrid>
+      <Card flush title="دستگاه‌های ثبت‌شده" description="این وضعیت از داده واقعی مشتریان خوانده می‌شود؛ تعداد دستگاه، تضمین تحویل نیست." actions={<Badge>{faNumber(items.length)} مشتری</Badge>}>
+        <Toolbar label="جست‌وجوی مشتری"><SearchInput value={search} onChange={setSearch} placeholder="نام یا شماره موبایل" label="جست‌وجوی مشتری" /></Toolbar>
+        {error ? <div className="ax-pad"><ErrorAlert message={error} onRetry={() => setRefreshKey((value) => value + 1)} /></div> : null}
+        {loading ? <SkeletonRows rows={4} label="در حال دریافت وضعیت" /> : items.length === 0 ? <EmptyState icon={Bell} title="مشتری مطابق جست‌وجو پیدا نشد" detail="عبارت جست‌وجو را تغییر دهید یا دستگاه‌های ثبت‌شده را دوباره بررسی کنید." /> : (
+          <DataTable label="وضعیت دستگاه‌های مشتریان" head={['مشتری', 'کانال', 'آمادگی', 'دستگاه فعال']}>{items.map((item) => <tr key={String(item.id)}>
+            <td><div className="ax-cell-main"><span className="ax-avatar is-sm"><Smartphone size={14} /></span><span><strong>{item.name}</strong><small dir="ltr">{item.phone || 'شماره ثبت نشده'}</small></span></div></td>
+            <td><Badge><Smartphone size={12} /> Web Push</Badge></td>
+            <td>{item.notification_enabled === false ? <Badge tone="bad"><XCircle size={12} /> اعلان خاموش</Badge> : <Badge tone={item.status === 'ready' ? 'good' : 'warn'}>{item.status === 'ready' ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}{item.status === 'ready' ? 'آماده دریافت' : 'بدون دستگاه فعال'}</Badge>}</td>
+            <td className="ax-num"><strong>{faNumber(item.active_devices)}</strong></td>
+          </tr>)}</DataTable>
         )}
-      </div>
-      </div>
-    </main>
+      </Card>
+    </Page>
   );
 }
 
@@ -552,60 +513,69 @@ export function NotificationSendPage() {
     }
   };
 
-  if (session?.role !== 'master_admin') return <main className="admin-console hope-admin-page hope-pattern-form hope-notification-composer"><AdminOnlyNotice /></main>;
+  if (session?.role !== 'master_admin') return <AdminOnlyNotice surface="notification-send" />;
+  const audienceName = audience?.label || audienceOptions.find(([key]) => key === target)?.[1] || 'مخاطبان';
+  const canSend = !sending && Boolean(title.trim()) && Boolean(body.trim()) && !hrefError && !(target === 'recipient' && !selected);
   return (
-    <main className="admin-console hope-admin-page hope-pattern-form hope-notification-composer notification-page-frame notification-send-page">
-      <div className="hope-notification-compose-layout">
-      <PageHeader eyebrow="پیام‌رسانی مشتریان" title="ارسال اعلان" description="یک پیام عملیاتی برای یک مشتری یا کل مشتریان آماده کنید و نتیجه واقعی ارسال را ببینید." action={<Link className="console-action console-action-secondary" href="/notification-analytics"><BarChart3 size={15} /> گزارش کمپین‌ها</Link>} />
+    <Page surface="notification-send">
+      <PageHead eyebrow="پیام‌رسانی مشتریان" title="ارسال اعلان" lede="یک پیام عملیاتی برای یک مشتری یا کل مشتریان آماده کنید و نتیجه واقعی ارسال را ببینید." actions={<Link className="ax-btn" href="/notification-analytics"><BarChart3 size={15} /> گزارش کمپین‌ها</Link>} />
       <NotificationNav active="send" />
-        <form className="console-surface mt-5 notification-composer" onSubmit={send}>
-         <header className="notification-composer-head"><span className="notification-composer-index">۰۱—۰۲</span><div><p className="eyebrow">ساخت اعلان</p><h2>مخاطب را مشخص کنید، سپس پیام را آماده کنید</h2><p>پیش از ارسال، audience و شواهد تحویل را مرور کنید.</p></div></header>
-          <div className="notification-composer-body"><div className="notification-composer-steps">
-         <section className="notification-audience-block" aria-labelledby="notification-audience-title"><div className="notification-compose-section-head"><span>01</span><div><h3 id="notification-audience-title">مخاطب و زمان‌بندی</h3><p>ارسال به یک مشتری یا audience موجود؛ بدون تغییر در مجوزهای فعلی.</p></div></div>
-          <div className="grid gap-5 md:grid-cols-2">
-           <label className="field"><span>دامنه ارسال</span><select value={target} onChange={(event) => { setTarget(event.target.value as (typeof audienceOptions)[number][0]); setSelected(null); setResults([]); }} aria-label="مخاطبان کمپین">{audienceOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-          <div className="field"><span>زمان ارسال</span><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /><small className="text-[11px] text-muted-foreground">اختیاری؛ زمان تهران</small></div>
-        </div>
-          {target === 'recipient' ? (
-            <div className="notification-recipient-picker mt-5">
-              <label className="console-field"><span>جست‌وجوی مشتری</span><div className="console-search"><Search size={15} /><input value={selected ? selected.name : search} onChange={(event) => { setSelected(null); setSearch(event.target.value); setError(''); }} placeholder="حداقل دو حرف از نام یا شماره موبایل" /></div></label>
-              {loading ? <div className="console-state is-loading mt-3" role="status">در حال جست‌وجو...</div> : results.length > 0 ? <div className="console-records mt-3">{results.map((item) => <button type="button" key={String(item.id)} className="console-record notification-recipient" onClick={() => { setSelected(item); setResults([]); }}><span className="console-avatar">م</span><span className="min-w-0 flex-1 text-right"><strong className="block truncate">{item.name}</strong><small className="text-xs text-muted-foreground" dir="ltr">{item.phone || '—'}</small></span><span className="text-xs text-muted-foreground">{faNumber(item.active_devices)} دستگاه</span></button>)}</div> : search.trim().length >= 2 && !selected ? <p className="console-section-copy mt-2">مشتری پیدا نشد.</p> : null}
-              {selected ? <div className="console-state mt-3" role="status"><Check size={15} /><span>مخاطب انتخاب‌شده: <strong>{selected.name}</strong></span><button type="button" className="console-action console-action-quiet mr-auto" onClick={() => { setSelected(null); setSearch(''); }}>تغییر</button></div> : null}
-              <div className="console-surface mt-4 p-4"><div className="flex items-center gap-2 text-sm font-bold"><Link2 size={15} />اشتراک اختصاصی مشتری</div><label className="mt-3 flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={attachSubscription} onChange={(event) => { const enabled = event.target.checked; setAttachSubscription(enabled); if (!enabled) setHref(''); }} /><span>ارسال لینک subscription همراه پیام</span></label>{!attachSubscription ? <p className="mt-2 text-xs text-muted-foreground">حالت پیام معمولی فعال است؛ هیچ لینک subscription یا QR به پیام اضافه نمی‌شود.</p> : subscriptionLoading ? <p className="mt-2 text-xs text-muted-foreground">در حال دریافت اشتراک‌ها...</p> : subscriptions.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">برای این مشتری subscription قابل ارسال پیدا نشد.</p> : <div className="mt-3 grid gap-3 md:grid-cols-2"><label className="console-field"><span>انتخاب subscription</span><select value={subscriptionId} onChange={(event) => setSubscriptionId(event.target.value)}>{subscriptions.map((item) => <option key={String(item.id)} value={String(item.id)}>{item.plan} · {faNumber(item.remaining_gb)}GB باقی‌مانده · {item.status}</option>)}</select></label><label className="console-field"><span>لینک ارسالی</span><select value={subscriptionLinkType} onChange={(event) => setSubscriptionLinkType(event.target.value as typeof subscriptionLinkType)}><option value="public">صفحه اشتراک</option><option value="qr">صفحه QR اشتراک</option><option value="feed">لینک اتصال / Feed</option><option value="awg" disabled={!selectedSubscription?.awg_url}>کانفیگ AmneziaWG</option><option value="renew">تمدید همین سرویس</option></select></label></div>}{attachSubscription && selectedSubscription ? <p className="mt-3 text-[11px] text-muted-foreground" dir="ltr">{href}</p> : null}</div>
-            </div>
-          ) : <div className="console-state mt-5" role="status"><Sparkles size={15} /><span>{audienceLoading ? 'در حال محاسبه مخاطبان...' : `${audience?.label || audienceOptions.find(([key]) => key === target)?.[1] || 'مخاطبان'}؛ ${faNumber(audience?.count)} مشتری`}</span></div>}
-         </section>
-         <section className="notification-content-block" aria-labelledby="notification-content-title"><div className="notification-compose-section-head"><span>02</span><div><h3 id="notification-content-title">محتوا و تحویل</h3><p>از قالب، لینک و متن مشخص استفاده کنید و نتیجهٔ API را بعد از ثبت ببینید.</p></div></div>
-          <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
-            <label className="field"><span>Template آماده</span><select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">بدون template</option>{availableTemplates.map((template) => <option key={String(template.id)} value={String(template.id)}>{template.name}</option>)}</select></label>
-            <div className="flex items-end gap-2"><input className="console-input min-w-0 flex-1" value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="نام template جدید" /><button className="console-action console-action-secondary" type="button" onClick={() => void saveTemplate()} disabled={savingTemplate || !templateName.trim()}><Save size={14} /> ذخیره</button>{templateId ? <button className="console-action console-action-quiet" type="button" onClick={() => void deleteTemplate()} aria-label="حذف template"><Trash2 size={15} /></button> : null}</div>
-         </div>
-          <p className="mt-2 text-xs text-muted-foreground">متغیرهای قابل استفاده: <code>{'{{customer_name}}'}</code>، <code>{'{{service_name}}'}</code>، <code>{'{{expiry_date}}'}</code>، <code>{'{{remaining_gb}}'}</code>، <code>{'{{subscription_link}}'}</code>، <code>{'{{qr_link}}'}</code>، <code>{'{{renewal_link}}'}</code></p>
-         <div className="mt-5 grid gap-5 md:grid-cols-2">
-          <label className="field"><span>عنوان اعلان</span><input required maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="مثلاً اختلال کوتاه‌مدت در سرویس" /></label>
-          <label className="field"><span>برچسب دکمه</span><input maxLength={40} value={actionLabel} onChange={(event) => setActionLabel(event.target.value)} placeholder="مثلاً مشاهده جزئیات" /></label>
-        </div>
-        <label className="field mt-5"><span>متن پیام</span><textarea required maxLength={4000} rows={6} value={body} onChange={(event) => setBody(event.target.value)} placeholder="متن دقیق و قابل اقدام پیام را بنویسید." /></label>
-         <label className="field mt-5"><span>لینک داخلی یا HTTPS</span><select value="" onChange={(event) => { if (event.target.value) setHref(event.target.value); }}><option value="">لینک سریع انتخاب کنید...</option><option value="/mobile">داشبورد مشتری</option><option value="/mobile/notifications">صندوق اعلان‌ها</option><option value="/mobile/services">سرویس‌های من</option><option value="/mobile/renew">تمدید سرویس</option></select><div className="relative mt-2"><Link2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="pr-9" value={href} onChange={(event) => setHref(event.target.value)} placeholder="/services یا https://..." /></div>{hrefError ? <small className="text-xs text-destructive">{hrefError}</small> : null}</label>
-         {error ? <div className="console-state is-error mt-4" role="alert">{error}</div> : null}
-        {feedback ? <SendSummary result={feedback} /> : null}
-          <div className="mt-5 flex flex-wrap items-center gap-3"><button className="console-action console-action-primary" type="submit" disabled={sending || !title.trim() || !body.trim() || Boolean(hrefError) || (target === 'recipient' && !selected)}>{sending ? <><RefreshCw size={14} className="spin" /> در حال ثبت...</> : <><Send size={14} /> {scheduledAt ? 'زمان‌بندی اعلان' : 'ثبت و ارسال اعلان'}</>}</button><span className="text-xs text-muted-foreground"><Smartphone size={13} className="inline ml-1" />تحویل Web Push جداگانه در گزارش ثبت می‌شود.</span></div>
-         </section>
-          </div>
-          <aside className="notification-live-preview" aria-label="پیش‌نمایش زنده اعلان">
-            <div className="notification-preview-top"><span><Smartphone size={15} /> PREVIEW / WEB PUSH</span><span className="notification-preview-dot" /></div>
-            <div className="notification-preview-device">
-              <div className="notification-preview-brand"><span className="notification-preview-mark">P</span><span>Pulse <small>اعلان جدید</small></span><time>اکنون</time></div>
+      <form onSubmit={send}>
+        <Workbench asideLabel="پیش‌نمایش زنده اعلان" aside={<div className="ax-sticky">
+          <Card title="پیش‌نمایش زنده" description="Web Push · همان چیزی که مشتری می‌بیند">
+            <div className="ax-push-preview">
+              <div className="ax-push-brand"><span className="ax-push-mark">P</span><span>Pulse <small>اعلان جدید</small></span><time>اکنون</time></div>
               <strong>{title.trim() || 'عنوان اعلان'}</strong>
               <p>{body.trim() || 'متن پیام شما اینجا نمایش داده می‌شود. عنوان و محتوا را برای پیش‌نمایش زنده وارد کنید.'}</p>
-              {actionLabel.trim() && <span className="notification-preview-action">{actionLabel}</span>}
+              {actionLabel.trim() && <span className="ax-push-action">{actionLabel}</span>}
             </div>
-            <div className="notification-preview-audience"><span>دریافت‌کننده</span><strong>{target === 'recipient' ? selected?.name || 'مشتری انتخاب نشده' : audience?.label || audienceOptions.find(([key]) => key === target)?.[1] || 'مخاطبان'}</strong><small>{target === 'recipient' ? selected?.phone || 'انتخاب مشتری از بخش مخاطب' : audienceLoading ? 'در حال محاسبه مخاطبان…' : `${faNumber(audience?.count)} مشتری`}</small></div>
-            <div className="notification-preview-link"><Link2 size={14} /><span>{href || (attachSubscription && selectedSubscription ? 'لینک اشتراک انتخاب شد' : 'بدون لینک همراه')}</span></div>
-          </aside></div>
+            <StatRow label="مقصد پیام">
+              <Stat label="دریافت‌کننده" value={target === 'recipient' ? selected?.name || 'مشتری انتخاب نشده' : audienceName} detail={target === 'recipient' ? selected?.phone || 'انتخاب مشتری از بخش مخاطب' : audienceLoading ? 'در حال محاسبه مخاطبان…' : `${faNumber(audience?.count)} مشتری`} />
+            </StatRow>
+            <div className="ax-linkline"><Link2 size={14} /><span dir="ltr">{href || (attachSubscription && selectedSubscription ? 'لینک اشتراک انتخاب شد' : 'بدون لینک همراه')}</span></div>
+          </Card>
+          {feedback ? <SendSummary result={feedback} /> : null}
+        </div>}>
+          <Card title="ساخت اعلان" description="مخاطب را مشخص کنید، سپس پیام را آماده کنید؛ پیش از ارسال، audience و شواهد تحویل را مرور کنید."
+            footer={<div className="ax-foot-bar"><span className="ax-sub"><Smartphone size={13} /> تحویل Web Push جداگانه در گزارش ثبت می‌شود.</span><Btn variant="primary" type="submit" disabled={!canSend}>{sending ? <><RefreshCw size={14} className="ax-spin" /> در حال ثبت...</> : <><Send size={14} /> {scheduledAt ? 'زمان‌بندی اعلان' : 'ثبت و ارسال اعلان'}</>}</Btn></div>}>
+            <Section step="۰۱" title="مخاطب و زمان‌بندی" description="ارسال به یک مشتری یا audience موجود؛ بدون تغییر در مجوزهای فعلی.">
+              <FormGrid>
+                <Field label="دامنه ارسال"><select value={target} onChange={(event) => { setTarget(event.target.value as (typeof audienceOptions)[number][0]); setSelected(null); setResults([]); }} aria-label="مخاطبان کمپین">{audienceOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>
+                <Field label="زمان ارسال" hint="اختیاری؛ زمان تهران"><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /></Field>
+              </FormGrid>
+              {target === 'recipient' ? <div className="ax-stack">
+                <Field label="جست‌وجوی مشتری"><span className="ax-search"><Search size={15} aria-hidden="true" /><input value={selected ? selected.name : search} onChange={(event) => { setSelected(null); setSearch(event.target.value); setError(''); }} placeholder="حداقل دو حرف از نام یا شماره موبایل" /></span></Field>
+                {loading ? <SkeletonRows rows={2} label="در حال جست‌وجو..." /> : results.length > 0 ? <div className="ax-picklist" role="listbox" aria-label="نتایج جست‌وجوی مشتری">{results.map((item) => <button type="button" role="option" aria-selected="false" key={String(item.id)} className="ax-pick" onClick={() => { setSelected(item); setResults([]); }}><span className="ax-avatar is-sm">{item.name.slice(0, 1)}</span><span className="ax-pick-copy"><strong>{item.name}</strong><small dir="ltr">{item.phone || '—'}</small></span><Badge>{faNumber(item.active_devices)} دستگاه</Badge></button>)}</div> : search.trim().length >= 2 && !selected ? <p className="ax-sub">مشتری پیدا نشد.</p> : null}
+                {selected ? <Callout tone="good" icon={Check} role="status" action={<Btn size="sm" variant="quiet" onClick={() => { setSelected(null); setSearch(''); }}>تغییر</Btn>}>مخاطب انتخاب‌شده: <strong>{selected.name}</strong></Callout> : null}
+                <div className="ax-subpanel">
+                  <Switch label="ارسال لینک subscription همراه پیام" detail="اشتراک اختصاصی مشتری" checked={attachSubscription} onChange={(enabled) => { setAttachSubscription(enabled); if (!enabled) setHref(''); }} />
+                  {!attachSubscription ? <p className="ax-sub">حالت پیام معمولی فعال است؛ هیچ لینک subscription یا QR به پیام اضافه نمی‌شود.</p> : subscriptionLoading ? <SkeletonRows rows={1} label="در حال دریافت اشتراک‌ها..." /> : subscriptions.length === 0 ? <p className="ax-sub">برای این مشتری subscription قابل ارسال پیدا نشد.</p> : <FormGrid>
+                    <Field label="انتخاب subscription"><select value={subscriptionId} onChange={(event) => setSubscriptionId(event.target.value)}>{subscriptions.map((item) => <option key={String(item.id)} value={String(item.id)}>{item.plan} · {faNumber(item.remaining_gb)}GB باقی‌مانده · {item.status}</option>)}</select></Field>
+                    <Field label="لینک ارسالی"><select value={subscriptionLinkType} onChange={(event) => setSubscriptionLinkType(event.target.value as typeof subscriptionLinkType)}><option value="public">صفحه اشتراک</option><option value="qr">صفحه QR اشتراک</option><option value="feed">لینک اتصال / Feed</option><option value="awg" disabled={!selectedSubscription?.awg_url}>کانفیگ AmneziaWG</option><option value="renew">تمدید همین سرویس</option></select></Field>
+                  </FormGrid>}
+                  {attachSubscription && selectedSubscription ? <code className="ax-codebox" dir="ltr">{href}</code> : null}
+                </div>
+              </div> : <Callout tone="info" icon={Sparkles} role="status">{audienceLoading ? 'در حال محاسبه مخاطبان...' : `${audienceName}؛ ${faNumber(audience?.count)} مشتری`}</Callout>}
+            </Section>
+            <Section step="۰۲" title="محتوا و تحویل" description="از قالب، لینک و متن مشخص استفاده کنید و نتیجهٔ API را بعد از ثبت ببینید.">
+              <div className="ax-template-row">
+                <Field label="Template آماده"><select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">بدون template</option>{availableTemplates.map((template) => <option key={String(template.id)} value={String(template.id)}>{template.name}</option>)}</select></Field>
+                <Field label="ذخیره به‌عنوان template"><span className="ax-inline-input"><input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="نام template جدید" /><Btn onClick={() => void saveTemplate()} disabled={savingTemplate || !templateName.trim()}><Save size={14} /> ذخیره</Btn>{templateId ? <Btn variant="danger" onClick={() => void deleteTemplate()} ariaLabel="حذف template"><Trash2 size={14} /></Btn> : null}</span></Field>
+              </div>
+              <p className="ax-sub ax-vars">متغیرها: {['{{customer_name}}', '{{service_name}}', '{{expiry_date}}', '{{remaining_gb}}', '{{subscription_link}}', '{{qr_link}}', '{{renewal_link}}'].map((token) => <code key={token} dir="ltr">{token}</code>)}</p>
+              <FormGrid>
+                <Field label="عنوان اعلان"><input required maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="مثلاً اختلال کوتاه‌مدت در سرویس" /></Field>
+                <Field label="برچسب دکمه"><input maxLength={40} value={actionLabel} onChange={(event) => setActionLabel(event.target.value)} placeholder="مثلاً مشاهده جزئیات" /></Field>
+                <Field label="متن پیام" full hint={`${faNumber(body.length)} / ۴۰۰۰`}><textarea required maxLength={4000} rows={6} value={body} onChange={(event) => setBody(event.target.value)} placeholder="متن دقیق و قابل اقدام پیام را بنویسید." /></Field>
+                <Field label="لینک سریع"><select value="" onChange={(event) => { if (event.target.value) setHref(event.target.value); }}><option value="">لینک سریع انتخاب کنید...</option><option value="/mobile">داشبورد مشتری</option><option value="/mobile/notifications">صندوق اعلان‌ها</option><option value="/mobile/services">سرویس‌های من</option><option value="/mobile/renew">تمدید سرویس</option></select></Field>
+                <Field label="لینک داخلی یا HTTPS" error={hrefError || undefined}><input dir="ltr" value={href} onChange={(event) => setHref(event.target.value)} placeholder="/services یا https://..." /></Field>
+              </FormGrid>
+              {error ? <ErrorAlert message={error} /> : null}
+            </Section>
+          </Card>
+        </Workbench>
       </form>
-      </div>
-    </main>
+    </Page>
   );
 }
 
@@ -615,17 +585,13 @@ function SendSummary({ result }: { result: Record<string, unknown> }) {
   const pushSent = maybeNumber(result, ['pushSent', 'push_sent', 'push_accepted', 'accepted', 'sent']);
   const pushFailed = maybeNumber(result, ['pushFailed', 'push_failed', 'failed']);
   const displayNumber = (value: number | null) => value === null ? '—' : faNumber(value);
-  return (
-    <div className="console-state mt-4 block" role="status">
-      <div className="flex items-center gap-2 font-bold"><CheckCircle2 size={16} /> اعلان ثبت شد</div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <div><span className="block text-[11px] text-muted-foreground">مخاطب ثبت‌شده</span><strong>{displayNumber(targetCount)}{targetCount === null ? '' : ' مشتری'}</strong></div>
-        <div><span className="block text-[11px] text-muted-foreground">دستگاه فعال</span><strong>{displayNumber(activeDevices)}</strong></div>
-        <div><span className="block text-[11px] text-muted-foreground">پذیرفته / ناموفق</span><strong>{displayNumber(pushSent)} / {displayNumber(pushFailed)}</strong></div>
-      </div>
-      {typeof result.scheduled_at === 'string' || typeof result.scheduledAt === 'string' ? <p className="mt-3 text-xs text-muted-foreground">زمان ارسال: {dateLabel(result.scheduled_at || result.scheduledAt)}</p> : null}
-    </div>
-  );
+  return <Card title={<><CheckCircle2 size={15} /> اعلان ثبت شد</>} description={typeof result.scheduled_at === 'string' || typeof result.scheduledAt === 'string' ? `زمان ارسال: ${dateLabel(result.scheduled_at || result.scheduledAt)}` : 'نتیجهٔ واقعی ثبت از API'}>
+    <div role="status"><StatRow label="نتیجه ارسال">
+      <Stat label="مخاطب ثبت‌شده" value={`${displayNumber(targetCount)}${targetCount === null ? '' : ' مشتری'}`} />
+      <Stat label="دستگاه فعال" value={displayNumber(activeDevices)} />
+      <Stat label="پذیرفته / ناموفق" value={`${displayNumber(pushSent)} / ${displayNumber(pushFailed)}`} tone={pushFailed ? 'warn' : 'good'} />
+    </StatRow></div>
+  </Card>;
 }
 
 export function NotificationAnalyticsPage() {
@@ -709,43 +675,46 @@ export function NotificationAnalyticsPage() {
     }
   };
 
-  if (session?.role !== 'master_admin') return <main className="admin-console hope-admin-page hope-pattern-report hope-notification-analytics"><AdminOnlyNotice /></main>;
+  if (session?.role !== 'master_admin') return <AdminOnlyNotice surface="notification-analytics" />;
   const total = summary ? maybeNumber(summary, ['total', 'target_count', 'audience']) : null;
   const accepted = summary ? maybeNumber(summary, ['push_accepted', 'accepted', 'sent', 'delivered']) : null;
   const failed = summary ? maybeNumber(summary, ['push_failed', 'failed']) : null;
   const deliveryCoverage = total !== null && accepted !== null && total > 0 ? Math.round(accepted / total * 100) : null;
+  const opened = summary ? maybeNumber(summary, ['opened']) : null;
+  const clicked = summary ? maybeNumber(summary, ['clicked']) : null;
+  const campaignTitle = selectedCampaign ? selectedCampaign.title || selectedCampaign.name || 'اعلان بدون عنوان' : '';
   return (
-    <main className="admin-console hope-admin-page hope-pattern-report hope-notification-analytics notification-page-frame notification-analytics-page">
-      <div className="hope-notification-analysis-layout">
-      <PageHeader eyebrow="مرکز کنترل اعلان" title="تحلیل و گزارش کمپین‌ها" description="تعداد ثبت‌شده کافی نیست؛ وضعیت پذیرش، شکست، غیرفعال‌شدن دستگاه و رفتار کاربر را جداگانه ببینید." action={<Link className="console-action console-action-primary" href="/notification-send"><Send size={15} /> کمپین جدید</Link>} />
+    <Page surface="notification-analytics">
+      <PageHead eyebrow="مرکز کنترل اعلان" title="تحلیل و گزارش کمپین‌ها" lede="تعداد ثبت‌شده کافی نیست؛ وضعیت پذیرش، شکست، غیرفعال‌شدن دستگاه و رفتار کاربر را جداگانه ببینید." actions={<Link className="ax-btn is-primary" href="/notification-send"><Send size={15} /> کمپین جدید</Link>} />
       <NotificationNav active="analytics" />
-      {error ? <div className="console-state is-error mt-5 flex items-center justify-between gap-3" role="alert"><span>{error}</span><button className="console-action console-action-secondary" type="button" onClick={() => void loadCampaigns()}>تلاش دوباره</button></div> : null}
-      {selectedCampaign && !loadingDetail ? <section className="notification-delivery-command" aria-label="خلاصه تحویل کمپین">
-        <div><span>DELIVERY REPORT</span><strong>{selectedCampaign.title || selectedCampaign.name || 'اعلان بدون عنوان'}</strong><small>{deliveryCoverage === null ? 'پوشش تحویل در دادهٔ این کمپین در دسترس نیست.' : `${faNumber(deliveryCoverage)}٪ از مخاطبان هدف پذیرفته شده‌اند.`}</small></div>
-        <div className="notification-delivery-meter"><div><span>پذیرفته‌شده</span><strong>{accepted === null ? '—' : faNumber(accepted)}</strong></div><span className="notification-delivery-track"><i style={{ width: `${deliveryCoverage ?? 0}%` }} /></span><small>{total === null ? 'مخاطب نامشخص' : `از ${faNumber(total)} مخاطب`}</small></div>
-        <div className="notification-delivery-failure"><span>ناموفق</span><strong>{failed === null ? '—' : faNumber(failed)}</strong></div>
-      </section> : null}
-      <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(220px,0.7fr)_minmax(0,2fr)]">
-        <section className="console-surface min-w-0 notification-campaign-rail" aria-labelledby="campaign-history-title">
-          <header className="notification-history-head"><div><p className="eyebrow">آرشیو پیام‌رسانی</p><h2 id="campaign-history-title" className="text-sm font-bold">سابقه کمپین‌ها</h2><p className="mt-1 text-xs text-muted-foreground">{faNumber(campaigns.length)} کمپین اخیر</p></div><button className="icon-button" type="button" onClick={() => void loadCampaigns()} aria-label="به‌روزرسانی"><RefreshCw size={16} className={loadingCampaigns ? 'spin' : ''} /></button></header>
-          {loadingCampaigns ? <div className="console-empty is-loading py-12" role="status"><RefreshCw size={19} className="spin" /><span>در حال دریافت سابقه...</span></div> : campaigns.length === 0 ? <div className="console-empty py-12" role="status"><Bell size={19} /><span>هنوز کمپینی ثبت نشده است.</span><Link className="console-action console-action-secondary mt-4" href="/notification-send">ارسال اولین پیام</Link></div> : <div className="mt-4 space-y-2">{campaigns.map((campaign) => <button type="button" key={String(campaign.id)} onClick={() => setSelectedId(String(campaign.id))} className={`console-record w-full text-right transition-colors ${String(campaign.id) === selectedId ? 'border-primary bg-primary/5' : 'border-border/60 hover:bg-muted/40'}`}><div className="flex items-start justify-between gap-2"><strong className="line-clamp-2 text-sm">{campaign.title || campaign.name || 'اعلان بدون عنوان'}</strong><ChevronLeft size={15} className="mt-0.5 shrink-0 text-muted-foreground" /></div><div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground"><span>{dateLabel(campaign.created_at || campaign.scheduled_at)}</span><span className={`status-pill ${statusTone(campaign.status)}`}>{statusText(campaign.status)}</span></div></button>)}</div>}
-        </section>
-         <section className="min-w-0 notification-campaign-detail" aria-label="جزئیات و شواهد کمپین">
-          {!selectedCampaign ? <div className="console-surface empty-state min-h-[320px]"><BarChart3 size={24} /><p className="mt-3 text-sm font-bold">یک کمپین را انتخاب کنید</p><p className="mt-1 text-xs text-muted-foreground">جزئیات تحویل و رفتار مشتری اینجا نمایش داده می‌شود.</p></div> : <>
-            <div className="console-surface">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="console-eyebrow">جزئیات کمپین</p><h2 className="console-section-title mt-1">{selectedCampaign.title || selectedCampaign.name || 'اعلان بدون عنوان'}</h2><p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{selectedCampaign.body || 'متن کمپین در دسترس نیست.'}</p></div><div className="flex shrink-0 gap-2">{selectedCampaign.href ? <a className="console-action console-action-quiet" href={selectedCampaign.href} target="_blank" rel="noreferrer" aria-label="باز کردن لینک"><ExternalLink size={16} /></a> : null}<button className="console-action console-action-secondary" type="button" onClick={() => void retry()} disabled={retrying}><RotateCcw size={14} className={retrying ? 'spin' : ''} /> تلاش مجدد</button></div></div>
-              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span><Clock3 size={13} className="ml-1 inline" />{dateLabel(selectedCampaign.scheduled_at || selectedCampaign.created_at)}</span>{selectedCampaign.action_label ? <span><MousePointerClick size={13} className="ml-1 inline" />{selectedCampaign.action_label}</span> : null}<span>{selectedCampaign.target === 'all' ? 'همه مشتریان' : 'مخاطب مشخص'}</span></div>
-            </div>
-            {detailError ? <div className="console-state is-error mt-4" role="alert">{detailError}</div> : null}
-            {loadingDetail ? <div className="console-surface mt-4 empty-state py-14"><RefreshCw size={20} className="spin" /><p className="mt-3 text-sm">در حال دریافت شواهد تحویل...</p></div> : <>
-              <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-5"><StatTile label="مخاطب" value={total} icon={Users} /><StatTile label="پذیرفته‌شده" value={maybeNumber(summary || {}, ['push_accepted', 'accepted', 'sent', 'delivered'])} icon={CheckCircle2} tone="success" /><StatTile label="ناموفق" value={maybeNumber(summary || {}, ['push_failed', 'failed'])} icon={XCircle} tone="danger" /><StatTile label="غیرفعال‌شده" value={maybeNumber(summary || {}, ['deactivated_devices', 'deactivated'])} icon={Smartphone} tone="warning" /><StatTile label="باز / کلیک" value={summary ? `${maybeNumber(summary, ['opened']) === null ? '—' : faNumber(maybeNumber(summary, ['opened']) as number)} / ${maybeNumber(summary, ['clicked']) === null ? '—' : faNumber(maybeNumber(summary, ['clicked']) as number)}` : '—'} icon={Eye} /></div>
-                 <section className="console-surface mt-4 notification-evidence-panel" aria-labelledby="daily-evidence-title"><header className="notification-evidence-head"><div><p className="eyebrow">روند ارسال</p><h3 id="daily-evidence-title" className="text-sm font-bold">نتیجه به تفکیک روز</h3><p className="mt-1 text-xs text-muted-foreground">فقط روزهایی نمایش داده می‌شوند که API داده برگرداند.</p></div><BarChart3 size={18} className="text-primary" /></header>{daily.length === 0 ? <div className="empty-state py-10"><p className="text-xs">داده روزانه‌ای برای این کمپین وجود ندارد.</p></div> : <div className="hope-table-scroll"><table className="hope-data-table" aria-label="نتیجه روزانه ارسال"><thead><tr><th>روز</th><th>مخاطب</th><th>پذیرفته‌شده</th><th>ناموفق</th><th>باز / کلیک</th></tr></thead><tbody>{daily.map((point, index) => <tr key={`${point.date || point.day || index}`}><td><bdi dir="ltr">{String(point.date || point.day || '—')}</bdi></td><td>{faNumber(firstNumber(point, ['total', 'target_count']))}</td><td>{faNumber(firstNumber(point, ['push_accepted', 'accepted', 'sent', 'delivered']))}</td><td>{faNumber(firstNumber(point, ['push_failed', 'failed']))}</td><td>{faNumber(firstNumber(point, ['opened']))} / {faNumber(firstNumber(point, ['clicked']))}</td></tr>)}</tbody></table></div>}</section>
-                <section className="console-surface mt-4 notification-evidence-panel" aria-labelledby="delivery-evidence-title"><header className="notification-evidence-head"><div><p className="eyebrow">رسید ارسال</p><h3 id="delivery-evidence-title" className="text-sm font-bold">تحویل به مشتریان</h3><p className="mt-1 text-xs text-muted-foreground">وضعیت دریافت، مشاهده و تعامل هر مخاطب به‌صورت جداگانه.</p></div><span className="status-pill"><Bell size={13} />{faNumber(logs.length)} رکورد</span></header>{logs.length === 0 ? <div className="empty-state py-10"><p className="text-xs">لاگ تحویلی برای این کمپین ثبت نشده است.</p></div> : <div className="hope-table-scroll"><table className="hope-data-table" aria-label="رسیدهای ارسال کمپین"><thead><tr><th>مشتری</th><th>وضعیت تحویل</th><th>پذیرش</th><th>مشاهده</th><th>تعامل</th><th>خطا</th></tr></thead><tbody>{logs.map((log, index) => <tr key={String(log.id || index)}><td><strong>{log.customer_name || log.recipient_name || 'مشتری'}</strong><small className="hope-table-subline" dir="ltr">{log.phone || '—'}</small></td><td><span className={`status-pill ${statusTone(log.status)}`}>{log.status === 'accepted' ? <Check size={13} /> : log.status === 'failed' ? <XCircle size={13} /> : <Clock3 size={13} />}{statusText(log.status)}</span></td><td>{dateLabel(log.accepted_at || log.created_at)}</td><td>{log.opened_at ? dateLabel(log.opened_at) : 'باز نشده'}</td><td>{log.clicked_at ? dateLabel(log.clicked_at) : 'کلیک نشده'}</td><td>{log.failure_reason ? <span className="notification-delivery-error" role="status">{String(log.failure_reason)}</span> : '—'}</td></tr>)}</tbody></table></div>}</section>
-            </>}
+      {error ? <ErrorAlert message={error} onRetry={() => void loadCampaigns()} retrying={loadingCampaigns} /> : null}
+      <Workbench asideLabel="سابقه کمپین‌ها" aside={<Card flush title="سابقه کمپین‌ها" description={`آرشیو پیام‌رسانی · ${faNumber(campaigns.length)} کمپین اخیر`} actions={<button className="ax-icon-btn" type="button" onClick={() => void loadCampaigns()} aria-label="به‌روزرسانی"><RefreshCw size={15} className={loadingCampaigns ? 'ax-spin' : ''} /></button>}>
+        {loadingCampaigns ? <SkeletonRows rows={5} label="در حال دریافت سابقه..." /> : campaigns.length === 0 ? <EmptyState icon={Bell} title="هنوز کمپینی ثبت نشده است." action={<Link className="ax-btn" href="/notification-send">ارسال اولین پیام</Link>} /> : <div className="ax-picklist is-rail" role="listbox" aria-label="کمپین‌ها">{campaigns.map((campaign) => { const active = String(campaign.id) === selectedId; return <button type="button" role="option" aria-selected={active} key={String(campaign.id)} onClick={() => setSelectedId(String(campaign.id))} className={`ax-pick${active ? ' is-active' : ''}`}><span className="ax-pick-copy"><strong className="ax-clamp">{campaign.title || campaign.name || 'اعلان بدون عنوان'}</strong><small>{dateLabel(campaign.created_at || campaign.scheduled_at)}</small></span><Badge tone={statusTone(campaign.status)}>{statusText(campaign.status)}</Badge><ChevronLeft size={14} className="ax-rowlink-chev" /></button>; })}</div>}
+      </Card>}>
+        {!selectedCampaign ? <Card><EmptyState icon={BarChart3} title="یک کمپین را انتخاب کنید" detail="جزئیات تحویل و رفتار مشتری اینجا نمایش داده می‌شود." /></Card> : <>
+          <Card title={campaignTitle} description="جزئیات کمپین" actions={<>{selectedCampaign.href ? <a className="ax-btn is-quiet is-sm" href={selectedCampaign.href} target="_blank" rel="noreferrer" aria-label="باز کردن لینک"><ExternalLink size={15} /></a> : null}<Btn size="sm" onClick={() => void retry()} disabled={retrying}><RotateCcw size={13} className={retrying ? 'ax-spin' : ''} /> تلاش مجدد</Btn></>}>
+            <p className="ax-prose ax-pre">{selectedCampaign.body || 'متن کمپین در دسترس نیست.'}</p>
+            <div className="ax-meta-line"><span><Clock3 size={13} /> {dateLabel(selectedCampaign.scheduled_at || selectedCampaign.created_at)}</span>{selectedCampaign.action_label ? <span><MousePointerClick size={13} /> {selectedCampaign.action_label}</span> : null}<span><Users size={13} /> {selectedCampaign.target === 'all' ? 'همه مشتریان' : 'مخاطب مشخص'}</span></div>
+            {!loadingDetail && <div className="ax-coverage" aria-label="پوشش تحویل"><div className="ax-coverage-head"><span>پذیرفته‌شده {accepted === null ? '—' : faNumber(accepted)} {total === null ? '' : `از ${faNumber(total)} مخاطب`}</span><strong>{deliveryCoverage === null ? 'پوشش نامشخص' : `${faNumber(deliveryCoverage)}٪`}</strong></div><Meter value={deliveryCoverage ?? 0} label="پوشش تحویل" /></div>}
+          </Card>
+          {detailError ? <ErrorAlert message={detailError} /> : null}
+          {loadingDetail ? <Card><SkeletonRows rows={5} label="در حال دریافت شواهد تحویل..." /></Card> : <>
+            <KpiGrid label="شاخص‌های تحویل">
+              <Kpi label="مخاطب" value={show(total)} icon={Users} />
+              <Kpi label="پذیرفته‌شده" value={show(accepted)} icon={CheckCircle2} tone="good" />
+              <Kpi label="ناموفق" value={show(failed)} icon={XCircle} tone="bad" />
+              <Kpi label="غیرفعال‌شده" value={show(maybeNumber(summary || {}, ['deactivated_devices', 'deactivated']))} icon={Smartphone} tone="warn" />
+              <Kpi label="باز / کلیک" value={summary ? `${show(opened)} / ${show(clicked)}` : '—'} icon={Eye} tone="info" />
+            </KpiGrid>
+            <Card flush title="نتیجه به تفکیک روز" description="فقط روزهایی نمایش داده می‌شوند که API داده برگرداند.">
+              {daily.length === 0 ? <EmptyState icon={BarChart3} title="داده روزانه‌ای برای این کمپین وجود ندارد." /> : <DataTable label="نتیجه روزانه ارسال" head={['روز', 'مخاطب', 'پذیرفته‌شده', 'ناموفق', 'باز / کلیک']}>{daily.map((point, index) => <tr key={`${point.date || point.day || index}`}><td><bdi dir="ltr">{String(point.date || point.day || '—')}</bdi></td><td className="ax-num">{faNumber(firstNumber(point, ['total', 'target_count']))}</td><td className="ax-num">{faNumber(firstNumber(point, ['push_accepted', 'accepted', 'sent', 'delivered']))}</td><td className="ax-num">{faNumber(firstNumber(point, ['push_failed', 'failed']))}</td><td className="ax-num">{faNumber(firstNumber(point, ['opened']))} / {faNumber(firstNumber(point, ['clicked']))}</td></tr>)}</DataTable>}
+            </Card>
+            <Card flush title="تحویل به مشتریان" description="وضعیت دریافت، مشاهده و تعامل هر مخاطب به‌صورت جداگانه." actions={<Badge><Bell size={12} /> {faNumber(logs.length)} رکورد</Badge>}>
+              {logs.length === 0 ? <EmptyState icon={Bell} title="لاگ تحویلی برای این کمپین ثبت نشده است." /> : <DataTable label="رسیدهای ارسال کمپین" head={['مشتری', 'وضعیت تحویل', 'پذیرش', 'مشاهده', 'تعامل', 'خطا']}>{logs.map((log, index) => <tr key={String(log.id || index)}><td><strong>{log.customer_name || log.recipient_name || 'مشتری'}</strong><small className="ax-sub" dir="ltr">{log.phone || '—'}</small></td><td><Badge tone={statusTone(log.status)}>{log.status === 'accepted' ? <Check size={12} /> : log.status === 'failed' ? <XCircle size={12} /> : <Clock3 size={12} />}{statusText(log.status)}</Badge></td><td>{dateLabel(log.accepted_at || log.created_at)}</td><td>{log.opened_at ? dateLabel(log.opened_at) : 'باز نشده'}</td><td>{log.clicked_at ? dateLabel(log.clicked_at) : 'کلیک نشده'}</td><td>{log.failure_reason ? <small className="ax-error-text" role="status">{String(log.failure_reason)}</small> : '—'}</td></tr>)}</DataTable>}
+            </Card>
           </>}
-        </section>
-      </div>
-      </div>
-    </main>
+        </>}
+      </Workbench>
+    </Page>
   );
 }

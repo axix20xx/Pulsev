@@ -13,14 +13,13 @@ import {
   ShieldEllipsis,
   X,
 } from 'lucide-react';
-import { PageHeader } from '@/components/admin-console-primitives';
+import { Badge, Btn, Callout, Card, DataTable, EmptyState, Kpi, KpiGrid, Modal, Page, PageHead, Section, Stat, StatRow } from '@/admin/ui';
 import {
   useRepairProviderAccountAudit,
   useScanProviderAccountAudit,
   type ProviderAccountAuditIssue,
   type ProviderAccountAuditMatch,
 } from '@workspace/api-client-react';
-import './provider-account-audit.css';
 
 type RepairState =
   | { outcome: 'repaired' | 'skipped'; message: string }
@@ -217,211 +216,74 @@ function ProviderAccountAuditPage() {
   const skippedCount = Object.values(repairStates).filter((item) => item.outcome === 'skipped').length;
   const failedCount = Object.values(repairStates).filter((item) => item.outcome === 'failed').length;
 
+  const tid = (prefix: string, match: Pick<ProviderAccountAuditMatch, 'service_id' | 'provider_key'>) => `${prefix}-${match.service_id}-${encodeURIComponent(match.provider_key)}`;
+  const scanTone = scanActive ? 'info' : scanComplete ? 'good' : scanError ? 'bad' : 'neutral';
+  const scanLabel = scanActive ? scanPaused ? 'توقف پس از بررسی جاری' : 'در حال بررسی' : scanComplete ? 'بررسی کامل شد' : scanError ? 'متوقف با خطا' : scanPaused ? 'اسکن متوقف شده' : 'آماده برای شروع';
+
   return (
-    <main className="admin-console hope-admin-page hope-page-audit hope-pattern-audit provider-audit" data-surface="provider-account-audit">
-      <div className="hope-provider-audit-layout">
-      <div className="audit-wrap console-page">
-        <PageHeader eyebrow="کنترل پنل‌های ارائه‌دهنده" title="بازبینی وضعیت حساب‌ها" description="حساب‌های غیرفعال را در پنل‌های فعال Rain پیدا کنید و پیش از هر اصلاح، نتیجه را مرور کنید." action={<span className="console-status"><i /> بررسی دستی</span>} />
+    <Page surface="provider-account-audit">
+      <PageHead eyebrow="کنترل پنل‌های ارائه‌دهنده" title="بازبینی وضعیت حساب‌ها" lede="حساب‌های غیرفعال را در پنل‌های فعال Rain پیدا کنید و پیش از هر اصلاح، نتیجه را مرور کنید." actions={<span data-testid="status-scan-state"><Badge tone={scanTone} dot>{scanLabel}</Badge></span>} />
 
-        <section className="audit-safety console-surface" aria-label="محدوده عملیات">
-          <div className="audit-safety-mark"><ShieldCheck size={19} /></div>
-          <div>
-            <strong>اصلاح فقط وضعیت حساب است</strong>
-            <p>حجم سهمیه، تاریخ انقضا و شمارنده‌های ترافیک بدون تغییر می‌مانند. هیچ اصلاحی بدون تأیید صریح شما اجرا نمی‌شود.</p>
-          </div>
-          <span className="audit-safety-tag">فقط وضعیت</span>
-        </section>
+      <Callout tone="primary" icon={ShieldCheck} title="اصلاح فقط وضعیت حساب است" role="note" action={<Badge tone="primary">فقط وضعیت</Badge>}>حجم سهمیه، تاریخ انقضا و شمارنده‌های ترافیک بدون تغییر می‌مانند. هیچ اصلاحی بدون تأیید صریح شما اجرا نمی‌شود.</Callout>
 
-        <section className="audit-scan-panel console-surface" aria-labelledby="scan-title">
-          <div className="audit-panel-top">
-            <div className="audit-panel-title">
-              <span className="audit-step">۰۱</span>
-              <div>
-                <h2 id="scan-title">اسکن سرویس‌های واجد شرایط</h2>
-                <p>سرویس‌های فعال با زمان و حجم باقی‌ماندهٔ قابل‌تأیید، یکی‌یکی در پنل‌های فعال Rain بررسی می‌شوند.</p>
-              </div>
-            </div>
-            <div className={`audit-scan-state ${scanActive ? 'is-running' : scanComplete ? 'is-done' : ''}`} data-testid="status-scan-state">
-              <span className="audit-state-dot" />
-              {scanActive ? scanPaused ? 'توقف پس از بررسی جاری' : 'در حال بررسی' : scanComplete ? 'بررسی کامل شد' : scanError ? 'متوقف با خطا' : scanPaused ? 'اسکن متوقف شده' : 'آماده برای شروع'}
-            </div>
-          </div>
+      <KpiGrid label="جمع‌بندی بازبینی">
+        <Kpi label="سرویس بررسی‌شده" value={<span data-testid="value-scan-progress">{progress.checked.toLocaleString('fa-IR')} از {progress.candidates.toLocaleString('fa-IR')} سرویس</span>} detail={`${progressPercent.toLocaleString('fa-IR')}٪ پیشرفت`} icon={Search} tone="info" />
+        <Kpi label="حساب غیرفعال" value={<span data-testid="value-match-count">{matches.length.toLocaleString('fa-IR')}</span>} detail={`${pendingSelectedMatches.length.toLocaleString('fa-IR')} مورد انتخاب‌شده`} icon={ShieldEllipsis} tone={matches.length ? 'warn' : 'neutral'} />
+        <Kpi label="اصلاح‌شده" value={repairedCount.toLocaleString('fa-IR')} detail={`${skippedCount.toLocaleString('fa-IR')} رد · ${failedCount.toLocaleString('fa-IR')} ناموفق`} icon={CheckCircle2} tone="good" />
+        <Kpi label="خطای خواندن" value={<span data-testid="value-issue-count">{issues.length.toLocaleString('fa-IR')}</span>} detail="در پنل‌های ارائه‌دهنده" icon={AlertTriangle} tone={issues.length ? 'bad' : 'neutral'} />
+      </KpiGrid>
 
-          <div className="audit-scan-controls">
-            <button
-              type="button"
-              className="audit-button audit-primary"
-              onClick={() => void startScan()}
-              disabled={scanActive || scanComplete}
-              data-testid="button-start-scan"
-            >
-              {scanActive ? <LoaderCircle className="audit-spin" size={17} /> : scanComplete ? <Check size={17} /> : <Search size={17} />}
+      <Card title="اسکن سرویس‌های واجد شرایط" description="سرویس‌های فعال با زمان و حجم باقی‌ماندهٔ قابل‌تأیید، یکی‌یکی در پنل‌های فعال Rain بررسی می‌شوند.">
+        <Section step="۰۱" title="اجرای اسکن دستی" description="اسکن فقط با فشردن دکمه آغاز می‌شود؛ خطای یک پنل مانع ادامه سرویس‌های بعدی نیست.">
+          <div className="ax-scan-controls">
+            <Btn variant="primary" onClick={() => void startScan()} disabled={scanActive || scanComplete} testId="button-start-scan">
+              {scanActive ? <LoaderCircle className="ax-spin" size={16} /> : scanComplete ? <Check size={16} /> : <Search size={16} />}
               {scanActive ? scanPaused ? 'در حال توقف...' : 'اسکن در حال اجرا' : scanComplete ? 'اسکن تکمیل شده' : cursor > 0 ? 'ادامه از آخرین نقطه' : 'شروع اسکن دستی'}
-            </button>
-            {scanActive && (
-              <button type="button" className="audit-button audit-stop" onClick={stopScan} disabled={scanPaused} data-testid="button-stop-scan">
-                <Pause size={16} /> {scanPaused ? 'توقف ثبت شد' : 'توقف اسکن'}
-              </button>
-            )}
-            <p className="audit-control-note">
-              <CircleDashed size={14} />
-              اسکن فقط با فشردن دکمه آغاز می‌شود؛ بررسی خطای یک پنل مانع ادامه سرویس‌های بعدی نیست.
-            </p>
+            </Btn>
+            {scanActive && <Btn variant="danger" onClick={stopScan} disabled={scanPaused} testId="button-stop-scan"><Pause size={15} /> {scanPaused ? 'توقف ثبت شد' : 'توقف اسکن'}</Btn>}
+            <span className="ax-sub"><CircleDashed size={13} /> پیشرفت در هر مرحله ذخیره می‌شود.</span>
           </div>
+          {(scanActive || progress.checked > 0 || scanError || scanComplete) && <div className="ax-progress" aria-live="polite">
+            <div className="ax-progress-head"><span>{scanActive ? 'پیشرفت اسکن' : scanComplete ? 'جمع‌بندی اسکن' : 'پیشرفت تا این نقطه'}</span><strong>{progressPercent.toLocaleString('fa-IR')}٪</strong></div>
+            <div className="ax-progress-track" role="progressbar" aria-valuenow={progressPercent} aria-valuemin={0} aria-valuemax={100} data-testid="progress-scan"><span style={{ transform: `scaleX(${progressPercent / 100})` }} /></div>
+            <div className="ax-progress-foot"><span data-testid="value-enabled-panels">{progress.panels.toLocaleString('fa-IR')} پنل فعال</span><span data-testid="value-scan-cursor">نقطه ادامه: {cursor.toLocaleString('fa-IR')}</span></div>
+          </div>}
+          {scanError && <div data-testid="status-scan-error"><Callout tone="bad" icon={AlertTriangle} title="اسکن موقتاً متوقف شد" role="alert">{scanError} برای ادامه، اسکن را از همان نقطه دوباره اجرا کنید.</Callout></div>}
+          {scanComplete && <div data-testid="status-scan-complete"><Callout tone="good" icon={CheckCircle2}>بررسی همه سرویس‌های واجد شرایط تمام شد. خطاهای خواندن ارائه‌دهنده در بخش جداگانه ثبت شده‌اند.</Callout></div>}
+        </Section>
+      </Card>
 
-          {(scanActive || progress.checked > 0 || scanError || scanComplete) && (
-            <div className="audit-progress" aria-live="polite">
-              <div className="audit-progress-head">
-                <span>{scanActive ? 'پیشرفت اسکن' : scanComplete ? 'جمع‌بندی اسکن' : 'پیشرفت تا این نقطه'}</span>
-                <strong data-testid="value-scan-progress">{progress.checked.toLocaleString('fa-IR')} از {progress.candidates.toLocaleString('fa-IR')} سرویس</strong>
-              </div>
-              <div className="audit-progress-track" role="progressbar" aria-valuenow={progressPercent} aria-valuemin={0} aria-valuemax={100} data-testid="progress-scan">
-                <span style={{ transform: `scaleX(${progressPercent / 100})` }} />
-              </div>
-              <div className="audit-progress-foot">
-                <span data-testid="value-enabled-panels">{progress.panels.toLocaleString('fa-IR')} پنل فعال</span>
-                <span data-testid="value-scan-cursor">نقطه ادامه: {cursor.toLocaleString('fa-IR')}</span>
-              </div>
-            </div>
-          )}
+      <Card flush title="حساب‌های غیرفعال پیدا شده" description="۰۲ · مرور، انتخاب و اصلاح ترتیبی" actions={matches.length > 0 ? <Btn size="sm" onClick={toggleAll} disabled={repairing} testId="button-toggle-all-matches">{allSelected ? 'لغو انتخاب همه' : 'انتخاب همه'}</Btn> : undefined}
+        footer={matches.length > 0 ? <div className="ax-foot-bar">
+          <span className="ax-sub"><ShieldCheck size={14} /> <span data-testid="value-selected-count">{pendingSelectedMatches.length.toLocaleString('fa-IR')} مورد برای اصلاح انتخاب شده</span></span>
+          {Object.keys(repairStates).length > 0 && <span className="ax-tally" data-testid="status-repair-summary"><Badge tone="good">{repairedCount.toLocaleString('fa-IR')} اصلاح</Badge><Badge>{skippedCount.toLocaleString('fa-IR')} رد</Badge><Badge tone="bad">{failedCount.toLocaleString('fa-IR')} ناموفق</Badge></span>}
+          <Btn variant="primary" onClick={() => setConfirmOpen(true)} disabled={pendingSelectedMatches.length === 0 || repairing || scanActive} testId="button-review-repair">{repairing ? <LoaderCircle className="ax-spin" size={16} /> : <RefreshCw size={15} />}{repairing ? 'در حال اصلاح ترتیبی' : `بازبینی و اصلاح ${pendingSelectedMatches.length.toLocaleString('fa-IR')} حساب`}</Btn>
+        </div> : undefined}>
+        {matches.length > 0 ? <DataTable label="حساب‌های غیرفعال یافته‌شده" head={['انتخاب', 'مشتری / سرویس', 'Provider', 'طرح / انقضا', 'حجم باقی‌مانده', 'نتیجه اصلاح']}>{matches.map((match) => {
+          const key = rowKey(match);
+          const state = repairStates[key];
+          return <tr className={state ? `is-${state.outcome}` : ''} key={key} data-testid={tid('row-audit-match', match)}>
+            <td><button type="button" className={`ax-check ${selected.has(key) ? 'is-checked' : ''}`} role="checkbox" aria-checked={selected.has(key)} aria-label={`انتخاب سرویس ${match.service_code}`} disabled={repairing || Boolean(state)} onClick={() => setSelected((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; })} data-testid={tid('button-select-match', match)}>{selected.has(key) && <Check size={13} />}</button></td>
+            <td><strong data-testid={tid('value-customer', match)}>{match.customer_name || 'نامشخص'}</strong><small className="ax-sub" dir="ltr" data-testid={tid('value-service-code', match)}>{match.service_code} · @{match.username}</small><span data-testid={tid('status-provider', match)}><Badge tone="bad" dot>غیرفعال در ارائه‌دهنده</Badge></span></td>
+            <td><bdi dir="ltr" data-testid={tid('value-provider-key', match)}>{match.provider_key}</bdi><small className="ax-sub" dir="ltr" data-testid={tid('value-provider-kind', match)}>{match.provider_kind}</small></td>
+            <td><strong data-testid={tid('value-plan', match)}>{match.plan || '—'}</strong><small className="ax-sub" data-testid={tid('value-expiry', match)}>انقضا · {formatDate(match.expires_at)}</small></td>
+            <td className="ax-num" data-testid={tid('value-remaining', match)}>{formatBytes(match.remaining_bytes)}</td>
+            <td>{state ? <div className="ax-cell-stack" role="status" data-testid={tid('status-repair', match)}><Badge tone={state.outcome === 'repaired' ? 'good' : state.outcome === 'skipped' ? 'neutral' : 'bad'}>{state.outcome === 'repaired' ? <CheckCircle2 size={12} /> : state.outcome === 'skipped' ? <ArrowDownLeft size={12} /> : <AlertTriangle size={12} />}{state.outcome === 'repaired' ? 'اصلاح شد' : state.outcome === 'skipped' ? 'رد شد' : 'ناموفق'}</Badge><small className="ax-sub">{state.message}</small></div> : <span className="ax-sub">در انتظار بازبینی</span>}</td>
+          </tr>;
+        })}</DataTable> : <div data-testid="state-empty-matches"><EmptyState icon={scanActive ? LoaderCircle : scanComplete ? CheckCircle2 : Search} title={scanActive ? 'در حال بررسی پنل‌ها' : scanComplete ? 'حساب غیرفعالی پیدا نشد' : progress.checked ? 'تا اینجا موردی پیدا نشده' : 'هنوز اسکن انجام نشده است'} detail={scanActive ? 'نتیجه هر سرویس پس از بررسی به همین صفحه اضافه می‌شود.' : scanComplete ? 'همه سرویس‌های واجد شرایط بررسی شدند. خطاهای ارائه‌دهنده را در بخش پایین ببینید.' : 'برای شروع بررسی حساب‌های غیرفعال، اسکن دستی را اجرا کنید.'} /></div>}
+      </Card>
 
-          {scanError && (
-            <div className="audit-inline-alert" role="alert" data-testid="status-scan-error">
-              <AlertTriangle size={17} />
-              <div><strong>اسکن موقتاً متوقف شد</strong><span>{scanError} برای ادامه، اسکن را از همان نقطه دوباره اجرا کنید.</span></div>
-            </div>
-          )}
-          {scanComplete && (
-            <div className="audit-complete-note" data-testid="status-scan-complete">
-              <CheckCircle2 size={17} />
-              بررسی همه سرویس‌های واجد شرایط تمام شد. خطاهای خواندن ارائه‌دهنده در بخش جداگانه ثبت شده‌اند.
-            </div>
-          )}
-        </section>
+      <Card flush title="خطاهای خواندن ارائه‌دهنده" description="خطای خواندن این پنل ثبت شده؛ اسکن سرویس بعدی را ادامه می‌دهد." actions={<Badge tone={issues.length ? 'bad' : 'neutral'}>{issues.length.toLocaleString('fa-IR')} خطا</Badge>}>
+        {issues.length > 0 ? <DataTable label="خطاهای خواندن ارائه‌دهنده" head={['سرویس', 'Provider', 'خطا']}>{issues.map((issue, index) => <tr key={`${issue.service_id}-${issue.provider_key}-${issue.message}-${index}`} data-testid={`row-audit-issue-${issue.service_id}-${index}`}><td><bdi dir="ltr" data-testid={`value-issue-service-${issue.service_id}-${index}`}>{issue.service_code}</bdi></td><td><bdi dir="ltr" data-testid={`value-issue-provider-${issue.service_id}-${index}`}>{issue.provider_key} / {issue.provider_kind}</bdi></td><td data-testid={`value-issue-message-${issue.service_id}-${index}`}>{issue.message}</td></tr>)}</DataTable>
+        : <div data-testid="state-no-issues"><EmptyState icon={ShieldCheck} title={scanComplete ? 'خطای خواندن ثبت نشده است.' : 'هنوز خطایی ثبت نشده'} detail={scanComplete ? undefined : 'پس از شروع اسکن، خطاهای خواندن در این بخش نمایش داده می‌شوند.'} /></div>}
+      </Card>
 
-        <div className="audit-review-workbench">
-        <section className="audit-results console-surface" aria-labelledby="results-title">
-          <div className="audit-results-heading">
-            <div>
-              <p className="audit-eyebrow">نتیجه بررسی</p>
-              <h2 id="results-title">حساب‌های غیرفعال پیدا شده</h2>
-            </div>
-            <div className="audit-result-count" data-testid="value-match-count">
-              <strong>{matches.length.toLocaleString('fa-IR')}</strong><span>حساب</span>
-            </div>
-          </div>
-
-          {matches.length > 0 ? (
-            <>
-              <div className="audit-review-bar">
-                <div className="audit-review-copy">
-                  <strong>مرور و انتخاب حساب‌ها</strong>
-                  <span data-testid="value-selected-count">{pendingSelectedMatches.length.toLocaleString('fa-IR')} مورد برای اصلاح انتخاب شده</span>
-                </div>
-                <button
-                  type="button"
-                  className="audit-select-all"
-                  onClick={toggleAll}
-                  disabled={repairing}
-                  data-testid="button-toggle-all-matches"
-                >
-                  {allSelected ? 'لغو انتخاب همه' : 'انتخاب همه'}
-                </button>
-              </div>
-
-              <div className="hope-table-scroll">
-                <table className="hope-data-table" aria-label="حساب‌های غیرفعال یافته‌شده"><thead><tr><th><button type="button" className="audit-select-all" onClick={toggleAll} disabled={repairing}>{allSelected ? 'لغو همه' : 'انتخاب'}</button></th><th>مشتری / سرویس</th><th>Provider</th><th>طرح / انقضا</th><th>حجم باقی‌مانده</th><th>نتیجه اصلاح</th></tr></thead><tbody>{matches.map((match) => {
-                  const key = rowKey(match);
-                  const state = repairStates[key];
-                  return (
-                    <tr className={state ? `has-${state.outcome}` : ''} key={key} data-testid={`row-audit-match-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>
-                      <td><button type="button" className={`audit-checkbox ${selected.has(key) ? 'checked' : ''}`} role="checkbox" aria-checked={selected.has(key)} aria-label={`انتخاب سرویس ${match.service_code}`} disabled={repairing || Boolean(state)} onClick={() => setSelected((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; })} data-testid={`button-select-match-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{selected.has(key) && <Check size={14} />}</button></td>
-                      <td><strong data-testid={`value-customer-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.customer_name || 'نامشخص'}</strong><small className="hope-table-subline" dir="ltr" data-testid={`value-service-code-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.service_code} · @{match.username}</small><span className="audit-disabled-pill" data-testid={`status-provider-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>غیرفعال در ارائه‌دهنده</span></td>
-                      <td><bdi dir="ltr" data-testid={`value-provider-key-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.provider_key}</bdi><small className="hope-table-subline" dir="ltr" data-testid={`value-provider-kind-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.provider_kind}</small></td>
-                      <td><strong data-testid={`value-plan-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.plan || '—'}</strong><small className="hope-table-subline" data-testid={`value-expiry-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>انقضا · {formatDate(match.expires_at)}</small></td>
-                      <td data-testid={`value-remaining-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{formatBytes(match.remaining_bytes)}</td>
-                      <td>{state ? <div className={`audit-row-result ${state.outcome}`} role="status" data-testid={`status-repair-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{state.outcome === 'repaired' ? <CheckCircle2 size={14} /> : state.outcome === 'skipped' ? <ArrowDownLeft size={14} /> : <AlertTriangle size={14} />}<strong>{state.outcome === 'repaired' ? 'اصلاح شد' : state.outcome === 'skipped' ? 'رد شد' : 'ناموفق'}</strong><small>{state.message}</small></div> : 'در انتظار بازبینی'}</td>
-                    </tr>
-                  );
-                })}</tbody></table>
-              </div>
-
-              <div className="audit-repair-footer">
-                <div className="audit-preserve-note">
-                  <ShieldCheck size={17} />
-                  <span>اصلاح فقط وضعیت است؛ سهمیه، انقضا و شمارنده‌های ترافیک حفظ می‌شوند.</span>
-                </div>
-                {Object.keys(repairStates).length > 0 && (
-                  <div className="audit-repair-tally" data-testid="status-repair-summary">
-                    <span>{repairedCount.toLocaleString('fa-IR')} اصلاح</span>
-                    <span>{skippedCount.toLocaleString('fa-IR')} رد</span>
-                    <span>{failedCount.toLocaleString('fa-IR')} ناموفق</span>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className="audit-button audit-repair-button"
-                  onClick={() => setConfirmOpen(true)}
-                  disabled={pendingSelectedMatches.length === 0 || repairing || scanActive}
-                  data-testid="button-review-repair"
-                >
-                  {repairing ? <LoaderCircle className="audit-spin" size={17} /> : <RefreshCw size={16} />}
-                  {repairing ? 'در حال اصلاح ترتیبی' : `بازبینی و اصلاح ${pendingSelectedMatches.length.toLocaleString('fa-IR')} حساب`}
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className={`audit-empty ${scanActive ? 'is-scanning' : ''}`} data-testid="state-empty-matches">
-              <div className="audit-empty-symbol">{scanActive ? <LoaderCircle className="audit-spin" size={23} /> : scanComplete ? <CheckCircle2 size={23} /> : <Search size={23} />}</div>
-              <strong>{scanActive ? 'در حال بررسی پنل‌ها' : scanComplete ? 'حساب غیرفعالی پیدا نشد' : progress.checked ? 'تا اینجا موردی پیدا نشده' : 'هنوز اسکن انجام نشده است'}</strong>
-              <p>{scanActive ? 'نتیجه هر سرویس پس از بررسی به همین صفحه اضافه می‌شود.' : scanComplete ? 'همه سرویس‌های واجد شرایط بررسی شدند. خطاهای ارائه‌دهنده را در بخش پایین ببینید.' : 'برای شروع بررسی حساب‌های غیرفعال، اسکن دستی را اجرا کنید.'}</p>
-            </div>
-          )}
-        </section>
-        <section className="audit-issues console-surface" aria-labelledby="issues-title">
-          <div className="audit-issues-heading">
-            <div className="audit-issues-icon"><AlertTriangle size={18} /></div>
-            <div><h2 id="issues-title">خطاهای خواندن ارائه‌دهنده</h2><p>خطای خواندن این پنل ثبت شده؛ اسکن سرویس بعدی را ادامه می‌دهد.</p></div>
-            <span className="audit-issue-count" data-testid="value-issue-count">{issues.length.toLocaleString('fa-IR')}</span>
-          </div>
-          {issues.length > 0 ? (
-            <div className="hope-table-scroll"><table className="hope-data-table" aria-label="خطاهای خواندن ارائه‌دهنده"><thead><tr><th>سرویس</th><th>Provider</th><th>خطا</th></tr></thead><tbody>{issues.map((issue, index) => <tr key={`${issue.service_id}-${issue.provider_key}-${issue.message}-${index}`} data-testid={`row-audit-issue-${issue.service_id}-${index}`}><td><bdi dir="ltr" data-testid={`value-issue-service-${issue.service_id}-${index}`}>{issue.service_code}</bdi></td><td><bdi dir="ltr" data-testid={`value-issue-provider-${issue.service_id}-${index}`}>{issue.provider_key} / {issue.provider_kind}</bdi></td><td data-testid={`value-issue-message-${issue.service_id}-${index}`}>{issue.message}</td></tr>)}</tbody></table></div>
-          ) : (
-            <div className="audit-no-issues" data-testid="state-no-issues">
-              {scanComplete ? 'خطای خواندن ثبت نشده است.' : 'پس از شروع اسکن، خطاهای خواندن در این بخش نمایش داده می‌شوند.'}
-            </div>
-          )}
-        </section>
-        </div>
-      </div>
-
-      {confirmOpen && (
-        <div className="audit-dialog-backdrop" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setConfirmOpen(false);
-        }}>
-          <section className="audit-dialog" role="alertdialog" aria-modal="true" aria-labelledby="audit-dialog-title" aria-describedby="audit-dialog-description" data-testid="dialog-confirm-repair">
-            <button type="button" className="audit-dialog-close" onClick={() => setConfirmOpen(false)} aria-label="بستن پنجره تأیید" data-testid="button-close-repair-dialog"><X size={18} /></button>
-            <div className="audit-dialog-icon"><ShieldCheck size={23} /></div>
-            <p className="audit-eyebrow">تأیید نهایی عملیات</p>
-            <h2 id="audit-dialog-title">اصلاح وضعیت حساب‌ها؟</h2>
-            <p id="audit-dialog-description" className="audit-dialog-copy">
-              وضعیت <strong data-testid="value-confirm-count">{pendingSelectedMatches.length.toLocaleString('fa-IR')} حساب انتخاب‌شده</strong> به‌صورت ترتیبی بررسی و در صورت نیاز فعال می‌شود. فقط وضعیت حساب تغییر می‌کند؛ سهمیه، تاریخ انقضا و شمارنده‌های ترافیک حفظ می‌شوند.
-            </p>
-            <div className="audit-dialog-scope">
-              <span><CheckCircle2 size={15} /> تغییر: وضعیت حساب</span>
-              <span><X size={15} /> بدون تغییر: سهمیه، انقضا، ترافیک</span>
-            </div>
-            <div className="audit-dialog-actions">
-              <button type="button" className="audit-button audit-cancel" onClick={() => setConfirmOpen(false)} data-testid="button-cancel-repair">بازگشت به مرور</button>
-              <button type="button" className="audit-button audit-confirm" onClick={() => void confirmRepair()} data-testid="button-confirm-repair">
-                <RefreshCw size={16} /> تأیید و اجرای ترتیبی
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-      </div>
-    </main>
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} alert size="sm" testId="dialog-confirm-repair" eyebrow="تأیید نهایی عملیات" title="اصلاح وضعیت حساب‌ها؟"
+        footer={<><Btn onClick={() => setConfirmOpen(false)} testId="button-cancel-repair">بازگشت به مرور</Btn><Btn variant="primary" onClick={() => void confirmRepair()} testId="button-confirm-repair"><RefreshCw size={15} /> تأیید و اجرای ترتیبی</Btn></>}>
+        <p className="ax-prose">وضعیت <strong data-testid="value-confirm-count">{pendingSelectedMatches.length.toLocaleString('fa-IR')} حساب انتخاب‌شده</strong> به‌صورت ترتیبی بررسی و در صورت نیاز فعال می‌شود. فقط وضعیت حساب تغییر می‌کند؛ سهمیه، تاریخ انقضا و شمارنده‌های ترافیک حفظ می‌شوند.</p>
+        <StatRow label="محدوده تغییر"><Stat label={<><CheckCircle2 size={13} /> تغییر</>} value="وضعیت حساب" tone="good" /><Stat label={<><X size={13} /> بدون تغییر</>} value="سهمیه، انقضا، ترافیک" /></StatRow>
+      </Modal>
+    </Page>
   );
 }
 

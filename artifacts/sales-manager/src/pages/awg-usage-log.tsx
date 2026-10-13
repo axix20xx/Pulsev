@@ -1,7 +1,7 @@
-import { Activity, ArrowRight, CircleAlert, Clock3, RefreshCw, Wifi } from "lucide-react";
+import { Activity, ArrowRight, CircleAlert, Clock3, Wifi } from "lucide-react";
 import { Link } from "wouter";
 import { getGetAwgUsageWorkerLogQueryKey, useGetAwgUsageWorkerLog } from "@workspace/api-client-react";
-import { PageHeader } from "@/components/admin-console-primitives";
+import { Badge, Card, DataTable, EmptyState, ErrorAlert, Kpi, KpiGrid, Page, PageHead, RefreshBtn, SkeletonRows } from "@/admin/ui";
 import { usePulse } from "@/pages/pulse-pages";
 
 const countFormat = new Intl.NumberFormat("fa-IR");
@@ -28,11 +28,11 @@ function traffic(bytes: number | null): string {
   return `${gbFormat.format(gb)} گیگابایت`;
 }
 
-const statusCopy: Record<string, { label: string; style: string }> = {
-  updated: { label: "خوانده و ذخیره شد", style: "border-teal-600/25 bg-teal-600/10 text-teal-700" },
-  skipped: { label: "رد شد", style: "border-amber-600/25 bg-amber-600/10 text-amber-700" },
-  failed: { label: "خطا", style: "border-rose-600/25 bg-rose-600/10 text-rose-700" },
-  "route-unavailable": { label: "مسیر آمار در دسترس نیست", style: "border-rose-600/25 bg-rose-600/10 text-rose-700" },
+const statusCopy: Record<string, { label: string; tone: "good" | "warn" | "bad" }> = {
+  updated: { label: "خوانده و ذخیره شد", tone: "good" },
+  skipped: { label: "رد شد", tone: "warn" },
+  failed: { label: "خطا", tone: "bad" },
+  "route-unavailable": { label: "مسیر آمار در دسترس نیست", tone: "bad" },
 };
 
 export default function AwgUsageLogPage() {
@@ -57,137 +57,42 @@ export default function AwgUsageLogPage() {
       ? "فعال و در انتظار نوبت بعدی"
       : "شروع نشده";
 
+  const loadingKpi = logQuery.isLoading;
   return (
-    <main className="admin-console hope-admin-page hope-page-monitor hope-pattern-monitor awg-log-page" data-surface="awg-usage-log">
-      <div className="hope-awg-timeline-layout">
-      <div className="console-page surface-layout-awg-usage-log">
-      <PageHeader
-        eyebrow="ویژه مدیر اصلی"
-        title="لاگ زنده worker مصرف AWG"
-        description="آخرین وضعیت worker و حداکثر ۱۰۰ نتیجهٔ بررسی سرویس؛ صفحه هر ۱۰ ثانیه فقط وضعیت حافظهٔ API را می‌خواند."
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/awg-usage" className="console-action console-action-secondary" data-testid="link-back-awg-usage">
-              <ArrowRight size={15} />
-              فهرست مصرف AWG
-            </Link>
-            <button
-              type="button"
-              className="console-action console-action-secondary"
-              onClick={() => void logQuery.refetch()}
-              disabled={logQuery.isFetching}
-              data-testid="button-refresh-awg-log"
-            >
-              <RefreshCw size={15} className={logQuery.isFetching ? "spin" : ""} />
-              تازه‌سازی لاگ
-            </button>
-          </div>
-        }
-      />
-
-      <section className="awg-worker-overview" aria-label="وضعیت و منبع گزارش">
-      <div className="console-surface awg-log-note mb-0 flex items-start gap-3 p-4 text-sm leading-7" role="note">
-        <Clock3 size={17} className="mt-1 shrink-0 text-sky-700" />
-        <div><strong className="block text-sm">گزارش فقط‌خواندنی</strong><p className="m-0 mt-1 text-foreground/80">
-          این گزارش درخواست جدیدی به AWG یا Providerها نمی‌فرستد؛ فقط نتیجه‌هایی را نشان می‌دهد که worker یا
-          دکمهٔ بررسی دستی ثبت کرده‌اند. گزارش در حافظهٔ API نگهداری می‌شود و با راه‌اندازی مجدد API پاک می‌شود.
-          مقدار RX و TX مشخص می‌کند API واقعاً صفر برگردانده یا دریافت آمار خطا/رد شده است.
-        </p></div>
-      </div>
-
-      {logQuery.isError && (
-        <div className="console-state is-error mb-4" role="alert" data-testid="error-awg-log">
-          <span>خواندن وضعیت worker ناموفق بود: {logQuery.error instanceof Error ? logQuery.error.message : "خطای نامشخص"}</span>
-          <button type="button" className="button button-secondary" onClick={() => void logQuery.refetch()} disabled={logQuery.isFetching}><RefreshCw size={13} className={logQuery.isFetching ? "spin" : ""} /> تلاش دوباره</button>
-        </div>
-      )}
-
-      <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="وضعیت worker AWG">
-        <div className="console-surface p-4" data-testid="status-awg-worker">
-          <div className="flex items-center gap-3">
-            <span className={`monitoring-metric-icon ${worker?.running ? "teal" : ""}`}><Activity size={17} /></span>
-            <div>
-              <small className="text-muted-foreground">وضعیت worker</small>
-              <strong className="mt-1 block text-base font-extrabold">{workerLabel}</strong>
-            </div>
-          </div>
-        </div>
-        <div className="console-surface p-4">
-          <small className="text-muted-foreground">فاصلهٔ اجرا</small>
-          <strong className="mt-1 block text-xl font-extrabold">{intervalMinutes === null ? "—" : `${countFormat.format(intervalMinutes)} دقیقه`}</strong>
-        </div>
-        <div className="console-surface p-4">
-          <small className="text-muted-foreground">آخرین شروع</small>
-          <strong className="mt-1 block text-sm font-bold">{timeLabel(worker?.last_started_at)}</strong>
-        </div>
-        <div className="console-surface p-4">
-          <small className="text-muted-foreground">آخرین پایان</small>
-          <strong className="mt-1 block text-sm font-bold">{timeLabel(worker?.last_completed_at)}</strong>
-        </div>
-      </section>
-
-      {worker?.last_error && (
-        <div className="console-state is-error mb-4 flex items-start gap-2" role="alert" data-testid="error-awg-worker-run">
-          <CircleAlert size={16} className="mt-1 shrink-0" />
-          <span>{worker.last_error}</span>
-        </div>
-      )}
-
-      <section className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="نتیجه آخرین اجرای worker">
-        {[
-          ["بررسی‌شده", worker?.last_scanned ?? null],
-          ["به‌روزرسانی‌شده", worker?.last_updated ?? null],
-          ["ردشده", worker?.last_skipped ?? null],
-          ["ناموفق", worker?.last_failed ?? null],
-        ].map(([label, value]) => (
-          <div className="console-surface p-4" key={label}>
-            <small className="text-muted-foreground">{label}</small>
-            <strong className="mt-1 block text-xl font-extrabold">{value === null && logQuery.isLoading ? "—" : countFormat.format(Number(value ?? 0))}</strong>
-          </div>
-        ))}
-      </section>
-      </section>
-
-      <section className="console-surface awg-event-ledger p-4 sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="eyebrow">تا ۱۰۰ نتیجهٔ تازه‌تر</p>
-            <h2 className="section-title">رویدادهای بررسی AWG</h2>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {countFormat.format(events.length)} رویداد · تازه‌سازی هر ۱۰ ثانیه
-          </span>
-        </div>
-
-        {logQuery.isLoading ? (
-          <div className="monitoring-empty" role="status">
-            <RefreshCw size={18} className="spin" />
-            <p>در حال خواندن وضعیت worker...</p>
-          </div>
-        ) : events.length === 0 ? (
-          <div className="monitoring-empty" data-testid="empty-awg-log">
-            <Wifi size={18} />
-            <p>هنوز نتیجه‌ای در حافظهٔ این API ثبت نشده است.</p>
-            <small>پس از اجرای worker یا یک بررسی دستی، نتیجه‌ها اینجا نمایش داده می‌شوند.</small>
-          </div>
-        ) : (
-          <div className="hope-table-scroll" data-testid="list-awg-worker-events"><table className="hope-data-table" aria-label="رویدادهای بررسی AWG"><thead><tr><th>مشتری / سرویس</th><th>زمان و منبع</th><th>نتیجه</th><th>RX / TX</th><th>خام / مؤثر</th></tr></thead><tbody>
+    <Page surface="awg-usage-log">
+      <PageHead eyebrow="ویژه مدیر اصلی" title="لاگ زندهٔ worker مصرف AWG" lede="وضعیت worker و حداکثر ۱۰۰ نتیجهٔ اخیر؛ هر ۱۰ ثانیه از حافظهٔ API خوانده می‌شود." actions={<>
+        <Link href="/awg-usage" className="ax-btn" data-testid="link-back-awg-usage"><ArrowRight size={15} /> فهرست مصرف AWG</Link>
+        <RefreshBtn onClick={() => void logQuery.refetch()} loading={logQuery.isFetching} label="تازه‌سازی لاگ" testId="button-refresh-awg-log" />
+      </>} />
+      <div className="ax-alert is-info" role="note"><Clock3 size={16} /><span>گزارش فقط‌خواندنی است و درخواستی به AWG یا Providerها نمی‌فرستد. داده در حافظهٔ API است و با راه‌اندازی مجدد پاک می‌شود. RX و TX نشان می‌دهند API واقعاً صفر برگردانده یا دریافت آمار خطا/رد شده است.</span></div>
+      {logQuery.isError && <div data-testid="error-awg-log"><ErrorAlert message={`خواندن وضعیت worker ناموفق بود: ${logQuery.error instanceof Error ? logQuery.error.message : "خطای نامشخص"}`} onRetry={() => void logQuery.refetch()} retrying={logQuery.isFetching} /></div>}
+      <KpiGrid label="وضعیت worker AWG">
+        <Kpi label="وضعیت worker" value={<span data-testid="status-awg-worker" style={{ fontSize: 15 }}>{workerLabel}</span>} icon={Activity} tone={worker?.running ? "good" : "neutral"} loading={loadingKpi} />
+        <Kpi label="فاصلهٔ اجرا" value={intervalMinutes === null ? "—" : `${countFormat.format(intervalMinutes)} دقیقه`} icon={Clock3} tone="info" loading={loadingKpi} />
+        <Kpi label="آخرین شروع" value={<span style={{ fontSize: 14 }}>{timeLabel(worker?.last_started_at)}</span>} icon={Clock3} loading={loadingKpi} />
+        <Kpi label="آخرین پایان" value={<span style={{ fontSize: 14 }}>{timeLabel(worker?.last_completed_at)}</span>} icon={Clock3} loading={loadingKpi} />
+      </KpiGrid>
+      {worker?.last_error && <div className="ax-alert" role="alert" data-testid="error-awg-worker-run"><CircleAlert size={16} /><span>{worker.last_error}</span></div>}
+      <KpiGrid label="نتیجهٔ آخرین اجرای worker">
+        {([["بررسی‌شده", worker?.last_scanned ?? null, "neutral"], ["به‌روزرسانی‌شده", worker?.last_updated ?? null, "good"], ["ردشده", worker?.last_skipped ?? null, "warn"], ["ناموفق", worker?.last_failed ?? null, "bad"]] as const).map(([label, value, tone]) => <Kpi key={label} label={label} value={countFormat.format(Number(value ?? 0))} icon={Activity} tone={tone} loading={loadingKpi} />)}
+      </KpiGrid>
+      <Card title="رویدادهای بررسی AWG" description="تا ۱۰۰ نتیجهٔ تازه‌تر" actions={<Badge>{countFormat.format(events.length)} رویداد</Badge>} flush>
+        {logQuery.isLoading ? <SkeletonRows label="در حال خواندن وضعیت worker" /> : events.length === 0 ? <div data-testid="empty-awg-log"><EmptyState icon={Wifi} title="هنوز نتیجه‌ای ثبت نشده" detail="پس از اجرای worker یا یک بررسی دستی، نتیجه‌ها اینجا نمایش داده می‌شوند." /></div> : (
+          <div data-testid="list-awg-worker-events"><DataTable label="رویدادهای بررسی AWG" head={["مشتری / سرویس", "زمان و منبع", "نتیجه", "RX / TX", "خام / مؤثر"]}>
             {events.map((event) => {
               const state = statusCopy[event.status] ?? statusCopy.failed;
               const apiReturnedZero = event.status === "updated" && event.raw_total_bytes === 0 && event.stats_source === "api";
-              return <tr className={`awg-event-row ${event.status === "failed" || event.status === "route-unavailable" ? "is-failed" : ""}`} key={event.event_id} data-testid={`awg-worker-event-${event.event_id}`}>
-                <td><strong>{event.customer_name}</strong><small className="hope-table-subline" dir="ltr">@{event.username} · {event.service_code}</small></td>
-                <td>{timeLabel(event.checked_at)}<small className="hope-table-subline">{event.source === "manual" ? "بررسی دستی" : "worker"}{event.stats_source === "api" ? " · API" : event.stats_source === "cache" ? " · cache" : ""}</small></td>
-                <td><span className={`awg-event-status ${state.style}`}>{state.label}</span>{(apiReturnedZero || event.message) && <small className="hope-table-subline" role="note">{event.message || "پاسخ مستقیم AWG مقدار صفر داشت."}</small>}</td>
-                <td>RX {traffic(event.rx_bytes)}<small className="hope-table-subline">TX {traffic(event.tx_bytes)}</small></td>
-                <td>خام {traffic(event.raw_total_bytes)}<small className="hope-table-subline">مؤثر {traffic(event.effective_bytes)}</small></td>
+              return <tr key={event.event_id} data-testid={`awg-worker-event-${event.event_id}`}>
+                <td><strong>{event.customer_name}</strong><small className="ax-sub" dir="ltr">@{event.username} · {event.service_code}</small></td>
+                <td>{timeLabel(event.checked_at)}<small className="ax-sub">{event.source === "manual" ? "بررسی دستی" : "worker"}{event.stats_source === "api" ? " · API" : event.stats_source === "cache" ? " · cache" : ""}</small></td>
+                <td><Badge tone={state.tone} dot>{state.label}</Badge>{(apiReturnedZero || event.message) && <small className="ax-sub" role="note">{event.message || "پاسخ مستقیم AWG مقدار صفر داشت."}</small>}</td>
+                <td><span className="ax-num">RX {traffic(event.rx_bytes)}</span><small className="ax-sub">TX {traffic(event.tx_bytes)}</small></td>
+                <td><span className="ax-num">خام {traffic(event.raw_total_bytes)}</span><small className="ax-sub">مؤثر {traffic(event.effective_bytes)}</small></td>
               </tr>;
             })}
-          </tbody></table></div>
+          </DataTable></div>
         )}
-      </section>
-      </div>
-      </div>
-    </main>
+      </Card>
+    </Page>
   );
 }

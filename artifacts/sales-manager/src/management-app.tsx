@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Route, Switch, useLocation } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
-import { Shell } from '@/components/pulse-shell-redesigned';
+import { AdminShell as Shell } from '@/admin/shell';
 import {
   ActionRequests,
   AdminSales,
@@ -32,7 +32,6 @@ import {
 } from '@/pages/notification-pages';
 import NotFound from '@/pages/not-found';
 import { StorefrontManagerPage } from '@/pages/storefront';
-import '@/components/pulse-hope-redesign.css';
 
 function ProviderAccountAuditRoute() {
   const { session } = usePulse();
