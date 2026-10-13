@@ -140,24 +140,21 @@ export default function AwgUsagePage() {
         }
       />
 
-      <div
-        className="console-surface awg-usage-note mb-4 flex items-start gap-3 p-4 text-sm leading-7"
-        role="note"
-        data-testid="notice-awg-usage-source"
-      >
-        <Database size={17} className="mt-1 shrink-0 text-amber-600" />
-        <p className="m-0 text-foreground/80">
-          worker فعلی هر ۵ دقیقه آمار را ذخیره می‌کند. «تازه‌سازی فهرست» فقط دادهٔ ذخیره‌شده را می‌خواند؛
-          برای یک درخواست زنده، فقط دکمهٔ همان سرویس را بزنید. بررسی دستی به API آمِنزیا WG برای همان سرویس
-          وصل می‌شود و هیچ پنل Provider را صدا نمی‌زند. در خطا، مقدار قبلی حفظ می‌شود؛ هر سرویس حداکثر
-          یک‌بار در دقیقه بررسی دستی می‌شود.
-        </p>
-      </div>
-
-      <section className="console-metrics-grid awg-usage-metrics" aria-label="خلاصه مصرف AmneziaWG">
-        <MetricTile label="سرویس‌های فعال دارای AWG" value={countFormat.format(total)} detail="کل نتایج منطبق با جست‌وجو" icon={Wifi} tone="sage" testId="metric-awg-active-services" />
-        <MetricTile label="مصرف صفر در این صفحه" value={countFormat.format(zeroCount)} detail="آمار ذخیره‌شده" icon={Activity} tone="amber" testId="metric-awg-visible-zero" />
-        <MetricTile label="جمع مصرف مؤثر این صفحه" value={trafficLabel(totalUsage)} detail="فقط همین صفحه از نتایج" icon={Database} testId="metric-awg-page-total" />
+      <section className="awg-summary-composition" aria-label="نمای کلی مصرف AWG">
+        <div className="console-surface awg-usage-note mb-0 flex items-start gap-3 p-4 text-sm leading-7" role="note" data-testid="notice-awg-usage-source">
+          <Database size={17} className="mt-1 shrink-0 text-amber-600" />
+          <div><strong className="block text-sm">منبع داده و بررسی زنده</strong><p className="m-0 mt-1 text-foreground/80">
+            worker فعلی هر ۵ دقیقه آمار را ذخیره می‌کند. «تازه‌سازی فهرست» فقط دادهٔ ذخیره‌شده را می‌خواند؛
+            برای یک درخواست زنده، فقط دکمهٔ همان سرویس را بزنید. بررسی دستی به API آمِنزیا WG برای همان سرویس
+            وصل می‌شود و هیچ پنل Provider را صدا نمی‌زند. در خطا، مقدار قبلی حفظ می‌شود؛ هر سرویس حداکثر
+            یک‌بار در دقیقه بررسی دستی می‌شود.
+          </p></div>
+        </div>
+        <section className="console-metrics-grid awg-usage-metrics" aria-label="خلاصه مصرف AmneziaWG">
+          <MetricTile label="سرویس‌های فعال دارای AWG" value={countFormat.format(total)} detail="کل نتایج منطبق با جست‌وجو" icon={Wifi} tone="sage" testId="metric-awg-active-services" />
+          <MetricTile label="مصرف صفر در این صفحه" value={countFormat.format(zeroCount)} detail="آمار ذخیره‌شده" icon={Activity} tone="amber" testId="metric-awg-visible-zero" />
+          <MetricTile label="جمع مصرف مؤثر این صفحه" value={trafficLabel(totalUsage)} detail="فقط همین صفحه از نتایج" icon={Database} testId="metric-awg-page-total" />
+        </section>
       </section>
 
       <SectionPanel className="awg-usage-ledger p-4 sm:p-5" eyebrow="مصرف به تفکیک کاربر" title="کاربران فعال AWG">

@@ -122,8 +122,13 @@ export function StorefrontManagerPage() {
     void client.invalidateQueries({queryKey:getGetResellerStorefrontQueryKey()});
   },onError:(error)=>setNotice(error instanceof Error?error.message:'به‌روزرسانی درخواست انجام نشد.')});
   const changeOffer=(index:number,patch:Partial<StorefrontOfferInput>)=>patchDraft({offers:draft.offers.map((offer,i)=>i===index?{...offer,...patch}:offer)});
-   return <main className="admin-console store-manager-console" dir="rtl"><div className="store-wrap store-manage console-page">
-     <PageHeader eyebrow="ابزار فروش آنلاین" title="ویترین شما" description="یک نشانی برای معرفی بسته‌ها و دریافت درخواست‌های مشتری." action={<div className="console-page-actions"><button className="console-action console-action-secondary" onClick={()=>void copyLink(publicUrl,'نشانی ویترین کپی شد.')}><Copy size={15}/> کپی نشانی</button><a className="console-action console-action-primary" href={publicUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> مشاهده ویترین</a></div>} />
+    return <main className="admin-console store-manager-console" dir="rtl"><div className="store-wrap store-manage console-page">
+      <PageHeader eyebrow="ابزار فروش آنلاین" title="ویترین شما" description="یک نشانی برای معرفی بسته‌ها و دریافت درخواست‌های مشتری." action={<div className="console-page-actions"><button className="console-action console-action-secondary" onClick={()=>void copyLink(publicUrl,'نشانی ویترین کپی شد.')}><Copy size={15}/> کپی نشانی</button><a className="console-action console-action-primary" href={publicUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> مشاهده ویترین</a></div>} />
+      <section className="store-manager-overview" aria-label="هویت و دسترسی ویترین">
+        <span className="store-manager-overview-mark"><Globe2 size={19}/></span>
+        <div className="store-manager-overview-copy"><small>نشانی عمومی شما</small><strong>{store.store_name}</strong><code dir="ltr">{publicUrl}</code></div>
+        <span className={`store-manager-state ${store.enabled?'enabled':'disabled'}`}><i/>{store.enabled?'ویترین فعال':'ویترین غیرفعال'}</span>
+      </section>
       <section className="store-performance-deck console-metrics-grid" aria-label="عملکرد واقعی ویترین">
         <MetricTile label="بازدید" value={faNumber(store.stats.views)} detail="ورود به ویترین" icon={Globe2} />
         <MetricTile label="درخواست مشتری" value={faNumber(store.stats.inquiries)} detail="ثبت‌شده از همین ویترین" icon={Link2} tone="amber" />

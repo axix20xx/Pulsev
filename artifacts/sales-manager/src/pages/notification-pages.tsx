@@ -209,7 +209,16 @@ function AdminOnlyNotice() {
 
 function NotificationPageFrame({ children }: { children: ReactNode }) {
   return <main className="admin-console notification-page-frame" data-surface="notifications" dir="rtl">
-    <div className="notification-workspace console-page">{children}</div>
+    <div className="notification-workspace console-page">
+      <div className="notification-context-band">
+        <span className="notification-context-mark"><Bell size={15} /></span>
+        <span><small>سامانهٔ پیام‌رسانی</small><strong>اعلان‌های مشتریان</strong></span>
+        <span className="notification-context-rule" />
+        <span className="notification-context-note">وضعیت دستگاه، ارسال و شواهد تحویل در یک جریان کاری</span>
+        <span className="notification-context-code" dir="ltr">PUSH / CONTROL</span>
+      </div>
+      <div className="notification-page-content">{children}</div>
+    </div>
   </main>;
 }
 

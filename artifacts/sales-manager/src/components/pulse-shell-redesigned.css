@@ -1,15 +1,15 @@
 .pulse-workspace {
-  --ws-canvas: 38 40% 96%;
-  --ws-surface: 40 48% 99%;
-  --ws-ink: 256 21% 20%;
-  --ws-muted: 256 9% 47%;
-  --ws-line: 258 18% 87%;
-  --ws-petrol: 267 45% 45%;
-  --ws-teal: 267 53% 57%;
-  --ws-teal-soft: 267 74% 95%;
-  --ws-violet: 267 53% 57%;
-  --ws-violet-wash: 267 74% 95%;
-  --ws-wash: 267 40% 97%;
+  --ws-canvas: 190 36% 93%;
+  --ws-surface: 184 37% 97%;
+  --ws-ink: 202 43% 17%;
+  --ws-muted: 199 20% 36%;
+  --ws-line: 183 25% 79%;
+  --ws-petrol: 188 54% 21%;
+  --ws-teal: 174 57% 30%;
+  --ws-teal-soft: 174 40% 85%;
+  --ws-violet: 174 57% 30%;
+  --ws-violet-wash: 174 40% 85%;
+  --ws-wash: 187 31% 90%;
   display: flex;
   min-height: 100dvh;
   color: hsl(var(--ws-ink));
@@ -428,5 +428,63 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .pulse-workspace *, .pulse-workspace *::before, .pulse-workspace *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+/* RTL control-desk shell, finished in the same sea-glass and deep-ink palette
+   as the page surfaces. The raised edge makes the persistent nav feel tactile. */
+.pulse-workspace {
+  background:
+    radial-gradient(ellipse at 90% 0%, hsl(176 42% 82% / .32), transparent 34rem),
+    hsl(var(--ws-canvas));
+}
+.pulse-shell-sidebar {
+  border-left-color: hsl(var(--ws-line) / .88);
+  background: linear-gradient(180deg,hsl(184 42% 97% / .96),hsl(183 36% 92% / .96));
+  box-shadow: -14px 0 38px hsl(198 40% 23% / .085), inset 1px 0 hsl(0 0% 100% / .74);
+  backdrop-filter: blur(20px) saturate(125%);
+}
+.pulse-brand { border-bottom-color: hsl(var(--ws-line) / .76); }
+.pulse-brand .pulse-mark { border-color: hsl(var(--ws-teal) / .28); background: hsl(var(--ws-teal-soft)); box-shadow: 0 5px 14px hsl(var(--ws-teal) / .12); }
+.pulse-brand .pulse-mark span { border-color: hsl(var(--ws-teal)); border-right-color: transparent; }
+.pulse-sidebar-workspace { border-color: hsl(var(--ws-line) / .8); background: hsl(0 0% 100% / .58); box-shadow: inset 0 1px white; }
+.pulse-sidebar-workspace-mark { border-color: hsl(var(--ws-teal) / .15); background: hsl(var(--ws-teal-soft)); color: hsl(var(--ws-teal)); }
+.pulse-nav-link.is-active { color: hsl(var(--ws-teal)); background: hsl(var(--ws-teal-soft) / .76); box-shadow: inset 0 0 0 1px hsl(var(--ws-teal) / .17); }
+.pulse-nav-link.is-active svg, .pulse-nav-link:hover svg { color: hsl(var(--ws-teal)); }
+.pulse-nav-link.is-active i { background: hsl(var(--ws-teal)); }
+.pulse-user > button:hover { border-color: hsl(var(--ws-teal) / .45); color: hsl(var(--ws-teal)); }
+.pulse-avatar { border-color: hsl(var(--ws-teal) / .2); background: hsl(var(--ws-teal)); }
+.pulse-main { background: transparent; }
+.pulse-topbar {
+  border-bottom-color: hsl(var(--ws-line) / .75);
+  background: hsl(var(--ws-canvas) / .82);
+  box-shadow: 0 5px 18px hsl(198 35% 25% / .035);
+}
+.pulse-current-page strong, .pulse-desktop-profile strong { color: hsl(var(--ws-ink)); }
+.pulse-search-wrap, .pulse-date-context, .pulse-tool-button:hover, .pulse-tool-button.is-selected {
+  border-color: hsl(var(--ws-line) / .88);
+  background: hsl(var(--ws-surface) / .78);
+  box-shadow: inset 0 1px white;
+}
+.pulse-quick-sale { border-color: hsl(var(--ws-teal)); background: hsl(var(--ws-teal)); box-shadow: 0 6px 15px hsl(var(--ws-teal) / .2), inset 0 1px hsl(0 0% 100% / .2); }
+.pulse-quick-sale:hover { background: hsl(188 54% 21%); }
+.pulse-page-footer { border-top-color: hsl(var(--ws-line) / .74); }
+.pulse-footer-mark { background: hsl(var(--ws-teal-soft)); color: hsl(var(--ws-teal)); }
+.pulse-phone-nav {
+  border: 1px solid hsl(var(--ws-line) / .78);
+  background: hsl(184 42% 98% / .92);
+  box-shadow: 0 12px 35px hsl(198 38% 19% / .12), inset 0 1px white;
+  backdrop-filter: blur(20px) saturate(140%);
+}
+.pulse-phone-nav-link.is-active { color: hsl(var(--ws-teal)); }
+.pulse-quick-sale-fab { border-color: hsl(var(--ws-teal)); background: hsl(var(--ws-teal)); box-shadow: 0 8px 18px hsl(var(--ws-teal) / .24), inset 0 1px hsl(0 0% 100% / .2); }
+.pulse-quick-sale-fab:hover { background: hsl(188 54% 21%); }
+.pulse-search-results, .pulse-popover { border-color: hsl(var(--ws-line)); background: hsl(var(--ws-surface) / .96); box-shadow: 0 22px 55px hsl(198 40% 19% / .17), inset 0 1px white; backdrop-filter: blur(18px); }
+.pulse-search-kind, .pulse-notification-icon { background: hsl(var(--ws-teal-soft)); color: hsl(var(--ws-teal)); }
+.pulse-auth-loading { background: hsl(var(--ws-canvas)); color: hsl(var(--ws-petrol)); }
+.pulse-auth-loading .pulse-mark { background: hsl(var(--ws-teal)); }
+
+@media (max-width: 767px) {
+  .pulse-topbar { border-radius: 0 0 15px 15px; }
+  .pulse-page-footer { padding-bottom: 2px; }
 }
 

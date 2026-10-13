@@ -13,13 +13,15 @@ export function MetricTile({ label, value, detail, trend, icon: Icon, tone = '',
 }) {
   return (
     <article className={`console-metric ${tone ? `tone-${tone}` : ''}`}>
-      <div className="console-metric-top">
-        <span className={`console-metric-icon ${tone}`}><Icon size={17} aria-hidden="true" /></span>
+      <header className="console-metric-top">
+        <span className={`console-metric-icon ${tone}`}><Icon size={18} aria-hidden="true" /></span>
         {trend && <span className="console-metric-trend">{trend}</span>}
+      </header>
+      <div className="console-metric-copy">
+        <p className="console-metric-label">{label}</p>
+        <strong className="console-metric-value" data-testid={testId}>{value}</strong>
+        {detail && <p className="console-metric-detail">{detail}</p>}
       </div>
-      <p className="console-metric-label">{label}</p>
-      <strong className="console-metric-value" data-testid={testId}>{value}</strong>
-      {detail && <p className="console-metric-detail">{detail}</p>}
     </article>
   );
 }
@@ -38,12 +40,12 @@ export function SectionPanel({ eyebrow, title, description, action, children, cl
     <section id={id} aria-label={ariaLabel} className={`console-surface ${className}`.trim()}>
       {(title || description || action) && (
         <header className="console-surface-head">
-          <div>
+          <div className="console-panel-heading-copy">
             {eyebrow && <p className="console-eyebrow">{eyebrow}</p>}
             {title && <h2 className="console-section-title">{title}</h2>}
             {description && <p className="console-section-copy">{description}</p>}
           </div>
-          {action}
+          {action && <div className="console-panel-heading-action">{action}</div>}
         </header>
       )}
       {children}
@@ -59,6 +61,7 @@ export function StatePanel({ title, detail, kind = 'empty', action }: {
 }) {
   return (
     <div className={`console-empty ${kind === 'error' ? 'is-error' : ''} ${kind === 'loading' ? 'is-loading' : ''}`} role={kind === 'error' ? 'alert' : 'status'}>
+      {kind === 'loading' && <span className="console-state-glyph" aria-hidden="true"><i /><i /><i /></span>}
       <strong>{title}</strong>
       {detail && <span>{detail}</span>}
       {action}
@@ -79,7 +82,7 @@ export function PageHeader({ eyebrow, title, description, action }: {
         <h1 className="console-page-title">{title}</h1>
         {description && <p className="console-page-description">{description}</p>}
       </div>
-      {action && <div className="console-page-actions">{action}</div>}
+      {action && <div className="console-page-actions" aria-label="اقدام‌های صفحه">{action}</div>}
     </header>
   );
 }

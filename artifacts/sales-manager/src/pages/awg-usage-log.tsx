@@ -84,13 +84,14 @@ export default function AwgUsageLogPage() {
         }
       />
 
-      <div className="console-surface awg-log-note mb-4 flex items-start gap-3 p-4 text-sm leading-7" role="note">
+      <section className="awg-worker-overview" aria-label="وضعیت و منبع گزارش">
+      <div className="console-surface awg-log-note mb-0 flex items-start gap-3 p-4 text-sm leading-7" role="note">
         <Clock3 size={17} className="mt-1 shrink-0 text-sky-700" />
-        <p className="m-0 text-foreground/80">
+        <div><strong className="block text-sm">گزارش فقط‌خواندنی</strong><p className="m-0 mt-1 text-foreground/80">
           این گزارش درخواست جدیدی به AWG یا Providerها نمی‌فرستد؛ فقط نتیجه‌هایی را نشان می‌دهد که worker یا
           دکمهٔ بررسی دستی ثبت کرده‌اند. گزارش در حافظهٔ API نگهداری می‌شود و با راه‌اندازی مجدد API پاک می‌شود.
           مقدار RX و TX مشخص می‌کند API واقعاً صفر برگردانده یا دریافت آمار خطا/رد شده است.
-        </p>
+        </p></div>
       </div>
 
       {logQuery.isError && (
@@ -144,8 +145,9 @@ export default function AwgUsageLogPage() {
           </div>
         ))}
       </section>
+      </section>
 
-      <section className="console-surface p-4 sm:p-5">
+      <section className="console-surface awg-event-ledger p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="eyebrow">تا ۱۰۰ نتیجهٔ تازه‌تر</p>

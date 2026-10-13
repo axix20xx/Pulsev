@@ -405,8 +405,24 @@ function RecordCard({ eyebrow, title, subtitle, status, fields, actions, testId 
   </article>;
 }
 function SurfaceFrame({ name, children, signal = false }: { name: string; children: ReactNode; signal?: boolean }) {
+  const labels: Record<string, string> = {
+    overview: 'نمای کلی', sales: 'دفتر فروش', 'reseller-accounting': 'حسابداری فروشندگان',
+    pos: 'پایانه فروش', 'admin-sales': 'فروشندگان', services: 'مدیریت سرویس‌ها',
+    'action-requests': 'درخواست‌های عملیات', monitoring: 'سلامت ساخت سرویس',
+    connections: 'اتصال‌های جاری', customers: 'مدیریت مشتریان',
+    'customer-detail': 'پرونده مشتری', settings: 'تنظیمات فضای کاری', reports: 'گزارش‌های مالی',
+  };
   return <main className={`admin-console pulse-surface pulse-surface-${name}`} data-surface={name}>
-    <div className={`console-page surface-layout surface-layout-${name}`}>{children}</div>
+    <div className={`console-page surface-layout surface-layout-${name}`}>
+      <div className="surface-module-context" aria-label="مسیر فضای کاری">
+        <span className="surface-module-context-mark"><Activity size={13} /></span>
+        <span><small>میزکار پالس</small><strong>{labels[name] ?? 'مدیریت'}</strong></span>
+        <span className="surface-module-context-divider" />
+        <span className="surface-module-context-note">مرکز مدیریت فروش و عملیات</span>
+        <span className="surface-module-context-code" dir="ltr">PULSE / {name.toUpperCase()}</span>
+      </div>
+      <div className="surface-page-composition">{children}</div>
+    </div>
   </main>;
 }
 function Overlay({ title, onClose, children, fullScreen = false }: { title: string; onClose: () => void; children: ReactNode; fullScreen?: boolean }) {
@@ -968,8 +984,17 @@ function SalesContent() {
     URL.revokeObjectURL(url);
   };
   const chartMax = Math.max(1, ...resellerHistory.map((item: any) => Number(item.customer_revenue ?? 0)));
-  return <><PageHeader eyebrow="دفتر مالی" title="دفتر فروش" description={isMasterAdmin ? 'فروش امروز و تسویهٔ فروشندگان؛ بدون نمایش ریز مشتری‌ها.' : 'نمایش فروش‌ها، درآمد، اعتبار خریداری‌شده و سود باقی‌مانده بر اساس تاریخ شمسی.'} action={<div className="console-page-actions"><PrintButton label="چاپ دفتر" testId="button-print-sales" />{isMasterAdmin && <Button variant="quiet" onClick={exportResellerCsv} testId="button-export-reseller-csv"><Download size={15} /> خروجی CSV</Button>}</div>} />
-    <section className="sales-status-grid">{summary && (isMasterAdmin ? <><Metric label="فروش امروز فروشندگان" value={money(resellerHistoryTotals.customer_revenue)} detail={`${numberFa(resellerHistoryTotals.sold_gb)} گیگ · ${rangeLabel}`} icon={Package} accent="amber" /><Metric label="قابل پرداخت به مدیر" value={money(resellerHistoryTotals.amount_to_admin)} detail="سهم فروشندگان از فروش‌های ثبت‌شده" icon={TrendingUp} /><Metric label="سود مدیر از فروشندگان" value={money(resellerHistoryTotals.master_profit)} detail="با مبنای هزینهٔ ۲۵۰۰ تومان برای هر گیگ" icon={ShieldCheck} accent="sage" /><Metric label="ماندهٔ تسویهٔ resellerها" value={money(settlementTotals.remaining_amount)} detail={`پرداخت این بازه: ${money(settlementTotals.period_paid)}`} icon={CreditCard} accent="coral" /></> : <><Metric label="حجم فروخته‌شده" value={`${numberFa(summary.sold_gb)} گیگ`} detail={rangeLabel} icon={Package} accent="amber" /><Metric label="درآمد فروش" value={money(summary.income)} detail={`وصول‌شده: ${money(summary.paid_income)} · باقی‌مانده: ${money(summary.remaining_to_collect)}`} icon={TrendingUp} /><Metric label={isReseller ? 'قابل پرداخت به مدیر' : 'هزینه اعتبار'} value={money(summary.admin_due)} detail={`${numberFa(summary.admin_due_gb)} گیگ × نرخ خرید${summary.outstanding_admin_due ? ` · معوق: ${money(summary.outstanding_admin_due)}` : ''}`} icon={CreditCard} accent="coral" /><Metric label="سود باقی‌مانده" value={money(summary.remaining_profit)} detail={`وصول‌شده: ${money(summary.paid_profit)} · در انتظار: ${money(summary.unpaid_profit)}`} icon={ShieldCheck} accent="sage" /></>)}</section>
+  return <div className="sales-ledger-composition">
+    <PageHeader eyebrow="دفتر مالی" title="دفتر فروش" description={isMasterAdmin ? 'فروش امروز و تسویهٔ فروشندگان؛ بدون نمایش ریز مشتری‌ها.' : 'نمایش فروش‌ها، درآمد، اعتبار خریداری‌شده و سود باقی‌مانده بر اساس تاریخ شمسی.'} action={<div className="console-page-actions"><PrintButton label="چاپ دفتر" testId="button-print-sales" />{isMasterAdmin && <Button variant="quiet" onClick={exportResellerCsv} testId="button-export-reseller-csv"><Download size={15} /> خروجی CSV</Button>}</div>} />
+    <SectionPanel className="sales-period-panel report-filter" eyebrow="بازهٔ گزارش" title={`${dateLabel(from)} تا ${dateLabel(to)}`} description="بازهٔ شمسی گزارش فروش و تسویه را انتخاب کنید." action={<span className="soft-badge">{rangeLabel}</span>}>
+      <div className="period-tabs" role="group" aria-label="انتخاب بازه فروش">{([['today', 'امروز'], ['yesterday', 'دیروز'], ['week', '۷ روز اخیر'], ['month', 'این ماه'], ['custom', 'بازه دلخواه']] as [SalesPeriod, string][]).map(([value, label]) => <button type="button" key={value} className={period === value ? 'selected' : ''} aria-pressed={period === value} onClick={() => selectPeriod(value)} data-testid={`button-sales-period-${value}`}>{label}{period === value && <span className="sr-only">، انتخاب‌شده</span>}</button>)}</div>
+      {period === 'custom' && <div className="sales-custom-range"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button onClick={applyCustomRange} disabled={loading}>اعمال بازه</Button></div>}
+    </SectionPanel>
+    {error && <div className="sales-inline-error" role="alert"><span>{error}</span><Button variant="secondary" onClick={() => { setError(''); setLoading(true); setSalesRetryKey((key) => key + 1); }} disabled={loading}><RefreshCw size={14} /> تلاش دوباره</Button></div>}
+    <section className="sales-financial-overview" aria-label="خلاصه مالی و تسویه">
+      <header className="sales-financial-heading"><div><span>SUMMARY / {rangeLabel}</span><h2>خلاصهٔ مالی</h2><p>{dateLabel(from)} تا {dateLabel(to)} · {isMasterAdmin ? 'عملکرد resellerها و وصول بدهی' : 'درآمد، هزینهٔ اعتبار و سود این بازه'}</p></div>{summary && <span className="sales-summary-state"><i /> گزارش به‌روز</span>}</header>
+      {loading && !summary ? <div className="sales-kpi-skeleton" role="status" aria-label="در حال محاسبه گزارش"><i /><i /><i /><i /></div> : null}
+      <section className="sales-status-grid">{summary && (isMasterAdmin ? <><Metric label="فروش امروز فروشندگان" value={money(resellerHistoryTotals.customer_revenue)} detail={`${numberFa(resellerHistoryTotals.sold_gb)} گیگ · ${rangeLabel}`} icon={Package} accent="amber" /><Metric label="قابل پرداخت به مدیر" value={money(resellerHistoryTotals.amount_to_admin)} detail="سهم فروشندگان از فروش‌های ثبت‌شده" icon={TrendingUp} /><Metric label="سود مدیر از فروشندگان" value={money(resellerHistoryTotals.master_profit)} detail="با مبنای هزینهٔ ۲۵۰۰ تومان برای هر گیگ" icon={ShieldCheck} accent="sage" /><Metric label="ماندهٔ تسویهٔ resellerها" value={money(settlementTotals.remaining_amount)} detail={`پرداخت این بازه: ${money(settlementTotals.period_paid)}`} icon={CreditCard} accent="coral" /></> : <><Metric label="حجم فروخته‌شده" value={`${numberFa(summary.sold_gb)} گیگ`} detail={rangeLabel} icon={Package} accent="amber" /><Metric label="درآمد فروش" value={money(summary.income)} detail={`وصول‌شده: ${money(summary.paid_income)} · باقی‌مانده: ${money(summary.remaining_to_collect)}`} icon={TrendingUp} /><Metric label={isReseller ? 'قابل پرداخت به مدیر' : 'هزینه اعتبار'} value={money(summary.admin_due)} detail={`${numberFa(summary.admin_due_gb)} گیگ × نرخ خرید${summary.outstanding_admin_due ? ` · معوق: ${money(summary.outstanding_admin_due)}` : ''}`} icon={CreditCard} accent="coral" /><Metric label="سود باقی‌مانده" value={money(summary.remaining_profit)} detail={`وصول‌شده: ${money(summary.paid_profit)} · در انتظار: ${money(summary.unpaid_profit)}`} icon={ShieldCheck} accent="sage" /></>)}</section>
       {isMasterAdmin && summary && <SectionPanel className="sales-reseller-history mt-5" eyebrow="تاریخچهٔ فروشندگان" title="فروش‌های resellerها در این بازه" description="فقط جمع فروش هر reseller نمایش داده می‌شود؛ جزئیات مشتری‌ها از این نما حذف شده است." action={<span className="soft-badge">{rangeLabel}</span>}>{resellerHistory.length ? <div className="record-card-grid">{resellerHistory.map((item: any) => <RecordCard key={item.reseller_tg_id} eyebrow={`${numberFa(item.sale_count, 0)} فروش`} title={item.reseller_name} subtitle={`${numberFa(item.sold_gb)} گیگ حجم`} fields={[
        { label: 'فروش مشتری', value: money(item.customer_revenue) },
        { label: 'قابل پرداخت به مدیر', value: money(item.amount_to_admin) },
@@ -988,14 +1013,14 @@ function SalesContent() {
          { label: 'سود مدیر', value: money(item.profit_amount) },
         ]} actions={<Button variant="quiet" onClick={() => toggleCreditPaid(item)} disabled={creditSaving === Number(item.id)}>{creditSaving === Number(item.id) ? <RefreshCw size={14} className="spin" /> : item.paid ? <RefreshCw size={14} /> : <Check size={14} />}{item.paid ? 'بازگرداندن' : 'ثبت پرداخت'}</Button>} />)}</div></SectionPanel>}
      </SectionPanel>}
-     {!isMasterAdmin && summary && <SectionPanel className="sales-payment-breakdown" eyebrow="وضعیت وصول" title="پرداخت و سود این بازه" description="مبالغ بر اساس فاکتورهای ثبت‌شده و وضعیت وصول فعلی."><div className="sales-payment-grid"><div><span>مبلغ باقی‌مانده برای دریافت</span><strong>{money(summary.remaining_to_collect)}</strong></div><div><span>سود وصول‌شده</span><strong>{money(summary.paid_profit)}</strong></div><div><span>سود در انتظار پرداخت</span><strong>{money(summary.unpaid_profit)}</strong></div></div></SectionPanel>}
-     <SectionPanel className="sales-period-panel report-filter" eyebrow="بازه زمانی" title={`${dateLabel(from)} تا ${dateLabel(to)}`} description="انتخاب بازهٔ شمسی برای دفتر فروش و تسویه." action={<span className="soft-badge">{rangeLabel}</span>}><div className="period-tabs">{([['today', 'امروز'], ['yesterday', 'دیروز'], ['week', '۷ روز اخیر'], ['month', 'این ماه'], ['custom', 'بازه دلخواه']] as [SalesPeriod, string][]).map(([value, label]) => <button key={value} className={period === value ? 'selected' : ''} onClick={() => selectPeriod(value)} data-testid={`button-sales-period-${value}`}>{label}{period === value && <span className="sr-only">، انتخاب‌شده</span>}</button>)}</div>{period === 'custom' && <div className="sales-custom-range"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button onClick={applyCustomRange} disabled={loading}>اعمال بازه</Button></div>}</SectionPanel>
+      {!isMasterAdmin && summary && <SectionPanel className="sales-payment-breakdown" eyebrow="وضعیت وصول" title="پرداخت و سود این بازه" description="مبالغ بر اساس فاکتورهای ثبت‌شده و وضعیت وصول فعلی."><div className="sales-payment-grid"><div><span>مبلغ باقی‌مانده برای دریافت</span><strong>{money(summary.remaining_to_collect)}</strong></div><div><span>سود وصول‌شده</span><strong>{money(summary.paid_profit)}</strong></div><div><span>سود در انتظار پرداخت</span><strong>{money(summary.unpaid_profit)}</strong></div></div></SectionPanel>}
+    </section>
+    <section className="sales-transaction-workspace" aria-label="فروش‌های این بازه">
         {!isMasterAdmin && <>
            <SectionPanel className="sales-record-filter" eyebrow="ابزارهای دفتر" title="جست‌وجو و پالایش فروش" description="جست‌وجوی فروشنده، مشتری، سرویس یا شناسه؛ وضعیت پرداخت را برای محدودکردن دفتر انتخاب کنید.">
-             <label className="console-search"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="جست‌وجوی مشتری، سرویس یا شناسه" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></label>
-            <div className="filter-tabs">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}{value === 'All' && <span>{numberFa(visibleSales.length, 0)}</span>}</button>)}</div>
+              <label className="console-search sales-ledger-search"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="نام مشتری، سرویس یا شناسه فروش" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></label>
+              <div className="filter-tabs sales-payment-filter-tabs" role="group" aria-label="فیلتر وضعیت پرداخت">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button type="button" key={value} className={filter === value ? 'selected' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}{value === 'All' && <span>{numberFa(visibleSales.length, 0)}</span>}</button>)}</div>
            </SectionPanel>
-           {error && <StatePanel kind="error" title="دفتر فروش دریافت نشد" detail={error} action={<Button variant="secondary" onClick={() => { setError(''); setLoading(true); setSalesRetryKey((key) => key + 1); }} disabled={loading}>تلاش دوباره</Button>} />}
            {loading && !visibleSales.length ? <StatePanel kind="loading" title="در حال دریافت فروش‌ها" detail="دفتر زندهٔ بازهٔ انتخاب‌شده بارگذاری می‌شود." /> : null}
            <SectionPanel className="sales-record-board" eyebrow="دفتر فروش" title={`${numberFa(filtered.length, 0)} مورد در این فیلتر`} description="پرداخت، مشخصات سرویس و مبلغ هر ردیف در یک نمای قابل‌خواندن." action={<span className="soft-badge">{rangeLabel}</span>}>
              {filtered.length ? <div className="sales-ledger-stream" role="list" aria-label="دفتر فروش این بازه">{filtered.map((sale, index) => <article className="sales-ledger-entry" role="listitem" key={sale.id} data-testid={`row-sale-${sale.id}`}>
@@ -1009,7 +1034,9 @@ function SalesContent() {
            </SectionPanel>
           <p className="sales-record-footnote">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · حجم و تاریخ هر سرویس بر اساس تقویم شمسی تهران</p>
         </>}
-      {isMasterAdmin && error && <div className="login-error mt-4">{error}</div>}{saleEditTarget && <SaleEditModal sale={saleEditTarget} price={saleEditPrice} paid={saleEditPaid} saving={saleEditSaving} onPriceChange={setSaleEditPrice} onPaidChange={setSaleEditPaid} onClose={() => setSaleEditTarget(null)} onSave={() => void saveSaleEditor()} />}</>;
+    </section>
+    {saleEditTarget && <SaleEditModal sale={saleEditTarget} price={saleEditPrice} paid={saleEditPaid} saving={saleEditSaving} onPriceChange={setSaleEditPrice} onPaidChange={setSaleEditPaid} onClose={() => setSaleEditTarget(null)} onSave={() => void saveSaleEditor()} />}
+  </div>;
 }
 
 function SaleEditModal({ sale, price, paid, saving, onPriceChange, onPaidChange, onClose, onSave }: { sale: Sale; price: string; paid: boolean; saving: boolean; onPriceChange: (value: string) => void; onPaidChange: (value: boolean) => void; onClose: () => void; onSave: () => void }) {
@@ -2288,34 +2315,41 @@ function CustomersContent() {
     setPage(0);
   };
   const clearSearch = () => updateSearch('');
-  return <>
-    <PageHeader eyebrow="ارتباط با مشتری" title="مشتری‌ها" description={`${numberFormat.format(visibleTotal)} مشتری در بخش ${tab === 'active' ? 'فعال' : 'غیرفعال'} نمایش داده می‌شود.`} action={<div className="directory-stat"><UserRound size={15} /> {numberFormat.format(visibleTotal)} {tab === 'active' ? 'حساب فعال' : 'مشتری غیرفعال'}</div>} />
-     <SectionPanel className="customer-directory-controls" eyebrow="پیدا کردن پرونده" title="جست‌وجو و فیلتر مشتری‌ها" description="فهرست مشتری بر اساس وضعیت فعال یا غیرفعال و عبارت جست‌وجو به‌روز می‌شود.">
+  return <div className="customer-directory-composition">
+    <PageHeader eyebrow="ارتباط با مشتری" title="مشتری‌ها" description="پرونده‌های مشتری را با جست‌وجوی زنده پیدا کنید و وضعیت هر ارتباط را در یک نگاه مرور کنید." action={<div className="directory-stat"><UserRound size={15} /> {numberFormat.format(visibleTotal)} {tab === 'active' ? 'حساب فعال' : 'مشتری غیرفعال'}</div>} />
+    <SectionPanel className="customer-directory-controls" eyebrow="جست‌وجو و وضعیت" title="پیدا کردن پرونده" description="نام، ایمیل یا شماره را وارد کنید؛ نتایج و تعداد کل با هر فیلتر تازه می‌شوند." action={<span className="customer-result-count"><strong>{numberFormat.format(visibleTotal)}</strong><small>پرونده</small></span>}>
       <div className="customer-toolbar">
-        <div className="console-search wide"><Search size={16} /><input placeholder="جست‌وجوی نام، ایمیل یا شماره" value={search} onChange={(event) => updateSearch(event.target.value)} data-testid="input-search-customers" /><span className={`customer-search-state ${loading ? 'is-loading' : ''}`}>{loading ? 'در حال جست‌وجو' : 'جست‌وجوی زنده'}</span></div>
+        <label className="console-search wide customer-directory-search"><Search size={16} /><input aria-label="جست‌وجوی مشتریان" placeholder="نام، ایمیل یا شماره تلفن" value={search} onChange={(event) => updateSearch(event.target.value)} data-testid="input-search-customers" /><span className={`customer-search-state ${loading ? 'is-loading' : ''}`} role="status">{loading ? 'در حال جست‌وجو' : 'جست‌وجوی زنده'}</span></label>
         <Button variant="secondary" onClick={clearSearch} disabled={!search} testId="button-clear-customer-search">پاک کردن جست‌وجو</Button>
       </div>
-      <div className="customer-tabs" role="tablist" aria-label="فیلتر وضعیت مشتری">
-        <button type="button" role="tab" aria-selected={tab === 'active'} className={tab === 'active' ? 'selected' : ''} onClick={() => selectTab('active')} data-testid="button-customers-active">فعال</button>
-        <button type="button" role="tab" aria-selected={tab === 'inactive'} className={tab === 'inactive' ? 'selected' : ''} onClick={() => selectTab('inactive')} data-testid="button-customers-inactive">غیرفعال</button>
+      <div className="customer-filter-row">
+        <span className="customer-filter-label">نمایش پرونده‌های</span>
+        <div className="customer-tabs" role="tablist" aria-label="فیلتر وضعیت مشتری">
+          <button type="button" role="tab" aria-selected={tab === 'active'} className={tab === 'active' ? 'selected' : ''} onClick={() => selectTab('active')} data-testid="button-customers-active"><span className="customer-tab-dot active" /><span>فعال</span><small>دارای سرویس</small></button>
+          <button type="button" role="tab" aria-selected={tab === 'inactive'} className={tab === 'inactive' ? 'selected' : ''} onClick={() => selectTab('inactive')} data-testid="button-customers-inactive"><span className="customer-tab-dot inactive" /><span>غیرفعال</span><small>بدون سرویس فعال</small></button>
+        </div>
+        <span className="customer-filter-total">{numberFormat.format(visibleTotal)} نتیجه</span>
       </div>
-     </SectionPanel>
-     {error && <StatePanel kind="error" title="دریافت فهرست مشتری‌ها ناموفق بود" detail={error} action={<Button variant="secondary" onClick={() => { setError(''); setLoading(true); setRetryKey((current) => current + 1); }} disabled={loading}>تلاش دوباره</Button>} />}
-     {loading && !visibleCustomers.length ? <StatePanel kind="loading" title="در حال دریافت پرونده‌های مشتری" detail="فهرست زنده با فیلتر انتخاب‌شده دریافت می‌شود." /> : null}
-     {!loading && visibleCustomers.length > 0 && <SectionPanel className="customer-file-register" eyebrow="پرونده‌ها" title={`${numberFormat.format(visibleCustomers.length)} مشتری در این صفحه`} description="انتخاب پرونده، نمای سرویس‌ها، ارتباط و تراکنش‌های همان مشتری را باز می‌کند.">
-       {visibleCustomers.map((customer, index) => <Link href={`/customers/${customer.id}`} className="customer-file-entry" role="listitem" key={customer.id} data-testid={`row-customer-${customer.id}`}>
-         <div className="customer-file-identity"><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><div><span className="record-card-eyebrow">پرونده · {numberFormat.format(page * CUSTOMER_PAGE_SIZE + index + 1)}</span><strong>{customer.name}</strong><small>{customer.phone || 'شماره ثبت نشده'}{customer.email ? ` · ${customer.email}` : ''}</small></div></div>
-         <dl className="customer-file-facts">
-           <div><dt>سرویس فعال</dt><dd>{numberFormat.format(customer.activeServices)}</dd></div>
-           <div><dt>مجموع خرید</dt><dd>{money(customer.totalSpend)}</dd></div>
-           <div><dt>آخرین خرید</dt><dd>{dateLabel(customer.lastPurchase)}</dd></div>
-         </dl>
-         <span className="customer-file-open">پرونده <ChevronLeft size={15} /></span>
-       </Link>)}
-     </SectionPanel>}
-     {!loading && !error && !visibleCustomers.length && <StatePanel title={tab === 'active' ? 'مشتری فعال پیدا نشد' : 'مشتری غیرفعالی پیدا نشد'} detail={search ? 'عبارت جست‌وجو یا تب وضعیت را تغییر دهید.' : 'با ثبت سرویس فعال، مشتری در این بخش نمایش داده می‌شود.'} />}
-    {totalPages > 1 && <nav className="customer-pagination" aria-label="صفحه‌بندی مشتری‌ها"><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0 || loading} data-testid="button-customers-previous"><ChevronRight size={15} /> قبلی</button><span>صفحه {numberFormat.format(page + 1)} از {numberFormat.format(totalPages)}</span><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))} disabled={page >= totalPages - 1 || loading} data-testid="button-customers-next">بعدی <ChevronLeft size={15} /></button></nav>}
-  </>;
+    </SectionPanel>
+    {error && <StatePanel kind="error" title="دریافت فهرست مشتری‌ها ناموفق بود" detail={error} action={<Button variant="secondary" onClick={() => { setError(''); setLoading(true); setRetryKey((current) => current + 1); }} disabled={loading}>تلاش دوباره</Button>} />}
+    {loading && !visibleCustomers.length ? <StatePanel kind="loading" title="در حال دریافت پرونده‌های مشتری" detail="فهرست زنده با فیلتر انتخاب‌شده دریافت می‌شود." /> : null}
+    {!loading && visibleCustomers.length > 0 && <SectionPanel className="customer-file-register" eyebrow="فهرست مشتریان" title={`${numberFormat.format(visibleCustomers.length)} پرونده در این صفحه`} description="هر ردیف خلاصهٔ ارتباط، سرویس و ارزش خرید را نشان می‌دهد." action={<span className="soft-badge">{tab === 'active' ? 'مشتریان فعال' : 'مشتریان غیرفعال'}</span>}>
+      <div className="customer-directory-list" role="list" aria-label="پرونده‌های مشتری">
+        {visibleCustomers.map((customer, index) => <Link href={`/customers/${customer.id}`} className="customer-file-entry" role="listitem" key={customer.id} data-testid={`row-customer-${customer.id}`}>
+          <div className="customer-file-identity"><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><div><span className="record-card-eyebrow">پرونده · {numberFormat.format(page * CUSTOMER_PAGE_SIZE + index + 1)}</span><strong>{customer.name}</strong><small>{customer.phone || 'شماره ثبت نشده'}{customer.email ? ` · ${customer.email}` : ''}</small></div></div>
+          <span className={`customer-file-status ${customer.activeServices > 0 ? 'is-active' : 'is-inactive'}`}><i />{customer.activeServices > 0 ? 'فعال' : 'غیرفعال'}</span>
+          <dl className="customer-file-facts">
+            <div><dt>سرویس فعال</dt><dd>{numberFormat.format(customer.activeServices)}</dd></div>
+            <div><dt>مجموع خرید</dt><dd>{money(customer.totalSpend)}</dd></div>
+            <div><dt>آخرین خرید</dt><dd>{dateLabel(customer.lastPurchase)}</dd></div>
+          </dl>
+          <span className="customer-file-open">مشاهده پرونده <ChevronLeft size={15} /></span>
+        </Link>)}
+      </div>
+    </SectionPanel>}
+    {!loading && !error && !visibleCustomers.length && <StatePanel title={tab === 'active' ? 'مشتری فعال پیدا نشد' : 'مشتری غیرفعالی پیدا نشد'} detail={search ? 'عبارت جست‌وجو یا تب وضعیت را تغییر دهید.' : 'با ثبت سرویس فعال، مشتری در این بخش نمایش داده می‌شود.'} />}
+    {totalPages > 1 && <nav className="customer-pagination" aria-label="صفحه‌بندی مشتری‌ها"><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0 || loading} data-testid="button-customers-previous"><ChevronRight size={15} /> قبلی</button><span>صفحه {numberFormat.format(page + 1)} از {numberFormat.format(totalPages)}<small>{numberFormat.format(visibleTotal)} پرونده</small></span><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))} disabled={page >= totalPages - 1 || loading} data-testid="button-customers-next">بعدی <ChevronLeft size={15} /></button></nav>}
+  </div>;
 }
 
 export function Customers() {
