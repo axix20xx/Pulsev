@@ -35,6 +35,8 @@ const sessionHash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 
 const transientDatabaseCodes = new Set([
+  // PostgreSQL aborts one participant of a deadlock; the same read can be retried safely.
+  "40P01",
   "08000",
   "08001",
   "08003",
