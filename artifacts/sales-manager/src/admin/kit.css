@@ -215,3 +215,103 @@
 .ax-root button.ax-queue { font: inherit; text-align: start; cursor: pointer; }
 .ax-root .ax-toolbar .ax-field.is-compact { min-width: 150px; }
 @media (max-width: 767px) { .ax-root .ax-queue-nav:has(> :nth-child(4):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Customer directory and customer record: visible card hierarchy and aligned actions. */
+.ax-root [data-surface="customers"] .ax-workbench { align-items: start; }
+.ax-root [data-surface="customers"] .ax-workbench-main > .ax-card,
+.ax-root [data-surface="customers"] .ax-workbench-aside > .ax-card,
+.ax-root [data-surface="customer-detail"] > .ax-card {
+  border-color: hsl(var(--ax-line));
+  background: hsl(var(--ax-surface));
+  box-shadow: 0 3px 12px hsl(var(--ax-ink) / .045);
+}
+.ax-root [data-surface="customers"] .ax-card-head,
+.ax-root [data-surface="customer-detail"] .ax-card-head {
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+}
+.ax-root [data-surface="customers"] .ax-card-body,
+.ax-root [data-surface="customer-detail"] .ax-card-body { padding: 16px 18px; }
+.ax-root [data-surface="customers"] .ax-card-body.is-flush,
+.ax-root [data-surface="customer-detail"] .ax-card-body.is-flush { padding: 0; }
+.ax-root [data-surface="customers"] .ax-toolbar {
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid hsl(var(--ax-line-soft));
+  background: hsl(var(--ax-sunken) / .42);
+  padding: 12px 16px;
+}
+.ax-root [data-surface="customers"] .ax-toolbar > .ax-search { flex: 1 1 250px; min-width: 0; }
+.ax-root [data-surface="customers"] .ax-segment { flex: none; }
+.ax-root [data-surface="customers"] .ax-table-wrap { overflow: auto; }
+.ax-root [data-surface="customers"] .ax-table tbody tr:hover { background: hsl(var(--ax-sunken) / .55); }
+.ax-root [data-surface="customers"] .ax-card-foot { padding: 12px 16px; }
+.ax-root [data-surface="customers"] .ax-workbench-aside { position: sticky; top: 76px; }
+
+.ax-root [data-surface="customer-detail"] .ax-page-head { align-items: center; }
+.ax-root [data-surface="customer-detail"] .ax-page-actions { justify-content: flex-end; }
+.ax-root [data-surface="customer-detail"] .ax-customer-profile-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ax-root [data-surface="customer-detail"] .ax-customer-console-jumpbar {
+  position: sticky;
+  top: 66px;
+  z-index: 4;
+  border-color: hsl(var(--ax-line));
+  background: hsl(var(--ax-surface) / .97);
+  box-shadow: 0 3px 10px hsl(var(--ax-ink) / .06);
+}
+.ax-root [data-surface="customer-detail"] .ax-customer-profile-quick-actions,
+.ax-root [data-surface="customer-detail"] .ax-customer-mobile-otp-action,
+.ax-root [data-surface="customer-detail"] .ax-cell-actions,
+.ax-root [data-surface="customer-detail"] .ax-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ax-root [data-surface="customer-detail"] .ax-customer-profile-quick-actions .ax-btn,
+.ax-root [data-surface="customer-detail"] .ax-customer-mobile-otp-action .ax-btn,
+.ax-root [data-surface="customer-detail"] .ax-cell-actions .ax-btn { min-height: 36px; }
+.ax-root [data-surface="customer-detail"] .ax-cell-actions { min-width: 220px; }
+.ax-root [data-surface="customer-detail"] .ax-customer-crm-workspace,
+.ax-root [data-surface="customer-detail"] .ax-customer-services-workspace,
+.ax-root [data-surface="customer-detail"] .ax-customer-sales-workspace {
+  overflow: hidden;
+  border-radius: var(--ax-r);
+  background: hsl(var(--ax-surface));
+  box-shadow: 0 3px 12px hsl(var(--ax-ink) / .045);
+}
+.ax-root [data-surface="customer-detail"] .ax-customer-crm-grid { gap: 18px; }
+.ax-root [data-surface="customer-detail"] .ax-customer-crm-editors {
+  border: 1px solid hsl(var(--ax-line-soft));
+  border-radius: var(--ax-r-sm);
+  background: hsl(var(--ax-canvas));
+  padding: 14px;
+}
+.ax-root [data-surface="customer-detail"] .ax-customer-service-controls,
+.ax-root [data-surface="customer-detail"] .ax-customer-service-toolbar { align-items: center; }
+.ax-root [data-surface="customer-detail"] .ax-customer-service-table .ax-cell-actions { justify-content: flex-start; }
+
+@media (max-width: 960px) {
+  .ax-root [data-surface="customers"] .ax-workbench-aside { position: static; }
+  .ax-root [data-surface="customer-detail"] .ax-customer-profile-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .ax-root [data-surface="customers"] .ax-card-head,
+  .ax-root [data-surface="customers"] .ax-card-body,
+  .ax-root [data-surface="customer-detail"] .ax-card-head,
+  .ax-root [data-surface="customer-detail"] .ax-card-body { padding-inline: 12px; }
+  .ax-root [data-surface="customers"] .ax-toolbar { align-items: stretch; }
+  .ax-root [data-surface="customers"] .ax-segment { width: 100%; }
+  .ax-root [data-surface="customers"] .ax-segment > button { flex: 1; justify-content: center; }
+  .ax-root [data-surface="customer-detail"] .ax-page-head,
+  .ax-root [data-surface="customer-detail"] .ax-page-actions { align-items: stretch; justify-content: stretch; }
+  .ax-root [data-surface="customer-detail"] .ax-page-actions > * ,
+  .ax-root [data-surface="customer-detail"] .ax-customer-profile-quick-actions > *,
+  .ax-root [data-surface="customer-detail"] .ax-customer-mobile-otp-action > * { flex: 1 1 145px; justify-content: center; }
+  .ax-root [data-surface="customer-detail"] .ax-customer-profile-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ax-root [data-surface="customer-detail"] .ax-customer-console-jumpbar { top: 56px; }
+  .ax-root [data-surface="customer-detail"] .ax-cell-actions { min-width: 0; }
+  .ax-root [data-surface="customer-detail"] .ax-cell-actions .ax-btn { flex: 1 1 125px; justify-content: center; }
+}
