@@ -9,10 +9,8 @@ import { Link, useLocation, useParams } from 'wouter';
 import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useRepairServiceProvider, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, useGetResellerStorefrontLead, getGetResellerStorefrontLeadQueryKey, getGetResellerStorefrontQueryKey, getListResellerStorefrontLeadsQueryKey, type AdminSale } from '@workspace/api-client-react';
 import { Customer, Service, Sale, dateLabel, dateTimeLabel, daysUntil, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, jalaliToGregorian, money, todayLabel } from '@/lib/pulse-data';
 import { Avatar, MetricTile, PageHeader, SectionPanel, StatePanel, StatusPill } from '@/components/admin-console-primitives';
-import { HopePageFrame, type HopePagePattern } from '@/components/hope-page-frame';
 import { copyTextToClipboard } from '@/lib/browser-utils';
 import './public-sub-lux.css';
-import './pulse-route-compositions.css';
 import { openVpnConnectImportUrl } from '@/lib/openvpn-connect-link';
 import {
   PublicSubscriptionWizard,
@@ -406,29 +404,6 @@ function RecordCard({ eyebrow, title, subtitle, status, fields, actions, testId 
     {actions && <footer className="console-page-actions record-card-actions">{actions}</footer>}
   </article>;
 }
-function SurfaceFrame({ name, children, signal = false }: { name: string; children: ReactNode; signal?: boolean }) {
-  const pageMeta: Record<string, { label: string; pattern: HopePagePattern }> = {
-    overview: { label: 'نمای کلی', pattern: 'dashboard' },
-    sales: { label: 'دفتر فروش', pattern: 'ledger' },
-    'reseller-accounting': { label: 'حسابداری فروشندگان', pattern: 'ledger' },
-    pos: { label: 'پایانه فروش', pattern: 'form' },
-    'admin-sales': { label: 'فروش فروشندگان', pattern: 'ledger' },
-    services: { label: 'مدیریت سرویس‌ها', pattern: 'table' },
-    'action-requests': { label: 'درخواست‌های عملیات', pattern: 'form' },
-    monitoring: { label: 'سلامت ساخت سرویس', pattern: 'monitor' },
-    connections: { label: 'اتصال‌های جاری', pattern: 'table' },
-    customers: { label: 'مدیریت مشتریان', pattern: 'table' },
-    'customer-detail': { label: 'پرونده مشتری', pattern: 'detail' },
-    settings: { label: 'تنظیمات فضای کاری', pattern: 'settings' },
-    reports: { label: 'گزارش‌های مالی', pattern: 'report' },
-  };
-  const { label, pattern } = pageMeta[name] ?? { label: 'مدیریت', pattern: 'table' as HopePagePattern };
-  return <HopePageFrame route={name} label={label} pattern={pattern} className={`pulse-surface pulse-surface-${name}`} >
-    <div className={`console-page surface-layout surface-layout-${name}`} data-live-signal={signal ? 'true' : undefined}>
-      <div className="surface-page-composition">{children}</div>
-    </div>
-  </HopePageFrame>;
-}
 function Overlay({ title, onClose, children, fullScreen = false }: { title: string; onClose: () => void; children: ReactNode; fullScreen?: boolean }) {
   const titleId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -745,7 +720,7 @@ function OverviewContent() {
 }
 
 export function Overview() {
-  return <SurfaceFrame name="overview" signal><OverviewContent /></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-dashboard hope-pattern-dashboard pulse-surface pulse-surface-overview" data-surface="overview"><div className="hope-dashboard-composition"><OverviewContent /></div></main>;
 }
 
 type SalesPeriod = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
@@ -1038,19 +1013,15 @@ function SalesContent() {
            </SectionPanel>
            {loading && !visibleSales.length ? <StatePanel kind="loading" title="در حال دریافت فروش‌ها" detail="دفتر زندهٔ بازهٔ انتخاب‌شده بارگذاری می‌شود." /> : null}
            <SectionPanel className="sales-record-board" eyebrow="تراکنش‌های این بازه" title={`${numberFa(filtered.length, 0)} فروش`} description="مشتری، سرویس، مبلغ و وضعیت وصول برای هر ردیف." action={<span className="soft-badge">{rangeLabel}</span>}>
-             {filtered.length ? <div className="sales-receipt-list" role="list" aria-label="دفتر فروش این بازه">{filtered.map((sale, index) => <article className="sales-receipt-card" role="listitem" key={sale.id} data-testid={`row-sale-${sale.id}`}>
-               <div className="sales-receipt-position">{numberFa(index + 1, 0)}</div>
-               <div className="sales-receipt-body">
-                 <header className="sales-receipt-head"><div className="sales-receipt-customer"><Avatar name={sale.customerName} /><div><strong>{sale.customerName}</strong><span>فروش <bdi dir="ltr">#{sale.id}</bdi> · {dateLabel(sale.date)}</span></div></div><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></header>
-                 <dl className="sales-receipt-facts">
-                    <div><dt>سرویس</dt><dd>{sale.serviceName}</dd></div>
-                    <div><dt>پنل</dt><dd><bdi dir="ltr">{sale.panel}</bdi></dd></div>
-                   <div><dt>حجم</dt><dd>{sale.gbAmount == null ? 'ثبت نشده' : `${numberFa(sale.gbAmount)} گیگابایت`}</dd></div>
-                   <div><dt>مبلغ فروش</dt><dd>{money(sale.amount)}</dd></div>
-                 </dl>
-                 <footer className="sales-receipt-actions"><span className="sales-payment-label">وصول</span><div className="sale-payment-actions"><button type="button" className={`sale-payment-button paid ${sale.paid ? 'selected' : ''}`} onClick={() => { if (!sale.paid) togglePaid(sale); }} disabled={sale.paid} data-testid={`button-mark-paid-${sale.id}`}><Check size={12} /> پرداخت شد</button><button type="button" className={`sale-payment-button unpaid ${!sale.paid ? 'selected' : ''}`} onClick={() => { if (sale.paid) togglePaid(sale); }} disabled={!sale.paid} data-testid={`button-mark-unpaid-${sale.id}`}><Clock3 size={12} /> پرداخت نشد</button></div><button type="button" className="button button-quiet" aria-label={`ویرایش فروش ${sale.id}`} onClick={() => openSaleEditor(sale)} data-testid={`button-edit-sale-${sale.id}`}><Pencil size={14} /> ویرایش</button></footer>
-               </div>
-             </article>)}</div> : !loading && !error ? <EmptyState title="فروشی در این بازه پیدا نشد" detail="بازه، عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." /> : null}
+              {filtered.length ? <div className="hope-table-scroll"><table className="hope-data-table" aria-label="دفتر فروش این بازه">
+                <thead><tr><th scope="col">مشتری و تاریخ</th><th scope="col">سرویس</th><th scope="col">پنل</th><th scope="col">حجم</th><th scope="col">مبلغ</th><th scope="col">وصول</th><th scope="col">عملیات</th></tr></thead>
+                <tbody>{filtered.map((sale) => <tr key={sale.id} data-testid={`row-sale-${sale.id}`}>
+                  <td><div className="hope-table-person"><Avatar name={sale.customerName} /><span><strong>{sale.customerName}</strong><small>#{sale.id} · {dateLabel(sale.date)}</small></span></div></td>
+                  <td>{sale.serviceName}</td><td><bdi dir="ltr">{sale.panel}</bdi></td><td>{sale.gbAmount == null ? 'ثبت نشده' : `${numberFa(sale.gbAmount)} گیگابایت`}</td><td className="hope-table-amount">{money(sale.amount)}</td>
+                  <td><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></td>
+                  <td><div className="hope-table-actions"><button type="button" className={`sale-payment-button paid ${sale.paid ? 'selected' : ''}`} onClick={() => { if (!sale.paid) togglePaid(sale); }} disabled={sale.paid} data-testid={`button-mark-paid-${sale.id}`}>پرداخت شد</button><button type="button" className={`sale-payment-button unpaid ${!sale.paid ? 'selected' : ''}`} onClick={() => { if (sale.paid) togglePaid(sale); }} disabled={!sale.paid} data-testid={`button-mark-unpaid-${sale.id}`}>در انتظار</button><button type="button" className="button button-quiet" aria-label={`ویرایش فروش ${sale.id}`} onClick={() => openSaleEditor(sale)} data-testid={`button-edit-sale-${sale.id}`}><Pencil size={14} /> ویرایش</button></div></td>
+                </tr>)}</tbody>
+              </table></div> : !loading && !error ? <EmptyState title="فروشی در این بازه پیدا نشد" detail="بازه، عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." /> : null}
            </SectionPanel>
           <p className="sales-record-footnote">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · حجم و تاریخ هر سرویس بر اساس تقویم شمسی تهران</p>
         </>}
@@ -1064,7 +1035,7 @@ function SaleEditModal({ sale, price, paid, saving, onPriceChange, onPaidChange,
 }
 
 export function Sales() {
-  return <SurfaceFrame name="sales"><div className="sales-route-workspace"><SalesContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-ledger hope-pattern-ledger pulse-surface pulse-surface-sales" data-surface="sales"><div className="hope-ledger-composition"><SalesContent /></div></main>;
 }
 
 function ResellerAccountingContent() {
@@ -1201,7 +1172,7 @@ function ResellerAccountingContent() {
 }
 
 export function ResellerAccounting() {
-  return <SurfaceFrame name="reseller-accounting"><div className="reseller-accounting-workspace"><ResellerAccountingContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-ledger hope-pattern-ledger pulse-surface pulse-surface-reseller-accounting" data-surface="reseller-accounting"><div className="hope-accounting-composition"><ResellerAccountingContent /></div></main>;
 }
 
 function PointOfSaleContent() {
@@ -1344,7 +1315,7 @@ function PointOfSaleContent() {
 }
 
 export function PointOfSale() {
-  return <SurfaceFrame name="pos"><div className="checkout-workspace"><PointOfSaleContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-checkout hope-pattern-form pulse-surface pulse-surface-pos" data-surface="pos"><div className="hope-checkout-composition"><PointOfSaleContent /></div></main>;
 }
 
 function ReceiptIcon() {
@@ -1425,31 +1396,22 @@ function AdminSalesContent() {
     {salesQuery.isError && <StatePanel kind="error" title="فروش‌های مدیر اصلی دریافت نشد" detail="اتصال به دفتر فروش ناموفق بود." action={<Button variant="secondary" onClick={() => void salesQuery.refetch()} disabled={salesQuery.isFetching}>تلاش دوباره</Button>} />}
     <SectionPanel className="admin-sales-record-board" eyebrow="دفتر ریز فروش" title={salesQuery.isFetching ? 'در حال دریافت...' : `${numberFa(rows.length, 0)} فروش ثبت شده`} description="فروش مشتریان به تفکیک فروشنده؛ اقدامات این صفحه فقط روی لاگ فروش اثر می‌گذارند." action={<span className="soft-badge">حذف فقط لاگ فروش</span>}>
       {salesQuery.isLoading && !rows.length ? <StatePanel kind="loading" title="در حال دریافت دفتر فروش" detail="فروش‌های ثبت‌شده دریافت می‌شوند." /> : null}
-      <div className="admin-sales-ledger" role="list" aria-label="فروش‌های ثبت‌شده">
-        {rows.map((sale, index) => <article className="admin-sale-ledger-row" role="listitem" key={sale.id} data-testid={`row-admin-sale-${sale.id}`}>
-          <div className="admin-sale-index">{numberFa(index + 1, 0).padStart(2, '۰')}</div>
-          <div className="admin-sale-main">
-            <div className="admin-sale-identity"><div><span className="record-card-eyebrow">مشتری · {sale.reseller_name}</span><strong><Link href={`/customers/${sale.customer_id}`}>{sale.customer_name}</Link></strong><small>{sale.customer_phone || 'شماره ثبت نشده'} · {dateLabel(sale.date)}</small></div><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></div>
-            <div className="admin-sale-facts">
-              <div><span>سرویس</span><strong>{sale.service_name}</strong><small dir="ltr">{sale.username || `سرویس ${sale.service_id}`}</small></div>
-              <div><span>حجم</span><strong>{numberFa(sale.gb_amount)} گیگ</strong></div>
-              <div><span>مبلغ</span><strong>{money(sale.amount)}</strong></div>
-              <div><span>شناسه فروشنده</span><strong dir="ltr">TG {sale.reseller_tg_id}</strong></div>
-            </div>
-          </div>
-          <div className="admin-sale-actions">
-            {sale.subscription_url && <button type="button" className="button button-secondary" title="کپی لینک اشتراک" aria-label={`کپی لینک اشتراک فروش ${sale.id}`} onClick={() => copySubscription(sale)}>{copiedId === sale.id ? <Check size={14} /> : <Copy size={14} />}{copiedId === sale.id ? 'کپی شد' : 'لینک'}</button>}
-            <button type="button" className="button button-quiet danger" title="حذف لاگ فروش" aria-label={`حذف لاگ فروش ${sale.id}`} onClick={() => removeSale(sale)} disabled={deleteSale.isPending}>{deleteSale.isPending && deleteSale.variables?.id === sale.id ? <RefreshCw size={14} className="spin" /> : <Trash2 size={14} />}<span>حذف لاگ</span></button>
-          </div>
-        </article>)}
-      </div>
+      <div className="hope-table-scroll"><table className="hope-data-table" aria-label="دفتر فروش فروشندگان">
+        <thead><tr><th scope="col">مشتری / فروشنده</th><th scope="col">سرویس</th><th scope="col">حجم</th><th scope="col">مبلغ</th><th scope="col">شناسه فروشنده</th><th scope="col">پرداخت</th><th scope="col">مدیریت لاگ</th></tr></thead>
+        <tbody>{rows.map((sale) => <tr key={sale.id} data-testid={`row-admin-sale-${sale.id}`}>
+          <td><div className="hope-table-person"><span><Link href={`/customers/${sale.customer_id}`}><strong>{sale.customer_name}</strong></Link><small>{sale.reseller_name} · {sale.customer_phone || 'شماره ثبت نشده'} · {dateLabel(sale.date)}</small></span></div></td>
+          <td><strong>{sale.service_name}</strong><small className="hope-table-subline" dir="ltr">{sale.username || `Service ${sale.service_id}`}</small></td>
+          <td>{numberFa(sale.gb_amount)} گیگ</td><td className="hope-table-amount">{money(sale.amount)}</td><td><bdi dir="ltr">TG {sale.reseller_tg_id}</bdi></td><td><StatusPill value={sale.paid ? 'Paid' : 'Pending'} /></td>
+          <td><div className="hope-table-actions">{sale.subscription_url && <button type="button" className="button button-secondary" title="کپی لینک اشتراک" aria-label={`کپی لینک اشتراک فروش ${sale.id}`} onClick={() => copySubscription(sale)}>{copiedId === sale.id ? <Check size={14} /> : <Copy size={14} />}{copiedId === sale.id ? 'کپی شد' : 'لینک'}</button>}<button type="button" className="button button-quiet danger" title="حذف لاگ فروش" aria-label={`حذف لاگ فروش ${sale.id}`} onClick={() => removeSale(sale)} disabled={deleteSale.isPending}>{deleteSale.isPending && deleteSale.variables?.id === sale.id ? <RefreshCw size={14} className="spin" /> : <Trash2 size={14} />}<span>حذف لاگ</span></button></div></td>
+        </tr>)}</tbody>
+      </table></div>
       {!salesQuery.isFetching && !salesQuery.isError && !rows.length && <StatePanel title="فروشی پیدا نشد" detail="فروشنده یا عبارت جست‌وجوی دیگری را امتحان کنید." />}
     </SectionPanel>
   </div>;
 }
 
 export function AdminSales() {
-  return <SurfaceFrame name="admin-sales"><div className="admin-sales-workspace"><AdminSalesContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-ledger hope-pattern-ledger pulse-surface pulse-surface-admin-sales" data-surface="admin-sales"><div className="hope-admin-sales-composition"><AdminSalesContent /></div></main>;
 }
 
 function ServiceModal({ onClose }: { onClose: () => void }) {
@@ -2051,7 +2013,7 @@ const monitoringStatus = (status: MonitoringJob['status']) => ({
 }[status]);
 
 export function Services() {
-  return <SurfaceFrame name="services"><div className="service-operations-workspace"><ServicesContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-register hope-pattern-table pulse-surface pulse-surface-services" data-surface="services"><div className="hope-service-register"><ServicesContent /></div></main>;
 }
 
 function ActionRequestRecord({ request, isMasterAdmin, saving, statusText, statusClass, onReview }: {
@@ -2221,7 +2183,7 @@ function ActionRequestsContent() {
 }
 
 export function ActionRequests() {
-  return <SurfaceFrame name="action-requests"><div className="action-request-workspace"><ActionRequestsContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-queue hope-pattern-form pulse-surface pulse-surface-action-requests" data-surface="action-requests"><div className="hope-request-queue"><ActionRequestsContent /></div></main>;
 }
 
 function MonitoringContent() {
@@ -2314,7 +2276,7 @@ function MonitoringContent() {
 }
 
 export function Monitoring() {
-  return <SurfaceFrame name="monitoring" signal><div className="monitoring-workspace"><MonitoringContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-monitor hope-pattern-monitor pulse-surface pulse-surface-monitoring" data-surface="monitoring"><div className="hope-monitoring-composition"><MonitoringContent /></div></main>;
 }
 
 type ConnectionUser = {
@@ -2454,7 +2416,7 @@ function ConnectionsContent() {
 }
 
 export function Connections() {
-  return <SurfaceFrame name="connections" signal><div className="connections-workspace"><ConnectionsContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-register hope-pattern-table pulse-surface pulse-surface-connections" data-surface="connections"><div className="hope-connections-composition"><ConnectionsContent /></div></main>;
 }
 
 function CustomersContent() {
@@ -2553,18 +2515,14 @@ function CustomersContent() {
     {error && <StatePanel kind="error" title="دریافت فهرست مشتری‌ها ناموفق بود" detail={error} action={<Button variant="secondary" onClick={() => { setError(''); setLoading(true); setRetryKey((current) => current + 1); }} disabled={loading}>تلاش دوباره</Button>} />}
     {loading && !visibleCustomers.length ? <StatePanel kind="loading" title="در حال دریافت پرونده‌های مشتری" detail="فهرست زنده با فیلتر انتخاب‌شده دریافت می‌شود." /> : null}
     {!loading && visibleCustomers.length > 0 && <SectionPanel className="customer-file-register" eyebrow="فهرست مشتریان" title={`${numberFormat.format(visibleCustomers.length)} پرونده در این صفحه`} description="هر ردیف خلاصهٔ ارتباط، سرویس و ارزش خرید را نشان می‌دهد." action={<span className="soft-badge">{tab === 'active' ? 'مشتریان فعال' : 'مشتریان غیرفعال'}</span>}>
-      <div className="customer-directory-list" role="list" aria-label="پرونده‌های مشتری">
-        {visibleCustomers.map((customer, index) => <Link href={`/customers/${customer.id}`} className="customer-file-entry" role="listitem" key={customer.id} data-testid={`row-customer-${customer.id}`}>
-          <div className="customer-file-identity"><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><div><span className="record-card-eyebrow">پرونده · {numberFormat.format(page * CUSTOMER_PAGE_SIZE + index + 1)}</span><strong>{customer.name}</strong><small>{customer.phone || 'شماره ثبت نشده'}{customer.email ? ` · ${customer.email}` : ''}</small></div></div>
-          <span className={`customer-file-status ${customer.activeServices > 0 ? 'is-active' : 'is-inactive'}`}><i />{customer.activeServices > 0 ? 'فعال' : 'غیرفعال'}</span>
-          <dl className="customer-file-facts">
-            <div><dt>سرویس فعال</dt><dd>{numberFormat.format(customer.activeServices)}</dd></div>
-            <div><dt>مجموع خرید</dt><dd>{money(customer.totalSpend)}</dd></div>
-            <div><dt>آخرین خرید</dt><dd>{dateLabel(customer.lastPurchase)}</dd></div>
-          </dl>
-          <span className="customer-file-open">مشاهده پرونده <ChevronLeft size={15} /></span>
-        </Link>)}
-      </div>
+      <div className="hope-table-scroll"><table className="hope-data-table" aria-label="دفتر پرونده‌های مشتری">
+        <thead><tr><th scope="col">مشتری</th><th scope="col">وضعیت</th><th scope="col">سرویس فعال</th><th scope="col">مجموع خرید</th><th scope="col">آخرین خرید</th></tr></thead>
+        <tbody>{visibleCustomers.map((customer, index) => <tr key={customer.id} data-testid={`row-customer-${customer.id}`}>
+          <td><Link href={`/customers/${customer.id}`} className="hope-table-person"><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><span><strong>{customer.name}</strong><small>{customer.phone || 'شماره ثبت نشده'}{customer.email ? ` · ${customer.email}` : ''}</small></span><ChevronLeft size={14} /></Link></td>
+          <td><span className={`customer-file-status ${customer.activeServices > 0 ? 'is-active' : 'is-inactive'}`}><i />{customer.activeServices > 0 ? 'فعال' : 'غیرفعال'}</span></td>
+          <td>{numberFormat.format(customer.activeServices)}</td><td className="hope-table-amount">{money(customer.totalSpend)}</td><td>{dateLabel(customer.lastPurchase)}</td>
+        </tr>)}</tbody>
+      </table></div>
     </SectionPanel>}
     {!loading && !error && !visibleCustomers.length && <StatePanel title={tab === 'active' ? 'مشتری فعال پیدا نشد' : 'مشتری غیرفعالی پیدا نشد'} detail={search ? 'عبارت جست‌وجو یا تب وضعیت را تغییر دهید.' : 'با ثبت سرویس فعال، مشتری در این بخش نمایش داده می‌شود.'} />}
     {totalPages > 1 && <nav className="customer-pagination" aria-label="صفحه‌بندی مشتری‌ها"><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0 || loading} data-testid="button-customers-previous"><ChevronRight size={15} /> قبلی</button><span>صفحه {numberFormat.format(page + 1)} از {numberFormat.format(totalPages)}<small>{numberFormat.format(visibleTotal)} پرونده</small></span><button type="button" className="button button-quiet" onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))} disabled={page >= totalPages - 1 || loading} data-testid="button-customers-next">بعدی <ChevronLeft size={15} /></button></nav>}
@@ -2572,7 +2530,7 @@ function CustomersContent() {
 }
 
 export function Customers() {
-  return <SurfaceFrame name="customers"><div className="customer-directory-workspace"><CustomersContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-register hope-pattern-table pulse-surface pulse-surface-customers" data-surface="customers"><div className="hope-customer-register"><CustomersContent /></div></main>;
 }
 
 function CustomerServiceControls({ services, tab, issueFilter, search, onTabChange, onIssueFilterChange, onSearchChange }: { services: Service[]; tab: CustomerServiceTab; issueFilter: string; search: string; onTabChange: (tab: CustomerServiceTab) => void; onIssueFilterChange: (value: string) => void; onSearchChange: (value: string) => void }) {
@@ -2848,7 +2806,7 @@ function CustomerDetailContent() {
       </>;
 }
 export function CustomerDetail() {
-  return <SurfaceFrame name="customer-detail"><div className="customer-profile-workspace"><CustomerDetailContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-record hope-pattern-detail pulse-surface pulse-surface-customer-detail" data-surface="customer-detail"><div className="hope-customer-record"><CustomerDetailContent /></div></main>;
 }
 
 type ClientOS = 'iOS' | 'Android' | 'Windows' | 'macOS' | 'Linux' | 'Other';
@@ -3411,7 +3369,7 @@ function SettingsPageContent() {
 }
 
 export function SettingsPage() {
-  return <SurfaceFrame name="settings"><div className="settings-workspace"><SettingsPageContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-settings hope-pattern-settings pulse-surface pulse-surface-settings" data-surface="settings"><div className="hope-settings-composition"><SettingsPageContent /></div></main>;
 }
 
 function SettingsConsole() {
@@ -3554,7 +3512,7 @@ function ReportsContent() {
 }
 
 export function Reports() {
-  return <SurfaceFrame name="reports"><div className="reports-workspace"><ReportsContent /></div></SurfaceFrame>;
+  return <main className="admin-console hope-admin-page hope-page-report hope-pattern-report pulse-surface pulse-surface-reports" data-surface="reports"><div className="hope-report-composition"><ReportsContent /></div></main>;
 }
 
 type ProviderConnectionResult = {

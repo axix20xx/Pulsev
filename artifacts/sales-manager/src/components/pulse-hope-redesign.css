@@ -411,143 +411,7 @@
   .pulse-workspace *, .admin-console:not(.public-sub-v3) * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
-/* Route-specific page scaffolds: breadcrumbs + native workbench composition. */
-.pulse-workspace .hope-route-frame {
-  display: block;
-  width: 100%;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  overflow: visible;
-  color: hsl(220 24% 23%);
-  background: transparent;
-}
-.pulse-workspace .hope-route-container {
-  width: min(100%,1640px);
-  margin-inline: auto;
-}
-.pulse-workspace .hope-route-breadcrumb {
-  display: flex;
-  min-height: 27px;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 8px;
-  color: hsl(218 10% 55%);
-  font-size: 9px;
-  line-height: 1.5;
-}
-.pulse-workspace .hope-route-breadcrumb > a {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: hsl(218 10% 55%);
-  text-decoration: none;
-}
-.pulse-workspace .hope-route-breadcrumb > a:hover { color: hsl(228 78% 55%); }
-.pulse-workspace .hope-route-breadcrumb > a svg { color: hsl(228 78% 57%); }
-.pulse-workspace .hope-route-breadcrumb > svg { color: hsl(216 14% 69%); transform: rotate(180deg); }
-.pulse-workspace .hope-route-breadcrumb > [aria-current="page"] { color: hsl(220 24% 30%); font-weight: 700; }
-.pulse-workspace .hope-route-pattern {
-  margin-inline-start: auto;
-  border: 1px solid hsl(216 25% 90%);
-  border-radius: 4px;
-  background: hsl(0 0% 100%);
-  padding: 4px 7px;
-  color: hsl(218 11% 53%);
-  font-size: 8px;
-  white-space: nowrap;
-}
-.pulse-workspace .hope-route-content { min-width: 0; }
-.pulse-workspace .hope-route-content > .console-page,
-.pulse-workspace .hope-route-content > .notification-workspace,
-.pulse-workspace .hope-route-content > .store-wrap {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 0;
-}
-.pulse-workspace .hope-route-content :is(.surface-module-context,.notification-context-band) { display: none; }
-.pulse-workspace .hope-route-content :is(.console-page-heading,.page-header) { box-shadow: none; }
-.pulse-workspace .hope-route-content .console-page-heading {
-  min-height: 90px;
-  align-items: center;
-  margin: 0 0 15px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  padding: 6px 0 12px;
-}
-.pulse-workspace .hope-route-content .console-page-title { font-size: clamp(22px,2.15vw,30px); }
-.pulse-workspace .hope-route-content .console-page-heading::after { content: none; }
-.pulse-workspace .hope-route-content .console-eyebrow { color: hsl(228 78% 57%); }
-.pulse-workspace .hope-route-content .console-surface,
-.pulse-workspace .hope-route-content .smart-card,
-.pulse-workspace .hope-route-content .ops-card,
-.pulse-workspace .hope-route-content .audit-panel,
-.pulse-workspace .hope-route-content .notification-card {
-  border: 1px solid hsl(216 25% 91%);
-  border-radius: 8px;
-  background: white;
-  box-shadow: 0 2px 7px hsl(220 25% 35% / .035);
-  backdrop-filter: none;
-}
-.pulse-workspace .hope-route-content :is(.console-surface-head,.panel-heading,.section-heading) {
-  border-color: hsl(216 25% 92%);
-}
-.pulse-workspace .hope-route-content :is(.console-surface-head h2,.section-title,.panel-heading h2) { color: hsl(220 24% 23%); }
-.pulse-workspace .hope-route-content :is(.record-card,.customer-file-entry,.action-request-record,.connection-user-card,.awg-usage-entry,.awg-event-row,.smart-detail-row,.ops-audit,.store-lead) {
-  border-color: hsl(216 25% 91%);
-  border-radius: 6px;
-  background: white;
-  box-shadow: none;
-}
-.pulse-workspace .hope-route-content :is(.console-search,.finder-input,.connection-search,.service-catalog-search,.sales-ledger-search) {
-  border-color: hsl(216 25% 89%);
-  border-radius: 6px;
-  background: white;
-}
-.pulse-workspace .hope-route-content :is(.filter-tabs button,.service-catalog-status button,.action-request-filter button,.sales-period-panel .period-tabs button) {
-  border-radius: 5px;
-}
-.pulse-workspace .hope-route-content :is(.filter-tabs button.selected,.service-catalog-status button.selected,.action-request-filter button.selected,.sales-period-panel .period-tabs button.selected) {
-  border-color: hsl(228 78% 57%);
-  background: hsl(228 78% 57%);
-  color: white;
-}
-.pulse-workspace .hope-route-content :is(.service-inventory-card,.pos-form,.pos-receipt,.action-request-form,.request-list,.sales-record-filter,.sales-period-panel,.service-filter-workbench,.connection-workbench,.audit-scan-panel,.smart-focus-workbench) {
-  border: 1px solid hsl(216 25% 91%);
-  border-radius: 8px;
-  background: white;
-  box-shadow: 0 2px 7px hsl(220 25% 35% / .035);
-}
-.pulse-workspace .hope-route-content :is(.service-command-board,.request-command-strip,.connection-session-group,.pos-section,.action-request-options label,.action-request-service > div) {
-  border-color: hsl(216 25% 91%);
-  border-radius: 6px;
-  background: hsl(216 33% 98%);
-  box-shadow: none;
-}
-.pulse-workspace .hope-route-frame.console-not-found-route .console-not-found {
-  min-height: 0;
-  align-items: stretch;
-  background: transparent;
-  padding: 0;
-}
-.pulse-workspace .hope-route-frame.console-not-found-route .console-not-found-card {
-  width: 100%;
-  max-width: none;
-  border: 1px solid hsl(216 25% 91%);
-  border-radius: 8px;
-  background: white;
-  box-shadow: 0 2px 7px hsl(220 25% 35% / .035);
-}
-.pulse-workspace .hope-route-content :is(.service-inventory-icon,.pos-receipt-icon,.request-command-icon,.connection-session-group > header > strong,.overview-kpi-icon,.smart-provider-mark,.audit-safety-mark) {
-  border-radius: 7px;
-  background: hsl(220 100% 95%);
-  color: hsl(228 78% 57%);
-}
-.pulse-workspace .hope-route-content :is(.service-inventory-meter i,.connection-user-meter i,.smart-progress span) {
-  background: hsl(228 78% 57%);
-}
+/* Route-specific visual grammar on the actual route-owned main elements. */
 
 /* Dashboard route: blue welcome hero, compact analytic row, dominant chart and register. */
 .pulse-workspace .hope-pattern-dashboard .overview-dashboard { display: grid; gap: 13px; }
@@ -677,9 +541,6 @@
   .pulse-workspace .hope-pattern-dashboard .overview-ribbon-tail { grid-column: span 3; }
 }
 @media (max-width: 780px) {
-  .pulse-workspace .hope-route-pattern { display: none; }
-  .pulse-workspace .hope-route-breadcrumb { min-height: 23px; margin-bottom: 4px; }
-  .pulse-workspace .hope-route-content .console-page-heading { min-height: 0; padding: 3px 0 9px; }
   .pulse-workspace .hope-pattern-dashboard .overview-workbench,
   .pulse-workspace .hope-pattern-dashboard .overview-followup-grid { grid-template-columns: 1fr; }
   .pulse-workspace .hope-pattern-dashboard .overview-kpi-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -688,11 +549,157 @@
   .pulse-workspace .hope-pattern-dashboard .overview-chart-panel { min-height: 0; }
 }
 @media (max-width: 520px) {
-  .pulse-workspace .hope-route-container { width: 100%; }
   .pulse-workspace .hope-pattern-dashboard .overview-page-heading .page-header { min-height: 132px; padding: 18px; }
   .pulse-workspace .hope-pattern-dashboard .overview-page-heading .page-header h1 { font-size: 24px; }
   .pulse-workspace .hope-pattern-dashboard .overview-month-ribbon { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .pulse-workspace .hope-pattern-dashboard .overview-ribbon-stat { border: 0; padding: 5px 0; }
+}
+
+/* The new page roots are route-specific workbenches, not the legacy surface frame. */
+.pulse-workspace .admin-console.hope-admin-page {
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  color: hsl(220 24% 23%);
+}
+.pulse-workspace .hope-admin-page > :is(.hope-dashboard-composition,.hope-ledger-composition,.hope-accounting-composition,.hope-checkout-composition,.hope-admin-sales-composition,.hope-service-register,.hope-request-queue,.hope-monitoring-composition,.hope-connections-composition,.hope-customer-register,.hope-customer-record,.hope-settings-composition,.hope-report-composition,.hope-awg-register,.hope-awg-timeline-layout,.hope-operations-board,.hope-provider-audit-layout,.hope-insight-record,.hope-insight-dashboard,.hope-notification-status-layout,.hope-notification-compose-layout,.hope-notification-analysis-layout,.hope-storefront-builder,.hope-not-found-workbench) {
+  width: 100%;
+  min-width: 0;
+}
+.pulse-workspace .hope-admin-page :is(.console-surface,.smart-card,.ops-card,.audit-results,.audit-issues,.notification-evidence-panel,.notification-readiness-board) {
+  border: 1px solid hsl(216 25% 91%);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 2px 7px hsl(220 25% 35% / .035);
+  backdrop-filter: none;
+}
+.pulse-workspace .hope-admin-page .hope-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid hsl(216 25% 91%);
+  border-radius: 7px;
+  background: white;
+  scrollbar-color: hsl(216 18% 79%) transparent;
+}
+.pulse-workspace .hope-admin-page .hope-data-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: hsl(220 20% 30%);
+  font-size: 10px;
+  text-align: right;
+}
+.pulse-workspace .hope-admin-page .hope-data-table th {
+  height: 38px;
+  border-bottom: 1px solid hsl(216 25% 90%);
+  background: hsl(216 33% 97%);
+  padding: 0 11px;
+  color: hsl(218 11% 49%);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.pulse-workspace .hope-admin-page .hope-data-table td {
+  min-height: 48px;
+  border-bottom: 1px solid hsl(216 25% 93%);
+  padding: 8px 11px;
+  vertical-align: middle;
+}
+.pulse-workspace .hope-admin-page .hope-data-table tbody tr:last-child td { border-bottom: 0; }
+.pulse-workspace .hope-admin-page .hope-data-table tbody tr:hover { background: hsl(220 100% 98%); }
+.pulse-workspace .hope-admin-page .hope-data-table td strong { color: hsl(220 24% 24%); }
+.pulse-workspace .hope-admin-page .hope-table-person { display: inline-flex; min-width: 150px; align-items: center; gap: 8px; color: inherit; text-decoration: none; }
+.pulse-workspace .hope-admin-page .hope-table-person > span:last-of-type { display: grid; min-width: 0; gap: 3px; }
+.pulse-workspace .hope-admin-page .hope-table-person strong { overflow: hidden; max-width: 24ch; color: hsl(220 24% 23%); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.pulse-workspace .hope-admin-page .hope-table-person small { overflow: hidden; max-width: 28ch; color: hsl(218 10% 56%); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.pulse-workspace .hope-admin-page .hope-table-person > svg { color: hsl(218 10% 64%); }
+.pulse-workspace .hope-admin-page .hope-table-amount { color: hsl(220 24% 23%); font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pulse-workspace .hope-admin-page .hope-table-actions { display: flex; min-width: 220px; align-items: center; gap: 5px; }
+.pulse-workspace .hope-admin-page .hope-table-actions > button { min-height: 27px; padding-inline: 7px; font-size: 8px; }
+.pulse-workspace .hope-admin-page .hope-channel-label { display: inline-flex; align-items: center; gap: 5px; color: hsl(218 10% 54%); font-size: 9px; }
+.pulse-workspace .hope-page-ledger .hope-ledger-composition,
+.pulse-workspace .hope-page-ledger .hope-accounting-composition,
+.pulse-workspace .hope-page-ledger .hope-admin-sales-composition { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-register .hope-customer-register,
+.pulse-workspace .hope-page-register .hope-service-register,
+.pulse-workspace .hope-page-register .hope-connections-composition,
+.pulse-workspace .hope-page-register .hope-awg-register { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-monitor .hope-monitoring-composition,
+.pulse-workspace .hope-page-monitor .hope-operations-board,
+.pulse-workspace .hope-page-monitor .hope-awg-timeline-layout { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-record .hope-customer-record,
+.pulse-workspace .hope-page-record .hope-insight-record { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-report .hope-report-composition,
+.pulse-workspace .hope-page-report .hope-insight-dashboard { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-form .hope-storefront-builder,
+.pulse-workspace .hope-notification-compose-layout { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-settings .hope-settings-composition { display: grid; gap: 12px; }
+.pulse-workspace .hope-notification-analysis-layout,.pulse-workspace .hope-notification-status-layout { display: grid; gap: 12px; }
+.pulse-workspace .hope-admin-page .notification-page-content { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-checkout .pos-page { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-checkout .pos-terminal-grid { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(260px,.72fr); align-items: start; gap: 12px; }
+.pulse-workspace .hope-page-checkout :is(.pos-form,.pos-receipt) { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-page-checkout .pos-form { padding: 17px; }
+.pulse-workspace .hope-page-checkout .pos-receipt { position: sticky; top: 88px; padding: 16px; }
+.pulse-workspace .hope-page-checkout .pos-section { border: 1px solid hsl(216 25% 92%); border-radius: 7px; background: hsl(216 33% 98%); }
+.pulse-workspace .hope-page-register .service-catalog { display: grid; min-width: 0; gap: 12px; }
+.pulse-workspace .hope-page-register .service-command-board { display: grid; grid-template-columns: minmax(210px,1.25fr) repeat(3,minmax(115px,.75fr)); gap: 8px; border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; padding: 10px; }
+.pulse-workspace .hope-page-register :is(.service-command-intro,.service-command-stat) { min-width: 0; border: 1px solid hsl(216 25% 92%); border-radius: 6px; background: hsl(216 33% 98%); padding: 10px; }
+.pulse-workspace .hope-page-register .service-command-intro > span { border-radius: 6px; background: hsl(220 100% 95%); color: hsl(228 78% 57%); }
+.pulse-workspace .hope-page-register .service-command-stat { text-align: right; }
+.pulse-workspace .hope-page-register .service-command-stat strong { color: hsl(228 78% 55%); font-variant-numeric: tabular-nums; }
+.pulse-workspace .hope-page-register .service-filter-workbench { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; padding: 14px; }
+.pulse-workspace .hope-page-register .service-catalog-filters { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.pulse-workspace .hope-page-register .service-inventory-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+.pulse-workspace .hope-page-register .service-inventory-card { border: 1px solid hsl(216 25% 91%); border-radius: 7px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-page-queue .action-request-workbench,
+.pulse-workspace .hope-page-queue .action-request-desk { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-queue .action-request-record { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-page-queue .action-request-person-mark { border-radius: 6px; background: hsl(220 100% 95%); color: hsl(228 78% 57%); }
+.pulse-workspace .hope-page-register .customer-directory-composition { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-register .customer-directory-controls { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-page-register .customer-filter-row { border-top: 1px solid hsl(216 25% 92%); padding-top: 10px; }
+.pulse-workspace .hope-page-register .customer-tabs button.selected { border-color: hsl(228 78% 57%); background: hsl(220 100% 96%); color: hsl(228 78% 53%); }
+.pulse-workspace .hope-page-register .customer-file-register { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-page-record .customer-profile-workspace { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-record .customer-crm-workspace,
+.pulse-workspace .hope-page-record .customer-services-workspace,
+.pulse-workspace .hope-page-record .customer-sales-workspace { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-page-settings .settings-context-strip { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-page-settings .settings-console { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: 12px; }
+.pulse-workspace .hope-page-settings .settings-console-nav { position: sticky; top: 88px; align-self: start; border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-page-report .report-page { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-report .report-filter { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-page-report .report-record-board { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-page-monitor .ops-page { display: grid; gap: 12px; }
+.pulse-workspace .hope-page-monitor .ops-card { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-page-monitor .awg-worker-overview { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+.pulse-workspace .hope-page-monitor .awg-event-timeline { display: grid; gap: 7px; }
+.pulse-workspace .hope-page-audit .audit-review-workbench { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(260px,.75fr); gap: 12px; }
+.pulse-workspace .hope-page-audit :is(.audit-results,.audit-issues,.audit-scan-panel) { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-notification-composer .notification-composer { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(265px,.8fr); gap: 14px; border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; padding: 18px; }
+.pulse-workspace .hope-notification-composer .notification-live-preview { position: sticky; top: 90px; align-self: start; }
+.pulse-workspace .hope-page-not-found .console-not-found { min-height: 0; background: transparent; padding: 0; }
+.pulse-workspace .hope-page-not-found .console-not-found-card { width: 100%; max-width: none; border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-admin-page [dir="ltr"],.pulse-workspace .hope-admin-page bdi { unicode-bidi: isolate; }
+
+@media (max-width: 780px) {
+  .pulse-workspace .hope-admin-page .hope-data-table { min-width: 720px; }
+  .pulse-workspace .hope-notification-composer .notification-composer { grid-template-columns: 1fr; }
+  .pulse-workspace .hope-notification-composer .notification-live-preview { position: static; }
+  .pulse-workspace .hope-page-checkout .pos-terminal-grid,
+  .pulse-workspace .hope-page-audit .audit-review-workbench { grid-template-columns: 1fr; }
+  .pulse-workspace .hope-page-checkout .pos-receipt,
+  .pulse-workspace .hope-page-settings .settings-console-nav { position: static; }
+  .pulse-workspace .hope-page-settings .settings-console { grid-template-columns: 1fr; }
+  .pulse-workspace .hope-page-register .service-command-board { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .pulse-workspace .hope-page-register .service-catalog-filters,
+  .pulse-workspace .hope-page-register .service-inventory-grid { grid-template-columns: 1fr; }
+  .pulse-workspace .hope-page-monitor .awg-worker-overview { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
 /* Keep the authentication view readable at every width in the new Hope shell. */

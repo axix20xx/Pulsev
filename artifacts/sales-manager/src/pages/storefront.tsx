@@ -4,7 +4,6 @@ import { Link, useParams } from 'wouter';
 import { ArrowLeft, Check, Copy, ExternalLink, Globe2, Link2, Plus, Save, ShieldCheck, Trash2, Wifi } from 'lucide-react';
 import { PageHeader } from '@/components/admin-console-primitives';
 import { MetricTile } from '@/components/admin-console-primitives';
-import { HopePageFrame } from '@/components/hope-page-frame';
 import {
   getGetPublicStorefrontQueryKey, getGetResellerStorefrontQueryKey, getGetResellerStorefrontLeadQueryKey,
   getListResellerStorefrontLeadsQueryKey, useCreatePublicStorefrontLead, useGetPublicStorefront,
@@ -104,8 +103,8 @@ export function StorefrontManagerPage() {
   useEffect(()=>{if(store&&initializedSlug.current!==store.slug){initializedSlug.current=store.slug;setDraft(formFromStore(store))}},[store]);
   const leads:StorefrontLead[]=Array.isArray(leadsQuery.data)?leadsQuery.data:[];
   const publicUrl=store?.slug?`${window.location.origin}${appBasePath}/store/${encodeURIComponent(store.slug)}`:'';
-    if(storefrontQuery.isLoading) return <HopePageFrame route="storefront" label="مدیریت ویترین فروش" pattern="form" className="store-manager-console"><div className="store-wrap store-manage console-page"><div className="store-skeleton" style={{height:45,width:300}}/><div className="store-skeleton" style={{height:140,marginTop:24}}/><div className="store-skeleton" style={{height:500,marginTop:20}}/></div></HopePageFrame>;
-    if(storefrontQuery.isError||!store||!draft) return <HopePageFrame route="storefront" label="مدیریت ویترین فروش" pattern="form" className="store-manager-console"><div className="store-wrap store-manage console-page"><section className="console-surface store-state-card" role="alert"><h1>دریافت اطلاعات ویترین انجام نشد</h1><p>اتصال را بررسی کنید و دوباره تلاش کنید.</p><button className="console-action console-action-secondary" onClick={()=>storefrontQuery.refetch()}>تلاش دوباره</button></section></div></HopePageFrame>;
+    if(storefrontQuery.isLoading) return <main className="admin-console hope-admin-page hope-page-form hope-pattern-form store-manager-console"><div className="hope-storefront-builder store-wrap store-manage"><div className="store-skeleton" style={{height:45,width:300}}/><div className="store-skeleton" style={{height:140,marginTop:24}}/><div className="store-skeleton" style={{height:500,marginTop:20}}/></div></main>;
+    if(storefrontQuery.isError||!store||!draft) return <main className="admin-console hope-admin-page hope-page-form hope-pattern-form store-manager-console"><div className="hope-storefront-builder store-wrap store-manage"><section className="console-surface store-state-card" role="alert"><h1>دریافت اطلاعات ویترین انجام نشد</h1><p>اتصال را بررسی کنید و دوباره تلاش کنید.</p><button className="console-action console-action-secondary" onClick={()=>storefrontQuery.refetch()}>تلاش دوباره</button></section></div></main>;
   const patchDraft=(patch:Partial<ResellerStorefrontInput>)=>setDraft((current)=>current?{...current,...patch}:current);
   const save=async()=>{
     setNotice('');
@@ -123,7 +122,7 @@ export function StorefrontManagerPage() {
     void client.invalidateQueries({queryKey:getGetResellerStorefrontQueryKey()});
   },onError:(error)=>setNotice(error instanceof Error?error.message:'به‌روزرسانی درخواست انجام نشد.')});
   const changeOffer=(index:number,patch:Partial<StorefrontOfferInput>)=>patchDraft({offers:draft.offers.map((offer,i)=>i===index?{...offer,...patch}:offer)});
-     return <HopePageFrame route="storefront" label="مدیریت ویترین فروش" pattern="form" className="store-manager-console"><div className="store-wrap store-manage console-page">
+     return <main className="admin-console hope-admin-page hope-page-form hope-pattern-form store-manager-console" data-surface="storefront"><div className="hope-storefront-builder store-wrap store-manage">
       <PageHeader eyebrow="ابزار فروش آنلاین" title="ویترین شما" description="یک نشانی برای معرفی بسته‌ها و دریافت درخواست‌های مشتری." action={<div className="console-page-actions"><button className="console-action console-action-secondary" onClick={()=>void copyLink(publicUrl,'نشانی ویترین کپی شد.')}><Copy size={15}/> کپی نشانی</button><a className="console-action console-action-primary" href={publicUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> مشاهده ویترین</a></div>} />
       <section className="store-manager-overview" aria-label="هویت و دسترسی ویترین">
         <span className="store-manager-overview-mark"><Globe2 size={19}/></span>
@@ -152,7 +151,7 @@ export function StorefrontManagerPage() {
     <button type="button" className="store-button secondary store-add-offer" disabled={draft.offers.length>=20} onClick={()=>patchDraft({offers:[...draft.offers,blankOffer(draft.offers.length)]})}><Plus size={16}/> افزودن بسته</button><div className="store-save-row"><button className="store-button" disabled={saveStore.isPending||!validDraft} onClick={()=>void save()}><Save size={16}/>{saveStore.isPending?'در حال ذخیره…':'ذخیره تغییرات'}</button></div>
      </section><aside className="console-surface store-panel"><h2>درخواست‌های مشتریان</h2>{leadsQuery.isError&&<div className="console-state is-error" role="alert">دریافت درخواست‌ها ناموفق بود. <button className="console-action console-action-secondary" onClick={()=>leadsQuery.refetch()}>تلاش دوباره</button></div>}{leadsQuery.isLoading?<div className="store-skeleton store-skeleton-line"/>:leads.length?<div className="store-leads">{leads.map((lead)=><LeadCard key={lead.id} lead={lead} onSave={updateLeadLocal} pending={updateLead.isPending&&updateLead.variables?.id===lead.id}/>)}</div>:<div className="console-empty">هنوز درخواستی ثبت نشده است.<br/>با اشتراک‌گذاری نشانی ویترین، اولین مشتری‌ها را به اینجا بیاورید.</div>}
       <div style={{borderTop:'1px solid var(--sf-line)',marginTop:22,paddingTop:18}}><h2 style={{fontSize:15,marginBottom:8}}>نشانی اختصاصی کمپین</h2><p style={{fontSize:12,color:'var(--sf-muted)',lineHeight:1.8}}>برای شناختن کانال‌های ورودی، برای هر کمپین یک نشانی جدا بسازید.</p><div className="store-field"><label>نام کمپین</label><input dir="ltr" value={campaignValue} onChange={(e)=>setCampaignValue(e.target.value)} placeholder="instagram"/></div><div dir="ltr" style={{overflowWrap:'anywhere',marginTop:10,borderRadius:10,background:'#eef3eb',padding:10,fontSize:10,color:'#537169'}}>{campaignUrl}</div><button className="store-button secondary" style={{marginTop:10,width:'100%'}} onClick={()=>void copyLink(campaignUrl,'نشانی کمپین کپی شد.')}><Link2 size={15}/> کپی نشانی کمپین</button>
-       </div></aside></div></div></HopePageFrame>;
+       </div></aside></div></div></main>;
 }
 
 function LeadCard({lead,onSave,pending}:{lead:StorefrontLead;onSave:(lead:StorefrontLead,data:StorefrontLeadUpdateInput)=>void;pending:boolean}) {

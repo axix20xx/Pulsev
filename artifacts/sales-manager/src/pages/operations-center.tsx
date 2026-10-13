@@ -5,7 +5,6 @@ import { usePulse } from '@/pages/pulse-pages';
 import { dateLabel, dateTimeLabel, money } from '@/lib/pulse-data';
 import { PageHeader } from '@/components/admin-console-primitives';
 import { MetricTile, StatePanel } from '@/components/admin-console-primitives';
-import { HopePageFrame } from '@/components/hope-page-frame';
 import { copyTextToClipboard } from '@/lib/browser-utils';
 
 type JsonRecord = Record<string, any>;
@@ -323,5 +322,5 @@ function OperationsCenterContent() {
 }
 
 export function OperationsCenter() {
-  return <HopePageFrame route="operations" label="اتاق کنترل فروش" pattern="monitor" className="pulse-surface pulse-surface-operations ops-route-frame"><div className="surface-layout surface-layout-operations"><OperationsCenterContent /></div></HopePageFrame>;
+  return <main className="admin-console hope-admin-page hope-page-monitor hope-pattern-monitor pulse-surface pulse-surface-operations ops-route-frame" data-surface="operations"><div className="hope-operations-board"><OperationsCenterContent /></div></main>;
 }

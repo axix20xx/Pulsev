@@ -17,9 +17,7 @@ import {
   useRefreshAwgUsage,
 } from "@workspace/api-client-react";
 import { MetricTile, PageHeader, SectionPanel, StatePanel } from "@/components/admin-console-primitives";
-import { HopePageFrame } from "@/components/hope-page-frame";
 import { usePulse } from "@/pages/pulse-pages";
-import "./pulse-route-compositions.css";
 
 const PAGE_SIZE = 25;
 const countFormat = new Intl.NumberFormat("fa-IR");
@@ -115,8 +113,8 @@ export default function AwgUsagePage() {
   };
 
   return (
-    <HopePageFrame route="awg-usage" label="مصرف AmneziaWG" pattern="table" className="pulse-surface pulse-surface-awg-usage">
-      <div className="console-page surface-layout surface-layout-awg-usage">
+    <main className="admin-console hope-admin-page hope-page-register hope-pattern-table pulse-surface pulse-surface-awg-usage" data-surface="awg-usage">
+      <div className="hope-awg-register">
       <PageHeader
         eyebrow="گزارش جداگانه"
         title="مصرف AmneziaWG"
@@ -186,74 +184,20 @@ export default function AwgUsagePage() {
         ) : items.length === 0 ? (
           <StatePanel title={debouncedSearch ? "کاربر فعالی با این جست‌وجو پیدا نشد" : "سرویس فعال دارای شناسهٔ AWG پیدا نشد"} detail="سرویس‌های غیرفعال و منقضی در این فهرست نمایش داده نمی‌شوند." />
         ) : (
-          <div className="grid gap-3" data-testid="list-awg-usage">
-            {items.map((item) => {
+          <div className="hope-table-scroll" data-testid="list-awg-usage"><table className="hope-data-table hope-awg-table" aria-label="دفتر مصرف زنده AmneziaWG">
+            <thead><tr><th scope="col">مشتری و شناسه</th><th scope="col">سرویس / انقضا</th><th scope="col">دریافت RX</th><th scope="col">ارسال TX</th><th scope="col">خام RX+TX</th><th scope="col">مبنای کسر</th><th scope="col">مصرف مؤثر</th><th scope="col">بررسی زنده</th></tr></thead>
+            <tbody>{items.map((item) => {
               const checkedAt = lastChecks[item.id];
               const refreshError = refreshErrors[item.id];
               const isRefreshing = refreshingId === item.id;
-              return (
-                <article
-                  className="awg-usage-entry"
-                  key={item.id}
-                  data-testid={`card-awg-usage-${item.id}`}
-                >
-                  <header className="awg-usage-entry-head">
-                    <div className="awg-usage-entry-person">
-                      <span className="awg-usage-entry-mark"><Wifi size={16} /></span>
-                      <div className="min-w-0">
-                        <div className="awg-usage-customer">
-                          {item.customer_id ? <Link href={`/customers/${item.customer_id}`} className="font-bold text-foreground hover:text-primary" data-testid={`link-awg-customer-${item.id}`}>{item.customer_name}</Link> : <strong className="font-bold">{item.customer_name}</strong>}
-                          <span className={`awg-usage-state ${item.status === "expiring" ? "expiring" : ""}`} data-testid={`status-awg-usage-${item.id}`}><i />{item.status === "expiring" ? "نزدیک انقضا" : "فعال"}</span>
-                        </div>
-                        <bdi className="awg-usage-service-code" dir="ltr">@{item.username} · {item.service_code}</bdi>
-                        <p className="awg-usage-plan"><bdi dir="auto">{item.plan}</bdi>{item.expires_at ? <span>انقضا · {checkedLabel(item.expires_at)}</span> : null}</p>
-                      </div>
-                    </div>
-                    <div className="awg-usage-current"><span>مصرف مؤثر ذخیره‌شده</span><strong>{trafficLabel(item.used_gb)}</strong><small>تجمیع‌شده از <bdi dir="ltr">RX + TX</bdi> پس از کسر مبنا</small></div>
-                  </header>
-
-                  <dl className="awg-usage-measurements">
-                    {[
-                      { id: "rx", label: "دریافت · RX", value: trafficLabel(item.rx_gb) },
-                      { id: "tx", label: "ارسال · TX", value: trafficLabel(item.tx_gb) },
-                      { id: "raw", label: "خام RX + TX", value: trafficLabel(item.raw_total_gb) },
-                      { id: "offset", label: "مبنای کسرشده", value: trafficLabel(item.offset_gb) },
-                    ].map((metric) => (
-                      <div
-                        className="awg-usage-measurement"
-                        key={metric.id}
-                        data-testid={`metric-awg-${metric.id}-${item.id}`}
-                      >
-                        <dt className="text-[11px] leading-5 text-muted-foreground">{metric.id === "rx" ? <>دریافت · <bdi dir="ltr">RX</bdi></> : metric.id === "tx" ? <>ارسال · <bdi dir="ltr">TX</bdi></> : metric.id === "raw" ? <>خام <bdi dir="ltr">RX + TX</bdi></> : metric.label}</dt>
-                        <dd className="mt-1 break-words text-sm font-bold text-foreground">{metric.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-
-                  <footer className="awg-usage-entry-footer">
-                    <div className="min-w-0 text-xs text-muted-foreground">
-                      {checkedAt
-                        ? `بررسی دستی: ${checkedLabel(checkedAt)}`
-                        : "نمایش مقدار ذخیره‌شده؛ برای بررسی لحظه‌ای از دکمه استفاده کنید."}
-                      {refreshError && <p className="mt-1 text-rose-600" role="alert">{refreshError}</p>}
-                    </div>
-                    <button
-                      type="button"
-                      className="console-action console-action-secondary"
-                      onClick={() => void checkLive(item.id)}
-                      disabled={refreshingId !== null}
-                      data-testid={`button-live-awg-${item.id}`}
-                    >
-                      {isRefreshing
-                        ? <RefreshCw size={15} className="spin" />
-                        : <ExternalLink size={15} />}
-                      دریافت زنده از AWG
-                    </button>
-                  </footer>
-                </article>
-              );
-            })}
-          </div>
+              return <tr key={item.id} data-testid={`row-awg-usage-${item.id}`}>
+                <td><div className="hope-table-person"><span className="awg-usage-entry-mark"><Wifi size={15} /></span><span>{item.customer_id ? <Link href={`/customers/${item.customer_id}`} data-testid={`link-awg-customer-${item.id}`}><strong>{item.customer_name}</strong></Link> : <strong>{item.customer_name}</strong>}<small dir="ltr">@{item.username} · {item.service_code}</small><small className={`awg-usage-state ${item.status === "expiring" ? "expiring" : ""}`} data-testid={`status-awg-usage-${item.id}`}>{item.status === "expiring" ? "نزدیک انقضا" : "فعال"}</small></span></div></td>
+                <td><strong>{item.plan}</strong><small className="hope-table-subline">{item.expires_at ? `انقضا · ${checkedLabel(item.expires_at)}` : "بدون تاریخ انقضا"}</small></td>
+                <td data-testid={`metric-awg-rx-${item.id}`}>{trafficLabel(item.rx_gb)}</td><td data-testid={`metric-awg-tx-${item.id}`}>{trafficLabel(item.tx_gb)}</td><td data-testid={`metric-awg-raw-${item.id}`}>{trafficLabel(item.raw_total_gb)}</td><td data-testid={`metric-awg-offset-${item.id}`}>{trafficLabel(item.offset_gb)}</td><td className="hope-table-amount">{trafficLabel(item.used_gb)}</td>
+                <td><div className="hope-awg-row-action">{checkedAt && <small>آخرین بررسی: {checkedLabel(checkedAt)}</small>}<button type="button" className="console-action console-action-secondary" onClick={() => void checkLive(item.id)} disabled={refreshingId !== null} data-testid={`button-live-awg-${item.id}`}>{isRefreshing ? <RefreshCw size={14} className="spin" /> : <ExternalLink size={14} />} دریافت زنده</button>{refreshError && <small className="text-rose-600" role="alert">{refreshError}</small>}</div></td>
+              </tr>;
+            })}</tbody>
+          </table></div>
         )}
 
         {total > PAGE_SIZE && (
@@ -285,6 +229,6 @@ export default function AwgUsagePage() {
         )}
       </SectionPanel>
       </div>
-    </HopePageFrame>
+    </main>
   );
 }

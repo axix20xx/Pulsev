@@ -1553,25 +1553,25 @@
 .admin-console.provider-audit .audit-match-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .admin-console.provider-audit .audit-match { border-radius: 14px; background: hsl(var(--console-surface) / .8); }
 
-.admin-console.smart-center-page { --route-accent: hsl(269 39% 53%); }
-.admin-console.smart-route-frame .smart-detail-summary { border-radius: 17px; background: linear-gradient(110deg,hsl(267 38% 94% / .9),hsl(var(--console-surface-raised) / .92)); }
-.admin-console.smart-route-frame .smart-focus-workbench { border-top: 3px solid hsl(269 39% 63%); }
-.admin-console.smart-route-frame .smart-detail-row { grid-template-columns: 40px minmax(0,1fr) minmax(85px,.35fr) 16px; border-radius: 13px; }
+.admin-console.smart-center-page { --route-accent: hsl(228 78% 55%); }
+.admin-console.smart-route-frame .smart-detail-summary { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.admin-console.smart-route-frame .smart-focus-workbench { border-top: 2px solid hsl(228 78% 55%); }
+.admin-console.smart-route-frame .smart-detail-row { grid-template-columns: 40px minmax(0,1fr) minmax(85px,.35fr) 16px; border-radius: 6px; }
 
-.admin-console.notification-status-page .notification-readiness-board { border-radius: 18px; background: linear-gradient(110deg,hsl(183 36% 94% / .92),hsl(var(--console-surface-raised) / .92)); padding: 12px; }
-.admin-console.notification-status-page .notification-device-card { border-inline-start: 3px solid hsl(183 40% 65%); }
-.admin-console.notification-send-page .notification-composer { border-inline-start: 3px solid hsl(268 43% 68%); border-radius: 19px; background: linear-gradient(145deg,hsl(268 30% 97% / .9),hsl(var(--console-surface-raised) / .96)); }
+.admin-console.notification-status-page .notification-readiness-board { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; padding: 12px; }
+.admin-console.notification-status-page .notification-device-card { border-inline-start: 2px solid hsl(189 60% 52%); }
+.admin-console.notification-send-page .notification-composer { border-inline-start: 0; border-radius: 8px; background: white; }
 .admin-console.notification-send-page .notification-recipient-picker,
-.admin-console.notification-send-page .notification-audience-block { border-radius: 16px; }
-.admin-console.notification-analytics-page .notification-delivery-command { border-radius: 18px; background: linear-gradient(110deg,hsl(39 46% 95% / .86),hsl(var(--console-surface-raised) / .92)); }
+.admin-console.notification-send-page .notification-audience-block { border-radius: 7px; }
+.admin-console.notification-analytics-page .notification-delivery-command { border-radius: 8px; background: white; }
 .admin-console.notification-analytics-page .notification-campaign-rail,
-.admin-console.notification-analytics-page .notification-evidence-panel { border-radius: 16px; }
+.admin-console.notification-analytics-page .notification-evidence-panel { border-radius: 8px; }
 
-.admin-console.pulse-surface-settings { --route-accent: hsl(270 36% 52%); }
+.admin-console.pulse-surface-settings { --route-accent: hsl(228 78% 55%); }
 
-.admin-console.console-not-found { --route-accent: hsl(12 57% 51%); }
+.admin-console.console-not-found { --route-accent: hsl(228 78% 55%); }
 .admin-console.console-not-found .console-not-found-card { overflow: hidden; }
-.admin-console.console-not-found .console-not-found-code { color: hsl(12 55% 57% / .25); font-size: clamp(90px,17vw,190px); }
+.admin-console.console-not-found .console-not-found-code { color: hsl(228 78% 57% / .16); font-size: clamp(90px,17vw,190px); }
 .admin-console.console-not-found .console-not-found-routes a { border-radius: 12px; background: hsl(var(--console-surface-raised) / .62); }
 
 @media (max-width: 920px) {

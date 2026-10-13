@@ -272,7 +272,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <button className="pulse-drawer-logout" type="button" onClick={() => void signOut()} disabled={logout.isPending}><LogOut size={16} />{logout.isPending ? 'در حال خروج…' : 'خروج از حساب'}</button>
       </aside>
 
-      <main className="pulse-main">
+      <div className="pulse-main">
         <header className="pulse-topbar">
           <button className="pulse-menu-trigger" type="button" onClick={openDrawer} aria-label="باز کردن منو" aria-expanded={drawerOpen} aria-controls="pulse-drawer" data-testid="button-open-navigation"><Menu size={20} /></button>
           <h1 className="pulse-mobile-title">{pageTitle}</h1>
@@ -302,14 +302,14 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="pulse-notification-list">{notifications.length ? notifications.map((item) => <button key={item.id} type="button" className={`pulse-notification ${item.read ? 'is-read' : ''}`} onClick={() => void openNotification(item)}><span className={`pulse-notification-icon tone-${item.tone || 'info'}`}><Bell size={16} /></span><span className="pulse-notification-copy"><strong>{item.title}</strong>{item.service_code && <code dir="ltr">{item.service_code}</code>}<small>{item.detail}</small><time>{dateTimeLabel(item.created_at)}</time></span></button>) : <div className="pulse-notification-empty"><Bell size={19} /><strong>اعلان تازه‌ای ندارید</strong><span>اعلان‌های مربوط به سرویس‌ها و پیگیری‌ها اینجا نمایش داده می‌شوند.</span></div>}</div>
         </section>}
         {topbarPanel === 'help' && <section className="pulse-popover pulse-help" aria-label="راهنما"><div className="pulse-popover-head"><div><small>پشتیبانی فضای کاری</small><h2>به راهنما نیاز دارید؟</h2></div><CircleHelp size={20} /></div><p>برای پیدا کردن اطلاعات، از جست‌وجوی بالای صفحه استفاده کنید یا از منوی کناری وارد بخش مربوط شوید.</p><button type="button" onClick={() => { setTopbarPanel(null); searchInputRef.current?.focus(); }}>رفتن به جست‌وجو <Search size={14} /></button></section>}
-         <div className="pulse-page-wrap console-page">
+          <div className="pulse-page-wrap hope-route-stage">
            <div className="pulse-page-content">{children}</div>
-           <footer className="pulse-page-footer">
+            <footer className="pulse-page-footer hope-shell-footer">
              <span><span className="pulse-footer-mark"><Sparkles size={12} /></span><strong>پالس</strong><span>مرکز مدیریت فروش و عملیات</span></span>
              <span>دسترسی‌ها بر اساس نقش کاربری شما تنظیم شده‌اند</span>
            </footer>
          </div>
-      </main>
+      </div>
       <nav className="pulse-phone-nav" aria-label="دسترسی سریع">
         {[
           { href: '/', label: 'نمای کلی', icon: LayoutDashboard },

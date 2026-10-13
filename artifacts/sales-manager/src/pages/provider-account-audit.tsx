@@ -14,7 +14,6 @@ import {
   X,
 } from 'lucide-react';
 import { PageHeader } from '@/components/admin-console-primitives';
-import { HopePageFrame } from '@/components/hope-page-frame';
 import {
   useRepairProviderAccountAudit,
   useScanProviderAccountAudit,
@@ -219,7 +218,8 @@ function ProviderAccountAuditPage() {
   const failedCount = Object.values(repairStates).filter((item) => item.outcome === 'failed').length;
 
   return (
-    <HopePageFrame route="provider-account-audit" label="بازبینی وضعیت حساب‌ها" pattern="audit" className="provider-audit">
+    <main className="admin-console hope-admin-page hope-page-audit hope-pattern-audit provider-audit" data-surface="provider-account-audit">
+      <div className="hope-provider-audit-layout">
       <div className="audit-wrap console-page">
         <PageHeader eyebrow="کنترل پنل‌های ارائه‌دهنده" title="بازبینی وضعیت حساب‌ها" description="حساب‌های غیرفعال را در پنل‌های فعال Rain پیدا کنید و پیش از هر اصلاح، نتیجه را مرور کنید." action={<span className="console-status"><i /> بررسی دستی</span>} />
 
@@ -465,7 +465,8 @@ function ProviderAccountAuditPage() {
           </section>
         </div>
       )}
-    </HopePageFrame>
+      </div>
+    </main>
   );
 }
 
