@@ -18,6 +18,7 @@ import {
 } from "@workspace/api-client-react";
 import { MetricTile, PageHeader, SectionPanel, StatePanel } from "@/components/admin-console-primitives";
 import { usePulse } from "@/pages/pulse-pages";
+import "./pulse-route-compositions.css";
 
 const PAGE_SIZE = 25;
 const countFormat = new Intl.NumberFormat("fa-IR");
@@ -142,31 +143,25 @@ export default function AwgUsagePage() {
       />
 
       <section className="awg-summary-composition" aria-label="نمای کلی مصرف AWG">
-        <div className="console-surface awg-usage-note mb-0 flex items-start gap-3 p-4 text-sm leading-7" role="note" data-testid="notice-awg-usage-source">
-          <Database size={17} className="mt-1 shrink-0 text-amber-600" />
-          <div><strong className="block text-sm">منبع داده و بررسی زنده</strong><p className="m-0 mt-1 text-foreground/80">
-            worker فعلی هر ۵ دقیقه آمار را ذخیره می‌کند. «تازه‌سازی فهرست» فقط دادهٔ ذخیره‌شده را می‌خواند؛
-            برای یک درخواست زنده، فقط دکمهٔ همان سرویس را بزنید. بررسی دستی به API آمِنزیا WG برای همان سرویس
-            وصل می‌شود و هیچ پنل Provider را صدا نمی‌زند. در خطا، مقدار قبلی حفظ می‌شود؛ هر سرویس حداکثر
-            یک‌بار در دقیقه بررسی دستی می‌شود.
-          </p></div>
-        </div>
         <section className="console-metrics-grid awg-usage-metrics" aria-label="خلاصه مصرف AmneziaWG">
-          <MetricTile label="سرویس‌های فعال دارای AWG" value={summaryUnavailable ? "—" : countFormat.format(total)} detail={summaryUnavailable ? usageQuery.isError ? "دریافت نشد" : "در حال دریافت" : "کل نتایج منطبق با جست‌وجو"} icon={Wifi} tone="sage" testId="metric-awg-active-services" />
-          <MetricTile label="مصرف صفر در این صفحه" value={summaryUnavailable ? "—" : countFormat.format(zeroCount)} detail={summaryUnavailable ? "داده در دسترس نیست" : "آمار ذخیره‌شده"} icon={Activity} tone="amber" testId="metric-awg-visible-zero" />
-          <MetricTile label="جمع مصرف مؤثر این صفحه" value={summaryUnavailable ? "—" : trafficLabel(totalUsage)} detail={summaryUnavailable ? "داده در دسترس نیست" : "فقط همین صفحه از نتایج"} icon={Database} testId="metric-awg-page-total" />
+          <MetricTile label="سرویس فعال دارای AWG" value={summaryUnavailable ? "—" : countFormat.format(total)} detail={summaryUnavailable ? usageQuery.isError ? "دریافت نشد" : "در حال دریافت" : "همهٔ نتایج منطبق با جست‌وجو"} icon={Wifi} tone="sage" testId="metric-awg-active-services" />
+          <MetricTile label="مصرف صفر در این صفحه" value={summaryUnavailable ? "—" : countFormat.format(zeroCount)} detail={summaryUnavailable ? "آمار در دسترس نیست" : "بر پایهٔ مقدار ذخیره‌شده"} icon={Activity} tone="amber" testId="metric-awg-visible-zero" />
+          <MetricTile label="جمع مصرف مؤثر صفحه" value={summaryUnavailable ? "—" : trafficLabel(totalUsage)} detail={summaryUnavailable ? "آمار در دسترس نیست" : "جمع همین صفحه از نتایج"} icon={Database} testId="metric-awg-page-total" />
         </section>
+        <details className="console-surface awg-usage-note" data-testid="notice-awg-usage-source">
+          <summary><Database size={16} /><span><strong>منبع آمار و تفاوت دو نوع تازه‌سازی</strong><small>مقدارها از آخرین ثبت worker هستند؛ جزئیات بررسی دستی</small></span><ChevronRight size={16} /></summary>
+          <div className="awg-usage-note-copy" role="note">
+            worker فعلی هر ۵ دقیقه آمار را ذخیره می‌کند. «تازه‌سازی فهرست» فقط دادهٔ ذخیره‌شده را می‌خواند؛ برای یک درخواست زنده، فقط دکمهٔ همان سرویس را بزنید. بررسی دستی به API آمِنزیا WG برای همان سرویس وصل می‌شود و هیچ پنل Provider را صدا نمی‌زند. در خطا، مقدار قبلی حفظ می‌شود؛ هر سرویس حداکثر یک‌بار در دقیقه بررسی دستی می‌شود.
+          </div>
+        </details>
       </section>
 
-      <SectionPanel className="awg-usage-ledger p-4 sm:p-5" eyebrow="مصرف به تفکیک کاربر" title="کاربران فعال AWG">
-        <div className="awg-usage-ledger-meta mb-4">
-          <span>
-            {countFormat.format(items.length)} مورد از {countFormat.format(total)}
-            {zeroCount > 0 ? ` · ${countFormat.format(zeroCount)} مورد با مصرف ذخیره‌شدهٔ صفر` : ""}
-          </span>
+      <SectionPanel className="awg-usage-ledger p-4 sm:p-5" eyebrow="دفتر مصرف / فقط سرویس‌های فعال" title="مصرف به تفکیک سرویس">
+        <div className="awg-usage-ledger-meta">
+          <span><strong>{countFormat.format(total)}</strong> نتیجهٔ منطبق · <strong>{countFormat.format(items.length)}</strong> مورد در این صفحه{zeroCount > 0 ? ` · ${countFormat.format(zeroCount)} مورد با مصرف ذخیره‌شدهٔ صفر` : ""}</span>
           {usageQuery.isFetching && usageQuery.data && (
             <span className="inline-flex items-center gap-2 text-xs text-muted-foreground" role="status">
-              <RefreshCw size={13} className="spin" /> به‌روزرسانی فهرست
+              <RefreshCw size={13} className="spin" /> در حال تازه‌سازی
             </span>
           )}
         </div>
@@ -184,7 +179,7 @@ export default function AwgUsagePage() {
         </label>
 
         {usageQuery.isLoading ? (
-          <StatePanel kind="loading" title="در حال دریافت فهرست کاربران فعال" detail="دادهٔ مصرف از مخزن سرور خوانده می‌شود." />
+          <div className="awg-usage-skeletons" role="status" aria-label="در حال دریافت رکوردهای مصرف"><i /><i /><i /></div>
         ) : usageQuery.isError ? (
           <StatePanel kind="error" title="دریافت فهرست AWG ناموفق بود" detail={readError(usageQuery.error)} action={<button type="button" className="console-action console-action-secondary" onClick={() => void usageQuery.refetch()} disabled={usageQuery.isFetching}><RefreshCw size={13} className={usageQuery.isFetching ? "spin" : ""} /> تلاش دوباره</button>} />
         ) : items.length === 0 ? (
@@ -205,36 +200,19 @@ export default function AwgUsagePage() {
                     <div className="awg-usage-entry-person">
                       <span className="awg-usage-entry-mark"><Wifi size={16} /></span>
                       <div className="min-w-0">
-                      {item.customer_id ? (
-                        <Link
-                          href={`/customers/${item.customer_id}`}
-                          className="font-bold text-foreground hover:text-primary"
-                          data-testid={`link-awg-customer-${item.id}`}
-                        >
-                          {item.customer_name}
-                        </Link>
-                      ) : <strong className="font-bold">{item.customer_name}</strong>}
-                      <p className="mt-1 break-all text-xs text-muted-foreground" dir="ltr">
-                        @{item.username} · {item.service_code}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {item.plan} · {item.status === "expiring" ? "رو به پایان" : "فعال"}
-                        {item.expires_at ? ` · انقضا: ${checkedLabel(item.expires_at)}` : ""}
-                      </p>
+                        <div className="awg-usage-customer">
+                          {item.customer_id ? <Link href={`/customers/${item.customer_id}`} className="font-bold text-foreground hover:text-primary" data-testid={`link-awg-customer-${item.id}`}>{item.customer_name}</Link> : <strong className="font-bold">{item.customer_name}</strong>}
+                          <span className={`awg-usage-state ${item.status === "expiring" ? "expiring" : ""}`} data-testid={`status-awg-usage-${item.id}`}><i />{item.status === "expiring" ? "نزدیک انقضا" : "فعال"}</span>
+                        </div>
+                        <bdi className="awg-usage-service-code" dir="ltr">@{item.username} · {item.service_code}</bdi>
+                        <p className="awg-usage-plan"><bdi dir="auto">{item.plan}</bdi>{item.expires_at ? <span>انقضا · {checkedLabel(item.expires_at)}</span> : null}</p>
+                      </div>
                     </div>
-                    <span
-                      className="rounded-full border border-teal-600/25 bg-teal-600/10 px-3 py-1 text-xs font-semibold text-teal-700"
-                      data-testid={`status-awg-usage-${item.id}`}
-                    >
-                      فعال در سرویس AWG
-                    </span>
-                    </div>
-                    <div className="awg-usage-current"><span>مصرف مؤثر</span><strong>{trafficLabel(item.used_gb)}</strong><small>RX {trafficLabel(item.rx_gb)} · TX {trafficLabel(item.tx_gb)}</small></div>
+                    <div className="awg-usage-current"><span>مصرف مؤثر ذخیره‌شده</span><strong>{trafficLabel(item.used_gb)}</strong><small>تجمیع‌شده از <bdi dir="ltr">RX + TX</bdi> پس از کسر مبنا</small></div>
                   </header>
 
                   <dl className="awg-usage-measurements">
                     {[
-                      { id: "effective", label: "مصرف مؤثر", value: trafficLabel(item.used_gb) },
                       { id: "rx", label: "دریافت · RX", value: trafficLabel(item.rx_gb) },
                       { id: "tx", label: "ارسال · TX", value: trafficLabel(item.tx_gb) },
                       { id: "raw", label: "خام RX + TX", value: trafficLabel(item.raw_total_gb) },
@@ -245,7 +223,7 @@ export default function AwgUsagePage() {
                         key={metric.id}
                         data-testid={`metric-awg-${metric.id}-${item.id}`}
                       >
-                        <dt className="text-[11px] leading-5 text-muted-foreground">{metric.label}</dt>
+                        <dt className="text-[11px] leading-5 text-muted-foreground">{metric.id === "rx" ? <>دریافت · <bdi dir="ltr">RX</bdi></> : metric.id === "tx" ? <>ارسال · <bdi dir="ltr">TX</bdi></> : metric.id === "raw" ? <>خام <bdi dir="ltr">RX + TX</bdi></> : metric.label}</dt>
                         <dd className="mt-1 break-words text-sm font-bold text-foreground">{metric.value}</dd>
                       </div>
                     ))}

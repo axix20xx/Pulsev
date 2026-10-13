@@ -45,3 +45,4 @@
 - [Customer OTP delivery](customer-otp-delivery.md) — until an SMS provider is connected, generate a five-minute one-time code from the customer profile and hand it to the customer.
 - [Provider operation safety](provider-operation-safety.md) — keep provider account writes explicit, single-service and counter-preserving; avoid bulk or scheduled user mutations.
 - [Storefront inquiry boundary](storefront-inquiry-boundary.md) — public storefronts collect inquiries only; a reseller must explicitly create and attribute the service sale.
+- [Admin page redesign scope](admin-page-redesign.md) — redesign requests mean rebuilding route-level content hierarchy and responsive cards, not just adding shared theme CSS.

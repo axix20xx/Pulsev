@@ -302,6 +302,12 @@
 .overview-setup-panel.is-complete p { margin: 3px 0 0; color: hsl(var(--ws-muted)); font-size: 9px; line-height: 1.5; }
 
 @media (max-width: 767px) {
+  /* Reserve the complete fixed-control stack (sale action + tab rail + home inset)
+     so the final record can be scrolled above it instead of disappearing beneath it. */
+  .pulse-page-wrap {
+    padding-bottom: calc(184px + env(safe-area-inset-bottom));
+    scroll-padding-bottom: calc(184px + env(safe-area-inset-bottom));
+  }
   .pulse-workspace { display: block; }
   .pulse-shell-sidebar { display: none; }
   .pulse-workspace .pulse-main { min-height: 100dvh; margin-right: 0; }
@@ -320,7 +326,7 @@
   .pulse-quick-sale { display: none; }
   .pulse-desktop-profile { display: none; }
   .pulse-tool-button { width: 32px; height: 32px; }
-  .pulse-page-wrap { padding: 15px 12px calc(158px + env(safe-area-inset-bottom)); }
+  .pulse-page-wrap { padding: 15px 12px calc(184px + env(safe-area-inset-bottom)); scroll-padding-bottom: calc(184px + env(safe-area-inset-bottom)); }
   .pulse-page-footer { align-items: flex-start; flex-direction: column; gap: 7px; margin-top: 20px; padding-top: 11px; font-size: 8px; }
   .pulse-popover { position: fixed; top: 63px; left: 10px; width: min(370px, calc(100vw - 20px)); }
   .pulse-drawer-scrim { position: fixed; z-index: 65; inset: 0; display: block; border: 0; background: hsl(198 40% 12% / .47); }
@@ -486,5 +492,14 @@
 @media (max-width: 767px) {
   .pulse-topbar { border-radius: 0 0 15px 15px; }
   .pulse-page-footer { padding-bottom: 2px; }
+  .pulse-mobile-title { max-width: 96px; flex: 0 1 96px; font-size: 11px; }
+  .pulse-search-wrap { min-width: 90px; }
+  .pulse-page-wrap { padding-bottom: calc(190px + env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 380px) {
+  .pulse-mobile-title { max-width: 82px; flex-basis: 82px; font-size: 10px; }
+  .pulse-search-wrap { min-width: 76px; }
+  .pulse-page-wrap { padding-bottom: calc(190px + env(safe-area-inset-bottom)); }
 }
 
