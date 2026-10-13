@@ -343,29 +343,24 @@ function LoginPageContent() {
   };
 
   return (
-    <main className="admin-console console-login hope-auth-layout" data-hope-pattern="form" dir="rtl">
-      <section className="console-login-intro">
-        <div className="console-login-brand"><span className="console-login-mark"><Activity size={19} /></span><span><strong>پالس</strong><small>مرکز عملیات و فروش</small></span></div>
-        <div className="console-login-copy"><p className="console-eyebrow">فضای کاری تیم</p><h1>سلام،<br /><em>بزن بریم.</em></h1><p>فروش، سرویس و سلامت زیرساخت؛ همه در یک میزکار قابل اتکا.</p></div>
-        <div className="console-login-promises">
-          <article><span>01</span><div><strong>دفتر فروش زنده</strong><small>تراکنش و تسویه در یک نگاه</small></div></article>
-          <article><span>02</span><div><strong>پرونده‌های روشن</strong><small>مشتری و سرویس کنار هم</small></div></article>
-          <article><span>03</span><div><strong>عملیات امن</strong><small>دسترسی متناسب با نقش</small></div></article>
-        </div>
-        <div className="console-login-foot"><ShieldCheck size={15} /> ورود فقط برای حساب‌های مجاز</div>
+    <main className="admin-console hope-auth-page" data-hope-pattern="form" dir="rtl">
+      <section className="hope-auth-aside" aria-label="پالس">
+        <div className="hope-auth-brand"><span className="hope-auth-brand-mark"><Activity size={19} /></span><span><strong>پالس</strong><small>میزکار مدیریت</small></span></div>
+        <div className="hope-auth-art" aria-hidden="true"><div className="hope-auth-art-orbit orbit-a" /><div className="hope-auth-art-orbit orbit-b" /><div className="hope-auth-art-core"><Activity size={52} /></div><span className="auth-art-chip chip-a"><ShieldCheck size={15} /> دسترسی امن</span><span className="auth-art-chip chip-b"><Wifi size={15} /> وضعیت زنده</span></div>
+        <div className="hope-auth-copy"><span className="hope-auth-kicker">PULSE / ADMIN</span><h1>مدیریت روشن،<br />از یک نقطه.</h1><p>فروش، سرویس و سلامت زیرساخت در میزکار اختصاصی شما.</p></div>
       </section>
-      <section className="console-login-panel">
-        <div className="console-login-panel-head"><span className="console-login-lock"><Lock size={14} /> نشست امن</span><span className="console-login-step">ورود مدیر</span></div>
-        <div className="console-login-heading"><span className="console-eyebrow">احراز هویت</span><h2>خوش آمدید</h2><p>شناسهٔ عددی تلگرام خود را وارد کنید.</p></div>
+      <section className="hope-auth-card">
+        <div className="hope-auth-card-top"><span className="hope-auth-lock"><Lock size={14} /> نشست امن</span><span className="hope-auth-step">ورود مدیر</span></div>
+        <div className="hope-auth-heading"><span className="console-eyebrow">احراز هویت</span><h2>خوش آمدید</h2><p>شناسهٔ عددی تلگرام خود را وارد کنید.</p></div>
         {session?.authenticated ? <div className="console-login-success"><span><Check size={21} /></span><strong>دسترسی تأیید شد</strong><small>در حال انتقال به مرکز عملیات…</small><Link href="/" className="console-action console-action-primary">ورود به داشبورد <ChevronLeft size={15} /></Link></div> : (
-          <form onSubmit={submit} className="console-login-form">
-            <label className="console-field" htmlFor="telegram-id-input"><span>شناسه تلگرام</span><div className="console-login-input"><KeyRound size={16} /><input id="telegram-id-input" inputMode="numeric" dir="ltr" autoFocus value={telegramId} onChange={(event) => setTelegramId(event.target.value)} data-testid="input-telegram-id" placeholder="123456789" autoComplete="off" /></div></label>
-            <small className="console-login-hint">شناسه عددی حساب؛ بدون علامت @</small>
-            <button type="submit" className="console-action console-action-primary console-login-submit" disabled={login.isPending || !telegramId.trim()} data-testid="button-login-id">{login.isPending ? <><RefreshCw size={16} className="spin" /> در حال احراز هویت...</> : <>بررسی صلاحیت <ChevronLeft size={16} /></>}</button>
+          <form onSubmit={submit} className="hope-auth-form">
+            <label className="console-field" htmlFor="telegram-id-input"><span>شناسه تلگرام</span><div className="hope-auth-input"><KeyRound size={16} /><input id="telegram-id-input" inputMode="numeric" dir="ltr" autoFocus value={telegramId} onChange={(event) => setTelegramId(event.target.value)} data-testid="input-telegram-id" placeholder="123456789" autoComplete="off" /></div></label>
+            <small className="hope-auth-hint">شناسه عددی حساب؛ بدون علامت @</small>
+            <button type="submit" className="console-action console-action-primary hope-auth-submit" disabled={login.isPending || !telegramId.trim()} data-testid="button-login-id">{login.isPending ? <><RefreshCw size={16} className="spin" /> در حال احراز هویت...</> : <>بررسی صلاحیت <ChevronLeft size={16} /></>}</button>
             {login.isError && <div className="console-state is-error" role="alert"><ShieldAlert size={16} /><span>این شناسه در فهرست پرسنل مجاز یافت نشد. لطفاً بررسی کنید.</span></div>}
           </form>
         )}
-        <div className="console-login-security"><Server size={14} /> نشست و نقش شما به‌صورت امن کنترل می‌شود.</div>
+        <div className="hope-auth-security"><Server size={14} /> نشست و نقش شما به‌صورت امن کنترل می‌شود.</div>
       </section>
     </main>
   );
@@ -1158,14 +1153,18 @@ function ResellerAccountingContent() {
         <SectionPanel className="accounting-payment-form" eyebrow="ثبت دریافت" title="پرداخت مبلغ دلخواه" action={<span className="soft-badge">فقط مدیر اصلی</span>}><form onSubmit={recordPayment} className="accounting-payment-fields"><label className="console-field"><span>فروشنده</span><select className="console-input" value={selectedResellerId} onChange={(event) => selectReseller(event.target.value)}><option value="">انتخاب فروشنده</option>{settlements.map((item: any) => <option key={item.reseller_tg_id} value={item.reseller_tg_id}>{item.reseller_name} · مانده {money(item.remaining_amount)}</option>)}</select></label><Field label="مبلغ پرداختی" value={paymentAmount} onChange={setPaymentAmount} placeholder="مثلاً ۵۰۰۰۰۰" /><PersianDateField label="تاریخ پرداخت" value={paymentDate} onChange={setPaymentDate} /><label className="console-field"><span>یادداشت</span><input className="console-input" value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} placeholder="اختیاری؛ شماره رسید یا توضیح" /></label><Button type="submit" disabled={paymentSaving || !settlements.length}><CreditCard size={14} />{paymentSaving ? 'در حال ثبت...' : 'ثبت پرداخت'}</Button></form>{paymentMessage && <p className={`accounting-payment-message ${paymentMessage.includes('موفق') ? 'success' : 'error'}`}>{paymentMessage}</p>}</SectionPanel>
     </div>
        <SectionPanel className="accounting-table-panel" eyebrow="دفتر فروشندگان" title="مانده حساب هر reseller" description="پرداخت هر حساب را از همان ردیف آغاز کنید؛ مانده با پاسخ سرور تازه می‌شود." action={<span className="soft-badge">{formatNumber(settlements.length)} حساب</span>}>
-       <div className="accounting-settlement-ledger" role="list" aria-label="دفتر تسویه فروشندگان">{settlements.map((item: any) => { const remaining = Number(item.remaining_amount ?? 0); const percent = Math.min(100, remaining / maxRemaining * 100); const statusLabel = item.payment_status === 'paid' ? 'تسویه‌شده' : item.payment_status === 'overdue' ? 'معوق' : item.payment_status === 'partial' ? 'پرداخت ناقص' : item.payment_status === 'no_sales' ? 'بدون فروش' : 'نیازمند پرداخت'; return <article className={`accounting-settlement-row ${remaining > 0 ? 'has-due' : 'settled'}`} role="listitem" key={item.reseller_tg_id}>
-         <header className="accounting-settlement-identity"><span className="accounting-reseller-monogram">{String(item.reseller_name || 'ف').trim().slice(0,1)}</span><div><strong>{item.reseller_name}</strong><small dir="ltr">TG {item.reseller_tg_id}</small></div><span className={`accounting-status ${item.payment_status}`}>{statusLabel}</span></header>
-         <div className="accounting-settlement-numbers"><div><span>بدهی بازه</span><strong>{money(item.current_due)}</strong></div><div><span>پرداخت ثبت‌شده</span><strong>{money(item.period_paid)}</strong></div><div className="settlement-balance"><span>مانده نهایی</span><strong>{money(remaining)}</strong></div></div>
-         <div className="accounting-settlement-progress"><span>نسبت به بیشترین مانده</span><div className="accounting-bar"><span style={{ width: `${percent}%` }} /></div></div>
-         <footer className="accounting-settlement-footer"><small>{formatNumber(item.current_sold_gb)} گیگ فروش · سود مدیر {money(item.current_profit)}</small><button type="button" className="button button-secondary compact-button" onClick={() => { selectReseller(String(item.reseller_tg_id)); document.querySelector('.accounting-payment-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>ثبت پرداخت</button></footer>
-        </article>; })}</div>{!settlements.length && <EmptyState title="فروشنده‌ای در این بازه پیدا نشد" detail="بازه را تغییر دهید یا بعد از ثبت فروش دوباره بررسی کنید." />}</SectionPanel>
+        {settlements.length ? <div className="hope-table-scroll"><table className="hope-data-table" aria-label="دفتر تسویه فروشندگان">
+          <thead><tr><th scope="col">فروشنده</th><th scope="col">وضعیت</th><th scope="col">بدهی بازه</th><th scope="col">پرداخت ثبت‌شده</th><th scope="col">مانده نهایی</th><th scope="col">فروش / سود</th><th scope="col">اقدام</th></tr></thead>
+          <tbody>{settlements.map((item: any) => { const remaining = Number(item.remaining_amount ?? 0); const percent = Math.min(100, remaining / maxRemaining * 100); const statusLabel = item.payment_status === 'paid' ? 'تسویه‌شده' : item.payment_status === 'overdue' ? 'معوق' : item.payment_status === 'partial' ? 'پرداخت ناقص' : item.payment_status === 'no_sales' ? 'بدون فروش' : 'نیازمند پرداخت'; return <tr key={item.reseller_tg_id}>
+            <td><div className="hope-table-person"><span className="accounting-reseller-monogram">{String(item.reseller_name || 'ف').trim().slice(0,1)}</span><span><strong>{item.reseller_name}</strong><small dir="ltr">TG {item.reseller_tg_id}</small></span></div></td>
+            <td><span className={`accounting-status ${item.payment_status}`}>{statusLabel}</span></td><td>{money(item.current_due)}</td><td>{money(item.period_paid)}</td>
+            <td><strong className="hope-table-amount">{money(remaining)}</strong><div className="accounting-bar" role="progressbar" aria-label={`ماندهٔ ${item.reseller_name}`} aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${percent}%` }} /></div></td>
+            <td>{formatNumber(item.current_sold_gb)} گیگ<small className="hope-table-subline">سود مدیر {money(item.current_profit)}</small></td>
+            <td><button type="button" className="button button-secondary compact-button" onClick={() => { selectReseller(String(item.reseller_tg_id)); document.querySelector('.accounting-payment-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>ثبت پرداخت</button></td>
+          </tr>; })}</tbody>
+        </table></div> : <EmptyState title="فروشنده‌ای در این بازه پیدا نشد" detail="بازه را تغییر دهید یا بعد از ثبت فروش دوباره بررسی کنید." />}</SectionPanel>
       <SectionPanel className="accounting-history-panel" eyebrow="گردش پرداخت" title="آخرین پرداخت‌های ثبت‌شده" description="تاریخچهٔ واقعی دریافت‌ها در بازهٔ انتخاب‌شده." action={<span className="soft-badge">{formatNumber(paymentHistory.length)} پرداخت</span>}>
-        {paymentHistory.length ? <div className="record-card-grid payment-history-grid">{paymentHistory.map((payment: any) => <RecordCard key={payment.id} eyebrow="دریافت فروشنده" title={payment.reseller_name} subtitle={dateLabel(payment.payment_date)} fields={[{ label: 'مبلغ', value: money(payment.amount) }, { label: 'یادداشت', value: payment.note || 'بدون یادداشت' }]} />)}</div> : <EmptyState title="هنوز پرداختی ثبت نشده" detail="پرداخت‌های این بازه با تاریخ، مبلغ و یادداشت در این دفتر ظاهر می‌شوند." />}
+         {paymentHistory.length ? <div className="hope-table-scroll"><table className="hope-data-table" aria-label="گردش پرداخت فروشندگان"><thead><tr><th>فروشنده</th><th>تاریخ</th><th>مبلغ دریافت</th><th>یادداشت</th></tr></thead><tbody>{paymentHistory.map((payment: any) => <tr key={payment.id}><td><strong>{payment.reseller_name}</strong></td><td>{dateLabel(payment.payment_date)}</td><td className="hope-table-amount">{money(payment.amount)}</td><td>{payment.note || 'بدون یادداشت'}</td></tr>)}</tbody></table></div> : <EmptyState title="هنوز پرداختی ثبت نشده" detail="پرداخت‌های این بازه با تاریخ، مبلغ و یادداشت در این دفتر ظاهر می‌شوند." />}
       </SectionPanel>
     </>}
   </div>;
@@ -1813,74 +1812,18 @@ function ServiceInventoryCard({ service, onNote, onToggle, onRenew }: {
   const remaining = Math.max(0, Number(service.limitGb || 0) - Number(service.usedGb || 0));
   const usedPercent = service.limitGb ? Math.min(100, Math.round(service.usedGb / service.limitGb * 100)) : 0;
   const expiryDays = daysUntil(service.expiresAt);
-  return <article className="service-inventory-card" data-testid={`card-service-${service.id}`}>
-    <header className="service-inventory-head">
-      <div className="service-inventory-title">
-        <span className="service-inventory-icon"><Globe2 size={17} /></span>
-        <div>
-          <span className="service-inventory-plan">{service.plan}</span>
-          <span className="service-inventory-code" dir="ltr">{serviceDisplayCode(service)}</span>
-        </div>
-      </div>
-      <StatusPill value={service.status} />
-    </header>
-
-    <div className="service-inventory-customer">
-      <span className="service-inventory-initial" aria-hidden="true">{service.customerName.trim().slice(0, 1) || 'م'}</span>
-      <div><small>مشتری</small><strong>{service.customerName}</strong></div>
-      <div className="service-inventory-login"><small>نام کاربری</small><b dir="ltr">{service.username}</b></div>
-    </div>
-
-    <section className="service-inventory-quota" aria-label="مصرف و سهمیه">
-      <div className="service-inventory-quota-head">
-        <div><small>مصرف‌شده</small><strong>{numberFa(service.usedGb)} <span>از {numberFa(service.limitGb)} گیگابایت</span></strong></div>
-        <div><small>باقی‌مانده</small><strong>{numberFa(remaining)} گیگابایت</strong></div>
-      </div>
-      <div className="service-inventory-meter" role="progressbar" aria-label={`مصرف ${serviceDisplayCode(service)}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPercent}><i style={{ width: `${usedPercent}%` }} /></div>
-      <div className="service-inventory-expiry">
-        <span className={expiryDays < 0 ? 'is-overdue' : expiryDays <= 7 ? 'is-near' : ''}>
-          {expiryDays < 0 ? 'مهلت پایان‌یافته' : expiryDays <= 7 ? `${numberFa(expiryDays, 0)} روز تا پایان` : 'تاریخ پایان'}
-        </span>
-        <strong>{service.expiresAt ? dateLabel(service.expiresAt) : 'ثبت نشده'}</strong>
-      </div>
-    </section>
-
-    <dl className="service-inventory-facts">
-      <div><dt>پنل</dt><dd>{service.panel ? <bdi dir="ltr">{service.panel}</bdi> : 'ثبت نشده'}</dd></div>
-      <div><dt>ایجاد</dt><dd>{service.createdAt ? dateLabel(service.createdAt) : 'ثبت نشده'}</dd></div>
-      <div><dt>آخرین تمدید</dt><dd>{service.lastRenewedAt ? dateLabel(service.lastRenewedAt) : 'تمدیدی ثبت نشده'}</dd></div>
-    </dl>
-
-    {(service.provisionStatus || service.provisionLastError || service.cancelStatus === 'pending' || service.cancelStatus === 'approved' || service.cancelStatus === 'rejected') && <div className="service-inventory-operations" aria-label="وضعیت عملیات">
-      {service.provisionStatus && <span><small>ساخت</small><strong>{service.provisionStatus === 'completed' ? 'تکمیل‌شده' : service.provisionStatus === 'running' ? 'در حال اجرا' : service.provisionStatus === 'retrying' ? 'تلاش مجدد' : 'در صف'}</strong></span>}
-      {service.cancelStatus && service.cancelStatus !== 'not_requested' && <span><small>درخواست لغو</small><strong>{service.cancelStatus === 'pending' ? 'در انتظار بررسی' : service.cancelStatus === 'approved' ? 'تأییدشده' : 'ردشده'}</strong></span>}
-      {service.provisionLastError && <p role="note">{service.provisionLastError}</p>}
-    </div>}
-
-    {(service.panelUsages?.length || service.awgUsage || service.awgReady) ? <details className="service-inventory-usage">
-      <summary>ریز مصرف Provider و AWG</summary>
-      <dl>
-        {service.panelUsages?.map((usage) => <div key={usage.panelKey}>
-          <dt><bdi dir="ltr">{usage.panelKey}{usage.panelKind ? ` · ${usage.panelKind}` : ''}</bdi></dt>
-          <dd>{usageLabel(usage.usedGb)}<small>عدد خام {usageLabel(usage.rawUsedGb)} · پایه {usageLabel(usage.offsetGb)} · {usageDate(usage.lastUpdated)}</small></dd>
-        </div>)}
-        {(service.awgUsage || service.awgReady) && <div>
-          <dt>AmneziaWG</dt>
-          <dd>{service.awgUsage ? usageLabel(service.awgUsage.usedGb) : 'در انتظار همگام‌سازی'}
-            {service.awgUsage && <small>دریافت {usageLabel(service.awgUsage.rxGb)} · ارسال {usageLabel(service.awgUsage.txGb)} · {usageDate(service.awgUsage.lastUpdated)}</small>}
-          </dd>
-        </div>}
-      </dl>
-    </details> : null}
-
-    {service.note && <p className="service-inventory-note"><span>یادداشت</span>{service.note}</p>}
-
-    <footer className="service-inventory-actions">
-      <button type="button" onClick={() => onNote(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? 'ویرایش یادداشت' : 'افزودن یادداشت'}</button>
-      <Button variant="quiet" onClick={() => onToggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف سرویس'}</Button>
-      {service.status !== 'Disabled' && <Button variant="secondary" onClick={() => onRenew(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={13} /> تمدید</Button>}
-    </footer>
-  </article>;
+  return <tr data-testid={`card-service-${service.id}`}>
+    <td><div className="hope-table-person"><span className="service-inventory-icon"><Globe2 size={15} /></span><span><strong>{service.customerName}</strong><small>{service.plan} · <bdi dir="ltr">{serviceDisplayCode(service)}</bdi></small><small dir="ltr">@{service.username}</small></span></div><StatusPill value={service.status} /></td>
+    <td><strong>{numberFa(service.usedGb)} از {numberFa(service.limitGb)} گیگ</strong><small className="hope-table-subline">{numberFa(remaining)} گیگ باقی‌مانده</small><span className="service-inventory-meter" role="progressbar" aria-label={`مصرف ${serviceDisplayCode(service)}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPercent}><i style={{ width: `${usedPercent}%` }} /></span></td>
+    <td><strong>{service.expiresAt ? dateLabel(service.expiresAt) : 'ثبت نشده'}</strong><small className="hope-table-subline">{expiryDays < 0 ? 'مهلت پایان‌یافته' : expiryDays <= 7 ? `${numberFa(expiryDays, 0)} روز تا پایان` : 'تاریخ پایان'}</small></td>
+    <td><bdi dir="ltr">{service.panel || 'پنل ثبت‌نشده'}</bdi><small className="hope-table-subline">ایجاد: {service.createdAt ? dateLabel(service.createdAt) : '—'} · تمدید: {service.lastRenewedAt ? dateLabel(service.lastRenewedAt) : '—'}</small>
+      {(service.provisionStatus || service.cancelStatus || service.provisionLastError) && <small className="hope-table-subline">{service.provisionStatus === 'completed' ? 'ساخت تکمیل‌شده' : service.provisionStatus === 'running' ? 'در حال ساخت' : service.provisionStatus === 'retrying' ? 'تلاش مجدد' : service.provisionStatus === 'pending' ? 'در صف ساخت' : ''}{service.cancelStatus && service.cancelStatus !== 'not_requested' ? ` · لغو ${service.cancelStatus === 'pending' ? 'در انتظار' : service.cancelStatus === 'approved' ? 'تأییدشده' : 'ردشده'}` : ''}</small>}
+      {service.provisionLastError && <small className="text-rose-600" role="note">{service.provisionLastError}</small>}
+      {(service.panelUsages?.length || service.awgUsage || service.awgReady) && <details className="service-inventory-usage"><summary>ریز مصرف Provider / AWG</summary><div>{service.panelUsages?.map((usage) => <p key={usage.panelKey}><bdi dir="ltr">{usage.panelKey}{usage.panelKind ? ` · ${usage.panelKind}` : ''}</bdi> · {usageLabel(usage.usedGb)}<small> خام {usageLabel(usage.rawUsedGb)} · مبنا {usageLabel(usage.offsetGb)} · {usageDate(usage.lastUpdated)}</small></p>)}{(service.awgUsage || service.awgReady) && <p>AmneziaWG · {service.awgUsage ? usageLabel(service.awgUsage.usedGb) : 'در انتظار همگام‌سازی'}{service.awgUsage && <small> دریافت {usageLabel(service.awgUsage.rxGb)} · ارسال {usageLabel(service.awgUsage.txGb)} · {usageDate(service.awgUsage.lastUpdated)}</small>}</p>}</div></details>}
+      {service.note && <small className="hope-table-subline">یادداشت: {service.note}</small>}
+    </td>
+    <td><div className="hope-table-actions"><button type="button" className="button button-quiet" onClick={() => onNote(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? 'یادداشت' : 'افزودن یادداشت'}</button><Button variant="quiet" onClick={() => onToggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Disabled' && <Button variant="secondary" onClick={() => onRenew(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={13} /> تمدید</Button>}</div></td>
+  </tr>;
 }
 
 function ServicesContent() {
@@ -1983,7 +1926,7 @@ function ServicesContent() {
        </section>
         {servicesError && <StatePanel kind="error" title="فهرست سرویس‌ها به‌روز نشد" detail={servicesError} action={<Button variant="secondary" onClick={() => void refreshServices()} disabled={servicesLoading}><RefreshCw size={13} className={servicesLoading ? 'spin' : ''} /> تلاش دوباره</Button>} />}
         {servicesLoading && !services.length ? <div className="service-inventory-skeleton" role="status" aria-label="در حال دریافت سرویس‌ها"><i /><i /><i /></div> : null}
-        {filtered.length > 0 ? <section className="service-inventory-section" aria-labelledby="service-inventory-heading"><header className="service-inventory-section-heading"><div><p className="console-eyebrow">پرونده‌های سرویس</p><h2 id="service-inventory-heading">{numberFa(filtered.length, 0)} سرویس</h2></div><span>هر عملیات فقط روی همان سرویس اعمال می‌شود.</span></header><div className="service-inventory-grid">{filtered.map((service) => <ServiceInventoryCard key={service.id} service={service} onNote={setNoteService} onToggle={toggle} onRenew={renewService} />)}</div></section> : !servicesLoading && !servicesError ? <StatePanel title={services.length ? 'سرویسی با این فیلترها پیدا نشد' : 'هنوز سرویسی ثبت نشده است'} detail={services.length ? 'فیلترها را پاک کنید تا همهٔ پرونده‌ها دوباره نمایش داده شوند.' : 'با ایجاد سرویس، وضعیت، مصرف، انقضا و عملیات آن در این فهرست قرار می‌گیرد.'} action={services.length ? <Button variant="secondary" onClick={resetFilters}>پاک‌کردن فیلترها</Button> : <Button onClick={() => setModal(true)}><Plus size={14} /> افزودن سرویس</Button>} /> : null}
+         {filtered.length > 0 ? <section className="service-inventory-section" aria-labelledby="service-inventory-heading"><header className="service-inventory-section-heading"><div><p className="console-eyebrow">پرونده‌های سرویس</p><h2 id="service-inventory-heading">{numberFa(filtered.length, 0)} سرویس</h2></div><span>هر عملیات فقط روی همان سرویس اعمال می‌شود.</span></header><div className="hope-table-scroll"><table className="hope-data-table service-register-table"><thead><tr><th>مشتری / اشتراک</th><th>سهمیه و مصرف</th><th>اعتبار</th><th>پنل و جزئیات</th><th>عملیات</th></tr></thead><tbody>{filtered.map((service) => <ServiceInventoryCard key={service.id} service={service} onNote={setNoteService} onToggle={toggle} onRenew={renewService} />)}</tbody></table></div></section> : !servicesLoading && !servicesError ? <StatePanel title={services.length ? 'سرویسی با این فیلترها پیدا نشد' : 'هنوز سرویسی ثبت نشده است'} detail={services.length ? 'فیلترها را پاک کنید تا همهٔ پرونده‌ها دوباره نمایش داده شوند.' : 'با ایجاد سرویس، وضعیت، مصرف، انقضا و عملیات آن در این فهرست قرار می‌گیرد.'} action={services.length ? <Button variant="secondary" onClick={resetFilters}>پاک‌کردن فیلترها</Button> : <Button onClick={() => setModal(true)}><Plus size={14} /> افزودن سرویس</Button>} /> : null}
           {modal && <ServiceModal onClose={() => setModal(false)} />}{noteService && <NoteModal service={noteService} onClose={() => setNoteService(null)} />}
       </div>;
 }
@@ -2026,42 +1969,18 @@ function ActionRequestRecord({ request, isMasterAdmin, saving, statusText, statu
 }) {
   const needsDecision = (request.cancel_service_requested && request.cancel_service_status === 'pending')
     || (request.delete_sale_requested && request.delete_sale_status === 'pending');
-  return <article className={`action-request-record ${needsDecision ? 'needs-decision' : ''}`} data-testid={`row-action-request-${request.id}`}>
-    <header className="action-request-record-head">
-      <div className="action-request-person">
-        <span className="action-request-person-mark">{request.customer_name.trim().slice(0, 1) || 'م'}</span>
-        <div><span>{needsDecision ? 'نیازمند بررسی' : 'درخواست سرویس'} · <bdi dir="ltr">#{request.id}</bdi></span><h3>{request.customer_name}</h3><small dir="ltr">{request.customer_phone || 'شماره ثبت نشده'}</small></div>
-      </div>
-      <time dateTime={request.requested_at}>{dateTimeLabel(request.requested_at)}</time>
-    </header>
-    <div className="action-request-service">
-      <div><small>نام سرویس</small><strong>{request.service_name}</strong></div>
-      <div><small>نام کاربری</small><bdi dir="ltr">{request.username}</bdi></div>
-      <div><small>شناسه سرویس</small><bdi dir="ltr">#{request.service_id}</bdi></div>
-      <div><small>وضعیت سرویس</small><strong>{request.service_status === 'disabled' ? 'متوقف' : 'فعال'}</strong></div>
-      {isMasterAdmin && <div><small>فروشنده</small><strong>{request.reseller_name || 'بدون نام ثبت‌شده'}</strong><bdi dir="ltr">TG {request.reseller_tg_id}</bdi></div>}
-    </div>
-    <div className="action-request-decisions">
-      {request.cancel_service_requested && <section className={`action-request-decision ${statusClass(request.cancel_service_status)}`}>
-        <div><strong>لغو سرویس</strong><span>{statusText(request.cancel_service_status)}</span></div>
-        {isMasterAdmin && request.cancel_service_status === 'pending' && <div className="action-request-controls"><Button variant="secondary" disabled={saving} onClick={() => onReview(request.id, 'cancel_service', 'reject')}>رد درخواست</Button><Button disabled={saving} onClick={() => onReview(request.id, 'cancel_service', 'approve')}><Check size={14} /> تأیید لغو</Button></div>}
-      </section>}
-      {request.delete_sale_requested && <section className={`action-request-decision ${statusClass(request.delete_sale_status)}`}>
-        <div><strong>حذف لاگ فروش</strong><span>{statusText(request.delete_sale_status)}{request.sale_id ? <> · فروش <bdi dir="ltr">#{request.sale_id}</bdi></> : ''}</span></div>
-        {isMasterAdmin && request.delete_sale_status === 'pending' && <div className="action-request-controls"><Button variant="secondary" disabled={saving} onClick={() => onReview(request.id, 'delete_sale_log', 'reject')}>رد درخواست</Button><Button disabled={saving} onClick={() => onReview(request.id, 'delete_sale_log', 'approve')}><Trash2 size={14} /> تأیید حذف لاگ</Button></div>}
-      </section>}
-    </div>
-    {(request.reason || request.admin_note || request.reviewed_at || request.sale_gb != null || request.sale_created_at) && <details className="action-request-more">
-      <summary>جزئیات و یادداشت‌ها</summary>
-      <dl>
-        {request.reason && <div><dt>دلیل فروشنده</dt><dd>{request.reason}</dd></div>}
-        {request.admin_note && <div><dt>یادداشت مدیر</dt><dd>{request.admin_note}</dd></div>}
-        {request.sale_id && <div><dt>فروش مرتبط</dt><dd><bdi dir="ltr">#{request.sale_id}</bdi>{request.sale_gb != null ? ` · ${numberFa(request.sale_gb)} گیگابایت` : ''}</dd></div>}
-        {request.sale_created_at && <div><dt>زمان فروش</dt><dd>{dateTimeLabel(request.sale_created_at)}</dd></div>}
-        {request.reviewed_at && <div><dt>زمان بررسی</dt><dd>{dateTimeLabel(request.reviewed_at)}</dd></div>}
-      </dl>
-    </details>}
-  </article>;
+  return <tr className={`action-request-record ${needsDecision ? 'needs-decision' : ''}`} data-testid={`row-action-request-${request.id}`}>
+    <td><div className="hope-table-person"><span className="action-request-person-mark">{request.customer_name.trim().slice(0, 1) || 'م'}</span><span><strong>{request.customer_name}</strong><small>{request.customer_phone || 'شماره ثبت نشده'} · #{request.id} · {dateTimeLabel(request.requested_at)}</small></span></div></td>
+    <td><strong>{request.service_name}</strong><small className="hope-table-subline" dir="ltr">@{request.username} · #{request.service_id}</small></td>
+    {isMasterAdmin && <td><strong>{request.reseller_name || 'بدون نام ثبت‌شده'}</strong><small className="hope-table-subline" dir="ltr">TG {request.reseller_tg_id}</small></td>}
+    <td><div className="action-request-status-stack">{request.cancel_service_requested && <span className={`action-request-decision ${statusClass(request.cancel_service_status)}`}>لغو · {statusText(request.cancel_service_status)}</span>}{request.delete_sale_requested && <span className={`action-request-decision ${statusClass(request.delete_sale_status)}`}>حذف فروش · {statusText(request.delete_sale_status)}</span>}{!request.cancel_service_requested && !request.delete_sale_requested && <span>—</span>}</div></td>
+    <td><div className="action-request-row-controls">
+      {isMasterAdmin && request.cancel_service_requested && request.cancel_service_status === 'pending' && <><Button variant="secondary" disabled={saving} onClick={() => onReview(request.id, 'cancel_service', 'reject')}>رد لغو</Button><Button disabled={saving} onClick={() => onReview(request.id, 'cancel_service', 'approve')}><Check size={13} /> تأیید لغو</Button></>}
+      {isMasterAdmin && request.delete_sale_requested && request.delete_sale_status === 'pending' && <><Button variant="secondary" disabled={saving} onClick={() => onReview(request.id, 'delete_sale_log', 'reject')}>رد حذف</Button><Button disabled={saving} onClick={() => onReview(request.id, 'delete_sale_log', 'approve')}><Trash2 size={13} /> تأیید حذف</Button></>}
+      {!isMasterAdmin && <span className="request-state-note">{request.cancel_service_requested ? statusText(request.cancel_service_status) : statusText(request.delete_sale_status)}</span>}
+      {(request.reason || request.admin_note || request.reviewed_at || request.sale_id || request.sale_created_at) && <details className="action-request-more"><summary>جزئیات</summary><div>{request.reason && <p><strong>دلیل:</strong> {request.reason}</p>}{request.admin_note && <p><strong>یادداشت مدیر:</strong> {request.admin_note}</p>}{request.sale_id && <p>فروش <bdi dir="ltr">#{request.sale_id}</bdi> {request.sale_gb != null ? `· ${numberFa(request.sale_gb)} گیگابایت` : ''}</p>}{request.sale_created_at && <p>زمان فروش · {dateTimeLabel(request.sale_created_at)}</p>}{request.reviewed_at && <p>بررسی · {dateTimeLabel(request.reviewed_at)}</p>}</div></details>}
+    </div></td>
+  </tr>;
 }
 
 function ActionRequestsContent() {
@@ -2175,7 +2094,7 @@ function ActionRequestsContent() {
         {!loading && !loadError && requests.length > 0 && <div className="action-request-filter" role="group" aria-label="فیلتر وضعیت درخواست">
           {([['all', 'همه درخواست‌ها', requests.length], ['pending', 'نیازمند بررسی', outstandingRequests], ['resolved', 'بررسی‌شده', requests.length - outstandingRequests]] as const).map(([value, label, count]) => <button key={value} type="button" className={requestFilter === value ? 'selected' : ''} aria-pressed={requestFilter === value} onClick={() => setRequestFilter(value)}>{label}<span>{numberFa(count, 0)}</span></button>)}
         </div>}
-        {!loading && visibleRequests.length > 0 && <div className="action-request-list">{visibleRequests.map((request) => <ActionRequestRecord key={request.id} request={request} isMasterAdmin={isMasterAdmin} saving={saving} statusText={statusText} statusClass={statusClass} onReview={(requestId, key, decision) => void review(requestId, key, decision)} />)}</div>}
+         {!loading && visibleRequests.length > 0 && <div className="hope-table-scroll"><table className="hope-data-table" aria-label="صف تصمیم درخواست‌های خدمات"><thead><tr><th scope="col">درخواست‌دهنده</th><th scope="col">سرویس</th>{isMasterAdmin && <th scope="col">فروشنده</th>}<th scope="col">وضعیت</th><th scope="col">تصمیم و جزئیات</th></tr></thead><tbody>{visibleRequests.map((request) => <ActionRequestRecord key={request.id} request={request} isMasterAdmin={isMasterAdmin} saving={saving} statusText={statusText} statusClass={statusClass} onReview={(requestId, key, decision) => void review(requestId, key, decision)} />)}</tbody></table></div>}
         {!loading && !loadError && !requests.length && <StatePanel title="درخواستی ثبت نشده است" detail={isReseller ? 'پس از ارسال درخواست برای یک سرویس، وضعیت پیگیری آن در اینجا نمایش داده می‌شود.' : 'درخواست‌های جدید فروشندگان پس از ثبت در این صف ظاهر می‌شوند.'} />}
         {!loading && !loadError && requests.length > 0 && !visibleRequests.length && <StatePanel title="درخواستی با این وضعیت وجود ندارد" detail="برای مشاهده پرونده‌های دیگر، فیلتر وضعیت را تغییر دهید." />}
       </SectionPanel>
@@ -2260,17 +2179,18 @@ function MonitoringContent() {
          {!loading && !error && !data.jobs.length ? <EmptyState title="صف ساخت خالی است" detail="پس از ثبت سرویس، تلاش‌های Provider و AmneziaWG در اینجا پیگیری می‌شوند." /> : null}
          {!loading && !error && data.jobs.length > 0 && !visibleJobs.length ? <EmptyState title="در این وضعیت jobی نیست" detail="فیلتر دیگری را برای دیدن وضعیت‌های دیگر انتخاب کنید." /> : null}
          {error && !data.jobs.length && !loading ? <StatePanel kind="error" title="فهرست jobها در دسترس نیست" detail="وضعیت صف از سرور دریافت نشد. پس از تلاش دوباره، رکوردها در همین بخش نمایش داده می‌شوند." action={<Button variant="secondary" onClick={() => { setLoading(true); void loadMonitoring(); }} disabled={loading}><RefreshCw size={13} /> تلاش دوباره</Button>} /> : null}
-         <div className="console-records record-card-grid monitoring-job-grid">{visibleJobs.map((job) => {
+          <div className="hope-table-scroll"><table className="hope-data-table hope-monitoring-table"><thead><tr><th scope="col">کاربر و سرویس</th><th scope="col">منبع ساخت</th><th scope="col">وضعیت</th><th scope="col">تلاش / زمان</th><th scope="col">خطای آخر</th><th scope="col">عملیات</th></tr></thead><tbody>{visibleJobs.map((job) => {
            const scheduleTime = job.status === 'completed' ? job.completed_at : job.status === 'running' ? job.lease_expires_at : job.next_attempt_at;
            const scheduleLabel = job.status === 'completed' ? 'زمان پایان' : job.status === 'running' ? 'پایان مهلت اجرا' : 'تلاش بعدی';
-           return <RecordCard key={job.id} eyebrow={`${job.customer_name} · ${job.plan || 'سرویس'}`} title={<span dir="ltr">{job.username}</span>} subtitle={job.updated_at ? `آخرین بروزرسانی · ${dateTimeLabel(job.updated_at)}` : 'زمان بروزرسانی ثبت نشده'} status={<span className={`monitoring-status ${job.status}`}><span />{monitoringStatus(job.status)}</span>} fields={[
-             { label: 'سرویس', value: <bdi dir="ltr">#{job.service_id}</bdi> },
-             { label: 'منبع ساخت', value: <bdi dir="ltr" className="monitoring-source">{job.action === 'awg' ? 'AmneziaWG' : job.provider_keys.join(', ') || 'Provider'}</bdi> },
-             { label: 'تعداد تلاش', value: number(job.attempts) },
-             { label: scheduleLabel, value: scheduleTime ? dateTimeLabel(scheduleTime) : 'ثبت نشده' },
-             { label: 'خطای آخر', value: <span className="monitoring-error" dir="auto">{job.last_error || 'بدون خطا'}</span> },
-           ]} actions={job.status !== 'completed' ? <Button variant="quiet" onClick={() => void retryJob(job.id)} disabled={retryingJob === job.id} testId={`button-retry-job-${job.id}`}><RefreshCw size={12} className={retryingJob === job.id ? 'spin' : ''} /> تلاش دوباره</Button> : <span className="record-complete"><Check size={14} /> پایان‌یافته</span>} />;
-         })}</div>
+            return <tr key={job.id} data-testid={`row-monitoring-job-${job.id}`}>
+              <td><div className="hope-table-person"><span><strong>{job.customer_name}</strong><small dir="ltr">@{job.username} · #{job.service_id}</small><small>{job.plan || 'سرویس'} · {job.updated_at ? dateTimeLabel(job.updated_at) : 'بروزرسانی ثبت نشده'}</small></span></div></td>
+              <td><bdi dir="ltr" className="monitoring-source">{job.action === 'awg' ? 'AmneziaWG' : job.provider_keys.join(', ') || 'Provider'}</bdi></td>
+              <td><span className={`monitoring-status ${job.status}`}><span />{monitoringStatus(job.status)}</span></td>
+              <td>{number(job.attempts)} تلاش<small className="hope-table-subline">{scheduleLabel}: {scheduleTime ? dateTimeLabel(scheduleTime) : 'ثبت نشده'}</small></td>
+              <td><span className="monitoring-error" dir="auto">{job.last_error || 'بدون خطا'}</span></td>
+              <td>{job.status !== 'completed' ? <Button variant="quiet" onClick={() => void retryJob(job.id)} disabled={retryingJob === job.id} testId={`button-retry-job-${job.id}`}><RefreshCw size={12} className={retryingJob === job.id ? 'spin' : ''} /> تلاش دوباره</Button> : <span className="record-complete"><Check size={14} /> پایان‌یافته</span>}</td>
+            </tr>;
+          })}</tbody></table></div>
      </section>
   </>;
 }
@@ -2300,27 +2220,13 @@ function trafficLabel(bytes: number) {
 
 function ConnectionRecord({ user }: { user: ConnectionUser }) {
   const usagePercent = user.data_limit && user.data_limit > 0 ? Math.min(100, Math.round(user.used_traffic / user.data_limit * 100)) : null;
-  return <article className={`connection-user-card ${user.online ? 'is-online' : 'is-recent'}`}>
-    <header className="connection-user-head">
-      <span className="connection-user-mark">{user.online ? <Wifi size={16} /> : <History size={16} />}</span>
-      <div className="connection-user-identity"><strong>{user.customer_name || 'نام مشتری ثبت نشده'}</strong><bdi dir="ltr">@{user.username}</bdi>{user.phone && <bdi className="connection-user-phone" dir="ltr">{user.phone}</bdi>}</div>
-      <span className={`connection-user-state ${user.online ? 'online' : ''}`}><i />{user.online ? 'آنلاین' : 'اخیراً متصل'}</span>
-    </header>
-    <div className="connection-user-source">
-      <div><small>Provider</small><strong dir="ltr">{user.panel_key}</strong></div>
-      <time dateTime={user.online_at || undefined}>{user.online_at ? dateTimeLabel(user.online_at) : 'زمان اتصال ثبت نشده'}</time>
-    </div>
-    <section className="connection-user-traffic" aria-label="مصرف ترافیک">
-      <div><small>مصرف‌شده</small><strong>{trafficLabel(user.used_traffic)}</strong></div>
-      <span className="connection-user-meter" role="progressbar" aria-label={`مصرف سهمیه ${user.username}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={usagePercent ?? 0}><i style={{ width: `${usagePercent ?? 0}%` }} /></span>
-      <div><small>سقف ثبت‌شده</small><strong>{user.data_limit ? trafficLabel(user.data_limit) : 'بدون سقف'}</strong></div>
-    </section>
-    <footer className="connection-user-meta">
-      <span><small>گروه</small><strong><bdi dir="auto">{user.group_names?.length ? user.group_names.join('، ') : 'بدون گروه'}</bdi></strong></span>
-      <span><small>انقضا</small><strong>{user.expire ? dateLabel(user.expire) : 'ثبت نشده'}</strong></span>
-      <span><small>وضعیت پنل</small><bdi dir="ltr">{user.status || '—'}</bdi></span>
-    </footer>
-  </article>;
+  return <tr className={user.online ? 'is-online' : 'is-recent'}>
+    <td><div className="hope-table-person"><span className="connection-user-mark">{user.online ? <Wifi size={15} /> : <History size={15} />}</span><span><strong>{user.customer_name || 'نام مشتری ثبت نشده'}</strong><small dir="ltr">@{user.username}{user.phone ? ` · ${user.phone}` : ''}</small></span></div></td>
+    <td><bdi dir="ltr">{user.panel_key}</bdi><small className="hope-table-subline">{user.group_names?.length ? user.group_names.join('، ') : 'بدون گروه'}</small></td>
+    <td><span className={`connection-user-state ${user.online ? 'online' : ''}`}><i />{user.online ? 'آنلاین' : 'اخیراً متصل'}</span><small className="hope-table-subline">{user.online_at ? dateTimeLabel(user.online_at) : 'زمان اتصال ثبت نشده'}</small></td>
+    <td><strong>{trafficLabel(user.used_traffic)}</strong><small className="hope-table-subline">از {user.data_limit ? trafficLabel(user.data_limit) : 'بدون سقف'}</small><span className="connection-user-meter" role="progressbar" aria-label={`مصرف سهمیه ${user.username}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={usagePercent ?? 0}><i style={{ width: `${usagePercent ?? 0}%` }} /></span></td>
+    <td>{user.expire ? dateLabel(user.expire) : 'ثبت نشده'}</td><td><bdi dir="ltr">{user.status || '—'}</bdi></td>
+  </tr>;
 }
 
 function ConnectionsContent() {
@@ -2401,16 +2307,7 @@ function ConnectionsContent() {
       {loading && !users.length ? <div className="connection-session-skeleton" role="status" aria-label="در حال دریافت اتصال‌ها"><i /><i /><i /></div> : null}
       {!loading && !error && !users.length ? <StatePanel title="اتصالی برای نمایش نیست" detail="پس از اتصال کاربر به Provider، نشست‌های فعال و اخیر در این فهرست ظاهر می‌شوند." /> : null}
       {!loading && users.length > 0 && !filteredUsers.length ? <StatePanel title="کاربری با این فیلترها پیدا نشد" detail="عبارت جست‌وجو یا فیلترهای Provider، گروه و وضعیت را تغییر دهید." action={<Button variant="secondary" onClick={clearFilters}>پاک‌کردن فیلترها</Button>} /> : null}
-      {filteredUsers.length > 0 && <div className="connection-session-groups">
-        <section className="connection-session-group" aria-labelledby="connection-online-heading">
-          <header><div><span className="connection-live-dot" /><div><h3 id="connection-online-heading">همین حالا آنلاین</h3><p>اتصال فعال در لحظهٔ پاسخ Provider</p></div></div><strong>{new Intl.NumberFormat('fa-IR').format(visibleOnlineUsers.length)}</strong></header>
-          {visibleOnlineUsers.length ? <div className="connection-session-list">{visibleOnlineUsers.map((user) => <ConnectionRecord user={user} key={`${user.panel_key}:${user.username}`} />)}</div> : <p className="connection-session-empty">کاربر آنلاینی با فیلترهای فعلی نیست.</p>}
-        </section>
-        <section className="connection-session-group recent" aria-labelledby="connection-recent-heading">
-          <header><div><span className="connection-recent-mark"><History size={15} /></span><div><h3 id="connection-recent-heading">اتصال‌های ۲۴ ساعت اخیر</h3><p>کاربرانی که اکنون آنلاین نیستند</p></div></div><strong>{new Intl.NumberFormat('fa-IR').format(visibleRecentUsers.length)}</strong></header>
-          {visibleRecentUsers.length ? <div className="connection-session-list">{visibleRecentUsers.map((user) => <ConnectionRecord user={user} key={`${user.panel_key}:${user.username}`} />)}</div> : <p className="connection-session-empty">نشست اخیری با فیلترهای فعلی نیست.</p>}
-        </section>
-      </div>}
+      {filteredUsers.length > 0 && <div className="hope-table-scroll"><table className="hope-data-table" aria-label="نشست‌های فعال و اخیر"><thead><tr><th>کاربر</th><th>Provider / گروه</th><th>اتصال</th><th>مصرف</th><th>انقضا</th><th>وضعیت پنل</th></tr></thead><tbody>{[...visibleOnlineUsers, ...visibleRecentUsers].map((user) => <ConnectionRecord user={user} key={`${user.panel_key}:${user.username}`} />)}</tbody></table></div>}
     </section>
   </div>;
 }
@@ -2776,31 +2673,30 @@ function CustomerDetailContent() {
         <SectionPanel className="customer-services-workspace" eyebrow="دسترسی‌ها" title="سرویس‌ها و اشتراک‌ها" description="مصرف، تمدید و لینک اتصال در یک پروندهٔ عملیاتی." action={<Link href="/services" className="console-action console-action-secondary"><Plus size={14} /> ساخت سرویس</Link>}>
           {(session?.role === 'reseller' || session?.role === 'master_admin') && <div className="customer-profile-quick-actions"><Button variant="secondary" onClick={() => void requestMobileOtp()} disabled={mobileOtpLoading}><KeyRound size={14} />{mobileOtpLoading ? 'در حال ساخت کد...' : mobileOtp ? 'ساخت کد تازه' : 'کد ورود موبایل'}</Button>{allCustomerServices[0] && <Button variant="quiet" onClick={() => void copyTextToClipboard(customerWhatsAppMessage(allCustomerServices[0], Math.max(0, daysUntil(allCustomerServices[0].expiresAt)), { phone: customer?.phone, otp: mobileOtp }))}><Copy size={14} /> کپی پیام واتساپ</Button>}</div>}
           <CustomerServiceControls services={allCustomerServices} tab={serviceTab} issueFilter={serviceIssueFilter} search={serviceSearch} onTabChange={setServiceTab} onIssueFilterChange={setServiceIssueFilter} onSearchChange={setServiceSearch} />
-          {visibleCustomerServices.length ? <div className="customer-console-service-list">{visibleCustomerServices.map((service) => {
+           {visibleCustomerServices.length ? <div className="hope-table-scroll"><table className="hope-data-table customer-service-table" aria-label="اشتراک‌های مشتری"><thead><tr><th>اشتراک</th><th>مصرف</th><th>اعتبار</th><th>جزئیات</th><th>عملیات</th></tr></thead><tbody>{visibleCustomerServices.map((service) => {
             const ratio = service.limitGb ? Math.min(100, Math.round(service.usedGb / service.limitGb * 100)) : 0;
             const publicUrl = service.publicSubscriptionUrl ?? service.subscriptionUrl;
             const hasSaleLog = customerSales.some((sale) => sale.serviceId === service.id);
             const latestRequest = actionRequests.find((request) => String(request.service_id) === service.id);
             const requestStatusItems = latestRequest ? [latestRequest.cancel_service_requested ? ['حذف سرویس', latestRequest.cancel_service_status] : null, latestRequest.delete_sale_requested ? ['فقط حذف لاگ فروش', latestRequest.delete_sale_status] : null].filter(Boolean) as [string, ServiceActionRequest['cancel_service_status']][] : [];
-            return <article className="console-record customer-service-record" key={service.id}>
-              <header className="customer-service-record-head"><div><strong>{service.plan}</strong><span className="customer-service-code" dir="ltr">@{service.username} · {serviceDisplayCode(service)}</span></div><StatusPill value={service.status} /></header>
-              <div className="customer-service-record-body"><div className="customer-usage-meter"><span style={{ '--usage': `${ratio}%` } as React.CSSProperties} /><small>{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</small></div><div className="customer-service-facts"><span><small>مصرف</small><strong>{service.usedGb} / {service.limitGb} GB</strong></span><span><small>انقضا</small><strong>{dateLabel(service.expiresAt)}</strong></span><span><small>مانده</small><strong>{Math.max(0, daysUntil(service.expiresAt))} روز</strong></span></div></div>
-              <ServiceUsageBreakdown service={service} />
-              {service.subscriptionUrl && <div className="customer-service-link-row"><code dir="ltr">{publicUrl}</code><SubscriptionQr url={publicUrl || service.subscriptionUrl} /></div>}
-              <div className="customer-service-actions">
-                {service.subscriptionUrl && <><button className="console-action console-action-secondary" type="button" onClick={() => void copyTextToClipboard(publicUrl || service.subscriptionUrl || '')}><Copy size={13} /> کپی لینک</button><a className="console-action console-action-primary" href={v2boxUrl(service)} target="_blank" rel="noreferrer"><ExternalLink size={13} /> V2Box</a></>}
-                {service.awgReady && service.awgConfigUrl ? <a className="console-action console-action-secondary" href={service.awgConfigUrl} download><Download size={13} /> دانلود AWG</a> : <span className="console-status is-quiet">AWG آماده نیست</span>}
-                <button className="console-action console-action-quiet" type="button" disabled={working === service.id} onClick={() => void resetToken(service)}><RefreshCw size={13} /> توکن جدید</button>
-                <button className="console-action console-action-quiet" type="button" onClick={() => renew(service)}><Plus size={13} /> تمدید ۳۰ روزه</button>
-              </div>
-              {requestStatusItems.length > 0 && <div className="customer-request-status">{requestStatusItems.map(([label, status]) => <span key={label}>{label}: {status === 'pending' ? 'در انتظار بررسی' : status === 'approved' ? 'تأیید شد' : status === 'rejected' ? 'رد شد' : 'ثبت نشده'}</span>)}<Link href="/action-requests" className="console-action console-action-quiet">پیگیری درخواست</Link></div>}
-              {session?.role === 'reseller' && (service.status !== 'Disabled' || hasSaleLog) && <div className="customer-service-request"><Button variant="quiet" onClick={() => setActionRequestService(service)}><Trash2 size={13} /> درخواست حذف سرویس / لاگ فروش</Button></div>}
-            </article>;
-          })}</div> : <StatePanel title="سرویسی مطابق فیلتر نیست" detail="وضعیت، عملیات یا عبارت جست‌وجو را تغییر دهید." />}
+             return <tr key={service.id} data-testid={`row-customer-service-${service.id}`}>
+               <td><strong>{service.plan}</strong><small className="hope-table-subline" dir="ltr">@{service.username} · {serviceDisplayCode(service)}</small><StatusPill value={service.status} /></td>
+               <td><strong>{service.usedGb} / {service.limitGb} GB</strong><small className="hope-table-subline">{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</small><span className="service-inventory-meter" role="progressbar" aria-label={`مصرف ${service.plan}`} aria-valuenow={ratio} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${ratio}%` }} /></span></td>
+               <td><strong>{dateLabel(service.expiresAt)}</strong><small className="hope-table-subline">{Math.max(0, daysUntil(service.expiresAt))} روز مانده</small></td>
+               <td><details><summary>مصرف Provider / AWG</summary><ServiceUsageBreakdown service={service} />{requestStatusItems.length > 0 && <p className="customer-request-status">{requestStatusItems.map(([label, status]) => <span key={label}>{label}: {status === 'pending' ? 'در انتظار بررسی' : status === 'approved' ? 'تأیید شد' : status === 'rejected' ? 'رد شد' : 'ثبت نشده'}</span>)} <Link href="/action-requests">پیگیری</Link></p>}</details></td>
+               <td><div className="hope-table-actions">
+                 {service.subscriptionUrl && <><button className="console-action console-action-secondary" type="button" onClick={() => void copyTextToClipboard(publicUrl || service.subscriptionUrl || '')}><Copy size={13} /> کپی لینک</button><a className="console-action console-action-primary" href={v2boxUrl(service)} target="_blank" rel="noreferrer"><ExternalLink size={13} /> V2Box</a><details><summary>QR</summary><SubscriptionQr url={publicUrl || service.subscriptionUrl} /></details></>}
+                 {service.awgReady && service.awgConfigUrl ? <a className="console-action console-action-secondary" href={service.awgConfigUrl} download><Download size={13} /> AWG</a> : <span className="console-status is-quiet">AWG آماده نیست</span>}
+                 <button className="console-action console-action-quiet" type="button" disabled={working === service.id} onClick={() => void resetToken(service)}><RefreshCw size={13} /> توکن جدید</button>
+                 <button className="console-action console-action-quiet" type="button" onClick={() => renew(service)}><Plus size={13} /> تمدید</button>
+                 {session?.role === 'reseller' && (service.status !== 'Disabled' || hasSaleLog) && <Button variant="quiet" onClick={() => setActionRequestService(service)}><Trash2 size={13} /> درخواست حذف</Button>}
+               </div></td>
+             </tr>;
+           })}</tbody></table></div> : <StatePanel title="سرویسی مطابق فیلتر نیست" detail="وضعیت، عملیات یا عبارت جست‌وجو را تغییر دهید." />}
         </SectionPanel>
 
         <SectionPanel className="customer-sales-workspace" eyebrow="گردش مالی" title="سابقهٔ فروش" description="تراکنش‌های ثبت‌شده برای همین مشتری." action={<span className="console-status is-quiet">{new Intl.NumberFormat('fa-IR').format(customerSales.length)} فروش</span>}>
-          {customerSales.length ? <div className="customer-console-sales">{customerSales.map((sale) => <article className="console-record customer-sale-record" key={sale.id}><div><strong>{sale.serviceName}</strong><span>{dateLabel(sale.date)} · #{sale.id}</span></div><div><strong>{money(sale.amount)}</strong><span className={`customer-sale-paid ${sale.paid ? 'is-paid' : ''}`}>{sale.paid ? 'پرداخت‌شده' : 'در انتظار پرداخت'}</span></div></article>)}</div> : <StatePanel title="سابقهٔ فروشی وجود ندارد" detail="فروش‌های جدید این مشتری پس از ثبت در POS در این بخش دیده می‌شوند." />}
+           {customerSales.length ? <div className="hope-table-scroll"><table className="hope-data-table" aria-label="تراکنش‌های مشتری"><thead><tr><th>سرویس</th><th>شناسه</th><th>تاریخ</th><th>مبلغ</th><th>وصول</th></tr></thead><tbody>{customerSales.map((sale) => <tr key={sale.id}><td><strong>{sale.serviceName}</strong></td><td><bdi dir="ltr">#{sale.id}</bdi></td><td>{dateLabel(sale.date)}</td><td className="hope-table-amount">{money(sale.amount)}</td><td><span className={`customer-sale-paid ${sale.paid ? 'is-paid' : ''}`}>{sale.paid ? 'پرداخت‌شده' : 'در انتظار پرداخت'}</span></td></tr>)}</tbody></table></div> : <StatePanel title="سابقهٔ فروشی وجود ندارد" detail="فروش‌های جدید این مشتری پس از ثبت در POS در این بخش دیده می‌شوند." />}
         </SectionPanel>
         {actionRequestService && <ServiceActionRequestModal service={actionRequestService} hasSaleLog={customerSales.some((sale) => sale.serviceId === actionRequestService.id)} onClose={() => setActionRequestService(null)} onSubmitted={async () => { await customerDetailQuery.refetch(); await refreshActionRequests(); setNotice('درخواست برای بررسی مدیر اصلی ارسال شد.'); }} />}
       </>;
@@ -3418,7 +3314,7 @@ function SettingsConsole() {
 }
 
 function AdminPricing({ resellers }: { resellers: PulseContextValue['resellers'] }) {
-  return <SectionPanel className="admin-pricing-card" eyebrow="مدیریت مالی" title="قیمت‌گذاری فروشندگان" description="قیمت خرید هر گیگ از مدیر و قیمت فروش هر گیگ به مشتری را برای هر فروشنده جداگانه مشخص کنید." action={<span className="console-metric-icon amber"><CreditCard size={17} /></span>}><div className="console-records admin-reseller-list">{resellers.map((reseller) => <ResellerAdminRow key={reseller.id} reseller={reseller} />)}</div><AdminCreditSale resellers={resellers} /></SectionPanel>;
+  return <SectionPanel className="admin-pricing-card" eyebrow="مدیریت مالی" title="قیمت‌گذاری فروشندگان" description="قیمت خرید هر گیگ از مدیر و قیمت فروش هر گیگ به مشتری را برای هر فروشنده جداگانه مشخص کنید." action={<span className="console-metric-icon amber"><CreditCard size={17} /></span>}><div className="hope-table-scroll"><table className="hope-data-table" aria-label="قیمت‌گذاری فروشندگان"><thead><tr><th>فروشنده و ظرفیت</th><th>قیمت خرید / گیگ</th><th>قیمت فروش / گیگ</th><th>ذخیره</th></tr></thead><tbody>{resellers.map((reseller) => <ResellerAdminRow key={reseller.id} reseller={reseller} />)}</tbody></table></div><AdminCreditSale resellers={resellers} /></SectionPanel>;
 }
 
 function ResellerAdminRow({ reseller }: { reseller: PulseContextValue['resellers'][number] }) {
@@ -3429,7 +3325,7 @@ function ResellerAdminRow({ reseller }: { reseller: PulseContextValue['resellers
     setSaving(true); setMessage('');
     try { const response = await fetch(`/api/resellers/${reseller.id}`, { method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: reseller.enabled, per_gig_price: value, customer_price_per_gb: customerValue }) }); if (!response.ok) throw new Error(); await queryClient.invalidateQueries({ queryKey: getListResellersQueryKey() }); setMessage('ذخیره شد'); } catch { setMessage('ذخیره قیمت ناموفق بود'); } finally { setSaving(false); }
   };
-  return <div className="reseller-admin-row"><div className="avatar avatar-sage">ف</div><div className="min-w-0 flex-1"><p className="text-sm font-bold">{reseller.title || `فروشنده ${reseller.id}`}</p><p className="text-xs text-muted-foreground">{new Intl.NumberFormat('fa-IR').format(reseller.used_gb)} از {new Intl.NumberFormat('fa-IR').format(reseller.total_gb)} گیگ اعتبار</p></div><label className="price-inline"><span>قیمت خرید هر گیگ از مدیر</span><input type="number" min="0" value={price} onChange={(event) => setPrice(event.target.value)} /><small>تومان</small></label><label className="price-inline customer-price-inline"><span>قیمت فروش هر گیگ به مشتری</span><input type="number" min="0" value={customerPrice} onChange={(event) => setCustomerPrice(event.target.value)} /><small>تومان</small></label><Button variant="secondary" className="compact-button" onClick={savePrice} disabled={saving}>{saving ? '...' : 'ذخیره'}</Button>{message && <em>{message}</em>}</div>;
+  return <tr className="reseller-admin-row"><td><div className="hope-table-person"><Avatar name={reseller.title || `فروشنده ${reseller.id}`} color="sage" /><span><strong>{reseller.title || `فروشنده ${reseller.id}`}</strong><small>{new Intl.NumberFormat('fa-IR').format(reseller.used_gb)} از {new Intl.NumberFormat('fa-IR').format(reseller.total_gb)} گیگ اعتبار</small></span></div></td><td><label className="price-inline"><span>خرید از مدیر</span><input type="number" min="0" value={price} onChange={(event) => setPrice(event.target.value)} /><small>تومان</small></label></td><td><label className="price-inline customer-price-inline"><span>فروش به مشتری</span><input type="number" min="0" value={customerPrice} onChange={(event) => setCustomerPrice(event.target.value)} /><small>تومان</small></label></td><td><Button variant="secondary" className="compact-button" onClick={savePrice} disabled={saving}>{saving ? 'در حال ذخیره…' : 'ذخیره'}</Button>{message && <em role="status">{message}</em>}</td></tr>;
 }
 
 function AdminCreditSale({ resellers }: { resellers: PulseContextValue['resellers'] }) {
@@ -3498,14 +3394,9 @@ function ReportsContent() {
         <Metric label="دریافتی کامل مشتری" value={money(summary.paid_customer_revenue)} detail="فقط پرداخت‌های ثبت‌شده" icon={Check} />
       </section>
        <SectionPanel className="report-record-board" eyebrow="بازه گزارش" title={`${dateLabel(report.from)} تا ${dateLabel(report.to)}`} description="فروش و اعتبار ثبت‌شده در بازه انتخاب‌شده." action={<span className="soft-badge">مدیر اصلی</span>}>
-        {reportRows.length ? <div className="report-financial-ledger" role="list">{reportRows.map((item: any, index: number) => <article className="report-financial-row" role="listitem" key={`${item.kind}-${item.id}-${index}`}>
-          <div className="report-row-origin"><span>{numberFa(index + 1, 0)}</span><small>{item.kind}</small></div>
-          <div className="report-row-party"><strong>{item.person}</strong><small>{dateLabel(item.created_at)}</small></div>
-          <div className="report-row-value"><span>حجم</span><strong>{numberFa(item.gb_amount)} گیگ</strong></div>
-          <div className="report-row-value"><span>مبلغ کامل مشتری</span><strong>{item.fullAmount === null ? '—' : money(Number(item.fullAmount))}</strong></div>
-          <div className="report-row-value report-admin-due"><span>قابل پرداخت به مدیر</span><strong>{money(Number(item.amountToAdmin))}</strong></div>
-          <div className="report-row-value"><span>سود مدیر</span><strong>{item.profit === null ? '—' : money(Number(item.profit))}</strong></div>
-        </article>)}</div> : <EmptyState title="تراکنشی در این بازه نیست" detail="تاریخ شروع و پایان را بررسی کنید یا بازه دیگری انتخاب کنید." />}
+         {reportRows.length ? <div className="hope-table-scroll"><table className="hope-data-table" aria-label="گزارش کامل فروش"><thead><tr><th>نوع</th><th>فروشنده و مشتری</th><th>تاریخ</th><th>حجم</th><th>مبلغ مشتری</th><th>قابل پرداخت به مدیر</th><th>سود مدیر</th></tr></thead><tbody>{reportRows.map((item: any, index: number) => <tr key={`${item.kind}-${item.id}-${index}`} data-testid={`row-report-${item.kind}-${item.id}`}>
+           <td><span className="soft-badge">{item.kind}</span></td><td><strong>{item.person}</strong></td><td>{dateLabel(item.created_at)}</td><td>{numberFa(item.gb_amount)} گیگ</td><td>{item.fullAmount === null ? '—' : money(Number(item.fullAmount))}</td><td className="hope-table-amount">{money(Number(item.amountToAdmin))}</td><td>{item.profit === null ? '—' : money(Number(item.profit))}</td>
+         </tr>)}</tbody></table></div> : <EmptyState title="تراکنشی در این بازه نیست" detail="تاریخ شروع و پایان را بررسی کنید یا بازه دیگری انتخاب کنید." />}
        </SectionPanel>
     </>}
   </div>;

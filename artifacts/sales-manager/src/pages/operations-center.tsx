@@ -131,14 +131,14 @@ function RenewalQueue({ rows, onExport }: { rows: JsonRecord[]; onExport: () => 
   });
   return <section className="ops-card ops-card-emphasis">
     <SectionHead kicker="امروز / صف تصمیم" title="صف تمدید روزانه" detail="اولویت با مشتری‌هایی است که پنجره تمدیدشان باز شده است." count={`${numberFormat.format(normalized.length)} مورد`} action={<button className="button button-secondary" type="button" onClick={onExport} disabled={!normalized.length}><Download size={14} /> خروجی CSV</button>} />
-    {!normalized.length ? <div className="ops-state"><Check size={22} /><strong>صف تمدید خالی است</strong><p>در حال حاضر موردی از سوی سرور برای پیگیری امروز گزارش نشده است.</p></div> : <div className="ops-renewal-records">{normalized.map((row) => {
+    {!normalized.length ? <div className="ops-state"><Check size={22} /><strong>صف تمدید خالی است</strong><p>در حال حاضر موردی از سوی سرور برای پیگیری امروز گزارش نشده است.</p></div> : <div className="hope-table-scroll"><table className="hope-data-table" aria-label="صف تمدید روزانه"><thead><tr><th>مشتری</th><th>سرویس</th><th>موعد</th><th>مبلغ تمدید</th><th>اقدام</th></tr></thead><tbody>{normalized.map((row) => {
        const urgent = row.days !== null && row.days <= 2;
-       return <article className="ops-renewal-record" key={row.key}>
-         <header><div className="ops-renewal-person">{row.customerId ? <Link href={`/customers/${row.customerId}`}><strong>{row.customerName}</strong></Link> : <strong>{row.customerName}</strong>}{row.phone && <small dir="ltr">{String(row.phone)}</small>}</div><span className={`ops-days ${urgent ? 'urgent' : ''}`}>{row.days === null ? 'موعد نامشخص' : row.days < 0 ? `${numberFormat.format(Math.abs(row.days))} روز گذشته` : row.days === 0 ? 'امروز' : `${numberFormat.format(row.days)} روز مانده`}</span></header>
-         <div className="ops-renewal-service"><span className="ops-kicker">سرویس</span><strong>{row.serviceName}</strong><small>{safeDate(row.expires)}</small></div>
-         <div className="ops-renewal-footer"><div><span className="ops-kicker">مبلغ تمدید</span><strong className="ops-ltr">{moneyValue(row.amount)}</strong></div><div className="ops-row-actions">{row.customerId && <Link className="button button-quiet" href={`/pos?customer=${encodeURIComponent(String(row.customerId))}`}><ShoppingCart size={13} /><span>فروش تکراری</span></Link>}{row.customerId && <Link className="button button-secondary" href={`/customers/${row.customerId}`}><Users size={13} /><span>پرونده</span></Link>}</div></div>
-       </article>;
-     })}</div>}
+        return <tr key={row.key} className={urgent ? 'is-urgent' : ''}>
+          <td>{row.customerId ? <Link href={`/customers/${row.customerId}`} className="hope-table-person"><span><strong>{row.customerName}</strong><small>{row.phone ? String(row.phone) : 'شماره ثبت نشده'}</small></span></Link> : <strong>{row.customerName}</strong>}</td>
+          <td>{row.serviceName}</td><td><span className={`ops-days ${urgent ? 'urgent' : ''}`}>{row.days === null ? 'موعد نامشخص' : row.days < 0 ? `${numberFormat.format(Math.abs(row.days))} روز گذشته` : row.days === 0 ? 'امروز' : `${numberFormat.format(row.days)} روز مانده`}</span><small className="hope-table-subline">{safeDate(row.expires)}</small></td>
+          <td className="hope-table-amount">{moneyValue(row.amount)}</td><td><div className="hope-table-actions">{row.customerId && <Link className="button button-quiet" href={`/pos?customer=${encodeURIComponent(String(row.customerId))}`}><ShoppingCart size={13} /> فروش تکراری</Link>}{row.customerId && <Link className="button button-secondary" href={`/customers/${row.customerId}`}><Users size={13} /> پرونده</Link>}</div></td>
+        </tr>;
+      })}</tbody></table></div>}
   </section>;
 }
 
@@ -158,11 +158,11 @@ function CreditForecast({ source }: { source: JsonRecord }) {
 }
 
 function TopCustomers({ customers }: { customers: JsonRecord[] }) {
-  return <section className="ops-card"><SectionHead kicker="رابطه مشتری" title="مشتری‌های برتر" detail="برای تکرار فروش، بدون خروج از ریتم کاری." />{!customers.length ? <div className="ops-state"><Users size={21} /><strong>مشتری برتری گزارش نشده</strong><p>این فهرست فقط از پاسخ مرکز عملیات پر می‌شود.</p></div> : <div className="ops-customer-list">{customers.map((item, index) => {
+  return <section className="ops-card"><SectionHead kicker="رابطه مشتری" title="مشتری‌های برتر" detail="برای تکرار فروش، بدون خروج از ریتم کاری." />{!customers.length ? <div className="ops-state"><Users size={21} /><strong>مشتری برتری گزارش نشده</strong><p>این فهرست فقط از پاسخ مرکز عملیات پر می‌شود.</p></div> : <div className="hope-table-scroll"><table className="hope-data-table" aria-label="مشتری‌های برتر"><thead><tr><th>مشتری</th><th>خرید</th><th>مجموع پرداخت</th><th>اقدام</th></tr></thead><tbody>{customers.map((item, index) => {
     const name = textValue(first(item, ['name', 'customer_name', 'customerName']));
     const id = first(item, ['id', 'customer_id', 'customerId']);
-    return <div className="ops-mini-row" key={String(id ?? index)}><div className="ops-mini-main"><span className="avatar avatar-teal">{initials(name)}</span><div className="ops-mini-copy"><strong>{name}</strong><span>{countValue(first(item, ['orders_count', 'purchase_count', 'sale_count']))} خرید · {textValue(first(item, ['phone']), 'شماره ثبت نشده')}</span></div></div><div className="ops-mobile-stack"><span className="ops-mini-value">{moneyValue(first(item, ['total_spend', 'spend', 'revenue']))}</span>{id && <Link className="icon-button" href={`/customers/${id}`} aria-label={`باز کردن پرونده ${name}`}><ArrowLeft size={15} /></Link>}</div></div>;
-  })}</div>}</section>;
+    return <tr key={String(id ?? index)}><td><strong>{name}</strong><small className="hope-table-subline">{textValue(first(item, ['phone']), 'شماره ثبت نشده')}</small></td><td>{countValue(first(item, ['orders_count', 'purchase_count', 'sale_count']))} خرید</td><td className="hope-table-amount">{moneyValue(first(item, ['total_spend', 'spend', 'revenue']))}</td><td>{id && <Link className="button button-quiet" href={`/customers/${id}`} aria-label={`باز کردن پرونده ${name}`}><ArrowLeft size={14} /> پرونده</Link>}</td></tr>;
+  })}</tbody></table></div>}</section>;
 }
 
 function RepeatSaleLinks({ customers }: { customers: JsonRecord[] }) {
@@ -206,24 +206,21 @@ function ResellerView({ command, onExport }: { command: JsonRecord; onExport: (r
 }
 
 function ProviderControlTower({ providers }: { providers: JsonRecord[] }) {
-  return <section className="ops-card"><SectionHead kicker="زیرساخت / سلامت لحظه‌ای" title="برج کنترل Providerها" detail="تنها وضعیت اتصال نمایش داده می‌شود؛ مقادیر credential هرگز در رابط کاربری نشان داده نمی‌شوند." count={`${numberFormat.format(providers.length)} اتصال`} /><div className="ops-provider-list">{!providers.length ? <div className="ops-state"><Cloud size={21} /><strong>Providerی گزارش نشده</strong><p>پاسخ سرور فهرست providerهای قابل پایش را برنگردانده است.</p></div> : providers.map((item, index) => {
+  return <section className="ops-card"><SectionHead kicker="زیرساخت / سلامت لحظه‌ای" title="برج کنترل Providerها" detail="تنها وضعیت اتصال نمایش داده می‌شود؛ مقادیر credential هرگز در رابط کاربری نشان داده نمی‌شوند." count={`${numberFormat.format(providers.length)} اتصال`} />{!providers.length ? <div className="ops-state"><Cloud size={21} /><strong>Providerی گزارش نشده</strong><p>پاسخ سرور فهرست providerهای قابل پایش را برنگردانده است.</p></div> : <div className="hope-table-scroll"><table className="hope-data-table" aria-label="سلامت Providerها"><thead><tr><th>Provider</th><th>آخرین بررسی</th><th>وضعیت</th></tr></thead><tbody>{providers.map((item, index) => {
     const rawStatus = first(item, ['status', 'health', 'state', 'connection_status']);
     const enabled = first(item, ['enabled', 'active']);
     const label = rawStatus ? undefined : enabled === false ? 'غیرفعال' : undefined;
-    return <div className="ops-provider" key={String(first(item, ['id', 'key', 'name']) ?? index)}><span className="ops-provider-mark">{initials(textValue(first(item, ['name', 'label', 'key']), 'P'))}</span><div className="ops-provider-copy"><strong>{textValue(first(item, ['name', 'label', 'key']), 'Provider')}</strong><span>{textValue(first(item, ['last_checked_at', 'checked_at', 'last_check']), 'آخرین بررسی ثبت نشده')}</span></div><StatusTreatment status={enabled === false ? 'disabled' : rawStatus} label={label} /></div>;
-  })}</div></section>;
+    return <tr key={String(first(item, ['id', 'key', 'name']) ?? index)}><td><strong>{textValue(first(item, ['name', 'label', 'key']), 'Provider')}</strong></td><td>{textValue(first(item, ['last_checked_at', 'checked_at', 'last_check']), 'آخرین بررسی ثبت نشده')}</td><td><StatusTreatment status={enabled === false ? 'disabled' : rawStatus} label={label} /></td></tr>;
+  })}</tbody></table></div>}</section>;
 }
 
 function ResellerHealth({ rows }: { rows: JsonRecord[] }) {
   return <section className="ops-card ops-reseller-health"><SectionHead kicker="شبکه فروش" title="سلامت فروشنده‌ها" detail="ظرفیت، فروش اخیر و وضعیت عملیاتی؛ بدون افشای اطلاعات حساس." count={`${numberFormat.format(rows.length)} فروشنده`} />
-    {!rows.length ? <div className="ops-state"><Users size={21} /><strong>فروشنده‌ای برای پایش نیست</strong><p>این فهرست فقط با داده برگشتی مرکز عملیات تکمیل می‌شود.</p></div> : <div className="ops-reseller-grid">{rows.map((item, index) => {
+    {!rows.length ? <div className="ops-state"><Users size={21} /><strong>فروشنده‌ای برای پایش نیست</strong><p>این فهرست فقط با داده برگشتی مرکز عملیات تکمیل می‌شود.</p></div> : <div className="hope-table-scroll"><table className="hope-data-table" aria-label="سلامت شبکه فروشندگان"><thead><tr><th>فروشنده</th><th>وضعیت</th><th>ظرفیت باقی‌مانده</th><th>مصرف‌شده</th><th>فروش اخیر</th><th>درآمد</th></tr></thead><tbody>{rows.map((item, index) => {
       const name = textValue(first(item, ['name', 'title', 'reseller_name']), 'فروشنده');
       const id = first(item, ['id', 'reseller_id', 'telegram_id']);
-      return <article className="ops-reseller-card" key={String(id ?? index)}>
-        <header><span className="ops-provider-mark">{initials(name)}</span><div className="ops-reseller-identity"><strong>{name}</strong><small dir="ltr">{textValue(first(item, ['telegram_id', 'phone']), 'شناسه ثبت نشده')}</small></div><StatusTreatment status={first(item, ['status', 'health', 'state'])} label={first(item, ['status_label', 'health_label']) as string | undefined} /></header>
-        <dl><div><dt>ظرفیت باقی‌مانده</dt><dd>{decimalValue(first(item, ['remaining_gb', 'available_gb', 'credit_remaining_gb']), ' GB')}</dd></div><div><dt>مصرف‌شده</dt><dd>{decimalValue(first(item, ['used_gb', 'consumed_gb']), ' GB')}</dd></div><div><dt>فروش اخیر</dt><dd>{countValue(first(item, ['sales_today', 'sales_count', 'sale_count']))} فروش</dd></div><div><dt>درآمد</dt><dd>{moneyValue(first(item, ['revenue_today', 'revenue', 'customer_revenue']))}</dd></div></dl>
-      </article>;
-    })}</div>}
+      return <tr key={String(id ?? index)}><td><strong>{name}</strong><small className="hope-table-subline" dir="ltr">{textValue(first(item, ['telegram_id', 'phone']), 'شناسه ثبت نشده')}</small></td><td><StatusTreatment status={first(item, ['status', 'health', 'state'])} label={first(item, ['status_label', 'health_label']) as string | undefined} /></td><td>{decimalValue(first(item, ['remaining_gb', 'available_gb', 'credit_remaining_gb']), ' GB')}</td><td>{decimalValue(first(item, ['used_gb', 'consumed_gb']), ' GB')}</td><td>{countValue(first(item, ['sales_today', 'sales_count', 'sale_count']))} فروش</td><td className="hope-table-amount">{moneyValue(first(item, ['revenue_today', 'revenue', 'customer_revenue']))}</td></tr>;
+    })}</tbody></table></div>}
   </section>;
 }
 
@@ -241,7 +238,7 @@ function FinanceReconciliation({ finance }: { finance: JsonRecord }) {
 }
 
 function AuditLog({ entries, error }: { entries: JsonRecord[]; error: boolean }) {
-  return <section className="ops-card"><SectionHead kicker="ردپای تغییرات" title="گزارش ممیزی" detail="صد رویداد اخیر از endpoint مدیریتی." count={error ? 'خطا' : `${numberFormat.format(entries.length)} رویداد`} />{error ? <div className="ops-state"><AlertTriangle size={21} /><strong>گزارش ممیزی بارگذاری نشد</strong><p>این بخش به دلیل محدودیت دسترسی یا خطای سرویس قابل نمایش نیست.</p></div> : !entries.length ? <div className="ops-state"><FileText size={21} /><strong>رویدادی ثبت نشده</strong><p>برای این بازه رکورد ممیزی از سرور دریافت نشده است.</p></div> : <div className="ops-audit-list">{entries.slice(0, 100).map((item, index) => <div className="ops-audit" key={String(first(item, ['id', 'event_id', 'created_at']) ?? index)}><span className="ops-audit-icon"><ShieldCheck size={14} /></span><div className="ops-audit-copy"><strong>{textValue(first(item, ['action', 'event', 'type']), 'رویداد سیستم')}</strong><span>{textValue(first(item, ['description', 'detail', 'message', 'resource']), 'جزئیات رویداد ثبت نشده')}</span><time>{rawDateTime(first(item, ['created_at', 'timestamp', 'occurred_at', 'time']))} · {textValue(first(item, ['actor_name', 'actor', 'performed_by']), 'کاربر سیستم')}</time></div></div>)}</div>}</section>;
+  return <section className="ops-card"><SectionHead kicker="ردپای تغییرات" title="گزارش ممیزی" detail="صد رویداد اخیر از endpoint مدیریتی." count={error ? 'خطا' : `${numberFormat.format(entries.length)} رویداد`} />{error ? <div className="ops-state"><AlertTriangle size={21} /><strong>گزارش ممیزی بارگذاری نشد</strong><p>این بخش به دلیل محدودیت دسترسی یا خطای سرویس قابل نمایش نیست.</p></div> : !entries.length ? <div className="ops-state"><FileText size={21} /><strong>رویدادی ثبت نشده</strong><p>برای این بازه رکورد ممیزی از سرور دریافت نشده است.</p></div> : <div className="hope-table-scroll"><table className="hope-data-table" aria-label="گزارش ممیزی عملیات"><thead><tr><th>رویداد</th><th>جزئیات</th><th>زمان</th><th>کاربر</th></tr></thead><tbody>{entries.slice(0, 100).map((item, index) => <tr key={String(first(item, ['id', 'event_id', 'created_at']) ?? index)}><td><strong>{textValue(first(item, ['action', 'event', 'type']), 'رویداد سیستم')}</strong></td><td>{textValue(first(item, ['description', 'detail', 'message', 'resource']), 'جزئیات رویداد ثبت نشده')}</td><td>{rawDateTime(first(item, ['created_at', 'timestamp', 'occurred_at', 'time']))}</td><td>{textValue(first(item, ['actor_name', 'actor', 'performed_by']), 'کاربر سیستم')}</td></tr>)}</tbody></table></div>}</section>;
 }
 
 function AdminView({ command, audit, auditError, onExport }: { command: JsonRecord; audit: JsonRecord[]; auditError: boolean; onExport: () => void }) {

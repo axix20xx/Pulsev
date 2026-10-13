@@ -411,6 +411,169 @@
   .pulse-workspace *, .admin-console:not(.public-sub-v3) * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
+/* Hope-style data workbench components used by the rebuilt route interiors. */
+.pulse-workspace .hope-admin-page .hope-table-subline {
+  display: block;
+  margin-top: 4px;
+  color: hsl(218 10% 56%);
+  font-size: 8px;
+  line-height: 1.55;
+  white-space: normal;
+}
+.pulse-workspace .hope-admin-page .hope-table-amount { color: hsl(220 24% 23%); font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pulse-workspace .hope-admin-page .hope-table-actions { flex-wrap: wrap; min-width: 185px; }
+.pulse-workspace .hope-admin-page .hope-table-actions a,
+.pulse-workspace .hope-admin-page .hope-table-actions button { min-height: 27px; padding: 4px 7px; font-size: 8px; }
+.pulse-workspace .hope-admin-page .hope-table-actions details,
+.pulse-workspace .hope-admin-page td > details { position: relative; }
+.pulse-workspace .hope-admin-page td details summary { color: hsl(228 68% 51%); cursor: pointer; font-size: 9px; font-weight: 700; }
+.pulse-workspace .hope-admin-page td details > div,
+.pulse-workspace .hope-admin-page td details > p { max-width: 420px; border: 1px solid hsl(216 25% 90%); border-radius: 6px; background: white; padding: 9px; color: hsl(220 19% 33%); font-size: 9px; line-height: 1.7; }
+.pulse-workspace .hope-admin-page td details p { margin: 0; }
+.pulse-workspace .hope-admin-page td details p + p { margin-top: 5px; }
+.pulse-workspace .hope-admin-page td details small { color: hsl(218 10% 55%); }
+.pulse-workspace .hope-admin-page .hope-data-table .service-inventory-meter,
+.pulse-workspace .hope-admin-page .hope-data-table .connection-user-meter {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  margin-top: 7px;
+  border-radius: 99px;
+  background: hsl(216 26% 92%);
+}
+.pulse-workspace .hope-admin-page .hope-data-table .service-inventory-meter i,
+.pulse-workspace .hope-admin-page .hope-data-table .connection-user-meter i { display: block; height: 100%; border-radius: inherit; background: hsl(228 78% 57%); }
+.pulse-workspace .hope-page-register .service-register-table { min-width: 1040px; }
+.pulse-workspace .hope-page-record .customer-service-table { min-width: 940px; }
+.pulse-workspace .hope-page-report .hope-data-table { min-width: 820px; }
+.pulse-workspace .hope-page-monitor .hope-data-table { min-width: 820px; }
+.pulse-workspace .hope-page-ledger .accounting-bar { margin-top: 5px; background: hsl(216 26% 92%); }
+.pulse-workspace .hope-page-queue .action-request-status-stack { display: grid; gap: 4px; }
+.pulse-workspace .hope-page-queue .action-request-row-controls { display: flex; min-width: 240px; flex-wrap: wrap; align-items: center; gap: 4px; }
+.pulse-workspace .hope-page-queue .action-request-row-controls .console-action { min-height: 26px; padding: 4px 7px; font-size: 8px; }
+.pulse-workspace .hope-page-queue .action-request-more > div { margin-top: 5px; }
+.pulse-workspace .hope-page-monitor .connection-user-mark { display: grid; width: 27px; height: 27px; flex: 0 0 27px; place-items: center; border-radius: 6px; background: hsl(220 100% 96%); color: hsl(228 78% 55%); }
+.pulse-workspace .hope-page-monitor .connection-user-state { display: inline-flex; align-items: center; gap: 5px; border-radius: 99px; background: hsl(216 26% 95%); padding: 4px 7px; color: hsl(218 10% 49%); font-size: 8px; font-weight: 700; white-space: nowrap; }
+.pulse-workspace .hope-page-monitor .connection-user-state i { width: 6px; height: 6px; border-radius: 50%; background: hsl(218 10% 62%); }
+.pulse-workspace .hope-page-monitor .connection-user-state.online { background: hsl(153 55% 94%); color: hsl(153 46% 37%); }
+.pulse-workspace .hope-page-monitor .connection-user-state.online i { background: hsl(153 52% 45%); }
+.pulse-workspace .hope-page-monitor .action-request-record.needs-decision { background: hsl(220 100% 99%); }
+.pulse-workspace .hope-page-monitor .ops-card,
+.pulse-workspace .hope-page-monitor .audit-results { overflow: hidden; }
+
+/* Admin storefront manager shares the Hope shell; public storefront retains its own identity. */
+.admin-console.store-manager-console {
+  --sf-ink: #2c3545;
+  --sf-muted: #7b8493;
+  --sf-paper: #f4f7fb;
+  --sf-card: #ffffff;
+  --sf-line: #e3e9f1;
+  --sf-teal: #3a57e8;
+  --sf-coral: #e2645a;
+}
+.admin-console.store-manager-console .hope-storefront-builder { width: 100%; max-width: 1640px; padding: 0; }
+.admin-console.store-manager-console .store-manager-overview,
+.admin-console.store-manager-console .store-panel { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.admin-console.store-manager-console .store-manager-overview { display: flex; min-width: 0; align-items: center; gap: 12px; margin-top: 3px; padding: 13px 15px; }
+.admin-console.store-manager-console .store-manager-overview-mark { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: 7px; background: hsl(220 100% 96%); color: hsl(228 78% 55%); }
+.admin-console.store-manager-console .store-manager-overview-copy { display: grid; min-width: 0; gap: 3px; }
+.admin-console.store-manager-console .store-manager-overview-copy small { color: hsl(218 10% 56%); font-size: 9px; }
+.admin-console.store-manager-console .store-manager-overview-copy strong { color: hsl(220 24% 23%); font-size: 13px; }
+.admin-console.store-manager-console .store-manager-overview-copy code { overflow-wrap: anywhere; color: hsl(218 10% 51%); font-size: 9px; }
+.admin-console.store-manager-console .store-manager-state { margin-inline-start: auto; border-radius: 99px; background: hsl(153 55% 94%); padding: 6px 9px; color: hsl(153 46% 37%); font-size: 9px; }
+.admin-console.store-manager-console .store-manager-state.disabled { background: hsl(4 75% 96%); color: hsl(4 60% 50%); }
+.admin-console.store-manager-console .store-performance-deck { grid-template-columns: repeat(4,minmax(0,1fr)); border-radius: 8px; }
+.admin-console.store-manager-console .store-panel { padding: 16px; }
+.admin-console.store-manager-console .store-offer-row { border-radius: 7px; background: hsl(216 33% 98%); }
+.admin-console.store-manager-console .store-toggle { border-radius: 6px; background: hsl(216 33% 97%); }
+.admin-console.store-manager-console .store-offer-fields input,
+.admin-console.store-manager-console .store-field input,
+.admin-console.store-manager-console .store-field textarea { border-radius: 6px; }
+.admin-console.store-manager-console .store-lead-controls { min-width: 350px; grid-template-columns: 108px minmax(120px,1fr) auto; margin-top: 6px; }
+.admin-console.store-manager-console .store-lead-controls button { min-height: 32px; border-radius: 5px; background: hsl(228 78% 57%); color: white; }
+.admin-console.store-manager-console .store-status { display: inline-flex; }
+.admin-console.store-manager-console .store-lead { border: 0; background: white; padding: 0; }
+
+/* Standalone Hope-like credential view, separate from the authenticated shell. */
+.admin-console.hope-auth-page {
+  display: grid;
+  min-height: 100dvh;
+  grid-template-columns: minmax(0,1fr) minmax(360px,480px);
+  align-items: center;
+  gap: clamp(20px,5vw,70px);
+  overflow: hidden;
+  background: hsl(216 33% 96%);
+  padding: clamp(22px,5vw,72px);
+}
+.hope-auth-aside {
+  position: relative;
+  display: flex;
+  min-height: min(690px, calc(100dvh - 44px));
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 9px;
+  background: linear-gradient(135deg,hsl(228 78% 55%),hsl(216 78% 60%));
+  padding: clamp(22px,4vw,50px);
+  color: white;
+}
+.hope-auth-brand { position: relative; z-index: 2; display: flex; align-items: center; gap: 10px; }
+.hope-auth-brand-mark { display: grid; width: 37px; height: 37px; place-items: center; border-radius: 7px; background: hsl(0 0% 100% / .17); }
+.hope-auth-brand > span:last-child { display: grid; gap: 1px; }
+.hope-auth-brand strong { font-size: 16px; }
+.hope-auth-brand small { color: hsl(0 0% 100% / .75); font-size: 9px; }
+.hope-auth-art { position: relative; display: grid; min-height: 260px; flex: 1; place-items: center; }
+.hope-auth-art-orbit { position: absolute; width: 210px; height: 210px; border: 1px solid hsl(0 0% 100% / .23); border-radius: 50%; }
+.hope-auth-art-orbit.orbit-a { width: 272px; height: 272px; }
+.hope-auth-art-orbit.orbit-b { width: 354px; height: 354px; opacity: .55; }
+.hope-auth-art-core { display: grid; width: 104px; height: 104px; place-items: center; border: 1px solid hsl(0 0% 100% / .32); border-radius: 23px; background: hsl(0 0% 100% / .15); }
+.auth-art-chip { position: absolute; display: flex; align-items: center; gap: 7px; border: 1px solid hsl(0 0% 100% / .24); border-radius: 5px; background: hsl(0 0% 100% / .13); padding: 8px 10px; font-size: 9px; }
+.auth-art-chip.chip-a { top: 23%; right: 16%; }
+.auth-art-chip.chip-b { bottom: 20%; left: 13%; }
+.hope-auth-copy { position: relative; z-index: 1; }
+.hope-auth-kicker { color: hsl(0 0% 100% / .74); font-size: 9px; font-weight: 750; letter-spacing: .12em; }
+.hope-auth-copy h1 { margin: 10px 0 8px; font-size: clamp(27px,4vw,42px); line-height: 1.3; font-weight: 750; }
+.hope-auth-copy p { max-width: 430px; margin: 0; color: hsl(0 0% 100% / .8); font-size: 11px; line-height: 1.8; }
+.hope-auth-card { width: 100%; border: 1px solid hsl(216 25% 90%); border-radius: 8px; background: white; padding: clamp(22px,3vw,35px); box-shadow: 0 8px 28px hsl(220 25% 35% / .07); }
+.hope-auth-card-top { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid hsl(216 25% 92%); padding-bottom: 13px; }
+.hope-auth-lock { display: inline-flex; align-items: center; gap: 6px; color: hsl(218 10% 53%); font-size: 9px; }
+.hope-auth-step { border-radius: 4px; background: hsl(220 100% 96%); padding: 5px 8px; color: hsl(228 72% 51%); font-size: 8px; font-weight: 700; }
+.hope-auth-heading { margin: 26px 0 20px; }
+.hope-auth-heading h2 { margin: 5px 0 4px; color: hsl(220 24% 23%); font-size: 25px; font-weight: 750; }
+.hope-auth-heading p { margin: 0; color: hsl(218 11% 53%); font-size: 10px; }
+.hope-auth-form { display: grid; gap: 8px; }
+.hope-auth-input { display: flex; min-height: 43px; align-items: center; gap: 9px; border: 1px solid hsl(216 25% 89%); border-radius: 6px; padding-inline: 11px; color: hsl(228 78% 57%); }
+.hope-auth-input:focus-within { border-color: hsl(228 78% 57%); box-shadow: 0 0 0 3px hsl(228 78% 57% / .09); }
+.hope-auth-input input { width: 100%; border: 0; outline: 0; background: transparent; color: hsl(220 24% 23%); font: inherit; }
+.hope-auth-hint { color: hsl(218 10% 57%); font-size: 9px; }
+.hope-auth-submit { min-height: 42px; justify-content: center; margin-top: 12px; }
+.hope-auth-security { display: flex; align-items: center; gap: 7px; margin-top: 25px; border-top: 1px solid hsl(216 25% 92%); padding-top: 13px; color: hsl(218 10% 56%); font-size: 9px; }
+.admin-console .console-login-success { display: grid; gap: 10px; }
+
+@media (max-width: 780px) {
+  .admin-console.hope-auth-page { min-height: 100dvh; grid-template-columns: 1fr; gap: 12px; padding: 14px; }
+  .hope-auth-aside { min-height: auto; padding: 16px; }
+  .hope-auth-art { position: absolute; inset: 24px 0 auto auto; width: 145px; min-height: 150px; opacity: .62; }
+  .hope-auth-art-orbit { width: 90px; height: 90px; }
+  .hope-auth-art-orbit.orbit-a { width: 120px; height: 120px; }
+  .hope-auth-art-orbit.orbit-b { width: 150px; height: 150px; }
+  .hope-auth-art-core { width: 48px; height: 48px; border-radius: 12px; }
+  .hope-auth-art-core svg { width: 25px; }
+  .auth-art-chip { display: none; }
+  .hope-auth-copy { margin-top: 20px; }
+  .hope-auth-copy h1 { margin: 5px 0; font-size: 25px; }
+  .hope-auth-copy p { max-width: 65%; font-size: 9px; }
+  .hope-auth-card { max-width: 600px; justify-self: center; }
+  .admin-console.store-manager-console .store-manager-grid { grid-template-columns: 1fr; }
+  .admin-console.store-manager-console .store-performance-deck { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 520px) {
+  .hope-auth-aside { padding: 13px; }
+  .hope-auth-art { top: 12px; right: -12px; }
+  .hope-auth-copy p { max-width: 70%; }
+  .hope-auth-card { padding: 18px; }
+  .admin-console.store-manager-console .store-panel { padding: 12px; }
+}
+
 /* Route-specific visual grammar on the actual route-owned main elements. */
 
 /* Dashboard route: blue welcome hero, compact analytic row, dominant chart and register. */
@@ -513,26 +676,6 @@
 .pulse-workspace .hope-pattern-settings .settings-console-nav a[aria-current="page"] { border-color: hsl(228 78% 57%); background: hsl(220 100% 96%); color: hsl(228 78% 53%); }
 .pulse-workspace .hope-pattern-detail :is(.customer-profile-header,.customer-profile-workbench,.smart-detail-summary,.smart-focus-workbench,.console-not-found-card) { border-color: hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
 .pulse-workspace .hope-pattern-detail :is(.customer-profile-hero,.customer-crm-workspace,.customer-services-workspace,.customer-sales-workspace,.smart-detail-evidence,.smart-detail-actions) { border-color: hsl(216 25% 91%); border-radius: 7px; background: white; }
-
-.pulse-workspace .hope-auth-layout { min-height: 100dvh; background: hsl(216 33% 96%); }
-.pulse-workspace .hope-auth-layout .console-login-intro { background: hsl(228 78% 57%); }
-.pulse-workspace .hope-auth-layout .console-login-panel { border-radius: 8px; }
-.pulse-workspace .hope-auth-layout .console-login-submit { border-radius: 5px; }
-.admin-console.hope-auth-layout {
-  display: grid;
-  min-height: 100dvh;
-  align-items: stretch;
-  background: hsl(216 33% 96%);
-  color: hsl(220 24% 23%);
-}
-.admin-console.hope-auth-layout .console-login-intro {
-  background:
-    radial-gradient(ellipse at 18% 87%, transparent 0 23%,hsl(0 0% 100% / .15) 23.2% 23.7%,transparent 23.9% 36%,hsl(0 0% 100% / .1) 36.2% 36.7%,transparent 36.9%),
-    linear-gradient(135deg,hsl(228 78% 56%),hsl(217 76% 62%));
-}
-.admin-console.hope-auth-layout .console-login-panel { align-self: center; border: 1px solid hsl(216 25% 90%); border-radius: 8px; background: white; box-shadow: 0 9px 30px hsl(220 25% 35% / .08); }
-.admin-console.hope-auth-layout .console-login-mark { border-radius: 7px; background: hsl(0 0% 100% / .16); }
-.admin-console.hope-auth-layout .console-login-submit { border-radius: 5px; background: hsl(228 78% 57%); }
 
 @media (max-width: 900px) {
   .pulse-workspace .hope-pattern-dashboard .overview-workbench { grid-template-columns: minmax(0,1.5fr) minmax(250px,.9fr); }
@@ -702,77 +845,3 @@
   .pulse-workspace .hope-page-monitor .awg-worker-overview { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
-/* Keep the authentication view readable at every width in the new Hope shell. */
-.admin-console.hope-auth-layout {
-  width: 100%;
-  min-height: 100svh;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 430px);
-  align-items: center;
-  gap: clamp(24px, 6vw, 88px);
-  overflow-x: hidden;
-  padding: clamp(24px, 6vw, 88px);
-}
-.admin-console.hope-auth-layout .console-login-intro {
-  width: 100%;
-  max-width: 680px;
-  justify-self: stretch;
-  border-radius: 10px;
-  padding: clamp(24px, 4vw, 48px);
-  color: white;
-}
-.admin-console.hope-auth-layout .console-login-brand,
-.admin-console.hope-auth-layout .console-login-brand small,
-.admin-console.hope-auth-layout .console-login-copy h1,
-.admin-console.hope-auth-layout .console-login-copy > p:last-child,
-.admin-console.hope-auth-layout .console-login-foot { color: white; }
-.admin-console.hope-auth-layout .console-login-brand small,
-.admin-console.hope-auth-layout .console-login-copy > p:last-child { color: hsl(0 0% 100% / .82); }
-.admin-console.hope-auth-layout .console-login-copy { margin-top: clamp(28px, 6vh, 56px); }
-.admin-console.hope-auth-layout .console-login-copy h1 {
-  max-width: 12ch;
-  font-size: clamp(42px, 6vw, 72px);
-  letter-spacing: 0;
-  line-height: 1.15;
-}
-.admin-console.hope-auth-layout .console-login-copy h1 em { color: #7fe4eb; }
-.admin-console.hope-auth-layout .console-login-promises { width: 100%; max-width: 520px; }
-.admin-console.hope-auth-layout .console-login-promises article {
-  border-color: hsl(0 0% 100% / .28);
-  border-radius: 7px;
-  background: hsl(0 0% 100% / .12);
-  color: white;
-  box-shadow: none;
-}
-.admin-console.hope-auth-layout .console-login-promises small { color: hsl(0 0% 100% / .76); }
-.admin-console.hope-auth-layout .console-login-promises article > span { background: white; color: #3a57e8; }
-.admin-console.hope-auth-layout .console-login-foot { color: white; }
-.admin-console.hope-auth-layout .console-login-panel {
-  width: 100%;
-  justify-self: stretch;
-  align-self: center;
-  border-radius: 8px;
-  padding: clamp(22px, 3vw, 34px);
-}
-@media (max-width: 780px) {
-  .admin-console.hope-auth-layout {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    padding: 18px;
-  }
-  .admin-console.hope-auth-layout .console-login-intro,
-  .admin-console.hope-auth-layout .console-login-panel {
-    width: 100%;
-    max-width: 600px;
-    justify-self: center;
-  }
-  .admin-console.hope-auth-layout .console-login-copy { margin-top: 24px; }
-  .admin-console.hope-auth-layout .console-login-copy h1 { font-size: clamp(34px, 9vw, 44px); }
-}
-@media (max-width: 520px) {
-  .admin-console.hope-auth-layout { gap: 12px; padding: 14px; }
-  .admin-console.hope-auth-layout .console-login-intro { padding: 19px; }
-  .admin-console.hope-auth-layout .console-login-promises { gap: 7px; margin-top: 14px; }
-  .admin-console.hope-auth-layout .console-login-promises article { padding: 8px; }
-  .admin-console.hope-auth-layout .console-login-foot { margin-top: 14px; }
-  .admin-console.hope-auth-layout .console-login-panel { padding: 19px; }
-}

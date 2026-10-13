@@ -329,56 +329,21 @@ function ProviderAccountAuditPage() {
                 </button>
               </div>
 
-              <div className="audit-match-list">
-                {matches.map((match) => {
+              <div className="hope-table-scroll">
+                <table className="hope-data-table" aria-label="حساب‌های غیرفعال یافته‌شده"><thead><tr><th><button type="button" className="audit-select-all" onClick={toggleAll} disabled={repairing}>{allSelected ? 'لغو همه' : 'انتخاب'}</button></th><th>مشتری / سرویس</th><th>Provider</th><th>طرح / انقضا</th><th>حجم باقی‌مانده</th><th>نتیجه اصلاح</th></tr></thead><tbody>{matches.map((match) => {
                   const key = rowKey(match);
                   const state = repairStates[key];
                   return (
-                    <article className={`audit-match ${state ? `has-${state.outcome}` : ''}`} key={key} data-testid={`row-audit-match-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>
-                      <button
-                        type="button"
-                        className={`audit-checkbox ${selected.has(key) ? 'checked' : ''}`}
-                        role="checkbox"
-                        aria-checked={selected.has(key)}
-                        aria-label={`انتخاب سرویس ${match.service_code}`}
-                        disabled={repairing || Boolean(state)}
-                        onClick={() => setSelected((current) => {
-                          const next = new Set(current);
-                          if (next.has(key)) next.delete(key);
-                          else next.add(key);
-                          return next;
-                        })}
-                        data-testid={`button-select-match-${match.service_id}-${encodeURIComponent(match.provider_key)}`}
-                      >
-                        {selected.has(key) && <Check size={14} />}
-                      </button>
-                      <div className="audit-match-main">
-                        <div className="audit-match-title">
-                          <div className="audit-person">
-                            <strong data-testid={`value-customer-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.customer_name || 'نامشخص'}</strong>
-                            <span className="audit-service-code" dir="ltr" data-testid={`value-service-code-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.service_code}</span>
-                          </div>
-                          <span className="audit-disabled-pill" data-testid={`status-provider-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>غیرفعال در ارائه‌دهنده</span>
-                        </div>
-                        <div className="audit-match-details">
-                          <span><small>نام کاربری</small><b dir="ltr" data-testid={`value-username-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.username}</b></span>
-                          <span><small>پنل</small><b dir="ltr" data-testid={`value-provider-key-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.provider_key}</b></span>
-                          <span><small>نوع ارائه‌دهنده</small><b dir="ltr" data-testid={`value-provider-kind-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.provider_kind}</b></span>
-                          <span><small>طرح</small><b data-testid={`value-plan-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.plan || '—'}</b></span>
-                          <span><small>انقضا</small><b data-testid={`value-expiry-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{formatDate(match.expires_at)}</b></span>
-                          <span><small>حجم باقی‌مانده</small><b data-testid={`value-remaining-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{formatBytes(match.remaining_bytes)}</b></span>
-                        </div>
-                        {state && (
-                          <div className={`audit-row-result ${state.outcome}`} role="status" data-testid={`status-repair-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>
-                            {state.outcome === 'repaired' ? <CheckCircle2 size={15} /> : state.outcome === 'skipped' ? <ArrowDownLeft size={15} /> : <AlertTriangle size={15} />}
-                            <strong>{state.outcome === 'repaired' ? 'اصلاح شد' : state.outcome === 'skipped' ? 'رد شد' : 'ناموفق'}</strong>
-                            <span>{state.message}</span>
-                          </div>
-                        )}
-                      </div>
-                    </article>
+                    <tr className={state ? `has-${state.outcome}` : ''} key={key} data-testid={`row-audit-match-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>
+                      <td><button type="button" className={`audit-checkbox ${selected.has(key) ? 'checked' : ''}`} role="checkbox" aria-checked={selected.has(key)} aria-label={`انتخاب سرویس ${match.service_code}`} disabled={repairing || Boolean(state)} onClick={() => setSelected((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; })} data-testid={`button-select-match-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{selected.has(key) && <Check size={14} />}</button></td>
+                      <td><strong data-testid={`value-customer-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.customer_name || 'نامشخص'}</strong><small className="hope-table-subline" dir="ltr" data-testid={`value-service-code-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.service_code} · @{match.username}</small><span className="audit-disabled-pill" data-testid={`status-provider-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>غیرفعال در ارائه‌دهنده</span></td>
+                      <td><bdi dir="ltr" data-testid={`value-provider-key-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.provider_key}</bdi><small className="hope-table-subline" dir="ltr" data-testid={`value-provider-kind-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.provider_kind}</small></td>
+                      <td><strong data-testid={`value-plan-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{match.plan || '—'}</strong><small className="hope-table-subline" data-testid={`value-expiry-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>انقضا · {formatDate(match.expires_at)}</small></td>
+                      <td data-testid={`value-remaining-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{formatBytes(match.remaining_bytes)}</td>
+                      <td>{state ? <div className={`audit-row-result ${state.outcome}`} role="status" data-testid={`status-repair-${match.service_id}-${encodeURIComponent(match.provider_key)}`}>{state.outcome === 'repaired' ? <CheckCircle2 size={14} /> : state.outcome === 'skipped' ? <ArrowDownLeft size={14} /> : <AlertTriangle size={14} />}<strong>{state.outcome === 'repaired' ? 'اصلاح شد' : state.outcome === 'skipped' ? 'رد شد' : 'ناموفق'}</strong><small>{state.message}</small></div> : 'در انتظار بازبینی'}</td>
+                    </tr>
                   );
-                })}
+                })}</tbody></table>
               </div>
 
               <div className="audit-repair-footer">
@@ -420,17 +385,7 @@ function ProviderAccountAuditPage() {
             <span className="audit-issue-count" data-testid="value-issue-count">{issues.length.toLocaleString('fa-IR')}</span>
           </div>
           {issues.length > 0 ? (
-            <div className="audit-issue-list">
-              {issues.map((issue, index) => (
-                <div className="audit-issue-row" key={`${issue.service_id}-${issue.provider_key}-${issue.message}-${index}`} data-testid={`row-audit-issue-${issue.service_id}-${index}`}>
-                  <div className="audit-issue-meta">
-                    <b dir="ltr" data-testid={`value-issue-service-${issue.service_id}-${index}`}>{issue.service_code}</b>
-                    <span dir="ltr" data-testid={`value-issue-provider-${issue.service_id}-${index}`}>{issue.provider_key} / {issue.provider_kind}</span>
-                  </div>
-                  <p data-testid={`value-issue-message-${issue.service_id}-${index}`}>{issue.message}</p>
-                </div>
-              ))}
-            </div>
+            <div className="hope-table-scroll"><table className="hope-data-table" aria-label="خطاهای خواندن ارائه‌دهنده"><thead><tr><th>سرویس</th><th>Provider</th><th>خطا</th></tr></thead><tbody>{issues.map((issue, index) => <tr key={`${issue.service_id}-${issue.provider_key}-${issue.message}-${index}`} data-testid={`row-audit-issue-${issue.service_id}-${index}`}><td><bdi dir="ltr" data-testid={`value-issue-service-${issue.service_id}-${index}`}>{issue.service_code}</bdi></td><td><bdi dir="ltr" data-testid={`value-issue-provider-${issue.service_id}-${index}`}>{issue.provider_key} / {issue.provider_kind}</bdi></td><td data-testid={`value-issue-message-${issue.service_id}-${index}`}>{issue.message}</td></tr>)}</tbody></table></div>
           ) : (
             <div className="audit-no-issues" data-testid="state-no-issues">
               {scanComplete ? 'خطای خواندن ثبت نشده است.' : 'پس از شروع اسکن، خطاهای خواندن در این بخش نمایش داده می‌شوند.'}

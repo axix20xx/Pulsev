@@ -171,27 +171,19 @@ export default function AwgUsageLogPage() {
             <small>پس از اجرای worker یا یک بررسی دستی، نتیجه‌ها اینجا نمایش داده می‌شوند.</small>
           </div>
         ) : (
-          <div className="awg-event-timeline" data-testid="list-awg-worker-events">
+          <div className="hope-table-scroll" data-testid="list-awg-worker-events"><table className="hope-data-table" aria-label="رویدادهای بررسی AWG"><thead><tr><th>مشتری / سرویس</th><th>زمان و منبع</th><th>نتیجه</th><th>RX / TX</th><th>خام / مؤثر</th></tr></thead><tbody>
             {events.map((event) => {
               const state = statusCopy[event.status] ?? statusCopy.failed;
               const apiReturnedZero = event.status === "updated" && event.raw_total_bytes === 0 && event.stats_source === "api";
-              return (
-                <article className={`awg-event-row ${event.status === "failed" || event.status === "route-unavailable" ? "is-failed" : ""}`} key={event.event_id} data-testid={`awg-worker-event-${event.event_id}`}>
-                  <div className="awg-event-time"><span className={`awg-event-marker ${event.status}`} /><time>{timeLabel(event.checked_at)}</time><small>{event.source === "manual" ? "بررسی دستی" : "worker"}{event.stats_source === "api" ? " · API" : event.stats_source === "cache" ? " · cache" : ""}</small></div>
-                  <div className="awg-event-core">
-                    <div className="awg-event-identity"><div><strong>{event.customer_name}</strong><small dir="ltr">@{event.username} · {event.service_code}</small></div><span className={`awg-event-status ${state.style}`}>{state.label}</span></div>
-                    <dl className="awg-event-telemetry">
-                      <div><dt>RX دریافت</dt><dd>{traffic(event.rx_bytes)}</dd></div>
-                      <div><dt>TX ارسال</dt><dd>{traffic(event.tx_bytes)}</dd></div>
-                      <div><dt>خام RX + TX</dt><dd>{traffic(event.raw_total_bytes)}</dd></div>
-                      <div><dt>مصرف مؤثر</dt><dd>{traffic(event.effective_bytes)}</dd></div>
-                    </dl>
-                    {(apiReturnedZero || event.message) && <p className={`awg-event-note ${event.message ? "error" : ""}`}>{event.message || "پاسخ مستقیم AWG مقدار صفر داشت."}</p>}
-                  </div>
-                </article>
-              );
+              return <tr className={`awg-event-row ${event.status === "failed" || event.status === "route-unavailable" ? "is-failed" : ""}`} key={event.event_id} data-testid={`awg-worker-event-${event.event_id}`}>
+                <td><strong>{event.customer_name}</strong><small className="hope-table-subline" dir="ltr">@{event.username} · {event.service_code}</small></td>
+                <td>{timeLabel(event.checked_at)}<small className="hope-table-subline">{event.source === "manual" ? "بررسی دستی" : "worker"}{event.stats_source === "api" ? " · API" : event.stats_source === "cache" ? " · cache" : ""}</small></td>
+                <td><span className={`awg-event-status ${state.style}`}>{state.label}</span>{(apiReturnedZero || event.message) && <small className="hope-table-subline" role="note">{event.message || "پاسخ مستقیم AWG مقدار صفر داشت."}</small>}</td>
+                <td>RX {traffic(event.rx_bytes)}<small className="hope-table-subline">TX {traffic(event.tx_bytes)}</small></td>
+                <td>خام {traffic(event.raw_total_bytes)}<small className="hope-table-subline">مؤثر {traffic(event.effective_bytes)}</small></td>
+              </tr>;
             })}
-          </div>
+          </tbody></table></div>
         )}
       </section>
       </div>
