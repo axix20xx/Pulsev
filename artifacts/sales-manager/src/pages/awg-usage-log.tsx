@@ -2,6 +2,7 @@ import { Activity, ArrowRight, CircleAlert, Clock3, RefreshCw, Wifi } from "luci
 import { Link } from "wouter";
 import { getGetAwgUsageWorkerLogQueryKey, useGetAwgUsageWorkerLog } from "@workspace/api-client-react";
 import { PageHeader } from "@/components/admin-console-primitives";
+import { HopePageFrame } from "@/components/hope-page-frame";
 import { usePulse } from "@/pages/pulse-pages";
 
 const countFormat = new Intl.NumberFormat("fa-IR");
@@ -58,7 +59,7 @@ export default function AwgUsageLogPage() {
       : "شروع نشده";
 
   return (
-    <main className="admin-console awg-log-page" data-surface="awg-usage-log">
+    <HopePageFrame route="awg-usage-log" label="لاگ زنده worker AWG" pattern="monitor" className="awg-log-page">
       <div className="console-page surface-layout-awg-usage-log">
       <PageHeader
         eyebrow="ویژه مدیر اصلی"
@@ -194,6 +195,6 @@ export default function AwgUsageLogPage() {
         )}
       </section>
       </div>
-    </main>
+    </HopePageFrame>
   );
 }

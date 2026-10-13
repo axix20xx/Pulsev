@@ -1,9 +1,11 @@
 import { AlertCircle, ArrowLeft, ArrowUpRight, Home, RotateCcw } from 'lucide-react';
 import { Link } from 'wouter';
+import { HopePageFrame } from '@/components/hope-page-frame';
 
 export default function NotFound() {
   return (
-    <main className="admin-console console-not-found" dir="rtl">
+    <HopePageFrame route="not-found" label="صفحه پیدا نشد" pattern="detail" className="console-not-found-route">
+    <div className="console-not-found">
       <section className="console-not-found-card">
         <header className="console-not-found-head"><Link href="/" className="console-login-brand"><span className="console-login-mark">P</span><span><strong>پالس</strong><small>مرکز عملیات</small></span></Link><span className="console-not-found-tag"><AlertCircle size={13} /> مسیر ناموجود</span></header>
         <div className="console-not-found-grid">
@@ -24,6 +26,7 @@ export default function NotFound() {
         </div>
         <footer className="console-not-found-foot"><span>Pulse · Control center</span><span>پایین‌ترین مرحلهٔ بازیابی: داشبورد</span></footer>
       </section>
-    </main>
+    </div>
+    </HopePageFrame>
   );
 }

@@ -69,7 +69,12 @@
 .pulse-sidebar-workspace small { color: hsl(218 10% 57%); font-size: 8px; }
 .pulse-sidebar-workspace strong { color: hsl(220 24% 23%); font-size: 10px; }
 .pulse-sidebar-online { background: hsl(157 51% 48%); }
+.pulse-sidebar-context { display: flex; min-height: 37px; align-items: center; gap: 7px; margin: 9px 16px 2px; border-bottom: 1px solid hsl(216 25% 93%); padding: 0 2px 9px; color: hsl(218 10% 55%); font-size: 8px; }
+.pulse-sidebar-context .pulse-sidebar-online { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: hsl(157 51% 48%); }
+.pulse-sidebar-context strong { margin-inline-start: auto; color: hsl(218 11% 46%); font-size: 8px; font-weight: 700; }
+.sidebar-is-collapsed .pulse-sidebar-context { display: none; }
 .pulse-nav { padding: 13px 13px 18px; scrollbar-color: hsl(216 20% 84%) transparent; }
+.pulse-nav::before { display: block; margin: 0 9px 7px; color: hsl(218 10% 58%); content: "منوی ناوبری"; font-size: 8px; font-weight: 750; }
 .pulse-nav-group { margin-bottom: 12px; }
 .pulse-nav-group h2 { margin: 0 9px 5px; color: hsl(218 10% 59%); font-size: 9px; font-weight: 700; }
 .pulse-nav-group-toggle { padding-block: 3px; }
@@ -152,6 +157,7 @@
 .pulse-notification-icon.tone-warning { background: hsl(38 90% 94%); color: hsl(34 72% 47%); }
 .pulse-notification-icon.tone-danger { background: hsl(4 80% 96%); color: hsl(4 60% 52%); }
 .pulse-drawer { background: white; }
+.sidebar-is-collapsed .pulse-sidebar-context,.sidebar-is-collapsed .pulse-nav::before { display: none; }
 
 /* All existing page components share the same solid card / border / action grammar. */
 .admin-console:not(.public-sub-v3) {
@@ -403,4 +409,288 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .pulse-workspace *, .admin-console:not(.public-sub-v3) * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* Route-specific page scaffolds: breadcrumbs + native workbench composition. */
+.pulse-workspace .hope-route-frame {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  color: hsl(220 24% 23%);
+  background: transparent;
+}
+.pulse-workspace .hope-route-container {
+  width: min(100%,1640px);
+  margin-inline: auto;
+}
+.pulse-workspace .hope-route-breadcrumb {
+  display: flex;
+  min-height: 27px;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  color: hsl(218 10% 55%);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.pulse-workspace .hope-route-breadcrumb > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: hsl(218 10% 55%);
+  text-decoration: none;
+}
+.pulse-workspace .hope-route-breadcrumb > a:hover { color: hsl(228 78% 55%); }
+.pulse-workspace .hope-route-breadcrumb > a svg { color: hsl(228 78% 57%); }
+.pulse-workspace .hope-route-breadcrumb > svg { color: hsl(216 14% 69%); transform: rotate(180deg); }
+.pulse-workspace .hope-route-breadcrumb > [aria-current="page"] { color: hsl(220 24% 30%); font-weight: 700; }
+.pulse-workspace .hope-route-pattern {
+  margin-inline-start: auto;
+  border: 1px solid hsl(216 25% 90%);
+  border-radius: 4px;
+  background: hsl(0 0% 100%);
+  padding: 4px 7px;
+  color: hsl(218 11% 53%);
+  font-size: 8px;
+  white-space: nowrap;
+}
+.pulse-workspace .hope-route-content { min-width: 0; }
+.pulse-workspace .hope-route-content > .console-page,
+.pulse-workspace .hope-route-content > .notification-workspace,
+.pulse-workspace .hope-route-content > .store-wrap {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.pulse-workspace .hope-route-content :is(.surface-module-context,.notification-context-band) { display: none; }
+.pulse-workspace .hope-route-content :is(.console-page-heading,.page-header) { box-shadow: none; }
+.pulse-workspace .hope-route-content .console-page-heading {
+  min-height: 90px;
+  align-items: center;
+  margin: 0 0 15px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 6px 0 12px;
+}
+.pulse-workspace .hope-route-content .console-page-title { font-size: clamp(22px,2.15vw,30px); }
+.pulse-workspace .hope-route-content .console-page-heading::after { content: none; }
+.pulse-workspace .hope-route-content .console-eyebrow { color: hsl(228 78% 57%); }
+.pulse-workspace .hope-route-content .console-surface,
+.pulse-workspace .hope-route-content .smart-card,
+.pulse-workspace .hope-route-content .ops-card,
+.pulse-workspace .hope-route-content .audit-panel,
+.pulse-workspace .hope-route-content .notification-card {
+  border: 1px solid hsl(216 25% 91%);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 2px 7px hsl(220 25% 35% / .035);
+  backdrop-filter: none;
+}
+.pulse-workspace .hope-route-content :is(.console-surface-head,.panel-heading,.section-heading) {
+  border-color: hsl(216 25% 92%);
+}
+.pulse-workspace .hope-route-content :is(.console-surface-head h2,.section-title,.panel-heading h2) { color: hsl(220 24% 23%); }
+.pulse-workspace .hope-route-content :is(.record-card,.customer-file-entry,.action-request-record,.connection-user-card,.awg-usage-entry,.awg-event-row,.smart-detail-row,.ops-audit,.store-lead) {
+  border-color: hsl(216 25% 91%);
+  border-radius: 6px;
+  background: white;
+  box-shadow: none;
+}
+.pulse-workspace .hope-route-content :is(.console-search,.finder-input,.connection-search,.service-catalog-search,.sales-ledger-search) {
+  border-color: hsl(216 25% 89%);
+  border-radius: 6px;
+  background: white;
+}
+.pulse-workspace .hope-route-content :is(.filter-tabs button,.service-catalog-status button,.action-request-filter button,.sales-period-panel .period-tabs button) {
+  border-radius: 5px;
+}
+.pulse-workspace .hope-route-content :is(.filter-tabs button.selected,.service-catalog-status button.selected,.action-request-filter button.selected,.sales-period-panel .period-tabs button.selected) {
+  border-color: hsl(228 78% 57%);
+  background: hsl(228 78% 57%);
+  color: white;
+}
+.pulse-workspace .hope-route-content :is(.service-inventory-card,.pos-form,.pos-receipt,.action-request-form,.request-list,.sales-record-filter,.sales-period-panel,.service-filter-workbench,.connection-workbench,.audit-scan-panel,.smart-focus-workbench) {
+  border: 1px solid hsl(216 25% 91%);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 2px 7px hsl(220 25% 35% / .035);
+}
+.pulse-workspace .hope-route-content :is(.service-command-board,.request-command-strip,.connection-session-group,.pos-section,.action-request-options label,.action-request-service > div) {
+  border-color: hsl(216 25% 91%);
+  border-radius: 6px;
+  background: hsl(216 33% 98%);
+  box-shadow: none;
+}
+.pulse-workspace .hope-route-frame.console-not-found-route .console-not-found {
+  min-height: 0;
+  align-items: stretch;
+  background: transparent;
+  padding: 0;
+}
+.pulse-workspace .hope-route-frame.console-not-found-route .console-not-found-card {
+  width: 100%;
+  max-width: none;
+  border: 1px solid hsl(216 25% 91%);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 2px 7px hsl(220 25% 35% / .035);
+}
+.pulse-workspace .hope-route-content :is(.service-inventory-icon,.pos-receipt-icon,.request-command-icon,.connection-session-group > header > strong,.overview-kpi-icon,.smart-provider-mark,.audit-safety-mark) {
+  border-radius: 7px;
+  background: hsl(220 100% 95%);
+  color: hsl(228 78% 57%);
+}
+.pulse-workspace .hope-route-content :is(.service-inventory-meter i,.connection-user-meter i,.smart-progress span) {
+  background: hsl(228 78% 57%);
+}
+
+/* Dashboard route: blue welcome hero, compact analytic row, dominant chart and register. */
+.pulse-workspace .hope-pattern-dashboard .overview-dashboard { display: grid; gap: 13px; }
+.pulse-workspace .hope-pattern-dashboard .overview-page-heading { position: relative; margin: 0; }
+.pulse-workspace .hope-pattern-dashboard .overview-page-heading .page-header {
+  min-height: 142px;
+  overflow: hidden;
+  align-items: center;
+  border: 0;
+  border-radius: 7px;
+  background:
+    radial-gradient(ellipse at 88% 112%, transparent 0 25%, hsl(0 0% 100% / .15) 25.2% 25.7%, transparent 25.9% 37%, hsl(0 0% 100% / .1) 37.2% 37.6%, transparent 37.8% 50%, hsl(0 0% 100% / .08) 50.2% 50.6%, transparent 50.8%),
+    linear-gradient(110deg,hsl(228 78% 55%),hsl(216 79% 59%));
+  padding: 22px 26px;
+  box-shadow: 0 4px 13px hsl(228 68% 46% / .13);
+}
+.pulse-workspace .hope-pattern-dashboard .overview-page-heading .page-header h1 { color: white; font-size: clamp(25px,2.5vw,33px); }
+.pulse-workspace .hope-pattern-dashboard .overview-page-heading .page-header .eyebrow,
+.pulse-workspace .hope-pattern-dashboard .overview-page-heading .page-header p:not(.eyebrow) { color: hsl(0 0% 100% / .84); }
+.pulse-workspace .hope-pattern-dashboard .overview-heading-actions .overview-primary-action { border-radius: 5px; background: white; color: hsl(228 78% 53%); box-shadow: none; }
+.pulse-workspace .hope-pattern-dashboard .overview-heading-actions .print-action { border-color: hsl(0 0% 100% / .48); background: hsl(0 0% 100% / .11); color: white; }
+.pulse-workspace .hope-pattern-dashboard .overview-context-line { color: hsl(218 10% 54%); font-size: 9px; }
+.pulse-workspace .hope-pattern-dashboard .overview-kpi-grid { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
+.pulse-workspace .hope-pattern-dashboard .overview-kpi {
+  min-height: 92px;
+  border: 1px solid hsl(216 25% 91%);
+  border-radius: 8px;
+  background: white;
+  padding: 13px;
+  box-shadow: 0 2px 7px hsl(220 25% 35% / .035);
+}
+.pulse-workspace .hope-pattern-dashboard .overview-kpi-icon { width: 39px; height: 39px; flex-basis: 39px; border-radius: 50%; background: hsl(220 100% 95%); color: hsl(228 78% 57%); }
+.pulse-workspace .hope-pattern-dashboard .overview-kpi-attention .overview-kpi-icon { background: hsl(188 61% 94%); color: hsl(188 70% 42%); }
+.pulse-workspace .hope-pattern-dashboard .overview-kpi-health .overview-kpi-icon { background: hsl(154 48% 93%); color: hsl(154 46% 42%); }
+.pulse-workspace .hope-pattern-dashboard .overview-kpi h2 { color: hsl(218 11% 53%); font-size: 9px; }
+.pulse-workspace .hope-pattern-dashboard .overview-kpi strong { color: hsl(220 24% 22%); font-size: 22px; }
+.pulse-workspace .hope-pattern-dashboard .overview-kpi p { color: hsl(218 10% 58%); font-size: 8px; }
+.pulse-workspace .hope-pattern-dashboard .overview-month-ribbon {
+  display: grid;
+  grid-template-columns: minmax(160px,1.35fr) repeat(4,minmax(105px,.85fr)) auto;
+  gap: 8px;
+  border: 1px solid hsl(216 25% 91%);
+  border-radius: 8px;
+  background: white;
+  padding: 11px 13px;
+  box-shadow: 0 2px 7px hsl(220 25% 35% / .035);
+}
+.pulse-workspace .hope-pattern-dashboard .overview-ribbon-icon { border-radius: 50%; background: hsl(220 100% 95%); color: hsl(228 78% 57%); }
+.pulse-workspace .hope-pattern-dashboard .overview-ribbon-stat { border-inline-start: 1px solid hsl(216 25% 92%); padding-inline-start: 10px; }
+.pulse-workspace .hope-pattern-dashboard .overview-ribbon-stat span,.pulse-workspace .hope-pattern-dashboard .overview-ribbon-heading p { color: hsl(218 10% 54%); font-size: 8px; }
+.pulse-workspace .hope-pattern-dashboard .overview-ribbon-stat strong { color: hsl(220 24% 23%); font-size: 11px; }
+.pulse-workspace .hope-pattern-dashboard .overview-workbench { grid-template-columns: minmax(0,2fr) minmax(280px,.95fr); gap: 12px; }
+.pulse-workspace .hope-pattern-dashboard .overview-followup-grid { grid-template-columns: minmax(0,1.5fr) minmax(270px,.8fr); gap: 12px; }
+.pulse-workspace .hope-pattern-dashboard :is(.overview-chart-panel,.overview-attention-panel,.overview-activity-panel,.overview-setup-panel) {
+  border: 1px solid hsl(216 25% 91%);
+  border-radius: 8px;
+  background: white;
+  padding: 15px;
+  box-shadow: 0 2px 7px hsl(220 25% 35% / .035);
+}
+.pulse-workspace .hope-pattern-dashboard .overview-section-heading { border-color: hsl(216 25% 92%); }
+.pulse-workspace .hope-pattern-dashboard .overview-section-heading h2 { color: hsl(220 24% 23%); font-size: 13px; }
+.pulse-workspace .hope-pattern-dashboard .overview-chart-summary strong { color: hsl(220 24% 23%); }
+.pulse-workspace .hope-pattern-dashboard .overview-bar-sale { background: hsl(228 78% 57% / .83); }
+.pulse-workspace .hope-pattern-dashboard .overview-bar-profit { background: hsl(188 69% 54%); }
+.pulse-workspace .hope-pattern-dashboard .overview-legend-profit { background: hsl(188 69% 54%); }
+.pulse-workspace .hope-pattern-dashboard .overview-daily-chart { border-color: hsl(216 25% 92%); }
+.pulse-workspace .hope-pattern-dashboard .overview-attention-panel { background: white; }
+.pulse-workspace .hope-pattern-dashboard .overview-attention-mark { background: hsl(220 100% 95%); }
+.pulse-workspace .hope-pattern-dashboard .overview-activity-list li { border-color: hsl(216 25% 92%); }
+
+/* Ledger and table routes intentionally keep the existing live data controls. */
+.pulse-workspace .hope-pattern-ledger :is(.sales-ledger-page,.admin-sales-page,.reseller-accounting-page) { display: grid; gap: 12px; }
+.pulse-workspace .hope-pattern-ledger :is(.sales-status-grid,.console-metrics-grid) { gap: 9px; }
+.pulse-workspace .hope-pattern-ledger :is(.sales-status-grid .console-metric,.accounting-metric,.console-metric) { border-radius: 7px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-pattern-ledger :is(.sales-record-filter,.sales-period-panel,.sales-record-board,.accounting-settlement-ledger,.admin-sales-filters,.admin-sales-record-board) { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-pattern-ledger :is(.sales-record-card,.admin-sale-ledger-row,.accounting-settlement-row) { border-color: hsl(216 25% 91%); border-radius: 6px; background: white; }
+.pulse-workspace .hope-pattern-ledger :is(.sales-financial-overview,.sales-transaction-workspace,.sales-settlement-panel,.sales-credit-ledger,.sales-payment-breakdown,.sales-reseller-history,.reseller-accounting-workspace,.admin-sales-workspace) { border-color: hsl(216 25% 91%); }
+.pulse-workspace .hope-pattern-ledger :is(.sales-receipt-card,.sales-payment-grid > div,.sales-payment-breakdown > div,.sales-settlement-row,.reseller-accounting-row,.admin-sales-row) { border-color: hsl(216 25% 91%); border-radius: 6px; background: white; }
+.pulse-workspace .hope-pattern-ledger :is(.sales-financial-heading,.sales-transaction-heading,.sales-record-filter .console-surface-head,.sales-record-board .console-surface-head) { border-color: hsl(216 25% 92%); }
+.pulse-workspace .hope-pattern-ledger .sales-payment-filter-tabs { border-radius: 6px; background: hsl(216 33% 96%); }
+.pulse-workspace .hope-pattern-ledger .sales-payment-filter-tabs button.selected { background: hsl(228 78% 57%); color: white; }
+.pulse-workspace .hope-pattern-form :is(.pos-form,.pos-receipt,.action-request-form,.request-list,.notification-form-panel,.store-panel,.settings-panel) { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-pattern-form :is(.pos-page,.pos-builder,.pos-customer-panel,.pos-service-panel,.pos-delivery-panel,.action-request-workbench,.notification-composer,.store-editor,.store-leads-panel) { border-color: hsl(216 25% 91%); }
+.pulse-workspace .hope-pattern-form :is(.pos-success,.pos-submission-panel,.action-request-summary,.notification-audience-block,.notification-content-block,.notification-live-preview,.store-lead-row) { border: 1px solid hsl(216 25% 91%); border-radius: 7px; background: white; box-shadow: none; }
+.pulse-workspace .hope-pattern-form :is(.pos-section,.action-request-options label,.notification-recipient-panel,.notification-message-preview) { border: 1px solid hsl(216 25% 92%); border-radius: 6px; background: hsl(216 33% 98%); }
+.pulse-workspace .hope-pattern-table :is(.service-inventory-card,.customer-file-entry,.connection-user-card,.awg-usage-entry,.awg-event-row,.notification-device-card) { border: 1px solid hsl(216 25% 91%); border-radius: 7px; background: white; box-shadow: 0 2px 6px hsl(220 25% 35% / .03); }
+.pulse-workspace .hope-pattern-table :is(.service-inventory-list,.service-inventory-table,.customer-directory,.connection-session-list,.awg-usage-ledger,.notification-device-grid) { border-color: hsl(216 25% 91%); }
+.pulse-workspace .hope-pattern-table :is(.notification-readiness-board,.service-catalog-toolbar,.service-list-heading,.customer-directory-header,.connection-summary-panel,.awg-usage-summary) { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-pattern-table :is(.service-catalog-filters,.connection-filter-grid,.customer-directory-controls) { border-color: hsl(216 25% 91%); }
+.pulse-workspace .hope-pattern-report :is(.smart-card,.smart-focus-workbench,.reports-chart-panel,.report-chart,.notification-analytics-panel) { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-pattern-report :is(.report-filter,.report-record-board,.report-financial-row,.notification-history-panel,.notification-delivery-command,.notification-evidence-panel,.smart-overview-panel,.smart-insight-card) { border: 1px solid hsl(216 25% 91%); border-radius: 7px; background: white; box-shadow: none; }
+.pulse-workspace .hope-pattern-report :is(.smart-queue-navigator a,.smart-command,.smart-quality-row,.smart-lifecycle-row) { border-color: hsl(216 25% 91%); border-radius: 6px; background: white; }
+.pulse-workspace .hope-pattern-monitor :is(.ops-card,.monitoring-panel,.connection-workbench,.awg-log-note,.awg-event-ledger) { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-pattern-monitor :is(.ops-command-center,.ops-renewal-record,.ops-action-group,.awg-worker-overview,.awg-event-timeline,.connection-status-banner,.monitoring-health-panel) { border-color: hsl(216 25% 91%); border-radius: 7px; background: white; }
+.pulse-workspace .hope-pattern-audit :is(.audit-safety,.audit-scan-panel,.audit-results,.audit-issues) { border: 1px solid hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-pattern-audit :is(.audit-review-workbench,.audit-match-row,.audit-issue-row,.audit-complete-note) { border-color: hsl(216 25% 91%); border-radius: 6px; background: white; }
+.pulse-workspace .hope-pattern-settings :is(.settings-workspace,.settings-panel,.settings-fields,.settings-console,.settings-section,.settings-provider-group) { border-color: hsl(216 25% 91%); border-radius: 8px; background: white; }
+.pulse-workspace .hope-pattern-settings .settings-console-nav a[aria-current="page"] { border-color: hsl(228 78% 57%); background: hsl(220 100% 96%); color: hsl(228 78% 53%); }
+.pulse-workspace .hope-pattern-detail :is(.customer-profile-header,.customer-profile-workbench,.smart-detail-summary,.smart-focus-workbench,.console-not-found-card) { border-color: hsl(216 25% 91%); border-radius: 8px; background: white; box-shadow: 0 2px 7px hsl(220 25% 35% / .035); }
+.pulse-workspace .hope-pattern-detail :is(.customer-profile-hero,.customer-crm-workspace,.customer-services-workspace,.customer-sales-workspace,.smart-detail-evidence,.smart-detail-actions) { border-color: hsl(216 25% 91%); border-radius: 7px; background: white; }
+
+.pulse-workspace .hope-auth-layout { min-height: 100dvh; background: hsl(216 33% 96%); }
+.pulse-workspace .hope-auth-layout .console-login-intro { background: hsl(228 78% 57%); }
+.pulse-workspace .hope-auth-layout .console-login-panel { border-radius: 8px; }
+.pulse-workspace .hope-auth-layout .console-login-submit { border-radius: 5px; }
+.admin-console.hope-auth-layout {
+  display: grid;
+  min-height: 100dvh;
+  align-items: stretch;
+  background: hsl(216 33% 96%);
+  color: hsl(220 24% 23%);
+}
+.admin-console.hope-auth-layout .console-login-intro {
+  background:
+    radial-gradient(ellipse at 18% 87%, transparent 0 23%,hsl(0 0% 100% / .15) 23.2% 23.7%,transparent 23.9% 36%,hsl(0 0% 100% / .1) 36.2% 36.7%,transparent 36.9%),
+    linear-gradient(135deg,hsl(228 78% 56%),hsl(217 76% 62%));
+}
+.admin-console.hope-auth-layout .console-login-panel { align-self: center; border: 1px solid hsl(216 25% 90%); border-radius: 8px; background: white; box-shadow: 0 9px 30px hsl(220 25% 35% / .08); }
+.admin-console.hope-auth-layout .console-login-mark { border-radius: 7px; background: hsl(0 0% 100% / .16); }
+.admin-console.hope-auth-layout .console-login-submit { border-radius: 5px; background: hsl(228 78% 57%); }
+
+@media (max-width: 900px) {
+  .pulse-workspace .hope-pattern-dashboard .overview-workbench { grid-template-columns: minmax(0,1.5fr) minmax(250px,.9fr); }
+  .pulse-workspace .hope-pattern-dashboard .overview-month-ribbon { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .pulse-workspace .hope-pattern-dashboard .overview-ribbon-heading { grid-column: span 3; }
+  .pulse-workspace .hope-pattern-dashboard .overview-ribbon-tail { grid-column: span 3; }
+}
+@media (max-width: 780px) {
+  .pulse-workspace .hope-route-pattern { display: none; }
+  .pulse-workspace .hope-route-breadcrumb { min-height: 23px; margin-bottom: 4px; }
+  .pulse-workspace .hope-route-content .console-page-heading { min-height: 0; padding: 3px 0 9px; }
+  .pulse-workspace .hope-pattern-dashboard .overview-workbench,
+  .pulse-workspace .hope-pattern-dashboard .overview-followup-grid { grid-template-columns: 1fr; }
+  .pulse-workspace .hope-pattern-dashboard .overview-kpi-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .pulse-workspace .hope-pattern-dashboard .overview-month-ribbon { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .pulse-workspace .hope-pattern-dashboard .overview-ribbon-heading,.pulse-workspace .hope-pattern-dashboard .overview-ribbon-tail { grid-column: span 2; }
+  .pulse-workspace .hope-pattern-dashboard .overview-chart-panel { min-height: 0; }
+}
+@media (max-width: 520px) {
+  .pulse-workspace .hope-route-container { width: 100%; }
+  .pulse-workspace .hope-pattern-dashboard .overview-page-heading .page-header { min-height: 132px; padding: 18px; }
+  .pulse-workspace .hope-pattern-dashboard .overview-page-heading .page-header h1 { font-size: 24px; }
+  .pulse-workspace .hope-pattern-dashboard .overview-month-ribbon { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .pulse-workspace .hope-pattern-dashboard .overview-ribbon-stat { border: 0; padding: 5px 0; }
 }

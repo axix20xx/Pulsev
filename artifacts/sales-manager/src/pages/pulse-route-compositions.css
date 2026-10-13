@@ -1,9 +1,9 @@
-/* Route compositions: distinct workbenches, one shared Pulse glass language. */
+/* Route geometry retained for the live workbenches; Hope-style surfaces are authored in pulse-hope-redesign.css. */
 .admin-console.pulse-surface {
-  --route-glass: hsl(184 44% 98% / .76);
-  --route-glass-strong: hsl(184 47% 99% / .92);
-  --route-outline: hsl(184 27% 78% / .8);
-  --route-shadow: 0 14px 36px hsl(193 38% 35% / .075), inset 0 1px hsl(0 0% 100% / .88);
+  --route-glass: hsl(0 0% 100%);
+  --route-glass-strong: hsl(0 0% 100%);
+  --route-outline: hsl(216 25% 90%);
+  --route-shadow: 0 2px 7px hsl(220 25% 35% / .035);
 }
 .admin-console.pulse-surface > .console-page {
   width: 100%;
@@ -14,32 +14,25 @@
 .admin-console.pulse-surface .surface-page-composition { gap: clamp(12px, 1.5vw, 19px); }
 .admin-console.pulse-surface .console-page-heading {
   overflow: hidden;
-  border-color: var(--route-outline);
-  border-radius: 24px 24px 24px 8px;
-  background:
-    radial-gradient(ellipse at 2% 100%, hsl(172 37% 81% / .38), transparent 48%),
-    linear-gradient(125deg, var(--route-glass-strong), hsl(193 46% 97% / .86));
-  box-shadow: var(--route-shadow);
-  padding: clamp(20px, 3vw, 36px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 6px 0 12px;
 }
 .admin-console.pulse-surface .console-page-heading::after { inset-inline-start: 24px; inset-inline-end: auto; width: 78px; }
 .admin-console.pulse-surface .console-page-title { max-width: 20ch; line-height: 1.32; }
 .admin-console.pulse-surface .console-page-description { max-width: 62ch; line-height: 2; }
-.admin-console.pulse-surface .surface-module-context {
-  min-height: 48px;
-  border-radius: 15px;
-  background: hsl(188 39% 98% / .62);
-  backdrop-filter: blur(14px);
-}
 .admin-console.pulse-surface .console-surface {
   border-color: var(--route-outline);
-  background: linear-gradient(145deg, hsl(184 48% 99% / .86), hsl(188 41% 96% / .72));
+  border-radius: 8px;
+  background: white;
   box-shadow: var(--route-shadow);
 }
 .admin-console.pulse-surface :is(.console-search, .console-input, .field input, .field select, .console-field input, .console-field select) {
-  min-height: 43px;
-  border-radius: 12px;
-  background: hsl(190 34% 95% / .8);
+  min-height: 38px;
+  border-radius: 6px;
+  background: white;
 }
 .admin-console.pulse-surface :is(button, a, input, select, textarea) { scroll-margin-block: 20px; }
 .admin-console.pulse-surface :is(.console-record, .action-request-card, .service-record-card, .customer-file-entry) {

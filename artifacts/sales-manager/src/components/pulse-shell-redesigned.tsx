@@ -220,7 +220,7 @@ export function Shell({ children }: { children: ReactNode }) {
     return <div className="pulse-auth-loading" role="status" aria-live="polite"><span className="pulse-mark"><span /></span><p>در حال احراز هویت…</p></div>;
   }
   return (
-    <div className={`pulse-workspace admin-console control-center-shell ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''}`} dir="rtl">
+    <div className={`pulse-workspace admin-console control-center-shell hope-admin-shell ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''}`} dir="rtl">
       <aside className="pulse-shell-sidebar" aria-label="ناوبری اصلی">
         <div className="pulse-brand">
           <Link href="/" className="pulse-brand-link" data-testid="link-logo">
@@ -231,7 +231,7 @@ export function Shell({ children }: { children: ReactNode }) {
             {sidebarCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
           </button>
         </div>
-        <div className="pulse-sidebar-workspace"><span className="pulse-sidebar-workspace-mark"><Activity size={13} /></span><span><small>فضای کاری</small><strong>{isMaster ? 'مدیریت اصلی' : 'فروشنده'}</strong></span><span className="pulse-sidebar-online" title="نشست کاربری فعال" /></div>
+        <div className="pulse-sidebar-context"><span className="pulse-sidebar-online" title="نشست کاربری فعال" /><span>فضای کاری پالس</span><strong>{isMaster ? 'مدیریت اصلی' : 'فروشنده'}</strong></div>
         <nav className="pulse-nav" aria-label="صفحات فضای کاری">
           {groups.map((group, index) => {
             const available = group.items.filter((item) => !item.admin || isMaster);

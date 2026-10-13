@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'wouter';
 import { PageHeader } from '@/components/admin-console-primitives';
+import { HopePageFrame } from '@/components/hope-page-frame';
 import { usePulse } from './pulse-pages';
 
 type Recipient = {
@@ -208,18 +209,13 @@ function AdminOnlyNotice() {
 }
 
 function NotificationPageFrame({ children, section }: { children: ReactNode; section: 'send' | 'status' | 'analytics' }) {
-  return <main className={`admin-console notification-page-frame notification-${section}-page`} data-surface={`notifications-${section}`} dir="rtl">
+  const page = section === 'status' ? 'وضعیت دستگاه‌ها' : section === 'send' ? 'ارسال پیام' : 'تحلیل اعلان‌ها';
+  const pattern = section === 'status' ? 'table' : section === 'send' ? 'form' : 'report';
+  return <HopePageFrame route={`notifications-${section}`} label={page} pattern={pattern} className={`notification-page-frame notification-${section}-page`}>
     <div className="notification-workspace console-page">
-      <div className="notification-context-band">
-        <span className="notification-context-mark"><Bell size={15} /></span>
-        <span><small>سامانهٔ پیام‌رسانی</small><strong>اعلان‌های مشتریان</strong></span>
-        <span className="notification-context-rule" />
-        <span className="notification-context-note">وضعیت دستگاه، ارسال و شواهد تحویل در یک جریان کاری</span>
-        <span className="notification-context-code" dir="ltr">PUSH / CONTROL</span>
-      </div>
       <div className="notification-page-content">{children}</div>
     </div>
-  </main>;
+  </HopePageFrame>;
 }
 
 function NotificationNav({ active }: { active: 'send' | 'status' | 'analytics' }) {

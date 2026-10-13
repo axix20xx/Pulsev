@@ -9,6 +9,7 @@ import { Link, useLocation, useParams } from 'wouter';
 import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSales, useUpdateSale, useListServices, useUpdateService, useRenewService, useCreateService, useResetServiceToken, useListCustomers, useGetCustomer, useRepairServiceProvider, useListResellers, useUpdateReseller, useListAdminSales, useDeleteAdminSale, getGetAuthSessionQueryKey, getGetDashboardQueryKey, getListSalesQueryKey, getListServicesQueryKey, getListCustomersQueryKey, getGetCustomerQueryKey, getListResellersQueryKey, getListAdminSalesQueryKey, useGetResellerStorefrontLead, getGetResellerStorefrontLeadQueryKey, getGetResellerStorefrontQueryKey, getListResellerStorefrontLeadsQueryKey, type AdminSale } from '@workspace/api-client-react';
 import { Customer, Service, Sale, dateLabel, dateTimeLabel, daysUntil, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, jalaliToGregorian, money, todayLabel } from '@/lib/pulse-data';
 import { Avatar, MetricTile, PageHeader, SectionPanel, StatePanel, StatusPill } from '@/components/admin-console-primitives';
+import { HopePageFrame, type HopePagePattern } from '@/components/hope-page-frame';
 import { copyTextToClipboard } from '@/lib/browser-utils';
 import './public-sub-lux.css';
 import './pulse-route-compositions.css';
@@ -344,7 +345,7 @@ function LoginPageContent() {
   };
 
   return (
-    <main className="admin-console console-login" dir="rtl">
+    <main className="admin-console console-login hope-auth-layout" data-hope-pattern="form" dir="rtl">
       <section className="console-login-intro">
         <div className="console-login-brand"><span className="console-login-mark"><Activity size={19} /></span><span><strong>پالس</strong><small>مرکز عملیات و فروش</small></span></div>
         <div className="console-login-copy"><p className="console-eyebrow">فضای کاری تیم</p><h1>سلام،<br /><em>بزن بریم.</em></h1><p>فروش، سرویس و سلامت زیرساخت؛ همه در یک میزکار قابل اتکا.</p></div>
@@ -406,25 +407,27 @@ function RecordCard({ eyebrow, title, subtitle, status, fields, actions, testId 
   </article>;
 }
 function SurfaceFrame({ name, children, signal = false }: { name: string; children: ReactNode; signal?: boolean }) {
-  const labels: Record<string, string> = {
-    overview: 'نمای کلی', sales: 'دفتر فروش', 'reseller-accounting': 'حسابداری فروشندگان',
-    pos: 'پایانه فروش', 'admin-sales': 'فروشندگان', services: 'مدیریت سرویس‌ها',
-    'action-requests': 'درخواست‌های عملیات', monitoring: 'سلامت ساخت سرویس',
-    connections: 'اتصال‌های جاری', customers: 'مدیریت مشتریان',
-    'customer-detail': 'پرونده مشتری', settings: 'تنظیمات فضای کاری', reports: 'گزارش‌های مالی',
+  const pageMeta: Record<string, { label: string; pattern: HopePagePattern }> = {
+    overview: { label: 'نمای کلی', pattern: 'dashboard' },
+    sales: { label: 'دفتر فروش', pattern: 'ledger' },
+    'reseller-accounting': { label: 'حسابداری فروشندگان', pattern: 'ledger' },
+    pos: { label: 'پایانه فروش', pattern: 'form' },
+    'admin-sales': { label: 'فروش فروشندگان', pattern: 'ledger' },
+    services: { label: 'مدیریت سرویس‌ها', pattern: 'table' },
+    'action-requests': { label: 'درخواست‌های عملیات', pattern: 'form' },
+    monitoring: { label: 'سلامت ساخت سرویس', pattern: 'monitor' },
+    connections: { label: 'اتصال‌های جاری', pattern: 'table' },
+    customers: { label: 'مدیریت مشتریان', pattern: 'table' },
+    'customer-detail': { label: 'پرونده مشتری', pattern: 'detail' },
+    settings: { label: 'تنظیمات فضای کاری', pattern: 'settings' },
+    reports: { label: 'گزارش‌های مالی', pattern: 'report' },
   };
-  return <main className={`admin-console pulse-surface pulse-surface-${name}`} data-surface={name}>
-    <div className={`console-page surface-layout surface-layout-${name}`}>
-      <div className="surface-module-context" aria-label="مسیر فضای کاری">
-        <span className="surface-module-context-mark"><Activity size={13} /></span>
-        <span><small>میزکار پالس</small><strong>{labels[name] ?? 'مدیریت'}</strong></span>
-        <span className="surface-module-context-divider" />
-        <span className="surface-module-context-note">مرکز مدیریت فروش و عملیات</span>
-        <span className="surface-module-context-code" dir="ltr">PULSE / {name.toUpperCase()}</span>
-      </div>
+  const { label, pattern } = pageMeta[name] ?? { label: 'مدیریت', pattern: 'table' as HopePagePattern };
+  return <HopePageFrame route={name} label={label} pattern={pattern} className={`pulse-surface pulse-surface-${name}`} >
+    <div className={`console-page surface-layout surface-layout-${name}`} data-live-signal={signal ? 'true' : undefined}>
       <div className="surface-page-composition">{children}</div>
     </div>
-  </main>;
+  </HopePageFrame>;
 }
 function Overlay({ title, onClose, children, fullScreen = false }: { title: string; onClose: () => void; children: ReactNode; fullScreen?: boolean }) {
   const titleId = useId();

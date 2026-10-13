@@ -3,6 +3,7 @@ import { Activity, AlertTriangle, BarChart3, Check, ChevronLeft, CircleHelp, Clo
 import { Link, useParams } from 'wouter';
 import { PageHeader } from '@/components/admin-console-primitives';
 import { SectionPanel } from '@/components/admin-console-primitives';
+import { HopePageFrame } from '@/components/hope-page-frame';
 import { usePulse } from '@/pages/pulse-pages';
 import { dateLabel, money } from '@/lib/pulse-data';
 
@@ -245,7 +246,7 @@ export function InsightDetailPage() {
 
   const generatedAt = insights?.generated_at ?? command?.generated_at;
   const issueCount = rows.filter((row) => asNumber(row.value ?? row.priority ?? 1) > 0).length;
-  return <main className="admin-console smart-route-frame" data-surface={`insights-${focus}`} dir="rtl"><div className="console-page surface-layout-insight-detail">
+  return <HopePageFrame route={`insights-${focus}`} label={meta.title} pattern="detail" className="smart-route-frame"><div className="console-page surface-layout-insight-detail">
     <PageHeader
       eyebrow={meta.kicker}
       title={meta.title}
@@ -262,7 +263,7 @@ export function InsightDetailPage() {
       return <Link href={href} className={`smart-detail-row ${tone}`} key={String(row.id ?? `${focus}-${index}`)} data-testid={`link-smart-detail-${focus}-${row.id ?? index}`}><span className="smart-detail-icon"><Icon size={16} /></span><span className="smart-detail-copy"><strong>{title}</strong><small>{detail}</small><em>{why}</em></span><span className="smart-detail-value">{row.amount !== undefined ? moneyValue(row.amount) : row.value !== undefined ? count(row.value) : row.priority !== undefined ? `اولویت ${count(row.priority)}` : ''}</span><ChevronLeft size={15} /></Link>;
      }) : <div className="smart-empty"><Check size={18} /><span>در این بخش موردی برای نمایش وجود ندارد.</span></div>}</div></section></>}
     {!loading && !insights && !error && <div className="smart-empty-page"><CircleHelp size={22} /><strong>جزئیات در دسترس نیست.</strong></div>}
-  </div></main>;
+   </div></HopePageFrame>;
 }
 
 function SmartCenterContent() {
@@ -328,5 +329,5 @@ function SmartCenterContent() {
 }
 
 export function SmartCenter() {
-  return <main className="admin-console smart-route-frame" data-surface="insights" dir="rtl"><div className="console-page surface-layout-insights"><SmartCenterContent /></div></main>;
+  return <HopePageFrame route="insights" label="مرکز هوشمند" pattern="report" className="smart-route-frame"><div className="console-page surface-layout-insights"><SmartCenterContent /></div></HopePageFrame>;
 }

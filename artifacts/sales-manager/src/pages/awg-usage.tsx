@@ -17,6 +17,7 @@ import {
   useRefreshAwgUsage,
 } from "@workspace/api-client-react";
 import { MetricTile, PageHeader, SectionPanel, StatePanel } from "@/components/admin-console-primitives";
+import { HopePageFrame } from "@/components/hope-page-frame";
 import { usePulse } from "@/pages/pulse-pages";
 import "./pulse-route-compositions.css";
 
@@ -114,7 +115,7 @@ export default function AwgUsagePage() {
   };
 
   return (
-    <main className="admin-console pulse-surface pulse-surface-awg-usage" data-surface="awg-usage">
+    <HopePageFrame route="awg-usage" label="مصرف AmneziaWG" pattern="table" className="pulse-surface pulse-surface-awg-usage">
       <div className="console-page surface-layout surface-layout-awg-usage">
       <PageHeader
         eyebrow="گزارش جداگانه"
@@ -284,6 +285,6 @@ export default function AwgUsagePage() {
         )}
       </SectionPanel>
       </div>
-    </main>
+    </HopePageFrame>
   );
 }
