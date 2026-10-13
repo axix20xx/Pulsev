@@ -10,7 +10,7 @@ import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSale
 import { Customer, Service, Sale, dateLabel, dateTimeLabel, daysUntil, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, jalaliToGregorian, money, todayLabel } from '@/lib/pulse-data';
 import { Avatar, MetricTile, PageHeader, SectionPanel, StatePanel, StatusPill } from '@/components/admin-console-primitives';
 import { copyTextToClipboard } from '@/lib/browser-utils';
-import { Badge, Btn, Card, DataTable, EmptyState as AxEmpty, ErrorAlert, Kpi, KpiGrid, Meter, Page, PageHead, RefreshBtn, SearchInput, Segment, SelectField, SkeletonRows, Toolbar, faNumber } from '@/admin/ui';
+import { Badge, Btn, Callout, Card, DataTable, EmptyState as AxEmpty, ErrorAlert, Kpi, KpiGrid, Meter, Page, PageHead, RefreshBtn, RowLink, RowList, SearchInput, Segment, SelectField, SkeletonRows, Stat, StatRow, Toolbar, Workbench, faNumber } from '@/admin/ui';
 import './public-sub-lux.css';
 import { openVpnConnectImportUrl } from '@/lib/openvpn-connect-link';
 import {
@@ -644,36 +644,39 @@ function OverviewContent() {
     : `${numberFa(Number(dashboard?.visible_customers ?? customers.length), 0)} مشتری قابل مشاهده`;
   const overviewHref = isMasterAdmin ? '/admin-sales' : '/pos';
   const headlineRevenue = dashboard ? money(total) : '—';
-  return <div className="ax-overview-dashboard">
-    <div className="ax-overview-page-heading">
-      <PageHeader
-        eyebrow={`${today} · نمای عملیاتی`}
-        title={session?.display_name || 'مدیر فروش'}
-        description={`خلاصهٔ ${role} بر پایهٔ اطلاعات ثبت‌شده در فضای کاری`}
-        action={<div className="ax-overview-heading-actions"><Link className="ax-overview-primary-action" href={overviewHref}>{isMasterAdmin ? <ShieldAlert size={15} /> : <CreditCard size={15} />}{isMasterAdmin ? 'فروش فروشندگان' : 'ثبت فروش'}</Link><PrintButton label="چاپ" testId="button-export-overview" /></div>}
-      />
-      <div className="ax-overview-context-line"><span className="ax-overview-live-dot" /> داده‌های متصل <span className="ax-overview-context-separator">·</span><span>{visibleAudience}</span>{dashboard?.generated_at && <time dateTime={dashboard.generated_at}>به‌روزرسانی {dateTimeLabel(dashboard.generated_at)}</time>}</div>
-      {dashboardError && <div className="ax-overview-dashboard-error" role="alert"><span>{dashboardError}</span><button type="button" onClick={() => void refreshDashboard()} disabled={dashboardLoading}><RefreshCw size={13} className={dashboardLoading ? 'ax-spin' : ''} /> تلاش دوباره</button></div>}
-    </div>
+  return <>
+    <PageHead eyebrow={`${today} · نمای عملیاتی`} title={session?.display_name || 'مدیر فروش'} lede={<>خلاصهٔ {role} بر پایهٔ اطلاعات ثبت‌شده در فضای کاری · {visibleAudience}{dashboard?.generated_at && <> · به‌روزرسانی <time dateTime={dashboard.generated_at}>{dateTimeLabel(dashboard.generated_at)}</time></>}</>} actions={<><Link className="ax-btn is-primary" href={overviewHref}>{isMasterAdmin ? <ShieldAlert size={15} /> : <CreditCard size={15} />}{isMasterAdmin ? 'فروش فروشندگان' : 'ثبت فروش'}</Link><PrintButton label="چاپ" testId="button-export-overview" /></>} />
+    {dashboardError && <ErrorAlert message={dashboardError} onRetry={() => void refreshDashboard()} retrying={dashboardLoading} />}
 
-    <section className="ax-overview-kpi-grid" aria-label="شاخص‌های اصلی">
-      <article className="ax-overview-kpi ax-overview-kpi-revenue" data-testid="overview-kpi-revenue"><span className="ax-overview-kpi-icon"><TrendingUp size={17} /></span><div><h2>{isMasterAdmin ? 'قابل پرداخت فروشندگان' : 'درآمد ثبت‌شده'}</h2><strong>{dashboardLoading ? <i className="ax-overview-value-skeleton" aria-label="در حال بارگیری" /> : headlineRevenue}</strong><p>{isMasterAdmin ? 'مبلغ عمدهٔ فروشندگان برای مدیر اصلی' : 'فروش‌های ثبت‌شده در دفتر شما'}</p></div></article>
-      <article className="ax-overview-kpi" data-testid="overview-kpi-active"><span className="ax-overview-kpi-icon"><Wifi size={17} /></span><div><h2>سرویس‌های فعال</h2><strong>{dashboardLoading ? <i className="ax-overview-value-skeleton" aria-label="در حال بارگیری" /> : numberFa(activeCount, 0)}</strong><p>{visibleAudience}</p></div></article>
-      <article className="ax-overview-kpi ax-overview-kpi-attention" data-testid="overview-kpi-renewals"><span className="ax-overview-kpi-icon"><RefreshCw size={17} /></span><div><h2>تمدیدهای نزدیک</h2><strong>{dashboardLoading ? <i className="ax-overview-value-skeleton" aria-label="در حال بارگیری" /> : numberFa(renewalCount, 0)}</strong><p>موعد تمدید تا ۱۴ روز آینده</p></div></article>
-      <article className="ax-overview-kpi ax-overview-kpi-health" data-testid="overview-kpi-health"><span className="ax-overview-kpi-icon"><ShieldCheck size={17} /></span><div><h2>سلامت سرویس</h2><strong>{dashboardLoading ? <i className="ax-overview-value-skeleton" aria-label="در حال بارگیری" /> : health === null ? '—' : `${numberFa(health, 1)}٪`}</strong><p>{health === null ? 'دادهٔ سلامت هنوز در دسترس نیست' : 'خلاصهٔ وضعیت سرویس‌ها'}</p></div></article>
-    </section>
+    <KpiGrid label="شاخص‌های اصلی">
+      <Kpi label={isMasterAdmin ? 'قابل پرداخت فروشندگان' : 'درآمد ثبت‌شده'} value={headlineRevenue} detail={isMasterAdmin ? 'مبلغ عمدهٔ فروشندگان برای مدیر اصلی' : 'فروش‌های ثبت‌شده در دفتر شما'} icon={TrendingUp} tone="primary" loading={dashboardLoading} testId="overview-kpi-revenue" />
+      <Kpi label="سرویس‌های فعال" value={numberFa(activeCount, 0)} detail={visibleAudience} icon={Wifi} loading={dashboardLoading} testId="overview-kpi-active" />
+      <Kpi label="تمدیدهای نزدیک" value={numberFa(renewalCount, 0)} detail="موعد تمدید تا ۱۴ روز آینده" icon={RefreshCw} tone="warn" loading={dashboardLoading} testId="overview-kpi-renewals" />
+      <Kpi label="سلامت سرویس" value={health === null ? '—' : `${numberFa(health, 1)}٪`} detail={health === null ? 'دادهٔ سلامت هنوز در دسترس نیست' : 'خلاصهٔ وضعیت سرویس‌ها'} icon={ShieldCheck} tone="good" loading={dashboardLoading} testId="overview-kpi-health" />
+    </KpiGrid>
 
-    <section className="ax-overview-month-ribbon" aria-label="خلاصهٔ مالی این ماه">
-      <div className="ax-overview-ribbon-heading"><span className="ax-overview-ribbon-icon"><CalendarDays size={16} /></span><div><p>مرور ماه شمسی</p><strong>{dashboardDayLabel(isoStartOfPersianMonth())} تا امروز</strong></div></div>
-      <div className="ax-overview-ribbon-stat"><span>{isMasterAdmin ? 'بدهی فروشندگان' : 'فروش این ماه'}</span><strong>{monthIncome === null ? '—' : money(monthIncome)}</strong></div>
-      <div className="ax-overview-ribbon-stat"><span>{isMasterAdmin ? 'وصول‌شده از فروشندگان' : 'وصول‌شده'}</span><strong>{monthPaidIncome === null ? '—' : money(monthPaidIncome)}</strong></div>
-      <div className="ax-overview-ribbon-stat"><span>{isMasterAdmin ? 'در انتظار تسویه' : 'در انتظار وصول'}</span><strong>{monthUnpaidIncome === null ? '—' : money(monthUnpaidIncome)}</strong></div>
-      <div className="ax-overview-ribbon-stat"><span>{isMasterAdmin ? 'سود مدیر' : 'سود ثبت‌شده'}</span><strong>{monthProfit === null ? '—' : money(monthProfit)}</strong></div>
-      <div className="ax-overview-ribbon-tail"><span>{monthSalesCount === null ? '—' : numberFa(monthSalesCount, 0)} فروش</span><span>{monthSoldGb === null ? '—' : numberFa(monthSoldGb)} گیگ</span>{disabledToday !== null && <span>{numberFa(disabledToday, 0)} غیرفعال امروز</span>}</div>
-    </section>
+    <Card ariaLabel="خلاصهٔ مالی این ماه" title="مرور ماه شمسی" description={`${dashboardDayLabel(isoStartOfPersianMonth())} تا امروز`} actions={<><Badge>{monthSalesCount === null ? '—' : numberFa(monthSalesCount, 0)} فروش</Badge><Badge>{monthSoldGb === null ? '—' : numberFa(monthSoldGb)} گیگ</Badge>{disabledToday !== null && <Badge tone="warn">{numberFa(disabledToday, 0)} غیرفعال امروز</Badge>}</>}>
+      <StatRow label="شاخص‌های مالی ماه">
+        <Stat label={isMasterAdmin ? 'بدهی فروشندگان' : 'فروش این ماه'} value={monthIncome === null ? '—' : money(monthIncome)} tone="primary" />
+        <Stat label={isMasterAdmin ? 'وصول‌شده از فروشندگان' : 'وصول‌شده'} value={monthPaidIncome === null ? '—' : money(monthPaidIncome)} tone="good" />
+        <Stat label={isMasterAdmin ? 'در انتظار تسویه' : 'در انتظار وصول'} value={monthUnpaidIncome === null ? '—' : money(monthUnpaidIncome)} tone="warn" />
+        <Stat label={isMasterAdmin ? 'سود مدیر' : 'سود ثبت‌شده'} value={monthProfit === null ? '—' : money(monthProfit)} />
+      </StatRow>
+    </Card>
 
-    <div className="ax-overview-workbench">
-      <section className="ax-overview-chart-panel" aria-labelledby="overview-chart-title">
+    <Workbench asideLabel="صف اقدام" aside={<>
+      <section className="ax-card ax-pad ax-overview-attention-panel" aria-labelledby="overview-attention-title">
+        <header className="ax-overview-section-heading">
+          <div><p>اولویت پیگیری</p><h2 id="overview-attention-title">صف اقدام</h2></div>
+          <span className="ax-overview-live-status"><i />{liveCommandAt ? `به‌روزرسانی ${dateTimeLabel(liveCommandAt)}` : 'در حال همگام‌سازی'}</span>
+        </header>
+        <div className="ax-overview-attention-intro"><strong>{numberFa(attentionRows.length, 0)}</strong><span>مورد برای پیگیری</span><Link href={attentionRows[0]?.href ?? '/services'}>بازکردن اولویت اصلی <ChevronLeft size={13} /></Link></div>
+        {attentionRows.length ? <ul className="ax-overview-attention-list">{attentionRows.slice(0, 6).map((item) => <li key={item.id} data-testid={`row-attention-${item.id}`}><Link href={item.href || (item.customerId ? `/customers/${item.customerId}` : '/services')}><span className={`ax-overview-attention-mark ${item.kind}`}><i /></span><span className="ax-overview-attention-copy"><strong>{item.customerName}</strong><small>{item.serviceName}</small><small>{item.detail}</small></span><ChevronLeft size={15} /></Link></li>)}</ul> :
+          <div className="ax-overview-empty-state"><ShieldCheck size={21} /><strong>صف اقدام خالی است</strong><span>در حال حاضر موردی برای پیگیری ندارید.</span></div>}
+      </section>
+      <OnboardingChecklist customers={customers} services={services} sales={sales} session={session} />
+    </>}>
+      <section className="ax-card ax-pad ax-overview-chart-panel" aria-labelledby="overview-chart-title">
         <header className="ax-overview-section-heading">
           <div><p>روند واقعی ثبت‌شده</p><h2 id="overview-chart-title">فروش روزانه و سود</h2></div>
           <span className="ax-overview-period-label"><CalendarDays size={13} /> {dashboardDayLabel(isoStartOfPersianMonth())} تا امروز</span>
@@ -692,25 +695,12 @@ function OverviewContent() {
         {dashboard && !selectedDaySummary && <p className="ax-overview-chart-hint">برای مشاهدهٔ ریز فروش یک روز، ستون همان روز را انتخاب کنید.</p>}
       </section>
 
-      <aside className="ax-overview-attention-panel" aria-labelledby="overview-attention-title">
-        <header className="ax-overview-section-heading">
-          <div><p>اولویت پیگیری</p><h2 id="overview-attention-title">صف اقدام</h2></div>
-          <span className="ax-overview-live-status"><i />{liveCommandAt ? `به‌روزرسانی ${dateTimeLabel(liveCommandAt)}` : 'در حال همگام‌سازی'}</span>
-        </header>
-        <div className="ax-overview-attention-intro"><strong>{numberFa(attentionRows.length, 0)}</strong><span>مورد برای پیگیری</span><Link href={attentionRows[0]?.href ?? '/services'}>بازکردن اولویت اصلی <ChevronLeft size={13} /></Link></div>
-        {attentionRows.length ? <ul className="ax-overview-attention-list">{attentionRows.slice(0, 6).map((item) => <li key={item.id} data-testid={`row-attention-${item.id}`}><Link href={item.href || (item.customerId ? `/customers/${item.customerId}` : '/services')}><span className={`ax-overview-attention-mark ${item.kind}`}><i /></span><span className="ax-overview-attention-copy"><strong>{item.customerName}</strong><small>{item.serviceName}</small><small>{item.detail}</small></span><ChevronLeft size={15} /></Link></li>)}</ul> :
-          <div className="ax-overview-empty-state"><ShieldCheck size={21} /><strong>صف اقدام خالی است</strong><span>در حال حاضر موردی برای پیگیری ندارید.</span></div>}
-      </aside>
-    </div>
-
-    <div className="ax-overview-followup-grid">
-      <section className="ax-overview-activity-panel" aria-labelledby="overview-activity-title">
+      <section className="ax-card ax-pad ax-overview-activity-panel" aria-labelledby="overview-activity-title">
         <header className="ax-overview-section-heading"><div><p>رویدادهای ثبت‌شده</p><h2 id="overview-activity-title">فعالیت‌های اخیر</h2></div><span className="ax-overview-activity-period">آخرین فعالیت‌ها</span></header>
         {recentActivities.length ? <ol className="ax-overview-activity-list">{recentActivities.map((item: any) => <li key={item.id} data-testid={`activity-${item.id}`}><span className={`ax-overview-activity-mark ${item.type}`}><i /></span><div><strong>{item.title}</strong><small>{item.detail}</small></div><time dateTime={item.created_at}>{dateLabel(item.created_at)}</time></li>)}</ol> : <div className="ax-overview-empty-state ax-overview-empty-activity"><Activity size={19} /><strong>فعالیتی ثبت نشده</strong><span>فروش، ساخت سرویس، تمدید یا غیرفعال‌سازی جدید اینجا نمایش داده می‌شود.</span></div>}
       </section>
-      <OnboardingChecklist customers={customers} services={services} sales={sales} session={session} />
-    </div>
-  </div>;
+    </Workbench>
+  </>;
 }
 
 export function Overview() {
@@ -964,14 +954,25 @@ function SalesContent() {
     URL.revokeObjectURL(url);
   };
   const chartMax = Math.max(1, ...resellerHistory.map((item: any) => Number(item.customer_revenue ?? 0)));
-  return <div className="ax-sales-ledger-page">
-    <PageHeader eyebrow="دفتر مالی" title="دفتر فروش" description={isMasterAdmin ? 'عملکرد فروشندگان و تسویه‌ها در بازهٔ انتخابی؛ ریز مشتریان در این نما نمایش داده نمی‌شود.' : 'فروش‌های ثبت‌شده، وضعیت وصول و خلاصهٔ مالی بر اساس بازهٔ شمسی.'} action={<div className="ax-sales-page-actions"><PrintButton label="چاپ دفتر" testId="button-print-sales" />{isMasterAdmin && <Button variant="quiet" onClick={exportResellerCsv} testId="button-export-reseller-csv"><Download size={15} /> خروجی CSV</Button>}</div>} />
-    <SectionPanel className="ax-sales-period-panel ax-report-filter" eyebrow="بازهٔ گزارش" title={`${dateLabel(from)} تا ${dateLabel(to)}`} description="بازهٔ شمسی گزارش فروش و تسویه را انتخاب کنید." action={<span className="ax-badge">{rangeLabel}</span>}>
-      <div className="ax-period-tabs" role="group" aria-label="انتخاب بازه فروش">{([['today', 'امروز'], ['yesterday', 'دیروز'], ['week', '۷ روز اخیر'], ['month', 'این ماه'], ['custom', 'بازه دلخواه']] as [SalesPeriod, string][]).map(([value, label]) => <button type="button" key={value} className={period === value ? 'selected' : ''} aria-pressed={period === value} onClick={() => selectPeriod(value)} data-testid={`button-sales-period-${value}`}>{label}{period === value && <span className="sr-only">، انتخاب‌شده</span>}</button>)}</div>
-      {period === 'custom' && <div className="ax-sales-custom-range"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button onClick={applyCustomRange} disabled={loading}>اعمال بازه</Button></div>}
-    </SectionPanel>
-    {error && <div className="ax-sales-inline-error" role="alert"><span>{error}</span><Button variant="secondary" onClick={() => { setError(''); setLoading(true); setSalesRetryKey((key) => key + 1); }} disabled={loading}><RefreshCw size={14} /> تلاش دوباره</Button></div>}
-    <section className="ax-sales-financial-overview" aria-label="خلاصه مالی و تسویه">
+  return <>
+    <PageHead eyebrow="دفتر مالی" title="دفتر فروش" lede={isMasterAdmin ? 'عملکرد فروشندگان و تسویه‌ها در بازهٔ انتخابی؛ ریز مشتریان در این نما نمایش داده نمی‌شود.' : 'فروش‌های ثبت‌شده، وضعیت وصول و خلاصهٔ مالی بر اساس بازهٔ شمسی.'} actions={<><PrintButton label="چاپ دفتر" testId="button-print-sales" />{isMasterAdmin && <Button variant="quiet" onClick={exportResellerCsv} testId="button-export-reseller-csv"><Download size={15} /> خروجی CSV</Button>}</>} />
+    {error && <ErrorAlert message={error} retrying={loading} onRetry={() => { setError(''); setLoading(true); setSalesRetryKey((key) => key + 1); }} />}
+    <Workbench asideLabel="بازهٔ گزارش" aside={<div className="ax-sticky">
+      <Card title="بازهٔ گزارش" description={`${dateLabel(from)} تا ${dateLabel(to)}`} actions={<Badge tone="primary">{rangeLabel}</Badge>}>
+        <div className="ax-stack">
+      <div className="ax-segment" role="group" aria-label="انتخاب بازه فروش">{([['today', 'امروز'], ['yesterday', 'دیروز'], ['week', '۷ روز اخیر'], ['month', 'این ماه'], ['custom', 'بازه دلخواه']] as [SalesPeriod, string][]).map(([value, label]) => <button type="button" key={value} aria-pressed={period === value} onClick={() => selectPeriod(value)} data-testid={`button-sales-period-${value}`}>{label}{period === value && <span className="sr-only">، انتخاب‌شده</span>}</button>)}</div>
+      {period === 'custom' && <div className="ax-stack"><PersianDateField label="از تاریخ شمسی" value={draftFrom} onChange={setDraftFrom} /><PersianDateField label="تا تاریخ شمسی" value={draftTo} onChange={setDraftTo} /><Button onClick={applyCustomRange} disabled={loading}>اعمال بازه</Button></div>}
+        </div>
+      </Card>
+      <Card title="این بازه">
+        <StatRow label="شمار فروش">
+          <Stat label="فروش ثبت‌شده" value={numberFa(visibleSales.length, 0)} />
+          <Stat label="پرداخت‌شده" value={numberFa(visibleSales.filter((sale) => sale.paid).length, 0)} tone="good" />
+          <Stat label="در انتظار" value={numberFa(visibleSales.filter((sale) => !sale.paid).length, 0)} tone="warn" />
+        </StatRow>
+      </Card>
+    </div>}>
+    <section className="ax-card ax-pad ax-sales-financial-overview" aria-label="خلاصه مالی و تسویه">
       <header className="ax-sales-financial-heading"><div><span>SUMMARY / {rangeLabel}</span><h2>خلاصهٔ مالی</h2><p>{dateLabel(from)} تا {dateLabel(to)} · {isMasterAdmin ? 'عملکرد resellerها و وصول بدهی' : 'درآمد، هزینهٔ اعتبار و سود این بازه'}</p></div>{summary && <span className="ax-sales-summary-state"><i /> گزارش به‌روز</span>}</header>
       {loading && !summary ? <div className="ax-sales-kpi-skeleton" role="status" aria-label="در حال محاسبه گزارش"><i /><i /><i /><i /></div> : null}
       {!loading && !error && !summary && <StatePanel title="خلاصهٔ این بازه موجود نیست" detail="گزارش فروش دریافت شد، اما دادهٔ خلاصه‌ای برای نمایش برنگشت." />}
@@ -996,17 +997,13 @@ function SalesContent() {
      </SectionPanel>}
       {!isMasterAdmin && summary && <SectionPanel className="ax-sales-payment-breakdown" eyebrow="وضعیت وصول" title="پرداخت و سود این بازه" description="مبالغ بر اساس فاکتورهای ثبت‌شده و وضعیت وصول فعلی."><div className="ax-sales-payment-grid"><div><span>مبلغ باقی‌مانده برای دریافت</span><strong>{money(summary.remaining_to_collect)}</strong></div><div><span>سود وصول‌شده</span><strong>{money(summary.paid_profit)}</strong></div><div><span>سود در انتظار پرداخت</span><strong>{money(summary.unpaid_profit)}</strong></div></div></SectionPanel>}
     </section>
-    <section className="ax-sales-transaction-workspace" aria-label="فروش‌های این بازه">
-        {!isMasterAdmin && <>
-           <SectionPanel className="ax-sales-record-filter" eyebrow="دفتر فروش" title="فهرست تراکنش‌ها" description="جست‌وجو، وضعیت وصول و ترتیب نمایش را برای بازهٔ انتخاب‌شده تنظیم کنید." action={<span className="ax-badge">{numberFa(filtered.length, 0)} ردیف</span>}>
-              <div className="ax-sales-ledger-controls">
-                <label className="ax-search ax-sales-ledger-search"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="نام مشتری، سرویس یا شناسه فروش" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></label>
-                <label className="ax-sales-ledger-sort"><span>ترتیب نمایش</span><select aria-label="مرتب‌سازی فروش‌ها" value={salesSort} onChange={(event) => setSalesSort(event.target.value as typeof salesSort)}><option value="newest">جدیدترین فروش</option><option value="oldest">قدیمی‌ترین فروش</option><option value="amount-desc">بیشترین مبلغ</option></select></label>
-              </div>
-              <div className="ax-sales-payment-filter-tabs" role="group" aria-label="فیلتر وضعیت پرداخت">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button type="button" key={value} className={filter === value ? 'selected' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}<span>{numberFa(value === 'All' ? visibleSales.length : value === 'Paid' ? visibleSales.filter((sale) => sale.paid).length : visibleSales.filter((sale) => !sale.paid).length, 0)}</span></button>)}</div>
-           </SectionPanel>
-           {loading && !visibleSales.length ? <StatePanel kind="loading" title="در حال دریافت فروش‌ها" detail="دفتر زندهٔ بازهٔ انتخاب‌شده بارگذاری می‌شود." /> : null}
-           <SectionPanel className="ax-sales-record-board" eyebrow="تراکنش‌های این بازه" title={`${numberFa(filtered.length, 0)} فروش`} description="مشتری، سرویس، مبلغ و وضعیت وصول برای هر ردیف." action={<span className="ax-badge">{rangeLabel}</span>}>
+    {!isMasterAdmin && <Card flush ariaLabel="فروش‌های این بازه" title={`${numberFa(filtered.length, 0)} فروش`} description="مشتری، سرویس، مبلغ و وضعیت وصول برای هر ردیف؛ جست‌وجو و ترتیب روی همین بازه اعمال می‌شود." actions={<Badge>{rangeLabel}</Badge>} footer={<span className="ax-sub">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · حجم و تاریخ هر سرویس بر اساس تقویم شمسی تهران</span>}>
+      <Toolbar label="فیلتر تراکنش‌ها">
+                <label className="ax-search"><Search size={16} /><input aria-label="جست‌وجوی فروش" placeholder="نام مشتری، سرویس یا شناسه فروش" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search-sales" /></label>
+              <div className="ax-segment" role="group" aria-label="فیلتر وضعیت پرداخت">{[['All', 'همه'], ['Paid', 'پرداخت‌شده'], ['Unpaid', 'در انتظار']].map(([value, label]) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)} data-testid={`button-filter-${value.toLowerCase()}`}>{label}<span>{numberFa(value === 'All' ? visibleSales.length : value === 'Paid' ? visibleSales.filter((sale) => sale.paid).length : visibleSales.filter((sale) => !sale.paid).length, 0)}</span></button>)}</div>
+                <label className="ax-field is-compact"><span>ترتیب نمایش</span><select aria-label="مرتب‌سازی فروش‌ها" value={salesSort} onChange={(event) => setSalesSort(event.target.value as typeof salesSort)}><option value="newest">جدیدترین فروش</option><option value="oldest">قدیمی‌ترین فروش</option><option value="amount-desc">بیشترین مبلغ</option></select></label>
+      </Toolbar>
+           {loading && !visibleSales.length ? <SkeletonRows rows={5} label="در حال دریافت فروش‌ها" /> : null}
               {filtered.length ? <div className="ax-table-wrap is-stack"><table className="ax-table" aria-label="دفتر فروش این بازه">
                 <thead><tr><th scope="col">مشتری و تاریخ</th><th scope="col">سرویس</th><th scope="col">پنل</th><th scope="col">حجم</th><th scope="col">مبلغ</th><th scope="col">وصول</th><th scope="col">عملیات</th></tr></thead>
                 <tbody>{filtered.map((sale) => <tr key={sale.id} data-testid={`row-sale-${sale.id}`}>
@@ -1016,12 +1013,10 @@ function SalesContent() {
                   <td><div className="ax-cell-actions"><button type="button" className={`ax-sale-payment-button paid ${sale.paid ? 'selected' : ''}`} onClick={() => { if (!sale.paid) togglePaid(sale); }} disabled={sale.paid} data-testid={`button-mark-paid-${sale.id}`}>پرداخت شد</button><button type="button" className={`ax-sale-payment-button unpaid ${!sale.paid ? 'selected' : ''}`} onClick={() => { if (sale.paid) togglePaid(sale); }} disabled={!sale.paid} data-testid={`button-mark-unpaid-${sale.id}`}>در انتظار</button><button type="button" className="ax-btn is-quiet" aria-label={`ویرایش فروش ${sale.id}`} onClick={() => openSaleEditor(sale)} data-testid={`button-edit-sale-${sale.id}`}><Pencil size={14} /> ویرایش</button></div></td>
                 </tr>)}</tbody>
               </table></div> : !loading && !error ? <EmptyState title="فروشی در این بازه پیدا نشد" detail="بازه، عبارت جست‌وجو یا فیلتر پرداخت را تغییر دهید." /> : null}
-           </SectionPanel>
-          <p className="ax-sales-record-footnote">نمایش {numberFa(filtered.length, 0)} مورد از {numberFa(visibleSales.length, 0)} فروش · حجم و تاریخ هر سرویس بر اساس تقویم شمسی تهران</p>
-        </>}
-    </section>
+    </Card>}
+    </Workbench>
     {saleEditTarget && <SaleEditModal sale={saleEditTarget} price={saleEditPrice} paid={saleEditPaid} saving={saleEditSaving} onPriceChange={setSaleEditPrice} onPaidChange={setSaleEditPaid} onClose={() => setSaleEditTarget(null)} onSave={() => void saveSaleEditor()} />}
-  </div>;
+  </>;
 }
 
 function SaleEditModal({ sale, price, paid, saving, onPriceChange, onPaidChange, onClose, onSave }: { sale: Sale; price: string; paid: boolean; saving: boolean; onPriceChange: (value: string) => void; onPaidChange: (value: boolean) => void; onClose: () => void; onSave: () => void }) {
@@ -1901,33 +1896,34 @@ function ServicesContent() {
      ) return;
      updateService({ ...service, status: service.status === 'Disabled' ? 'Active' : 'Disabled' });
    };
-     return <div className="ax-service-catalog">
-       <PageHeader eyebrow="موجودی دسترسی" title="سرویس‌ها" description="پروندهٔ هر اشتراک، مصرف Provider، انقضا و عملیات آن را از یک فهرست مدیریت کنید." action={<div className="ax-service-page-actions"><Link href="/awg-usage" className="ax-btn" data-testid="link-awg-usage-report"><Wifi size={15} /> گزارش مصرف AWG</Link><button type="button" className="ax-btn is-primary" onClick={() => setModal(true)} aria-haspopup="dialog" data-testid="button-add-service"><Plus size={16} /> افزودن سرویس</button></div>} />
-       <section className="ax-service-command-board" aria-label="نمای کلی سرویس‌ها">
-          <div className="ax-service-command-intro"><span><Globe2 size={20} /></span><div><small>نمای کلی موجودی</small><strong>{servicesUnknown ? 'در حال دریافت' : `${numberFa(services.length, 0)} سرویس`}</strong><p>{servicesError && !services.length ? 'فهرست در دسترس نیست' : 'شاخص‌ها از پرونده‌های واقعی این حساب محاسبه می‌شوند.'}</p></div></div>
-          <button type="button" className="ax-service-command-stat expiring" onClick={() => focusServiceQueue('expiring')}><span>پایان اعتبار تا ۷ روز</span><strong>{servicesUnknown ? '—' : numberFa(servicePulse.expiring, 0)}</strong><small>مشاهده موارد نزدیک انقضا</small></button>
-          <button type="button" className="ax-service-command-stat" onClick={() => focusServiceQueue('active')}><span>دسترسی فعال</span><strong>{servicesUnknown ? '—' : numberFa(servicePulse.active, 0)}</strong><small>بازکردن فهرست فعال</small></button>
-          <button type="button" className="ax-service-command-stat issue" onClick={() => focusServiceQueue('failed')}><span>ساخت ناموفق اخیر</span><strong>{servicesUnknown ? '—' : numberFa(servicePulse.failures, 0)}</strong><small>خطاهای ۳۰ روز اخیر</small></button>
+     return <>
+       <PageHead eyebrow="موجودی دسترسی" title="سرویس‌ها" lede="پروندهٔ هر اشتراک، مصرف Provider، انقضا و عملیات آن را از یک فهرست مدیریت کنید." actions={<><Link href="/awg-usage" className="ax-btn" data-testid="link-awg-usage-report"><Wifi size={15} /> گزارش مصرف AWG</Link><button type="button" className="ax-btn is-primary" onClick={() => setModal(true)} aria-haspopup="dialog" data-testid="button-add-service"><Plus size={16} /> افزودن سرویس</button></>} />
+       <section className="ax-queue-nav" aria-label="نمای کلی سرویس‌ها">
+          <div className="ax-queue" aria-live="polite"><span className="ax-queue-label"><Globe2 size={14} /> نمای کلی موجودی</span><strong>{servicesUnknown ? '—' : numberFa(services.length, 0)}</strong><small>{servicesError && !services.length ? 'فهرست در دسترس نیست' : 'سرویس ثبت‌شده در این حساب'}</small></div>
+          <button type="button" className="ax-queue is-warn" onClick={() => focusServiceQueue('expiring')}><span className="ax-queue-label"><Clock3 size={14} /> پایان اعتبار تا ۷ روز</span><strong>{servicesUnknown ? '—' : numberFa(servicePulse.expiring, 0)}</strong><small>مشاهده موارد نزدیک انقضا</small><ChevronLeft size={14} className="ax-queue-chev" /></button>
+          <button type="button" className="ax-queue is-info" onClick={() => focusServiceQueue('active')}><span className="ax-queue-label"><Wifi size={14} /> دسترسی فعال</span><strong>{servicesUnknown ? '—' : numberFa(servicePulse.active, 0)}</strong><small>بازکردن فهرست فعال</small><ChevronLeft size={14} className="ax-queue-chev" /></button>
+          <button type="button" className="ax-queue is-bad" onClick={() => focusServiceQueue('failed')}><span className="ax-queue-label"><ShieldAlert size={14} /> ساخت ناموفق اخیر</span><strong>{servicesUnknown ? '—' : numberFa(servicePulse.failures, 0)}</strong><small>خطاهای ۳۰ روز اخیر</small><ChevronLeft size={14} className="ax-queue-chev" /></button>
        </section>
-       <section className="ax-service-filter-workbench" aria-labelledby="service-filter-heading">
-         <header className="ax-service-filter-heading"><div><p className="ax-eyebrow">جست‌وجو و فیلتر</p><h2 id="service-filter-heading">پیدا کردن یک سرویس</h2><p>عبارت جست‌وجو و فیلترها با هم اعمال می‌شوند.</p></div><div className="ax-service-filter-count"><strong>{servicesUnknown ? '—' : numberFa(filtered.length, 0)}</strong><span>از {servicesUnknown ? '—' : numberFa(services.length, 0)}</span></div></header>
-         <label className="ax-service-catalog-search ax-search"><Search size={17} /><input placeholder="شناسه، مشتری، نام کاربری، بسته، پنل یا یادداشت" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="جست‌وجوی سرویس‌ها" data-testid="input-search-services" /></label>
-         <div className="ax-service-catalog-status" role="group" aria-label="فیلتر وضعیت سرویس">{([['All', 'همه'], ['Active', 'فعال'], ['Expiring', 'نزدیک انقضا'], ['Expired', 'منقضی'], ['Disabled', 'متوقف']] as const).map(([value, label]) => <button type="button" className={status === value ? 'selected' : ''} key={value} aria-pressed={status === value} onClick={() => setStatus(value)}>{label}</button>)}</div>
-         <div className="ax-service-catalog-filters">
-           <label><span>زمان انقضا</span><select value={expiryFilter} onChange={(event) => setExpiryFilter(event.target.value)}><option value="all">هر زمانی</option><option value="7days">تا ۷ روز آینده</option><option value="14days">تا ۱۴ روز آینده</option><option value="later">بیش از ۱۴ روز</option><option value="expired">گذشته</option></select></label>
-           <label><span>حجم باقی‌مانده</span><select value={quotaFilter} onChange={(event) => setQuotaFilter(event.target.value)}><option value="all">همه حجم‌ها</option><option value="empty">تمام‌شده</option><option value="low">۱۰ گیگ یا کمتر</option><option value="high-usage">مصرف بالای ۸۰٪</option><option value="healthy">بیش از ۱۰ گیگ</option></select></label>
-           <label><span>نوع اتصال</span><select value={connectionFilter} onChange={(event) => setConnectionFilter(event.target.value)}><option value="all">همه</option><option value="awg">دارای AmneziaWG</option><option value="provider">فقط Provider</option></select></label>
-           <label><span>عملیات</span><select value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)} data-testid="select-service-issue-filter"><option value="all">همه وضعیت‌ها</option><option value="failed">خطای ساخت اخیر</option><option value="cancelled">لغوشده یا در انتظار لغو</option></select></label>
-           <label><span>پنل</span><select value={panelFilter} onChange={(event) => setPanelFilter(event.target.value)}><option value="all">همه پنل‌ها</option>{panels.map((panel) => <option value={panel} key={panel}>{panel}</option>)}</select></label>
-           <label><span>مرتب‌سازی</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value)} data-testid="select-service-sort"><option value="expiry-asc">نزدیک‌ترین انقضا</option><option value="renewed-desc">آخرین تمدید</option><option value="created-desc">جدیدترین ایجاد</option><option value="expiry-desc">دورترین انقضا</option><option value="quota-asc">کمترین سهمیهٔ باقی‌مانده</option><option value="usage-desc">بیشترین درصد مصرف</option><option value="customer">نام مشتری</option></select></label>
+       <Card flush labelledBy="service-inventory-heading" title={servicesUnknown ? 'پرونده‌های سرویس' : `${numberFa(filtered.length, 0)} از ${numberFa(services.length, 0)} سرویس`} description="عبارت جست‌وجو و فیلترها با هم اعمال می‌شوند؛ هر عملیات فقط روی همان سرویس اعمال می‌شود." footer={<div className="ax-foot-bar"><span className="ax-sub">{servicesUnknown ? '—' : numberFa(filtered.length, 0)} ردیف نمایش داده می‌شود</span>{hasServiceFilters ? <span className="ax-sub">فیلتر فعال است</span> : null}</div>}>
+         <Toolbar label="جست‌وجو و فیلتر سرویس">
+         <label className="ax-search"><Search size={17} /><input placeholder="شناسه، مشتری، نام کاربری، بسته، پنل یا یادداشت" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="جست‌وجوی سرویس‌ها" data-testid="input-search-services" /></label>
+         <div className="ax-segment" role="group" aria-label="فیلتر وضعیت سرویس">{([['All', 'همه'], ['Active', 'فعال'], ['Expiring', 'نزدیک انقضا'], ['Expired', 'منقضی'], ['Disabled', 'متوقف']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={status === value} onClick={() => setStatus(value)}>{label}</button>)}</div>
+           {hasServiceFilters && <button type="button" className="ax-btn is-quiet is-sm" onClick={resetFilters}><X size={14} /> پاک‌کردن همهٔ فیلترها</button>}
+         </Toolbar>
+         <div className="ax-toolbar" aria-label="فیلترهای پیشرفته سرویس">
+           <label className="ax-field is-compact"><span>زمان انقضا</span><select value={expiryFilter} onChange={(event) => setExpiryFilter(event.target.value)}><option value="all">هر زمانی</option><option value="7days">تا ۷ روز آینده</option><option value="14days">تا ۱۴ روز آینده</option><option value="later">بیش از ۱۴ روز</option><option value="expired">گذشته</option></select></label>
+           <label className="ax-field is-compact"><span>حجم باقی‌مانده</span><select value={quotaFilter} onChange={(event) => setQuotaFilter(event.target.value)}><option value="all">همه حجم‌ها</option><option value="empty">تمام‌شده</option><option value="low">۱۰ گیگ یا کمتر</option><option value="high-usage">مصرف بالای ۸۰٪</option><option value="healthy">بیش از ۱۰ گیگ</option></select></label>
+           <label className="ax-field is-compact"><span>نوع اتصال</span><select value={connectionFilter} onChange={(event) => setConnectionFilter(event.target.value)}><option value="all">همه</option><option value="awg">دارای AmneziaWG</option><option value="provider">فقط Provider</option></select></label>
+           <label className="ax-field is-compact"><span>عملیات</span><select value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)} data-testid="select-service-issue-filter"><option value="all">همه وضعیت‌ها</option><option value="failed">خطای ساخت اخیر</option><option value="cancelled">لغوشده یا در انتظار لغو</option></select></label>
+           <label className="ax-field is-compact"><span>پنل</span><select value={panelFilter} onChange={(event) => setPanelFilter(event.target.value)}><option value="all">همه پنل‌ها</option>{panels.map((panel) => <option value={panel} key={panel}>{panel}</option>)}</select></label>
+           <label className="ax-field is-compact"><span>مرتب‌سازی</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value)} data-testid="select-service-sort"><option value="expiry-asc">نزدیک‌ترین انقضا</option><option value="renewed-desc">آخرین تمدید</option><option value="created-desc">جدیدترین ایجاد</option><option value="expiry-desc">دورترین انقضا</option><option value="quota-asc">کمترین سهمیهٔ باقی‌مانده</option><option value="usage-desc">بیشترین درصد مصرف</option><option value="customer">نام مشتری</option></select></label>
          </div>
-         {hasServiceFilters && <button type="button" className="ax-service-catalog-reset" onClick={resetFilters}><X size={14} /> پاک‌کردن همهٔ فیلترها</button>}
-       </section>
-        {servicesError && <StatePanel kind="error" title="فهرست سرویس‌ها به‌روز نشد" detail={servicesError} action={<Button variant="secondary" onClick={() => void refreshServices()} disabled={servicesLoading}><RefreshCw size={13} className={servicesLoading ? 'ax-spin' : ''} /> تلاش دوباره</Button>} />}
-        {servicesLoading && !services.length ? <div className="ax-service-inventory-skeleton" role="status" aria-label="در حال دریافت سرویس‌ها"><i /><i /><i /></div> : null}
-         {filtered.length > 0 ? <section className="ax-service-inventory-section" aria-labelledby="service-inventory-heading"><header className="ax-service-inventory-section-heading"><div><p className="ax-eyebrow">پرونده‌های سرویس</p><h2 id="service-inventory-heading">{numberFa(filtered.length, 0)} سرویس</h2></div><span>هر عملیات فقط روی همان سرویس اعمال می‌شود.</span></header><div className="ax-table-wrap is-stack"><table className="ax-table ax-service-register-table"><thead><tr><th>مشتری / اشتراک</th><th>سهمیه و مصرف</th><th>اعتبار</th><th>پنل و جزئیات</th><th>عملیات</th></tr></thead><tbody>{filtered.map((service) => <ServiceInventoryCard key={service.id} service={service} onNote={setNoteService} onToggle={toggle} onRenew={renewService} />)}</tbody></table></div></section> : !servicesLoading && !servicesError ? <StatePanel title={services.length ? 'سرویسی با این فیلترها پیدا نشد' : 'هنوز سرویسی ثبت نشده است'} detail={services.length ? 'فیلترها را پاک کنید تا همهٔ پرونده‌ها دوباره نمایش داده شوند.' : 'با ایجاد سرویس، وضعیت، مصرف، انقضا و عملیات آن در این فهرست قرار می‌گیرد.'} action={services.length ? <Button variant="secondary" onClick={resetFilters}>پاک‌کردن فیلترها</Button> : <Button onClick={() => setModal(true)}><Plus size={14} /> افزودن سرویس</Button>} /> : null}
+  {servicesError && <div className="ax-pad"><Callout tone="bad" role="alert" icon={ShieldAlert} title="فهرست سرویس‌ها به‌روز نشد" action={<Button variant="secondary" onClick={() => void refreshServices()} disabled={servicesLoading}><RefreshCw size={13} className={servicesLoading ? 'ax-spin' : ''} /> تلاش دوباره</Button>}>{servicesError}</Callout></div>}
+         {servicesLoading && !services.length ? <SkeletonRows rows={5} label="در حال دریافت سرویس‌ها" /> : null}
+         {filtered.length > 0 ? <div className="ax-table-wrap is-stack"><table className="ax-table ax-service-register-table"><thead><tr><th>مشتری / اشتراک</th><th>سهمیه و مصرف</th><th>اعتبار</th><th>پنل و جزئیات</th><th>عملیات</th></tr></thead><tbody>{filtered.map((service) => <ServiceInventoryCard key={service.id} service={service} onNote={setNoteService} onToggle={toggle} onRenew={renewService} />)}</tbody></table></div> : !servicesLoading && !servicesError ? <StatePanel title={services.length ? 'سرویسی با این فیلترها پیدا نشد' : 'هنوز سرویسی ثبت نشده است'} detail={services.length ? 'فیلترها را پاک کنید تا همهٔ پرونده‌ها دوباره نمایش داده شوند.' : 'با ایجاد سرویس، وضعیت، مصرف، انقضا و عملیات آن در این فهرست قرار می‌گیرد.'} action={services.length ? <Button variant="secondary" onClick={resetFilters}>پاک‌کردن فیلترها</Button> : <Button onClick={() => setModal(true)}><Plus size={14} /> افزودن سرویس</Button>} /> : null}
+       </Card>
           {modal && <ServiceModal onClose={() => setModal(false)} />}{noteService && <NoteModal service={noteService} onClose={() => setNoteService(null)} />}
-      </div>;
+      </>;
 }
 
 type MonitoringJob = {
@@ -2380,37 +2376,47 @@ function CustomersContent() {
     setPage(0);
   };
   const clearSearch = () => updateSearch('');
-  return <div className="ax-customer-directory-composition">
-    <PageHeader eyebrow="ارتباط با مشتری" title="مشتری‌ها" description="پرونده‌های مشتری را با جست‌وجوی زنده پیدا کنید و وضعیت هر ارتباط را در یک نگاه مرور کنید." action={<div className="ax-directory-stat"><UserRound size={15} /> {numberFormat.format(visibleTotal)} {tab === 'active' ? 'حساب فعال' : 'مشتری غیرفعال'}</div>} />
-    <SectionPanel className="ax-customer-directory-controls" eyebrow="جست‌وجو و وضعیت" title="پیدا کردن پرونده" description="نام، ایمیل یا شماره را وارد کنید؛ نتایج و تعداد کل با هر فیلتر تازه می‌شوند." action={<span className="ax-customer-result-count"><strong>{numberFormat.format(visibleTotal)}</strong><small>پرونده</small></span>}>
-      <div className="ax-customer-toolbar">
-        <label className="ax-search wide ax-customer-directory-search"><Search size={16} /><input aria-label="جست‌وجوی مشتریان" placeholder="نام، ایمیل یا شماره تلفن" value={search} onChange={(event) => updateSearch(event.target.value)} data-testid="input-search-customers" /><span className={`ax-customer-search-state ${loading ? 'is-loading' : ''}`} role="status">{loading ? 'در حال جست‌وجو' : 'جست‌وجوی زنده'}</span></label>
-        <Button variant="secondary" onClick={clearSearch} disabled={!search} testId="button-clear-customer-search">پاک کردن جست‌وجو</Button>
-      </div>
-      <div className="ax-customer-filter-row">
-        <span className="ax-customer-filter-label">نمایش پرونده‌های</span>
-        <div className="ax-customer-tabs" role="tablist" aria-label="فیلتر وضعیت مشتری">
-          <button type="button" role="tab" aria-selected={tab === 'active'} className={tab === 'active' ? 'selected' : ''} onClick={() => selectTab('active')} data-testid="button-customers-active"><span className="ax-customer-tab-dot active" /><span>فعال</span><small>دارای سرویس</small></button>
-          <button type="button" role="tab" aria-selected={tab === 'inactive'} className={tab === 'inactive' ? 'selected' : ''} onClick={() => selectTab('inactive')} data-testid="button-customers-inactive"><span className="ax-customer-tab-dot inactive" /><span>غیرفعال</span><small>بدون سرویس فعال</small></button>
-        </div>
-        <span className="ax-customer-filter-total">{numberFormat.format(visibleTotal)} نتیجه</span>
-      </div>
-    </SectionPanel>
-    {error && <StatePanel kind="error" title="دریافت فهرست مشتری‌ها ناموفق بود" detail={error} action={<Button variant="secondary" onClick={() => { setError(''); setLoading(true); setRetryKey((current) => current + 1); }} disabled={loading}>تلاش دوباره</Button>} />}
-    {loading && !visibleCustomers.length ? <StatePanel kind="loading" title="در حال دریافت پرونده‌های مشتری" detail="فهرست زنده با فیلتر انتخاب‌شده دریافت می‌شود." /> : null}
-    {!loading && visibleCustomers.length > 0 && <SectionPanel className="ax-customer-file-register" eyebrow="فهرست مشتریان" title={`${numberFormat.format(visibleCustomers.length)} پرونده در این صفحه`} description="هر ردیف خلاصهٔ ارتباط، سرویس و ارزش خرید را نشان می‌دهد." action={<span className="ax-badge">{tab === 'active' ? 'مشتریان فعال' : 'مشتریان غیرفعال'}</span>}>
-      <div className="ax-table-wrap is-stack"><table className="ax-table" aria-label="دفتر پرونده‌های مشتری">
-        <thead><tr><th scope="col">مشتری</th><th scope="col">وضعیت</th><th scope="col">سرویس فعال</th><th scope="col">مجموع خرید</th><th scope="col">آخرین خرید</th></tr></thead>
-        <tbody>{visibleCustomers.map((customer, index) => <tr key={customer.id} data-testid={`row-customer-${customer.id}`}>
+  const activeOnPage = visibleCustomers.filter((customer) => customer.activeServices > 0).length;
+  const pageSpend = visibleCustomers.reduce((sum, customer) => sum + Number(customer.totalSpend || 0), 0);
+  const customerPager = totalPages > 1 ? <nav className="ax-pager" aria-label="صفحه‌بندی مشتری‌ها"><span>صفحه {numberFormat.format(page + 1)} از {numberFormat.format(totalPages)} · {numberFormat.format(visibleTotal)} پرونده</span><div><button type="button" className="ax-btn is-sm" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0 || loading} data-testid="button-customers-previous"><ChevronRight size={14} /> قبلی</button><button type="button" className="ax-btn is-sm" onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))} disabled={page >= totalPages - 1 || loading} data-testid="button-customers-next">بعدی <ChevronLeft size={14} /></button></div></nav> : null;
+  return <>
+    <PageHead eyebrow="ارتباط با مشتری" title="مشتری‌ها" lede="پرونده‌های مشتری را با جست‌وجوی زنده پیدا کنید و وضعیت هر ارتباط را در یک نگاه مرور کنید." actions={<Badge tone="primary"><UserRound size={13} /> {numberFormat.format(visibleTotal)} {tab === 'active' ? 'حساب فعال' : 'مشتری غیرفعال'}</Badge>} />
+    <Workbench asideLabel="خلاصهٔ فهرست مشتری" aside={<>
+      <Card title="خلاصهٔ این نما" description={tab === 'active' ? 'مشتریان دارای سرویس فعال' : 'مشتریان بدون سرویس فعال'}>
+        <StatRow label="خلاصهٔ مشتریان">
+          <Stat label="کل نتایج" value={numberFormat.format(visibleTotal)} tone="primary" />
+          <Stat label="در این صفحه" value={numberFormat.format(visibleCustomers.length)} />
+          <Stat label="فعال در صفحه" value={numberFormat.format(activeOnPage)} tone="good" />
+          <Stat label="خرید صفحه" value={money(pageSpend)} />
+        </StatRow>
+      </Card>
+      <Card title="میانبرها">
+        <RowList label="میانبرهای مشتری">
+          <RowLink href="/services" icon={Wifi} title="سرویس‌ها" detail="تمدید، یادداشت و توقف سرویس" />
+          <RowLink href="/sales" icon={CreditCard} title="دفتر فروش" detail="وصول و تاریخچهٔ فروش" />
+          <RowLink href="/insights" icon={Activity} title="بینش مشتری" detail="ریزش، تمدید و ارزش خرید" />
+        </RowList>
+      </Card>
+    </>}>
+      <Card flush title="دفتر پرونده‌ها" description="نام، ایمیل یا شماره را وارد کنید؛ نتایج و تعداد کل با هر فیلتر تازه می‌شوند." actions={<span className={`ax-badge ${loading ? 'is-warn' : ''}`} role="status">{loading ? 'در حال جست‌وجو' : 'جست‌وجوی زنده'}</span>} footer={customerPager ?? undefined}>
+        <Toolbar label="جست‌وجو و فیلتر مشتری">
+          <label className="ax-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="جست‌وجوی مشتریان" placeholder="نام، ایمیل یا شماره تلفن" value={search} onChange={(event) => updateSearch(event.target.value)} data-testid="input-search-customers" />{search && <button type="button" className="ax-search-clear" onClick={clearSearch} aria-label="پاک کردن جست‌وجو" data-testid="button-clear-customer-search"><X size={14} /></button>}</label>
+          <div className="ax-segment" role="tablist" aria-label="فیلتر وضعیت مشتری">
+            <button type="button" role="tab" aria-selected={tab === 'active'} aria-pressed={tab === 'active'} onClick={() => selectTab('active')} data-testid="button-customers-active">فعال</button>
+            <button type="button" role="tab" aria-selected={tab === 'inactive'} aria-pressed={tab === 'inactive'} onClick={() => selectTab('inactive')} data-testid="button-customers-inactive">غیرفعال</button>
+          </div>
+        </Toolbar>
+        {error && <div className="ax-pad"><ErrorAlert message={`دریافت فهرست مشتری‌ها ناموفق بود: ${error}`} retrying={loading} onRetry={() => { setError(''); setLoading(true); setRetryKey((current) => current + 1); }} /></div>}
+        {loading && !visibleCustomers.length ? <SkeletonRows rows={6} label="در حال دریافت پرونده‌های مشتری" /> : null}
+        {!loading && visibleCustomers.length > 0 && <DataTable label="دفتر پرونده‌های مشتری" head={['مشتری', 'وضعیت', 'سرویس فعال', 'مجموع خرید', 'آخرین خرید']}>{visibleCustomers.map((customer, index) => <tr key={customer.id} data-testid={`row-customer-${customer.id}`}>
           <td><Link href={`/customers/${customer.id}`} className="ax-cell-main"><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><span><strong>{customer.name}</strong><small>{customer.phone || 'شماره ثبت نشده'}{customer.email ? ` · ${customer.email}` : ''}</small></span><ChevronLeft size={14} /></Link></td>
-          <td><span className={`ax-customer-file-status ${customer.activeServices > 0 ? 'is-active' : 'is-inactive'}`}><i />{customer.activeServices > 0 ? 'فعال' : 'غیرفعال'}</span></td>
-          <td>{numberFormat.format(customer.activeServices)}</td><td className="ax-num">{money(customer.totalSpend)}</td><td>{dateLabel(customer.lastPurchase)}</td>
-        </tr>)}</tbody>
-      </table></div>
-    </SectionPanel>}
-    {!loading && !error && !visibleCustomers.length && <StatePanel title={tab === 'active' ? 'مشتری فعال پیدا نشد' : 'مشتری غیرفعالی پیدا نشد'} detail={search ? 'عبارت جست‌وجو یا تب وضعیت را تغییر دهید.' : 'با ثبت سرویس فعال، مشتری در این بخش نمایش داده می‌شود.'} />}
-    {totalPages > 1 && <nav className="ax-customer-pagination" aria-label="صفحه‌بندی مشتری‌ها"><button type="button" className="ax-btn is-quiet" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0 || loading} data-testid="button-customers-previous"><ChevronRight size={15} /> قبلی</button><span>صفحه {numberFormat.format(page + 1)} از {numberFormat.format(totalPages)}<small>{numberFormat.format(visibleTotal)} پرونده</small></span><button type="button" className="ax-btn is-quiet" onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))} disabled={page >= totalPages - 1 || loading} data-testid="button-customers-next">بعدی <ChevronLeft size={15} /></button></nav>}
-  </div>;
+          <td><Badge tone={customer.activeServices > 0 ? 'good' : 'neutral'} dot>{customer.activeServices > 0 ? 'فعال' : 'غیرفعال'}</Badge></td>
+          <td className="ax-num">{numberFormat.format(customer.activeServices)}</td><td className="ax-num">{money(customer.totalSpend)}</td><td>{dateLabel(customer.lastPurchase)}</td>
+        </tr>)}</DataTable>}
+        {!loading && !error && !visibleCustomers.length && <AxEmpty icon={UserRound} title={tab === 'active' ? 'مشتری فعال پیدا نشد' : 'مشتری غیرفعالی پیدا نشد'} detail={search ? 'عبارت جست‌وجو یا تب وضعیت را تغییر دهید.' : 'با ثبت سرویس فعال، مشتری در این بخش نمایش داده می‌شود.'} />}
+      </Card>
+    </Workbench>
+  </>;
 }
 
 export function Customers() {

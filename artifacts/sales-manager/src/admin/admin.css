@@ -324,5 +324,11 @@
 .ax-auth-side ul { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
 .ax-auth-side li { display: flex; align-items: center; gap: 10px; border-top: 1px solid hsl(40 30% 92% / .12); padding-top: 12px; }
 .ax-auth-side svg { color: hsl(350 60% 72%); }
-@media (max-width: 860px) { .ax-auth { grid-template-columns: 1fr; } .ax-auth-side { display: none; } }
+@media (max-width: 860px) {
+  .ax-auth { grid-template-columns: 1fr; min-height: 100svh; }
+  .ax-auth-side { display: none; }
+  /* The shell hides workspace search on phones; keep the sign-in field visible. */
+  .ax-auth .ax-search { position: relative; inset: auto; z-index: auto; display: flex; width: 100%; min-height: 48px; }
+  .ax-auth .ax-search input { display: block; width: 100%; min-width: 0; }
+}
 .ax-alert.is-info { border-color: hsl(var(--ax-info) / .25); background: hsl(var(--ax-info-soft, var(--ax-info)) / .12); color: hsl(var(--ax-ink)); }
