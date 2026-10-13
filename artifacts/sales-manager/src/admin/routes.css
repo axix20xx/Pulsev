@@ -666,3 +666,73 @@
   .ax-root :is(.ax-modal-backdrop, .ax-save-toast, .ax-customer-console-jumpbar, .ax-settings-console-nav) { display: none !important; }
   .ax-root :is(.ax-overview-workbench, .ax-pos-terminal-grid, .ax-customer-crm-grid, .ax-accounting-overview-grid, .ax-settings-console) { grid-template-columns: 1fr; }
 }
+
+/* High-contrast pass for customer records and mobile service cards. */
+.ax-root [data-surface="customers"] .ax-card,
+.ax-root [data-surface="customer-detail"] .ax-card,
+.ax-root [data-surface="services"] .ax-service-inventory-section {
+  border: 1px solid hsl(var(--ax-line));
+  background: hsl(var(--ax-surface));
+  box-shadow: 0 4px 14px hsl(var(--ax-ink) / .075);
+}
+.ax-root [data-surface="customers"] .ax-card-head,
+.ax-root [data-surface="customer-detail"] .ax-card-head,
+.ax-root [data-surface="services"] .ax-service-inventory-section-heading {
+  border-bottom-color: hsl(var(--ax-line));
+  background: hsl(var(--ax-sunken) / .7);
+}
+.ax-root [data-surface="customers"] .ax-card-head p,
+.ax-root [data-surface="customer-detail"] .ax-card-head p,
+.ax-root [data-surface="customers"] .ax-sub,
+.ax-root [data-surface="customer-detail"] .ax-sub,
+.ax-root [data-surface="services"] .ax-sub { color: hsl(var(--ax-ink-2)); }
+.ax-root [data-surface="customers"] .ax-table tbody td,
+.ax-root [data-surface="customer-detail"] .ax-table tbody td,
+.ax-root [data-surface="services"] .ax-table tbody td { border-bottom-color: hsl(var(--ax-line)); }
+.ax-root [data-surface="customers"] .ax-badge,
+.ax-root [data-surface="customer-detail"] .ax-badge,
+.ax-root [data-surface="services"] .ax-badge { font-weight: 750; }
+.ax-root [data-surface="customers"] .ax-kpi,
+.ax-root [data-surface="customer-detail"] .ax-kpi {
+  border-color: hsl(var(--ax-line));
+  background: hsl(var(--ax-surface));
+  box-shadow: 0 3px 10px hsl(var(--ax-ink) / .06);
+}
+.ax-root [data-surface="customers"] .ax-toolbar { border-bottom-color: hsl(var(--ax-line)); }
+.ax-root [data-surface="customers"] .ax-segment,
+.ax-root [data-surface="customer-detail"] .ax-customer-service-toolbar {
+  border: 1px solid hsl(var(--ax-line));
+  background: hsl(var(--ax-sunken));
+}
+.ax-root [data-surface="customer-detail"] .ax-customer-console-jumpbar a { color: hsl(var(--ax-ink-2)); font-weight: 700; }
+.ax-root [data-surface="customer-detail"] .ax-customer-console-jumpbar a:hover { background: hsl(var(--ax-primary-soft)); color: hsl(var(--ax-primary)); }
+.ax-root [data-surface="customer-detail"] .ax-customer-service-table details summary,
+.ax-root [data-surface="customer-detail"] .ax-customer-request-status a { color: hsl(var(--ax-primary)); font-weight: 800; }
+.ax-root [data-surface="customer-detail"] .ax-cell-actions .ax-btn,
+.ax-root [data-surface="services"] .ax-cell-actions .ax-btn { min-height: 38px; }
+
+@media (max-width: 767px) {
+  .ax-root [data-surface="customer-detail"] .ax-table-wrap.is-stack .ax-table tbody tr,
+  .ax-root [data-surface="services"] .ax-table-wrap.is-stack .ax-table tbody tr {
+    margin: 10px 8px;
+    overflow: hidden;
+    border: 1px solid hsl(var(--ax-line));
+    border-radius: 12px;
+    background: hsl(var(--ax-surface));
+    box-shadow: 0 3px 10px hsl(var(--ax-ink) / .07);
+  }
+  .ax-root [data-surface="customer-detail"] .ax-table-wrap.is-stack .ax-table tbody td,
+  .ax-root [data-surface="services"] .ax-table-wrap.is-stack .ax-table tbody td {
+    padding: 10px 12px;
+    color: hsl(var(--ax-ink));
+  }
+  .ax-root [data-surface="customer-detail"] .ax-table-wrap.is-stack .ax-table tbody td[data-label]:not(:first-child)::before,
+  .ax-root [data-surface="services"] .ax-table-wrap.is-stack .ax-table tbody td[data-label]:not(:first-child)::before {
+    color: hsl(var(--ax-ink-2));
+    font-weight: 750;
+  }
+  .ax-root [data-surface="customer-detail"] .ax-cell-actions,
+  .ax-root [data-surface="services"] .ax-cell-actions { width: 100%; }
+  .ax-root [data-surface="customer-detail"] .ax-cell-actions .ax-btn,
+  .ax-root [data-surface="services"] .ax-cell-actions .ax-btn { flex: 1 1 132px; }
+}

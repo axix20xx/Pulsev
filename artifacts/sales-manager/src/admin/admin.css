@@ -5,14 +5,14 @@
  * reserved for floating layers (menus, drawers, dialogs).
  */
 .ax-root {
-  --ax-canvas: 36 24% 96.5%;
-  --ax-surface: 40 40% 99.4%;
-  --ax-sunken: 36 22% 94.5%;
+  --ax-canvas: 36 18% 93%;
+  --ax-surface: 40 35% 100%;
+  --ax-sunken: 36 17% 89.5%;
   --ax-ink: 24 14% 12%;
-  --ax-ink-2: 24 8% 30%;
-  --ax-muted: 26 6% 44%;
-  --ax-line: 32 16% 87%;
-  --ax-line-soft: 32 18% 91%;
+  --ax-ink-2: 24 10% 24%;
+  --ax-muted: 26 8% 34%;
+  --ax-line: 32 18% 77%;
+  --ax-line-soft: 32 16% 85%;
   --ax-primary: 350 54% 36%;
   --ax-primary-hover: 350 58% 30%;
   --ax-primary-soft: 350 50% 95%;
@@ -171,7 +171,7 @@
 .ax-split { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
 .ax-split-even { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
 
-.ax-card { min-width: 0; border: 1px solid hsl(var(--ax-line)); border-radius: var(--ax-r); background: hsl(var(--ax-surface)); }
+.ax-card { min-width: 0; border: 1px solid hsl(var(--ax-line)); border-radius: var(--ax-r); background: hsl(var(--ax-surface)); box-shadow: 0 3px 12px hsl(var(--ax-ink) / .07); }
 .ax-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; border-bottom: 1px solid hsl(var(--ax-line-soft)); padding: 14px 18px; }
 .ax-card-head h2 { margin: 0; font-size: 15px; font-weight: 750; }
 .ax-card-head p { margin: 2px 0 0; color: hsl(var(--ax-muted)); font-size: 12.5px; }
@@ -192,15 +192,15 @@
 .ax-kpi-detail { margin: 0; color: hsl(var(--ax-muted)); font-size: 12px; }
 
 /* ===== Controls ===== */
-.ax-btn { display: inline-flex; min-height: 38px; align-items: center; justify-content: center; gap: 7px; border: 1px solid hsl(var(--ax-line)); border-radius: var(--ax-r-sm); background: hsl(var(--ax-surface)); padding: 0 14px; color: hsl(var(--ax-ink)); font-size: 13px; font-weight: 650; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .1s ease; }
-.ax-btn:hover:not(:disabled) { border-color: hsl(var(--ax-ink) / .28); background: hsl(var(--ax-sunken)); }
+.ax-btn { display: inline-flex; min-height: 38px; align-items: center; justify-content: center; gap: 7px; border: 1px solid hsl(var(--ax-info) / .38); border-radius: var(--ax-r-sm); background: hsl(var(--ax-info-soft)); padding: 0 14px; color: hsl(var(--ax-info)); font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .1s ease; }
+.ax-btn:hover:not(:disabled) { border-color: hsl(var(--ax-info)); background: hsl(var(--ax-info) / .14); }
 .ax-btn:active:not(:disabled) { transform: translateY(1px); }
 .ax-btn:disabled { opacity: .5; cursor: not-allowed; }
 .ax-btn.is-primary { border-color: hsl(var(--ax-primary)); background: hsl(var(--ax-primary)); color: hsl(40 40% 99%); }
 .ax-btn.is-primary:hover:not(:disabled) { border-color: hsl(var(--ax-primary-hover)); background: hsl(var(--ax-primary-hover)); }
-.ax-btn.is-quiet { border-color: transparent; background: transparent; }
-.ax-btn.is-quiet:hover:not(:disabled) { background: hsl(var(--ax-sunken)); }
-.ax-btn.is-danger { border-color: hsl(var(--ax-bad) / .35); color: hsl(var(--ax-bad)); }
+.ax-btn.is-quiet { border-color: hsl(var(--ax-line)); background: hsl(var(--ax-surface)); color: hsl(var(--ax-ink-2)); }
+.ax-btn.is-quiet:hover:not(:disabled) { border-color: hsl(var(--ax-primary) / .45); background: hsl(var(--ax-primary-soft)); color: hsl(var(--ax-primary)); }
+.ax-btn.is-danger { border-color: hsl(var(--ax-bad) / .45); background: hsl(var(--ax-bad-soft)); color: hsl(var(--ax-bad)); }
 .ax-btn.is-danger:hover:not(:disabled) { background: hsl(var(--ax-bad-soft)); }
 .ax-btn.is-sm { min-height: 32px; padding: 0 10px; font-size: 12.5px; }
 
