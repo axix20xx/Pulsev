@@ -64220,6 +64220,8 @@ var MASTER_ADMIN_TELEGRAM_ID = Number(
 var sessionCookie = "pulse_session";
 var sessionHash = (value) => createHash2("sha256").update(value).digest("hex");
 var transientDatabaseCodes = /* @__PURE__ */ new Set([
+  // PostgreSQL aborts one participant of a deadlock; the same read can be retried safely.
+  "40P01",
   "08000",
   "08001",
   "08003",

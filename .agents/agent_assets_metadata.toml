@@ -1164,3 +1164,17 @@ mtime_ms = 1791362579005
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1beecd4a-7cce-47c1-8763-e9b09c1405d6/4245a892-a8f0-4fe4-9c52-e749faeadf7f"
 storage_version_token = "1791362634209128"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "205QBGCah7_Nyr3pNVKOC"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-14T07-07-24-278Z.zip"
+type = "unspecified"
+title = "Pulse — Full Hostinger Migration ZIP"
+description = "Complete Hostinger Node.js deployment with the latest admin UI, panel, mobile, subscription and showcase builds, API bundle, and automatic first-run migration from the bundled legacy database backup."
+logical_id = "5a041eab-b826-4938-8512-f0b9adbfd5b7"
+content_hash = "sha256:1d3eff2232bdc5b8274392749dd77073119296551e1133c32ba820a47351bd97"
+size = 28633878
+mtime_ms = 1791961734514
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5a041eab-b826-4938-8512-f0b9adbfd5b7/82b98f29-523d-497b-8026-910316a5fb44"
+storage_version_token = "1791961771976872"
+content_type = "application/octet-stream"
