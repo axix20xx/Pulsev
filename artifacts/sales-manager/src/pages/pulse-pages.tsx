@@ -1004,7 +1004,7 @@ function SalesContent() {
                 <label className="ax-field is-compact"><span>ترتیب نمایش</span><select aria-label="مرتب‌سازی فروش‌ها" value={salesSort} onChange={(event) => setSalesSort(event.target.value as typeof salesSort)}><option value="newest">جدیدترین فروش</option><option value="oldest">قدیمی‌ترین فروش</option><option value="amount-desc">بیشترین مبلغ</option></select></label>
       </Toolbar>
            {loading && !visibleSales.length ? <SkeletonRows rows={5} label="در حال دریافت فروش‌ها" /> : null}
-              {filtered.length ? <div className="ax-table-wrap is-stack"><table className="ax-table" aria-label="دفتر فروش این بازه">
+              {filtered.length ? <div className="ax-table-wrap is-stack"><table className="ax-table ax-sales-ledger-table" aria-label="دفتر فروش این بازه">
                 <thead><tr><th scope="col">مشتری و تاریخ</th><th scope="col">سرویس</th><th scope="col">پنل</th><th scope="col">حجم</th><th scope="col">مبلغ</th><th scope="col">وصول</th><th scope="col">عملیات</th></tr></thead>
                 <tbody>{filtered.map((sale) => <tr key={sale.id} data-testid={`row-sale-${sale.id}`}>
                   <td><div className="ax-cell-main"><Avatar name={sale.customerName} /><span><strong>{sale.customerName}</strong><small>#{sale.id} · {dateLabel(sale.date)}</small></span></div></td>
