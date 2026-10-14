@@ -660,13 +660,28 @@
 
 /* Keep every sales action together on desktop; allow the action group to wrap
    inside the compact stacked card on phones. */
-@media (min-width: 721px) {
+@container ax-table (min-width: 721px) {
   .ax-root .ax-sales-ledger-table :is(th, td):last-child { min-width: 300px; }
   .ax-root .ax-sales-ledger-table .ax-cell-actions { flex-wrap: nowrap; align-items: center; justify-content: flex-start; }
+  .ax-root .ax-sales-ledger-table thead th:last-child {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: hsl(var(--ax-sunken));
+    box-shadow: -8px 0 12px -10px hsl(var(--ax-ink) / .55);
+  }
+  .ax-root .ax-sales-ledger-table tbody td:last-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: hsl(var(--ax-surface));
+    box-shadow: -8px 0 12px -10px hsl(var(--ax-ink) / .5);
+  }
 }
-@media (max-width: 720px) {
+@container ax-table (max-width: 720px) {
   .ax-root .ax-sales-ledger-table :is(th, td):last-child { min-width: 0; }
   .ax-root .ax-sales-ledger-table .ax-cell-actions { width: 100%; flex-wrap: wrap; align-items: center; }
+  .ax-root .ax-sales-ledger-table tbody td:last-child { position: static; box-shadow: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

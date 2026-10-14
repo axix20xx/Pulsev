@@ -1192,3 +1192,17 @@ mtime_ms = 1791965310744
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/89e00760-b677-4b95-80ce-c5b63f1156f7/1d055ede-4040-41f2-9724-cb422d15a80b"
 storage_version_token = "1791965333818766"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Sg0eckeOiCnYo1MrgZYF8"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-14T08-15-15-248Z.zip"
+type = "unspecified"
+title = "Pulse — Updated Hostinger Migration ZIP"
+description = "Includes the table container-width responsiveness fix: narrow sales panels show all row actions, while wider tables keep the actions column visible. Package checks passed; Hostinger staging was not contacted."
+logical_id = "11b6e54d-99c3-460f-b647-b111fcdf70d1"
+content_hash = "sha256:e3831784c0e57a9375e01f27fe1a750f0f9fb1247372a8d465a13584ad89dc3c"
+size = 28636491
+mtime_ms = 1791965818112
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/11b6e54d-99c3-460f-b647-b111fcdf70d1/6a80e1f4-2d2b-434f-9ec9-dd02a6e3e1eb"
+storage_version_token = "1791965838228599"
+content_type = "application/octet-stream"

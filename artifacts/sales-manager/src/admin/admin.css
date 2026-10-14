@@ -238,6 +238,8 @@
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
+  container-name: ax-table;
+  container-type: inline-size;
   overscroll-behavior-inline: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-color: hsl(var(--ax-line)) transparent;
@@ -307,14 +309,17 @@
   .ax-toolbar { padding: 12px; }
   .ax-toolbar .ax-field { flex: 1 1 140px; }
   .ax-card-head, .ax-card-body { padding-inline: 14px; }
+}
+@container ax-table (max-width: 720px) {
   .ax-table-wrap.is-stack { overflow: visible; }
   .is-stack .ax-table, .is-stack .ax-table tbody, .is-stack .ax-table tr, .is-stack .ax-table td { display: block; width: 100%; min-width: 0; max-width: none; }
+  .is-stack .ax-table tbody { display: grid; gap: 8px; }
   .is-stack .ax-table thead { display: none; }
-  .is-stack .ax-table tbody tr { border-bottom: 1px solid hsl(var(--ax-line)); padding: 6px 0; }
-  .is-stack .ax-table tbody tr:last-child { border-bottom: 0; }
-  .is-stack .ax-table tbody td { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 0; padding: 7px 14px; overflow-wrap: anywhere; text-align: end; }
+  .is-stack .ax-table tbody tr { overflow: hidden; border: 1px solid hsl(var(--ax-line)); border-radius: 10px; background: hsl(var(--ax-surface)); padding: 6px 0; box-shadow: 0 2px 8px hsl(var(--ax-ink) / .055); }
+  .is-stack .ax-table tbody tr:last-child { border-bottom: 1px solid hsl(var(--ax-line)); }
+  .is-stack .ax-table tbody td { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 0; padding: 8px 12px; overflow-wrap: anywhere; text-align: end; }
   .is-stack .ax-table tbody td:first-child { text-align: start; }
-  .is-stack .ax-table tbody td[data-label]::before { flex: 0 0 auto; max-width: 38%; color: hsl(var(--ax-muted)); content: attr(data-label); font-size: 12px; font-weight: 650; text-align: start; }
+  .is-stack .ax-table tbody td[data-label]::before { flex: 0 0 auto; max-width: 38%; color: hsl(var(--ax-ink-2)); content: attr(data-label); font-size: 12px; font-weight: 700; text-align: start; }
   .is-stack .ax-table tbody td > :not(.ax-cell-actions) { min-width: 0; }
   .is-stack .ax-cell-actions { justify-content: flex-start; }
 }
