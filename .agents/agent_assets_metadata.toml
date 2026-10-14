@@ -1178,3 +1178,17 @@ mtime_ms = 1791961734514
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5a041eab-b826-4938-8512-f0b9adbfd5b7/82b98f29-523d-497b-8026-910316a5fb44"
 storage_version_token = "1791961771976872"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "HEkZu9L4zotqgMxuZ1g6F"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-14T08-06-50-518Z.zip"
+type = "unspecified"
+title = "Pulse — Full Hostinger Migration ZIP"
+description = "Complete Hostinger bundle with the latest admin table responsiveness and sales action alignment fixes. ZIP validation passed; staging HTTP checks were not run."
+logical_id = "89e00760-b677-4b95-80ce-c5b63f1156f7"
+content_hash = "sha256:b0d5cf7c780c7ddc38f7b13ac3989fde0efe6fafdc01ab05593c88f8e243668e"
+size = 28635492
+mtime_ms = 1791965310744
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/89e00760-b677-4b95-80ce-c5b63f1156f7/1d055ede-4040-41f2-9724-cb422d15a80b"
+storage_version_token = "1791965333818766"
+content_type = "application/octet-stream"
