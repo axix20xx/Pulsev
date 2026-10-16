@@ -165,15 +165,19 @@ router.post(
     const recipient = await pool.query<{ chat_id: number; telegram_id: number }>(
       `SELECT chat_id::float8 AS chat_id, telegram_id::float8 AS telegram_id
        FROM telegram_bot_recipients
-       WHERE role = 'master_admin' AND active = TRUE
-       ORDER BY linked_at DESC LIMIT 1`,
+       WHERE role = 'master_admin' AND active = TRUE AND telegram_id = $1
+       LIMIT 1`,
+      [req.auth!.telegramId],
     );
     if (!recipient.rows[0]) {
       res.status(409).json({ error: "ابتدا ربات را از حساب مدیر ارشد با دستور /start باز کنید." });
       return;
     }
     try {
-      const username = await sendTelegramTestMessage(Number(recipient.rows[0].chat_id));
+      const username = await sendTelegramTestMessage(
+        Number(recipient.rows[0].chat_id),
+        req.auth!.telegramId,
+      );
       res.json(TestTelegramBotResponse.parse({
         ok: true,
         bot_username: username,

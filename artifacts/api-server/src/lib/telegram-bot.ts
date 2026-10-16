@@ -82,6 +82,12 @@ let workerStarted = false;
 const pollerId = randomUUID();
 const wait = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+const safeField = (value: unknown, maxLength: number) =>
+  String(value ?? "")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
 
 export function ensureTelegramSchema(): Promise<void> {
   if (!schemaPromise) {
@@ -353,19 +359,60 @@ export async function sendTelegramMessage(
   });
 }
 
-export async function sendTelegramTestMessage(chatId: number): Promise<string | null> {
+export async function sendTelegramTestMessage(chatId: number, adminTelegramId: number): Promise<string | null> {
   const config = await loadBotConfig();
   if (!config) throw new Error("Telegram bot is not configured");
-  const identity = await verifyTelegramBotToken(config.token);
-  await sendTelegramMessage(
-    config.token,
-    chatId,
-    "آزمون اتصال موفق بود. اعلان‌های مدیریتی در این گفت‌وگو ارسال می‌شوند.",
+  await ensureTelegramSchema();
+  const eventKey = `test:${randomUUID()}`;
+  const event = await pool.query<{ id: string }>(
+    `INSERT INTO telegram_bot_events
+       (event_key, category, action, entity_type, entity_id, actor_telegram_id,
+        actor_role, actor_name, title, body, href)
+     VALUES ($1,'system','bot_test','telegram','settings',$2,'master_admin',
+             'مدیر ارشد','آزمون اتصال ربات','پیام آزمایشی برای بررسی اتصال ارسال شد.','/telegram')
+     RETURNING id::text AS id`,
+    [eventKey, adminTelegramId],
   );
-  await pool.query(
-    "UPDATE telegram_bot_config SET last_checked_at = NOW(), last_error = NULL, last_sent_at = NOW() WHERE id = 1",
+  const delivery = await pool.query<{ id: string }>(
+    `INSERT INTO telegram_bot_deliveries
+       (event_id, recipient_telegram_id, status, attempts, next_attempt_at)
+     VALUES ($1,$2,'retrying',1,NOW() + INTERVAL '1 day')
+     RETURNING id::text AS id`,
+    [event.rows[0].id, adminTelegramId],
   );
-  return identity.username ?? null;
+  try {
+    const identity = await verifyTelegramBotToken(config.token);
+    await sendTelegramMessage(
+      config.token,
+      chatId,
+      "آزمون اتصال موفق بود. اعلان‌های مدیریتی در این گفت‌وگو ارسال می‌شوند.",
+    );
+    await pool.query(
+      `UPDATE telegram_bot_deliveries SET status = 'sent', sent_at = NOW(),
+         next_attempt_at = NOW(), last_error = NULL, updated_at = NOW()
+       WHERE id = $1`,
+      [delivery.rows[0].id],
+    );
+    await pool.query(
+      "UPDATE telegram_bot_config SET last_checked_at = NOW(), last_error = NULL, last_sent_at = NOW() WHERE id = 1",
+    );
+    return identity.username ?? null;
+  } catch (error) {
+    const safeError = safeTelegramDescription(
+      error instanceof Error ? error.message : "test failed",
+      config.token,
+    );
+    await pool.query(
+      `UPDATE telegram_bot_deliveries SET status = 'failed', last_error = $2, updated_at = NOW()
+       WHERE id = $1`,
+      [delivery.rows[0].id, safeError],
+    );
+    await pool.query(
+      "UPDATE telegram_bot_config SET last_checked_at = NOW(), last_error = $1 WHERE id = 1",
+      [safeError],
+    );
+    throw error;
+  }
 }
 
 const adminKeyboard = {
@@ -416,11 +463,11 @@ export async function recordTelegramBusinessEvent(
         String(event.entityId).slice(0, 120),
         event.actorTelegramId,
         event.actorRole.slice(0, 40),
-        event.actorName.slice(0, 120),
+        safeField(event.actorName, 120),
         event.ownerTelegramId ?? null,
-        event.ownerName?.slice(0, 120) ?? null,
-        event.title.slice(0, 180),
-        event.body.slice(0, 1600),
+        event.ownerName ? safeField(event.ownerName, 120) : null,
+        safeField(event.title, 180),
+        event.body.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ").slice(0, 1600),
         event.href?.slice(0, 300) ?? null,
       ],
     );
@@ -495,11 +542,12 @@ export async function recordTelegramAuditEvent(input: {
     ? ownerCandidate
     : input.actorRole === "reseller" ? input.actorTelegramId : null;
   const entityName = String(
-    details.customer_name ?? details.service_name ?? details.reseller_name ?? "",
+    details.customer_name ?? details.service_name ?? details.reseller_name
+      ?? (input.entityType === "reseller" ? details.owner_name : ""),
   ).trim().slice(0, 120);
-  const label = entityName ? ` · ${entityName}` : "";
+  const safeEntityName = safeField(entityName, 120);
   const detailText = typeof details.safe_summary === "string"
-    ? `\n${details.safe_summary.slice(0, 400)}`
+    ? `\n${safeField(details.safe_summary, 400)}`
     : "";
   const href = input.action === "admin_sale_deleted" ? "/admin-sales"
     : input.entityType === "customer"
@@ -516,11 +564,11 @@ export async function recordTelegramAuditEvent(input: {
     entityId: input.entityId,
     actorTelegramId: input.actorTelegramId,
     actorRole: input.actorRole,
-    actorName: input.actorName,
+    actorName: safeField(input.actorName, 120),
     ownerTelegramId,
-    ownerName: typeof details.owner_name === "string" ? details.owner_name.slice(0, 120) : null,
+    ownerName: typeof details.owner_name === "string" ? safeField(details.owner_name, 120) : null,
     title: meta.title,
-    body: `عامل: ${input.actorName} (${input.actorRole === "master_admin" ? "مدیر ارشد" : "فروشنده"})\nشناسه: ${input.entityType} ${input.entityId}${label}${detailText}`,
+    body: `عامل: ${safeField(input.actorName, 120)} (${input.actorRole === "master_admin" ? "مدیر ارشد" : "فروشنده"})\nشناسه: ${safeField(input.entityType, 60)} ${safeField(input.entityId, 120)}${safeEntityName ? ` · ${safeEntityName}` : ""}${detailText}`,
     href,
   });
 }
