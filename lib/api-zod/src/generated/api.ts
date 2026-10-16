@@ -1299,6 +1299,328 @@ export const RepairProviderAccountAuditResponse = zod.object({
 
 
 /**
+ * @summary Read Telegram bot health, recent activity, recipients, and delivery metrics
+ */
+export const getTelegramControlCenterResponseLinkedRecipientsMin = 0;
+
+export const getTelegramControlCenterResponseSentTodayMin = 0;
+
+export const getTelegramControlCenterResponseSuccessRateMin = 0;
+export const getTelegramControlCenterResponseSuccessRateMax = 100;
+
+export const getTelegramControlCenterResponsePendingCountMin = 0;
+
+export const getTelegramControlCenterResponseFailedCountMin = 0;
+
+
+
+
+export const getTelegramControlCenterResponseDeliveriesItemAttemptsMin = 0;
+
+
+
+
+export const GetTelegramControlCenterResponse = zod.object({
+  "configured": zod.boolean(),
+  "enabled": zod.boolean(),
+  "bot_username": zod.string().nullable(),
+  "panel_url": zod.string().nullable(),
+  "worker_status": zod.enum(['unconfigured', 'paused', 'running', 'stale', 'error']),
+  "worker_error": zod.string().nullable(),
+  "last_polled_at": zod.string().nullable(),
+  "linked_recipients": zod.number().min(getTelegramControlCenterResponseLinkedRecipientsMin),
+  "sent_today": zod.number().min(getTelegramControlCenterResponseSentTodayMin),
+  "success_rate": zod.number().min(getTelegramControlCenterResponseSuccessRateMin).max(getTelegramControlCenterResponseSuccessRateMax),
+  "pending_count": zod.number().min(getTelegramControlCenterResponsePendingCountMin),
+  "failed_count": zod.number().min(getTelegramControlCenterResponseFailedCountMin),
+  "latest_sent_at": zod.string().nullable(),
+  "recipients": zod.array(zod.object({
+  "telegram_id": zod.number().min(1),
+  "role": zod.enum(['master_admin', 'reseller']),
+  "display_name": zod.string().nullable(),
+  "linked_at": zod.string(),
+  "active": zod.boolean(),
+  "categories": zod.array(zod.string()),
+  "last_seen_at": zod.string().nullable(),
+  "last_delivery_at": zod.string().nullable()
+})),
+  "deliveries": zod.array(zod.object({
+  "id": zod.number().min(1),
+  "event_key": zod.string(),
+  "category": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "recipient_telegram_id": zod.number().min(1),
+  "recipient_name": zod.string(),
+  "status": zod.enum(['queued', 'sent', 'retrying', 'failed', 'skipped']),
+  "attempts": zod.number().min(getTelegramControlCenterResponseDeliveriesItemAttemptsMin),
+  "last_error": zod.string().nullable(),
+  "created_at": zod.string(),
+  "sent_at": zod.string().nullable()
+})),
+  "events": zod.array(zod.object({
+  "id": zod.number().min(1),
+  "event_key": zod.string(),
+  "category": zod.string(),
+  "action": zod.string(),
+  "entity_type": zod.string(),
+  "entity_id": zod.string(),
+  "actor_name": zod.string(),
+  "actor_role": zod.string(),
+  "owner_name": zod.string().nullable(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "href": zod.string().nullable(),
+  "created_at": zod.string()
+}))
+})
+
+
+/**
+ * @summary Securely save or update the Telegram bot settings
+ */
+export const updateTelegramSettingsBodyTokenMin = 30;
+export const updateTelegramSettingsBodyTokenMax = 256;
+
+export const updateTelegramSettingsBodyPanelUrlMax = 300;
+
+export const updateTelegramSettingsBodyTimezoneMax = 64;
+
+
+
+export const UpdateTelegramSettingsBody = zod.object({
+  "token": zod.string().min(updateTelegramSettingsBodyTokenMin).max(updateTelegramSettingsBodyTokenMax).optional(),
+  "enabled": zod.boolean().optional(),
+  "panel_url": zod.string().max(updateTelegramSettingsBodyPanelUrlMax).nullish(),
+  "timezone": zod.string().min(1).max(updateTelegramSettingsBodyTimezoneMax).optional()
+})
+
+export const updateTelegramSettingsResponseLinkedRecipientsMin = 0;
+
+export const updateTelegramSettingsResponseSentTodayMin = 0;
+
+export const updateTelegramSettingsResponseSuccessRateMin = 0;
+export const updateTelegramSettingsResponseSuccessRateMax = 100;
+
+export const updateTelegramSettingsResponsePendingCountMin = 0;
+
+export const updateTelegramSettingsResponseFailedCountMin = 0;
+
+
+
+
+export const updateTelegramSettingsResponseDeliveriesItemAttemptsMin = 0;
+
+
+
+
+export const UpdateTelegramSettingsResponse = zod.object({
+  "configured": zod.boolean(),
+  "enabled": zod.boolean(),
+  "bot_username": zod.string().nullable(),
+  "panel_url": zod.string().nullable(),
+  "worker_status": zod.enum(['unconfigured', 'paused', 'running', 'stale', 'error']),
+  "worker_error": zod.string().nullable(),
+  "last_polled_at": zod.string().nullable(),
+  "linked_recipients": zod.number().min(updateTelegramSettingsResponseLinkedRecipientsMin),
+  "sent_today": zod.number().min(updateTelegramSettingsResponseSentTodayMin),
+  "success_rate": zod.number().min(updateTelegramSettingsResponseSuccessRateMin).max(updateTelegramSettingsResponseSuccessRateMax),
+  "pending_count": zod.number().min(updateTelegramSettingsResponsePendingCountMin),
+  "failed_count": zod.number().min(updateTelegramSettingsResponseFailedCountMin),
+  "latest_sent_at": zod.string().nullable(),
+  "recipients": zod.array(zod.object({
+  "telegram_id": zod.number().min(1),
+  "role": zod.enum(['master_admin', 'reseller']),
+  "display_name": zod.string().nullable(),
+  "linked_at": zod.string(),
+  "active": zod.boolean(),
+  "categories": zod.array(zod.string()),
+  "last_seen_at": zod.string().nullable(),
+  "last_delivery_at": zod.string().nullable()
+})),
+  "deliveries": zod.array(zod.object({
+  "id": zod.number().min(1),
+  "event_key": zod.string(),
+  "category": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "recipient_telegram_id": zod.number().min(1),
+  "recipient_name": zod.string(),
+  "status": zod.enum(['queued', 'sent', 'retrying', 'failed', 'skipped']),
+  "attempts": zod.number().min(updateTelegramSettingsResponseDeliveriesItemAttemptsMin),
+  "last_error": zod.string().nullable(),
+  "created_at": zod.string(),
+  "sent_at": zod.string().nullable()
+})),
+  "events": zod.array(zod.object({
+  "id": zod.number().min(1),
+  "event_key": zod.string(),
+  "category": zod.string(),
+  "action": zod.string(),
+  "entity_type": zod.string(),
+  "entity_id": zod.string(),
+  "actor_name": zod.string(),
+  "actor_role": zod.string(),
+  "owner_name": zod.string().nullable(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "href": zod.string().nullable(),
+  "created_at": zod.string()
+}))
+})
+
+
+/**
+ * @summary Verify the configured Telegram bot and send an optional test message
+ */
+export const TestTelegramBotResponse = zod.object({
+  "ok": zod.boolean(),
+  "bot_username": zod.string().nullable(),
+  "sent": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary List linked Telegram recipients
+ */
+
+
+
+export const ListTelegramRecipientsResponseItem = zod.object({
+  "telegram_id": zod.number().min(1),
+  "role": zod.enum(['master_admin', 'reseller']),
+  "display_name": zod.string().nullable(),
+  "linked_at": zod.string(),
+  "active": zod.boolean(),
+  "categories": zod.array(zod.string()),
+  "last_seen_at": zod.string().nullable(),
+  "last_delivery_at": zod.string().nullable()
+})
+export const ListTelegramRecipientsResponse = zod.array(ListTelegramRecipientsResponseItem)
+
+
+/**
+ * @summary Revoke a linked Telegram recipient
+ */
+
+
+
+export const RevokeTelegramRecipientParams = zod.object({
+  "telegram_id": zod.coerce.number().min(1)
+})
+
+
+
+
+export const RevokeTelegramRecipientResponse = zod.object({
+  "revoked": zod.boolean(),
+  "telegram_id": zod.number().min(1)
+})
+
+
+/**
+ * @summary List Telegram message delivery attempts
+ */
+export const listTelegramDeliveriesQueryLimitDefault = 30;
+export const listTelegramDeliveriesQueryLimitMax = 100;
+
+
+
+export const ListTelegramDeliveriesQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(listTelegramDeliveriesQueryLimitMax).default(listTelegramDeliveriesQueryLimitDefault)
+})
+
+
+
+export const listTelegramDeliveriesResponseAttemptsMin = 0;
+
+
+
+export const ListTelegramDeliveriesResponseItem = zod.object({
+  "id": zod.number().min(1),
+  "event_key": zod.string(),
+  "category": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "recipient_telegram_id": zod.number().min(1),
+  "recipient_name": zod.string(),
+  "status": zod.enum(['queued', 'sent', 'retrying', 'failed', 'skipped']),
+  "attempts": zod.number().min(listTelegramDeliveriesResponseAttemptsMin),
+  "last_error": zod.string().nullable(),
+  "created_at": zod.string(),
+  "sent_at": zod.string().nullable()
+})
+export const ListTelegramDeliveriesResponse = zod.array(ListTelegramDeliveriesResponseItem)
+
+
+/**
+ * @summary List recent business events sent to Telegram
+ */
+export const listTelegramEventsQueryLimitDefault = 30;
+export const listTelegramEventsQueryLimitMax = 100;
+
+
+
+export const ListTelegramEventsQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(listTelegramEventsQueryLimitMax).default(listTelegramEventsQueryLimitDefault)
+})
+
+
+
+
+export const ListTelegramEventsResponseItem = zod.object({
+  "id": zod.number().min(1),
+  "event_key": zod.string(),
+  "category": zod.string(),
+  "action": zod.string(),
+  "entity_type": zod.string(),
+  "entity_id": zod.string(),
+  "actor_name": zod.string(),
+  "actor_role": zod.string(),
+  "owner_name": zod.string().nullable(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "href": zod.string().nullable(),
+  "created_at": zod.string()
+})
+export const ListTelegramEventsResponse = zod.array(ListTelegramEventsResponseItem)
+
+
+/**
+ * @summary Update one recipient's permitted Telegram alert categories
+ */
+
+
+
+export const UpdateTelegramRecipientPreferencesParams = zod.object({
+  "telegram_id": zod.coerce.number().min(1)
+})
+
+export const updateTelegramRecipientPreferencesBodyCategoriesMax = 12;
+
+
+
+export const UpdateTelegramRecipientPreferencesBody = zod.object({
+  "categories": zod.array(zod.enum(['users', 'sales', 'services', 'requests', 'providers', 'usage', 'accounting', 'system'])).max(updateTelegramRecipientPreferencesBodyCategoriesMax)
+})
+
+
+
+
+export const UpdateTelegramRecipientPreferencesResponse = zod.object({
+  "telegram_id": zod.number().min(1),
+  "role": zod.enum(['master_admin', 'reseller']),
+  "display_name": zod.string().nullable(),
+  "linked_at": zod.string(),
+  "active": zod.boolean(),
+  "categories": zod.array(zod.string()),
+  "last_seen_at": zod.string().nullable(),
+  "last_delivery_at": zod.string().nullable()
+})
+
+
+/**
  * @summary Download an AmneziaWG configuration
  */
 

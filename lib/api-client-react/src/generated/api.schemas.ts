@@ -9,6 +9,174 @@ export interface HealthStatus {
   status: string;
 }
 
+export type TelegramRecipientRole = typeof TelegramRecipientRole[keyof typeof TelegramRecipientRole];
+
+
+export const TelegramRecipientRole = {
+  master_admin: 'master_admin',
+  reseller: 'reseller',
+} as const;
+
+export interface TelegramRecipient {
+  /** @minimum 1 */
+  telegram_id: number;
+  role: TelegramRecipientRole;
+  /** @nullable */
+  display_name: string | null;
+  linked_at: string;
+  active: boolean;
+  categories: string[];
+  /** @nullable */
+  last_seen_at: string | null;
+  /** @nullable */
+  last_delivery_at: string | null;
+}
+
+export type TelegramDeliveryStatus = typeof TelegramDeliveryStatus[keyof typeof TelegramDeliveryStatus];
+
+
+export const TelegramDeliveryStatus = {
+  queued: 'queued',
+  sent: 'sent',
+  retrying: 'retrying',
+  failed: 'failed',
+  skipped: 'skipped',
+} as const;
+
+export interface TelegramDelivery {
+  /** @minimum 1 */
+  id: number;
+  event_key: string;
+  category: string;
+  title: string;
+  body: string;
+  /** @minimum 1 */
+  recipient_telegram_id: number;
+  recipient_name: string;
+  status: TelegramDeliveryStatus;
+  /** @minimum 0 */
+  attempts: number;
+  /** @nullable */
+  last_error: string | null;
+  created_at: string;
+  /** @nullable */
+  sent_at: string | null;
+}
+
+export interface TelegramEvent {
+  /** @minimum 1 */
+  id: number;
+  event_key: string;
+  category: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  actor_name: string;
+  actor_role: string;
+  /** @nullable */
+  owner_name: string | null;
+  title: string;
+  body: string;
+  /** @nullable */
+  href: string | null;
+  created_at: string;
+}
+
+export type TelegramControlCenterWorkerStatus = typeof TelegramControlCenterWorkerStatus[keyof typeof TelegramControlCenterWorkerStatus];
+
+
+export const TelegramControlCenterWorkerStatus = {
+  unconfigured: 'unconfigured',
+  paused: 'paused',
+  running: 'running',
+  stale: 'stale',
+  error: 'error',
+} as const;
+
+export interface TelegramControlCenter {
+  configured: boolean;
+  enabled: boolean;
+  /** @nullable */
+  bot_username: string | null;
+  /** @nullable */
+  panel_url: string | null;
+  worker_status: TelegramControlCenterWorkerStatus;
+  /** @nullable */
+  worker_error: string | null;
+  /** @nullable */
+  last_polled_at: string | null;
+  /** @minimum 0 */
+  linked_recipients: number;
+  /** @minimum 0 */
+  sent_today: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  success_rate: number;
+  /** @minimum 0 */
+  pending_count: number;
+  /** @minimum 0 */
+  failed_count: number;
+  /** @nullable */
+  latest_sent_at: string | null;
+  recipients: TelegramRecipient[];
+  deliveries: TelegramDelivery[];
+  events: TelegramEvent[];
+}
+
+export interface TelegramSettingsInput {
+  /**
+     * @minLength 30
+     * @maxLength 256
+     */
+  token?: string;
+  enabled?: boolean;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  panel_url?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  timezone?: string;
+}
+
+export interface TelegramBotTestResult {
+  ok: boolean;
+  /** @nullable */
+  bot_username: string | null;
+  sent: boolean;
+  message: string;
+}
+
+export type TelegramPreferencesInputCategoriesItem = typeof TelegramPreferencesInputCategoriesItem[keyof typeof TelegramPreferencesInputCategoriesItem];
+
+
+export const TelegramPreferencesInputCategoriesItem = {
+  users: 'users',
+  sales: 'sales',
+  services: 'services',
+  requests: 'requests',
+  providers: 'providers',
+  usage: 'usage',
+  accounting: 'accounting',
+  system: 'system',
+} as const;
+
+export interface TelegramPreferencesInput {
+  /** @maxItems 12 */
+  categories: TelegramPreferencesInputCategoriesItem[];
+}
+
+export interface TelegramRecipientRevocation {
+  revoked: boolean;
+  /** @minimum 1 */
+  telegram_id: number;
+}
+
 export interface TelegramLoginInput {
   id: number;
   first_name?: string;
@@ -870,6 +1038,8 @@ export type ToDateParameter = string;
 
 export type ResellerIdParameter = number;
 
+export type TelegramLimitParameter = number;
+
 export type ListResellerStorefrontLeadsParams = {
 /**
  * @minimum 1
@@ -970,6 +1140,22 @@ limit?: ServicesLimitParameter;
 
 export type ResetServiceToken200 = {
   subscription_url: string;
+};
+
+export type ListTelegramDeliveriesParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: TelegramLimitParameter;
+};
+
+export type ListTelegramEventsParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: TelegramLimitParameter;
 };
 
 export type ListCustomersParams = {

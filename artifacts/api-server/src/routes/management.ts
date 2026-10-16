@@ -98,6 +98,7 @@ import {
 } from "../lib/amneziawg";
 import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
 import { issueMobileOtp } from "../lib/mobile-otp";
+import { recordTelegramAuditEvent } from "../lib/telegram-bot";
 import { mobileReady, sendMobileNotification } from "./mobile";
 import {
   requestedSubscriptionFormat,
@@ -2962,11 +2963,32 @@ router.delete("/admin/sales/:id", requireMasterAdmin, async (req, res): Promise<
     res.status(400).json({ error: "شناسه فروش معتبر نیست" });
     return;
   }
+  const sale = await pool.query<{
+    owner_telegram_id: number;
+    owner_name: string;
+    customer_name: string;
+  }>(
+    `SELECT s.reseller_tg_id::float8 AS owner_telegram_id,
+            COALESCE(NULLIF(r.title, ''), 'فروشنده ' || s.reseller_tg_id::text) AS owner_name,
+            COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name
+     FROM reseller_sales_log s
+     LEFT JOIN reseller_services svc ON svc.id = s.service_id
+     LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+     LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+     WHERE s.id = $1`,
+    [parsed.data.id],
+  );
   const result = await pool.query("DELETE FROM reseller_sales_log WHERE id = $1 RETURNING id", [parsed.data.id]);
   if (!result.rowCount) {
     res.status(404).json({ error: "رکورد فروش پیدا نشد" });
     return;
   }
+  await recordAudit(req, "admin_sale_deleted", "sale", parsed.data.id, {
+    owner_telegram_id: sale.rows[0]?.owner_telegram_id,
+    owner_name: sale.rows[0]?.owner_name,
+    customer_name: sale.rows[0]?.customer_name,
+    safe_summary: "رکورد فروش از دفتر مدیر ارشد حذف شد",
+  });
   res.status(204).end();
 });
 
@@ -3156,14 +3178,22 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
     falco_config_id: number | null;
     awg_client_id: string | null;
     service_status: string | null;
+    service_name: string | null;
+    customer_name: string | null;
+    owner_name: string | null;
   }>(
     `SELECT request.id, request.service_id, request.sale_id,
        request.reseller_tg_id::float8 AS reseller_tg_id,
        request.cancel_service_status, request.delete_sale_status,
        service.rain_username, service.falco_config_id, service.awg_client_id,
-       service.status AS service_status
+       service.status AS service_status,
+       service.label AS service_name,
+       customer.full_name AS customer_name,
+       reseller.title AS owner_name
      FROM service_action_requests request
      LEFT JOIN reseller_services service ON service.id = request.service_id
+     LEFT JOIN reseller_customers customer ON customer.id = service.customer_id
+     LEFT JOIN resellers reseller ON reseller.tg_id = request.reseller_tg_id
      WHERE request.id = $1`,
     [requestId],
   );
@@ -3289,9 +3319,14 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
     client.release();
   }
   await recordAudit(req, "service_action_reviewed", "service_action_request", requestId, {
+    owner_telegram_id: current.reseller_tg_id,
+    owner_name: current.owner_name,
+    customer_name: current.customer_name,
+    service_name: current.service_name,
     cancel_service: cancelDecision,
     delete_sale_log: saleDecision,
     deleted_sale_ids: deletedSaleIds,
+    safe_summary: `لغو سرویس: ${cancelDecision ?? "بدون تغییر"} · حذف لاگ فروش: ${saleDecision ?? "بدون تغییر"}`,
   });
   res.json({ ok: true });
 });
@@ -3334,6 +3369,7 @@ router.patch("/sales/:id", requireAuth, async (req, res): Promise<void> => {
   const fresh = await pool.query(
     `SELECT
        s.id, COALESCE(svc.customer_id, 0)::int AS customer_id,
+       s.reseller_tg_id::float8 AS owner_telegram_id,
        COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
         COALESCE(NULLIF(r.title, ''), 'فروشنده ' || s.reseller_tg_id::text) AS reseller_name,
        s.service_id, COALESCE(svc.label, 'سرویس حذف‌شده') AS service_name,
@@ -3349,6 +3385,14 @@ router.patch("/sales/:id", requireAuth, async (req, res): Promise<void> => {
      WHERE s.id = $1`,
     [params.data.id],
   );
+  await recordAudit(req, body.data.is_paid === true ? "sale_paid" : "sale_updated", "sale", params.data.id, {
+    owner_telegram_id: fresh.rows[0]?.owner_telegram_id,
+    owner_name: fresh.rows[0]?.reseller_name,
+    customer_name: fresh.rows[0]?.customer_name,
+    safe_summary: body.data.is_paid === undefined
+      ? "جزئیات فروش به‌روزرسانی شد"
+      : body.data.is_paid ? "پرداخت فروش تأیید شد" : "وضعیت پرداخت فروش تغییر کرد",
+  });
   res.json(UpdateSaleResponse.parse(fresh.rows[0]));
 });
 
@@ -4078,21 +4122,24 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
       }
     }
 
-    const customer = await client.query<{ id: number }>(
+    const customer = await client.query<{ id: number; full_name: string | null }>(
       req.auth?.role === "master_admin"
-         ? `SELECT id FROM reseller_customers WHERE phone::text = $1::text ORDER BY id LIMIT 1`
-        : `SELECT id FROM reseller_customers
+         ? `SELECT id, full_name FROM reseller_customers WHERE phone::text = $1::text ORDER BY id LIMIT 1`
+        : `SELECT id, full_name FROM reseller_customers
             WHERE phone::text = $1::text
               AND (reseller_tg_id::text = $2::text OR reseller_tg_id IS NULL)
            ORDER BY id LIMIT 1`,
       req.auth?.role === "master_admin" ? [body.data.phone] : [body.data.phone, ownerId],
     );
     let customerId = customer.rows[0]?.id;
+    let customerCreated = false;
+    const existingCustomerName = customer.rows[0]?.full_name ?? null;
     if (!customerId) {
       const next = await client.query<{ id: number }>(
         "SELECT COALESCE(MAX(id), 0) + 1 AS id FROM reseller_customers",
       );
       customerId = Number(next.rows[0].id);
+      customerCreated = true;
       await client.query(
         `INSERT INTO reseller_customers (id, phone, full_name, reseller_tg_id, created_at)
          VALUES ($1, $2, $3, $4, NOW())`,
@@ -4272,6 +4319,35 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
       );
     }
     await client.query("COMMIT");
+    const ownerName = req.auth?.displayName ?? req.auth?.title ?? null;
+    if (customerCreated) {
+      await recordAudit(req, "customer_created", "customer", customerId, {
+        owner_telegram_id: ownerId,
+        owner_name: ownerName,
+        customer_name: body.data.customer_name,
+      });
+    } else if (existingCustomerName !== body.data.customer_name) {
+      await recordAudit(req, "customer_updated", "customer", customerId, {
+        owner_telegram_id: ownerId,
+        owner_name: ownerName,
+        customer_name: body.data.customer_name,
+        safe_summary: "نام مشتری به‌روزرسانی شد",
+      });
+    }
+    await recordAudit(req, "service_created", "service", serviceId, {
+      owner_telegram_id: ownerId,
+      owner_name: ownerName,
+      customer_name: body.data.customer_name,
+      service_name: body.data.label,
+      safe_summary: `حجم ${body.data.gb} گیگابایت · ${body.data.days} روز`,
+    });
+    await recordAudit(req, "sale_created", "sale", saleId, {
+      owner_telegram_id: ownerId,
+      owner_name: ownerName,
+      customer_name: body.data.customer_name,
+      service_name: body.data.label,
+      safe_summary: body.data.is_paid ? "پرداخت‌شده" : "در انتظار پرداخت",
+    });
     const fresh = await pool.query(
        `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
          svc.customer_id, COALESCE(c.full_name, 'مشتری') AS customer_name,
@@ -4464,6 +4540,30 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
      WHERE svc.id = $1`,
     [params.data.id],
   );
+  if (body.data.status !== undefined || body.data.admin_notes !== undefined) {
+    const auditContext = await pool.query<{
+      owner_telegram_id: number;
+      owner_name: string;
+      customer_name: string;
+      service_name: string;
+    }>(
+      `SELECT svc.reseller_tg_id::float8 AS owner_telegram_id,
+              COALESCE(NULLIF(r.title, ''), 'فروشنده ' || svc.reseller_tg_id::text) AS owner_name,
+              COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name,
+              COALESCE(svc.label, 'سرویس') AS service_name
+       FROM reseller_services svc
+       LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+       LEFT JOIN resellers r ON r.tg_id = svc.reseller_tg_id
+       WHERE svc.id = $1`,
+      [params.data.id],
+    );
+    await recordAudit(req, body.data.status !== undefined ? "service_status_changed" : "service_updated", "service", params.data.id, {
+      ...auditContext.rows[0],
+      safe_summary: body.data.status
+        ? `وضعیت جدید: ${body.data.status}`
+        : "اطلاعات سرویس به‌روزرسانی شد",
+    });
+  }
   res.json(UpdateServiceResponse.parse(fresh.rows[0]));
   } finally {
     if (lockAcquired) {
@@ -4786,6 +4886,11 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   } finally {
     client.release();
   }
+  await recordAudit(req, "service_renewed", "service", serviceId, {
+    owner_telegram_id: current.reseller_tg_id,
+    service_name: current.label,
+    safe_summary: `بسته تمدیدشده: ${gb} گیگابایت · ${days} روز`,
+  });
    renewalPhase = "load-renewed-service";
    const fresh = await pool.query(
     `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
@@ -5447,6 +5552,11 @@ router.patch("/resellers/:id", requireMasterAdmin, async (req, res): Promise<voi
     res.status(404).json({ error: "فروشنده پیدا نشد" });
     return;
   }
+  await recordAudit(req, "reseller_updated", "reseller", result.rows[0].id, {
+    owner_telegram_id: result.rows[0].telegram_id,
+    owner_name: result.rows[0].title,
+    safe_summary: body.data.enabled ? "حساب فروشنده فعال شد" : "حساب فروشنده غیرفعال شد",
+  });
   res.json(UpdateResellerResponse.parse(result.rows[0]));
 });
 
@@ -5497,13 +5607,28 @@ const recordAudit = async (
   detail: unknown = null,
 ) => {
   if (!req.auth) return;
-  await pool.query(
+  const audit = await pool.query<{ id: string }>(
     `INSERT INTO reseller_audit_log
        (actor_tg_id, actor_role, action, entity_type, entity_id, detail)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id::text AS id`,
     [req.auth.telegramId, req.auth.role, action, entityType, String(entityId),
       detail === null ? null : JSON.stringify(detail)],
   );
+  const auditId = audit.rows[0]?.id;
+  if (auditId) {
+    await recordTelegramAuditEvent({
+      auditId,
+      action,
+      entityType,
+      entityId,
+      actorTelegramId: req.auth.telegramId,
+      actorRole: req.auth.role,
+      actorName: req.auth.displayName ?? req.auth.title ??
+        (req.auth.role === "master_admin" ? "مدیر ارشد" : `فروشنده ${req.auth.telegramId}`),
+      detail,
+    });
+  }
 };
 
 const customerId = (req: Request) => {

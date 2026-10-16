@@ -652,6 +652,160 @@ paths:
           description: Service is no longer eligible or is busy
         "502":
           description: Provider rejected the status update
+  /admin/telegram/control-center:
+    get:
+      operationId: getTelegramControlCenter
+      tags: [admin]
+      summary: Read Telegram bot health, recent activity, recipients, and delivery metrics
+      responses:
+        "200":
+          description: Telegram Control Center snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramControlCenter"
+        "403":
+          description: Master admin access required
+  /admin/telegram/settings:
+    patch:
+      operationId: updateTelegramSettings
+      tags: [admin]
+      summary: Securely save or update the Telegram bot settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramSettingsInput"
+      responses:
+        "200":
+          description: Saved Telegram settings without returning the token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramControlCenter"
+        "400":
+          description: Invalid settings or bot token
+        "403":
+          description: Master admin access required
+  /admin/telegram/test:
+    post:
+      operationId: testTelegramBot
+      tags: [admin]
+      summary: Verify the configured Telegram bot and send an optional test message
+      responses:
+        "200":
+          description: Bot test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramBotTestResult"
+        "403":
+          description: Master admin access required
+        "409":
+          description: Link the admin account to the bot before sending a test message
+  /admin/telegram/recipients:
+    get:
+      operationId: listTelegramRecipients
+      tags: [admin]
+      summary: List linked Telegram recipients
+      responses:
+        "200":
+          description: Linked admin and reseller recipients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TelegramRecipient"
+        "403":
+          description: Master admin access required
+  /admin/telegram/recipients/{telegram_id}:
+    delete:
+      operationId: revokeTelegramRecipient
+      tags: [admin]
+      summary: Revoke a linked Telegram recipient
+      parameters:
+        - name: telegram_id
+          in: path
+          required: true
+          schema:
+            type: number
+            minimum: 1
+      responses:
+        "200":
+          description: Recipient link revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramRecipientRevocation"
+        "403":
+          description: Master admin access required
+  /admin/telegram/deliveries:
+    get:
+      operationId: listTelegramDeliveries
+      tags: [admin]
+      summary: List Telegram message delivery attempts
+      parameters:
+        - $ref: "#/components/parameters/TelegramLimit"
+      responses:
+        "200":
+          description: Recent delivery records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TelegramDelivery"
+        "403":
+          description: Master admin access required
+  /admin/telegram/events:
+    get:
+      operationId: listTelegramEvents
+      tags: [admin]
+      summary: List recent business events sent to Telegram
+      parameters:
+        - $ref: "#/components/parameters/TelegramLimit"
+      responses:
+        "200":
+          description: Recent event records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TelegramEvent"
+        "403":
+          description: Master admin access required
+  /admin/telegram/recipients/{telegram_id}/preferences:
+    patch:
+      operationId: updateTelegramRecipientPreferences
+      tags: [admin]
+      summary: Update one recipient's permitted Telegram alert categories
+      parameters:
+        - name: telegram_id
+          in: path
+          required: true
+          schema:
+            type: number
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramPreferencesInput"
+      responses:
+        "200":
+          description: Recipient preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramRecipient"
+        "403":
+          description: Master admin access required
+        "404":
+          description: Linked recipient not found
   /services/{id}/awg/config:
     get:
       operationId: downloadServiceAwg
@@ -915,6 +1069,15 @@ components:
       schema:
         type: number
         minimum: 1
+    TelegramLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 30
   schemas:
     HealthStatus:
       type: object
@@ -923,6 +1086,110 @@ components:
           type: string
       required:
         - status
+    TelegramRecipient:
+      type: object
+      required: [telegram_id, role, display_name, linked_at, active, categories, last_seen_at, last_delivery_at]
+      properties:
+        telegram_id: { type: number, minimum: 1 }
+        role: { type: string, enum: [master_admin, reseller] }
+        display_name: { type: ["string", "null"] }
+        linked_at: { type: string }
+        active: { type: boolean }
+        categories:
+          type: array
+          items: { type: string }
+        last_seen_at: { type: ["string", "null"] }
+        last_delivery_at: { type: ["string", "null"] }
+    TelegramDelivery:
+      type: object
+      required: [id, event_key, category, title, body, recipient_telegram_id, recipient_name, status, attempts, last_error, created_at, sent_at]
+      properties:
+        id: { type: number, minimum: 1 }
+        event_key: { type: string }
+        category: { type: string }
+        title: { type: string }
+        body: { type: string }
+        recipient_telegram_id: { type: number, minimum: 1 }
+        recipient_name: { type: string }
+        status: { type: string, enum: [queued, sent, retrying, failed, skipped] }
+        attempts: { type: number, minimum: 0 }
+        last_error: { type: ["string", "null"] }
+        created_at: { type: string }
+        sent_at: { type: ["string", "null"] }
+    TelegramEvent:
+      type: object
+      required: [id, event_key, category, action, entity_type, entity_id, actor_name, actor_role, owner_name, title, body, href, created_at]
+      properties:
+        id: { type: number, minimum: 1 }
+        event_key: { type: string }
+        category: { type: string }
+        action: { type: string }
+        entity_type: { type: string }
+        entity_id: { type: string }
+        actor_name: { type: string }
+        actor_role: { type: string }
+        owner_name: { type: ["string", "null"] }
+        title: { type: string }
+        body: { type: string }
+        href: { type: ["string", "null"] }
+        created_at: { type: string }
+    TelegramControlCenter:
+      type: object
+      required: [configured, enabled, bot_username, panel_url, worker_status, worker_error, last_polled_at, linked_recipients, sent_today, success_rate, pending_count, failed_count, latest_sent_at, recipients, deliveries, events]
+      properties:
+        configured: { type: boolean }
+        enabled: { type: boolean }
+        bot_username: { type: ["string", "null"] }
+        panel_url: { type: ["string", "null"] }
+        worker_status: { type: string, enum: [unconfigured, paused, running, stale, error] }
+        worker_error: { type: ["string", "null"] }
+        last_polled_at: { type: ["string", "null"] }
+        linked_recipients: { type: number, minimum: 0 }
+        sent_today: { type: number, minimum: 0 }
+        success_rate: { type: number, minimum: 0, maximum: 100 }
+        pending_count: { type: number, minimum: 0 }
+        failed_count: { type: number, minimum: 0 }
+        latest_sent_at: { type: ["string", "null"] }
+        recipients:
+          type: array
+          items: { $ref: "#/components/schemas/TelegramRecipient" }
+        deliveries:
+          type: array
+          items: { $ref: "#/components/schemas/TelegramDelivery" }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/TelegramEvent" }
+    TelegramSettingsInput:
+      type: object
+      properties:
+        token: { type: string, minLength: 30, maxLength: 256 }
+        enabled: { type: boolean }
+        panel_url: { type: ["string", "null"], maxLength: 300 }
+        timezone: { type: string, minLength: 1, maxLength: 64 }
+    TelegramBotTestResult:
+      type: object
+      required: [ok, bot_username, sent, message]
+      properties:
+        ok: { type: boolean }
+        bot_username: { type: ["string", "null"] }
+        sent: { type: boolean }
+        message: { type: string }
+    TelegramPreferencesInput:
+      type: object
+      required: [categories]
+      properties:
+        categories:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            enum: [users, sales, services, requests, providers, usage, accounting, system]
+    TelegramRecipientRevocation:
+      type: object
+      required: [revoked, telegram_id]
+      properties:
+        revoked: { type: boolean }
+        telegram_id: { type: number, minimum: 1 }
     TelegramLoginInput:
       type: object
       required: [id, auth_date, hash]

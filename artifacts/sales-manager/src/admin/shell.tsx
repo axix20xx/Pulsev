@@ -51,6 +51,7 @@ const groups: { title: string; items: NavItem[] }[] = [
     { href: '/notification-status', label: 'وضعیت اعلان‌ها', icon: Bell, admin: true },
     { href: '/notification-send', label: 'ارسال پیام', icon: Send, admin: true },
     { href: '/notification-analytics', label: 'تحلیل اعلان‌ها', icon: BarChart3, admin: true },
+    { href: '/telegram', label: 'مرکز کنترل تلگرام', icon: Send, admin: true },
     { href: '/settings', label: 'تنظیمات', icon: Settings },
   ] },
 ];

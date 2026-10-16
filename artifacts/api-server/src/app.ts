@@ -8,6 +8,7 @@ import { startUsageSyncWorker } from "./lib/usage-sync";
 import { startAwgUsagePollWorker } from "./lib/awg-usage-poll";
 import { isBackgroundWorkersPaused } from "./lib/worker-mode";
 import { startMobileNotificationWorker } from "./routes/mobile";
+import { startTelegramBotWorker } from "./lib/telegram-bot";
 
 const app: Express = express();
 
@@ -151,6 +152,7 @@ if (isBackgroundWorkersPaused()) {
   startUsageSyncWorker();
   startAwgUsagePollWorker();
   startMobileNotificationWorker();
+  startTelegramBotWorker();
 }
 
 export default app;

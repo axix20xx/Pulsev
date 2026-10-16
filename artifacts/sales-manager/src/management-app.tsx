@@ -32,6 +32,7 @@ import {
 } from '@/pages/notification-pages';
 import NotFound from '@/pages/not-found';
 import { StorefrontManagerPage } from '@/pages/storefront';
+import TelegramControlPage from '@/pages/telegram-control';
 
 function ProviderAccountAuditRoute() {
   const { session } = usePulse();
@@ -41,6 +42,11 @@ function ProviderAccountAuditRoute() {
 function AwgUsageLogRoute() {
   const { session } = usePulse();
   return session?.role === 'master_admin' ? <AwgUsageLogPage /> : <NotFound />;
+}
+
+function TelegramControlRoute() {
+  const { session } = usePulse();
+  return session?.role === 'master_admin' ? <TelegramControlPage /> : <NotFound />;
 }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
@@ -77,6 +83,7 @@ export default function ManagementApp() {
             <Route path="/notification-status" component={NotificationStatusPage} />
             <Route path="/notification-send" component={NotificationSendPage} />
             <Route path="/notification-analytics" component={NotificationAnalyticsPage} />
+            <Route path="/telegram" component={TelegramControlRoute} />
             <Route path="/settings" component={SettingsPage} />
             <Route component={NotFound} />
           </Switch>

@@ -1,0 +1,227 @@
+## Complete feature and design concept: Telegram Control Center
+
+### 1. Product structure
+Use **one centrally managed Telegram bot** for the system. The super admin controls its token and global behavior; resellers and customers link their own Telegram accounts and receive only the messages their role permits.
+
+Build two connected parts:
+
+1. **A Bot Center inside the admin panel** for configuration, recipients, notification rules, and delivery monitoring.
+2. **A role-aware Telegram experience** with a different main keyboard and permitted information for super admins, resellers, and customers.
+
+---
+
+## 2. Bot Center UI in the panel
+
+### Main page: overview
+A polished, responsive **Telegram Control Center** page with:
+
+- **Top status bar:** Connected / Needs attention, bot name, last successful message, and a test-message button.
+- **Summary cards:** linked recipients, messages sent today, delivery success rate, and messages needing attention.
+- **Live activity feed:** recent account, sale, service, provider, and delivery events.
+- **Delivery health panel:** queued, sent, retried, and failed messages.
+- **Quick actions:** Test bot, pause sending, open notification rules, and view delivery log.
+
+On desktop, use a dashboard grid with a compact sidebar or tab navigation. On phones, stack the cards, keep the primary action easy to reach, and display delivery records as cards instead of a cramped table.
+
+### Suggested sections
+- **Overview**
+- **Activity & audit**
+- **Recipients**
+- **Notification rules**
+- **Message templates**
+- **Delivery history**
+- **Bot settings**
+
+### Bot settings
+- Save, test, replace, pause, or remove the Telegram bot token.
+- Show a masked token after saving; never show it in full again.
+- Display the bot’s name, connection state, and last error.
+- Set default language, timezone, and quiet hours.
+- Choose which global alerts go to super admins.
+- Add an admin test recipient.
+
+### Recipients
+A searchable list of linked accounts with:
+
+- Name, panel role, Telegram connection state, and last message time.
+- Filter by role, active connection, and delivery problem.
+- Revoke or reset a link.
+- See notification categories enabled by the recipient.
+
+A reseller must never see another reseller’s recipients.
+
+### Notification rules
+A visual rule builder could let admins select:
+
+- **Event:** for example, service deleted.
+- **Recipients:** super admins, a specific admin group, or the record’s reseller.
+- **Priority:** normal, important, or urgent.
+- **Delivery:** immediately or in a digest.
+- **Message details:** safe fields to include and a link to the panel page.
+
+### Message templates
+Preview and edit the wording of alerts in Persian and English. Include placeholders such as event type, actor, affected record, time, and a panel link. Prevent sensitive fields—passwords, tokens, VPN configurations, private subscription links—from being used in templates.
+
+---
+
+## 3. Events and logs
+
+The bot should send **meaningful event alerts**, not every raw application or server log line.
+
+### Super-admin event feed
+Allow global notifications for:
+
+- **Users and resellers:** created, edited, disabled, reactivated, or deleted.
+- **Sales:** created, edited, paid, refunded, or removed from the sales log.
+- **Services:** created, renewed, edited, activated, disabled, cancelled, or deleted.
+- **Requests:** submitted, approved, rejected, or failed.
+- **Provider operations:** success, timeout, failure, or partial completion.
+- **Usage and workers:** polling stopped, polling delayed, quota reached, or repeated errors.
+- **Accounting:** payment recorded, balance changed, or payment request received.
+- **Security and delivery:** unusual activity, bot errors, or repeated Telegram delivery failure.
+
+For important events, show **who did it, what happened, which record was affected, when it happened, and the reason if recorded**. Include a link to the appropriate panel page.
+
+### Reseller event feed
+Resellers receive only events related to their own customers, sales, and services:
+
+- Customer or service created, edited, disabled, reactivated, or deleted.
+- Sale recorded, paid, edited, refunded, or removed from their sales log.
+- Service renewed, expired soon, reached a usage threshold, or failed an operation.
+- Customer request or storefront inquiry received.
+- Their payment or account balance changed.
+
+### Optional customer messages
+Customers may opt in to receive:
+
+- Service creation or renewal confirmation.
+- Expiry reminders.
+- Usage warning or quota reached.
+- Service status changes.
+
+Customer messages should not include reseller accounting, internal logs, provider details, or staff activity.
+
+### Audit and deletion handling
+Keep a panel audit record for every create, edit, and delete event. A deletion alert should preserve the actor, affected record reference, time, and reason—even if the original record is removed. The Telegram message should link back to the panel; deletion and other risky actions should still require confirmation inside the authenticated panel.
+
+---
+
+## 4. Telegram’s main keyboard
+
+Use a persistent, role-specific keyboard. Keep buttons short and organized into two columns; use inline buttons beneath individual messages for context-specific actions.
+
+### Super-admin keyboard
+```text
+📊 داشبورد        🕒 رویدادها
+👥 کاربران        🧾 فروش‌ها
+🛰 سرویس‌ها       ⚠️ وضعیت سیستم
+🔔 اعلان‌ها       ⚙️ تنظیمات
+```
+
+Possible command behavior:
+
+- **Dashboard:** overall business and operations summary.
+- **Events:** recent user, sale, and service activity.
+- **Users / Sales / Services:** role-authorized summaries with links to panel pages.
+- **System status:** provider and worker health, recent failures.
+- **Notifications:** manage categories and quiet hours.
+- **Settings:** help, account connection, and notification preferences.
+
+### Reseller keyboard
+```text
+📊 خلاصه امروز    👥 مشتریان
+🧾 فروش‌ها        🛰 سرویس‌ها
+⏳ نزدیک انقضا    🔔 اعلان‌ها
+⚙️ تنظیمات
+```
+
+Every result must be limited to that reseller’s own business data.
+
+### Customer keyboard
+```text
+🔐 سرویس من       📅 تاریخ انقضا
+📈 میزان مصرف     🔔 اعلان‌ها
+💬 پشتیبانی
+```
+
+Only show service details after confirming the Telegram account is linked to the customer’s panel account.
+
+### Inline buttons on messages
+For a service or sales alert, buttons could include:
+
+- **Open in panel**
+- **View details**
+- **Mute this alert type**
+- **Mark as reviewed** — for authorized staff only
+
+Avoid one-tap deletion, renewal, or provider-changing actions in the initial release.
+
+---
+
+## 5. Example alert layout
+
+A Persian notification should be compact and easy to scan:
+
+```text
+🧾 فروش جدید ثبت شد
+
+مشتری: [نام مشتری]
+فروشنده: [نام فروشنده]
+مبلغ: [مبلغ]
+ثبت‌کننده: [کاربر یا مدیر]
+زمان: [زمان محلی]
+
+[مشاهده در پنل] [اعلان‌های فروش]
+```
+
+For a deletion:
+
+```text
+🗑 رکورد فروش حذف شد
+
+حذف‌کننده: [نام و نقش]
+رکورد: [شناسه یا شرح کوتاه]
+دلیل: [در صورت ثبت]
+زمان: [زمان محلی]
+
+[مشاهده گزارش رویداد]
+```
+
+Only include safe record details—no passwords, access tokens, VPN configuration, or private subscription URLs.
+
+---
+
+## 6. Commands and interaction
+Start with safe, mostly read-only commands:
+
+- `/start` — link the account or show help.
+- `/today` — summary appropriate to the user’s role.
+- `/events` — recent events the user is allowed to see.
+- `/expiring` — services nearing expiry, within role scope.
+- `/alerts` — recent alerts.
+- `/settings` — notification preferences.
+- `/help` — command guide.
+
+Use panel links for detailed views and any sensitive or destructive action.
+
+---
+
+## 7. Delivery, preferences, and privacy
+- Let each recipient choose alert categories, immediate messages versus digests, quiet hours, timezone, and language.
+- Provide **Pause notifications** and **Disconnect Telegram**.
+- Prevent duplicate alerts for the same event.
+- Retry temporary delivery failures a limited number of times.
+- Record delivery state: queued, sent, failed, or retried.
+- Show persistent failures to the super admin.
+- Keep global admin logs separate from reseller and customer notifications.
+- Redact secrets and sensitive personal data from messages and delivery records.
+
+---
+
+## 8. Recommended release order
+
+**First release:** Bot Center overview and token setup, connection test, secure account linking, role-based keyboards, super-admin notifications for user/sale/service create-edit-delete events, reseller-scoped sale/service notifications, and delivery history.
+
+**Next:** provider and worker alerts, usage and expiry thresholds, quiet hours, message templates, and daily digests.
+
+**Later:** optional customer notifications, richer command-based summaries, and additional safe workflow shortcuts.
