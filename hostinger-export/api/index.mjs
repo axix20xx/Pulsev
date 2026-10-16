@@ -66095,6 +66095,16 @@ var TELEGRAM_CATEGORIES = [
   "accounting",
   "system"
 ];
+var TELEGRAM_CATEGORY_ICONS = {
+  users: "\u{1F465}",
+  sales: "\u{1F9FE}",
+  services: "\u{1F6F0}",
+  requests: "\u{1F4E8}",
+  providers: "\u{1F50C}",
+  usage: "\u{1F4C8}",
+  accounting: "\u{1F4B3}",
+  system: "\u{1F6E1}"
+};
 var schemaPromise = null;
 var workerStarted = false;
 var pollerId = randomUUID2();
@@ -66333,7 +66343,8 @@ async function sendTelegramTestMessage(chatId, adminTelegramId) {
     await sendTelegramMessage(
       config3.token,
       chatId,
-      "\u0622\u0632\u0645\u0648\u0646 \u0627\u062A\u0635\u0627\u0644 \u0645\u0648\u0641\u0642 \u0628\u0648\u062F. \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627\u06CC \u0645\u062F\u06CC\u0631\u06CC\u062A\u06CC \u062F\u0631 \u0627\u06CC\u0646 \u06AF\u0641\u062A\u200C\u0648\u06AF\u0648 \u0627\u0631\u0633\u0627\u0644 \u0645\u06CC\u200C\u0634\u0648\u0646\u062F."
+      "\u2705 \u0622\u0632\u0645\u0648\u0646 \u0627\u062A\u0635\u0627\u0644 \u0645\u0648\u0641\u0642 \u0628\u0648\u062F\n\n\u{1F514} \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627\u06CC \u0645\u062F\u06CC\u0631\u06CC\u062A\u06CC \u062F\u0631 \u0627\u06CC\u0646 \u06AF\u0641\u062A\u200C\u0648\u06AF\u0648 \u0627\u0631\u0633\u0627\u0644 \u0645\u06CC\u200C\u0634\u0648\u0646\u062F.",
+      mainKeyboard("master_admin")
     );
     await pool.query(
       `UPDATE telegram_bot_deliveries SET status = 'sent', sent_at = NOW(),
@@ -66364,25 +66375,25 @@ async function sendTelegramTestMessage(chatId, adminTelegramId) {
 }
 var adminKeyboard = {
   keyboard: [
-    ["\u062F\u0627\u0634\u0628\u0648\u0631\u062F", "\u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627"],
-    ["\u06A9\u0627\u0631\u0628\u0631\u0627\u0646", "\u0641\u0631\u0648\u0634\u200C\u0647\u0627"],
-    ["\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627", "\u0648\u0636\u0639\u06CC\u062A \u0633\u06CC\u0633\u062A\u0645"],
-    ["\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627", "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A"]
+    ["\u{1F4CA} \u062F\u0627\u0634\u0628\u0648\u0631\u062F", "\u{1F552} \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627"],
+    ["\u{1F465} \u06A9\u0627\u0631\u0628\u0631\u0627\u0646", "\u{1F9FE} \u0641\u0631\u0648\u0634\u200C\u0647\u0627"],
+    ["\u{1F6F0} \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627", "\u26A0\uFE0F \u0648\u0636\u0639\u06CC\u062A \u0633\u06CC\u0633\u062A\u0645"],
+    ["\u{1F514} \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627", "\u2699\uFE0F \u062A\u0646\u0638\u06CC\u0645\u0627\u062A"]
   ],
   resize_keyboard: true,
   is_persistent: true,
-  input_field_placeholder: "\u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F"
+  input_field_placeholder: "\u06CC\u06A9 \u0628\u062E\u0634 \u0631\u0627 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F"
 };
 var resellerKeyboard = {
   keyboard: [
-    ["\u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632", "\u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627"],
-    ["\u0641\u0631\u0648\u0634\u200C\u0647\u0627", "\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627"],
-    ["\u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627", "\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627"],
-    ["\u062A\u0646\u0638\u06CC\u0645\u0627\u062A"]
+    ["\u{1F4CA} \u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632", "\u{1F465} \u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627"],
+    ["\u{1F9FE} \u0641\u0631\u0648\u0634\u200C\u0647\u0627", "\u{1F6F0} \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627"],
+    ["\u23F3 \u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627", "\u{1F514} \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627"],
+    ["\u2699\uFE0F \u062A\u0646\u0638\u06CC\u0645\u0627\u062A"]
   ],
   resize_keyboard: true,
   is_persistent: true,
-  input_field_placeholder: "\u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F"
+  input_field_placeholder: "\u06CC\u06A9 \u0628\u062E\u0634 \u0631\u0627 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F"
 };
 function mainKeyboard(role) {
   return role === "master_admin" ? adminKeyboard : resellerKeyboard;
@@ -66498,11 +66509,11 @@ async function linkTelegramAccount(message) {
   if (!sender || message.chat.type !== "private") return;
   const access = await resolveTelegramIdAccess(sender.id);
   if (!access) {
-    await sendToCurrentBot(message.chat.id, "\u0627\u06CC\u0646 \u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0628\u0647 \u062D\u0633\u0627\u0628 \u0645\u062F\u06CC\u0631 \u06CC\u0627 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0641\u0639\u0627\u0644 \u0645\u062A\u0635\u0644 \u0646\u06CC\u0633\u062A. \u0627\u0628\u062A\u062F\u0627 \u0627\u0632 \u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645 \u062B\u0628\u062A\u200C\u0634\u062F\u0647 \u062F\u0631 \u067E\u0646\u0644 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F.");
+    await sendToCurrentBot(message.chat.id, "\u{1F512} \u0627\u06CC\u0646 \u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0628\u0647 \u0645\u062F\u06CC\u0631 \u06CC\u0627 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0641\u0639\u0627\u0644 \u0645\u062A\u0635\u0644 \u0646\u06CC\u0633\u062A.\n\n\u0627\u0632 \u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645 \u062B\u0628\u062A\u200C\u0634\u062F\u0647 \u062F\u0631 \u067E\u0646\u0644 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F.");
     return;
   }
   const role = access.role;
-  const displayName = [sender.first_name, sender.last_name].filter(Boolean).join(" ").slice(0, 120) || access.title || (role === "master_admin" ? "\u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F" : `\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ${sender.id}`);
+  const displayName = safeField([sender.first_name, sender.last_name].filter(Boolean).join(" "), 120) || safeField(access.title, 120) || (role === "master_admin" ? "\u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F" : `\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ${sender.id}`);
   await pool.query(
     `INSERT INTO telegram_bot_recipients
       (telegram_id, chat_id, reseller_tg_id, role, display_name, active, linked_at, last_seen_at)
@@ -66522,7 +66533,19 @@ async function linkTelegramAccount(message) {
       displayName
     ]
   );
-  const hello = role === "master_admin" ? "\u062D\u0633\u0627\u0628 \u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F \u0628\u0647 \u0631\u0628\u0627\u062A \u0645\u062A\u0635\u0644 \u0634\u062F. \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0645\u062F\u06CC\u0631\u06CC\u062A\u06CC \u0648 \u0648\u0636\u0639\u06CC\u062A \u0633\u0627\u0645\u0627\u0646\u0647 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0634\u0645\u0627 \u0627\u0631\u0633\u0627\u0644 \u0645\u06CC\u200C\u0634\u0648\u0646\u062F." : "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0628\u0647 \u0631\u0628\u0627\u062A \u0645\u062A\u0635\u0644 \u0634\u062F. \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627 \u0641\u0642\u0637 \u062F\u0631\u0628\u0627\u0631\u0647 \u0645\u0634\u062A\u0631\u06CC\u0627\u0646\u060C \u0641\u0631\u0648\u0634\u200C\u0647\u0627 \u0648 \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u062E\u0648\u062F\u062A\u0627\u0646 \u0647\u0633\u062A\u0646\u062F.";
+  const hello = role === "master_admin" ? `\u2705 \u0627\u062A\u0635\u0627\u0644 \u062D\u0633\u0627\u0628 \u06A9\u0627\u0645\u0644 \u0634\u062F
+
+\u{1F44B} \u0633\u0644\u0627\u0645 ${displayName}
+\u{1F6E1} \u062F\u0633\u062A\u0631\u0633\u06CC: \u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F
+\u{1F514} \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0645\u062F\u06CC\u0631\u06CC\u062A\u06CC \u0648 \u0648\u0636\u0639\u06CC\u062A \u0633\u0627\u0645\u0627\u0646\u0647 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0634\u0645\u0627 \u0627\u0631\u0633\u0627\u0644 \u0645\u06CC\u200C\u0634\u0648\u0646\u062F.
+
+\u0627\u0632 \u062F\u06A9\u0645\u0647\u200C\u0647\u0627\u06CC \u067E\u0627\u06CC\u06CC\u0646 \u0628\u0631\u0627\u06CC \u0627\u062F\u0627\u0645\u0647 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F.` : `\u2705 \u0627\u062A\u0635\u0627\u0644 \u062D\u0633\u0627\u0628 \u06A9\u0627\u0645\u0644 \u0634\u062F
+
+\u{1F44B} \u0633\u0644\u0627\u0645 ${displayName}
+\u{1F9D1}\u200D\u{1F4BC} \u062F\u0633\u062A\u0631\u0633\u06CC: \u0641\u0631\u0648\u0634\u0646\u062F\u0647
+\u{1F512} \u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0646\u0645\u0627\u06CC\u0634\u200C\u062F\u0627\u062F\u0647\u200C\u0634\u062F\u0647 \u0641\u0642\u0637 \u0645\u0631\u0628\u0648\u0637 \u0628\u0647 \u0645\u0634\u062A\u0631\u06CC\u0627\u0646\u060C \u0641\u0631\u0648\u0634\u200C\u0647\u0627 \u0648 \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u062E\u0648\u062F\u062A\u0627\u0646 \u0627\u0633\u062A.
+
+\u0627\u0632 \u062F\u06A9\u0645\u0647\u200C\u0647\u0627\u06CC \u067E\u0627\u06CC\u06CC\u0646 \u0628\u0631\u0627\u06CC \u0627\u062F\u0627\u0645\u0647 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F.`;
   await sendToCurrentBot(message.chat.id, hello, mainKeyboard(role));
 }
 async function sendToCurrentBot(chatId, text2, markup) {
@@ -66557,22 +66580,40 @@ async function getLinkedRecipient(telegramId) {
 }
 async function sendInlinePreferences(chatId, telegramId, categories) {
   const labels = {
-    users: "\u06A9\u0627\u0631\u0628\u0631\u0627\u0646",
-    sales: "\u0641\u0631\u0648\u0634\u200C\u0647\u0627",
-    services: "\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627",
-    requests: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A\u200C\u0647\u0627",
-    providers: "\u0639\u0645\u0644\u06CC\u0627\u062A Provider",
-    usage: "\u0645\u0635\u0631\u0641 \u0648 \u06A9\u0627\u0631\u06A9\u0631\u062F",
-    accounting: "\u062D\u0633\u0627\u0628\u062F\u0627\u0631\u06CC",
-    system: "\u0633\u06CC\u0633\u062A\u0645"
+    users: "\u{1F465} \u06A9\u0627\u0631\u0628\u0631\u0627\u0646",
+    sales: "\u{1F9FE} \u0641\u0631\u0648\u0634\u200C\u0647\u0627",
+    services: "\u{1F6F0} \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627",
+    requests: "\u{1F4E8} \u062F\u0631\u062E\u0648\u0627\u0633\u062A\u200C\u0647\u0627",
+    providers: "\u{1F50C} \u0639\u0645\u0644\u06CC\u0627\u062A Provider",
+    usage: "\u{1F4C8} \u0645\u0635\u0631\u0641 \u0648 \u06A9\u0627\u0631\u06A9\u0631\u062F",
+    accounting: "\u{1F4B3} \u062D\u0633\u0627\u0628\u062F\u0627\u0631\u06CC",
+    system: "\u{1F6E1} \u0633\u06CC\u0633\u062A\u0645"
   };
-  const inline_keyboard = TELEGRAM_CATEGORIES.map((category) => [{
-    text: `${categories.includes(category) ? "\u0631\u0648\u0634\u0646" : "\u062E\u0627\u0645\u0648\u0634"} \xB7 ${labels[category]}`,
+  const buttons = TELEGRAM_CATEGORIES.map((category) => ({
+    text: `${categories.includes(category) ? "\u2705" : "\u{1F515}"} ${labels[category]}`,
     callback_data: `tg-pref:${category}`
-  }]);
-  await sendToCurrentBot(chatId, "\u062F\u0633\u062A\u0647\u200C\u0647\u0627\u06CC \u0627\u0639\u0644\u0627\u0646 \u0631\u0627 \u0631\u0648\u0634\u0646 \u06CC\u0627 \u062E\u0627\u0645\u0648\u0634 \u06A9\u0646\u06CC\u062F:", {
+  }));
+  const inline_keyboard = [];
+  for (let index = 0; index < buttons.length; index += 2) {
+    inline_keyboard.push(buttons.slice(index, index + 2));
+  }
+  inline_keyboard.push([{ text: "\u21A9\uFE0F \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC", callback_data: "tg-main-menu" }]);
+  await sendToCurrentBot(chatId, "\u{1F514} \u062A\u0646\u0638\u06CC\u0645 \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627\n\n\u0628\u0631\u0627\u06CC \u0631\u0648\u0634\u0646 \u06CC\u0627 \u062E\u0627\u0645\u0648\u0634 \u06A9\u0631\u062F\u0646 \u0647\u0631 \u062F\u0633\u062A\u0647\u060C \u062F\u06A9\u0645\u0647 \u0622\u0646 \u0631\u0627 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F.", {
     inline_keyboard
   });
+}
+function formatTelegramMenuText(text2) {
+  return text2.replace(/^[^\p{L}\p{N}/]+/u, "").trim();
+}
+function formatTehranDate(value) {
+  if (!value) return "\u2014";
+  const date6 = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date6.getTime())) return "\u2014";
+  return new Intl.DateTimeFormat("fa-IR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Tehran"
+  }).format(date6);
 }
 async function sendTodaySummary(recipient) {
   const ownerClause = recipient.role === "master_admin" ? "" : " AND s.reseller_tg_id = $1";
@@ -66600,26 +66641,29 @@ async function sendTodaySummary(recipient) {
   ]);
   const row = sales.rows[0];
   const amount = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 }).format(Number(row?.total ?? 0));
-  return `\u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632
-
-\u0641\u0631\u0648\u0634\u200C\u0647\u0627: ${Number(row?.count ?? 0)}
-\u0645\u0628\u0644\u063A \u0641\u0631\u0648\u0634: ${amount} \u062A\u0648\u0645\u0627\u0646
-\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F: ${Number(services.rows[0]?.count ?? 0)}
-\u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F: ${Number(customers.rows[0]?.count ?? 0)}`;
+  return `\u{1F4CA} \u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u{1F9FE} \u0641\u0631\u0648\u0634\u200C\u0647\u0627: ${Number(row?.count ?? 0)}
+\u{1F4B0} \u0645\u0628\u0644\u063A \u0641\u0631\u0648\u0634: ${amount} \u062A\u0648\u0645\u0627\u0646
+\u{1F6F0} \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F: ${Number(services.rows[0]?.count ?? 0)}
+\u{1F465} \u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F: ${Number(customers.rows[0]?.count ?? 0)}`;
 }
 async function recentEvents(recipient) {
   const result = recipient.role === "master_admin" ? await pool.query(
-    `SELECT title, body, created_at FROM telegram_bot_events ORDER BY id DESC LIMIT 6`
+    `SELECT title, body, created_at, category FROM telegram_bot_events ORDER BY id DESC LIMIT 6`
   ) : await pool.query(
-    `SELECT title, body, created_at FROM telegram_bot_events
+    `SELECT title, body, created_at, category FROM telegram_bot_events
        WHERE owner_telegram_id = $1 ORDER BY id DESC LIMIT 6`,
     [recipient.telegram_id]
   );
-  if (!result.rows.length) return "\u0631\u0648\u06CC\u062F\u0627\u062F\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
-  return `\u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
+  if (!result.rows.length) return "\u{1F552} \u0631\u0648\u06CC\u062F\u0627\u062F\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+  return `\u{1F552} \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
 
-${result.rows.map((row) => `${row.title}
-${row.body}`).join("\n\n")}`.slice(0, 3900);
+${result.rows.map(
+    (row) => `${TELEGRAM_CATEGORY_ICONS[row.category] ?? "\u{1F514}"} ${row.title}
+${row.body}
+\u{1F5D3} ${formatTehranDate(row.created_at)}`
+  ).join("\n\n")}`.slice(0, 3900);
 }
 async function expiringServices(recipient) {
   const owner = recipient.role === "master_admin" ? "" : " AND svc.reseller_tg_id = $1";
@@ -66635,10 +66679,11 @@ async function expiringServices(recipient) {
      ORDER BY svc.expire_at ASC LIMIT 8`,
     params
   );
-  return rows.rows.length ? `\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627
+  return rows.rows.length ? `\u23F3 \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627
 
-${rows.rows.map((row) => `${row.customer_name} \xB7 ${row.label}
-\u0634\u0646\u0627\u0633\u0647 ${row.service_id} \xB7 ${row.expires_at}`).join("\n\n")}` : "\u0633\u0631\u0648\u06CC\u0633\u06CC \u062F\u0631 \u0647\u0641\u062A \u0631\u0648\u0632 \u0622\u06CC\u0646\u062F\u0647 \u0645\u0646\u0642\u0636\u06CC \u0646\u0645\u06CC\u200C\u0634\u0648\u062F.";
+${rows.rows.map((row) => `\u{1F464} ${safeField(row.customer_name, 80)}
+\u{1F6F0} ${safeField(row.label, 80)}
+\u{1F5D3} \u0627\u0646\u0642\u0636\u0627: ${row.expires_at} \xB7 \u0634\u0646\u0627\u0633\u0647 ${row.service_id}`).join("\n\n")}` : "\u2705 \u0633\u0631\u0648\u06CC\u0633\u06CC \u062F\u0631 \u0647\u0641\u062A \u0631\u0648\u0632 \u0622\u06CC\u0646\u062F\u0647 \u0645\u0646\u0642\u0636\u06CC \u0646\u0645\u06CC\u200C\u0634\u0648\u062F.";
 }
 async function recentCustomers(recipient) {
   const owner = recipient.role === "master_admin" ? "" : "AND customer.reseller_tg_id = $1";
@@ -66652,10 +66697,10 @@ async function recentCustomers(recipient) {
      LIMIT 6`,
     params
   );
-  return rows.rows.length ? `\u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
+  return rows.rows.length ? `\u{1F465} \u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
 
-${rows.rows.map((row) => `${row.name} \xB7 \u0634\u0646\u0627\u0633\u0647 ${row.id}
-\u062B\u0628\u062A: ${row.created_at ?? "\u2014"}`).join("\n\n")}` : "\u0645\u0634\u062A\u0631\u06CC\u200C\u0627\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+${rows.rows.map((row) => `\u{1F464} ${safeField(row.name, 80)}
+\u0634\u0646\u0627\u0633\u0647 ${row.id} \xB7 \u062B\u0628\u062A: ${row.created_at ?? "\u2014"}`).join("\n\n")}` : "\u{1F465} \u0645\u0634\u062A\u0631\u06CC\u200C\u0627\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
 }
 async function recentSales(recipient) {
   const owner = recipient.role === "master_admin" ? "" : "AND sale.reseller_tg_id = $1";
@@ -66674,10 +66719,11 @@ async function recentSales(recipient) {
     params
   );
   const money = (amount) => new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 }).format(Number(amount));
-  return rows.rows.length ? `\u0641\u0631\u0648\u0634\u200C\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
+  return rows.rows.length ? `\u{1F9FE} \u0641\u0631\u0648\u0634\u200C\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
 
-${rows.rows.map((row) => `${row.customer_name} \xB7 ${money(row.amount)} \u062A\u0648\u0645\u0627\u0646
-${row.paid ? "\u067E\u0631\u062F\u0627\u062E\u062A\u200C\u0634\u062F\u0647" : "\u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u067E\u0631\u062F\u0627\u062E\u062A"} \xB7 ${row.created_at ?? "\u2014"} \xB7 \u0634\u0646\u0627\u0633\u0647 ${row.id}`).join("\n\n")}` : "\u0641\u0631\u0648\u0634\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+${rows.rows.map((row) => `\u{1F464} ${safeField(row.customer_name, 80)}
+\u{1F4B0} ${money(row.amount)} \u062A\u0648\u0645\u0627\u0646 \xB7 ${row.paid ? "\u2705 \u067E\u0631\u062F\u0627\u062E\u062A\u200C\u0634\u062F\u0647" : "\u{1F552} \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u067E\u0631\u062F\u0627\u062E\u062A"}
+\u{1F5D3} ${row.created_at ?? "\u2014"} \xB7 \u0634\u0646\u0627\u0633\u0647 ${row.id}`).join("\n\n")}` : "\u{1F9FE} \u0641\u0631\u0648\u0634\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
 }
 async function recentServices(recipient) {
   const owner = recipient.role === "master_admin" ? "" : "AND service.reseller_tg_id = $1";
@@ -66692,10 +66738,18 @@ async function recentServices(recipient) {
      ORDER BY service.created_at DESC NULLS LAST, service.id DESC LIMIT 6`,
     params
   );
-  return rows.rows.length ? `\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
+  const statusLabel = {
+    active: "\u{1F7E2} \u0641\u0639\u0627\u0644",
+    expiring: "\u{1F7E1} \u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627",
+    disabled: "\u26AA \u063A\u06CC\u0631\u0641\u0639\u0627\u0644",
+    expired: "\u{1F534} \u0645\u0646\u0642\u0636\u06CC",
+    cancelled: "\u26D4 \u0644\u063A\u0648\u0634\u062F\u0647"
+  };
+  return rows.rows.length ? `\u{1F6F0} \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
 
-${rows.rows.map((row) => `${row.customer_name} \xB7 ${row.label}
-\u0648\u0636\u0639\u06CC\u062A: ${row.status} \xB7 \u0627\u0646\u0642\u0636\u0627: ${row.expires_at ?? "\u2014"} \xB7 \u0634\u0646\u0627\u0633\u0647 ${row.id}`).join("\n\n")}` : "\u0633\u0631\u0648\u06CC\u0633\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+${rows.rows.map((row) => `\u{1F464} ${safeField(row.customer_name, 80)}
+\u{1F4E6} ${safeField(row.label, 80)}
+${statusLabel[row.status] ?? "\u2139\uFE0F " + safeField(row.status, 30)} \xB7 \u0627\u0646\u0642\u0636\u0627: ${row.expires_at ?? "\u2014"} \xB7 \u0634\u0646\u0627\u0633\u0647 ${row.id}`).join("\n\n")}` : "\u{1F6F0} \u0633\u0631\u0648\u06CC\u0633\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
 }
 async function recentDeliveryAlerts(recipient) {
   const rows = await pool.query(
@@ -66714,10 +66768,11 @@ async function recentDeliveryAlerts(recipient) {
     failed: "\u0646\u0627\u0645\u0648\u0641\u0642",
     skipped: "\u0631\u062F\u0634\u062F\u0647"
   };
-  return rows.rows.length ? `\u0622\u062E\u0631\u06CC\u0646 \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627
+  return rows.rows.length ? `\u{1F4EC} \u0622\u062E\u0631\u06CC\u0646 \u0627\u0631\u0633\u0627\u0644\u200C\u0647\u0627\u06CC \u0627\u0639\u0644\u0627\u0646
 
-${rows.rows.map((row) => `${row.title} \xB7 ${labels[row.status] ?? row.status}
-${row.last_error ?? row.created_at}`).join("\n\n")}` : "\u0627\u0639\u0644\u0627\u0646\u06CC \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u062D\u0633\u0627\u0628 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+${rows.rows.map((row) => `${row.status === "failed" ? "\u{1F534}" : row.status === "sent" ? "\u2705" : "\u{1F552}"} ${safeField(row.title, 120)}
+\u0648\u0636\u0639\u06CC\u062A: ${labels[row.status] ?? safeField(row.status, 30)}
+${row.last_error ? `\u26A0\uFE0F ${safeField(row.last_error, 240)}` : `\u{1F5D3} ${formatTehranDate(row.created_at)}`}`).join("\n\n")}` : "\u{1F4EC} \u0627\u0639\u0644\u0627\u0646\u06CC \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u062D\u0633\u0627\u0628 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
 }
 async function operationalStatus() {
   const [bot, jobs, panels2] = await Promise.all([
@@ -66737,15 +66792,16 @@ async function operationalStatus() {
     )
   ]);
   const row = bot.rows[0];
-  return `\u0648\u0636\u0639\u06CC\u062A \u0639\u0645\u0644\u06CC\u0627\u062A\u06CC
+  return `\u26A0\uFE0F \u0648\u0636\u0639\u06CC\u062A \u0633\u0627\u0645\u0627\u0646\u0647
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+${row?.last_error ? "\u{1F534} \u062F\u0631\u06CC\u0627\u0641\u062A \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627: \u0646\u06CC\u0627\u0632\u0645\u0646\u062F \u0628\u0631\u0631\u0633\u06CC" : row?.enabled ? "\u{1F7E2} \u062F\u0631\u06CC\u0627\u0641\u062A \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627: \u0641\u0639\u0627\u0644" : "\u26AA \u062F\u0631\u06CC\u0627\u0641\u062A \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627: \u0645\u062A\u0648\u0642\u0641"}
+\u{1F552} \u0622\u062E\u0631\u06CC\u0646 \u0628\u0631\u0631\u0633\u06CC: ${formatTehranDate(row?.last_checked_at)}
+\u{1F4E8} \u0622\u062E\u0631\u06CC\u0646 \u0627\u0631\u0633\u0627\u0644 \u0645\u0648\u0641\u0642: ${formatTehranDate(row?.last_sent_at)}
+\u{1F50C} Provider\u0647\u0627\u06CC \u0641\u0639\u0627\u0644: ${panels2.rows[0]?.enabled ?? 0} \u0627\u0632 ${panels2.rows[0]?.configured ?? 0}
+\u{1F4E6} \u0633\u0627\u062E\u062A \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631 \u0635\u0641: ${jobs.rows[0]?.pending ?? 0}
+\u274C \u0633\u0627\u062E\u062A \u0646\u0627\u0645\u0648\u0641\u0642: ${jobs.rows[0]?.failed ?? 0}${row?.last_error ? `
 
-\u0631\u0628\u0627\u062A \u062A\u0644\u06AF\u0631\u0627\u0645: ${row?.enabled ? "\u0641\u0639\u0627\u0644" : "\u0645\u062A\u0648\u0642\u0641"}
-\u0622\u062E\u0631\u06CC\u0646 \u0628\u0631\u0631\u0633\u06CC \u0631\u0628\u0627\u062A: ${row?.last_checked_at ?? "\u2014"}
-\u0622\u062E\u0631\u06CC\u0646 \u0627\u0631\u0633\u0627\u0644 \u0645\u0648\u0641\u0642: ${row?.last_sent_at ?? "\u2014"}
-Provider\u0647\u0627\u06CC \u0641\u0639\u0627\u0644: ${panels2.rows[0]?.enabled ?? 0} \u0627\u0632 ${panels2.rows[0]?.configured ?? 0}
-\u06A9\u0627\u0631\u0647\u0627\u06CC \u0633\u0627\u062E\u062A \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631 \u0635\u0641: ${jobs.rows[0]?.pending ?? 0}
-\u06A9\u0627\u0631\u0647\u0627\u06CC \u0646\u0627\u0645\u0648\u0641\u0642 \u0633\u0627\u062E\u062A: ${jobs.rows[0]?.failed ?? 0}${row?.last_error ? `
-\u062E\u0637\u0627\u06CC \u0622\u062E\u0631 \u0631\u0628\u0627\u062A: ${row.last_error}` : ""}`;
+\u062C\u0632\u0626\u06CC\u0627\u062A \u062E\u0637\u0627: ${row.last_error}` : ""}`;
 }
 async function handleTextMessage(message) {
   const sender = message.from;
@@ -66755,59 +66811,74 @@ async function handleTextMessage(message) {
     await linkTelegramAccount(message);
     return;
   }
+  const menuText = formatTelegramMenuText(text2);
   const recipient = await getLinkedRecipient(sender.id);
   if (!recipient) {
-    await sendToCurrentBot(message.chat.id, "\u0628\u0631\u0627\u06CC \u0627\u062A\u0635\u0627\u0644\u060C \u062F\u0633\u062A\u0648\u0631 /start \u0631\u0627 \u0628\u0632\u0646\u06CC\u062F \u0648 \u0628\u0627 \u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645 \u062B\u0628\u062A\u200C\u0634\u062F\u0647 \u062F\u0631 \u067E\u0646\u0644 \u0648\u0627\u0631\u062F \u0634\u0648\u06CC\u062F.");
+    await sendToCurrentBot(message.chat.id, "\u{1F512} \u0628\u0631\u0627\u06CC \u0627\u062A\u0635\u0627\u0644\u060C /start \u0631\u0627 \u0628\u0632\u0646\u06CC\u062F \u0648 \u0628\u0627 \u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645 \u062B\u0628\u062A\u200C\u0634\u062F\u0647 \u062F\u0631 \u067E\u0646\u0644 \u0648\u0627\u0631\u062F \u0634\u0648\u06CC\u062F.");
     return;
   }
   const command = text2.split(/\s+/)[0].split("@")[0].toLocaleLowerCase();
-  if (command === "/help" || text2 === "\u0631\u0627\u0647\u0646\u0645\u0627") {
-    await sendToCurrentBot(message.chat.id, "\u062F\u0633\u062A\u0648\u0631\u0647\u0627:\n/today \u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632\n/events \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631\n/expiring \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627\n/alerts \u0622\u062E\u0631\u06CC\u0646 \u0648\u0636\u0639\u06CC\u062A \u0627\u0631\u0633\u0627\u0644\u200C\u0647\u0627\n/settings \u062A\u0646\u0638\u06CC\u0645 \u062F\u0633\u062A\u0647\u200C\u0647\u0627\u06CC \u0627\u0639\u0644\u0627\u0646", mainKeyboard(recipient.role));
+  if (command === "/help" || menuText === "\u0631\u0627\u0647\u0646\u0645\u0627") {
+    await sendToCurrentBot(message.chat.id, "\u2139\uFE0F \u0631\u0627\u0647\u0646\u0645\u0627\u06CC \u0631\u0628\u0627\u062A\n\n\u{1F4CA} /today \u2014 \u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632\n\u{1F552} /events \u2014 \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631\n\u23F3 /expiring \u2014 \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627\n\u{1F514} /alerts \u2014 \u0648\u0636\u0639\u06CC\u062A \u0627\u0631\u0633\u0627\u0644 \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627\n\u2699\uFE0F /settings \u2014 \u062A\u0646\u0638\u06CC\u0645 \u062F\u0633\u062A\u0647\u200C\u0647\u0627\u06CC \u0627\u0639\u0644\u0627\u0646\n\n\u0628\u0631\u0627\u06CC \u062C\u0632\u0626\u06CC\u0627\u062A \u06A9\u0627\u0645\u0644 \u0627\u0632 \u062F\u06A9\u0645\u0647\u200C\u0647\u0627\u06CC \u067E\u0627\u06CC\u06CC\u0646 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F.", mainKeyboard(recipient.role));
     return;
   }
-  if (command === "/today" || text2 === "\u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632" || text2 === "\u062F\u0627\u0634\u0628\u0648\u0631\u062F") {
+  if (command === "/today" || menuText === "\u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632" || menuText === "\u062F\u0627\u0634\u0628\u0648\u0631\u062F") {
     await sendToCurrentBot(message.chat.id, await sendTodaySummary(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (command === "/events" || text2 === "\u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627" || text2 === "\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627") {
+  if (command === "/events" || menuText === "\u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627") {
     await sendToCurrentBot(message.chat.id, await recentEvents(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (command === "/expiring" || text2 === "\u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627") {
+  if (command === "/expiring" || menuText === "\u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627") {
     await sendToCurrentBot(message.chat.id, await expiringServices(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (command === "/alerts" || text2 === "\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627") {
+  if (command === "/alerts" || menuText === "\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627") {
     await sendToCurrentBot(message.chat.id, await recentDeliveryAlerts(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (text2 === "\u06A9\u0627\u0631\u0628\u0631\u0627\u0646" || text2 === "\u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627") {
+  if (menuText === "\u06A9\u0627\u0631\u0628\u0631\u0627\u0646" || menuText === "\u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627") {
     await sendToCurrentBot(message.chat.id, await recentCustomers(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (text2 === "\u0641\u0631\u0648\u0634\u200C\u0647\u0627") {
+  if (menuText === "\u0641\u0631\u0648\u0634\u200C\u0647\u0627") {
     await sendToCurrentBot(message.chat.id, await recentSales(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (text2 === "\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627") {
+  if (menuText === "\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627") {
     await sendToCurrentBot(message.chat.id, await recentServices(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (text2 === "\u0648\u0636\u0639\u06CC\u062A \u0633\u06CC\u0633\u062A\u0645" && recipient.role === "master_admin") {
+  if (menuText === "\u0648\u0636\u0639\u06CC\u062A \u0633\u06CC\u0633\u062A\u0645" && recipient.role === "master_admin") {
     await sendToCurrentBot(message.chat.id, await operationalStatus(), mainKeyboard(recipient.role));
     return;
   }
-  if (command === "/settings" || text2 === "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A") {
+  if (command === "/settings" || menuText === "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A") {
     await sendInlinePreferences(message.chat.id, sender.id, recipient.categories ?? []);
     return;
   }
-  await sendToCurrentBot(message.chat.id, "\u0627\u06CC\u0646 \u06AF\u0632\u06CC\u0646\u0647 \u0634\u0646\u0627\u062E\u062A\u0647 \u0646\u0634\u062F. \u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627 /help \u0631\u0627 \u0628\u0632\u0646\u06CC\u062F.", mainKeyboard(recipient.role));
+  await sendToCurrentBot(message.chat.id, "\u{1F914} \u0627\u06CC\u0646 \u06AF\u0632\u06CC\u0646\u0647 \u0631\u0627 \u067E\u06CC\u062F\u0627 \u0646\u06A9\u0631\u062F\u0645. \u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627 /help \u0631\u0627 \u0628\u0632\u0646\u06CC\u062F.", mainKeyboard(recipient.role));
 }
 async function handleCallback(update) {
   const callback = update.callback_query;
   if (!callback?.data || !callback.message) return;
   const recipient = await getLinkedRecipient(callback.from.id);
   if (!recipient) return;
+  if (callback.data === "tg-main-menu" || callback.data === "tg-open-settings") {
+    const config4 = await loadBotConfig();
+    if (!config4?.token) return;
+    await callTelegram(config4.token, "answerCallbackQuery", {
+      callback_query_id: callback.id,
+      text: callback.data === "tg-main-menu" ? "\u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC" : "\u062A\u0646\u0638\u06CC\u0645 \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627"
+    });
+    if (callback.data === "tg-main-menu") {
+      await sendToCurrentBot(callback.message.chat.id, "\u{1F3E0} \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC \u0622\u0645\u0627\u062F\u0647 \u0627\u0633\u062A.", mainKeyboard(recipient.role));
+    } else {
+      await sendInlinePreferences(callback.message.chat.id, callback.from.id, recipient.categories ?? []);
+    }
+    return;
+  }
   const category = callback.data.replace(/^tg-pref:/, "");
   if (!TELEGRAM_CATEGORIES.includes(category)) return;
   const categories = new Set(recipient.categories ?? []);
@@ -66948,7 +67019,11 @@ async function deliverPendingMessages() {
     const attempts = Number(claimed.rows[0]?.attempts ?? 1);
     try {
       const fullHref = safeHref(config3.panelUrl, delivery.href);
-      const markup = fullHref ? { inline_keyboard: [[{ text: "\u0645\u0634\u0627\u0647\u062F\u0647 \u062F\u0631 \u067E\u0646\u0644", url: fullHref }]] } : mainKeyboard(delivery.recipient_role);
+      const alertActions = [
+        ...fullHref ? [{ text: "\u{1F441} \u0645\u0634\u0627\u0647\u062F\u0647 \u062F\u0631 \u067E\u0646\u0644", url: fullHref }] : [],
+        { text: "\u{1F514} \u062A\u0646\u0638\u06CC\u0645 \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627", callback_data: "tg-open-settings" }
+      ];
+      const markup = { inline_keyboard: [alertActions] };
       const eventTime = new Intl.DateTimeFormat("fa-IR", {
         dateStyle: "medium",
         timeStyle: "short",
@@ -66957,11 +67032,11 @@ async function deliverPendingMessages() {
       await sendTelegramMessage(
         config3.token,
         Number(delivery.chat_id),
-        `${delivery.title}
+        `${TELEGRAM_CATEGORY_ICONS[delivery.category] ?? "\u{1F514}"} ${delivery.title}
 
 ${delivery.body}
 
-\u0632\u0645\u0627\u0646: ${eventTime}`,
+\u{1F5D3} \u0632\u0645\u0627\u0646: ${eventTime}`,
         markup
       );
       await pool.query(

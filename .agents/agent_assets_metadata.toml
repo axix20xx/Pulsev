@@ -1220,3 +1220,17 @@ mtime_ms = 1792178261142
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b1c11aa3-5d29-44b8-88d7-855bdd2f7a8b/50cc3319-b6de-4f1b-9364-4fddfeaafea5"
 storage_version_token = "1792178283010270"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "twaKwT3lkW7bdR7akzHFu"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-16T19-43-59-656Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP — Telegram emoji bot"
+description = "Full current Hostinger package with the updated Telegram role keyboards, emoji messages, inline alert buttons, API, all frontend routes, launcher, and migration SQL. Package validation passed; 27.4 MB."
+logical_id = "49fc3e8a-97d6-487a-be44-d19c81018be7"
+content_hash = "sha256:951db04935bb1c0973fb3d8b46ce41fffacab2b838a1a7a6b22d3d11164129b0"
+size = 28741473
+mtime_ms = 1792179955336
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/49fc3e8a-97d6-487a-be44-d19c81018be7/d0829b7d-f421-4618-a6e4-868b17e3053b"
+storage_version_token = "1792180016574432"
+content_type = "application/octet-stream"

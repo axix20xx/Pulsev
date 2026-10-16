@@ -17,6 +17,16 @@ export const TELEGRAM_CATEGORIES = [
   "system",
 ] as const;
 export type TelegramCategory = (typeof TELEGRAM_CATEGORIES)[number];
+const TELEGRAM_CATEGORY_ICONS: Record<TelegramCategory, string> = {
+  users: "👥",
+  sales: "🧾",
+  services: "🛰",
+  requests: "📨",
+  providers: "🔌",
+  usage: "📈",
+  accounting: "💳",
+  system: "🛡",
+};
 
 type TelegramApiResult<T> = {
   ok: boolean;
@@ -385,7 +395,8 @@ export async function sendTelegramTestMessage(chatId: number, adminTelegramId: n
     await sendTelegramMessage(
       config.token,
       chatId,
-      "آزمون اتصال موفق بود. اعلان‌های مدیریتی در این گفت‌وگو ارسال می‌شوند.",
+      "✅ آزمون اتصال موفق بود\n\n🔔 اعلان‌های مدیریتی در این گفت‌وگو ارسال می‌شوند.",
+      mainKeyboard("master_admin"),
     );
     await pool.query(
       `UPDATE telegram_bot_deliveries SET status = 'sent', sent_at = NOW(),
@@ -417,25 +428,25 @@ export async function sendTelegramTestMessage(chatId: number, adminTelegramId: n
 
 const adminKeyboard = {
   keyboard: [
-    ["داشبورد", "رویدادها"],
-    ["کاربران", "فروش‌ها"],
-    ["سرویس‌ها", "وضعیت سیستم"],
-    ["اعلان‌ها", "تنظیمات"],
+    ["📊 داشبورد", "🕒 رویدادها"],
+    ["👥 کاربران", "🧾 فروش‌ها"],
+    ["🛰 سرویس‌ها", "⚠️ وضعیت سیستم"],
+    ["🔔 اعلان‌ها", "⚙️ تنظیمات"],
   ],
   resize_keyboard: true,
   is_persistent: true,
-  input_field_placeholder: "انتخاب کنید",
+  input_field_placeholder: "یک بخش را انتخاب کنید",
 };
 const resellerKeyboard = {
   keyboard: [
-    ["خلاصه امروز", "مشتری‌ها"],
-    ["فروش‌ها", "سرویس‌ها"],
-    ["نزدیک انقضا", "اعلان‌ها"],
-    ["تنظیمات"],
+    ["📊 خلاصه امروز", "👥 مشتری‌ها"],
+    ["🧾 فروش‌ها", "🛰 سرویس‌ها"],
+    ["⏳ نزدیک انقضا", "🔔 اعلان‌ها"],
+    ["⚙️ تنظیمات"],
   ],
   resize_keyboard: true,
   is_persistent: true,
-  input_field_placeholder: "انتخاب کنید",
+  input_field_placeholder: "یک بخش را انتخاب کنید",
 };
 
 function mainKeyboard(role: "master_admin" | "reseller") {
@@ -578,12 +589,12 @@ async function linkTelegramAccount(message: TelegramMessage): Promise<void> {
   if (!sender || message.chat.type !== "private") return;
   const access = await resolveTelegramIdAccess(sender.id);
   if (!access) {
-    await sendToCurrentBot(message.chat.id, "این حساب تلگرام به حساب مدیر یا فروشنده فعال متصل نیست. ابتدا از حساب تلگرام ثبت‌شده در پنل استفاده کنید.");
+    await sendToCurrentBot(message.chat.id, "🔒 این حساب تلگرام به مدیر یا فروشنده فعال متصل نیست.\n\nاز حساب تلگرام ثبت‌شده در پنل استفاده کنید.");
     return;
   }
   const role = access.role;
-  const displayName = [sender.first_name, sender.last_name].filter(Boolean).join(" ").slice(0, 120)
-    || access.title
+  const displayName = safeField([sender.first_name, sender.last_name].filter(Boolean).join(" "), 120)
+    || safeField(access.title, 120)
     || (role === "master_admin" ? "مدیر ارشد" : `فروشنده ${sender.id}`);
   await pool.query(
     `INSERT INTO telegram_bot_recipients
@@ -605,8 +616,8 @@ async function linkTelegramAccount(message: TelegramMessage): Promise<void> {
     ],
   );
   const hello = role === "master_admin"
-    ? "حساب مدیر ارشد به ربات متصل شد. رویدادهای مدیریتی و وضعیت سامانه فقط برای شما ارسال می‌شوند."
-    : "حساب فروشنده به ربات متصل شد. اعلان‌ها فقط درباره مشتریان، فروش‌ها و سرویس‌های خودتان هستند.";
+    ? `✅ اتصال حساب کامل شد\n\n👋 سلام ${displayName}\n🛡 دسترسی: مدیر ارشد\n🔔 رویدادهای مدیریتی و وضعیت سامانه فقط برای شما ارسال می‌شوند.\n\nاز دکمه‌های پایین برای ادامه استفاده کنید.`
+    : `✅ اتصال حساب کامل شد\n\n👋 سلام ${displayName}\n🧑‍💼 دسترسی: فروشنده\n🔒 اطلاعات نمایش‌داده‌شده فقط مربوط به مشتریان، فروش‌ها و سرویس‌های خودتان است.\n\nاز دکمه‌های پایین برای ادامه استفاده کنید.`;
   await sendToCurrentBot(message.chat.id, hello, mainKeyboard(role));
 }
 
@@ -650,22 +661,42 @@ async function getLinkedRecipient(telegramId: number) {
 
 async function sendInlinePreferences(chatId: number, telegramId: number, categories: string[]) {
   const labels: Record<TelegramCategory, string> = {
-    users: "کاربران",
-    sales: "فروش‌ها",
-    services: "سرویس‌ها",
-    requests: "درخواست‌ها",
-    providers: "عملیات Provider",
-    usage: "مصرف و کارکرد",
-    accounting: "حسابداری",
-    system: "سیستم",
+    users: "👥 کاربران",
+    sales: "🧾 فروش‌ها",
+    services: "🛰 سرویس‌ها",
+    requests: "📨 درخواست‌ها",
+    providers: "🔌 عملیات Provider",
+    usage: "📈 مصرف و کارکرد",
+    accounting: "💳 حسابداری",
+    system: "🛡 سیستم",
   };
-  const inline_keyboard = TELEGRAM_CATEGORIES.map((category) => [{
-    text: `${categories.includes(category) ? "روشن" : "خاموش"} · ${labels[category]}`,
+  const buttons = TELEGRAM_CATEGORIES.map((category) => ({
+    text: `${categories.includes(category) ? "✅" : "🔕"} ${labels[category]}`,
     callback_data: `tg-pref:${category}`,
-  }]);
-  await sendToCurrentBot(chatId, "دسته‌های اعلان را روشن یا خاموش کنید:", {
+  }));
+  const inline_keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
+  for (let index = 0; index < buttons.length; index += 2) {
+    inline_keyboard.push(buttons.slice(index, index + 2));
+  }
+  inline_keyboard.push([{ text: "↩️ منوی اصلی", callback_data: "tg-main-menu" }]);
+  await sendToCurrentBot(chatId, "🔔 تنظیم اعلان‌ها\n\nبرای روشن یا خاموش کردن هر دسته، دکمه آن را انتخاب کنید.", {
     inline_keyboard,
   });
+}
+
+function formatTelegramMenuText(text: string): string {
+  return text.replace(/^[^\p{L}\p{N}/]+/u, "").trim();
+}
+
+function formatTehranDate(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("fa-IR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Tehran",
+  }).format(date);
 }
 
 async function sendTodaySummary(recipient: NonNullable<Awaited<ReturnType<typeof getLinkedRecipient>>>) {
@@ -694,21 +725,23 @@ async function sendTodaySummary(recipient: NonNullable<Awaited<ReturnType<typeof
   ]);
   const row = sales.rows[0];
   const amount = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 }).format(Number(row?.total ?? 0));
-  return `خلاصه امروز\n\nفروش‌ها: ${Number(row?.count ?? 0)}\nمبلغ فروش: ${amount} تومان\nسرویس‌های جدید: ${Number(services.rows[0]?.count ?? 0)}\nمشتری‌های جدید: ${Number(customers.rows[0]?.count ?? 0)}`;
+  return `📊 خلاصه امروز\n━━━━━━━━━━━━━━\n🧾 فروش‌ها: ${Number(row?.count ?? 0)}\n💰 مبلغ فروش: ${amount} تومان\n🛰 سرویس‌های جدید: ${Number(services.rows[0]?.count ?? 0)}\n👥 مشتری‌های جدید: ${Number(customers.rows[0]?.count ?? 0)}`;
 }
 
 async function recentEvents(recipient: NonNullable<Awaited<ReturnType<typeof getLinkedRecipient>>>) {
   const result = recipient.role === "master_admin"
-    ? await pool.query<{ title: string; body: string; created_at: Date }>(
-      `SELECT title, body, created_at FROM telegram_bot_events ORDER BY id DESC LIMIT 6`,
+    ? await pool.query<{ title: string; body: string; created_at: Date; category: string }>(
+      `SELECT title, body, created_at, category FROM telegram_bot_events ORDER BY id DESC LIMIT 6`,
     )
-    : await pool.query<{ title: string; body: string; created_at: Date }>(
-      `SELECT title, body, created_at FROM telegram_bot_events
+    : await pool.query<{ title: string; body: string; created_at: Date; category: string }>(
+      `SELECT title, body, created_at, category FROM telegram_bot_events
        WHERE owner_telegram_id = $1 ORDER BY id DESC LIMIT 6`,
       [recipient.telegram_id],
     );
-  if (!result.rows.length) return "رویدادی برای نمایش ثبت نشده است.";
-  return `رویدادهای اخیر\n\n${result.rows.map((row) => `${row.title}\n${row.body}`).join("\n\n")}`.slice(0, 3900);
+  if (!result.rows.length) return "🕒 رویدادی برای نمایش ثبت نشده است.";
+  return `🕒 رویدادهای اخیر\n\n${result.rows.map((row) =>
+    `${TELEGRAM_CATEGORY_ICONS[row.category as TelegramCategory] ?? "🔔"} ${row.title}\n${row.body}\n🗓 ${formatTehranDate(row.created_at)}`,
+  ).join("\n\n")}`.slice(0, 3900);
 }
 
 async function expiringServices(recipient: NonNullable<Awaited<ReturnType<typeof getLinkedRecipient>>>) {
@@ -726,8 +759,8 @@ async function expiringServices(recipient: NonNullable<Awaited<ReturnType<typeof
     params,
   );
   return rows.rows.length
-    ? `سرویس‌های نزدیک انقضا\n\n${rows.rows.map((row) => `${row.customer_name} · ${row.label}\nشناسه ${row.service_id} · ${row.expires_at}`).join("\n\n")}`
-    : "سرویسی در هفت روز آینده منقضی نمی‌شود.";
+    ? `⏳ سرویس‌های نزدیک انقضا\n\n${rows.rows.map((row) => `👤 ${safeField(row.customer_name, 80)}\n🛰 ${safeField(row.label, 80)}\n🗓 انقضا: ${row.expires_at} · شناسه ${row.service_id}`).join("\n\n")}`
+    : "✅ سرویسی در هفت روز آینده منقضی نمی‌شود.";
 }
 
 async function recentCustomers(recipient: NonNullable<Awaited<ReturnType<typeof getLinkedRecipient>>>) {
@@ -743,8 +776,8 @@ async function recentCustomers(recipient: NonNullable<Awaited<ReturnType<typeof 
     params,
   );
   return rows.rows.length
-    ? `مشتری‌های اخیر\n\n${rows.rows.map((row) => `${row.name} · شناسه ${row.id}\nثبت: ${row.created_at ?? "—"}`).join("\n\n")}`
-    : "مشتری‌ای برای نمایش ثبت نشده است.";
+    ? `👥 مشتری‌های اخیر\n\n${rows.rows.map((row) => `👤 ${safeField(row.name, 80)}\nشناسه ${row.id} · ثبت: ${row.created_at ?? "—"}`).join("\n\n")}`
+    : "👥 مشتری‌ای برای نمایش ثبت نشده است.";
 }
 
 async function recentSales(recipient: NonNullable<Awaited<ReturnType<typeof getLinkedRecipient>>>) {
@@ -771,8 +804,8 @@ async function recentSales(recipient: NonNullable<Awaited<ReturnType<typeof getL
   );
   const money = (amount: number) => new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 }).format(Number(amount));
   return rows.rows.length
-    ? `فروش‌های اخیر\n\n${rows.rows.map((row) => `${row.customer_name} · ${money(row.amount)} تومان\n${row.paid ? "پرداخت‌شده" : "در انتظار پرداخت"} · ${row.created_at ?? "—"} · شناسه ${row.id}`).join("\n\n")}`
-    : "فروشی برای نمایش ثبت نشده است.";
+    ? `🧾 فروش‌های اخیر\n\n${rows.rows.map((row) => `👤 ${safeField(row.customer_name, 80)}\n💰 ${money(row.amount)} تومان · ${row.paid ? "✅ پرداخت‌شده" : "🕒 در انتظار پرداخت"}\n🗓 ${row.created_at ?? "—"} · شناسه ${row.id}`).join("\n\n")}`
+    : "🧾 فروشی برای نمایش ثبت نشده است.";
 }
 
 async function recentServices(recipient: NonNullable<Awaited<ReturnType<typeof getLinkedRecipient>>>) {
@@ -794,9 +827,13 @@ async function recentServices(recipient: NonNullable<Awaited<ReturnType<typeof g
      ORDER BY service.created_at DESC NULLS LAST, service.id DESC LIMIT 6`,
     params,
   );
+  const statusLabel: Record<string, string> = {
+    active: "🟢 فعال", expiring: "🟡 نزدیک انقضا", disabled: "⚪ غیرفعال",
+    expired: "🔴 منقضی", cancelled: "⛔ لغوشده",
+  };
   return rows.rows.length
-    ? `سرویس‌های اخیر\n\n${rows.rows.map((row) => `${row.customer_name} · ${row.label}\nوضعیت: ${row.status} · انقضا: ${row.expires_at ?? "—"} · شناسه ${row.id}`).join("\n\n")}`
-    : "سرویسی برای نمایش ثبت نشده است.";
+    ? `🛰 سرویس‌های اخیر\n\n${rows.rows.map((row) => `👤 ${safeField(row.customer_name, 80)}\n📦 ${safeField(row.label, 80)}\n${statusLabel[row.status] ?? "ℹ️ " + safeField(row.status, 30)} · انقضا: ${row.expires_at ?? "—"} · شناسه ${row.id}`).join("\n\n")}`
+    : "🛰 سرویسی برای نمایش ثبت نشده است.";
 }
 
 async function recentDeliveryAlerts(recipient: NonNullable<Awaited<ReturnType<typeof getLinkedRecipient>>>) {
@@ -822,8 +859,8 @@ async function recentDeliveryAlerts(recipient: NonNullable<Awaited<ReturnType<ty
     skipped: "ردشده",
   };
   return rows.rows.length
-    ? `آخرین اعلان‌ها\n\n${rows.rows.map((row) => `${row.title} · ${labels[row.status] ?? row.status}\n${row.last_error ?? row.created_at}`).join("\n\n")}`
-    : "اعلانی برای این حساب ثبت نشده است.";
+    ? `📬 آخرین ارسال‌های اعلان\n\n${rows.rows.map((row) => `${row.status === "failed" ? "🔴" : row.status === "sent" ? "✅" : "🕒"} ${safeField(row.title, 120)}\nوضعیت: ${labels[row.status] ?? safeField(row.status, 30)}\n${row.last_error ? `⚠️ ${safeField(row.last_error, 240)}` : `🗓 ${formatTehranDate(row.created_at)}`}`).join("\n\n")}`
+    : "📬 اعلانی برای این حساب ثبت نشده است.";
 }
 
 async function operationalStatus() {
@@ -844,7 +881,7 @@ async function operationalStatus() {
     ),
   ]);
   const row = bot.rows[0];
-  return `وضعیت عملیاتی\n\nربات تلگرام: ${row?.enabled ? "فعال" : "متوقف"}\nآخرین بررسی ربات: ${row?.last_checked_at ?? "—"}\nآخرین ارسال موفق: ${row?.last_sent_at ?? "—"}\nProviderهای فعال: ${panels.rows[0]?.enabled ?? 0} از ${panels.rows[0]?.configured ?? 0}\nکارهای ساخت سرویس در صف: ${jobs.rows[0]?.pending ?? 0}\nکارهای ناموفق ساخت: ${jobs.rows[0]?.failed ?? 0}${row?.last_error ? `\nخطای آخر ربات: ${row.last_error}` : ""}`;
+  return `⚠️ وضعیت سامانه\n━━━━━━━━━━━━━━\n${row?.last_error ? "🔴 دریافت رویدادها: نیازمند بررسی" : row?.enabled ? "🟢 دریافت رویدادها: فعال" : "⚪ دریافت رویدادها: متوقف"}\n🕒 آخرین بررسی: ${formatTehranDate(row?.last_checked_at)}\n📨 آخرین ارسال موفق: ${formatTehranDate(row?.last_sent_at)}\n🔌 Providerهای فعال: ${panels.rows[0]?.enabled ?? 0} از ${panels.rows[0]?.configured ?? 0}\n📦 ساخت سرویس در صف: ${jobs.rows[0]?.pending ?? 0}\n❌ ساخت ناموفق: ${jobs.rows[0]?.failed ?? 0}${row?.last_error ? `\n\nجزئیات خطا: ${row.last_error}` : ""}`;
 }
 
 async function handleTextMessage(message: TelegramMessage) {
@@ -855,53 +892,54 @@ async function handleTextMessage(message: TelegramMessage) {
     await linkTelegramAccount(message);
     return;
   }
+  const menuText = formatTelegramMenuText(text);
   const recipient = await getLinkedRecipient(sender.id);
   if (!recipient) {
-    await sendToCurrentBot(message.chat.id, "برای اتصال، دستور /start را بزنید و با حساب تلگرام ثبت‌شده در پنل وارد شوید.");
+    await sendToCurrentBot(message.chat.id, "🔒 برای اتصال، /start را بزنید و با حساب تلگرام ثبت‌شده در پنل وارد شوید.");
     return;
   }
   const command = text.split(/\s+/)[0].split("@")[0].toLocaleLowerCase();
-  if (command === "/help" || text === "راهنما") {
-    await sendToCurrentBot(message.chat.id, "دستورها:\n/today خلاصه امروز\n/events رویدادهای اخیر\n/expiring سرویس‌های نزدیک انقضا\n/alerts آخرین وضعیت ارسال‌ها\n/settings تنظیم دسته‌های اعلان", mainKeyboard(recipient.role));
+  if (command === "/help" || menuText === "راهنما") {
+    await sendToCurrentBot(message.chat.id, "ℹ️ راهنمای ربات\n\n📊 /today — خلاصه امروز\n🕒 /events — رویدادهای اخیر\n⏳ /expiring — سرویس‌های نزدیک انقضا\n🔔 /alerts — وضعیت ارسال اعلان‌ها\n⚙️ /settings — تنظیم دسته‌های اعلان\n\nبرای جزئیات کامل از دکمه‌های پایین استفاده کنید.", mainKeyboard(recipient.role));
     return;
   }
-  if (command === "/today" || text === "خلاصه امروز" || text === "داشبورد") {
+  if (command === "/today" || menuText === "خلاصه امروز" || menuText === "داشبورد") {
     await sendToCurrentBot(message.chat.id, await sendTodaySummary(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (command === "/events" || text === "رویدادها" || text === "اعلان‌ها") {
+  if (command === "/events" || menuText === "رویدادها") {
     await sendToCurrentBot(message.chat.id, await recentEvents(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (command === "/expiring" || text === "نزدیک انقضا") {
+  if (command === "/expiring" || menuText === "نزدیک انقضا") {
     await sendToCurrentBot(message.chat.id, await expiringServices(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (command === "/alerts" || text === "اعلان‌ها") {
+  if (command === "/alerts" || menuText === "اعلان‌ها") {
     await sendToCurrentBot(message.chat.id, await recentDeliveryAlerts(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (text === "کاربران" || text === "مشتری‌ها") {
+  if (menuText === "کاربران" || menuText === "مشتری‌ها") {
     await sendToCurrentBot(message.chat.id, await recentCustomers(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (text === "فروش‌ها") {
+  if (menuText === "فروش‌ها") {
     await sendToCurrentBot(message.chat.id, await recentSales(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (text === "سرویس‌ها") {
+  if (menuText === "سرویس‌ها") {
     await sendToCurrentBot(message.chat.id, await recentServices(recipient), mainKeyboard(recipient.role));
     return;
   }
-  if (text === "وضعیت سیستم" && recipient.role === "master_admin") {
+  if (menuText === "وضعیت سیستم" && recipient.role === "master_admin") {
     await sendToCurrentBot(message.chat.id, await operationalStatus(), mainKeyboard(recipient.role));
     return;
   }
-  if (command === "/settings" || text === "تنظیمات") {
+  if (command === "/settings" || menuText === "تنظیمات") {
     await sendInlinePreferences(message.chat.id, sender.id, recipient.categories ?? []);
     return;
   }
-  await sendToCurrentBot(message.chat.id, "این گزینه شناخته نشد. برای راهنما /help را بزنید.", mainKeyboard(recipient.role));
+  await sendToCurrentBot(message.chat.id, "🤔 این گزینه را پیدا نکردم. برای راهنما /help را بزنید.", mainKeyboard(recipient.role));
 }
 
 async function handleCallback(update: TelegramUpdate) {
@@ -909,6 +947,20 @@ async function handleCallback(update: TelegramUpdate) {
   if (!callback?.data || !callback.message) return;
   const recipient = await getLinkedRecipient(callback.from.id);
   if (!recipient) return;
+  if (callback.data === "tg-main-menu" || callback.data === "tg-open-settings") {
+    const config = await loadBotConfig();
+    if (!config?.token) return;
+    await callTelegram(config.token, "answerCallbackQuery", {
+      callback_query_id: callback.id,
+      text: callback.data === "tg-main-menu" ? "منوی اصلی" : "تنظیم اعلان‌ها",
+    });
+    if (callback.data === "tg-main-menu") {
+      await sendToCurrentBot(callback.message.chat.id, "🏠 منوی اصلی آماده است.", mainKeyboard(recipient.role));
+    } else {
+      await sendInlinePreferences(callback.message.chat.id, callback.from.id, recipient.categories ?? []);
+    }
+    return;
+  }
   const category = callback.data.replace(/^tg-pref:/, "");
   if (!(TELEGRAM_CATEGORIES as readonly string[]).includes(category)) return;
   const categories = new Set(recipient.categories ?? []);
@@ -1065,9 +1117,11 @@ async function deliverPendingMessages(): Promise<void> {
     const attempts = Number(claimed.rows[0]?.attempts ?? 1);
     try {
       const fullHref = safeHref(config.panelUrl, delivery.href);
-      const markup = fullHref
-        ? { inline_keyboard: [[{ text: "مشاهده در پنل", url: fullHref }]] }
-        : mainKeyboard(delivery.recipient_role);
+      const alertActions = [
+        ...(fullHref ? [{ text: "👁 مشاهده در پنل", url: fullHref }] : []),
+        { text: "🔔 تنظیم اعلان‌ها", callback_data: "tg-open-settings" },
+      ];
+      const markup = { inline_keyboard: [alertActions] };
       const eventTime = new Intl.DateTimeFormat("fa-IR", {
         dateStyle: "medium",
         timeStyle: "short",
@@ -1076,7 +1130,7 @@ async function deliverPendingMessages(): Promise<void> {
       await sendTelegramMessage(
         config.token,
         Number(delivery.chat_id),
-        `${delivery.title}\n\n${delivery.body}\n\nزمان: ${eventTime}`,
+        `${TELEGRAM_CATEGORY_ICONS[delivery.category as TelegramCategory] ?? "🔔"} ${delivery.title}\n\n${delivery.body}\n\n🗓 زمان: ${eventTime}`,
         markup,
       );
       await pool.query(
