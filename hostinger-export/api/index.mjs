@@ -20700,27 +20700,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router6;
+    module.exports = Router7;
     module.exports.Route = Route;
-    function Router6(options) {
-      if (!(this instanceof Router6)) {
-        return new Router6(options);
+    function Router7(options) {
+      if (!(this instanceof Router7)) {
+        return new Router7(options);
       }
       const opts = options || {};
-      function router5(req, res, next) {
-        router5.handle(req, res, next);
+      function router6(req, res, next) {
+        router6.handle(req, res, next);
       }
-      Object.setPrototypeOf(router5, this);
-      router5.caseSensitive = opts.caseSensitive;
-      router5.mergeParams = opts.mergeParams;
-      router5.params = {};
-      router5.strict = opts.strict;
-      router5.stack = [];
-      return router5;
+      Object.setPrototypeOf(router6, this);
+      router6.caseSensitive = opts.caseSensitive;
+      router6.mergeParams = opts.mergeParams;
+      router6.params = {};
+      router6.strict = opts.strict;
+      router6.stack = [];
+      return router6;
     }
-    Router6.prototype = function() {
+    Router7.prototype = function() {
     };
-    Router6.prototype.param = function param(name, fn) {
+    Router7.prototype.param = function param(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20740,7 +20740,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router6.prototype.handle = function handle(req, res, callback) {
+    Router7.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20867,7 +20867,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router6.prototype.use = function use(handler) {
+    Router7.prototype.use = function use(handler) {
       let offset = 0;
       let path = "/";
       if (typeof handler !== "function") {
@@ -20900,7 +20900,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router6.prototype.route = function route(path) {
+    Router7.prototype.route = function route(path) {
       const route2 = new Route(path);
       const layer = new Layer(path, {
         sensitive: this.caseSensitive,
@@ -20915,7 +20915,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router6.prototype[method] = function(path) {
+      Router7.prototype[method] = function(path) {
         const route = this.route(path);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -21098,13 +21098,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router6 = require_router();
+    var Router7 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router5 = null;
+      var router6 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -21113,13 +21113,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router5 === null) {
-            router5 = new Router6({
+          if (router6 === null) {
+            router6 = new Router7({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router5;
+          return router6;
         }
       });
     };
@@ -21190,15 +21190,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router5 = this.router;
+      var router6 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router5.use(path, fn2);
+          return router6.use(path, fn2);
         }
         debug(".use app under %s", path);
         fn2.mountpath = path;
         fn2.parent = this;
-        router5.use(path, function mounted_app(req, res, next) {
+        router6.use(path, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23783,7 +23783,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router6 = require_router();
+    var Router7 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23805,8 +23805,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router6.Route;
-    exports.Router = Router6;
+    exports.Route = Router7.Route;
+    exports.Router = Router7;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -26021,7 +26021,7 @@ var require_wait = __commonJS({
   "../../node_modules/.pnpm/thread-stream@3.1.0/node_modules/thread-stream/lib/wait.js"(exports, module) {
     "use strict";
     var MAX_TIMEOUT = 1e3;
-    function wait2(state, index, expected, timeout, done) {
+    function wait3(state, index, expected, timeout, done) {
       const max = Date.now() + timeout;
       let current = Atomics.load(state, index);
       if (current === expected) {
@@ -26070,7 +26070,7 @@ var require_wait = __commonJS({
       };
       check2(1);
     }
-    module.exports = { wait: wait2, waitDiff };
+    module.exports = { wait: wait3, waitDiff };
   }
 });
 
@@ -26096,7 +26096,7 @@ var require_thread_stream = __commonJS({
     var { Worker } = __require("worker_threads");
     var { join } = __require("path");
     var { pathToFileURL } = __require("url");
-    var { wait: wait2 } = require_wait();
+    var { wait: wait3 } = require_wait();
     var {
       WRITE_INDEX,
       READ_INDEX
@@ -26325,7 +26325,7 @@ var require_thread_stream = __commonJS({
           return;
         }
         const writeIndex = Atomics.load(this[kImpl].state, WRITE_INDEX);
-        wait2(this[kImpl].state, READ_INDEX, writeIndex, Infinity, (err, res) => {
+        wait3(this[kImpl].state, READ_INDEX, writeIndex, Infinity, (err, res) => {
           if (err) {
             destroy(this, err);
             process.nextTick(cb, err);
@@ -40542,13 +40542,13 @@ import { readlinkSync, writeSync } from "node:fs";
 import { get } from "node:http";
 
 // src/app.ts
-var import_express6 = __toESM(require_express2(), 1);
+var import_express7 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 var import_cookie_parser = __toESM(require_cookie_parser(), 1);
 
 // src/routes/index.ts
-var import_express5 = __toESM(require_express2(), 1);
+var import_express6 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express4 = __toESM(require_express2(), 1);
@@ -45335,6 +45335,221 @@ var RepairProviderAccountAuditResponse = objectType({
   "provider_key": stringType(),
   "outcome": enumType(["repaired", "skipped"]),
   "message": stringType()
+});
+var getTelegramControlCenterResponseLinkedRecipientsMin = 0;
+var getTelegramControlCenterResponseSentTodayMin = 0;
+var getTelegramControlCenterResponseSuccessRateMin = 0;
+var getTelegramControlCenterResponseSuccessRateMax = 100;
+var getTelegramControlCenterResponsePendingCountMin = 0;
+var getTelegramControlCenterResponseFailedCountMin = 0;
+var getTelegramControlCenterResponseDeliveriesItemAttemptsMin = 0;
+var GetTelegramControlCenterResponse = objectType({
+  "configured": booleanType(),
+  "enabled": booleanType(),
+  "bot_username": stringType().nullable(),
+  "panel_url": stringType().nullable(),
+  "worker_status": enumType(["unconfigured", "paused", "running", "stale", "error"]),
+  "worker_error": stringType().nullable(),
+  "last_polled_at": stringType().nullable(),
+  "linked_recipients": numberType().min(getTelegramControlCenterResponseLinkedRecipientsMin),
+  "sent_today": numberType().min(getTelegramControlCenterResponseSentTodayMin),
+  "success_rate": numberType().min(getTelegramControlCenterResponseSuccessRateMin).max(getTelegramControlCenterResponseSuccessRateMax),
+  "pending_count": numberType().min(getTelegramControlCenterResponsePendingCountMin),
+  "failed_count": numberType().min(getTelegramControlCenterResponseFailedCountMin),
+  "latest_sent_at": stringType().nullable(),
+  "recipients": arrayType(objectType({
+    "telegram_id": numberType().min(1),
+    "role": enumType(["master_admin", "reseller"]),
+    "display_name": stringType().nullable(),
+    "linked_at": stringType(),
+    "active": booleanType(),
+    "categories": arrayType(stringType()),
+    "last_seen_at": stringType().nullable(),
+    "last_delivery_at": stringType().nullable()
+  })),
+  "deliveries": arrayType(objectType({
+    "id": numberType().min(1),
+    "event_key": stringType(),
+    "category": stringType(),
+    "title": stringType(),
+    "body": stringType(),
+    "recipient_telegram_id": numberType().min(1),
+    "recipient_name": stringType(),
+    "status": enumType(["queued", "sent", "retrying", "failed", "skipped"]),
+    "attempts": numberType().min(getTelegramControlCenterResponseDeliveriesItemAttemptsMin),
+    "last_error": stringType().nullable(),
+    "created_at": stringType(),
+    "sent_at": stringType().nullable()
+  })),
+  "events": arrayType(objectType({
+    "id": numberType().min(1),
+    "event_key": stringType(),
+    "category": stringType(),
+    "action": stringType(),
+    "entity_type": stringType(),
+    "entity_id": stringType(),
+    "actor_name": stringType(),
+    "actor_role": stringType(),
+    "owner_name": stringType().nullable(),
+    "title": stringType(),
+    "body": stringType(),
+    "href": stringType().nullable(),
+    "created_at": stringType()
+  }))
+});
+var updateTelegramSettingsBodyTokenMin = 30;
+var updateTelegramSettingsBodyTokenMax = 256;
+var updateTelegramSettingsBodyPanelUrlMax = 300;
+var updateTelegramSettingsBodyTimezoneMax = 64;
+var UpdateTelegramSettingsBody = objectType({
+  "token": stringType().min(updateTelegramSettingsBodyTokenMin).max(updateTelegramSettingsBodyTokenMax).optional(),
+  "enabled": booleanType().optional(),
+  "panel_url": stringType().max(updateTelegramSettingsBodyPanelUrlMax).nullish(),
+  "timezone": stringType().min(1).max(updateTelegramSettingsBodyTimezoneMax).optional()
+});
+var updateTelegramSettingsResponseLinkedRecipientsMin = 0;
+var updateTelegramSettingsResponseSentTodayMin = 0;
+var updateTelegramSettingsResponseSuccessRateMin = 0;
+var updateTelegramSettingsResponseSuccessRateMax = 100;
+var updateTelegramSettingsResponsePendingCountMin = 0;
+var updateTelegramSettingsResponseFailedCountMin = 0;
+var updateTelegramSettingsResponseDeliveriesItemAttemptsMin = 0;
+var UpdateTelegramSettingsResponse = objectType({
+  "configured": booleanType(),
+  "enabled": booleanType(),
+  "bot_username": stringType().nullable(),
+  "panel_url": stringType().nullable(),
+  "worker_status": enumType(["unconfigured", "paused", "running", "stale", "error"]),
+  "worker_error": stringType().nullable(),
+  "last_polled_at": stringType().nullable(),
+  "linked_recipients": numberType().min(updateTelegramSettingsResponseLinkedRecipientsMin),
+  "sent_today": numberType().min(updateTelegramSettingsResponseSentTodayMin),
+  "success_rate": numberType().min(updateTelegramSettingsResponseSuccessRateMin).max(updateTelegramSettingsResponseSuccessRateMax),
+  "pending_count": numberType().min(updateTelegramSettingsResponsePendingCountMin),
+  "failed_count": numberType().min(updateTelegramSettingsResponseFailedCountMin),
+  "latest_sent_at": stringType().nullable(),
+  "recipients": arrayType(objectType({
+    "telegram_id": numberType().min(1),
+    "role": enumType(["master_admin", "reseller"]),
+    "display_name": stringType().nullable(),
+    "linked_at": stringType(),
+    "active": booleanType(),
+    "categories": arrayType(stringType()),
+    "last_seen_at": stringType().nullable(),
+    "last_delivery_at": stringType().nullable()
+  })),
+  "deliveries": arrayType(objectType({
+    "id": numberType().min(1),
+    "event_key": stringType(),
+    "category": stringType(),
+    "title": stringType(),
+    "body": stringType(),
+    "recipient_telegram_id": numberType().min(1),
+    "recipient_name": stringType(),
+    "status": enumType(["queued", "sent", "retrying", "failed", "skipped"]),
+    "attempts": numberType().min(updateTelegramSettingsResponseDeliveriesItemAttemptsMin),
+    "last_error": stringType().nullable(),
+    "created_at": stringType(),
+    "sent_at": stringType().nullable()
+  })),
+  "events": arrayType(objectType({
+    "id": numberType().min(1),
+    "event_key": stringType(),
+    "category": stringType(),
+    "action": stringType(),
+    "entity_type": stringType(),
+    "entity_id": stringType(),
+    "actor_name": stringType(),
+    "actor_role": stringType(),
+    "owner_name": stringType().nullable(),
+    "title": stringType(),
+    "body": stringType(),
+    "href": stringType().nullable(),
+    "created_at": stringType()
+  }))
+});
+var TestTelegramBotResponse = objectType({
+  "ok": booleanType(),
+  "bot_username": stringType().nullable(),
+  "sent": booleanType(),
+  "message": stringType()
+});
+var ListTelegramRecipientsResponseItem = objectType({
+  "telegram_id": numberType().min(1),
+  "role": enumType(["master_admin", "reseller"]),
+  "display_name": stringType().nullable(),
+  "linked_at": stringType(),
+  "active": booleanType(),
+  "categories": arrayType(stringType()),
+  "last_seen_at": stringType().nullable(),
+  "last_delivery_at": stringType().nullable()
+});
+var ListTelegramRecipientsResponse = arrayType(ListTelegramRecipientsResponseItem);
+var RevokeTelegramRecipientParams = objectType({
+  "telegram_id": coerce.number().min(1)
+});
+var RevokeTelegramRecipientResponse = objectType({
+  "revoked": booleanType(),
+  "telegram_id": numberType().min(1)
+});
+var listTelegramDeliveriesQueryLimitDefault = 30;
+var listTelegramDeliveriesQueryLimitMax = 100;
+var ListTelegramDeliveriesQueryParams = objectType({
+  "limit": coerce.number().int().min(1).max(listTelegramDeliveriesQueryLimitMax).default(listTelegramDeliveriesQueryLimitDefault)
+});
+var listTelegramDeliveriesResponseAttemptsMin = 0;
+var ListTelegramDeliveriesResponseItem = objectType({
+  "id": numberType().min(1),
+  "event_key": stringType(),
+  "category": stringType(),
+  "title": stringType(),
+  "body": stringType(),
+  "recipient_telegram_id": numberType().min(1),
+  "recipient_name": stringType(),
+  "status": enumType(["queued", "sent", "retrying", "failed", "skipped"]),
+  "attempts": numberType().min(listTelegramDeliveriesResponseAttemptsMin),
+  "last_error": stringType().nullable(),
+  "created_at": stringType(),
+  "sent_at": stringType().nullable()
+});
+var ListTelegramDeliveriesResponse = arrayType(ListTelegramDeliveriesResponseItem);
+var listTelegramEventsQueryLimitDefault = 30;
+var listTelegramEventsQueryLimitMax = 100;
+var ListTelegramEventsQueryParams = objectType({
+  "limit": coerce.number().int().min(1).max(listTelegramEventsQueryLimitMax).default(listTelegramEventsQueryLimitDefault)
+});
+var ListTelegramEventsResponseItem = objectType({
+  "id": numberType().min(1),
+  "event_key": stringType(),
+  "category": stringType(),
+  "action": stringType(),
+  "entity_type": stringType(),
+  "entity_id": stringType(),
+  "actor_name": stringType(),
+  "actor_role": stringType(),
+  "owner_name": stringType().nullable(),
+  "title": stringType(),
+  "body": stringType(),
+  "href": stringType().nullable(),
+  "created_at": stringType()
+});
+var ListTelegramEventsResponse = arrayType(ListTelegramEventsResponseItem);
+var UpdateTelegramRecipientPreferencesParams = objectType({
+  "telegram_id": coerce.number().min(1)
+});
+var updateTelegramRecipientPreferencesBodyCategoriesMax = 12;
+var UpdateTelegramRecipientPreferencesBody = objectType({
+  "categories": arrayType(enumType(["users", "sales", "services", "requests", "providers", "usage", "accounting", "system"])).max(updateTelegramRecipientPreferencesBodyCategoriesMax)
+});
+var UpdateTelegramRecipientPreferencesResponse = objectType({
+  "telegram_id": numberType().min(1),
+  "role": enumType(["master_admin", "reseller"]),
+  "display_name": stringType().nullable(),
+  "linked_at": stringType(),
+  "active": booleanType(),
+  "categories": arrayType(stringType()),
+  "last_seen_at": stringType().nullable(),
+  "last_delivery_at": stringType().nullable()
 });
 var DownloadServiceAwgParams = objectType({
   "id": coerce.number().min(1)
@@ -65848,6 +66063,967 @@ async function recreateAwgClient(clientId) {
   clearAwgStatsCache(clientId);
 }
 
+// src/lib/telegram-bot.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+
+// src/lib/logger.ts
+var import_pino = __toESM(require_pino(), 1);
+var isProduction = process.env.NODE_ENV === "production";
+var logger = (0, import_pino.default)({
+  level: process.env.LOG_LEVEL ?? "info",
+  redact: [
+    "req.headers.authorization",
+    "req.headers.cookie",
+    "res.headers['set-cookie']"
+  ],
+  ...isProduction ? {} : {
+    transport: {
+      target: "pino-pretty",
+      options: { colorize: true }
+    }
+  }
+});
+
+// src/lib/telegram-bot.ts
+var TELEGRAM_CATEGORIES = [
+  "users",
+  "sales",
+  "services",
+  "requests",
+  "providers",
+  "usage",
+  "accounting",
+  "system"
+];
+var schemaPromise = null;
+var workerStarted = false;
+var pollerId = randomUUID2();
+var wait2 = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+var safeField = (value, maxLength) => String(value ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, maxLength);
+function ensureTelegramSchema() {
+  if (!schemaPromise) {
+    schemaPromise = pool.query(`
+      CREATE TABLE IF NOT EXISTS telegram_bot_config (
+        id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+        token_secret TEXT,
+        bot_username TEXT,
+        enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        panel_url TEXT,
+        timezone TEXT NOT NULL DEFAULT 'Asia/Tehran',
+        update_offset BIGINT NOT NULL DEFAULT 0,
+        poller_id TEXT,
+        poll_lease_until TIMESTAMPTZ,
+        last_error TEXT,
+        last_checked_at TIMESTAMPTZ,
+        last_sent_at TIMESTAMPTZ,
+        updated_by BIGINT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      INSERT INTO telegram_bot_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+      CREATE TABLE IF NOT EXISTS telegram_bot_recipients (
+        telegram_id BIGINT PRIMARY KEY,
+        chat_id BIGINT NOT NULL,
+        reseller_tg_id BIGINT,
+        role TEXT NOT NULL CHECK (role IN ('master_admin', 'reseller')),
+        display_name TEXT,
+        categories JSONB NOT NULL DEFAULT '["users","sales","services","requests","providers","usage","accounting","system"]'::jsonb,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        linked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS telegram_bot_recipients_role_idx
+        ON telegram_bot_recipients (role, reseller_tg_id, active);
+
+      CREATE TABLE IF NOT EXISTS telegram_bot_events (
+        id BIGSERIAL PRIMARY KEY,
+        event_key TEXT NOT NULL UNIQUE,
+        category TEXT NOT NULL,
+        action TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        actor_telegram_id BIGINT NOT NULL,
+        actor_role TEXT NOT NULL,
+        actor_name TEXT NOT NULL,
+        owner_telegram_id BIGINT,
+        owner_name TEXT,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        href TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS telegram_bot_events_created_idx
+        ON telegram_bot_events (created_at DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS telegram_bot_events_owner_idx
+        ON telegram_bot_events (owner_telegram_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS telegram_bot_deliveries (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL REFERENCES telegram_bot_events(id) ON DELETE CASCADE,
+        recipient_telegram_id BIGINT NOT NULL REFERENCES telegram_bot_recipients(telegram_id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'queued'
+          CHECK (status IN ('queued', 'sent', 'retrying', 'failed', 'skipped')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (event_id, recipient_telegram_id)
+      );
+      CREATE INDEX IF NOT EXISTS telegram_bot_deliveries_queue_idx
+        ON telegram_bot_deliveries (status, next_attempt_at, id);
+      CREATE INDEX IF NOT EXISTS telegram_bot_deliveries_recipient_idx
+        ON telegram_bot_deliveries (recipient_telegram_id, created_at DESC);
+    `).then(() => void 0).catch((error40) => {
+      schemaPromise = null;
+      throw error40;
+    });
+  }
+  return schemaPromise;
+}
+var safeTelegramDescription = (description, token) => {
+  const value = typeof description === "string" ? description : "Telegram API request failed";
+  return value.replace(/[\r\n\t]+/g, " ").replace(token ?? "", "[redacted]").slice(0, 240);
+};
+async function callTelegram(token, method, payload) {
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: payload ? "POST" : "GET",
+    headers: payload ? { "content-type": "application/json" } : void 0,
+    body: payload ? JSON.stringify(payload) : void 0,
+    signal: AbortSignal.timeout(3e4)
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result?.ok || result.result === void 0) {
+    const error40 = new Error(safeTelegramDescription(result?.description, token));
+    error40.errorCode = result?.error_code;
+    error40.retryAfter = result?.parameters?.retry_after;
+    throw error40;
+  }
+  return result.result;
+}
+async function verifyTelegramBotToken(token) {
+  if (!/^\d{5,15}:[A-Za-z0-9_-]{20,120}$/.test(token)) {
+    throw new Error("\u0642\u0627\u0644\u0628 \u062A\u0648\u06A9\u0646 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  }
+  return callTelegram(token, "getMe");
+}
+async function saveTelegramConfig(input) {
+  await ensureTelegramSchema();
+  let tokenSecret;
+  let botUsername;
+  if (input.token !== void 0) {
+    const identity = await verifyTelegramBotToken(input.token);
+    tokenSecret = encryptPanelCredential(input.token);
+    botUsername = identity.username ?? null;
+  }
+  if (input.panelUrl !== void 0 && input.panelUrl !== null) {
+    let parsed;
+    try {
+      parsed = new URL(input.panelUrl);
+    } catch {
+      throw new Error("\u0646\u0634\u0627\u0646\u06CC \u067E\u0646\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+    }
+    if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password) {
+      throw new Error("\u0628\u0631\u0627\u06CC \u067E\u06CC\u0648\u0646\u062F\u0647\u0627\u06CC \u0631\u0628\u0627\u062A\u060C \u0646\u0634\u0627\u0646\u06CC \u0639\u0645\u0648\u0645\u06CC HTTPS \u0644\u0627\u0632\u0645 \u0627\u0633\u062A.");
+    }
+  }
+  await pool.query(
+    `UPDATE telegram_bot_config
+     SET token_secret = COALESCE($1, token_secret),
+         bot_username = COALESCE($2, bot_username),
+         enabled = COALESCE($3, CASE WHEN $1 IS NOT NULL THEN TRUE ELSE enabled END),
+         panel_url = CASE WHEN $4::boolean THEN $5 ELSE panel_url END,
+         timezone = COALESCE($6, timezone),
+         last_error = NULL,
+         last_checked_at = CASE WHEN $1 IS NOT NULL THEN NOW() ELSE last_checked_at END,
+         updated_by = $7,
+         updated_at = NOW()
+     WHERE id = 1`,
+    [
+      tokenSecret ?? null,
+      botUsername ?? null,
+      input.enabled ?? null,
+      input.panelUrl !== void 0,
+      input.panelUrl ?? null,
+      input.timezone ?? null,
+      input.updatedBy
+    ]
+  );
+}
+async function loadBotConfig() {
+  await ensureTelegramSchema();
+  const result = await pool.query(
+    `SELECT token_secret, bot_username, enabled, panel_url, timezone
+     FROM telegram_bot_config WHERE id = 1`
+  );
+  const row = result.rows[0];
+  const token = decryptPanelCredential(row?.token_secret);
+  if (!row || !token) return null;
+  return {
+    token,
+    botUsername: row.bot_username,
+    enabled: row.enabled,
+    panelUrl: row.panel_url,
+    timezone: row.timezone
+  };
+}
+async function getTelegramBotInfo() {
+  await ensureTelegramSchema();
+  const result = await pool.query(`SELECT token_secret, enabled, bot_username, panel_url,
+             last_error, last_checked_at::text AS last_checked_at
+      FROM telegram_bot_config WHERE id = 1`);
+  const row = result.rows[0];
+  const configured = Boolean(decryptPanelCredential(row?.token_secret));
+  const lastPolledMs = row?.last_checked_at ? new Date(row.last_checked_at).getTime() : 0;
+  const freshPoll = lastPolledMs > 0 && Date.now() - lastPolledMs < 9e4;
+  const workerStatus2 = !configured ? "unconfigured" : !row?.enabled ? "paused" : row.last_error ? "error" : freshPoll ? "running" : "stale";
+  return {
+    configured,
+    enabled: Boolean(row?.enabled),
+    botUsername: row?.bot_username ?? null,
+    panelUrl: row?.panel_url ?? null,
+    workerStatus: workerStatus2,
+    workerError: row?.last_error ?? null,
+    lastPolledAt: row?.last_checked_at ?? null
+  };
+}
+function safeHref(panelUrl, href) {
+  if (!panelUrl || !href || !href.startsWith("/") || href.startsWith("//")) return null;
+  try {
+    const root = new URL(panelUrl);
+    if (root.protocol !== "https:") return null;
+    const basePath = root.pathname.replace(/\/+$/, "");
+    return new URL(`${basePath}${href}`, root.origin).toString();
+  } catch {
+    return null;
+  }
+}
+async function sendTelegramMessage(token, chatId, text2, replyMarkup) {
+  await callTelegram(token, "sendMessage", {
+    chat_id: chatId,
+    text: text2.slice(0, 3900),
+    ...replyMarkup ? { reply_markup: replyMarkup } : {},
+    disable_web_page_preview: true
+  });
+}
+async function sendTelegramTestMessage(chatId, adminTelegramId) {
+  const config3 = await loadBotConfig();
+  if (!config3) throw new Error("Telegram bot is not configured");
+  await ensureTelegramSchema();
+  const eventKey = `test:${randomUUID2()}`;
+  const event = await pool.query(
+    `INSERT INTO telegram_bot_events
+       (event_key, category, action, entity_type, entity_id, actor_telegram_id,
+        actor_role, actor_name, title, body, href)
+     VALUES ($1,'system','bot_test','telegram','settings',$2,'master_admin',
+             '\u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F','\u0622\u0632\u0645\u0648\u0646 \u0627\u062A\u0635\u0627\u0644 \u0631\u0628\u0627\u062A','\u067E\u06CC\u0627\u0645 \u0622\u0632\u0645\u0627\u06CC\u0634\u06CC \u0628\u0631\u0627\u06CC \u0628\u0631\u0631\u0633\u06CC \u0627\u062A\u0635\u0627\u0644 \u0627\u0631\u0633\u0627\u0644 \u0634\u062F.','/telegram')
+     RETURNING id::text AS id`,
+    [eventKey, adminTelegramId]
+  );
+  const delivery = await pool.query(
+    `INSERT INTO telegram_bot_deliveries
+       (event_id, recipient_telegram_id, status, attempts, next_attempt_at)
+     VALUES ($1,$2,'retrying',1,NOW() + INTERVAL '1 day')
+     RETURNING id::text AS id`,
+    [event.rows[0].id, adminTelegramId]
+  );
+  try {
+    const identity = await verifyTelegramBotToken(config3.token);
+    await sendTelegramMessage(
+      config3.token,
+      chatId,
+      "\u0622\u0632\u0645\u0648\u0646 \u0627\u062A\u0635\u0627\u0644 \u0645\u0648\u0641\u0642 \u0628\u0648\u062F. \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627\u06CC \u0645\u062F\u06CC\u0631\u06CC\u062A\u06CC \u062F\u0631 \u0627\u06CC\u0646 \u06AF\u0641\u062A\u200C\u0648\u06AF\u0648 \u0627\u0631\u0633\u0627\u0644 \u0645\u06CC\u200C\u0634\u0648\u0646\u062F."
+    );
+    await pool.query(
+      `UPDATE telegram_bot_deliveries SET status = 'sent', sent_at = NOW(),
+         next_attempt_at = NOW(), last_error = NULL, updated_at = NOW()
+       WHERE id = $1`,
+      [delivery.rows[0].id]
+    );
+    await pool.query(
+      "UPDATE telegram_bot_config SET last_checked_at = NOW(), last_error = NULL, last_sent_at = NOW() WHERE id = 1"
+    );
+    return identity.username ?? null;
+  } catch (error40) {
+    const safeError3 = safeTelegramDescription(
+      error40 instanceof Error ? error40.message : "test failed",
+      config3.token
+    );
+    await pool.query(
+      `UPDATE telegram_bot_deliveries SET status = 'failed', last_error = $2, updated_at = NOW()
+       WHERE id = $1`,
+      [delivery.rows[0].id, safeError3]
+    );
+    await pool.query(
+      "UPDATE telegram_bot_config SET last_checked_at = NOW(), last_error = $1 WHERE id = 1",
+      [safeError3]
+    );
+    throw error40;
+  }
+}
+var adminKeyboard = {
+  keyboard: [
+    ["\u062F\u0627\u0634\u0628\u0648\u0631\u062F", "\u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627"],
+    ["\u06A9\u0627\u0631\u0628\u0631\u0627\u0646", "\u0641\u0631\u0648\u0634\u200C\u0647\u0627"],
+    ["\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627", "\u0648\u0636\u0639\u06CC\u062A \u0633\u06CC\u0633\u062A\u0645"],
+    ["\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627", "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A"]
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+  input_field_placeholder: "\u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F"
+};
+var resellerKeyboard = {
+  keyboard: [
+    ["\u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632", "\u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627"],
+    ["\u0641\u0631\u0648\u0634\u200C\u0647\u0627", "\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627"],
+    ["\u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627", "\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627"],
+    ["\u062A\u0646\u0638\u06CC\u0645\u0627\u062A"]
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+  input_field_placeholder: "\u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F"
+};
+function mainKeyboard(role) {
+  return role === "master_admin" ? adminKeyboard : resellerKeyboard;
+}
+async function recordTelegramBusinessEvent(event) {
+  try {
+    await ensureTelegramSchema();
+    const eventKey = event.eventKey ?? `event:${randomUUID2()}`;
+    const inserted = await pool.query(
+      `INSERT INTO telegram_bot_events
+        (event_key, category, action, entity_type, entity_id, actor_telegram_id,
+         actor_role, actor_name, owner_telegram_id, owner_name, title, body, href)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       ON CONFLICT (event_key) DO NOTHING
+       RETURNING id`,
+      [
+        eventKey,
+        event.category,
+        event.action.slice(0, 80),
+        event.entityType.slice(0, 60),
+        String(event.entityId).slice(0, 120),
+        event.actorTelegramId,
+        event.actorRole.slice(0, 40),
+        safeField(event.actorName, 120),
+        event.ownerTelegramId ?? null,
+        event.ownerName ? safeField(event.ownerName, 120) : null,
+        safeField(event.title, 180),
+        event.body.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ").slice(0, 1600),
+        event.href?.slice(0, 300) ?? null
+      ]
+    );
+    const eventId = inserted.rows[0]?.id;
+    if (!eventId) return;
+    await pool.query(
+      `INSERT INTO telegram_bot_deliveries (event_id, recipient_telegram_id)
+       SELECT $1, recipient.telegram_id
+       FROM telegram_bot_recipients recipient
+       WHERE recipient.active = TRUE
+         AND recipient.categories ? $2
+         AND (
+           recipient.role = 'master_admin'
+           OR (
+             recipient.role = 'reseller'
+             AND $3::bigint IS NOT NULL
+             AND recipient.reseller_tg_id = $3
+           )
+         )
+       ON CONFLICT (event_id, recipient_telegram_id) DO NOTHING`,
+      [eventId, event.category, event.ownerTelegramId ?? null]
+    );
+  } catch (error40) {
+    logger.warn(
+      { errorKind: error40 instanceof Error ? error40.name : "unknown" },
+      "Could not queue Telegram business event"
+    );
+  }
+}
+function actionMessage(action, entityType) {
+  const map2 = {
+    customer_created: { category: "users", title: "\u0645\u0634\u062A\u0631\u06CC \u062C\u062F\u06CC\u062F \u062B\u0628\u062A \u0634\u062F" },
+    customer_updated: { category: "users", title: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0645\u0634\u062A\u0631\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F" },
+    customer_deleted: { category: "users", title: "\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641 \u0634\u062F" },
+    reseller_created: { category: "users", title: "\u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u062C\u062F\u06CC\u062F \u062B\u0628\u062A \u0634\u062F" },
+    reseller_updated: { category: "users", title: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F" },
+    sale_created: { category: "sales", title: "\u0641\u0631\u0648\u0634 \u062C\u062F\u06CC\u062F \u062B\u0628\u062A \u0634\u062F" },
+    sale_updated: { category: "sales", title: "\u0631\u06A9\u0648\u0631\u062F \u0641\u0631\u0648\u0634 \u0648\u06CC\u0631\u0627\u06CC\u0634 \u0634\u062F" },
+    sale_paid: { category: "sales", title: "\u067E\u0631\u062F\u0627\u062E\u062A \u0641\u0631\u0648\u0634 \u062B\u0628\u062A \u0634\u062F" },
+    sale_log_deleted: { category: "sales", title: "\u0631\u06A9\u0648\u0631\u062F \u0641\u0631\u0648\u0634 \u0627\u0632 \u062F\u0641\u062A\u0631 \u062D\u0630\u0641 \u0634\u062F" },
+    admin_sale_deleted: { category: "sales", title: "\u0631\u06A9\u0648\u0631\u062F \u0641\u0631\u0648\u0634 \u062A\u0648\u0633\u0637 \u0645\u062F\u06CC\u0631 \u062D\u0630\u0641 \u0634\u062F" },
+    service_created: { category: "services", title: "\u0633\u0631\u0648\u06CC\u0633 \u062C\u062F\u06CC\u062F \u0627\u06CC\u062C\u0627\u062F \u0634\u062F" },
+    service_updated: { category: "services", title: "\u0633\u0631\u0648\u06CC\u0633 \u0648\u06CC\u0631\u0627\u06CC\u0634 \u0634\u062F" },
+    service_status_changed: { category: "services", title: "\u0648\u0636\u0639\u06CC\u062A \u0633\u0631\u0648\u06CC\u0633 \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F" },
+    service_renewed: { category: "services", title: "\u0633\u0631\u0648\u06CC\u0633 \u062A\u0645\u062F\u06CC\u062F \u0634\u062F" },
+    service_action_requested: { category: "requests", title: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0639\u0645\u0644\u06CC\u0627\u062A \u0633\u0631\u0648\u06CC\u0633 \u062B\u0628\u062A \u0634\u062F" },
+    sale_log_removal_requested: { category: "requests", title: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062D\u0630\u0641 \u0641\u0631\u0648\u0634 \u062B\u0628\u062A \u0634\u062F" },
+    service_action_reviewed: { category: "requests", title: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0639\u0645\u0644\u06CC\u0627\u062A \u0628\u0631\u0631\u0633\u06CC \u0634\u062F" },
+    provider_account_repaired: { category: "providers", title: "\u062D\u0633\u0627\u0628 Provider \u0628\u0627\u0632\u06CC\u0627\u0628\u06CC \u0634\u062F" }
+  };
+  return map2[action] ?? null;
+}
+async function recordTelegramAuditEvent(input) {
+  const meta = actionMessage(input.action, input.entityType);
+  if (!meta) return;
+  const details = input.detail && typeof input.detail === "object" ? input.detail : {};
+  const ownerCandidate = Number(details.owner_telegram_id ?? details.reseller_tg_id);
+  const ownerTelegramId = Number.isSafeInteger(ownerCandidate) && ownerCandidate > 0 ? ownerCandidate : input.actorRole === "reseller" ? input.actorTelegramId : null;
+  const entityName = String(
+    details.customer_name ?? details.service_name ?? details.reseller_name ?? (input.entityType === "reseller" ? details.owner_name : "")
+  ).trim().slice(0, 120);
+  const safeEntityName = safeField(entityName, 120);
+  const detailText = typeof details.safe_summary === "string" ? `
+${safeField(details.safe_summary, 400)}` : "";
+  const href = input.action === "admin_sale_deleted" ? "/admin-sales" : input.entityType === "customer" ? `/customers/${encodeURIComponent(String(input.entityId))}` : input.entityType === "service" ? "/services" : input.entityType === "sale" ? "/sales" : input.entityType === "reseller" ? "/settings" : "/action-requests";
+  await recordTelegramBusinessEvent({
+    eventKey: `audit:${input.auditId}`,
+    category: meta.category,
+    action: input.action,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    actorTelegramId: input.actorTelegramId,
+    actorRole: input.actorRole,
+    actorName: safeField(input.actorName, 120),
+    ownerTelegramId,
+    ownerName: typeof details.owner_name === "string" ? safeField(details.owner_name, 120) : null,
+    title: meta.title,
+    body: `\u0639\u0627\u0645\u0644: ${safeField(input.actorName, 120)} (${input.actorRole === "master_admin" ? "\u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F" : "\u0641\u0631\u0648\u0634\u0646\u062F\u0647"})
+\u0634\u0646\u0627\u0633\u0647: ${safeField(input.entityType, 60)} ${safeField(input.entityId, 120)}${safeEntityName ? ` \xB7 ${safeEntityName}` : ""}${detailText}`,
+    href
+  });
+}
+async function linkTelegramAccount(message) {
+  const sender = message.from;
+  if (!sender || message.chat.type !== "private") return;
+  const access = await resolveTelegramIdAccess(sender.id);
+  if (!access) {
+    await sendToCurrentBot(message.chat.id, "\u0627\u06CC\u0646 \u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0628\u0647 \u062D\u0633\u0627\u0628 \u0645\u062F\u06CC\u0631 \u06CC\u0627 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0641\u0639\u0627\u0644 \u0645\u062A\u0635\u0644 \u0646\u06CC\u0633\u062A. \u0627\u0628\u062A\u062F\u0627 \u0627\u0632 \u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645 \u062B\u0628\u062A\u200C\u0634\u062F\u0647 \u062F\u0631 \u067E\u0646\u0644 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F.");
+    return;
+  }
+  const role = access.role;
+  const displayName = [sender.first_name, sender.last_name].filter(Boolean).join(" ").slice(0, 120) || access.title || (role === "master_admin" ? "\u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F" : `\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ${sender.id}`);
+  await pool.query(
+    `INSERT INTO telegram_bot_recipients
+      (telegram_id, chat_id, reseller_tg_id, role, display_name, active, linked_at, last_seen_at)
+     VALUES ($1,$2,$3,$4,$5,TRUE,NOW(),NOW())
+     ON CONFLICT (telegram_id) DO UPDATE SET
+       chat_id = EXCLUDED.chat_id,
+       reseller_tg_id = EXCLUDED.reseller_tg_id,
+       role = EXCLUDED.role,
+       display_name = EXCLUDED.display_name,
+       active = TRUE,
+       last_seen_at = NOW()`,
+    [
+      sender.id,
+      message.chat.id,
+      role === "reseller" ? sender.id : null,
+      role,
+      displayName
+    ]
+  );
+  const hello = role === "master_admin" ? "\u062D\u0633\u0627\u0628 \u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F \u0628\u0647 \u0631\u0628\u0627\u062A \u0645\u062A\u0635\u0644 \u0634\u062F. \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0645\u062F\u06CC\u0631\u06CC\u062A\u06CC \u0648 \u0648\u0636\u0639\u06CC\u062A \u0633\u0627\u0645\u0627\u0646\u0647 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0634\u0645\u0627 \u0627\u0631\u0633\u0627\u0644 \u0645\u06CC\u200C\u0634\u0648\u0646\u062F." : "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0628\u0647 \u0631\u0628\u0627\u062A \u0645\u062A\u0635\u0644 \u0634\u062F. \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627 \u0641\u0642\u0637 \u062F\u0631\u0628\u0627\u0631\u0647 \u0645\u0634\u062A\u0631\u06CC\u0627\u0646\u060C \u0641\u0631\u0648\u0634\u200C\u0647\u0627 \u0648 \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u062E\u0648\u062F\u062A\u0627\u0646 \u0647\u0633\u062A\u0646\u062F.";
+  await sendToCurrentBot(message.chat.id, hello, mainKeyboard(role));
+}
+async function sendToCurrentBot(chatId, text2, markup) {
+  const config3 = await loadBotConfig();
+  if (!config3?.token) return;
+  await sendTelegramMessage(config3.token, chatId, text2, markup);
+}
+async function getLinkedRecipient(telegramId) {
+  const access = await resolveTelegramIdAccess(telegramId);
+  if (!access) {
+    await pool.query(
+      "UPDATE telegram_bot_recipients SET active = FALSE WHERE telegram_id = $1",
+      [telegramId]
+    );
+    return null;
+  }
+  const result = await pool.query(
+    `SELECT telegram_id::float8 AS telegram_id, chat_id::float8 AS chat_id, role,
+            reseller_tg_id::float8 AS reseller_tg_id, categories
+     FROM telegram_bot_recipients
+     WHERE telegram_id = $1 AND active = TRUE`,
+    [telegramId]
+  );
+  const row = result.rows[0];
+  if (row) {
+    await pool.query(
+      "UPDATE telegram_bot_recipients SET last_seen_at = NOW() WHERE telegram_id = $1",
+      [telegramId]
+    );
+  }
+  return row ?? null;
+}
+async function sendInlinePreferences(chatId, telegramId, categories) {
+  const labels = {
+    users: "\u06A9\u0627\u0631\u0628\u0631\u0627\u0646",
+    sales: "\u0641\u0631\u0648\u0634\u200C\u0647\u0627",
+    services: "\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627",
+    requests: "\u062F\u0631\u062E\u0648\u0627\u0633\u062A\u200C\u0647\u0627",
+    providers: "\u0639\u0645\u0644\u06CC\u0627\u062A Provider",
+    usage: "\u0645\u0635\u0631\u0641 \u0648 \u06A9\u0627\u0631\u06A9\u0631\u062F",
+    accounting: "\u062D\u0633\u0627\u0628\u062F\u0627\u0631\u06CC",
+    system: "\u0633\u06CC\u0633\u062A\u0645"
+  };
+  const inline_keyboard = TELEGRAM_CATEGORIES.map((category) => [{
+    text: `${categories.includes(category) ? "\u0631\u0648\u0634\u0646" : "\u062E\u0627\u0645\u0648\u0634"} \xB7 ${labels[category]}`,
+    callback_data: `tg-pref:${category}`
+  }]);
+  await sendToCurrentBot(chatId, "\u062F\u0633\u062A\u0647\u200C\u0647\u0627\u06CC \u0627\u0639\u0644\u0627\u0646 \u0631\u0627 \u0631\u0648\u0634\u0646 \u06CC\u0627 \u062E\u0627\u0645\u0648\u0634 \u06A9\u0646\u06CC\u062F:", {
+    inline_keyboard
+  });
+}
+async function sendTodaySummary(recipient) {
+  const ownerClause = recipient.role === "master_admin" ? "" : " AND s.reseller_tg_id = $1";
+  const serviceOwnerClause = recipient.role === "master_admin" ? "" : " AND svc.reseller_tg_id = $1";
+  const values = recipient.role === "master_admin" ? [] : [recipient.telegram_id];
+  const [sales, services, customers] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*)::int AS count,
+              COALESCE(SUM(COALESCE(s.custom_sell_price, s.gb_amount * COALESCE(r.per_gig_price,0))),0)::float8 AS total
+       FROM reseller_sales_log s LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+       WHERE (s.created_at AT TIME ZONE 'Asia/Tehran')::date = (NOW() AT TIME ZONE 'Asia/Tehran')::date${ownerClause}`,
+      values
+    ),
+    pool.query(
+      `SELECT COUNT(*)::int AS count FROM reseller_services svc
+       WHERE (svc.created_at AT TIME ZONE 'Asia/Tehran')::date = (NOW() AT TIME ZONE 'Asia/Tehran')::date${serviceOwnerClause}`,
+      values
+    ),
+    pool.query(
+      `SELECT COUNT(*)::int AS count FROM reseller_customers c
+       WHERE (c.created_at AT TIME ZONE 'Asia/Tehran')::date = (NOW() AT TIME ZONE 'Asia/Tehran')::date
+       ${recipient.role === "master_admin" ? "" : "AND c.reseller_tg_id = $1"}`,
+      values
+    )
+  ]);
+  const row = sales.rows[0];
+  const amount = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 }).format(Number(row?.total ?? 0));
+  return `\u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632
+
+\u0641\u0631\u0648\u0634\u200C\u0647\u0627: ${Number(row?.count ?? 0)}
+\u0645\u0628\u0644\u063A \u0641\u0631\u0648\u0634: ${amount} \u062A\u0648\u0645\u0627\u0646
+\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F: ${Number(services.rows[0]?.count ?? 0)}
+\u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F: ${Number(customers.rows[0]?.count ?? 0)}`;
+}
+async function recentEvents(recipient) {
+  const result = recipient.role === "master_admin" ? await pool.query(
+    `SELECT title, body, created_at FROM telegram_bot_events ORDER BY id DESC LIMIT 6`
+  ) : await pool.query(
+    `SELECT title, body, created_at FROM telegram_bot_events
+       WHERE owner_telegram_id = $1 ORDER BY id DESC LIMIT 6`,
+    [recipient.telegram_id]
+  );
+  if (!result.rows.length) return "\u0631\u0648\u06CC\u062F\u0627\u062F\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+  return `\u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
+
+${result.rows.map((row) => `${row.title}
+${row.body}`).join("\n\n")}`.slice(0, 3900);
+}
+async function expiringServices(recipient) {
+  const owner = recipient.role === "master_admin" ? "" : " AND svc.reseller_tg_id = $1";
+  const params = recipient.role === "master_admin" ? [] : [recipient.telegram_id];
+  const rows = await pool.query(
+    `SELECT svc.id::float8 AS service_id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC') AS customer_name,
+            COALESCE(svc.label, '\u0633\u0631\u0648\u06CC\u0633') AS label, svc.expire_at::date::text AS expires_at
+     FROM reseller_services svc
+     LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+     WHERE svc.status IN ('active','expiring')
+       AND svc.expire_at >= NOW()
+       AND svc.expire_at < NOW() + INTERVAL '8 days'${owner}
+     ORDER BY svc.expire_at ASC LIMIT 8`,
+    params
+  );
+  return rows.rows.length ? `\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627
+
+${rows.rows.map((row) => `${row.customer_name} \xB7 ${row.label}
+\u0634\u0646\u0627\u0633\u0647 ${row.service_id} \xB7 ${row.expires_at}`).join("\n\n")}` : "\u0633\u0631\u0648\u06CC\u0633\u06CC \u062F\u0631 \u0647\u0641\u062A \u0631\u0648\u0632 \u0622\u06CC\u0646\u062F\u0647 \u0645\u0646\u0642\u0636\u06CC \u0646\u0645\u06CC\u200C\u0634\u0648\u062F.";
+}
+async function recentCustomers(recipient) {
+  const owner = recipient.role === "master_admin" ? "" : "AND customer.reseller_tg_id = $1";
+  const params = recipient.role === "master_admin" ? [] : [recipient.telegram_id];
+  const rows = await pool.query(
+    `SELECT customer.id::float8 AS id, COALESCE(customer.full_name, '\u0645\u0634\u062A\u0631\u06CC') AS name,
+            customer.created_at::date::text AS created_at
+     FROM reseller_customers customer
+     WHERE TRUE ${owner}
+     ORDER BY customer.created_at DESC NULLS LAST, customer.id DESC
+     LIMIT 6`,
+    params
+  );
+  return rows.rows.length ? `\u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
+
+${rows.rows.map((row) => `${row.name} \xB7 \u0634\u0646\u0627\u0633\u0647 ${row.id}
+\u062B\u0628\u062A: ${row.created_at ?? "\u2014"}`).join("\n\n")}` : "\u0645\u0634\u062A\u0631\u06CC\u200C\u0627\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+}
+async function recentSales(recipient) {
+  const owner = recipient.role === "master_admin" ? "" : "AND sale.reseller_tg_id = $1";
+  const params = recipient.role === "master_admin" ? [] : [recipient.telegram_id];
+  const rows = await pool.query(
+    `SELECT sale.id::float8 AS id, COALESCE(customer.full_name, '\u0645\u0634\u062A\u0631\u06CC') AS customer_name,
+            COALESCE(sale.custom_sell_price, sale.gb_amount * COALESCE(reseller.per_gig_price, 0))::float8 AS amount,
+            COALESCE(sale.is_paid, 0) = 1 AS paid,
+            sale.created_at::date::text AS created_at
+     FROM reseller_sales_log sale
+     LEFT JOIN reseller_services service ON service.id = sale.service_id
+     LEFT JOIN reseller_customers customer ON customer.id = service.customer_id
+     LEFT JOIN resellers reseller ON reseller.tg_id = sale.reseller_tg_id
+     WHERE TRUE ${owner}
+     ORDER BY sale.created_at DESC NULLS LAST, sale.id DESC LIMIT 6`,
+    params
+  );
+  const money = (amount) => new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 }).format(Number(amount));
+  return rows.rows.length ? `\u0641\u0631\u0648\u0634\u200C\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
+
+${rows.rows.map((row) => `${row.customer_name} \xB7 ${money(row.amount)} \u062A\u0648\u0645\u0627\u0646
+${row.paid ? "\u067E\u0631\u062F\u0627\u062E\u062A\u200C\u0634\u062F\u0647" : "\u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u067E\u0631\u062F\u0627\u062E\u062A"} \xB7 ${row.created_at ?? "\u2014"} \xB7 \u0634\u0646\u0627\u0633\u0647 ${row.id}`).join("\n\n")}` : "\u0641\u0631\u0648\u0634\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+}
+async function recentServices(recipient) {
+  const owner = recipient.role === "master_admin" ? "" : "AND service.reseller_tg_id = $1";
+  const params = recipient.role === "master_admin" ? [] : [recipient.telegram_id];
+  const rows = await pool.query(
+    `SELECT service.id::float8 AS id, COALESCE(customer.full_name, '\u0645\u0634\u062A\u0631\u06CC') AS customer_name,
+            COALESCE(service.label, '\u0633\u0631\u0648\u06CC\u0633') AS label, service.status,
+            service.expire_at::date::text AS expires_at
+     FROM reseller_services service
+     LEFT JOIN reseller_customers customer ON customer.id = service.customer_id
+     WHERE TRUE ${owner}
+     ORDER BY service.created_at DESC NULLS LAST, service.id DESC LIMIT 6`,
+    params
+  );
+  return rows.rows.length ? `\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631
+
+${rows.rows.map((row) => `${row.customer_name} \xB7 ${row.label}
+\u0648\u0636\u0639\u06CC\u062A: ${row.status} \xB7 \u0627\u0646\u0642\u0636\u0627: ${row.expires_at ?? "\u2014"} \xB7 \u0634\u0646\u0627\u0633\u0647 ${row.id}`).join("\n\n")}` : "\u0633\u0631\u0648\u06CC\u0633\u06CC \u0628\u0631\u0627\u06CC \u0646\u0645\u0627\u06CC\u0634 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+}
+async function recentDeliveryAlerts(recipient) {
+  const rows = await pool.query(
+    `SELECT event.title, delivery.status, delivery.last_error,
+            delivery.created_at::text AS created_at
+     FROM telegram_bot_deliveries delivery
+     JOIN telegram_bot_events event ON event.id = delivery.event_id
+     WHERE delivery.recipient_telegram_id = $1
+     ORDER BY delivery.id DESC LIMIT 8`,
+    [recipient.telegram_id]
+  );
+  const labels = {
+    sent: "\u0627\u0631\u0633\u0627\u0644\u200C\u0634\u062F\u0647",
+    queued: "\u062F\u0631 \u0635\u0641",
+    retrying: "\u062A\u0644\u0627\u0634 \u0645\u062C\u062F\u062F",
+    failed: "\u0646\u0627\u0645\u0648\u0641\u0642",
+    skipped: "\u0631\u062F\u0634\u062F\u0647"
+  };
+  return rows.rows.length ? `\u0622\u062E\u0631\u06CC\u0646 \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627
+
+${rows.rows.map((row) => `${row.title} \xB7 ${labels[row.status] ?? row.status}
+${row.last_error ?? row.created_at}`).join("\n\n")}` : "\u0627\u0639\u0644\u0627\u0646\u06CC \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u062D\u0633\u0627\u0628 \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.";
+}
+async function operationalStatus() {
+  const [bot, jobs, panels2] = await Promise.all([
+    pool.query(
+      `SELECT enabled, last_error, last_checked_at::text AS last_checked_at,
+              last_sent_at::text AS last_sent_at FROM telegram_bot_config WHERE id = 1`
+    ),
+    pool.query(
+      `SELECT COUNT(*) FILTER (WHERE status IN ('pending','running'))::int AS pending,
+              COUNT(*) FILTER (WHERE status = 'failed')::int AS failed
+       FROM service_provision_jobs`
+    ),
+    pool.query(
+      `SELECT COUNT(*)::int AS configured,
+              COUNT(*) FILTER (WHERE is_enabled = 1)::int AS enabled
+       FROM panel_configs`
+    )
+  ]);
+  const row = bot.rows[0];
+  return `\u0648\u0636\u0639\u06CC\u062A \u0639\u0645\u0644\u06CC\u0627\u062A\u06CC
+
+\u0631\u0628\u0627\u062A \u062A\u0644\u06AF\u0631\u0627\u0645: ${row?.enabled ? "\u0641\u0639\u0627\u0644" : "\u0645\u062A\u0648\u0642\u0641"}
+\u0622\u062E\u0631\u06CC\u0646 \u0628\u0631\u0631\u0633\u06CC \u0631\u0628\u0627\u062A: ${row?.last_checked_at ?? "\u2014"}
+\u0622\u062E\u0631\u06CC\u0646 \u0627\u0631\u0633\u0627\u0644 \u0645\u0648\u0641\u0642: ${row?.last_sent_at ?? "\u2014"}
+Provider\u0647\u0627\u06CC \u0641\u0639\u0627\u0644: ${panels2.rows[0]?.enabled ?? 0} \u0627\u0632 ${panels2.rows[0]?.configured ?? 0}
+\u06A9\u0627\u0631\u0647\u0627\u06CC \u0633\u0627\u062E\u062A \u0633\u0631\u0648\u06CC\u0633 \u062F\u0631 \u0635\u0641: ${jobs.rows[0]?.pending ?? 0}
+\u06A9\u0627\u0631\u0647\u0627\u06CC \u0646\u0627\u0645\u0648\u0641\u0642 \u0633\u0627\u062E\u062A: ${jobs.rows[0]?.failed ?? 0}${row?.last_error ? `
+\u062E\u0637\u0627\u06CC \u0622\u062E\u0631 \u0631\u0628\u0627\u062A: ${row.last_error}` : ""}`;
+}
+async function handleTextMessage(message) {
+  const sender = message.from;
+  if (!sender || message.chat.type !== "private" || !message.text) return;
+  const text2 = message.text.trim();
+  if (text2.startsWith("/start")) {
+    await linkTelegramAccount(message);
+    return;
+  }
+  const recipient = await getLinkedRecipient(sender.id);
+  if (!recipient) {
+    await sendToCurrentBot(message.chat.id, "\u0628\u0631\u0627\u06CC \u0627\u062A\u0635\u0627\u0644\u060C \u062F\u0633\u062A\u0648\u0631 /start \u0631\u0627 \u0628\u0632\u0646\u06CC\u062F \u0648 \u0628\u0627 \u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645 \u062B\u0628\u062A\u200C\u0634\u062F\u0647 \u062F\u0631 \u067E\u0646\u0644 \u0648\u0627\u0631\u062F \u0634\u0648\u06CC\u062F.");
+    return;
+  }
+  const command = text2.split(/\s+/)[0].split("@")[0].toLocaleLowerCase();
+  if (command === "/help" || text2 === "\u0631\u0627\u0647\u0646\u0645\u0627") {
+    await sendToCurrentBot(message.chat.id, "\u062F\u0633\u062A\u0648\u0631\u0647\u0627:\n/today \u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632\n/events \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0627\u062E\u06CC\u0631\n/expiring \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627\n/alerts \u0622\u062E\u0631\u06CC\u0646 \u0648\u0636\u0639\u06CC\u062A \u0627\u0631\u0633\u0627\u0644\u200C\u0647\u0627\n/settings \u062A\u0646\u0638\u06CC\u0645 \u062F\u0633\u062A\u0647\u200C\u0647\u0627\u06CC \u0627\u0639\u0644\u0627\u0646", mainKeyboard(recipient.role));
+    return;
+  }
+  if (command === "/today" || text2 === "\u062E\u0644\u0627\u0635\u0647 \u0627\u0645\u0631\u0648\u0632" || text2 === "\u062F\u0627\u0634\u0628\u0648\u0631\u062F") {
+    await sendToCurrentBot(message.chat.id, await sendTodaySummary(recipient), mainKeyboard(recipient.role));
+    return;
+  }
+  if (command === "/events" || text2 === "\u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627" || text2 === "\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627") {
+    await sendToCurrentBot(message.chat.id, await recentEvents(recipient), mainKeyboard(recipient.role));
+    return;
+  }
+  if (command === "/expiring" || text2 === "\u0646\u0632\u062F\u06CC\u06A9 \u0627\u0646\u0642\u0636\u0627") {
+    await sendToCurrentBot(message.chat.id, await expiringServices(recipient), mainKeyboard(recipient.role));
+    return;
+  }
+  if (command === "/alerts" || text2 === "\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627") {
+    await sendToCurrentBot(message.chat.id, await recentDeliveryAlerts(recipient), mainKeyboard(recipient.role));
+    return;
+  }
+  if (text2 === "\u06A9\u0627\u0631\u0628\u0631\u0627\u0646" || text2 === "\u0645\u0634\u062A\u0631\u06CC\u200C\u0647\u0627") {
+    await sendToCurrentBot(message.chat.id, await recentCustomers(recipient), mainKeyboard(recipient.role));
+    return;
+  }
+  if (text2 === "\u0641\u0631\u0648\u0634\u200C\u0647\u0627") {
+    await sendToCurrentBot(message.chat.id, await recentSales(recipient), mainKeyboard(recipient.role));
+    return;
+  }
+  if (text2 === "\u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627") {
+    await sendToCurrentBot(message.chat.id, await recentServices(recipient), mainKeyboard(recipient.role));
+    return;
+  }
+  if (text2 === "\u0648\u0636\u0639\u06CC\u062A \u0633\u06CC\u0633\u062A\u0645" && recipient.role === "master_admin") {
+    await sendToCurrentBot(message.chat.id, await operationalStatus(), mainKeyboard(recipient.role));
+    return;
+  }
+  if (command === "/settings" || text2 === "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A") {
+    await sendInlinePreferences(message.chat.id, sender.id, recipient.categories ?? []);
+    return;
+  }
+  await sendToCurrentBot(message.chat.id, "\u0627\u06CC\u0646 \u06AF\u0632\u06CC\u0646\u0647 \u0634\u0646\u0627\u062E\u062A\u0647 \u0646\u0634\u062F. \u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627 /help \u0631\u0627 \u0628\u0632\u0646\u06CC\u062F.", mainKeyboard(recipient.role));
+}
+async function handleCallback(update) {
+  const callback = update.callback_query;
+  if (!callback?.data || !callback.message) return;
+  const recipient = await getLinkedRecipient(callback.from.id);
+  if (!recipient) return;
+  const category = callback.data.replace(/^tg-pref:/, "");
+  if (!TELEGRAM_CATEGORIES.includes(category)) return;
+  const categories = new Set(recipient.categories ?? []);
+  if (categories.has(category)) categories.delete(category);
+  else categories.add(category);
+  await pool.query(
+    `UPDATE telegram_bot_recipients SET categories = $2::jsonb, last_seen_at = NOW()
+     WHERE telegram_id = $1`,
+    [callback.from.id, JSON.stringify([...categories])]
+  );
+  await pool.query(
+    `UPDATE telegram_bot_deliveries delivery
+     SET status = 'skipped', last_error = '\u062F\u0633\u062A\u0647 \u0627\u0639\u0644\u0627\u0646 \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u06AF\u06CC\u0631\u0646\u062F\u0647 \u062E\u0627\u0645\u0648\u0634 \u0634\u062F\u0647 \u0627\u0633\u062A', updated_at = NOW()
+     FROM telegram_bot_events event
+     WHERE delivery.event_id = event.id
+       AND delivery.recipient_telegram_id = $1
+       AND delivery.status IN ('queued','retrying')
+       AND NOT (event.category = ANY($2::text[]))`,
+    [callback.from.id, [...categories]]
+  );
+  const config3 = await loadBotConfig();
+  if (!config3?.token) return;
+  await callTelegram(config3.token, "answerCallbackQuery", {
+    callback_query_id: callback.id,
+    text: "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0627\u0639\u0644\u0627\u0646 \u0630\u062E\u06CC\u0631\u0647 \u0634\u062F"
+  });
+  await sendInlinePreferences(callback.message.chat.id, callback.from.id, [...categories]);
+}
+async function handleUpdate(update) {
+  if (update.message) await handleTextMessage(update.message);
+  if (update.callback_query) await handleCallback(update);
+}
+async function currentConfigForPoller() {
+  await ensureTelegramSchema();
+  const claim = await pool.query(
+    `UPDATE telegram_bot_config
+     SET poller_id = $1, poll_lease_until = NOW() + INTERVAL '45 seconds'
+     WHERE id = 1 AND enabled = TRUE AND token_secret IS NOT NULL
+       AND (poller_id IS NULL OR poll_lease_until < NOW() OR poller_id = $1)
+     RETURNING token_secret, bot_username, enabled, panel_url, timezone,
+               update_offset::text, poller_id, poll_lease_until`,
+    [pollerId]
+  );
+  return claim.rows[0] ?? null;
+}
+async function pollTelegramUpdates() {
+  const row = await currentConfigForPoller();
+  if (!row) return false;
+  const token = decryptPanelCredential(row.token_secret);
+  if (!token) {
+    await pool.query(`UPDATE telegram_bot_config SET last_error = '\u062A\u0648\u06A9\u0646 \u0631\u0628\u0627\u062A \u0642\u0627\u0628\u0644 \u0631\u0645\u0632\u06AF\u0634\u0627\u06CC\u06CC \u0646\u06CC\u0633\u062A', poller_id = NULL, poll_lease_until = NULL WHERE id = 1 AND poller_id = $1`, [pollerId]);
+    return false;
+  }
+  try {
+    const updates = await callTelegram(token, "getUpdates", {
+      offset: Number(row.update_offset ?? 0),
+      timeout: 20,
+      allowed_updates: ["message", "callback_query"]
+    });
+    let nextOffset = Number(row.update_offset ?? 0);
+    for (const update of updates) {
+      await handleUpdate(update);
+      nextOffset = Math.max(nextOffset, update.update_id + 1);
+      await pool.query(
+        `UPDATE telegram_bot_config SET update_offset = $2, last_error = NULL,
+           last_checked_at = NOW(), poll_lease_until = NOW() + INTERVAL '45 seconds'
+         WHERE id = 1 AND poller_id = $1`,
+        [pollerId, nextOffset]
+      );
+    }
+    await pool.query(
+      `UPDATE telegram_bot_config SET last_error = NULL, last_checked_at = NOW(),
+         poller_id = NULL, poll_lease_until = NULL
+       WHERE id = 1 AND poller_id = $1`,
+      [pollerId]
+    );
+    return true;
+  } catch (error40) {
+    const message = safeTelegramDescription(error40 instanceof Error ? error40.message : "poll error", token);
+    await pool.query(
+      `UPDATE telegram_bot_config SET last_error = $2, last_checked_at = NOW(),
+         poller_id = NULL, poll_lease_until = NULL
+       WHERE id = 1 AND poller_id = $1`,
+      [pollerId, message]
+    ).catch(() => void 0);
+    logger.warn({ errorKind: error40 instanceof Error ? error40.name : "unknown" }, "Telegram update polling failed");
+    return false;
+  }
+}
+async function deliverPendingMessages() {
+  const config3 = await loadBotConfig();
+  if (!config3?.enabled) return;
+  await pool.query(
+    `UPDATE telegram_bot_deliveries delivery
+     SET status = 'skipped', last_error = '\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u062F\u06CC\u06AF\u0631 \u0641\u0639\u0627\u0644 \u0646\u06CC\u0633\u062A', updated_at = NOW()
+     FROM telegram_bot_recipients recipient
+     WHERE delivery.recipient_telegram_id = recipient.telegram_id
+       AND recipient.role = 'reseller'
+       AND delivery.status IN ('queued','retrying')
+       AND NOT EXISTS (
+         SELECT 1 FROM resellers reseller
+         WHERE reseller.tg_id = recipient.reseller_tg_id AND reseller.is_enabled = 1
+       )`
+  );
+  const result = await pool.query(
+    `SELECT delivery.id AS delivery_id, event.id AS event_id,
+            recipient.telegram_id::float8 AS recipient_telegram_id,
+            recipient.chat_id::float8 AS chat_id, recipient.role AS recipient_role,
+            recipient.categories AS recipient_categories, event.category,
+            event.title, event.body, event.href, event.created_at::text AS event_at
+     FROM telegram_bot_deliveries delivery
+     JOIN telegram_bot_events event ON event.id = delivery.event_id
+     JOIN telegram_bot_recipients recipient ON recipient.telegram_id = delivery.recipient_telegram_id
+     WHERE delivery.status IN ('queued','retrying')
+       AND delivery.next_attempt_at <= NOW()
+       AND recipient.active = TRUE
+       AND recipient.categories ? event.category
+       AND (
+         recipient.role = 'master_admin'
+         OR EXISTS (
+           SELECT 1 FROM resellers reseller
+           WHERE reseller.tg_id = recipient.reseller_tg_id AND reseller.is_enabled = 1
+         )
+       )
+     ORDER BY delivery.id
+     LIMIT 20`
+  );
+  for (const delivery of result.rows) {
+    const claimed = await pool.query(
+      `UPDATE telegram_bot_deliveries
+       SET status = 'retrying', attempts = attempts + 1,
+           next_attempt_at = NOW() + INTERVAL '90 seconds', updated_at = NOW()
+       WHERE id = $1 AND status IN ('queued','retrying') AND next_attempt_at <= NOW()
+       RETURNING attempts`,
+      [delivery.delivery_id]
+    );
+    if (!claimed.rowCount) continue;
+    const attempts = Number(claimed.rows[0]?.attempts ?? 1);
+    try {
+      const fullHref = safeHref(config3.panelUrl, delivery.href);
+      const markup = fullHref ? { inline_keyboard: [[{ text: "\u0645\u0634\u0627\u0647\u062F\u0647 \u062F\u0631 \u067E\u0646\u0644", url: fullHref }]] } : mainKeyboard(delivery.recipient_role);
+      const eventTime = new Intl.DateTimeFormat("fa-IR", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "Asia/Tehran"
+      }).format(new Date(delivery.event_at));
+      await sendTelegramMessage(
+        config3.token,
+        Number(delivery.chat_id),
+        `${delivery.title}
+
+${delivery.body}
+
+\u0632\u0645\u0627\u0646: ${eventTime}`,
+        markup
+      );
+      await pool.query(
+        `UPDATE telegram_bot_deliveries
+         SET status = 'sent', sent_at = NOW(), last_error = NULL, updated_at = NOW()
+         WHERE id = $1`,
+        [delivery.delivery_id]
+      );
+      await pool.query("UPDATE telegram_bot_config SET last_sent_at = NOW() WHERE id = 1");
+    } catch (error40) {
+      const telegramError = error40;
+      if (telegramError.errorCode === 403 || telegramError.errorCode === 400) {
+        await pool.query(
+          `UPDATE telegram_bot_deliveries SET status = 'failed', last_error = $2, updated_at = NOW()
+           WHERE id = $1`,
+          [delivery.delivery_id, safeTelegramDescription(telegramError.message, config3.token)]
+        );
+        if (telegramError.errorCode === 403) {
+          await pool.query("UPDATE telegram_bot_recipients SET active = FALSE WHERE telegram_id = $1", [delivery.recipient_telegram_id]);
+          await pool.query(
+            `UPDATE telegram_bot_deliveries SET status = 'skipped',
+               last_error = '\u06AF\u06CC\u0631\u0646\u062F\u0647 \u062F\u0631\u06CC\u0627\u0641\u062A \u067E\u06CC\u0627\u0645 \u0627\u0632 \u0631\u0628\u0627\u062A \u0631\u0627 \u0645\u062A\u0648\u0642\u0641 \u06A9\u0631\u062F\u0647 \u0627\u0633\u062A', updated_at = NOW()
+             WHERE recipient_telegram_id = $1 AND status IN ('queued','retrying')
+               AND id <> $2`,
+            [delivery.recipient_telegram_id, delivery.delivery_id]
+          );
+        }
+      } else {
+        const delaySeconds = Math.min(3600, telegramError.retryAfter ?? Math.min(900, 15 * 2 ** Math.min(attempts, 6)));
+        await pool.query(
+          `UPDATE telegram_bot_deliveries
+           SET status = CASE WHEN attempts >= 5 THEN 'failed' ELSE 'retrying' END,
+               last_error = $2,
+               next_attempt_at = NOW() + ($3::text || ' seconds')::interval,
+               updated_at = NOW()
+           WHERE id = $1`,
+          [delivery.delivery_id, safeTelegramDescription(telegramError.message, config3.token), delaySeconds]
+        );
+      }
+    }
+  }
+}
+function startTelegramBotWorker() {
+  if (workerStarted) return;
+  workerStarted = true;
+  void (async () => {
+    await ensureTelegramSchema().catch((error40) => {
+      logger.error({ errorKind: error40 instanceof Error ? error40.name : "unknown" }, "Telegram bot schema setup failed");
+    });
+    while (workerStarted) {
+      try {
+        await deliverPendingMessages();
+        const polled = await pollTelegramUpdates();
+        if (!polled) await wait2(5e3);
+      } catch (error40) {
+        logger.error({ errorKind: error40 instanceof Error ? error40.name : "unknown" }, "Telegram bot worker iteration failed");
+        await wait2(1e4);
+      }
+    }
+  })();
+}
+
 // src/routes/mobile.ts
 var import_express = __toESM(require_express2(), 1);
 var import_web_push = __toESM(require_src2(), 1);
@@ -65872,24 +67048,6 @@ function isAllowedPushEndpoint(endpoint) {
     return false;
   }
 }
-
-// src/lib/logger.ts
-var import_pino = __toESM(require_pino(), 1);
-var isProduction = process.env.NODE_ENV === "production";
-var logger = (0, import_pino.default)({
-  level: process.env.LOG_LEVEL ?? "info",
-  redact: [
-    "req.headers.authorization",
-    "req.headers.cookie",
-    "res.headers['set-cookie']"
-  ],
-  ...isProduction ? {} : {
-    transport: {
-      target: "pino-pretty",
-      options: { colorize: true }
-    }
-  }
-});
 
 // src/routes/mobile.ts
 var router = (0, import_express.Router)();
@@ -67093,7 +68251,7 @@ var AWG_USAGE_POLL_CONCURRENCY = 3;
 var SERVICE_LOCK_NAMESPACE = 74421;
 var AWG_WORKER_LOCK_NAMESPACE = 74423;
 var running = false;
-var recentEvents = [];
+var recentEvents2 = [];
 var nextEventId = 1;
 var workerStatus = {
   started_at: null,
@@ -67108,17 +68266,17 @@ var workerStatus = {
   last_error: null
 };
 function recordAwgUsagePollEvent(event) {
-  recentEvents.unshift({
+  recentEvents2.unshift({
     ...event,
     event_id: nextEventId++,
     checked_at: (/* @__PURE__ */ new Date()).toISOString()
   });
-  if (recentEvents.length > 100) recentEvents.length = 100;
+  if (recentEvents2.length > 100) recentEvents2.length = 100;
 }
 function getAwgUsageWorkerLog() {
   return {
     worker: { ...workerStatus },
-    events: recentEvents.map((event) => ({ ...event }))
+    events: recentEvents2.map((event) => ({ ...event }))
   };
 }
 function safeErrorMessage(error40) {
@@ -70526,11 +71684,28 @@ router2.delete("/admin/sales/:id", requireMasterAdmin, async (req, res) => {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0641\u0631\u0648\u0634 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
     return;
   }
+  const sale = await pool.query(
+    `SELECT s.reseller_tg_id::float8 AS owner_telegram_id,
+            COALESCE(NULLIF(r.title, ''), '\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ' || s.reseller_tg_id::text) AS owner_name,
+            COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name
+     FROM reseller_sales_log s
+     LEFT JOIN reseller_services svc ON svc.id = s.service_id
+     LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+     LEFT JOIN resellers r ON r.tg_id = s.reseller_tg_id
+     WHERE s.id = $1`,
+    [parsed.data.id]
+  );
   const result = await pool.query("DELETE FROM reseller_sales_log WHERE id = $1 RETURNING id", [parsed.data.id]);
   if (!result.rowCount) {
     res.status(404).json({ error: "\u0631\u06A9\u0648\u0631\u062F \u0641\u0631\u0648\u0634 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
     return;
   }
+  await recordAudit(req, "admin_sale_deleted", "sale", parsed.data.id, {
+    owner_telegram_id: sale.rows[0]?.owner_telegram_id,
+    owner_name: sale.rows[0]?.owner_name,
+    customer_name: sale.rows[0]?.customer_name,
+    safe_summary: "\u0631\u06A9\u0648\u0631\u062F \u0641\u0631\u0648\u0634 \u0627\u0632 \u062F\u0641\u062A\u0631 \u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F \u062D\u0630\u0641 \u0634\u062F"
+  });
   res.status(204).end();
 });
 router2.get("/service-action-requests", requireAuth, async (req, res) => {
@@ -70702,9 +71877,14 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
        request.reseller_tg_id::float8 AS reseller_tg_id,
        request.cancel_service_status, request.delete_sale_status,
        service.rain_username, service.falco_config_id, service.awg_client_id,
-       service.status AS service_status
+       service.status AS service_status,
+       service.label AS service_name,
+       customer.full_name AS customer_name,
+       reseller.title AS owner_name
      FROM service_action_requests request
      LEFT JOIN reseller_services service ON service.id = request.service_id
+     LEFT JOIN reseller_customers customer ON customer.id = service.customer_id
+     LEFT JOIN resellers reseller ON reseller.tg_id = request.reseller_tg_id
      WHERE request.id = $1`,
     [requestId]
   );
@@ -70826,9 +72006,14 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
     client.release();
   }
   await recordAudit(req, "service_action_reviewed", "service_action_request", requestId, {
+    owner_telegram_id: current.reseller_tg_id,
+    owner_name: current.owner_name,
+    customer_name: current.customer_name,
+    service_name: current.service_name,
     cancel_service: cancelDecision,
     delete_sale_log: saleDecision,
-    deleted_sale_ids: deletedSaleIds
+    deleted_sale_ids: deletedSaleIds,
+    safe_summary: `\u0644\u063A\u0648 \u0633\u0631\u0648\u06CC\u0633: ${cancelDecision ?? "\u0628\u062F\u0648\u0646 \u062A\u063A\u06CC\u06CC\u0631"} \xB7 \u062D\u0630\u0641 \u0644\u0627\u06AF \u0641\u0631\u0648\u0634: ${saleDecision ?? "\u0628\u062F\u0648\u0646 \u062A\u063A\u06CC\u06CC\u0631"}`
   });
   res.json({ ok: true });
 });
@@ -70870,6 +72055,7 @@ router2.patch("/sales/:id", requireAuth, async (req, res) => {
   const fresh = await pool.query(
     `SELECT
        s.id, COALESCE(svc.customer_id, 0)::int AS customer_id,
+       s.reseller_tg_id::float8 AS owner_telegram_id,
        COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
         COALESCE(NULLIF(r.title, ''), '\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ' || s.reseller_tg_id::text) AS reseller_name,
        s.service_id, COALESCE(svc.label, '\u0633\u0631\u0648\u06CC\u0633 \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS service_name,
@@ -70885,6 +72071,12 @@ router2.patch("/sales/:id", requireAuth, async (req, res) => {
      WHERE s.id = $1`,
     [params.data.id]
   );
+  await recordAudit(req, body.data.is_paid === true ? "sale_paid" : "sale_updated", "sale", params.data.id, {
+    owner_telegram_id: fresh.rows[0]?.owner_telegram_id,
+    owner_name: fresh.rows[0]?.reseller_name,
+    customer_name: fresh.rows[0]?.customer_name,
+    safe_summary: body.data.is_paid === void 0 ? "\u062C\u0632\u0626\u06CC\u0627\u062A \u0641\u0631\u0648\u0634 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0634\u062F" : body.data.is_paid ? "\u067E\u0631\u062F\u0627\u062E\u062A \u0641\u0631\u0648\u0634 \u062A\u0623\u06CC\u06CC\u062F \u0634\u062F" : "\u0648\u0636\u0639\u06CC\u062A \u067E\u0631\u062F\u0627\u062E\u062A \u0641\u0631\u0648\u0634 \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F"
+  });
   res.json(UpdateSaleResponse.parse(fresh.rows[0]));
 });
 router2.get("/search", requireAuth, async (req, res) => {
@@ -71560,18 +72752,21 @@ router2.post("/services", requireAuth, async (req, res) => {
       }
     }
     const customer = await client.query(
-      req.auth?.role === "master_admin" ? `SELECT id FROM reseller_customers WHERE phone::text = $1::text ORDER BY id LIMIT 1` : `SELECT id FROM reseller_customers
+      req.auth?.role === "master_admin" ? `SELECT id, full_name FROM reseller_customers WHERE phone::text = $1::text ORDER BY id LIMIT 1` : `SELECT id, full_name FROM reseller_customers
             WHERE phone::text = $1::text
               AND (reseller_tg_id::text = $2::text OR reseller_tg_id IS NULL)
            ORDER BY id LIMIT 1`,
       req.auth?.role === "master_admin" ? [body.data.phone] : [body.data.phone, ownerId]
     );
     let customerId2 = customer.rows[0]?.id;
+    let customerCreated = false;
+    const existingCustomerName = customer.rows[0]?.full_name ?? null;
     if (!customerId2) {
       const next = await client.query(
         "SELECT COALESCE(MAX(id), 0) + 1 AS id FROM reseller_customers"
       );
       customerId2 = Number(next.rows[0].id);
+      customerCreated = true;
       await client.query(
         `INSERT INTO reseller_customers (id, phone, full_name, reseller_tg_id, created_at)
          VALUES ($1, $2, $3, $4, NOW())`,
@@ -71743,6 +72938,35 @@ router2.post("/services", requireAuth, async (req, res) => {
       );
     }
     await client.query("COMMIT");
+    const ownerName = req.auth?.displayName ?? req.auth?.title ?? null;
+    if (customerCreated) {
+      await recordAudit(req, "customer_created", "customer", customerId2, {
+        owner_telegram_id: ownerId,
+        owner_name: ownerName,
+        customer_name: body.data.customer_name
+      });
+    } else if (existingCustomerName !== body.data.customer_name) {
+      await recordAudit(req, "customer_updated", "customer", customerId2, {
+        owner_telegram_id: ownerId,
+        owner_name: ownerName,
+        customer_name: body.data.customer_name,
+        safe_summary: "\u0646\u0627\u0645 \u0645\u0634\u062A\u0631\u06CC \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0634\u062F"
+      });
+    }
+    await recordAudit(req, "service_created", "service", serviceId, {
+      owner_telegram_id: ownerId,
+      owner_name: ownerName,
+      customer_name: body.data.customer_name,
+      service_name: body.data.label,
+      safe_summary: `\u062D\u062C\u0645 ${body.data.gb} \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A \xB7 ${body.data.days} \u0631\u0648\u0632`
+    });
+    await recordAudit(req, "sale_created", "sale", saleId, {
+      owner_telegram_id: ownerId,
+      owner_name: ownerName,
+      customer_name: body.data.customer_name,
+      service_name: body.data.label,
+      safe_summary: body.data.is_paid ? "\u067E\u0631\u062F\u0627\u062E\u062A\u200C\u0634\u062F\u0647" : "\u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u067E\u0631\u062F\u0627\u062E\u062A"
+    });
     const fresh = await pool.query(
       `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
          svc.customer_id, COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC') AS customer_name,
@@ -71927,6 +73151,23 @@ router2.patch("/services/:id", requireAuth, async (req, res) => {
      WHERE svc.id = $1`,
       [params.data.id]
     );
+    if (body.data.status !== void 0 || body.data.admin_notes !== void 0) {
+      const auditContext = await pool.query(
+        `SELECT svc.reseller_tg_id::float8 AS owner_telegram_id,
+              COALESCE(NULLIF(r.title, ''), '\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ' || svc.reseller_tg_id::text) AS owner_name,
+              COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
+              COALESCE(svc.label, '\u0633\u0631\u0648\u06CC\u0633') AS service_name
+       FROM reseller_services svc
+       LEFT JOIN reseller_customers c ON c.id = svc.customer_id
+       LEFT JOIN resellers r ON r.tg_id = svc.reseller_tg_id
+       WHERE svc.id = $1`,
+        [params.data.id]
+      );
+      await recordAudit(req, body.data.status !== void 0 ? "service_status_changed" : "service_updated", "service", params.data.id, {
+        ...auditContext.rows[0],
+        safe_summary: body.data.status ? `\u0648\u0636\u0639\u06CC\u062A \u062C\u062F\u06CC\u062F: ${body.data.status}` : "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0633\u0631\u0648\u06CC\u0633 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0634\u062F"
+      });
+    }
     res.json(UpdateServiceResponse.parse(fresh.rows[0]));
   } finally {
     if (lockAcquired) {
@@ -72241,6 +73482,11 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     } finally {
       client.release();
     }
+    await recordAudit(req, "service_renewed", "service", serviceId, {
+      owner_telegram_id: current.reseller_tg_id,
+      service_name: current.label,
+      safe_summary: `\u0628\u0633\u062A\u0647 \u062A\u0645\u062F\u06CC\u062F\u0634\u062F\u0647: ${gb} \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A \xB7 ${days} \u0631\u0648\u0632`
+    });
     renewalPhase = "load-renewed-service";
     const fresh = await pool.query(
       `SELECT svc.id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
@@ -72827,6 +74073,11 @@ router2.patch("/resellers/:id", requireMasterAdmin, async (req, res) => {
     res.status(404).json({ error: "\u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
     return;
   }
+  await recordAudit(req, "reseller_updated", "reseller", result.rows[0].id, {
+    owner_telegram_id: result.rows[0].telegram_id,
+    owner_name: result.rows[0].title,
+    safe_summary: body.data.enabled ? "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0641\u0639\u0627\u0644 \u0634\u062F" : "\u062D\u0633\u0627\u0628 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0634\u062F"
+  });
   res.json(UpdateResellerResponse.parse(result.rows[0]));
 });
 router2.post("/reseller-credit-sales", requireMasterAdmin, async (req, res) => {
@@ -72869,10 +74120,11 @@ router2.post("/reseller-credit-sales", requireMasterAdmin, async (req, res) => {
 });
 var recordAudit = async (req, action, entityType, entityId, detail = null) => {
   if (!req.auth) return;
-  await pool.query(
+  const audit = await pool.query(
     `INSERT INTO reseller_audit_log
        (actor_tg_id, actor_role, action, entity_type, entity_id, detail)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id::text AS id`,
     [
       req.auth.telegramId,
       req.auth.role,
@@ -72882,6 +74134,19 @@ var recordAudit = async (req, action, entityType, entityId, detail = null) => {
       detail === null ? null : JSON.stringify(detail)
     ]
   );
+  const auditId = audit.rows[0]?.id;
+  if (auditId) {
+    await recordTelegramAuditEvent({
+      auditId,
+      action,
+      entityType,
+      entityId,
+      actorTelegramId: req.auth.telegramId,
+      actorRole: req.auth.role,
+      actorName: req.auth.displayName ?? req.auth.title ?? (req.auth.role === "master_admin" ? "\u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F" : `\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ${req.auth.telegramId}`),
+      detail
+    });
+  }
 };
 var customerId = (req) => {
   const id = Number(req.params.id);
@@ -73446,12 +74711,300 @@ router3.get("/readyz", async (_req, res) => {
 });
 var health_default = router3;
 
-// src/routes/index.ts
+// src/routes/telegram.ts
+var import_express5 = __toESM(require_express2(), 1);
 var router4 = (0, import_express5.Router)();
-router4.use(health_default);
-router4.use(management_default);
-router4.use(mobile_default);
-var routes_default = router4;
+router4.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
+router4.use(attachAuth);
+function boundedLimit(value, fallback = 50) {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? Math.max(1, Math.min(100, parsed)) : fallback;
+}
+async function controlCenterSnapshot() {
+  await ensureTelegramSchema();
+  const [bot, counts, recipientRows, deliveryRows, eventRows] = await Promise.all([
+    getTelegramBotInfo(),
+    pool.query(
+      `SELECT
+          COUNT(*) FILTER (WHERE status = 'sent' AND sent_at >=
+            ((NOW() AT TIME ZONE 'Asia/Tehran')::date AT TIME ZONE 'Asia/Tehran'))::int AS sent_today,
+          COUNT(*) FILTER (WHERE status = 'sent')::int AS sent_total,
+          COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_total,
+          COUNT(*) FILTER (WHERE status IN ('queued','retrying'))::int AS pending_count,
+          COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_count,
+          MAX(sent_at)::text AS latest_sent_at
+         FROM telegram_bot_deliveries`
+    ),
+    pool.query(
+      `SELECT recipient.telegram_id::float8 AS telegram_id, recipient.role,
+                recipient.display_name, recipient.linked_at::text AS linked_at,
+                recipient.active, recipient.categories,
+                recipient.last_seen_at::text AS last_seen_at,
+                (SELECT MAX(delivery.sent_at)::text FROM telegram_bot_deliveries delivery
+                 WHERE delivery.recipient_telegram_id = recipient.telegram_id
+                   AND delivery.status = 'sent') AS last_delivery_at
+         FROM telegram_bot_recipients recipient
+         ORDER BY recipient.active DESC, recipient.linked_at DESC`
+    ),
+    pool.query(
+      `SELECT delivery.id::float8 AS id, event.event_key, event.category,
+                event.title, event.body, delivery.recipient_telegram_id::float8 AS recipient_telegram_id,
+                COALESCE(recipient.display_name, '\u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645') AS recipient_name,
+                delivery.status, delivery.attempts,
+                delivery.last_error,
+                delivery.created_at::text AS created_at,
+                delivery.sent_at::text AS sent_at
+         FROM telegram_bot_deliveries delivery
+         JOIN telegram_bot_events event ON event.id = delivery.event_id
+         LEFT JOIN telegram_bot_recipients recipient
+           ON recipient.telegram_id = delivery.recipient_telegram_id
+         ORDER BY delivery.id DESC LIMIT 50`
+    ),
+    pool.query(
+      `SELECT event.id::float8 AS id, event.event_key, event.category,
+                event.action, event.entity_type, event.entity_id,
+                event.actor_name, event.actor_role, event.owner_name,
+                event.title, event.body, event.href, event.created_at::text AS created_at
+         FROM telegram_bot_events event
+         ORDER BY event.id DESC LIMIT 50`
+    )
+  ]);
+  const metrics = counts.rows[0];
+  const sent = Number(metrics?.sent_total ?? 0);
+  const failed = Number(metrics?.failed_total ?? 0);
+  return {
+    configured: bot.configured,
+    enabled: bot.enabled,
+    bot_username: bot.botUsername,
+    panel_url: bot.panelUrl,
+    worker_status: bot.workerStatus,
+    worker_error: bot.workerError,
+    last_polled_at: bot.lastPolledAt,
+    linked_recipients: recipientRows.rows.filter((recipient) => recipient.active).length,
+    sent_today: Number(metrics?.sent_today ?? 0),
+    success_rate: sent + failed > 0 ? Math.round(sent / (sent + failed) * 1e3) / 10 : 0,
+    pending_count: Number(metrics?.pending_count ?? 0),
+    failed_count: Number(metrics?.failed_count ?? 0),
+    latest_sent_at: metrics?.latest_sent_at ?? null,
+    recipients: recipientRows.rows,
+    deliveries: deliveryRows.rows,
+    events: eventRows.rows
+  };
+}
+router4.get(
+  "/control-center",
+  requireMasterAdmin,
+  async (_req, res) => {
+    res.json(GetTelegramControlCenterResponse.parse(await controlCenterSnapshot()));
+  }
+);
+router4.patch(
+  "/settings",
+  requireMasterAdmin,
+  async (req, res) => {
+    const parsed = UpdateTelegramSettingsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0631\u0628\u0627\u062A \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+      return;
+    }
+    try {
+      await saveTelegramConfig({
+        ...parsed.data.token !== void 0 ? { token: parsed.data.token } : {},
+        ...parsed.data.enabled !== void 0 ? { enabled: parsed.data.enabled } : {},
+        ...parsed.data.panel_url !== void 0 ? { panelUrl: parsed.data.panel_url } : {},
+        ...parsed.data.timezone !== void 0 ? { timezone: parsed.data.timezone } : {},
+        updatedBy: req.auth.telegramId
+      });
+      res.json(UpdateTelegramSettingsResponse.parse(await controlCenterSnapshot()));
+    } catch (error40) {
+      const message = error40 instanceof Error ? error40.message : "";
+      if (message.includes("\u062A\u0648\u06A9\u0646") || message.includes("\u0646\u0634\u0627\u0646\u06CC")) {
+        res.status(400).json({ error: message });
+        return;
+      }
+      res.status(502).json({ error: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0628\u0631\u0642\u0631\u0627\u0631 \u0646\u0634\u062F\u061B \u062A\u0648\u06A9\u0646 \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F." });
+    }
+  }
+);
+router4.post(
+  "/test",
+  requireMasterAdmin,
+  async (req, res) => {
+    await ensureTelegramSchema();
+    const config3 = await getTelegramBotInfo();
+    if (!config3.configured) {
+      res.status(409).json({ error: "\u0627\u0628\u062A\u062F\u0627 \u062A\u0648\u06A9\u0646 \u0631\u0628\u0627\u062A \u0631\u0627 \u0630\u062E\u06CC\u0631\u0647 \u06A9\u0646\u06CC\u062F." });
+      return;
+    }
+    const recipient = await pool.query(
+      `SELECT chat_id::float8 AS chat_id, telegram_id::float8 AS telegram_id
+       FROM telegram_bot_recipients
+       WHERE role = 'master_admin' AND active = TRUE AND telegram_id = $1
+       LIMIT 1`,
+      [req.auth.telegramId]
+    );
+    if (!recipient.rows[0]) {
+      res.status(409).json({ error: "\u0627\u0628\u062A\u062F\u0627 \u0631\u0628\u0627\u062A \u0631\u0627 \u0627\u0632 \u062D\u0633\u0627\u0628 \u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F \u0628\u0627 \u062F\u0633\u062A\u0648\u0631 /start \u0628\u0627\u0632 \u06A9\u0646\u06CC\u062F." });
+      return;
+    }
+    try {
+      const username = await sendTelegramTestMessage(
+        Number(recipient.rows[0].chat_id),
+        req.auth.telegramId
+      );
+      res.json(TestTelegramBotResponse.parse({
+        ok: true,
+        bot_username: username,
+        sent: true,
+        message: "\u067E\u06CC\u0627\u0645 \u0622\u0632\u0645\u0627\u06CC\u0634\u06CC \u0627\u0631\u0633\u0627\u0644 \u0634\u062F."
+      }));
+    } catch {
+      res.status(502).json({ error: "\u0622\u0632\u0645\u0648\u0646 \u0627\u0631\u0633\u0627\u0644 \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F\u061B \u0627\u062A\u0635\u0627\u0644 \u0631\u0628\u0627\u062A \u0631\u0627 \u062F\u0648\u0628\u0627\u0631\u0647 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F." });
+    }
+  }
+);
+router4.get(
+  "/recipients",
+  requireMasterAdmin,
+  async (_req, res) => {
+    await ensureTelegramSchema();
+    const result = await pool.query(
+      `SELECT recipient.telegram_id::float8 AS telegram_id, recipient.role,
+              recipient.display_name, recipient.linked_at::text AS linked_at,
+              recipient.active, recipient.categories,
+              recipient.last_seen_at::text AS last_seen_at,
+              (SELECT MAX(delivery.sent_at)::text FROM telegram_bot_deliveries delivery
+               WHERE delivery.recipient_telegram_id = recipient.telegram_id
+                 AND delivery.status = 'sent') AS last_delivery_at
+       FROM telegram_bot_recipients recipient
+       ORDER BY recipient.active DESC, recipient.linked_at DESC`
+    );
+    res.json(ListTelegramRecipientsResponse.parse(result.rows));
+  }
+);
+router4.delete(
+  "/recipients/:telegram_id",
+  requireMasterAdmin,
+  async (req, res) => {
+    const parsed = RevokeTelegramRecipientParams.safeParse(req.params);
+    if (!parsed.success) {
+      res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+      return;
+    }
+    await ensureTelegramSchema();
+    const result = await pool.query(
+      `UPDATE telegram_bot_recipients SET active = FALSE
+       WHERE telegram_id = $1 AND active = TRUE RETURNING telegram_id`,
+      [parsed.data.telegram_id]
+    );
+    if (result.rowCount) {
+      await pool.query(
+        `UPDATE telegram_bot_deliveries
+         SET status = 'skipped', last_error = '\u0627\u062A\u0635\u0627\u0644 \u06AF\u06CC\u0631\u0646\u062F\u0647 \u0644\u063A\u0648 \u0634\u062F\u0647 \u0627\u0633\u062A', updated_at = NOW()
+         WHERE recipient_telegram_id = $1 AND status IN ('queued','retrying')`,
+        [parsed.data.telegram_id]
+      );
+    }
+    res.json(RevokeTelegramRecipientResponse.parse({
+      revoked: Boolean(result.rowCount),
+      telegram_id: parsed.data.telegram_id
+    }));
+  }
+);
+router4.get(
+  "/deliveries",
+  requireMasterAdmin,
+  async (req, res) => {
+    const parsed = ListTelegramDeliveriesQueryParams.safeParse(req.query);
+    const limit = parsed.success ? boundedLimit(parsed.data.limit) : 50;
+    await ensureTelegramSchema();
+    const result = await pool.query(
+      `SELECT delivery.id::float8 AS id, event.event_key, event.category,
+              event.title, event.body, delivery.recipient_telegram_id::float8 AS recipient_telegram_id,
+              COALESCE(recipient.display_name, '\u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645') AS recipient_name,
+              delivery.status, delivery.attempts, delivery.last_error,
+              delivery.created_at::text AS created_at, delivery.sent_at::text AS sent_at
+       FROM telegram_bot_deliveries delivery
+       JOIN telegram_bot_events event ON event.id = delivery.event_id
+       LEFT JOIN telegram_bot_recipients recipient
+         ON recipient.telegram_id = delivery.recipient_telegram_id
+       ORDER BY delivery.id DESC LIMIT $1`,
+      [limit]
+    );
+    res.json(ListTelegramDeliveriesResponse.parse(result.rows));
+  }
+);
+router4.get(
+  "/events",
+  requireMasterAdmin,
+  async (req, res) => {
+    const parsed = ListTelegramEventsQueryParams.safeParse(req.query);
+    const limit = parsed.success ? boundedLimit(parsed.data.limit) : 50;
+    await ensureTelegramSchema();
+    const result = await pool.query(
+      `SELECT event.id::float8 AS id, event.event_key, event.category,
+              event.action, event.entity_type, event.entity_id,
+              event.actor_name, event.actor_role, event.owner_name,
+              event.title, event.body, event.href, event.created_at::text AS created_at
+       FROM telegram_bot_events event
+       ORDER BY event.id DESC LIMIT $1`,
+      [limit]
+    );
+    res.json(ListTelegramEventsResponse.parse(result.rows));
+  }
+);
+router4.patch(
+  "/recipients/:telegram_id/preferences",
+  requireMasterAdmin,
+  async (req, res) => {
+    const params = UpdateTelegramRecipientPreferencesParams.safeParse(req.params);
+    const body = UpdateTelegramRecipientPreferencesBody.safeParse(req.body);
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0627\u0639\u0644\u0627\u0646 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+      return;
+    }
+    await ensureTelegramSchema();
+    const result = await pool.query(
+      `UPDATE telegram_bot_recipients
+       SET categories = $2::jsonb, last_seen_at = NOW()
+       WHERE telegram_id = $1
+       RETURNING telegram_id::float8 AS telegram_id, role, display_name,
+                 linked_at::text AS linked_at, active, categories,
+                 last_seen_at::text AS last_seen_at,
+                 (SELECT MAX(delivery.sent_at)::text FROM telegram_bot_deliveries delivery
+                  WHERE delivery.recipient_telegram_id = telegram_bot_recipients.telegram_id
+                    AND delivery.status = 'sent') AS last_delivery_at`,
+      [params.data.telegram_id, JSON.stringify(body.data.categories)]
+    );
+    if (!result.rows[0]) {
+      res.status(404).json({ error: "\u062D\u0633\u0627\u0628 \u062A\u0644\u06AF\u0631\u0627\u0645 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+      return;
+    }
+    await pool.query(
+      `UPDATE telegram_bot_deliveries delivery
+       SET status = 'skipped', last_error = '\u062F\u0633\u062A\u0647 \u0627\u0639\u0644\u0627\u0646 \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u06AF\u06CC\u0631\u0646\u062F\u0647 \u062E\u0627\u0645\u0648\u0634 \u0634\u062F\u0647 \u0627\u0633\u062A', updated_at = NOW()
+       FROM telegram_bot_events event
+       WHERE delivery.event_id = event.id
+         AND delivery.recipient_telegram_id = $1
+         AND delivery.status IN ('queued','retrying')
+         AND NOT (event.category = ANY($2::text[]))`,
+      [params.data.telegram_id, body.data.categories]
+    );
+    res.json(UpdateTelegramRecipientPreferencesResponse.parse(result.rows[0]));
+  }
+);
+var telegram_default = router4;
+
+// src/routes/index.ts
+var router5 = (0, import_express6.Router)();
+router5.use(health_default);
+router5.use("/admin/telegram", telegram_default);
+router5.use(management_default);
+router5.use(mobile_default);
+var routes_default = router5;
 
 // src/lib/usage-sync.ts
 var BYTES_PER_GB = 1024 ** 3;
@@ -73735,7 +75288,7 @@ function startUsageSyncWorker() {
 }
 
 // src/app.ts
-var app = (0, import_express6.default)();
+var app = (0, import_express7.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -73781,8 +75334,8 @@ app.use((req, res, next) => {
   })(req, res, next);
 });
 app.use((0, import_cookie_parser.default)());
-app.use(import_express6.default.json({ limit: "256kb" }));
-app.use(import_express6.default.urlencoded({ extended: true, limit: "64kb" }));
+app.use(import_express7.default.json({ limit: "256kb" }));
+app.use(import_express7.default.urlencoded({ extended: true, limit: "64kb" }));
 app.use("/api", routes_default);
 var isDatabaseUnavailableError = (error40) => {
   if (!error40 || typeof error40 !== "object") return false;
@@ -73832,13 +75385,14 @@ if (isBackgroundWorkersPaused()) {
   startUsageSyncWorker();
   startAwgUsagePollWorker();
   startMobileNotificationWorker();
+  startTelegramBotWorker();
 }
 var app_default = app;
 
 // src/lib/provisioning-worker.ts
 import { hostname as hostname2 } from "node:os";
-import { randomUUID as randomUUID2 } from "node:crypto";
-var workerId = `${hostname2()}:${process.pid}:${randomUUID2()}`;
+import { randomUUID as randomUUID3 } from "node:crypto";
+var workerId = `${hostname2()}:${process.pid}:${randomUUID3()}`;
 var leaseDurationMs = 2 * 6e4;
 var heartbeatIntervalMs = 3e4;
 var retryDelayMs = (attempts) => Math.min(15 * 6e4, 15e3 * 2 ** Math.min(Math.max(attempts - 1, 0), 6));
@@ -73922,7 +75476,7 @@ async function completeJob(jobId) {
   );
 }
 async function saveAwgCandidate(job) {
-  const existing = typeof job.payload.awg_client_candidate === "string" ? job.payload.awg_client_candidate : randomUUID2();
+  const existing = typeof job.payload.awg_client_candidate === "string" ? job.payload.awg_client_candidate : randomUUID3();
   await pool.query(
     `UPDATE service_provision_jobs
      SET payload = payload || jsonb_build_object('awg_client_candidate', $1::text),

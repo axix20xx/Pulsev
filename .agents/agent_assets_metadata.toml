@@ -1206,3 +1206,17 @@ mtime_ms = 1791965818112
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/11b6e54d-99c3-460f-b647-b111fcdf70d1/6a80e1f4-2d2b-434f-9ec9-dd02a6e3e1eb"
 storage_version_token = "1791965838228599"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "HwtA5M8OGTI4GYeMJslwT"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-16T19-15-52-651Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP"
+description = "Full Hostinger package with the rebuilt API bundle, root/panel/mobile/subscription/showcase frontend builds, launcher, migration SQL, and release metadata. Validated; 27.4 MB."
+logical_id = "b1c11aa3-5d29-44b8-88d7-855bdd2f7a8b"
+content_hash = "sha256:254bf9fd083451a2ad8f530e2ee93900dc8bb9c73a363e93f9ff33589eb06475"
+size = 28738686
+mtime_ms = 1792178261142
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b1c11aa3-5d29-44b8-88d7-855bdd2f7a8b/50cc3319-b6de-4f1b-9364-4fddfeaafea5"
+storage_version_token = "1792178283010270"
+content_type = "application/octet-stream"
