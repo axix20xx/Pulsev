@@ -68731,8 +68731,18 @@ function toClashSubscription(body) {
 }
 
 // src/lib/wireguard-mobileconfig.ts
-import { randomUUID as randomUUID3 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 var xmlEscape = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+var uuidNamespace = Buffer.from("6ba7b8109dad11d180b400c04fd430c8", "hex");
+function stablePayloadUuid(identifier) {
+  const bytes = Buffer.from(
+    createHash5("sha1").update(uuidNamespace).update(identifier).digest().subarray(0, 16)
+  );
+  bytes[6] = bytes[6] & 15 | 80;
+  bytes[8] = bytes[8] & 63 | 128;
+  const hex = bytes.toString("hex").toUpperCase();
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 function safeTunnel(tunnel) {
   if (!/^[A-Za-z0-9._-]{1,80}$/.test(tunnel.hostId)) {
     throw new Error("Invalid WireGuard profile identity.");
@@ -68762,7 +68772,7 @@ function tunnelPayload(tunnel, serviceId, protocol) {
       <key>PayloadType</key><string>com.apple.vpn.managed</string>
       <key>PayloadVersion</key><integer>1</integer>
       <key>PayloadIdentifier</key><string>${xmlEscape(`${identifier}.vpn`)}</string>
-      <key>PayloadUUID</key><string>${randomUUID3().toUpperCase()}</string>
+      <key>PayloadUUID</key><string>${stablePayloadUuid(`${identifier}.vpn`)}</string>
       <key>UserDefinedName</key><string>${xmlEscape(displayName)}</string>
       <key>VPNType</key><string>VPN</string>
       <key>VPNSubType</key><string>${appBundleId}</string>
@@ -68788,7 +68798,8 @@ function createWireGuardMobileConfigBundle(tunnels, serviceId, protocol = "wireg
     throw new Error("An iOS profile cannot contain duplicate server identities.");
   }
   const profileName = `Pulse ${protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} \xB7 ${normalized.length} server${normalized.length === 1 ? "" : "s"}`;
-  const profileIdentifier = `com.pulse.${protocol}.service-${serviceId}.profile`;
+  const serverSetId = createHash5("sha256").update(normalized.map((tunnel) => tunnel.hostId).sort().join("\0")).digest("hex").slice(0, 16);
+  const profileIdentifier = `com.pulse.${protocol}.service-${serviceId}.servers-${serverSetId}.profile`;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -68797,7 +68808,7 @@ function createWireGuardMobileConfigBundle(tunnels, serviceId, protocol = "wireg
   <key>PayloadType</key><string>Configuration</string>
   <key>PayloadVersion</key><integer>1</integer>
   <key>PayloadIdentifier</key><string>${xmlEscape(profileIdentifier)}</string>
-  <key>PayloadUUID</key><string>${randomUUID3().toUpperCase()}</string>
+  <key>PayloadUUID</key><string>${stablePayloadUuid(profileIdentifier)}</string>
   <key>PayloadContent</key>
   <array>
 ${normalized.map((tunnel) => tunnelPayload(tunnel, serviceId, protocol)).join("\n")}
@@ -76400,8 +76411,8 @@ var app_default = app;
 
 // src/lib/provisioning-worker.ts
 import { hostname as hostname2 } from "node:os";
-import { randomUUID as randomUUID4 } from "node:crypto";
-var workerId = `${hostname2()}:${process.pid}:${randomUUID4()}`;
+import { randomUUID as randomUUID3 } from "node:crypto";
+var workerId = `${hostname2()}:${process.pid}:${randomUUID3()}`;
 var leaseDurationMs = 2 * 6e4;
 var heartbeatIntervalMs = 3e4;
 var retryDelayMs = (attempts) => Math.min(15 * 6e4, 15e3 * 2 ** Math.min(Math.max(attempts - 1, 0), 6));
@@ -76485,7 +76496,7 @@ async function completeJob(jobId) {
   );
 }
 async function saveAwgCandidate(job) {
-  const existing = typeof job.payload.awg_client_candidate === "string" ? job.payload.awg_client_candidate : randomUUID4();
+  const existing = typeof job.payload.awg_client_candidate === "string" ? job.payload.awg_client_candidate : randomUUID3();
   await pool.query(
     `UPDATE service_provision_jobs
      SET payload = payload || jsonb_build_object('awg_client_candidate', $1::text),

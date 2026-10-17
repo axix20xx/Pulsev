@@ -1374,3 +1374,17 @@ mtime_ms = 1792241854401
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/00f48fd0-344a-4771-9193-b3d4d2fe9089/06a306ff-f89f-442b-a2c3-03f9160eb9d2"
 storage_version_token = "1792241883959586"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "FvOv7XZv82HwEMUADimQ1"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T13-05-34-009Z.zip"
+type = "unspecified"
+title = "Hostinger ZIP — AmneziaWG profile renewal updates"
+description = "Updated migration package with stable iOS mobileconfig profile identifiers and renewal guidance, so re-downloading and confirming the profile updates the existing iOS profile instead of creating a duplicate."
+logical_id = "aab1c48c-3c05-476f-9e47-3702ea70f6e1"
+content_hash = "sha256:4b3f60a0fc263fed0cddaf8b3693fe6a51385ecea2f573f5eeac0b681baa9cc9"
+size = 28786365
+mtime_ms = 1792242448914
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/aab1c48c-3c05-476f-9e47-3702ea70f6e1/cd1e154e-cb57-4d4b-a5b9-0ad95e06dc95"
+storage_version_token = "1792242527764343"
+content_type = "application/octet-stream"

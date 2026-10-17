@@ -1,10 +1,10 @@
 ---
-name: Renewal AWG lifecycle
-description: AWG renewal deletes the old client and provisions a new client like a new service.
+name: AmneziaWG renewal and iOS profiles
+description: Preserve existing AmneziaWG iOS profiles across renewals when the provider can safely keep the tunnel identity.
 ---
 
-For service renewal, the AWG-compatible sequence is: clear usage caches, capture current stats as the offset when available, reset local AWG counters, create a new client through the normal initial-provisioning flow, and then delete the old client. AWG failures remain non-blocking and are retried separately.
+The desired customer experience is that renewing service does not require downloading another AmneziaWG mobileconfig. Preserve the existing client/key when the Provider supports safely extending its expiry/quota in place. A mobileconfig is a static snapshot and cannot silently refresh itself if the tunnel configuration changes.
 
-**Why:** The product behavior requires renewal to be equivalent to a new AWG account rather than preserving the old client identity; creating first also avoids provider failures caused by deleting before a new client is accepted.
+**Why:** The user does not want customers to reinstall mobileconfig after each renewal. Rotating or deleting the Provider client invalidates the installed keys; iOS has no automatic refresh mechanism for an already-installed static profile.
 
-**How to apply:** Renewal and its AWG retry job must call the normal `POST /api/clients` flow first, persist the returned new UUID, and then remove the previous client. Completed or superseded jobs must not retain a `last_error`; old cancelled AWG jobs may be requeued only when the active service still has no AWG client and no newer AWG job is already active.
+**How to apply:** Before changing renewal or quota-disable behavior, verify the Provider can update/extend the same client and can still block exhausted service safely without deleting its key. If it cannot, do not claim mobileconfig can auto-refresh; explain that the only supported fallback is the customer installing a replacement profile.

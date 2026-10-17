@@ -57,6 +57,24 @@ test("an AmneziaWG iOS profile keeps AWG settings inside the tunnel payload", as
   assert.match(profile, /<key>VPNSubType<\/key><string>org\.amnezia\.awg<\/string>/);
 });
 
+test("renewed configs keep the same iOS profile and tunnel UUIDs for in-place replacement", async () => {
+  const { createWireGuardMobileConfigBundle } = await loadProfileBuilder();
+  const beforeRenewal = createWireGuardMobileConfigBundle([
+    { config: config("old-endpoint.example"), hostId: "awg-main", locationName: "Main" },
+  ], 91, "amneziawg");
+  const afterRenewal = createWireGuardMobileConfigBundle([
+    { config: config("new-endpoint.example"), hostId: "awg-main", locationName: "Main" },
+  ], 91, "amneziawg");
+  const uuidPattern = /<key>PayloadUUID<\/key><string>([^<]+)<\/string>/g;
+  const beforeUuids = [...beforeRenewal.matchAll(uuidPattern)].map((match) => match[1]);
+  const afterUuids = [...afterRenewal.matchAll(uuidPattern)].map((match) => match[1]);
+
+  assert.deepEqual(afterUuids, beforeUuids);
+  assert.match(afterRenewal, /new-endpoint\.example:51820/);
+  assert.doesNotMatch(afterRenewal, /old-endpoint\.example:51820/);
+  assert.match(beforeRenewal, /<key>PayloadIdentifier<\/key><string>com\.pulse\.amneziawg\.service-91\.servers-[a-f0-9]{16}\.profile<\/string>/);
+});
+
 test("unsupported options and duplicate tunnel identities are rejected", async () => {
   const { createWireGuardMobileConfigBundle } = await loadProfileBuilder();
   assert.throws(() => createWireGuardMobileConfigBundle([

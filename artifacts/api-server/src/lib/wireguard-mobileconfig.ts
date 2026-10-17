@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 
 export type WireGuardMobileConfigTunnel = {
   config: string;
@@ -15,6 +15,18 @@ const xmlEscape = (value: string): string =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
+
+const uuidNamespace = Buffer.from("6ba7b8109dad11d180b400c04fd430c8", "hex");
+
+function stablePayloadUuid(identifier: string): string {
+  const bytes = Buffer.from(
+    createHash("sha1").update(uuidNamespace).update(identifier).digest().subarray(0, 16),
+  );
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex").toUpperCase();
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 function safeTunnel(tunnel: WireGuardMobileConfigTunnel): {
   config: string;
@@ -55,7 +67,7 @@ function tunnelPayload(
       <key>PayloadType</key><string>com.apple.vpn.managed</string>
       <key>PayloadVersion</key><integer>1</integer>
       <key>PayloadIdentifier</key><string>${xmlEscape(`${identifier}.vpn`)}</string>
-      <key>PayloadUUID</key><string>${randomUUID().toUpperCase()}</string>
+      <key>PayloadUUID</key><string>${stablePayloadUuid(`${identifier}.vpn`)}</string>
       <key>UserDefinedName</key><string>${xmlEscape(displayName)}</string>
       <key>VPNType</key><string>VPN</string>
       <key>VPNSubType</key><string>${appBundleId}</string>
@@ -92,7 +104,11 @@ export function createWireGuardMobileConfigBundle(
     throw new Error("An iOS profile cannot contain duplicate server identities.");
   }
   const profileName = `Pulse ${protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} · ${normalized.length} server${normalized.length === 1 ? "" : "s"}`;
-  const profileIdentifier = `com.pulse.${protocol}.service-${serviceId}.profile`;
+  const serverSetId = createHash("sha256")
+    .update(normalized.map((tunnel) => tunnel.hostId).sort().join("\0"))
+    .digest("hex")
+    .slice(0, 16);
+  const profileIdentifier = `com.pulse.${protocol}.service-${serviceId}.servers-${serverSetId}.profile`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -102,7 +118,7 @@ export function createWireGuardMobileConfigBundle(
   <key>PayloadType</key><string>Configuration</string>
   <key>PayloadVersion</key><integer>1</integer>
   <key>PayloadIdentifier</key><string>${xmlEscape(profileIdentifier)}</string>
-  <key>PayloadUUID</key><string>${randomUUID().toUpperCase()}</string>
+  <key>PayloadUUID</key><string>${stablePayloadUuid(profileIdentifier)}</string>
   <key>PayloadContent</key>
   <array>
 ${normalized.map((tunnel) => tunnelPayload(tunnel, serviceId, protocol)).join("\n")}
