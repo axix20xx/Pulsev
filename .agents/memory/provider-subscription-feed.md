@@ -39,6 +39,12 @@ For AzadPanel Xray, merge the dynamic `subscription_url` feed with the individua
 
 **How to apply:** Fetch the absolute or root-relative `/sub/<token>` URL, require at least one supported config URI, then append every non-duplicate URI from the API `links` array. If the dynamic feed fails, use the direct links by themselves.
 
+Prefix each combined-feed config name with a unique, stable three-letter code derived from its configured Provider identity so operators can visually confirm which Providers contributed nodes. Preserve the URI's connection parameters unchanged.
+
+**Why:** The combined subscription hides source attribution, making it hard to tell whether a Provider's nodes were omitted.
+
+**How to apply:** Apply the prefix to VLESS/VMess and other supported URI display names before merging and caching; do not expose credentials or full provider URLs in the label.
+
 When detecting the one-link response mode, treat recognizable browser User-Agents as browser requests even if their `Accept` header is `*/*`; only known VPN client signatures should override that.
 
 **Why:** Some embedded browsers and screenshot/proxy browsers omit `text/html` from `Accept`, so relying only on content negotiation can return a feed or provider error instead of the status page.

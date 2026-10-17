@@ -11,6 +11,10 @@ import {
   isStandardServiceProvisioningPanel,
   mergeAzadPanelXraySubscriptionFeeds,
 } from "./panel-protocol-policy";
+import {
+  providerConfigLabel,
+  subscriptionProviderShortCodes,
+} from "./subscription-provider-labels";
 
 type Panel = {
   key?: string;
@@ -315,7 +319,7 @@ function countryFlag(value: string): string {
   return COUNTRY_FLAGS.find(([pattern]) => pattern.test(value))?.[1] ?? "🌐";
 }
 
-function brandedConfigLink(raw: string, index: number): string {
+function brandedConfigLink(raw: string, index: number, providerCode: string): string {
   const value = raw.trim();
   if (!value || value.startsWith("#")) return raw;
   const vmess = value.match(/^vmess:\/\/(.+)$/i);
@@ -324,7 +328,7 @@ function brandedConfigLink(raw: string, index: number): string {
       const json = JSON.parse(Buffer.from(vmess[1], "base64").toString("utf8"));
       if (json && typeof json === "object") {
         const flag = countryFlag(`${String(json.ps ?? "")} ${String(json.add ?? "")}`);
-        json.ps = `Pulse - ${flag} ${String(index).padStart(2, "0")}`;
+        json.ps = providerConfigLabel(providerCode, flag, index);
         return `vmess://${Buffer.from(JSON.stringify(json), "utf8").toString("base64")}`;
       }
     } catch {
@@ -336,10 +340,10 @@ function brandedConfigLink(raw: string, index: number): string {
   const base = hashAt >= 0 ? value.slice(0, hashAt) : value;
   const oldName = hashAt >= 0 ? safeDecode(value.slice(hashAt + 1)) : "";
   const flag = countryFlag(`${oldName} ${base}`);
-  return `${base}#${encodeURIComponent(`Pulse - ${flag} ${String(index).padStart(2, "0")}`)}`;
+  return `${base}#${encodeURIComponent(providerConfigLabel(providerCode, flag, index))}`;
 }
 
-export function brandSubscriptionBody(body: string): string {
+export function brandSubscriptionBody(body: string, providerCode = "PUL"): string {
   const decoded = decodeSubscriptionBody(body);
   let configIndex = 0;
   const branded = decoded.text
@@ -347,7 +351,7 @@ export function brandSubscriptionBody(body: string): string {
     .map((line) => {
       if (!isClientConfigUri(line.trim())) return line;
       configIndex += 1;
-      return brandedConfigLink(line, configIndex);
+      return brandedConfigLink(line, configIndex, providerCode);
     })
     .join("\n")
     .trim();
@@ -360,7 +364,7 @@ export async function fetchPanelSubscription(
   ownerId?: number,
   role?: string,
 ): Promise<{ body: string; contentType: string } | null> {
-  const feeds: Array<{ text: string; encoded: boolean }> = [];
+  const feeds: Array<{ text: string; encoded: boolean; providerCode: string }> = [];
   let v2rayAccounts = new Map<number, Map<string, string>>();
   let v2rayLookupFailed = false;
   if (Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
@@ -371,8 +375,11 @@ export async function fetchPanelSubscription(
     }
   }
 
-  for (const panel of await panels(ownerId, role)) {
+  const configuredPanels = await panels(ownerId, role);
+  const providerCodes = subscriptionProviderShortCodes(configuredPanels);
+  for (const panel of configuredPanels) {
     const kind = panelKind(panel);
+    const providerCode = providerCodes.get(panelKey(panel)) ?? "VPN";
     const isAzadPanelV2Ray = kind === "azadpanel" && panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
     if (kind === "azadpanel" && !isAzadPanelV2Ray) continue;
     if (isAzadPanelV2Ray && v2rayLookupFailed) continue;
@@ -421,7 +428,7 @@ export async function fetchPanelSubscription(
     for (const rawLink of links) {
       if (isClientConfigUri(rawLink)) {
         if (isAzadPanelV2Ray) fallbackConfigLinks.push(rawLink);
-        else feeds.push({ text: rawLink, encoded: false });
+        else feeds.push({ text: rawLink, encoded: false, providerCode });
         continue;
       }
       try {
@@ -459,7 +466,7 @@ export async function fetchPanelSubscription(
         if (isAzadPanelV2Ray) {
           azadPanelSubscriptionFeeds.push(decoded);
         } else {
-          feeds.push(decoded);
+          feeds.push({ ...decoded, providerCode });
         }
       } catch (error) {
         if (isAzadPanelV2Ray) {
@@ -481,12 +488,15 @@ export async function fetchPanelSubscription(
           providerKey: panelKey(panel),
         });
       }
-      feeds.push(...mergedFeeds);
+      feeds.push(...mergedFeeds.map((feed) => ({ ...feed, providerCode })));
     }
   }
 
   if (!feeds.length) return null;
-  const text = feeds.map((feed) => feed.text).join("\n").trim();
+  const text = feeds
+    .map((feed) => brandSubscriptionBody(feed.text, feed.providerCode))
+    .join("\n")
+    .trim();
   if (!text) return null;
   return {
     body: feeds.every((feed) => feed.encoded)

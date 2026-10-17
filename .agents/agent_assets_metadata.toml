@@ -1584,3 +1584,17 @@ mtime_ms = 1792260096722
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f9e2a27e-aead-4f08-bb84-4f53bcc0e05f/f149fed7-372d-445c-ad3e-eca1cc03fd77"
 storage_version_token = "1792260613286065"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "mKb3G-xR1w69WCuuBh9xB"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T18-18-22-447Z.zip"
+type = "unspecified"
+title = "Hostinger migration ZIP — three-letter Provider labels"
+description = "Prefixes each VPN config name in the combined subscription with a unique three-letter Provider code (such as NEW, WIR, or MAR) so missing Provider contributions are visible. Connection parameters are unchanged."
+logical_id = "d758049a-f901-410c-bd61-55a0f592b5ce"
+content_hash = "sha256:8ec70dfbda50e2ecf08e6cf4f6310453d33f13e1ef180400ef82c45fbfc031b2"
+size = 29044790
+mtime_ms = 1792261220854
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/d758049a-f901-410c-bd61-55a0f592b5ce/3803cb59-a343-4be0-8814-82f3f5947649"
+storage_version_token = "1792261249460702"
+content_type = "application/octet-stream"

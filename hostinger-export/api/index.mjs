@@ -20070,8 +20070,8 @@ var require_dist2 = __commonJS({
       return str.replace(/[.+*?^${}()[\]|/\\]/g, "\\$&");
     }
     var TokenData = class {
-      constructor(tokens, originalPath) {
-        this.tokens = tokens;
+      constructor(tokens2, originalPath) {
+        this.tokens = tokens2;
         this.originalPath = originalPath;
       }
     };
@@ -20180,8 +20180,8 @@ var require_dist2 = __commonJS({
         return path3;
       };
     }
-    function tokensToFunction(tokens, delimiter, encode) {
-      const encoders = tokens.map((token) => tokenToFunction(token, delimiter, encode));
+    function tokensToFunction(tokens2, delimiter, encode) {
+      const encoders = tokens2.map((token) => tokenToFunction(token, delimiter, encode));
       return (data, missing) => {
         let result = "";
         for (const encoder of encoders) {
@@ -20277,13 +20277,13 @@ var require_dist2 = __commonJS({
           return;
         }
         const data = typeof path2 === "object" ? path2 : parse4(path2, options);
-        flatten(data.tokens, 0, [], (tokens) => {
+        flatten(data.tokens, 0, [], (tokens2) => {
           if (combinations >= 256) {
             throw new PathError("Too many path combinations", data.originalPath);
           }
           if (combinations > 0)
             source += "|";
-          source += toRegExpSource(tokens, delimiter, keys, data.originalPath);
+          source += toRegExpSource(tokens2, delimiter, keys, data.originalPath);
           combinations++;
         });
       }
@@ -20294,12 +20294,12 @@ var require_dist2 = __commonJS({
       pattern += end ? "$" : "(?=" + escape2(delimiter) + "|$)";
       return { regexp: new RegExp(pattern, sensitive ? "" : "i"), keys };
     }
-    function flatten(tokens, index, result, callback) {
-      while (index < tokens.length) {
-        const token = tokens[index++];
+    function flatten(tokens2, index, result, callback) {
+      while (index < tokens2.length) {
+        const token = tokens2[index++];
         if (token.type === "group") {
           const len = result.length;
-          flatten(token.tokens, 0, result, (seq) => flatten(tokens, index, seq, callback));
+          flatten(token.tokens, 0, result, (seq) => flatten(tokens2, index, seq, callback));
           result.length = len;
           continue;
         }
@@ -20307,7 +20307,7 @@ var require_dist2 = __commonJS({
       }
       callback(result);
     }
-    function toRegExpSource(tokens, delimiter, keys, originalPath) {
+    function toRegExpSource(tokens2, delimiter, keys, originalPath) {
       let result = "";
       let backtrack = "";
       let wildcardBacktrack = "";
@@ -20315,8 +20315,8 @@ var require_dist2 = __commonJS({
       let hasSegmentCapture = 0;
       let index = 0;
       function hasInSegment(index2, type) {
-        while (index2 < tokens.length) {
-          const token = tokens[index2++];
+        while (index2 < tokens2.length) {
+          const token = tokens2[index2++];
           if (token.type === type)
             return true;
           if (token.type === "text") {
@@ -20328,16 +20328,16 @@ var require_dist2 = __commonJS({
       }
       function peekText(index2) {
         let result2 = "";
-        while (index2 < tokens.length) {
-          const token = tokens[index2++];
+        while (index2 < tokens2.length) {
+          const token = tokens2[index2++];
           if (token.type !== "text")
             break;
           result2 += token.value;
         }
         return result2;
       }
-      while (index < tokens.length) {
-        const token = tokens[index++];
+      while (index < tokens2.length) {
+        const token = tokens2[index++];
         if (token.type === "text") {
           result += escape2(token.value);
           backtrack += token.value;
@@ -20378,10 +20378,10 @@ var require_dist2 = __commonJS({
         return `(?:(?!${escape2(a)})[^${escape2(b)}])`;
       return `[^${escape2(a + b)}]`;
     }
-    function stringifyTokens(tokens, index) {
+    function stringifyTokens(tokens2, index) {
       let value = "";
-      while (index < tokens.length) {
-        const token = tokens[index++];
+      while (index < tokens2.length) {
+        const token = tokens2[index++];
         if (token.type === "text") {
           value += escapeText(token.value);
           continue;
@@ -20391,11 +20391,11 @@ var require_dist2 = __commonJS({
           continue;
         }
         if (token.type === "param") {
-          value += ":" + stringifyName(token.name, tokens[index]);
+          value += ":" + stringifyName(token.name, tokens2[index]);
           continue;
         }
         if (token.type === "wildcard") {
-          value += "*" + stringifyName(token.name, tokens[index]);
+          value += "*" + stringifyName(token.name, tokens2[index]);
           continue;
         }
         throw new TypeError(`Unknown token type: ${token.type}`);
@@ -75453,6 +75453,77 @@ function mergeAzadPanelXraySubscriptionFeeds(subscriptionFeeds, directLinks) {
   return extraLinks.length ? [...subscriptionFeeds, { text: extraLinks.join("\n"), encoded: false }] : subscriptionFeeds;
 }
 
+// src/lib/subscription-provider-labels.ts
+var GENERIC_LABEL_PARTS = /* @__PURE__ */ new Set([
+  "admin",
+  "api",
+  "azad",
+  "azadpanel",
+  "com",
+  "net",
+  "org",
+  "panel",
+  "provider",
+  "www"
+]);
+function tokens(value) {
+  return value.split(/[^a-z0-9]+/i).filter(Boolean);
+}
+function preferredProviderPart(provider) {
+  const key = provider.key?.trim() ?? "";
+  const host = (() => {
+    try {
+      return new URL(provider.api_base ?? "").hostname;
+    } catch {
+      return "";
+    }
+  })();
+  for (const source of [key, host, provider.kind?.trim() ?? ""]) {
+    const part = tokens(source).reverse().find((item) => item.replace(/[^a-z]/gi, "").length >= 3 && !GENERIC_LABEL_PARTS.has(item.toLowerCase()));
+    if (part) return part;
+  }
+  return key || host || provider.kind || "vpn";
+}
+function threeLetterCode(value) {
+  const letters = value.replace(/[^a-z]/gi, "").toUpperCase();
+  return (letters || "VPN").slice(0, 3).padEnd(3, "X");
+}
+function collisionCode(identity, attempt) {
+  let hash = 2166136261;
+  for (const character of `${identity}:${attempt}`) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let code = "";
+  for (let index = 0; index < 3; index += 1) {
+    code += alphabet[hash % alphabet.length];
+    hash = Math.floor(hash / alphabet.length);
+  }
+  return code;
+}
+function subscriptionProviderShortCodes(providers) {
+  const codes = /* @__PURE__ */ new Map();
+  const used = /* @__PURE__ */ new Set();
+  for (const provider of providers) {
+    const identity = provider.key?.trim() || provider.api_base?.trim() || provider.kind?.trim() || "vpn";
+    const preferred = threeLetterCode(preferredProviderPart(provider));
+    let code = preferred;
+    let attempt = 0;
+    while (used.has(code)) {
+      code = collisionCode(identity, attempt);
+      attempt += 1;
+    }
+    used.add(code);
+    codes.set(identity, code);
+  }
+  return codes;
+}
+function providerConfigLabel(providerCode, flag, index) {
+  const code = providerCode.replace(/[^a-z]/gi, "").toUpperCase().slice(0, 3).padEnd(3, "X");
+  return `${code} - ${flag} ${String(index).padStart(2, "0")}`;
+}
+
 // src/lib/rain.ts
 async function readSavedWireGuardProviderUsernames(serviceIds) {
   const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
@@ -75659,7 +75730,7 @@ function countryFlag(value) {
   if (existing) return existing;
   return COUNTRY_FLAGS.find(([pattern]) => pattern.test(value))?.[1] ?? "\u{1F310}";
 }
-function brandedConfigLink(raw, index) {
+function brandedConfigLink(raw, index, providerCode) {
   const value = raw.trim();
   if (!value || value.startsWith("#")) return raw;
   const vmess = value.match(/^vmess:\/\/(.+)$/i);
@@ -75668,7 +75739,7 @@ function brandedConfigLink(raw, index) {
       const json3 = JSON.parse(Buffer.from(vmess[1], "base64").toString("utf8"));
       if (json3 && typeof json3 === "object") {
         const flag2 = countryFlag(`${String(json3.ps ?? "")} ${String(json3.add ?? "")}`);
-        json3.ps = `Pulse - ${flag2} ${String(index).padStart(2, "0")}`;
+        json3.ps = providerConfigLabel(providerCode, flag2, index);
         return `vmess://${Buffer.from(JSON.stringify(json3), "utf8").toString("base64")}`;
       }
     } catch {
@@ -75679,15 +75750,15 @@ function brandedConfigLink(raw, index) {
   const base = hashAt >= 0 ? value.slice(0, hashAt) : value;
   const oldName = hashAt >= 0 ? safeDecode(value.slice(hashAt + 1)) : "";
   const flag = countryFlag(`${oldName} ${base}`);
-  return `${base}#${encodeURIComponent(`Pulse - ${flag} ${String(index).padStart(2, "0")}`)}`;
+  return `${base}#${encodeURIComponent(providerConfigLabel(providerCode, flag, index))}`;
 }
-function brandSubscriptionBody(body) {
+function brandSubscriptionBody(body, providerCode = "PUL") {
   const decoded = decodeSubscriptionBody(body);
   let configIndex = 0;
   const branded = decoded.text.split(/\r?\n/).map((line2) => {
     if (!isClientConfigUri(line2.trim())) return line2;
     configIndex += 1;
-    return brandedConfigLink(line2, configIndex);
+    return brandedConfigLink(line2, configIndex, providerCode);
   }).join("\n").trim();
   return decoded.encoded ? Buffer.from(branded, "utf8").toString("base64") : branded;
 }
@@ -75702,8 +75773,11 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
       v2rayLookupFailed = true;
     }
   }
-  for (const panel of await panels(ownerId, role)) {
+  const configuredPanels = await panels(ownerId, role);
+  const providerCodes = subscriptionProviderShortCodes(configuredPanels);
+  for (const panel of configuredPanels) {
     const kind = panelKind(panel);
+    const providerCode = providerCodes.get(panelKey(panel)) ?? "VPN";
     const isAzadPanelV2Ray = kind === "azadpanel" && panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
     if (kind === "azadpanel" && !isAzadPanelV2Ray) continue;
     if (isAzadPanelV2Ray && v2rayLookupFailed) continue;
@@ -75739,7 +75813,7 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
     for (const rawLink of links) {
       if (isClientConfigUri(rawLink)) {
         if (isAzadPanelV2Ray) fallbackConfigLinks.push(rawLink);
-        else feeds.push({ text: rawLink, encoded: false });
+        else feeds.push({ text: rawLink, encoded: false, providerCode });
         continue;
       }
       try {
@@ -75775,7 +75849,7 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
         if (isAzadPanelV2Ray) {
           azadPanelSubscriptionFeeds.push(decoded);
         } else {
-          feeds.push(decoded);
+          feeds.push({ ...decoded, providerCode });
         }
       } catch (error40) {
         if (isAzadPanelV2Ray) {
@@ -75796,11 +75870,11 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
           providerKey: panelKey(panel)
         });
       }
-      feeds.push(...mergedFeeds);
+      feeds.push(...mergedFeeds.map((feed) => ({ ...feed, providerCode })));
     }
   }
   if (!feeds.length) return null;
-  const text2 = feeds.map((feed) => feed.text).join("\n").trim();
+  const text2 = feeds.map((feed) => brandSubscriptionBody(feed.text, feed.providerCode)).join("\n").trim();
   if (!text2) return null;
   return {
     body: feeds.every((feed) => feed.encoded) ? Buffer.from(text2, "utf8").toString("base64") : text2,
@@ -83982,7 +84056,9 @@ router2.get("/public/subscription/:token/feed", async (req, res) => {
     }
   }
   if (body) {
-    body = brandSubscriptionBody(body);
+    if (feedSource === "legacy") {
+      body = brandSubscriptionBody(body, "LEG");
+    }
     try {
       await pool.query(
         `INSERT INTO subscription_feed_cache (service_id, body_secret, content_type, updated_at)
@@ -84023,7 +84099,6 @@ router2.get("/public/subscription/:token/feed", async (req, res) => {
     res.status(502).send("Subscription provider is unavailable");
     return;
   }
-  body = brandSubscriptionBody(body);
   const requestedFormat = requestedSubscriptionFormat(
     req.get("user-agent") || "",
     typeof req.query.format === "string" ? req.query.format : void 0

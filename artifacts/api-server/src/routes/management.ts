@@ -2617,7 +2617,9 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     }
   }
   if (body) {
-    body = brandSubscriptionBody(body);
+    if (feedSource === "legacy") {
+      body = brandSubscriptionBody(body, "LEG");
+    }
     try {
       await pool.query(
         `INSERT INTO subscription_feed_cache (service_id, body_secret, content_type, updated_at)
@@ -2658,7 +2660,6 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     res.status(502).send("Subscription provider is unavailable");
     return;
   }
-  body = brandSubscriptionBody(body);
   const requestedFormat = requestedSubscriptionFormat(
     req.get("user-agent") || "",
     typeof req.query.format === "string" ? req.query.format : undefined,
