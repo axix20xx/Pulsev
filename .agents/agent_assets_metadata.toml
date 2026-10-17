@@ -1528,3 +1528,17 @@ mtime_ms = 1792256373655
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8f753350-8f29-41e1-a255-dd5fb5f4b36c/7a25926c-08d2-4d7b-b8d4-157a9d61080e"
 storage_version_token = "1792256395735755"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "zZqCy8XoyhuZCOjquioyO"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T17-09-42-011Z.zip"
+type = "unspecified"
+title = "Hostinger ZIP — V2Ray failure status fix"
+description = "Includes the corrected legacy status migration, AzadPanel 403 handling, V2Ray backfill, and Monitoring labels that distinguish failed jobs from scheduled retries."
+logical_id = "dfdcc452-8cd7-498f-bed0-7d3697c3fd01"
+content_hash = "sha256:52923975e8c51fb914cc71d2baf654c90461604d7f24ea8b09464feeb4883b3f"
+size = 29037978
+mtime_ms = 1792257104527
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/dfdcc452-8cd7-498f-bed0-7d3697c3fd01/fc3ecdbc-dae0-40f1-8170-4f6fe79358f1"
+storage_version_token = "1792257169757353"
+content_type = "application/octet-stream"

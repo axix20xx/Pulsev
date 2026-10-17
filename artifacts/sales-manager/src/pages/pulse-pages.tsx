@@ -2170,14 +2170,19 @@ function MonitoringContent() {
       <Toolbar label="فیلتر وضعیت job"><Segment label="وضعیت job" value={jobFilter} onChange={setJobFilter} options={filterOptions.map((option) => ({ value: option.key, label: option.label, count: option.count }))} /></Toolbar>
       {loading && !data.jobs.length ? <SkeletonRows label="در حال دریافت وضعیت" /> : !data.jobs.length ? (error ? <AxEmpty title="فهرست jobها در دسترس نیست" detail="وضعیت صف از سرور دریافت نشد." action={retryButton} /> : <AxEmpty title="صف ساخت خالی است" detail="پس از ثبت سرویس، تلاش‌های Provider و AmneziaWG اینجا پیگیری می‌شوند." />) : !visibleJobs.length ? <AxEmpty title="در این وضعیت jobی نیست" detail="فیلتر دیگری انتخاب کنید." action={<Btn onClick={() => setJobFilter('all')}>نمایش همه</Btn>} /> :
         <DataTable label="صف ساخت سرویس" head={['کاربر و سرویس', 'منبع ساخت', 'وضعیت', 'تلاش / زمان', 'خطای آخر', 'عملیات']}>{visibleJobs.map((job) => {
-          const scheduleTime = job.status === 'completed' ? job.completed_at : job.status === 'running' ? job.lease_expires_at : job.next_attempt_at;
-          const scheduleLabel = job.status === 'completed' ? 'پایان' : job.status === 'running' ? 'پایان مهلت' : 'تلاش بعدی';
+          const schedule = job.status === 'completed'
+            ? { label: 'پایان', time: job.completed_at }
+            : job.status === 'running'
+              ? { label: 'پایان مهلت', time: job.lease_expires_at }
+              : job.status === 'failed'
+                ? { label: 'آخرین بررسی', time: job.updated_at }
+                : { label: 'تلاش بعدی', time: job.next_attempt_at };
           const tone = job.status === 'completed' ? 'good' : job.status === 'failed' ? 'warn' : job.status === 'running' ? 'info' : 'warn';
           return <tr key={job.id} data-testid={`row-monitoring-job-${job.id}`}>
             <td><div className="ax-cell-main"><span><strong>{job.customer_name}</strong><small className="ax-sub" dir="ltr">@{job.username} · #{job.service_id}</small><small className="ax-sub">{job.plan || 'سرویس'}{job.updated_at ? ` · ${dateTimeLabel(job.updated_at)}` : ''}</small></span></div></td>
             <td><bdi dir="ltr">{job.action === 'awg' ? 'AmneziaWG' : job.provider_keys.join(', ') || 'Provider'}</bdi></td>
             <td><Badge tone={tone} dot>{monitoringStatus(job.status)}</Badge></td>
-            <td><span className="ax-num">{number(job.attempts)} تلاش</span><small className="ax-sub">{scheduleLabel}: {scheduleTime ? dateTimeLabel(scheduleTime) : 'ثبت نشده'}</small></td>
+            <td><span className="ax-num">{number(job.attempts)} تلاش</span><small className="ax-sub">{schedule.label}: {schedule.time ? dateTimeLabel(schedule.time) : 'ثبت نشده'}</small></td>
             <td>{job.last_error ? <span className="ax-error-text" dir="auto">{job.last_error}</span> : <span className="ax-sub">بدون خطا</span>}</td>
             <td><div className="ax-cell-actions">{job.status !== 'completed' ? <Btn size="sm" onClick={() => void retryJob(job.id)} disabled={retryingJob === job.id} testId={`button-retry-job-${job.id}`}><RefreshCw size={12} className={retryingJob === job.id ? 'ax-spin' : ''} /> تلاش دوباره</Btn> : <Badge tone="good"><Check size={12} /> پایان‌یافته</Badge>}</div></td>
           </tr>;
