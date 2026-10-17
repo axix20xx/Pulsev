@@ -3780,7 +3780,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
       return `${numberFa(queued)} سرویس فعال و واجد شرایط برای ساخت حساب V2Ray به‌صورت مرحله‌ای به صف افزوده شد.`;
     }
     return backfill.alreadyQueued
-      ? 'سرویس واجد شرایط جدیدی برای صف پیدا نشد؛ خطاهای قبلی را در مانیتورینگ سرویس بررسی کنید.'
+      ? 'سرویس فعالِ واجد شرایط و بدون نگاشت جدیدی پیدا نشد؛ خطاهای قبلی را در مانیتورینگ سرویس بررسی کنید.'
       : 'سرویس فعال و واجد شرایطی برای ساخت حساب V2Ray در صف پیدا نشد.';
   };
   const save = async (panel: any) => {
@@ -3912,7 +3912,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
                   <option value="azadpanel_wireguard">AzadPanel · WireGuard</option>
                   <option value="azadpanel_ipsec">AzadPanel · IPsec / IKEv2</option>
                 </select>
-            {panel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف از credential مستقل نمایندگی Xray استفاده می‌کند؛ فید آن خودکار به اشتراک V2Ray اضافه می‌شود. با فعال‌سازی، سرویس‌های موجود واجد شرایط نیز یک‌بار وارد صف می‌شوند.</small>}
+                {panel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف از credential مستقل نمایندگی Xray استفاده می‌کند؛ با ذخیره، سرویس‌های فعالِ واجد شرایطی که نگاشت V2Ray ندارند به‌صورت مرحله‌ای صف می‌شوند. حساب‌های موجود تغییر نمی‌کنند.</small>}
                 {panel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از اعتبارنامهٔ مستقل هستهٔ WireGuard استفاده کند.</small>}
                 {panel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از credential مستقل هستهٔ IPsec استفاده کند.</small>}
               </label>

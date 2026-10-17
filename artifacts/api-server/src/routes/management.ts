@@ -1083,11 +1083,9 @@ async function queueAzadPanelV2RayBackfill(
           )
           AND NOT EXISTS (
             SELECT 1
-            FROM service_provision_jobs backfill_job
-            WHERE backfill_job.service_id = svc.id
-              AND backfill_job.action = 'providers'
-              AND backfill_job.payload->>'azadPanelV2RayBackfill' = 'true'
-              AND backfill_job.provider_keys @> jsonb_build_array($1::text)
+            FROM reseller_service_v2ray_accounts mapped_account
+            WHERE mapped_account.service_id = svc.id
+              AND mapped_account.provider_key = $1
          )
      ),
       inserted_jobs AS (

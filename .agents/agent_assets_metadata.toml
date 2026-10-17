@@ -1612,3 +1612,17 @@ mtime_ms = 1792262026387
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3ca52a9a-e676-4e3a-be86-57a6a8c97419/1e438d77-cd98-42ef-8e41-3b9ea9343fff"
 storage_version_token = "1792262072985627"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "cWGj6rQWmYyQI8b_gSIxN"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T19-02-47-079Z.zip"
+type = "unspecified"
+title = "Hostinger migration ZIP — retry missing AzadPanel V2Ray mappings"
+description = "Enables a safe one-time retry for eligible active services missing a saved V2Ray mapping. Previously failed backfill jobs are no longer skipped; mapped services and in-progress jobs are excluded. Existing AzadPanel users, quotas, and usage are not modified."
+logical_id = "b4efb141-3375-4eb2-a75c-90c03303a28d"
+content_hash = "sha256:45be1d4a3ff89f8edcb094eb1c37f1752259506657c246d4c9b6549019cd0e5e"
+size = 29046586
+mtime_ms = 1792263887973
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b4efb141-3375-4eb2-a75c-90c03303a28d/db7d883e-600d-4334-9a30-e99a70b2f305"
+storage_version_token = "1792263927495455"
+content_type = "application/octet-stream"
