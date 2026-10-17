@@ -9,6 +9,7 @@ import {
   azadPanelXraySubscriptionPath,
   isAzadPanelCoreCandidate,
   isStandardServiceProvisioningPanel,
+  mergeAzadPanelXraySubscriptionFeeds,
 } from "./panel-protocol-policy";
 
 type Panel = {
@@ -416,7 +417,7 @@ export async function fetchPanelSubscription(
     }
 
     const fallbackConfigLinks: string[] = [];
-    let azadPanelFeedLoaded = false;
+    const azadPanelSubscriptionFeeds: Array<{ text: string; encoded: boolean }> = [];
     for (const rawLink of links) {
       if (isClientConfigUri(rawLink)) {
         if (isAzadPanelV2Ray) fallbackConfigLinks.push(rawLink);
@@ -455,10 +456,10 @@ export async function fetchPanelSubscription(
         } else if (!body.trim()) {
           continue;
         }
-        feeds.push(decoded);
         if (isAzadPanelV2Ray) {
-          azadPanelFeedLoaded = true;
-          break;
+          azadPanelSubscriptionFeeds.push(decoded);
+        } else {
+          feeds.push(decoded);
         }
       } catch (error) {
         if (isAzadPanelV2Ray) {
@@ -470,10 +471,17 @@ export async function fetchPanelSubscription(
         // Try the next link or Provider.
       }
     }
-    if (isAzadPanelV2Ray && !azadPanelFeedLoaded) {
-      for (const rawLink of fallbackConfigLinks) {
-        feeds.push({ text: rawLink, encoded: false });
+    if (isAzadPanelV2Ray) {
+      const mergedFeeds = mergeAzadPanelXraySubscriptionFeeds(
+        azadPanelSubscriptionFeeds,
+        fallbackConfigLinks,
+      );
+      if (!mergedFeeds.length) {
+        console.warn("[subscription] AzadPanel V2Ray returned no usable subscription configs", {
+          providerKey: panelKey(panel),
+        });
       }
+      feeds.push(...mergedFeeds);
     }
   }
 

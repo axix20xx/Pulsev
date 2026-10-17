@@ -17,6 +17,7 @@ const {
   azadPanelXraySubscriptionPath,
   isAzadPanelCoreCandidate,
   isStandardServiceProvisioningPanel,
+  mergeAzadPanelXraySubscriptionFeeds,
 } =
   await import(`data:text/javascript;base64,${code}`);
 
@@ -61,5 +62,35 @@ test("AzadPanel Xray prefers its dynamic subscription URL and falls back to retu
   assert.deepEqual(
     azadPanelXraySubscriptionLinks({ data: { links: ["vless://one", "vless://one", "vmess://two"] } }),
     ["vless://one", "vmess://two"],
+  );
+  assert.deepEqual(
+    azadPanelXraySubscriptionLinks({
+      subscription_url: "https://azad.example/sub/public-token",
+      links: ["vless://direct-node"],
+    }),
+    ["https://azad.example/sub/public-token", "vless://direct-node"],
+  );
+});
+
+test("AzadPanel Xray merges direct VLESS/SS links with the live feed without duplicates", () => {
+  const liveLink = "vless://uuid@live.example:443?type=tcp#Live";
+  const extraVless = "vless://uuid@extra.example:8443?type=tcp#Extra";
+  const extraShadowsocks = "ss://cipher:password@ss.example:9443#SS";
+  const merged = mergeAzadPanelXraySubscriptionFeeds(
+    [{ text: `${liveLink}\n`, encoded: true }],
+    [liveLink, extraVless, extraShadowsocks, extraVless],
+  );
+
+  assert.deepEqual(merged, [
+    { text: `${liveLink}\n`, encoded: true },
+    { text: `${extraVless}\n${extraShadowsocks}`, encoded: false },
+  ]);
+});
+
+test("AzadPanel Xray includes direct links when the dynamic subscription is unavailable", () => {
+  const directLink = "vless://uuid@node.example:443?security=reality#Node";
+  assert.deepEqual(
+    mergeAzadPanelXraySubscriptionFeeds([], [directLink]),
+    [{ text: directLink, encoded: false }],
   );
 });

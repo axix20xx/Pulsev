@@ -33,11 +33,11 @@ Clash-family clients must receive generated Mihomo YAML, while URI clients must 
 
 **How to apply:** Detect Clash/Mihomo/Stash User-Agents or an explicit `format=clash`, convert supported VLESS/VMess/Trojan/Shadowsocks links to YAML, and return a `.yaml` content disposition without changing the cached source feed.
 
-For AzadPanel Xray, treat its dynamic `subscription_url` as primary but preserve the returned individual config links as a fallback when that URL fails or contains no recognizable configs. Resolve root-relative subscription paths from the panel origin, not by appending them below an API path. Keep diagnostics safe: log provider key and status/error type, never subscription URLs, tokens, or config payloads.
+For AzadPanel Xray, merge the dynamic `subscription_url` feed with the individual config links returned by the API, even when the dynamic feed is valid. Deduplicate overlapping configs by their URI without the display-name fragment. Resolve root-relative subscription paths from the panel origin, not by appending them below an API path. Keep diagnostics safe: log provider key and status/error type, never subscription URLs, tokens, or config payloads.
 
-**Why:** The link endpoint can return both forms; discarding the individual links makes a successfully created account invisible whenever the dynamic feed is empty or unreachable.
+**Why:** The link endpoint can return a valid dynamic feed that contains fewer nodes than its individual `links` array. Treating that feed as a complete replacement hides those extra VLESS/SS nodes from the combined customer feed.
 
-**How to apply:** Fetch the dynamic feed first, require at least one supported config URI before accepting it, then append the returned individual links only if the dynamic feed did not yield configs.
+**How to apply:** Fetch the absolute or root-relative `/sub/<token>` URL, require at least one supported config URI, then append every non-duplicate URI from the API `links` array. If the dynamic feed fails, use the direct links by themselves.
 
 When detecting the one-link response mode, treat recognizable browser User-Agents as browser requests even if their `Accept` header is `*/*`; only known VPN client signatures should override that.
 

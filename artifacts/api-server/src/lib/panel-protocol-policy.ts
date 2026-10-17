@@ -50,3 +50,38 @@ export function azadPanelXraySubscriptionLinks(payload: unknown): string[] {
       : []),
   ])];
 }
+
+export type AzadPanelXrayFeed = { text: string; encoded: boolean };
+
+function configIdentity(value: string): string | null {
+  const line = value.trim();
+  if (!/^(?:vless|vmess|trojan|ss|ssr|hysteria|hysteria2|tuic|socks(?:4|5)?):\/\//i.test(line)) {
+    return null;
+  }
+  return line.split("#", 1)[0].trim();
+}
+
+export function mergeAzadPanelXraySubscriptionFeeds(
+  subscriptionFeeds: AzadPanelXrayFeed[],
+  directLinks: string[],
+): AzadPanelXrayFeed[] {
+  const seen = new Set<string>();
+  for (const feed of subscriptionFeeds) {
+    for (const line of feed.text.split(/\r?\n/)) {
+      const identity = configIdentity(line);
+      if (identity) seen.add(identity);
+    }
+  }
+
+  const extraLinks: string[] = [];
+  for (const link of directLinks) {
+    const identity = configIdentity(link);
+    if (!identity || seen.has(identity)) continue;
+    seen.add(identity);
+    extraLinks.push(link.trim());
+  }
+
+  return extraLinks.length
+    ? [...subscriptionFeeds, { text: extraLinks.join("\n"), encoded: false }]
+    : subscriptionFeeds;
+}

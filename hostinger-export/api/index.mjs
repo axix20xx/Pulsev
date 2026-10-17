@@ -75428,6 +75428,30 @@ function azadPanelXraySubscriptionLinks(payload) {
     ...Array.isArray(links) ? links.filter((link) => typeof link === "string" && link.trim().length > 0).map((link) => link.trim()) : []
   ])];
 }
+function configIdentity(value) {
+  const line2 = value.trim();
+  if (!/^(?:vless|vmess|trojan|ss|ssr|hysteria|hysteria2|tuic|socks(?:4|5)?):\/\//i.test(line2)) {
+    return null;
+  }
+  return line2.split("#", 1)[0].trim();
+}
+function mergeAzadPanelXraySubscriptionFeeds(subscriptionFeeds, directLinks) {
+  const seen = /* @__PURE__ */ new Set();
+  for (const feed of subscriptionFeeds) {
+    for (const line2 of feed.text.split(/\r?\n/)) {
+      const identity = configIdentity(line2);
+      if (identity) seen.add(identity);
+    }
+  }
+  const extraLinks = [];
+  for (const link of directLinks) {
+    const identity = configIdentity(link);
+    if (!identity || seen.has(identity)) continue;
+    seen.add(identity);
+    extraLinks.push(link.trim());
+  }
+  return extraLinks.length ? [...subscriptionFeeds, { text: extraLinks.join("\n"), encoded: false }] : subscriptionFeeds;
+}
 
 // src/lib/rain.ts
 async function readSavedWireGuardProviderUsernames(serviceIds) {
@@ -75711,7 +75735,7 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
       }
     }
     const fallbackConfigLinks = [];
-    let azadPanelFeedLoaded = false;
+    const azadPanelSubscriptionFeeds = [];
     for (const rawLink of links) {
       if (isClientConfigUri(rawLink)) {
         if (isAzadPanelV2Ray) fallbackConfigLinks.push(rawLink);
@@ -75748,10 +75772,10 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
         } else if (!body.trim()) {
           continue;
         }
-        feeds.push(decoded);
         if (isAzadPanelV2Ray) {
-          azadPanelFeedLoaded = true;
-          break;
+          azadPanelSubscriptionFeeds.push(decoded);
+        } else {
+          feeds.push(decoded);
         }
       } catch (error40) {
         if (isAzadPanelV2Ray) {
@@ -75762,10 +75786,17 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
         }
       }
     }
-    if (isAzadPanelV2Ray && !azadPanelFeedLoaded) {
-      for (const rawLink of fallbackConfigLinks) {
-        feeds.push({ text: rawLink, encoded: false });
+    if (isAzadPanelV2Ray) {
+      const mergedFeeds = mergeAzadPanelXraySubscriptionFeeds(
+        azadPanelSubscriptionFeeds,
+        fallbackConfigLinks
+      );
+      if (!mergedFeeds.length) {
+        console.warn("[subscription] AzadPanel V2Ray returned no usable subscription configs", {
+          providerKey: panelKey(panel)
+        });
       }
+      feeds.push(...mergedFeeds);
     }
   }
   if (!feeds.length) return null;
