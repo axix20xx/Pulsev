@@ -1542,3 +1542,17 @@ mtime_ms = 1792257104527
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/dfdcc452-8cd7-498f-bed0-7d3697c3fd01/fc3ecdbc-dae0-40f1-8170-4f6fe79358f1"
 storage_version_token = "1792257169757353"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Ud3lk2o4n-m5esZLrRKX-"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T17-33-27-166Z.zip"
+type = "unspecified"
+title = "Hostinger full migration ZIP — V2Ray 403 recovery"
+description = "Includes the AzadPanel V2Ray-only username fallback, persisted provider mapping, and updates to provisioning, renewal, usage, disabling, audit, and subscription feeds."
+logical_id = "2bb80771-1d37-44b1-8e7c-6cdcdf71b05b"
+content_hash = "sha256:b504a142fd6fd8ee08ced09f5158a4be2fd3ae2e3045c74cec67899e9a89c4a4"
+size = 29040892
+mtime_ms = 1792258537542
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2bb80771-1d37-44b1-8e7c-6cdcdf71b05b/ba8bd9a7-9cf2-4824-b865-c0d2c1af1ab5"
+storage_version_token = "1792258589904826"
+content_type = "application/octet-stream"

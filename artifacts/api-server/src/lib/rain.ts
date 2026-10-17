@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { decryptPanelCredential } from "./panel-credentials";
 import { isRetryableAzadPanelStatus } from "./azadpanel-retry-policy";
+import { azadPanelV2RayCollisionUsername } from "./azadpanel-v2ray-username";
 import {
   azadPanelExpectedCore,
   azadPanelXraySubscriptionLinks,
@@ -88,6 +89,34 @@ export async function readSavedIpsecProviderUsernames(
       ? row.provider_username.trim()
       : null;
     accounts.set(serviceId, { providerKey, username });
+  }
+  return accounts;
+}
+
+export async function readSavedAzadPanelV2RayUsernames(
+  serviceIds: number[],
+): Promise<Map<number, Map<string, string>>> {
+  const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const accounts = new Map<number, Map<string, string>>();
+  if (!ids.length) return accounts;
+  const result = await pool.query<{
+    service_id: number | string;
+    provider_key: string;
+    provider_username: string;
+  }>(
+    `SELECT service_id, provider_key, provider_username
+     FROM reseller_service_v2ray_accounts
+     WHERE service_id = ANY($1::bigint[])`,
+    [ids],
+  );
+  for (const row of result.rows) {
+    const serviceId = Number(row.service_id);
+    const providerKey = String(row.provider_key ?? "").trim();
+    const username = String(row.provider_username ?? "").trim();
+    if (!providerKey || !username) continue;
+    const perProvider = accounts.get(serviceId) ?? new Map<string, string>();
+    perProvider.set(providerKey, username);
+    accounts.set(serviceId, perProvider);
   }
   return accounts;
 }
@@ -320,18 +349,32 @@ export function brandSubscriptionBody(body: string): string {
 
 export async function fetchPanelSubscription(
   username: string,
+  serviceId?: number,
   ownerId?: number,
   role?: string,
 ): Promise<{ body: string; contentType: string } | null> {
   const feeds: Array<{ text: string; encoded: boolean }> = [];
-  const encodedUsername = encodeURIComponent(username);
+  let v2rayAccounts = new Map<number, Map<string, string>>();
+  let v2rayLookupFailed = false;
+  if (Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
+    try {
+      v2rayAccounts = await readSavedAzadPanelV2RayUsernames([Number(serviceId)]);
+    } catch {
+      v2rayLookupFailed = true;
+    }
+  }
 
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
     const isAzadPanelV2Ray = kind === "azadpanel" && panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
     if (kind === "azadpanel" && !isAzadPanelV2Ray) continue;
+    if (isAzadPanelV2Ray && v2rayLookupFailed) continue;
+    const panelUsername = isAzadPanelV2Ray && Number.isSafeInteger(serviceId)
+      ? v2rayAccounts.get(Number(serviceId))?.get(panelKey(panel)) ?? username
+      : username;
+    const encodedUsername = encodeURIComponent(panelUsername);
     const paths = isAzadPanelV2Ray
-      ? [azadPanelXraySubscriptionPath(username)]
+      ? [azadPanelXraySubscriptionPath(panelUsername)]
       : kind === "rain_admin"
         ? [`/api/users/${encodedUsername}`, `/api/user/${encodedUsername}`]
         : kind === "falcon"
@@ -837,6 +880,8 @@ export async function readPanelUsages(
   let wireGuardLookupFailed = false;
   let ipsecAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
   let ipsecLookupFailed = false;
+  let v2rayAccounts = new Map<number, Map<string, string>>();
+  let v2rayLookupFailed = false;
   try {
     wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
   } catch {
@@ -846,6 +891,11 @@ export async function readPanelUsages(
     ipsecAccounts = await readSavedIpsecProviderUsernames([serviceId]);
   } catch {
     ipsecLookupFailed = true;
+  }
+  try {
+    v2rayAccounts = await readSavedAzadPanelV2RayUsernames([serviceId]);
+  } catch {
+    v2rayLookupFailed = true;
   }
   const safePanelRequest = async (panel: Panel, method: string, path: string): Promise<{ status: number; json: any; text: string } | null> => {
     try {
@@ -857,7 +907,22 @@ export async function readPanelUsages(
   for (const panel of configuredPanels) {
     const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
     const ipsecPanel = panel.kind?.trim().toLowerCase() === "azadpanel_ipsec";
+    const v2rayPanel = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
     let requestUsername = username;
+    if (v2rayPanel) {
+      if (v2rayLookupFailed) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: "",
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true,
+        });
+        continue;
+      }
+      requestUsername = v2rayAccounts.get(serviceId)?.get(panelKey(panel)) ?? username;
+    }
     if (wireGuardPanel) {
       if (!wireGuardLookupFailed && !wireGuardAccounts.has(serviceId)) continue;
       const savedAccount = wireGuardAccounts.get(serviceId);
@@ -1092,6 +1157,8 @@ export async function disablePanelUser(
   let wireGuardLookupFailed = false;
   let ipsecAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
   let ipsecLookupFailed = false;
+  let v2rayAccounts = new Map<number, Map<string, string>>();
+  let v2rayLookupFailed = false;
   try {
     wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
   } catch {
@@ -1101,6 +1168,11 @@ export async function disablePanelUser(
     ipsecAccounts = await readSavedIpsecProviderUsernames([serviceId]);
   } catch {
     ipsecLookupFailed = true;
+  }
+  try {
+    v2rayAccounts = await readSavedAzadPanelV2RayUsernames([serviceId]);
+  } catch {
+    v2rayLookupFailed = true;
   }
   const savedWireGuardAccount = wireGuardAccounts.get(serviceId);
   const wireGuardAccountUnresolved = wireGuardLookupFailed
@@ -1126,9 +1198,18 @@ export async function disablePanelUser(
       )
     ));
   if (ipsecAccountUnresolved) attempted += 1;
+  if (v2rayLookupFailed) {
+    attempted += configuredPanels.filter(
+      (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_v2ray",
+    ).length;
+  }
   for (const panel of configuredPanels) {
     const kind = panelKind(panel);
     let providerUsername = username;
+    if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {
+      if (v2rayLookupFailed) continue;
+      providerUsername = v2rayAccounts.get(serviceId)?.get(panelKey(panel)) ?? username;
+    }
     if (panel.kind?.trim().toLowerCase() === "azadpanel_wireguard") {
       if (wireGuardAccountUnresolved || !savedWireGuardAccount || savedWireGuardAccount.providerKey !== panelKey(panel)) continue;
       if (!savedWireGuardAccount.username) continue;
@@ -1165,6 +1246,7 @@ export async function disablePanelUser(
 }
 
 export type ProviderAccountAuditService = {
+  serviceId: number;
   username: string;
   falcoConfigId: number | null;
   expiresAt: string;
@@ -1305,11 +1387,33 @@ export async function scanProviderAccountsForService(
   const configured = await panels();
   const matches: ProviderAccountAuditMatch[] = [];
   const issues: ProviderAccountAuditIssue[] = [];
+  let v2rayAccounts = new Map<number, Map<string, string>>();
+  let v2rayLookupFailed = false;
+  try {
+    v2rayAccounts = await readSavedAzadPanelV2RayUsernames([service.serviceId]);
+  } catch {
+    v2rayLookupFailed = true;
+  }
   for (const panel of configured) {
     const key = panelKey(panel);
     const kind = panelKind(panel);
+    const isV2ray = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
+    if (isV2ray && v2rayLookupFailed) {
+      issues.push({
+        providerKey: key,
+        providerKind: kind,
+        message: "شناسهٔ کاربر اختصاصی V2Ray در پایگاه داده خوانده نشد؛ هیچ اصلاحی انجام نشد.",
+      });
+      continue;
+    }
+    const providerService = isV2ray
+      ? {
+          ...service,
+          username: v2rayAccounts.get(service.serviceId)?.get(key) ?? service.username,
+        }
+      : service;
     try {
-      const account = await inspectProviderAccount(panel, service);
+      const account = await inspectProviderAccount(panel, providerService);
       if (
         account.found &&
         isProviderAccountDisabled(account.status) &&
@@ -1345,7 +1449,15 @@ export async function reactivateProviderAccountStatus(
   const panel = (await panels()).find((candidate) => panelKey(candidate) === providerKey);
   if (!panel) throw new RainApiError("Provider is not enabled or has no configured credentials.");
 
-  const account = await inspectProviderAccount(panel, service);
+  let providerService = service;
+  if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {
+    const accounts = await readSavedAzadPanelV2RayUsernames([service.serviceId]);
+    providerService = {
+      ...service,
+      username: accounts.get(service.serviceId)?.get(providerKey) ?? service.username,
+    };
+  }
+  const account = await inspectProviderAccount(panel, providerService);
   if (!account.found) throw new RainApiError("Provider account was not found.");
   if (
     !isProviderAccountDisabled(account.status) ||
@@ -1360,7 +1472,7 @@ export async function reactivateProviderAccountStatus(
   }
 
   const kind = panelKind(panel);
-  const path = providerAccountPath(panel, service.username, service.falcoConfigId);
+  const path = providerAccountPath(panel, providerService.username, service.falcoConfigId);
   if (!path) throw new RainApiError("Provider account cannot be safely identified.");
   const candidates: Array<[string, string]> = kind === "falcon"
     ? [["PATCH", path]]
@@ -1482,6 +1594,7 @@ async function provisionAzadPanel(
     resetUsage?: boolean;
     expiresAtUnix?: number | null;
     onlyIfMissingAzadPanel?: boolean;
+    serviceId?: number;
   },
 ): Promise<number> {
   const core = await azadPanelCore(panel);
@@ -1489,18 +1602,66 @@ async function provisionAzadPanel(
   if (core !== expectedCore) {
     throw new RainApiError(`AzadPanel ${panelKey(panel)} is configured for ${core}, not ${expectedCore}.`);
   }
-  const encoded = encodeURIComponent(username);
-  const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
-  if (options.onlyIfMissingAzadPanel && existing.status === 200) return existing.status;
+  const isAzadPanelV2Ray = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
+  const serviceId = options.serviceId;
+  let providerUsername = username;
+  if (isAzadPanelV2Ray && Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
+    const saved = await pool.query<{ provider_username: string }>(
+      `SELECT provider_username
+       FROM reseller_service_v2ray_accounts
+       WHERE service_id = $1 AND provider_key = $2`,
+      [serviceId, panelKey(panel)],
+    );
+    if (saved.rows[0]?.provider_username?.trim()) {
+      providerUsername = saved.rows[0].provider_username.trim();
+    }
+  }
+  let encoded = encodeURIComponent(providerUsername);
+  let existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (
+    isAzadPanelV2Ray
+    && providerUsername === username
+    && existing.status === 403
+  ) {
+    const collisionUsername = azadPanelV2RayCollisionUsername(Number(serviceId));
+    if (collisionUsername) {
+      providerUsername = collisionUsername;
+      encoded = encodeURIComponent(providerUsername);
+      existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+    }
+  }
+  const persistProviderUsername = async () => {
+    if (
+      isAzadPanelV2Ray
+      && Number.isSafeInteger(serviceId)
+      && Number(serviceId) > 0
+      && providerUsername !== username
+    ) {
+      await pool.query(
+        `INSERT INTO reseller_service_v2ray_accounts
+           (service_id, provider_key, provider_username)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (service_id, provider_key)
+         DO UPDATE SET provider_username = EXCLUDED.provider_username,
+                       updated_at = NOW()`,
+        [serviceId, panelKey(panel), providerUsername],
+      );
+    }
+  };
+  if (options.onlyIfMissingAzadPanel && existing.status === 200) {
+    await persistProviderUsername();
+    return existing.status;
+  }
   if (existing.status !== 200 && existing.status !== 404) {
     const retryable = isRetryableAzadPanelStatus(existing.status);
+    const error = `GET /api/user/${encoded}: ${safeError(existing)}`;
     throw new RainApiError(
-      `AzadPanel ${panelKey(panel)} could not check the user: ${safeError(existing)}`,
+      `AzadPanel ${panelKey(panel)} could not check the user: ${error}`,
       [{
         key: panelKey(panel),
         kind: "azadpanel",
         status: existing.status,
-        error: safeError(existing),
+        error,
         retryable,
         retryAfterMs: retryAfterDelayMs(existing),
       }],
@@ -1519,25 +1680,30 @@ async function provisionAzadPanel(
         data_limit: bytesForGb(gb),
         data_limit_reset_strategy: "no_reset",
       }
-    : azadPanelUserBody(username, gb, expiresAt);
+    : azadPanelUserBody(providerUsername, gb, expiresAt);
   const response = existing.status === 200
     ? await panelRequest(panel, "PUT", `/api/user/${encoded}`, body)
     : await panelRequest(panel, "POST", "/api/user", body);
   if (response.status < 200 || response.status >= 300) {
     const retryable = isRetryableAzadPanelStatus(response.status);
+    const operation = existing.status === 200
+      ? `PUT /api/user/${encoded}`
+      : "POST /api/user";
+    const error = `${operation}: ${safeError(response)}`;
     throw new RainApiError(
-      `AzadPanel ${panelKey(panel)} rejected the user: ${safeError(response)}`,
+      `AzadPanel ${panelKey(panel)} rejected the user: ${error}`,
       [{
         key: panelKey(panel),
         kind: "azadpanel",
         status: response.status,
-        error: safeError(response),
+        error,
         retryable,
         retryAfterMs: retryAfterDelayMs(response),
       }],
       retryable,
     );
   }
+  await persistProviderUsername();
   if (options.resetUsage && existing.status === 200) {
     const reset = await panelRequest(panel, "POST", `/api/user/${encoded}/reset`);
     if (reset.status < 200 || reset.status >= 300) {
@@ -1621,6 +1787,7 @@ export async function provisionUser(
     resetUsage?: boolean;
     expiresAtUnix?: number | null;
     onlyIfMissingAzadPanel?: boolean;
+    serviceId?: number;
   },
 ): Promise<{ ok: boolean; results: PanelResult[] }> {
   const configured = await panels(ownerId, role);

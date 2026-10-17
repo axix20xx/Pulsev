@@ -80,6 +80,7 @@ import {
   listAvailablePanels,
   listPasarguardConnectionUsers,
   readSavedWireGuardProviderUsernames,
+  readSavedAzadPanelV2RayUsernames,
   readSavedIpsecProviderUsernames,
   prepareIpsecAccount,
   renewIpsecAccount,
@@ -912,6 +913,14 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
        ALTER TABLE reseller_service_ipsec_accounts
          ADD COLUMN IF NOT EXISTS provider_key TEXT,
          ADD COLUMN IF NOT EXISTS provider_username TEXT;
+       CREATE TABLE IF NOT EXISTS reseller_service_v2ray_accounts (
+         service_id BIGINT NOT NULL,
+         provider_key TEXT NOT NULL,
+         provider_username TEXT NOT NULL,
+         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+         updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+         PRIMARY KEY (service_id, provider_key)
+       );
       CREATE TABLE IF NOT EXISTS reseller_notifications (
         id BIGSERIAL PRIMARY KEY,
         reseller_tg_id BIGINT NOT NULL,
@@ -2582,7 +2591,10 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
   let body: string | null = null;
   let upstreamContentType: string | null = null;
   let feedSource = "provider";
-  const panelFeed = await fetchPanelSubscription(String(row.username ?? ""));
+  const panelFeed = await fetchPanelSubscription(
+    String(row.username ?? ""),
+    Number(row.id),
+  );
   if (panelFeed) {
     body = panelFeed.body;
     upstreamContentType = panelFeed.contentType;
@@ -4790,6 +4802,7 @@ router.post("/admin/provider-account-audit/scan", requireMasterAdmin, async (req
   const serviceId = Number(service.id);
   const expiresAt = new Date(service.expires_at);
   const audit = await scanProviderAccountsForService({
+    serviceId,
     username: service.username,
     falcoConfigId: service.falco_config_id === null ? null : Number(service.falco_config_id),
     expiresAt: expiresAt.toISOString(),
@@ -4885,6 +4898,7 @@ router.post("/admin/provider-account-audit/repair", requireMasterAdmin, async (r
     }
     try {
       const repaired = await reactivateProviderAccountStatus({
+        serviceId,
         username: current.username,
         falcoConfigId: current.falco_config_id === null ? null : Number(current.falco_config_id),
         expiresAt: expiresAt.toISOString(),
@@ -4970,6 +4984,9 @@ async function loadServicePanelUsageMap(
       LEFT JOIN reseller_service_ipsec_accounts ipsec_account
         ON ipsec_account.service_id = requested.service_id
        AND ipsec_account.provider_key = panel.key
+       LEFT JOIN reseller_service_v2ray_accounts v2ray_account
+         ON v2ray_account.service_id = requested.service_id
+        AND v2ray_account.provider_key = panel.key
      LEFT JOIN LATERAL (
        SELECT saved.upload, saved.download, saved.offset_bytes, saved.last_updated
        FROM user_panel_usages saved
@@ -4977,6 +4994,7 @@ async function loadServicePanelUsageMap(
          AND saved.username = CASE
            WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN requested.wireguard_username
             WHEN LOWER(panel.kind) = 'azadpanel_ipsec' THEN ipsec_account.provider_username
+            WHEN LOWER(panel.kind) = 'azadpanel_v2ray' THEN COALESCE(v2ray_account.provider_username, requested.username)
            ELSE requested.username
          END
        ORDER BY saved.id DESC
@@ -5249,6 +5267,8 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
         body.data.label,
         ownerId,
         req.auth?.role,
+        undefined,
+        { serviceId },
       );
       const failedProviders = provisioning.results.some(
         (result) => result.status < 200 || result.status >= 300,
@@ -5835,7 +5855,7 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       Number(current.reseller_tg_id),
       req.auth?.role,
       undefined,
-      { resetUsage: true },
+      { resetUsage: true, serviceId: Number(params.data.id) },
     );
     const failed = provisioning.results
       .filter((result) => result.status < 200 || result.status >= 300)

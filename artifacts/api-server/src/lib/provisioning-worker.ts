@@ -283,6 +283,7 @@ async function processProviderJob(job: ProvisionJob) {
       job.provider_keys,
       {
         resetUsage: payload.resetUsage === true,
+        serviceId: job.service_id,
         expiresAtUnix: payload.expiresAtUnix === null
           ? null
           : Number.isFinite(Number(payload.expiresAtUnix))
