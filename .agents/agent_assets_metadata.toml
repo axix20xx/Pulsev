@@ -1318,3 +1318,17 @@ mtime_ms = 1792234755514
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/21b101f8-64a7-4677-aa64-5fd9cb1c080b/658d3c1c-2183-41d3-ab86-3db77933a365"
 storage_version_token = "1792234836279154"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "j6x3AfieEmjoCqoeGF5fA"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T11-15-53-808Z.zip"
+type = "unspecified"
+title = "Hostinger ZIP — mobile usage card fix"
+description = "Full Pulse Hostinger migration ZIP with the mobile service-usage cards widened, aligned, and restyled to match the existing theme. Release and ZIP checks passed."
+logical_id = "333d5691-44f6-40c1-84cc-77708ab78431"
+content_hash = "sha256:96dbec1e3f457f53fb1616e3a34e4bed7cb8e842e330d0126bdaccc4019e777b"
+size = 28778904
+mtime_ms = 1792235870703
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/333d5691-44f6-40c1-84cc-77708ab78431/2c6d10bf-d7ec-4d85-915e-ef8bdd89b123"
+storage_version_token = "1792235937082650"
+content_type = "application/octet-stream"

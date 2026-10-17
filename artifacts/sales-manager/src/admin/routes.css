@@ -765,4 +765,81 @@
   .ax-root [data-surface="services"] .ax-cell-actions { width: 100%; }
   .ax-root [data-surface="customer-detail"] .ax-cell-actions .ax-btn,
   .ax-root [data-surface="services"] .ax-cell-actions .ax-btn { flex: 1 1 132px; }
+  .ax-root [data-surface="customer-detail"] .ax-customer-service-usage-cell {
+    display: block !important;
+    width: 100%;
+    text-align: start;
+  }
+  .ax-root [data-surface="customer-detail"] .ax-customer-service-usage-cell[data-label]::before {
+    display: block;
+    max-width: 100%;
+    margin-bottom: 8px;
+    text-align: start;
+  }
+  .ax-root [data-surface="customer-detail"] .ax-customer-service-usage-details,
+  .ax-root [data-surface="customer-detail"] .ax-customer-service-usage-details > summary,
+  .ax-root [data-surface="customer-detail"] .ax-usage-breakdown,
+  .ax-root [data-surface="customer-detail"] .ax-usage-breakdown-summary {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .ax-root [data-surface="customer-detail"] .ax-customer-service-usage-details > summary {
+    border: 1px solid hsl(var(--ax-line));
+    border-radius: 9px;
+    background: hsl(var(--ax-primary-soft));
+    padding: 9px 11px;
+    color: hsl(var(--ax-primary));
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+  .ax-root [data-surface="customer-detail"] .ax-usage-breakdown { gap: 8px; }
+  .ax-root [data-surface="customer-detail"] .ax-usage-breakdown-title {
+    display: grid;
+    justify-content: stretch;
+    gap: 2px;
+    padding: 2px 3px;
+    line-height: 1.55;
+  }
+  .ax-root [data-surface="customer-detail"] .ax-usage-breakdown-title small { font-size: 11px; }
+  .ax-root [data-surface="customer-detail"] .ax-usage-source {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    grid-template-areas: "icon name" "value value";
+    align-items: start;
+    gap: 8px 10px;
+    width: 100%;
+    min-width: 0;
+    border: 1px solid hsl(var(--ax-line));
+    border-radius: 11px;
+    background: hsl(var(--ax-sunken));
+    padding: 11px;
+  }
+  .ax-root [data-surface="customer-detail"] .ax-usage-source-icon { grid-area: icon; padding-top: 2px; }
+  .ax-root [data-surface="customer-detail"] .ax-usage-source-name {
+    grid-area: name;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.55;
+  }
+  .ax-root [data-surface="customer-detail"] .ax-usage-source-name strong { font-size: 13px; overflow-wrap: anywhere; }
+  .ax-root [data-surface="customer-detail"] .ax-usage-source-name bdi { unicode-bidi: isolate; }
+  .ax-root [data-surface="customer-detail"] .ax-usage-source-name small { line-height: 1.55; }
+  .ax-root [data-surface="customer-detail"] .ax-usage-source-value {
+    grid-area: value;
+    width: 100%;
+    min-width: 0;
+    border-top: 1px solid hsl(var(--ax-line));
+    padding-top: 8px;
+    text-align: start;
+    overflow-wrap: anywhere;
+  }
+  .ax-root [data-surface="customer-detail"] .ax-usage-source-value strong { line-height: 1.55; }
+  .ax-root [data-surface="customer-detail"] .ax-usage-source-value small { line-height: 1.6; overflow-wrap: anywhere; }
+  .ax-root [data-surface="customer-detail"] .ax-usage-source-value .ax-service-provider-repair {
+    justify-self: start;
+    margin-top: 6px;
+  }
+  .ax-root [data-surface="customer-detail"] .ax-usage-breakdown-summary { margin-block: 8px; }
 }
