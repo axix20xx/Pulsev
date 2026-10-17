@@ -74713,7 +74713,7 @@ router2.patch("/resellers/:id", requireMasterAdmin, async (req, res) => {
          customer_price_per_gb = COALESCE($3, customer_price_per_gb),
          wireguard_enabled = COALESCE($4, wireguard_enabled),
          updated_at = NOW()
-     WHERE id = $4
+      WHERE id = $5
      RETURNING id, tg_id::float8 AS telegram_id, title, total_gb::float8 AS total_gb,
         used_gb::float8 AS used_gb,
         CASE WHEN tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(per_gig_price, 0) END::float8 AS per_gig_price,
