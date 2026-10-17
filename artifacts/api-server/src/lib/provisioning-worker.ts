@@ -3,6 +3,7 @@ import {
   provisionUser,
   RainApiError,
 } from "./rain";
+import { azadPanelV2RayBackfillPlan } from "./azadpanel-v2ray-backfill";
 import { createAwgClient, disableAwgClient, replaceAwgClient } from "./amneziawg";
 import { logger } from "./logger";
 import { hostname } from "node:os";
@@ -205,13 +206,14 @@ async function saveAwgCandidate(job: ProvisionJob): Promise<string> {
 
 async function refreshV2rayBackfillPlan(job: ProvisionJob): Promise<boolean> {
   const result = await pool.query<{
+    status: string;
     gb: number | string;
     last_remaining_bytes: number | string | null;
     last_used_bytes: number | string | null;
     expires_at_unix: number | string | null;
     label: string | null;
   }>(
-    `SELECT gb::float8 AS gb,
+    `SELECT status, gb::float8 AS gb,
             last_remaining_bytes,
             last_used_bytes,
             CASE WHEN expire_at IS NULL THEN NULL
@@ -232,27 +234,25 @@ async function refreshV2rayBackfillPlan(job: ProvisionJob): Promise<boolean> {
     return false;
   }
 
-  const gb = Number(service.gb ?? 0);
-  const totalBytes = gb > 0 ? gb * 1073741824 : 0;
-  const remainingBytes = gb <= 0
-    ? 0
-    : Math.max(
-        0,
-        service.last_remaining_bytes !== null
-          ? Number(service.last_remaining_bytes)
-          : totalBytes - Number(service.last_used_bytes ?? 0),
-      );
-  if (gb > 0 && remainingBytes <= 0) {
-    await completeJob(job.id, "سهمیهٔ سرویس پیش از اجرای صف به پایان رسید.");
+  const plan = azadPanelV2RayBackfillPlan({
+    status: service.status,
+    gb: service.gb,
+    lastRemainingBytes: service.last_remaining_bytes,
+    lastUsedBytes: service.last_used_bytes,
+    expiresAtUnix: service.expires_at_unix,
+  });
+  if (!plan.eligible) {
+    const warning = plan.reason === "quota_exhausted"
+      ? "سهمیهٔ سرویس پیش از اجرای صف به پایان رسید."
+      : "سرویس پیش از اجرای صف منقضی یا غیرفعال شد.";
+    await completeJob(job.id, warning);
     return false;
   }
 
-  job.payload.gb = gb > 0 ? remainingBytes / 1073741824 : 0;
+  job.payload.gb = plan.quotaGb;
   job.payload.days = 0;
   job.payload.label = service.label ?? "";
-  job.payload.expiresAtUnix = service.expires_at_unix === null
-    ? null
-    : Number(service.expires_at_unix);
+  job.payload.expiresAtUnix = plan.expiresAtUnix;
   return true;
 }
 

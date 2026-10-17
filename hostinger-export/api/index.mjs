@@ -75468,10 +75468,12 @@ async function readSavedIpsecProviderUsernames(serviceIds) {
 }
 var RainApiError = class extends Error {
   results;
-  constructor(message, results = []) {
+  retryable;
+  constructor(message, results = [], retryable = true) {
     super(message);
     this.name = "RainApiError";
     this.results = results;
+    this.retryable = retryable;
   }
 };
 var tokenCache = /* @__PURE__ */ new Map();
@@ -75700,7 +75702,8 @@ async function request(panel, method, path, token, body) {
     status: response.status,
     json: json3,
     text: text2,
-    contentDisposition: response.headers.get("content-disposition")
+    contentDisposition: response.headers.get("content-disposition"),
+    retryAfter: response.headers.get("retry-after")
   };
 }
 async function tokenFor(panel, forceRefresh = false) {
@@ -75746,7 +75749,19 @@ async function tokenFor(panel, forceRefresh = false) {
     }
     const retryAfter = response.headers.get("retry-after");
     const retryHint = response.status === 429 && retryAfter ? `; retry after ${retryAfter}` : "";
-    throw new RainApiError(`Could not authenticate with AzadPanel ${key} (HTTP ${response.status}${retryHint})`);
+    const retryable = response.status === 429 || response.status >= 500;
+    throw new RainApiError(
+      `Could not authenticate with AzadPanel ${key} (HTTP ${response.status}${retryHint})`,
+      [{
+        key,
+        kind: "azadpanel",
+        status: response.status,
+        error: `HTTP ${response.status}`,
+        retryable,
+        retryAfterMs: retryAfterDelayMs({ retryAfter })
+      }],
+      retryable
+    );
   }
   const paths = kind === "rain_admin" ? ["/api/admins/token", "/api/admin/token", "/api/admin/token/", "/api/admins/token/"] : ["/api/admin/token", "/api/admin/token/"];
   let lastStatus = null;
@@ -75895,12 +75910,28 @@ async function azadPanelCore(panel, forceRefresh = false) {
   }
   const response = await panelRequest(panel, "GET", "/api/admin");
   if (response.status < 200 || response.status >= 300) {
-    throw new RainApiError(`Could not read AzadPanel ${key} settings: ${safeError(response)}`);
+    const retryable = response.status === 429 || response.status >= 500;
+    throw new RainApiError(
+      `Could not read AzadPanel ${key} settings: ${safeError(response)}`,
+      [{
+        key,
+        kind: "azadpanel",
+        status: response.status,
+        error: safeError(response),
+        retryable,
+        retryAfterMs: retryAfterDelayMs(response)
+      }],
+      retryable
+    );
   }
   const core = typeof response.json?.core === "string" ? response.json.core.trim().toLowerCase() : "";
-  if (!core) throw new RainApiError(`AzadPanel ${key} did not return a core type.`);
+  if (!core) {
+    const message = `AzadPanel ${key} did not return a core type.`;
+    throw new RainApiError(message, [{ key, kind: "azadpanel", status: 502, error: message, retryable: false }], false);
+  }
   if (expectedCore && core !== expectedCore) {
-    throw new RainApiError(`AzadPanel ${key} is configured for ${expectedCore} but reports ${core || "unknown"}.`);
+    const message = `AzadPanel ${key} is configured for ${expectedCore} but reports ${core || "unknown"}.`;
+    throw new RainApiError(message, [{ key, kind: "azadpanel", status: 400, error: message, retryable: false }], false);
   }
   azadPanelCoreCache.set(key, { core, expiresAt: Date.now() + 5 * 6e4 });
   return core;
@@ -75908,6 +75939,14 @@ async function azadPanelCore(panel, forceRefresh = false) {
 function safeError(response) {
   const detail = typeof response.json?.detail === "string" ? response.json.detail : typeof response.json?.message === "string" ? response.json.message : "";
   return detail ? `HTTP ${response.status}: ${detail.slice(0, 160)}` : `HTTP ${response.status}`;
+}
+function retryAfterDelayMs(response) {
+  const raw = response.retryAfter?.trim();
+  if (!raw) return void 0;
+  const seconds = Number(raw);
+  const delay = Number.isFinite(seconds) ? seconds * 1e3 : Date.parse(raw) - Date.now();
+  if (!Number.isFinite(delay)) return void 0;
+  return Math.min(24 * 60 * 60 * 1e3, Math.max(1e3, delay));
 }
 function nestedPayload(json3) {
   return json3?.data ?? json3?.user ?? json3?.config ?? json3;
@@ -76478,7 +76517,7 @@ function azadPanelUserBody(username, gb, expiresAt) {
   return {
     username,
     status: "active",
-    expire: Math.floor(expiresAt.getTime() / 1e3),
+    expire: expiresAt ? Math.floor(expiresAt.getTime() / 1e3) : null,
     data_limit: bytesForGb(gb),
     data_limit_reset_strategy: "no_reset",
     device_limit: 2,
@@ -76487,7 +76526,7 @@ function azadPanelUserBody(username, gb, expiresAt) {
     inbounds: {}
   };
 }
-async function provisionAzadPanel(panel, username, gb, days, resetUsage) {
+async function provisionAzadPanel(panel, username, gb, days, options) {
   const core = await azadPanelCore(panel);
   const expectedCore = azadPanelExpectedCore(panel.kind) ?? "openvpn";
   if (core !== expectedCore) {
@@ -76495,21 +76534,46 @@ async function provisionAzadPanel(panel, username, gb, days, resetUsage) {
   }
   const encoded = encodeURIComponent(username);
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (options.onlyIfMissingAzadPanel && existing.status === 200) return existing.status;
   if (existing.status !== 200 && existing.status !== 404) {
-    throw new RainApiError(`AzadPanel ${panelKey(panel)} could not check the user: ${safeError(existing)}`);
+    const retryable = !options.onlyIfMissingAzadPanel || ![400, 401, 403, 409].includes(existing.status);
+    throw new RainApiError(
+      `AzadPanel ${panelKey(panel)} could not check the user: ${safeError(existing)}`,
+      [{
+        key: panelKey(panel),
+        kind: "azadpanel",
+        status: existing.status,
+        error: safeError(existing),
+        retryable,
+        retryAfterMs: retryAfterDelayMs(existing)
+      }],
+      retryable
+    );
   }
-  const expiresAt = new Date(Date.now() + Math.max(0, days) * 864e5);
+  const expiresAt = options.expiresAtUnix === void 0 ? new Date(Date.now() + Math.max(0, days) * 864e5) : options.expiresAtUnix === null ? null : new Date(options.expiresAtUnix * 1e3);
   const body = existing.status === 200 ? {
     status: "active",
-    expire: Math.floor(expiresAt.getTime() / 1e3),
+    expire: expiresAt ? Math.floor(expiresAt.getTime() / 1e3) : null,
     data_limit: bytesForGb(gb),
     data_limit_reset_strategy: "no_reset"
   } : azadPanelUserBody(username, gb, expiresAt);
   const response = existing.status === 200 ? await panelRequest(panel, "PUT", `/api/user/${encoded}`, body) : await panelRequest(panel, "POST", "/api/user", body);
   if (response.status < 200 || response.status >= 300) {
-    throw new RainApiError(`AzadPanel ${panelKey(panel)} rejected the user: ${safeError(response)}`);
+    const retryable = !options.onlyIfMissingAzadPanel || ![400, 401, 403, 409].includes(response.status);
+    throw new RainApiError(
+      `AzadPanel ${panelKey(panel)} rejected the user: ${safeError(response)}`,
+      [{
+        key: panelKey(panel),
+        kind: "azadpanel",
+        status: response.status,
+        error: safeError(response),
+        retryable,
+        retryAfterMs: retryAfterDelayMs(response)
+      }],
+      retryable
+    );
   }
-  if (resetUsage && existing.status === 200) {
+  if (options.resetUsage && existing.status === 200) {
     const reset = await panelRequest(panel, "POST", `/api/user/${encoded}/reset`);
     if (reset.status < 200 || reset.status >= 300) {
       throw new RainApiError(`AzadPanel ${panelKey(panel)} updated the plan but could not reset usage: ${safeError(reset)}`);
@@ -76579,15 +76643,18 @@ async function provisionUser(username, gb, days, label, ownerId, role, onlyPanel
   const results = await Promise.all(configuredPanels.map(async (panel) => {
     const kind = panelKind(panel);
     try {
-      const status = kind === "rain_admin" ? await provisionRainAdmin(panel, username, gb, days, options?.resetUsage === true) : kind === "azadpanel" ? await provisionAzadPanel(panel, username, gb, days, options?.resetUsage === true) : kind === "falcon" ? await provisionFalcon(panel, gb, days, label) : await provisionMarzban(panel, username, gb, days);
+      const status = kind === "rain_admin" ? await provisionRainAdmin(panel, username, gb, days, options?.resetUsage === true) : kind === "azadpanel" ? await provisionAzadPanel(panel, username, gb, days, options ?? {}) : kind === "falcon" ? await provisionFalcon(panel, gb, days, label) : await provisionMarzban(panel, username, gb, days);
       return { key: panelKey(panel), kind, status };
     } catch (error40) {
       const detail = error40 instanceof Error ? error40.message : "\u062E\u0637\u0627\u06CC \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647 \u062F\u0631 \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 Provider";
+      const providerResult = error40 instanceof RainApiError ? error40.results[0] : void 0;
       return {
         key: panelKey(panel),
         kind,
-        status: error40 instanceof RainApiError ? 502 : 500,
-        error: detail.slice(0, 240)
+        status: providerResult?.status ?? (error40 instanceof RainApiError ? 502 : 500),
+        error: providerResult?.error ?? detail.slice(0, 240),
+        retryable: providerResult?.retryable ?? (error40 instanceof RainApiError ? error40.retryable : void 0),
+        retryAfterMs: providerResult?.retryAfterMs
       };
     }
   }));
@@ -82049,6 +82116,11 @@ var managementReady = pool.query(`
        ON service_provision_jobs (status, next_attempt_at);
      CREATE INDEX IF NOT EXISTS service_provision_jobs_service_idx
        ON service_provision_jobs (service_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS azadpanel_v2ray_backfill_runs (
+        provider_key TEXT PRIMARY KEY REFERENCES panel_configs(key) ON DELETE CASCADE,
+        queued_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS subscription_feed_cache (
         service_id BIGINT PRIMARY KEY,
         body_secret TEXT NOT NULL,
@@ -82185,6 +82257,96 @@ var managementReady = pool.query(`
   console.error("Panel management schema initialization failed", error40);
   throw error40;
 });
+async function queueAzadPanelV2RayBackfill(client, providerKey) {
+  const created = await client.query(
+    `INSERT INTO azadpanel_v2ray_backfill_runs (provider_key)
+     VALUES ($1)
+     ON CONFLICT (provider_key) DO NOTHING
+     RETURNING provider_key`,
+    [providerKey]
+  );
+  if (!created.rowCount) {
+    const existing = await client.query(
+      "SELECT queued_count FROM azadpanel_v2ray_backfill_runs WHERE provider_key = $1",
+      [providerKey]
+    );
+    return { queued: Number(existing.rows[0]?.queued_count ?? 0), alreadyQueued: true };
+  }
+  const queued = await client.query(
+    `WITH eligible AS (
+       SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.label,
+              svc.lifecycle_version,
+              CASE
+                WHEN COALESCE(svc.gb, 0) <= 0 THEN 0::float8
+                ELSE GREATEST(
+                  COALESCE(
+                    svc.last_remaining_bytes,
+                    (svc.gb::float8 * 1073741824) - COALESCE(svc.last_used_bytes, 0)
+                  ),
+                  0
+                ) / 1073741824.0
+              END AS remaining_gb,
+              CASE
+                WHEN svc.expire_at IS NULL THEN NULL
+                ELSE FLOOR(EXTRACT(EPOCH FROM svc.expire_at))::bigint
+              END AS expires_at_unix,
+              ROW_NUMBER() OVER (ORDER BY svc.id) AS queue_order
+       FROM reseller_services svc
+       WHERE svc.status = 'active'
+         AND (svc.expire_at IS NULL OR svc.expire_at > NOW())
+         AND (
+           COALESCE(svc.gb, 0) <= 0
+           OR COALESCE(
+             svc.last_remaining_bytes,
+             (svc.gb::float8 * 1073741824) - COALESCE(svc.last_used_bytes, 0)
+           ) > 0
+         )
+         AND svc.rain_username IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1
+           FROM service_provision_jobs job
+           WHERE job.service_id = svc.id
+             AND job.action = 'providers'
+             AND job.status IN ('pending', 'running', 'retrying')
+             AND job.provider_keys @> jsonb_build_array($1::text)
+         )
+     ),
+     inserted AS (
+       INSERT INTO service_provision_jobs
+         (service_id, owner_tg_id, username, action, provider_keys, payload,
+          status, next_attempt_at, lifecycle_version)
+       SELECT eligible.id,
+              eligible.reseller_tg_id,
+              eligible.rain_username,
+              'providers',
+              jsonb_build_array($1::text),
+              jsonb_build_object(
+                'gb', eligible.remaining_gb,
+                'days', 0,
+                'label', COALESCE(eligible.label, ''),
+                'role', 'reseller',
+                'azadPanelV2RayBackfill', true,
+                'onlyIfMissingAzadPanel', true,
+                'expiresAtUnix', eligible.expires_at_unix
+              ),
+              'pending',
+              NOW() + ((eligible.queue_order - 1) * 5 * INTERVAL '1 second'),
+              eligible.lifecycle_version
+       FROM eligible
+       RETURNING id
+     )
+     UPDATE azadpanel_v2ray_backfill_runs
+     SET queued_count = (SELECT COUNT(*)::int FROM inserted)
+     WHERE provider_key = $1`,
+    [providerKey]
+  );
+  const count = Number(queued.rowCount ?? 0);
+  const result = await client.query(
+    "SELECT queued_count FROM azadpanel_v2ray_backfill_runs WHERE provider_key = $1",
+    [providerKey]
+  );
+  return { queued: Number(result.rows[0]?.queued_count ?? count), alreadyQueued: false };
+}
 router2.use(async (_req, _res, next) => {
   try {
     await managementReady;
@@ -83872,6 +84034,7 @@ function credentialValue(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 router2.post("/panels", requireMasterAdmin, async (req, res) => {
+  await managementReady;
   const body = req.body ?? {};
   const key = typeof body.key === "string" ? body.key.trim() : "";
   const kind = body.kind;
@@ -83884,8 +84047,10 @@ router2.post("/panels", requireMasterAdmin, async (req, res) => {
     res.status(400).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A Provider \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
     return;
   }
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query("BEGIN");
+    const result = await client.query(
       `INSERT INTO panel_configs (
          key, kind, api_base, username_env, password_env, api_key_env,
          username_secret, password_secret, api_key_secret, is_enabled
@@ -83901,17 +84066,23 @@ router2.post("/panels", requireMasterAdmin, async (req, res) => {
         enabled ? 1 : 0
       ]
     );
+    const backfill = kind === "azadpanel_v2ray" && enabled && username && password ? await queueAzadPanelV2RayBackfill(client, key) : null;
+    await client.query("COMMIT");
     res.status(201).json({
       ...result.rows[0],
       has_data: Boolean(username && password),
-      available_to_all_resellers: true
+      available_to_all_resellers: true,
+      backfill
     });
   } catch (error40) {
+    await client.query("ROLLBACK").catch(() => void 0);
     if (error40 && typeof error40 === "object" && "code" in error40 && error40.code === "23505") {
       res.status(409).json({ error: "\u0627\u06CC\u0646 \u06A9\u0644\u06CC\u062F Provider \u0642\u0628\u0644\u0627\u064B \u062B\u0628\u062A \u0634\u062F\u0647 \u0627\u0633\u062A" });
       return;
     }
     throw error40;
+  } finally {
+    client.release();
   }
 });
 router2.get("/providers/available", requireAuth, async (_req, res) => {
@@ -83919,6 +84090,7 @@ router2.get("/providers/available", requireAuth, async (_req, res) => {
   res.json(await listAvailablePanels());
 });
 router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
+  await managementReady;
   const key = String(req.params.key ?? "").trim();
   const body = req.body ?? {};
   const requestedKind = body.kind === void 0 ? void 0 : typeof body.kind === "string" ? body.kind.trim().toLowerCase() : body.kind;
@@ -83926,8 +84098,11 @@ router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
     res.status(400).json({ error: "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u067E\u0646\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
     return;
   }
-  const result = await pool.query(
-    `UPDATE panel_configs SET
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `UPDATE panel_configs SET
        is_enabled = COALESCE($1, is_enabled),
        kind = COALESCE(NULLIF($2, ''), kind),
        api_base = COALESCE(NULLIF($3, ''), api_base),
@@ -83939,23 +84114,34 @@ router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
        api_key_secret = COALESCE(NULLIF($6, ''), api_key_secret),
        updated_at = NOW()
      WHERE key = $7
-     RETURNING key, kind, api_base, is_enabled = 1 AS enabled,
-       username_env, password_env, api_key_env`,
-    [
-      body.enabled === void 0 ? null : body.enabled ? 1 : 0,
-      requestedKind ?? null,
-      typeof body.api_base === "string" ? body.api_base.trim() : null,
-      body.username ? encryptPanelCredential(body.username.trim()) : null,
-      body.password ? encryptPanelCredential(body.password) : null,
-      body.api_key ? encryptPanelCredential(body.api_key.trim()) : null,
-      key
-    ]
-  );
-  if (!result.rows[0]) {
-    res.status(404).json({ error: "\u067E\u0646\u0644 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
-    return;
+      RETURNING key, kind, api_base, is_enabled = 1 AS enabled,
+        ((username_secret IS NOT NULL AND password_secret IS NOT NULL)
+          OR (username_env IS NOT NULL AND password_env IS NOT NULL)) AS has_data`,
+      [
+        body.enabled === void 0 ? null : body.enabled ? 1 : 0,
+        requestedKind ?? null,
+        typeof body.api_base === "string" ? body.api_base.trim() : null,
+        body.username ? encryptPanelCredential(body.username.trim()) : null,
+        body.password ? encryptPanelCredential(body.password) : null,
+        body.api_key ? encryptPanelCredential(body.api_key.trim()) : null,
+        key
+      ]
+    );
+    if (!result.rows[0]) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "\u067E\u0646\u0644 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
+      return;
+    }
+    const panel = result.rows[0];
+    const backfill = panel.kind === "azadpanel_v2ray" && panel.enabled && panel.has_data ? await queueAzadPanelV2RayBackfill(client, key) : null;
+    await client.query("COMMIT");
+    res.json({ ...panel, backfill });
+  } catch (error40) {
+    await client.query("ROLLBACK").catch(() => void 0);
+    throw error40;
+  } finally {
+    client.release();
   }
-  res.json(result.rows[0]);
 });
 router2.delete("/panels/:key", requireMasterAdmin, async (req, res) => {
   const key = String(req.params.key ?? "").trim();
@@ -88511,6 +88697,37 @@ if (isBackgroundWorkersPaused()) {
 }
 var app_default = app;
 
+// src/lib/azadpanel-v2ray-backfill.ts
+var BYTES_PER_GB2 = 1073741824;
+function azadPanelV2RayBackfillPlan(service, nowUnix = Math.floor(Date.now() / 1e3)) {
+  if (service.status !== "active") {
+    return { eligible: false, quotaGb: 0, expiresAtUnix: null, reason: "inactive" };
+  }
+  const expiry = service.expiresAtUnix === null ? null : Number(service.expiresAtUnix);
+  if (expiry !== null && (!Number.isFinite(expiry) || expiry <= nowUnix)) {
+    return { eligible: false, quotaGb: 0, expiresAtUnix: null, reason: "expired" };
+  }
+  const totalGb = Number(service.gb);
+  if (!Number.isFinite(totalGb) || totalGb < 0) {
+    return { eligible: false, quotaGb: 0, expiresAtUnix: expiry, reason: "invalid" };
+  }
+  if (totalGb === 0) {
+    return { eligible: true, quotaGb: 0, expiresAtUnix: expiry };
+  }
+  const remainingBytes = service.lastRemainingBytes === null ? totalGb * BYTES_PER_GB2 - Number(service.lastUsedBytes ?? 0) : Number(service.lastRemainingBytes);
+  if (!Number.isFinite(remainingBytes)) {
+    return { eligible: false, quotaGb: 0, expiresAtUnix: expiry, reason: "invalid" };
+  }
+  if (remainingBytes <= 0) {
+    return { eligible: false, quotaGb: 0, expiresAtUnix: expiry, reason: "quota_exhausted" };
+  }
+  return {
+    eligible: true,
+    quotaGb: remainingBytes / BYTES_PER_GB2,
+    expiresAtUnix: expiry
+  };
+}
+
 // src/lib/provisioning-worker.ts
 import { hostname as hostname2 } from "node:os";
 import { randomUUID as randomUUID3 } from "node:crypto";
@@ -88562,7 +88779,8 @@ async function claimJob() {
     client.release();
   }
 }
-async function retryJob(job, error40, providerKeys) {
+async function retryJob(job, error40, providerKeys, requestedDelayMs) {
+  const delayMs = Number.isFinite(requestedDelayMs) ? Math.min(24 * 60 * 6e4, Math.max(1e3, Number(requestedDelayMs))) : retryDelayMs(job.attempts);
   await pool.query(
     `UPDATE service_provision_jobs
      SET status = 'retrying',
@@ -88577,7 +88795,7 @@ async function retryJob(job, error40, providerKeys) {
     [
       providerKeys ? JSON.stringify(providerKeys) : null,
       error40.slice(0, 500),
-      retryDelayMs(job.attempts),
+      delayMs,
       job.id,
       workerId
     ]
@@ -88587,14 +88805,31 @@ async function retryJob(job, error40, providerKeys) {
     "Provisioning job scheduled for retry"
   );
 }
-async function completeJob(jobId) {
+async function pauseRemainingV2rayBackfillJobs(job, delayMs) {
+  if (job.payload.azadPanelV2RayBackfill !== true || job.provider_keys.length !== 1) return;
   await pool.query(
     `UPDATE service_provision_jobs
-      SET status = 'completed', last_error = NULL, updated_at = NOW(), completed_at = NOW(),
+     SET next_attempt_at = GREATEST(
+           next_attempt_at,
+           NOW() + ($1 * INTERVAL '1 millisecond')
+         ),
+         updated_at = NOW()
+     WHERE id <> $2
+       AND action = 'providers'
+       AND status IN ('pending', 'retrying')
+       AND payload->>'azadPanelV2RayBackfill' = 'true'
+       AND provider_keys @> jsonb_build_array($3::text)`,
+    [delayMs, job.id, job.provider_keys[0]]
+  );
+}
+async function completeJob(jobId, warning) {
+  await pool.query(
+    `UPDATE service_provision_jobs
+      SET status = 'completed', last_error = $2, updated_at = NOW(), completed_at = NOW(),
           lease_owner = NULL, lease_expires_at = NULL, heartbeat_at = NULL,
           payload = payload - 'awg_client_candidate'
-      WHERE id = $1 AND lease_owner = $2`,
-    [jobId, workerId]
+      WHERE id = $1 AND lease_owner = $3`,
+    [jobId, warning?.slice(0, 500) ?? null, workerId]
   );
 }
 async function clearMisroutedWireGuardProviderJobs() {
@@ -88661,9 +88896,52 @@ async function saveAwgCandidate(job) {
   job.payload.awg_client_candidate = existing;
   return existing;
 }
+async function refreshV2rayBackfillPlan(job) {
+  const result = await pool.query(
+    `SELECT status, gb::float8 AS gb,
+            last_remaining_bytes,
+            last_used_bytes,
+            CASE WHEN expire_at IS NULL THEN NULL
+                 ELSE FLOOR(EXTRACT(EPOCH FROM expire_at))::bigint
+            END AS expires_at_unix,
+            label
+     FROM reseller_services
+     WHERE id = $1
+       AND status = 'active'
+       AND lifecycle_version = $2
+       AND (expire_at IS NULL OR expire_at > NOW())
+     LIMIT 1`,
+    [job.service_id, job.lifecycle_version]
+  );
+  const service = result.rows[0];
+  if (!service) {
+    await completeJob(job.id, "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u0634 \u0627\u0632 \u0627\u062C\u0631\u0627\u06CC \u0635\u0641 \u0645\u0646\u0642\u0636\u06CC \u06CC\u0627 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0634\u062F.");
+    return false;
+  }
+  const plan = azadPanelV2RayBackfillPlan({
+    status: service.status,
+    gb: service.gb,
+    lastRemainingBytes: service.last_remaining_bytes,
+    lastUsedBytes: service.last_used_bytes,
+    expiresAtUnix: service.expires_at_unix
+  });
+  if (!plan.eligible) {
+    const warning = plan.reason === "quota_exhausted" ? "\u0633\u0647\u0645\u06CC\u0647\u0654 \u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u0634 \u0627\u0632 \u0627\u062C\u0631\u0627\u06CC \u0635\u0641 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F." : "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u0634 \u0627\u0632 \u0627\u062C\u0631\u0627\u06CC \u0635\u0641 \u0645\u0646\u0642\u0636\u06CC \u06CC\u0627 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0634\u062F.";
+    await completeJob(job.id, warning);
+    return false;
+  }
+  job.payload.gb = plan.quotaGb;
+  job.payload.days = 0;
+  job.payload.label = service.label ?? "";
+  job.payload.expiresAtUnix = plan.expiresAtUnix;
+  return true;
+}
 async function processProviderJob(job) {
   const payload = job.payload;
   try {
+    if (payload.azadPanelV2RayBackfill === true && !await refreshV2rayBackfillPlan(job)) {
+      return;
+    }
     const result = await provisionUser(
       job.username,
       Number(payload.gb),
@@ -88672,22 +88950,61 @@ async function processProviderJob(job) {
       job.owner_tg_id,
       typeof payload.role === "string" ? payload.role : void 0,
       job.provider_keys,
-      { resetUsage: payload.resetUsage === true }
+      {
+        resetUsage: payload.resetUsage === true,
+        expiresAtUnix: payload.expiresAtUnix === null ? null : Number.isFinite(Number(payload.expiresAtUnix)) ? Number(payload.expiresAtUnix) : void 0,
+        onlyIfMissingAzadPanel: payload.onlyIfMissingAzadPanel === true
+      }
     );
     const failed = result.results.filter((item) => item.status < 200 || item.status >= 300);
+    const retryableFailures = failed.filter((item) => item.retryable !== false);
+    if (retryableFailures.length) {
+      const retryAfterMs = Math.max(
+        0,
+        ...retryableFailures.map((item) => Number(item.retryAfterMs) || 0)
+      );
+      const rateLimitDelayMs = retryableFailures.some((item) => item.status === 429) ? retryAfterMs || retryDelayMs(job.attempts) : 0;
+      if (rateLimitDelayMs > 0) {
+        await pauseRemainingV2rayBackfillJobs(job, rateLimitDelayMs);
+      }
+      await retryJob(
+        job,
+        failed.map(providerFailure).join(" \xB7 "),
+        retryableFailures.map((item) => item.key),
+        retryAfterMs || rateLimitDelayMs || void 0
+      );
+      return;
+    }
     if (failed.length) {
-      await retryJob(job, failed.map(providerFailure).join(" \xB7 "), failed.map((item) => item.key));
+      const warning = failed.map(providerFailure).join(" \xB7 ");
+      await completeJob(job.id, warning);
+      logger.warn({ jobId: job.id, action: job.action, warning }, "Provisioning job stopped after a non-retryable Provider response");
       return;
     }
     await completeJob(job.id);
     logger.info({ jobId: job.id, action: job.action }, "Provisioning job completed");
   } catch (error40) {
     const results = error40 instanceof RainApiError ? error40.results : [];
-    const failedKeys = results.filter((item) => item.status < 200 || item.status >= 300).map((item) => item.key);
+    const failedKeys = results.filter((item) => (item.status < 200 || item.status >= 300) && item.retryable !== false).map((item) => item.key);
+    const nonRetryable = results.filter(
+      (item) => (item.status < 200 || item.status >= 300) && item.retryable === false
+    );
+    if (results.length && failedKeys.length === 0 && nonRetryable.length > 0 || error40 instanceof RainApiError && !error40.retryable) {
+      const warning = (nonRetryable.length ? nonRetryable : results).map(providerFailure).join(" \xB7 ") || safeError2(error40);
+      await completeJob(job.id, warning);
+      logger.warn({ jobId: job.id, action: job.action, warning }, "Provisioning job stopped after a non-retryable Provider response");
+      return;
+    }
+    const retryAfterMs = Math.max(0, ...results.map((item) => Number(item.retryAfterMs) || 0));
+    const rateLimitDelayMs = results.some((item) => item.status === 429) ? retryAfterMs || retryDelayMs(job.attempts) : 0;
+    if (rateLimitDelayMs > 0) {
+      await pauseRemainingV2rayBackfillJobs(job, rateLimitDelayMs);
+    }
     await retryJob(
       job,
       results.length ? results.map(providerFailure).join(" \xB7 ") : safeError2(error40),
-      failedKeys.length ? failedKeys : job.provider_keys
+      failedKeys.length ? failedKeys : job.provider_keys,
+      retryAfterMs || rateLimitDelayMs || void 0
     );
   }
 }
