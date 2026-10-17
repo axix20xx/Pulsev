@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { build as buildPlist, parse as parsePlist, type PlistValue } from "plist";
 
 export type MobileConfigProtocol = "openvpn" | "wireguard" | "amneziawg";
 
@@ -10,6 +11,12 @@ export type MobileConfigEntry = {
 };
 
 const MAX_ENTRIES = 80;
+const IPSEC_CERTIFICATE_PAYLOAD_TYPES = new Set([
+  "com.apple.security.pem",
+  "com.apple.security.pkcs1",
+  "com.apple.security.pkcs12",
+  "com.apple.security.root",
+]);
 const escapeXml = (value: string): string =>
   value
     .replace(/&/g, "&amp;")
@@ -179,6 +186,7 @@ function openVpnPayload(entry: MobileConfigEntry, serviceId: number, hostId: str
 export function createMultiProtocolMobileConfigBundle(
   entries: MobileConfigEntry[],
   serviceId: number,
+  ipsecProfile?: string | null,
 ): string {
   if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
     throw new Error("Invalid service identity in mobileconfig.");
@@ -202,15 +210,58 @@ export function createMultiProtocolMobileConfigBundle(
       ? openVpnPayload(entry, serviceId, entry.hostId)
       : wireGuardPayload(entry, serviceId, entry.hostId),
   );
+  if (ipsecProfile) {
+    const parsed = parsePlist(ipsecProfile);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("AzadPanel returned an invalid IPsec iOS profile.");
+    }
+    const sourcePayloads = (parsed as { PayloadContent?: PlistValue }).PayloadContent;
+    if (!Array.isArray(sourcePayloads)) {
+      throw new Error("AzadPanel IPsec profile contains no iOS payloads.");
+    }
+    const allowed = sourcePayloads.filter((value): value is { [key: string]: PlistValue } => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+      const payload = value as { [key: string]: PlistValue };
+      const type = payload.PayloadType;
+      if (type === "com.apple.vpn.managed") {
+        const vpn = payload.VPN;
+        return Boolean(
+          vpn
+          && typeof vpn === "object"
+          && !Array.isArray(vpn)
+          && (vpn as { [key: string]: PlistValue }).VPNType === "IKEv2",
+        );
+      }
+      return typeof type === "string" && IPSEC_CERTIFICATE_PAYLOAD_TYPES.has(type);
+    });
+    const ikev2Count = allowed.filter((value) => value.PayloadType === "com.apple.vpn.managed").length;
+    if (!ikev2Count) {
+      throw new Error("AzadPanel IPsec profile contains no IKEv2 connection.");
+    }
+    const plistFragment = (value: PlistValue): string => {
+      const serialized = buildPlist(value);
+      const fragment = serialized
+        .replace(/^\s*<\?xml[^>]*\?>\s*/i, "")
+        .replace(/^\s*<!DOCTYPE plist[^>]*>\s*/i, "")
+        .replace(/^\s*<plist[^>]*>\s*/i, "")
+        .replace(/\s*<\/plist>\s*$/i, "");
+      if (!fragment.trim()) throw new Error("Could not encode the AzadPanel IPsec profile.");
+      return `    ${fragment.replace(/\n/g, "\n    ")}`;
+    };
+    payloads.push(...allowed.map(plistFragment));
+  }
+  if (payloads.length > MAX_ENTRIES) {
+    throw new Error(`An iOS profile must contain no more than ${MAX_ENTRIES} connections and certificates.`);
+  }
   const displayProtocols = [...new Set(normalized.map((entry) => entry.protocol))]
-    .map((protocol) => protocol === "openvpn" ? "OpenVPN" : protocol === "amneziawg" ? "AmneziaWG" : "WireGuard")
-    .join(" · ");
+    .map((protocol) => protocol === "openvpn" ? "OpenVPN" : protocol === "amneziawg" ? "AmneziaWG" : "WireGuard");
+  if (ipsecProfile) displayProtocols.push("IPsec");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>PayloadDisplayName</key><string>Pulse · ${escapeXml(displayProtocols)}</string>
+  <key>PayloadDisplayName</key><string>Pulse · ${escapeXml(displayProtocols.join(" · "))}</string>
   <key>PayloadType</key><string>Configuration</string>
   <key>PayloadVersion</key><integer>1</integer>
   <key>PayloadIdentifier</key><string>${escapeXml(profileIdentifier)}</string>

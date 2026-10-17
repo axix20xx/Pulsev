@@ -55,6 +55,43 @@ export async function readSavedWireGuardProviderUsernames(
   return accounts;
 }
 
+export async function readSavedIpsecProviderUsernames(
+  serviceIds: number[],
+): Promise<Map<number, { providerKey: string | null; username: string | null }>> {
+  const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const accounts = new Map<number, { providerKey: string | null; username: string | null }>();
+  if (!ids.length) return accounts;
+  const result = await pool.query<{ service_id: number | string; delivery_secret: string }>(
+    `SELECT service_id, delivery_secret
+     FROM reseller_service_ipsec_accounts
+     WHERE service_id = ANY($1::bigint[])`,
+    [ids],
+  );
+  for (const row of result.rows) {
+    const serviceId = Number(row.service_id);
+    const decoded = decryptPanelCredential(row.delivery_secret);
+    let providerKey: string | null = null;
+    let username: string | null = null;
+    if (decoded) {
+      try {
+        const delivery = JSON.parse(decoded) as { core?: unknown; provider_key?: unknown; username?: unknown };
+        if (delivery.core === "ipsec") {
+          providerKey = typeof delivery.provider_key === "string" && delivery.provider_key.trim()
+            ? delivery.provider_key.trim()
+            : null;
+          username = typeof delivery.username === "string" && delivery.username.trim()
+            ? delivery.username.trim()
+            : null;
+        }
+      } catch {
+        // Keep the account entry unresolved; callers must preserve its usage and lifecycle state.
+      }
+    }
+    accounts.set(serviceId, { providerKey, username });
+  }
+  return accounts;
+}
+
 type PanelResult = {
   key: string;
   kind: string;
@@ -85,7 +122,7 @@ function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" | "azadpan
   const kind = panel.kind?.trim().toLowerCase();
   if (kind === "rain_admin") return "rain_admin";
   if (kind === "falcon") return "falcon";
-  if (kind === "azadpanel" || kind === "azadpanel_openvpn" || kind === "azadpanel_wireguard") return "azadpanel";
+  if (kind === "azadpanel" || kind === "azadpanel_openvpn" || kind === "azadpanel_wireguard" || kind === "azadpanel_ipsec") return "azadpanel";
   return "marzban";
 }
 
@@ -611,6 +648,8 @@ async function azadPanelCore(panel: Panel, forceRefresh = false): Promise<string
   const configuredKind = panel.kind?.trim().toLowerCase();
   const expectedCore = configuredKind === "azadpanel_wireguard"
     ? "wireguard"
+    : configuredKind === "azadpanel_ipsec"
+      ? "ipsec"
     : configuredKind === "azadpanel_openvpn"
       ? "openvpn"
       : null;
@@ -752,10 +791,17 @@ export async function readPanelUsages(
   const configuredPanels = await panels(ownerId, role);
   let wireGuardAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
   let wireGuardLookupFailed = false;
+  let ipsecAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
+  let ipsecLookupFailed = false;
   try {
     wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
   } catch {
     wireGuardLookupFailed = true;
+  }
+  try {
+    ipsecAccounts = await readSavedIpsecProviderUsernames([serviceId]);
+  } catch {
+    ipsecLookupFailed = true;
   }
   const safePanelRequest = async (panel: Panel, method: string, path: string): Promise<{ status: number; json: any; text: string } | null> => {
     try {
@@ -766,11 +812,40 @@ export async function readPanelUsages(
   };
   for (const panel of configuredPanels) {
     const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
+    const ipsecPanel = panel.kind?.trim().toLowerCase() === "azadpanel_ipsec";
     let requestUsername = username;
     if (wireGuardPanel) {
       if (!wireGuardLookupFailed && !wireGuardAccounts.has(serviceId)) continue;
       const savedAccount = wireGuardAccounts.get(serviceId);
       if (wireGuardLookupFailed || !savedAccount?.providerKey) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: "",
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true,
+        });
+        continue;
+      }
+      if (savedAccount.providerKey !== panelKey(panel)) continue;
+      if (!savedAccount.username) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: "",
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true,
+        });
+        continue;
+      }
+      requestUsername = savedAccount.username;
+    }
+    if (ipsecPanel) {
+      if (!ipsecLookupFailed && !ipsecAccounts.has(serviceId)) continue;
+      const savedAccount = ipsecAccounts.get(serviceId);
+      if (ipsecLookupFailed || !savedAccount?.providerKey) {
         result.push({
           panelKey: panelKey(panel),
           username: "",
@@ -835,7 +910,7 @@ export async function readPanelUsages(
       }
     }
     if (!response || response.status < 200 || response.status >= 300) {
-      if (wireGuardPanel) {
+      if (wireGuardPanel || ipsecPanel) {
         const stale = await lastKnownPanelUsage(requestUsername, panelKey(panel));
         result.push(stale ?? {
           panelKey: panelKey(panel),
@@ -856,7 +931,7 @@ export async function readPanelUsages(
     if (usedBytes === null) {
       const stale = await lastKnownPanelUsage(requestUsername, panelKey(panel));
       if (stale) result.push(stale);
-      else if (wireGuardPanel) {
+      else if (wireGuardPanel || ipsecPanel) {
         result.push({
           panelKey: panelKey(panel),
           username: requestUsername,
@@ -916,6 +991,46 @@ export async function readPanelUsages(
       stale: true,
     });
   }
+  const savedIpsecAccount = ipsecAccounts.get(serviceId);
+  if (ipsecLookupFailed) {
+    result.push({
+      panelKey: "IPsec",
+      username: "",
+      usedBytes: 0,
+      totalBytes: null,
+      expiresAt: null,
+      stale: true,
+    });
+  } else if (savedIpsecAccount && !savedIpsecAccount.providerKey) {
+    if (!result.some((usage) => configuredPanels.some((panel) =>
+      panel.kind?.trim().toLowerCase() === "azadpanel_ipsec"
+      && usage.panelKey === panelKey(panel),
+    ))) {
+      result.push({
+        panelKey: "IPsec",
+        username: "",
+        usedBytes: 0,
+        totalBytes: null,
+        expiresAt: null,
+        stale: true,
+      });
+    }
+  } else if (
+    savedIpsecAccount?.providerKey
+    && !configuredPanels.some((panel) =>
+      panel.kind?.trim().toLowerCase() === "azadpanel_ipsec"
+      && panelKey(panel) === savedIpsecAccount.providerKey,
+    )
+  ) {
+    result.push({
+      panelKey: savedIpsecAccount.providerKey,
+      username: "",
+      usedBytes: 0,
+      totalBytes: null,
+      expiresAt: null,
+      stale: true,
+    });
+  }
   return result;
 }
 
@@ -931,10 +1046,17 @@ export async function disablePanelUser(
   const configuredPanels = await panels(ownerId, role);
   let wireGuardAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
   let wireGuardLookupFailed = false;
+  let ipsecAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
+  let ipsecLookupFailed = false;
   try {
     wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
   } catch {
     wireGuardLookupFailed = true;
+  }
+  try {
+    ipsecAccounts = await readSavedIpsecProviderUsernames([serviceId]);
+  } catch {
+    ipsecLookupFailed = true;
   }
   const savedWireGuardAccount = wireGuardAccounts.get(serviceId);
   const wireGuardAccountUnresolved = wireGuardLookupFailed
@@ -948,6 +1070,18 @@ export async function disablePanelUser(
       )
     ));
   if (wireGuardAccountUnresolved) attempted += 1;
+  const savedIpsecAccount = ipsecAccounts.get(serviceId);
+  const ipsecAccountUnresolved = ipsecLookupFailed
+    ? true
+    : Boolean(savedIpsecAccount && (
+      !savedIpsecAccount.providerKey
+      || !savedIpsecAccount.username
+      || !configuredPanels.some((panel) =>
+        panel.kind?.trim().toLowerCase() === "azadpanel_ipsec"
+        && panelKey(panel) === savedIpsecAccount.providerKey,
+      )
+    ));
+  if (ipsecAccountUnresolved) attempted += 1;
   for (const panel of configuredPanels) {
     const kind = panelKind(panel);
     let providerUsername = username;
@@ -955,6 +1089,11 @@ export async function disablePanelUser(
       if (wireGuardAccountUnresolved || !savedWireGuardAccount || savedWireGuardAccount.providerKey !== panelKey(panel)) continue;
       if (!savedWireGuardAccount.username) continue;
       providerUsername = savedWireGuardAccount.username;
+    }
+    if (panel.kind?.trim().toLowerCase() === "azadpanel_ipsec") {
+      if (ipsecAccountUnresolved || !savedIpsecAccount || savedIpsecAccount.providerKey !== panelKey(panel)) continue;
+      if (!savedIpsecAccount.username) continue;
+      providerUsername = savedIpsecAccount.username;
     }
     attempted += 1;
     const encoded = encodeURIComponent(providerUsername);
@@ -1649,7 +1788,7 @@ function wireGuardLocationId(endpoint: any): string {
 }
 
 async function findAzadPanelCore(
-  expectedCore: "wireguard",
+  expectedCore: "wireguard" | "ipsec",
   ownerId?: number,
   role?: string,
   requestedPanelKey?: string,
@@ -1666,7 +1805,7 @@ async function findAzadPanelCore(
     }
   }
   if (lastError) throw lastError;
-  throw new RainApiError(`No enabled AzadPanel ${expectedCore === "wireguard" ? "WireGuard" : expectedCore} provider is configured.`);
+  throw new RainApiError(`No enabled AzadPanel ${expectedCore === "wireguard" ? "WireGuard" : "IPsec"} provider is configured.`);
 }
 
 async function listWireGuardEndpoints(panel: Panel, username: string): Promise<any[]> {
@@ -1757,6 +1896,120 @@ export async function prepareWireGuardAccount(
     username: providerUsername,
     core: "wireguard",
     locations,
+  };
+}
+
+export type IpsecLocation = {
+  id: string;
+  name: string;
+  server: string;
+  ikev2_remote_id: string;
+};
+
+export type IpsecDelivery = {
+  provider_key: string;
+  username: string;
+  core: "ipsec";
+  login: string;
+  password: string;
+  locations: IpsecLocation[];
+};
+
+function azadPanelIpsecLocations(value: any): IpsecLocation[] {
+  const payload = value?.data ?? value;
+  if (!Array.isArray(payload?.locations)) return [];
+  return payload.locations.flatMap((location: any): IpsecLocation[] => {
+    const id = String(location?.id ?? "").trim();
+    const server = String(location?.server ?? "").trim();
+    const remoteId = String(location?.ikev2_remote_id ?? "").trim();
+    if (!id || !server || !remoteId) return [];
+    const name = typeof location?.name === "string" && location.name.trim()
+      ? location.name.trim().slice(0, 120)
+      : server;
+    return [{ id: id.slice(0, 120), name, server: server.slice(0, 253), ikev2_remote_id: remoteId.slice(0, 253) }];
+  });
+}
+
+export async function prepareIpsecAccount(
+  gb: number,
+  expiresAt: Date,
+  serviceId: number,
+  ownerId?: number,
+  role?: string,
+  requestedPanelKey?: string,
+): Promise<IpsecDelivery> {
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
+    throw new RainApiError("Invalid service ID for IPsec account.");
+  }
+  const panel = await findAzadPanelCore("ipsec", ownerId, role, requestedPanelKey);
+  const providerUsername = `pulseipsec_${serviceId}`;
+  const encoded = encodeURIComponent(providerUsername);
+  let existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (existing.status === 404) {
+    const created = await panelRequest(panel, "POST", "/api/user", azadPanelUserBody(providerUsername, gb, expiresAt));
+    if (created.status < 200 || created.status >= 300) {
+      if (created.status !== 409) {
+        throw new RainApiError(`AzadPanel ${panelKey(panel)} could not create the IPsec account: ${safeError(created)}`);
+      }
+      existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+      if (existing.status !== 200) {
+        throw new RainApiError(`AzadPanel ${panelKey(panel)} could not confirm the IPsec account: ${safeError(existing)}`);
+      }
+    }
+  } else if (existing.status !== 200) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} could not check the IPsec account: ${safeError(existing)}`);
+  }
+
+  let response: Awaited<ReturnType<typeof panelRequest>> | null = null;
+  for (const delayMs of [0, 1_000, 2_000, 4_000, 8_000]) {
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    response = await panelRequest(panel, "GET", `/api/ipsec/user/${encoded}/configs`);
+    if (response.status !== 503) break;
+  }
+  if (!response || response.status < 200 || response.status >= 300) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} could not load IPsec settings: ${response ? safeError(response) : "no response"}`);
+  }
+  const payload = response.json?.data ?? response.json;
+  const login = typeof payload?.login === "string" ? payload.login.trim() : "";
+  const password = typeof payload?.password === "string" ? payload.password : "";
+  const locations = azadPanelIpsecLocations(payload);
+  if (!login || !password || !locations.length) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} returned incomplete IPsec credentials or server locations.`);
+  }
+  return { provider_key: panelKey(panel), username: providerUsername, core: "ipsec", login, password, locations };
+}
+
+async function findIpsecProvider(
+  providerKey: string,
+  ownerId?: number,
+  role?: string,
+): Promise<Panel> {
+  const panel = (await panels(ownerId, role)).find(
+    (candidate) => panelKey(candidate) === providerKey && panelKind(candidate) === "azadpanel",
+  );
+  if (!panel) throw new RainApiError("The selected AzadPanel IPsec provider is unavailable.");
+  if (await azadPanelCore(panel) !== "ipsec") {
+    throw new RainApiError(`AzadPanel ${providerKey} is not configured for IPsec.`);
+  }
+  return panel;
+}
+
+export async function downloadIpsecAppleProfile(
+  username: string,
+  providerKey: string,
+  ownerId?: number,
+  role?: string,
+): Promise<{ body: string; contentType: string; contentDisposition: string | null }> {
+  const panel = await findIpsecProvider(providerKey, ownerId, role);
+  const encoded = encodeURIComponent(username);
+  const response = await panelRequest(panel, "GET", `/api/ipsec/user/${encoded}/file?kind=apple`);
+  if (response.status < 200 || response.status >= 300 || !response.text.trim()) {
+    throw new RainApiError(`AzadPanel ${providerKey} could not download the IPsec iOS profile: ${safeError(response)}`);
+  }
+  return {
+    body: response.text,
+    contentType: "application/x-apple-aspen-config",
+    contentDisposition: response.contentDisposition,
   };
 }
 
