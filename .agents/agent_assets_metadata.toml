@@ -1598,3 +1598,17 @@ mtime_ms = 1792261220854
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/d758049a-f901-410c-bd61-55a0f592b5ce/3803cb59-a343-4be0-8814-82f3f5947649"
 storage_version_token = "1792261249460702"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "poBwoKYbdzWpsLGAxx0hP"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T18-31-44-040Z.zip"
+type = "unspecified"
+title = "Hostinger migration ZIP — AzadPanel V2Ray access fallback"
+description = "Adds a read-only fallback to AzadPanel’s documented user endpoint when the Xray link endpoint returns 403. It uses the same reseller token, throttles repeated denials, and logs whether the saved V2Ray mapping or service username was used without exposing usernames."
+logical_id = "3ca52a9a-e676-4e3a-be86-57a6a8c97419"
+content_hash = "sha256:0d1ab01b43e40634a3f059650e352013192a24fb713d363de0de2ff1622ca36e"
+size = 29046662
+mtime_ms = 1792262026387
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3ca52a9a-e676-4e3a-be86-57a6a8c97419/1e438d77-cd98-42ef-8e41-3b9ea9343fff"
+storage_version_token = "1792262072985627"
+content_type = "application/octet-stream"

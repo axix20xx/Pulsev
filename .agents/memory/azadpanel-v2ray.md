@@ -10,3 +10,9 @@ If a V2Ray account lookup for the service's main username returns 403, use one d
 **Why:** AzadPanel reseller credentials are core-specific, and its API returns 403 when a reseller credential cannot access a username owned by another reseller. The user chose an isolated V2Ray identity for that case; creation-level 403s may still indicate a panel block or reseller quota limit.
 
 **How to apply:** Keep a dedicated `azadpanel_v2ray` provider kind. Use a durable per-provider marker plus per-service job idempotency to avoid duplicate work; re-saving the Provider may pick up services skipped because another Provider job was in flight. Existing failures require a visible operation-specific error and explicit retry after the Provider problem is fixed.
+
+For subscription reads, if the Xray `/link` endpoint returns 403, try the documented `GET /api/user/{username}` using the same token; its response also carries `subscription_url` and `links`. Cache a successful route briefly and throttle repeated denial. If both routes deny access, stop without changing Provider accounts and log whether the request used the saved Provider mapping or the service username, never the username itself.
+
+**Why:** Some AzadPanel deployments may deny the specialized link route while still allowing the documented user read; bounded fallback avoids turning repeated client refreshes into extra Provider traffic.
+
+**How to apply:** This is a read-only subscription fallback, not a way around reseller ownership. Keep username values and config links out of logs.

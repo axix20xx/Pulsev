@@ -75417,6 +75417,9 @@ function isStandardServiceProvisioningPanel(kind) {
 function azadPanelXraySubscriptionPath(username) {
   return `/api/xray/user/${encodeURIComponent(username)}/link`;
 }
+function azadPanelXrayUserPath(username) {
+  return `/api/user/${encodeURIComponent(username)}`;
+}
 function azadPanelXraySubscriptionLinks(payload) {
   if (!payload || typeof payload !== "object") return [];
   const root = payload;
@@ -75525,6 +75528,32 @@ function providerConfigLabel(providerCode, flag, index) {
 }
 
 // src/lib/rain.ts
+var azadPanelXrayReadRouteCache = /* @__PURE__ */ new Map();
+var AZAD_PANEL_XRAY_USER_ROUTE_TTL_MS = 10 * 6e4;
+var AZAD_PANEL_XRAY_DENIED_TTL_MS = 2 * 6e4;
+function getAzadPanelXrayReadRoute(key) {
+  const entry = azadPanelXrayReadRouteCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    azadPanelXrayReadRouteCache.delete(key);
+    return null;
+  }
+  return entry.route;
+}
+function cacheAzadPanelXrayReadRoute(key, route, ttlMs) {
+  const now = Date.now();
+  if (azadPanelXrayReadRouteCache.size > 5e3) {
+    for (const [entryKey, entry] of azadPanelXrayReadRouteCache) {
+      if (entry.expiresAt <= now) azadPanelXrayReadRouteCache.delete(entryKey);
+    }
+    while (azadPanelXrayReadRouteCache.size > 5e3) {
+      const oldestKey = azadPanelXrayReadRouteCache.keys().next().value;
+      if (oldestKey === void 0) break;
+      azadPanelXrayReadRouteCache.delete(oldestKey);
+    }
+  }
+  azadPanelXrayReadRouteCache.set(key, { route, expiresAt: now + ttlMs });
+}
 async function readSavedWireGuardProviderUsernames(serviceIds) {
   const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
   const accounts = /* @__PURE__ */ new Map();
@@ -75781,15 +75810,68 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
     const isAzadPanelV2Ray = kind === "azadpanel" && panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
     if (kind === "azadpanel" && !isAzadPanelV2Ray) continue;
     if (isAzadPanelV2Ray && v2rayLookupFailed) continue;
-    const panelUsername = isAzadPanelV2Ray && Number.isSafeInteger(serviceId) ? v2rayAccounts.get(Number(serviceId))?.get(panelKey(panel)) ?? username : username;
+    const savedProviderUsername = isAzadPanelV2Ray && Number.isSafeInteger(serviceId) ? v2rayAccounts.get(Number(serviceId))?.get(panelKey(panel)) ?? null : null;
+    const panelUsername = savedProviderUsername ?? username;
     const encodedUsername = encodeURIComponent(panelUsername);
-    const paths = isAzadPanelV2Ray ? [azadPanelXraySubscriptionPath(panelUsername)] : kind === "rain_admin" ? [`/api/users/${encodedUsername}`, `/api/user/${encodedUsername}`] : kind === "falcon" ? [`/api/v1/configs?username=${encodedUsername}`] : [`/api/user/${encodedUsername}`];
+    const azadXrayUserPath = isAzadPanelV2Ray ? azadPanelXrayUserPath(panelUsername) : "";
+    const azadXrayRouteCacheKey = isAzadPanelV2Ray ? `${panelKey(panel)}:${Number.isSafeInteger(serviceId) ? serviceId : username}` : "";
+    const cachedAzadXrayRoute = isAzadPanelV2Ray ? getAzadPanelXrayReadRoute(azadXrayRouteCacheKey) : null;
+    const azadLookupSuppressed = cachedAzadXrayRoute === "denied";
+    const paths = isAzadPanelV2Ray ? azadLookupSuppressed ? [] : [cachedAzadXrayRoute === "user" ? azadXrayUserPath : azadPanelXraySubscriptionPath(panelUsername)] : kind === "rain_admin" ? [`/api/users/${encodedUsername}`, `/api/user/${encodedUsername}`] : kind === "falcon" ? [`/api/v1/configs?username=${encodedUsername}`] : [`/api/user/${encodedUsername}`];
     let links = [];
     for (const path of paths) {
       try {
-        const response = await panelRequest(panel, "GET", path);
+        let response = await panelRequest(panel, "GET", path);
+        const linkPath = isAzadPanelV2Ray ? azadPanelXraySubscriptionPath(panelUsername) : "";
+        if (isAzadPanelV2Ray && path === linkPath && response.status === 403) {
+          const linkEndpointStatus = response.status;
+          response = await panelRequest(panel, "GET", azadXrayUserPath);
+          if (response.status >= 200 && response.status < 300) {
+            cacheAzadPanelXrayReadRoute(
+              azadXrayRouteCacheKey,
+              "user",
+              AZAD_PANEL_XRAY_USER_ROUTE_TTL_MS
+            );
+            console.info("[subscription] AzadPanel Xray link endpoint denied; documented user endpoint succeeded", {
+              providerKey: panelKey(panel),
+              usernameSource: savedProviderUsername ? "provider_mapping" : "service_username"
+            });
+          } else if (response.status === 403 || response.status === 404) {
+            cacheAzadPanelXrayReadRoute(
+              azadXrayRouteCacheKey,
+              "denied",
+              AZAD_PANEL_XRAY_DENIED_TTL_MS
+            );
+            console.warn("[subscription] AzadPanel denied Xray link and user endpoint access", {
+              providerKey: panelKey(panel),
+              linkEndpointStatus,
+              userEndpointStatus: response.status,
+              usernameSource: savedProviderUsername ? "provider_mapping" : "service_username",
+              retryAfterMs: AZAD_PANEL_XRAY_DENIED_TTL_MS
+            });
+          }
+        } else if (isAzadPanelV2Ray && path === azadXrayUserPath && response.status === 403) {
+          cacheAzadPanelXrayReadRoute(
+            azadXrayRouteCacheKey,
+            "denied",
+            AZAD_PANEL_XRAY_DENIED_TTL_MS
+          );
+          console.warn("[subscription] AzadPanel denied the Xray user endpoint", {
+            providerKey: panelKey(panel),
+            status: response.status,
+            usernameSource: savedProviderUsername ? "provider_mapping" : "service_username",
+            retryAfterMs: AZAD_PANEL_XRAY_DENIED_TTL_MS
+          });
+        }
         if (response.status >= 200 && response.status < 300) {
           links = [...new Set(isAzadPanelV2Ray ? azadPanelXraySubscriptionLinks(response.json) : collectSubscriptionLinks(response.json))];
+          if (isAzadPanelV2Ray && path === azadXrayUserPath && !azadLookupSuppressed) {
+            cacheAzadPanelXrayReadRoute(
+              azadXrayRouteCacheKey,
+              "user",
+              AZAD_PANEL_XRAY_USER_ROUTE_TTL_MS
+            );
+          }
           if (links.length) break;
         }
         if (isAzadPanelV2Ray) {
@@ -75865,7 +75947,7 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
         azadPanelSubscriptionFeeds,
         fallbackConfigLinks
       );
-      if (!mergedFeeds.length) {
+      if (!mergedFeeds.length && !azadLookupSuppressed) {
         console.warn("[subscription] AzadPanel V2Ray returned no usable subscription configs", {
           providerKey: panelKey(panel)
         });

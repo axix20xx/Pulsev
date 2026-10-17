@@ -15,6 +15,7 @@ const {
   azadPanelExpectedCore,
   azadPanelXraySubscriptionLinks,
   azadPanelXraySubscriptionPath,
+  azadPanelXrayUserPath,
   isAzadPanelCoreCandidate,
   isStandardServiceProvisioningPanel,
   mergeAzadPanelXraySubscriptionFeeds,
@@ -48,6 +49,7 @@ test("AzadPanel core lookup only checks matching protocol rows plus legacy gener
 test("AzadPanel V2Ray uses the Xray core and the documented live-link route", () => {
   assert.equal(azadPanelExpectedCore("azadpanel_v2ray"), "xray");
   assert.equal(azadPanelXraySubscriptionPath("cust/user"), "/api/xray/user/cust%2Fuser/link");
+  assert.equal(azadPanelXrayUserPath("cust/user"), "/api/user/cust%2Fuser");
 });
 
 test("AzadPanel Xray prefers its dynamic subscription URL and falls back to returned links", () => {

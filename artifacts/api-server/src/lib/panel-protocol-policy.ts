@@ -32,6 +32,10 @@ export function azadPanelXraySubscriptionPath(username: string): string {
   return `/api/xray/user/${encodeURIComponent(username)}/link`;
 }
 
+export function azadPanelXrayUserPath(username: string): string {
+  return `/api/user/${encodeURIComponent(username)}`;
+}
+
 export function azadPanelXraySubscriptionLinks(payload: unknown): string[] {
   if (!payload || typeof payload !== "object") return [];
   const root = payload as Record<string, unknown>;
