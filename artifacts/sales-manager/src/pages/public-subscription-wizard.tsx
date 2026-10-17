@@ -98,6 +98,9 @@ type Props = {
   wireguardData: WireGuardAccount | null;
   wireguardError: string;
   prepareWireGuard: () => void;
+  allMobileConfigBusy: boolean;
+  allMobileConfigError: string;
+  prepareAllMobileConfig: () => void;
   copied: 'page' | 'feed' | 'awg' | null;
   copyUrl: (url: string, kind: 'page' | 'feed' | 'awg') => void;
   copyAwg: () => void;
@@ -233,6 +236,9 @@ export function PublicSubscriptionWizard(props: Props) {
     wireguardData,
     wireguardError,
     prepareWireGuard,
+    allMobileConfigBusy,
+    allMobileConfigError,
+    prepareAllMobileConfig,
     copied,
     copyUrl,
     copyAwg,
@@ -366,6 +372,15 @@ export function PublicSubscriptionWizard(props: Props) {
                       </motion.button>
                     );
                   })}
+                </div>
+              )}
+              {!finished && activeOS === 'iOS' && (
+                <div className="public-sub-openvpn-actions public-sub-all-mobileconfig" data-testid="section-public-sub-all-mobileconfig">
+                  <button type="button" className="public-sub-openvpn-button primary" onClick={prepareAllMobileConfig} disabled={allMobileConfigBusy} data-testid="button-public-sub-add-all-ios">
+                    {allMobileConfigBusy ? <><RefreshCw size={15} className="public-sub-spin" />در حال آماده‌سازی پروفایل‌ها...</> : <><Download size={15} />نصب یک‌جای سرویس‌های فعال · iOS</>}
+                  </button>
+                  <p className="public-sub-openvpn-hint">فقط پروفایل‌های فعال و مجاز اضافه می‌شوند؛ برنامهٔ هر پروتکل باید نصب باشد. V2Ray جداگانه از لینک اشتراک وارد برنامه می‌شود.</p>
+                  {allMobileConfigError && <p className="public-sub-openvpn-error" role="alert">{allMobileConfigError}</p>}
                 </div>
               )}
               <div className="public-sub-protocol-privacy"><Lock size={14} /><span>لینک و کانفیگ این صفحه فقط برای اشتراک شماست.</span><button type="button" onClick={() => void copyUrl(pageUrl, 'page')} data-testid="button-public-sub-copy-page">{copied === 'page' ? 'کپی شد' : 'کپی لینک صفحه'}</button></div>

@@ -1388,3 +1388,17 @@ mtime_ms = 1792242448914
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/aab1c48c-3c05-476f-9e47-3702ea70f6e1/cd1e154e-cb57-4d4b-a5b9-0ad95e06dc95"
 storage_version_token = "1792242527764343"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "RtosQLBTzbzdCzypxQNRg"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T13-25-46-870Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger migration ZIP"
+description = "Full Hostinger migration bundle with the one-tap iOS profile flow for active OpenVPN, WireGuard, and AmneziaWG configurations."
+logical_id = "47c5f036-0eab-46cb-9e09-c8e73d6d7b27"
+content_hash = "sha256:a4ff3e8ff5ffb6709ba6afc5588b8e13e4a3c9eefe6b35fd8d388e0523a57dae"
+size = 28798514
+mtime_ms = 1792243660276
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/47c5f036-0eab-46cb-9e09-c8e73d6d7b27/322b7415-85e9-4745-bd83-2570ed8e85f8"
+storage_version_token = "1792243725770599"
+content_type = "application/octet-stream"

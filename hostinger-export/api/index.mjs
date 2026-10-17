@@ -68824,6 +68824,186 @@ function createWireGuardMobileConfig(config3, serviceId, hostId, locationName) {
   );
 }
 
+// src/lib/multi-protocol-mobileconfig.ts
+import { createHash as createHash6 } from "node:crypto";
+var MAX_ENTRIES = 80;
+var escapeXml = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+function stableUuid(value) {
+  const bytes = Buffer.from(createHash6("sha1").update("pulse-mobileconfig-v1\0").update(value).digest().subarray(0, 16));
+  bytes[6] = bytes[6] & 15 | 80;
+  bytes[8] = bytes[8] & 63 | 128;
+  const hex = bytes.toString("hex").toUpperCase();
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+function safeServerId(value) {
+  if (!/^[A-Za-z0-9._-]{1,80}$/.test(value)) {
+    throw new Error("Invalid server identity in mobileconfig.");
+  }
+  return value.replace(/[^A-Za-z0-9.-]/g, "-");
+}
+function parseOpenVpnVendorConfig(profile) {
+  const directives = /* @__PURE__ */ new Map();
+  const counts = /* @__PURE__ */ new Map();
+  const lines = profile.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").split("\n");
+  let inlineTag = null;
+  let inlineValue = [];
+  let remoteCount = 0;
+  const addDirective = (name, value) => {
+    const count = (counts.get(name) ?? 0) + 1;
+    counts.set(name, count);
+    directives.set(count === 1 ? name : `${name}.${count}`, value || "NOARGS");
+    if (name === "remote") remoteCount += 1;
+  };
+  for (const rawLine of lines) {
+    const line2 = rawLine.trim();
+    if (!line2) continue;
+    if (inlineTag) {
+      if (line2.toLowerCase() === `</${inlineTag}>`) {
+        addDirective(inlineTag, inlineValue.join("\n"));
+        inlineTag = null;
+        inlineValue = [];
+      } else {
+        inlineValue.push(rawLine);
+      }
+      continue;
+    }
+    if (line2.startsWith("#") || line2.startsWith(";")) continue;
+    const openTag = line2.match(/^<(ca|cert|key|tls-auth|tls-crypt|dh)>$/i);
+    if (openTag) {
+      inlineTag = openTag[1].toLowerCase();
+      inlineValue = [];
+      continue;
+    }
+    if (/^<\/?(?:connection|auth-user-pass)>$/i.test(line2)) {
+      if (/^<connection>$/i.test(line2)) {
+        throw new Error("OpenVPN mobileconfig does not support nested connection blocks.");
+      }
+      throw new Error("OpenVPN auth blocks cannot be converted to a mobileconfig.");
+    }
+    if (/^<(?:ca|cert|key|tls-auth|tls-crypt|dh|connection|auth-user-pass)>/i.test(line2)) {
+      throw new Error("OpenVPN profile contains an unsupported or malformed inline block.");
+    }
+    const match = line2.match(/^([A-Za-z][A-Za-z0-9_-]*)(?:\s+(.*))?$/);
+    if (!match) throw new Error("OpenVPN profile contains an invalid directive.");
+    const name = match[1].toLowerCase();
+    let value = match[2]?.trim() ?? "";
+    if (["config", "cd", "chroot", "daemon", "group", "log", "log-append", "management", "plugin", "script-security", "status", "user", "writepid", "up", "down", "route-up", "route-pre-down"].includes(name)) {
+      throw new Error(`OpenVPN directive "${name}" cannot be represented safely in an iOS profile.`);
+    }
+    if (["ca", "cert", "key", "tls-auth", "tls-crypt", "dh", "pkcs12"].includes(name)) {
+      if (value) {
+        throw new Error(`OpenVPN directive "${name}" must contain inline data for iOS import.`);
+      }
+    }
+    if (name === "auth-user-pass") {
+      value = "";
+    }
+    if (name === "remote") remoteCount += 1;
+    const count = (counts.get(name) ?? 0) + 1;
+    counts.set(name, count);
+    directives.set(count === 1 ? name : `${name}.${count}`, value || "NOARGS");
+  }
+  if (inlineTag) throw new Error(`OpenVPN profile is missing </${inlineTag}>.`);
+  if (!remoteCount) throw new Error("OpenVPN profile is missing its remote server directive.");
+  const hasCert = [...directives.keys()].some((key) => key === "cert" || /^cert\.\d+$/.test(key));
+  const hasKey = [...directives.keys()].some((key) => key === "key" || /^key\.\d+$/.test(key));
+  if (hasCert !== hasKey) throw new Error("OpenVPN profile must provide both the client certificate and private key.");
+  if (!hasCert) {
+    const count = (counts.get("setenv") ?? 0) + 1;
+    counts.set("setenv", count);
+    directives.set(count === 1 ? "setenv" : `setenv.${count}`, "CLIENT_CERT 0");
+  }
+  directives.set("vpn-on-demand", "0");
+  return directives;
+}
+function wireGuardPayload(entry, serviceId, hostId) {
+  const config3 = entry.config.trim();
+  if (!/^\s*\[Interface\]\s*$/im.test(config3) || !/^\s*\[Peer\]\s*$/im.test(config3)) {
+    throw new Error("WireGuard profile cannot be represented as an iOS configuration.");
+  }
+  if (/^\s*(?:FwMark|Table|PreUp|PostUp|PreDown|PostDown|SaveConfig)\s*=/im.test(config3)) {
+    throw new Error("WireGuard profile contains options unsupported by iOS.");
+  }
+  const endpoint = config3.match(/^\s*Endpoint\s*=\s*(.+?)\s*$/im)?.[1]?.trim();
+  if (!endpoint) throw new Error("WireGuard profile is missing its endpoint.");
+  const subtype = entry.protocol === "amneziawg" ? "org.amnezia.awg" : "com.wireguard.ios";
+  const identifier = `com.pulse.all.${entry.protocol}.service-${serviceId}.location-${hostId}.vpn`;
+  const displayName = `Pulse ${entry.protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} \xB7 ${entry.serverName}`;
+  return `    <dict>
+      <key>PayloadDisplayName</key><string>VPN</string>
+      <key>PayloadType</key><string>com.apple.vpn.managed</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${escapeXml(identifier)}</string>
+      <key>PayloadUUID</key><string>${stableUuid(identifier)}</string>
+      <key>UserDefinedName</key><string>${escapeXml(displayName)}</string>
+      <key>VPNType</key><string>VPN</string>
+      <key>VPNSubType</key><string>${subtype}</string>
+      <key>VendorConfig</key><dict><key>WgQuickConfig</key><string>${escapeXml(config3)}</string></dict>
+      <key>VPN</key><dict>
+        <key>RemoteAddress</key><string>${escapeXml(endpoint)}</string>
+        <key>AuthenticationMethod</key><string>Password</string>
+      </dict>
+    </dict>`;
+}
+function openVpnPayload(entry, serviceId, hostId) {
+  const directives = parseOpenVpnVendorConfig(entry.config);
+  const identifier = `com.pulse.all.openvpn.service-${serviceId}.location-${hostId}.vpn`;
+  const displayName = `Pulse OpenVPN \xB7 ${entry.serverName}`;
+  const vendorConfig = [...directives.entries()].map(([key, value]) => `<key>${escapeXml(key)}</key><string>${escapeXml(value.replace(/\r\n?/g, "\n").replace(/\n/g, "\\n"))}</string>`).join("");
+  return `    <dict>
+      <key>PayloadDisplayName</key><string>VPN</string>
+      <key>PayloadType</key><string>com.apple.vpn.managed</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${escapeXml(identifier)}</string>
+      <key>PayloadUUID</key><string>${stableUuid(identifier)}</string>
+      <key>UserDefinedName</key><string>${escapeXml(displayName)}</string>
+      <key>VPNType</key><string>VPN</string>
+      <key>VPNSubType</key><string>net.openvpn.connect.app</string>
+      <key>VPN</key><dict>
+        <key>AuthName</key><string>DEFAULT</string>
+        <key>AuthenticationMethod</key><string>Password</string>
+        <key>RemoteAddress</key><string>DEFAULT</string>
+      </dict>
+      <key>VendorConfig</key><dict>${vendorConfig}</dict>
+    </dict>`;
+}
+function createMultiProtocolMobileConfigBundle(entries, serviceId) {
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
+    throw new Error("Invalid service identity in mobileconfig.");
+  }
+  if (!entries.length || entries.length > MAX_ENTRIES) {
+    throw new Error(`An iOS profile must contain between 1 and ${MAX_ENTRIES} connections.`);
+  }
+  const identities = entries.map((entry) => `${entry.protocol}:${entry.serverId}`);
+  if (new Set(identities).size !== identities.length) {
+    throw new Error("A combined iOS profile cannot contain duplicate server identities.");
+  }
+  const normalized = entries.map((entry) => ({
+    ...entry,
+    hostId: safeServerId(entry.serverId),
+    serverName: entry.serverName.trim().slice(0, 120) || entry.serverId
+  }));
+  const profileIdentifier = `com.pulse.service-${serviceId}.all-vpn.profile`;
+  const payloads = normalized.map(
+    (entry) => entry.protocol === "openvpn" ? openVpnPayload(entry, serviceId, entry.hostId) : wireGuardPayload(entry, serviceId, entry.hostId)
+  );
+  const displayProtocols = [...new Set(normalized.map((entry) => entry.protocol))].map((protocol) => protocol === "openvpn" ? "OpenVPN" : protocol === "amneziawg" ? "AmneziaWG" : "WireGuard").join(" \xB7 ");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadDisplayName</key><string>Pulse \xB7 ${escapeXml(displayProtocols)}</string>
+  <key>PayloadType</key><string>Configuration</string>
+  <key>PayloadVersion</key><integer>1</integer>
+  <key>PayloadIdentifier</key><string>${escapeXml(profileIdentifier)}</string>
+  <key>PayloadUUID</key><string>${stableUuid(profileIdentifier)}</string>
+  <key>PayloadContent</key><array>
+${payloads.join("\n")}
+  </array>
+</dict>
+</plist>`;
+}
+
 // src/lib/wireguard-delivery-links.ts
 function publicWireGuardDeliveryLinks(token, providerKey, locations) {
   const providerPath = `/api/public/subscription/${encodeURIComponent(token)}/wireguard`;
@@ -71760,6 +71940,112 @@ router2.get("/public/subscription/:token/awg/mobileconfig", async (req, res) => 
     res.status(422).type("text/plain").send(
       error40 instanceof Error ? error40.message : "Could not prepare the iOS AmneziaWG profile."
     );
+  }
+});
+router2.get("/public/subscription/:token/all/mobileconfig", async (req, res) => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).type("text/plain").send("\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).type("text/plain").send("\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F.");
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).type("text/plain").send("\u0627\u0634\u062A\u0631\u0627\u06A9 \u0641\u0639\u0627\u0644 \u0646\u06CC\u0633\u062A\u061B \u0627\u0645\u06A9\u0627\u0646 \u0633\u0627\u062E\u062A \u067E\u0631\u0648\u0641\u0627\u06CC\u0644 \u0648\u062C\u0648\u062F \u0646\u062F\u0627\u0631\u062F.");
+    return;
+  }
+  try {
+    const serviceId = Number(service.id);
+    const resellerId = Number(service.reseller_tg_id);
+    const entries = [];
+    const openVpn = await loadSavedOpenVpnDelivery(serviceId);
+    if (openVpn) {
+      try {
+        const profile2 = await downloadOpenVpnProfile(
+          String(service.username),
+          openVpn.provider_key,
+          void 0,
+          resellerId,
+          "reseller"
+        );
+        entries.push({
+          protocol: "openvpn",
+          config: profile2.body,
+          serverId: openVpn.provider_key,
+          serverName: openVpn.locations.map((location) => location.name).join(" \xB7 ") || "OpenVPN"
+        });
+      } catch (error40) {
+        const message = error40 instanceof Error ? error40.message : "";
+        if (!/No enabled AzadPanel OpenVPN provider is configured|selected AzadPanel OpenVPN provider is unavailable|AzadPanel .+ is not configured for OpenVPN/.test(message)) {
+          throw error40;
+        }
+      }
+    }
+    if (service.wireguard_enabled) {
+      const wireGuard = await loadSavedWireGuardDelivery(serviceId);
+      if (wireGuard?.locations.length) {
+        try {
+          const profiles = await downloadWireGuardProfiles(
+            wireGuard.username,
+            wireGuard.provider_key,
+            wireGuard.locations.map((location) => location.id),
+            resellerId,
+            "reseller"
+          );
+          const locationById = new Map(wireGuard.locations.map((location) => [location.id, location]));
+          entries.push(...profiles.map((profile2) => ({
+            protocol: "wireguard",
+            config: profile2.body,
+            serverId: profile2.hostId,
+            serverName: locationById.get(profile2.hostId)?.name ?? `WireGuard ${profile2.hostId}`
+          })));
+        } catch (error40) {
+          const message = error40 instanceof Error ? error40.message : "";
+          if (!/No enabled AzadPanel WireGuard provider is configured|selected AzadPanel WireGuard provider is unavailable|AzadPanel .+ is not configured for WireGuard/.test(message)) {
+            throw error40;
+          }
+        }
+      }
+    }
+    const awg = await resolvePublicAwgProfile(token);
+    if (awg.status === 200) {
+      entries.push({
+        protocol: "amneziawg",
+        config: awg.config,
+        serverId: "amneziawg",
+        serverName: "AmneziaWG"
+      });
+    } else if (awg.status === 502) {
+      res.status(502).type("text/plain").send(awg.error);
+      return;
+    } else if (awg.status === 410) {
+      res.status(410).type("text/plain").send(awg.error);
+      return;
+    }
+    if (!entries.length) {
+      res.status(409).type("text/plain").send("\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0647\u06CC\u0686 \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0641\u0639\u0627\u0644 \u0648 \u0622\u0645\u0627\u062F\u0647\u200C\u0627\u06CC \u0628\u0631\u0627\u06CC \u0646\u0635\u0628 iOS \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F.");
+      return;
+    }
+    const profile = createMultiProtocolMobileConfigBundle(entries, serviceId);
+    const protocols = [...new Set(entries.map((entry) => entry.protocol))].join(",");
+    const filename = safeDownloadFilename(
+      null,
+      `Pulse-${serviceId}-all-active-services`,
+      ".mobileconfig"
+    );
+    res.setHeader("content-type", "application/x-apple-aspen-config");
+    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("x-pulse-included-protocols", protocols);
+    res.send(profile);
+  } catch (error40) {
+    const message = error40 instanceof Error ? error40.message : "\u0633\u0627\u062E\u062A \u067E\u0631\u0648\u0641\u0627\u06CC\u0644 \u06CC\u06A9\u200C\u062C\u0627\u06CC \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627 \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F.";
+    res.status(502).type("text/plain").send(message);
   }
 });
 router2.get("/panels", requireMasterAdmin, async (_req, res) => {

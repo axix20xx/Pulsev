@@ -2988,6 +2988,8 @@ function PublicSubscriptionContentV2() {
   const [wireguardLoading, setWireguardLoading] = useState(false);
   const [wireguardData, setWireguardData] = useState<any>(null);
   const [wireguardError, setWireguardError] = useState('');
+  const [allMobileConfigBusy, setAllMobileConfigBusy] = useState(false);
+  const [allMobileConfigError, setAllMobileConfigError] = useState('');
 
   useEffect(() => {
     const detected = detectClientOS();
@@ -3150,6 +3152,64 @@ function PublicSubscriptionContentV2() {
       setWireguardBusy(false);
     }
   };
+  const prepareAllMobileConfig = async () => {
+    if (!token || allMobileConfigBusy || finished || activeOS !== 'iOS') return;
+    setAllMobileConfigBusy(true);
+    setAllMobileConfigError('');
+    const publicPath = `/api/public/subscription/${encodeURIComponent(token)}`;
+    const readJson = async (response: Response) => response.json().catch(() => null) as Promise<any>;
+    const ensureAccount = async (
+      protocol: 'openvpn' | 'wireguard',
+      notCreatedCode: string,
+      setValue: (value: any) => void,
+    ): Promise<boolean> => {
+      const endpoint = `${publicPath}/${protocol}`;
+      let response = await fetch(endpoint, { cache: 'no-store' });
+      let result = await readJson(response);
+      if (!response.ok && response.status === 404 && result?.code === notCreatedCode) {
+        response = await fetch(endpoint, { method: 'POST', cache: 'no-store' });
+        result = await readJson(response);
+      }
+      if (!response.ok) {
+        const message = String(result?.error || `دریافت کانفیگ ${protocol} ناموفق بود.`);
+        if (
+          protocol === 'openvpn'
+          && response.status === 503
+          && message.includes('No enabled AzadPanel OpenVPN provider')
+        ) return false;
+        throw new Error(message);
+      }
+      setValue(result);
+      return true;
+    };
+
+    try {
+      let readyCount = 0;
+      try {
+        if (await ensureAccount('openvpn', 'OPENVPN_NOT_CREATED', setOpenVpnData)) readyCount += 1;
+      } catch (cause) {
+        throw new Error(cause instanceof Error ? `OpenVPN: ${cause.message}` : 'آماده‌سازی OpenVPN ناموفق بود.');
+      }
+
+      if (data?.wireguard_available === true) {
+        try {
+          if (await ensureAccount('wireguard', 'WIREGUARD_NOT_CREATED', setWireguardData)) readyCount += 1;
+        } catch (cause) {
+          throw new Error(cause instanceof Error ? `WireGuard: ${cause.message}` : 'آماده‌سازی WireGuard ناموفق بود.');
+        }
+      }
+      if (awgAvailable) readyCount += 1;
+      if (!readyCount) {
+        throw new Error('برای این اشتراک هیچ کانفیگ فعال و آماده‌ای برای نصب iOS پیدا نشد.');
+      }
+
+      window.location.assign(`${publicPath}/all/mobileconfig`);
+    } catch (cause) {
+      setAllMobileConfigError(cause instanceof Error ? cause.message : 'آماده‌سازی پروفایل‌های فعال ناموفق بود.');
+    } finally {
+      setAllMobileConfigBusy(false);
+    }
+  };
   const copyOpenVpnValue = async (value: string, kind: 'server' | 'username' | 'password') => {
     if (!(await copyTextToClipboard(value))) return;
     setOpenVpnCopied(kind);
@@ -3247,6 +3307,9 @@ function PublicSubscriptionContentV2() {
         wireguardData={wireguardData}
         wireguardError={wireguardError}
         prepareWireGuard={prepareWireGuard}
+        allMobileConfigBusy={allMobileConfigBusy}
+        allMobileConfigError={allMobileConfigError}
+        prepareAllMobileConfig={prepareAllMobileConfig}
         copied={copied}
         copyUrl={copyUrl}
         copyAwg={copyAwg}

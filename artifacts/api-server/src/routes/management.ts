@@ -115,6 +115,10 @@ import {
   createWireGuardMobileConfig,
   createWireGuardMobileConfigBundle,
 } from "../lib/wireguard-mobileconfig";
+import {
+  createMultiProtocolMobileConfigBundle,
+  type MobileConfigEntry,
+} from "../lib/multi-protocol-mobileconfig";
 import { publicWireGuardDeliveryLinks } from "../lib/wireguard-delivery-links";
 import { getAwgUsageWorkerLog, recordAwgUsagePollEvent } from "../lib/awg-usage-poll";
 import {
@@ -2421,6 +2425,120 @@ router.get("/public/subscription/:token/awg/mobileconfig", async (req, res): Pro
     res.status(422).type("text/plain").send(
       error instanceof Error ? error.message : "Could not prepare the iOS AmneziaWG profile.",
     );
+  }
+});
+
+router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).type("text/plain").send("لینک اشتراک معتبر نیست.");
+    return;
+  }
+
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).type("text/plain").send("لینک اشتراک پیدا نشد.");
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).type("text/plain").send("اشتراک فعال نیست؛ امکان ساخت پروفایل وجود ندارد.");
+    return;
+  }
+
+  try {
+    const serviceId = Number(service.id);
+    const resellerId = Number(service.reseller_tg_id);
+    const entries: MobileConfigEntry[] = [];
+
+    const openVpn = await loadSavedOpenVpnDelivery(serviceId);
+    if (openVpn) {
+      try {
+        const profile = await downloadOpenVpnProfile(
+          String(service.username),
+          openVpn.provider_key,
+          undefined,
+          resellerId,
+          "reseller",
+        );
+        entries.push({
+          protocol: "openvpn",
+          config: profile.body,
+          serverId: openVpn.provider_key,
+          serverName: openVpn.locations.map((location) => location.name).join(" · ") || "OpenVPN",
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (!/No enabled AzadPanel OpenVPN provider is configured|selected AzadPanel OpenVPN provider is unavailable|AzadPanel .+ is not configured for OpenVPN/.test(message)) {
+          throw error;
+        }
+      }
+    }
+
+    if (service.wireguard_enabled) {
+      const wireGuard = await loadSavedWireGuardDelivery(serviceId);
+      if (wireGuard?.locations.length) {
+        try {
+          const profiles = await downloadWireGuardProfiles(
+            wireGuard.username,
+            wireGuard.provider_key,
+            wireGuard.locations.map((location) => location.id),
+            resellerId,
+            "reseller",
+          );
+          const locationById = new Map(wireGuard.locations.map((location) => [location.id, location]));
+          entries.push(...profiles.map((profile) => ({
+            protocol: "wireguard" as const,
+            config: profile.body,
+            serverId: profile.hostId,
+            serverName: locationById.get(profile.hostId)?.name ?? `WireGuard ${profile.hostId}`,
+          })));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          if (!/No enabled AzadPanel WireGuard provider is configured|selected AzadPanel WireGuard provider is unavailable|AzadPanel .+ is not configured for WireGuard/.test(message)) {
+            throw error;
+          }
+        }
+      }
+    }
+
+    const awg = await resolvePublicAwgProfile(token);
+    if (awg.status === 200) {
+      entries.push({
+        protocol: "amneziawg",
+        config: awg.config,
+        serverId: "amneziawg",
+        serverName: "AmneziaWG",
+      });
+    } else if (awg.status === 502) {
+      res.status(502).type("text/plain").send(awg.error);
+      return;
+    } else if (awg.status === 410) {
+      res.status(410).type("text/plain").send(awg.error);
+      return;
+    }
+
+    if (!entries.length) {
+      res.status(409).type("text/plain").send("برای این اشتراک هیچ کانفیگ فعال و آماده‌ای برای نصب iOS پیدا نشد.");
+      return;
+    }
+
+    const profile = createMultiProtocolMobileConfigBundle(entries, serviceId);
+    const protocols = [...new Set(entries.map((entry) => entry.protocol))].join(",");
+    const filename = safeDownloadFilename(
+      null,
+      `Pulse-${serviceId}-all-active-services`,
+      ".mobileconfig",
+    );
+    res.setHeader("content-type", "application/x-apple-aspen-config");
+    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("x-pulse-included-protocols", protocols);
+    res.send(profile);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "ساخت پروفایل یک‌جای سرویس‌ها ناموفق بود.";
+    res.status(502).type("text/plain").send(message);
   }
 });
 
