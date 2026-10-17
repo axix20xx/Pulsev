@@ -3,7 +3,10 @@ import {
   provisionUser,
   RainApiError,
 } from "./rain";
-import { azadPanelV2RayBackfillPlan } from "./azadpanel-v2ray-backfill";
+import {
+  azadPanelV2RayBackfillPlan,
+  hasAzadPanelV2RayBackfillProviderResult,
+} from "./azadpanel-v2ray-backfill";
 import { createAwgClient, disableAwgClient, replaceAwgClient } from "./amneziawg";
 import { logger } from "./logger";
 import { hostname } from "node:os";
@@ -292,6 +295,18 @@ async function processProviderJob(job: ProvisionJob) {
         onlyIfMissingAzadPanel: payload.onlyIfMissingAzadPanel === true,
       },
     );
+    if (
+      payload.azadPanelV2RayBackfill === true
+      && !hasAzadPanelV2RayBackfillProviderResult(result.results, job.provider_keys)
+    ) {
+      const warning = "V2Ray backfill returned no result from its configured AzadPanel Provider; no account was verified.";
+      await failJob(job.id, warning);
+      logger.warn(
+        { jobId: job.id, serviceId: job.service_id, providerKeys: job.provider_keys },
+        "V2Ray backfill failed instead of completing without a Provider result",
+      );
+      return;
+    }
     const failed = result.results.filter((item) => item.status < 200 || item.status >= 300);
     const retryableFailures = failed.filter((item) => item.retryable !== false);
     if (retryableFailures.length) {

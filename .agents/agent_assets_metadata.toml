@@ -1626,3 +1626,17 @@ mtime_ms = 1792263887973
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b4efb141-3375-4eb2-a75c-90c03303a28d/db7d883e-600d-4334-9a30-e99a70b2f305"
 storage_version_token = "1792263927495455"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "iixJQemu1pG-wIg-HMFmw"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T20-24-21-491Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger migration ZIP — V2Ray repair"
+description = "Full Hostinger migration package with safer AzadPanel V2Ray backfill, live subscription-access verification, and visible failures instead of false completed jobs."
+logical_id = "6ed42d3d-76c5-4b4d-828d-0bcb979deff3"
+content_hash = "sha256:4118c193bb4aecdf5c03fce1d17d71a403b7b17dbd99546ec4683c1eed516448"
+size = 29049485
+mtime_ms = 1792268763889
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6ed42d3d-76c5-4b4d-828d-0bcb979deff3/b3a19acc-bb07-4544-aa78-f25e239c7d72"
+storage_version_token = "1792268809910462"
+content_type = "application/octet-stream"

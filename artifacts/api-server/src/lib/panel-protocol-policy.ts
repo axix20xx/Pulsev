@@ -36,6 +36,31 @@ export function azadPanelXrayUserPath(username: string): string {
   return `/api/user/${encodeURIComponent(username)}`;
 }
 
+export type AzadPanelXrayDeliveryDisposition =
+  | "available"
+  | "denied"
+  | "no_links"
+  | "retryable_error"
+  | "unexpected_error";
+
+export function azadPanelXrayDeliveryDisposition(
+  responses: Array<{ status: number; linkCount: number }>,
+): AzadPanelXrayDeliveryDisposition {
+  if (responses.some(({ status, linkCount }) => status >= 200 && status < 300 && linkCount > 0)) {
+    return "available";
+  }
+  if (responses.some(({ status }) => status === 408 || status === 429 || status >= 500)) {
+    return "retryable_error";
+  }
+  if (responses.length > 0 && responses.every(({ status }) => [403, 404, 405].includes(status))) {
+    return "denied";
+  }
+  if (responses.some(({ status }) => status >= 200 && status < 300)) {
+    return "no_links";
+  }
+  return "unexpected_error";
+}
+
 export function azadPanelXraySubscriptionLinks(payload: unknown): string[] {
   if (!payload || typeof payload !== "object") return [];
   const root = payload as Record<string, unknown>;

@@ -5,6 +5,7 @@ import { isRetryableAzadPanelStatus } from "./azadpanel-retry-policy";
 import { azadPanelV2RayCollisionUsername } from "./azadpanel-v2ray-username";
 import {
   azadPanelExpectedCore,
+  azadPanelXrayDeliveryDisposition,
   azadPanelXraySubscriptionLinks,
   azadPanelXraySubscriptionPath,
   azadPanelXrayUserPath,
@@ -453,7 +454,11 @@ export async function fetchPanelSubscription(
       try {
         let response = await panelRequest(panel, "GET", path);
         const linkPath = isAzadPanelV2Ray ? azadPanelXraySubscriptionPath(panelUsername) : "";
-        if (isAzadPanelV2Ray && path === linkPath && response.status === 403) {
+        if (
+          isAzadPanelV2Ray
+          && path === linkPath
+          && [403, 404, 405].includes(response.status)
+        ) {
           const linkEndpointStatus = response.status;
           response = await panelRequest(panel, "GET", azadXrayUserPath);
           if (response.status >= 200 && response.status < 300) {
@@ -891,6 +896,81 @@ async function panelRequest(
     response = await request(panel, method, path, token, body);
   }
   return response;
+}
+
+async function inspectAzadPanelV2RayDelivery(
+  panel: Panel,
+  username: string,
+): Promise<"available" | "denied"> {
+  const linkResponse = await panelRequest(
+    panel,
+    "GET",
+    azadPanelXraySubscriptionPath(username),
+  );
+  const linkCount = linkResponse.status >= 200 && linkResponse.status < 300
+    ? azadPanelXraySubscriptionLinks(linkResponse.json).length
+    : 0;
+  const responses = [{ response: linkResponse, linkCount }];
+  const linkRequestIsTransient =
+    linkResponse.status === 408 || linkResponse.status === 429 || linkResponse.status >= 500;
+  if (linkCount === 0 && !linkRequestIsTransient) {
+    const userResponse = await panelRequest(
+      panel,
+      "GET",
+      azadPanelXrayUserPath(username),
+    );
+    const userLinkCount = userResponse.status >= 200 && userResponse.status < 300
+      ? azadPanelXraySubscriptionLinks(userResponse.json).length
+      : 0;
+    responses.push({ response: userResponse, linkCount: userLinkCount });
+  }
+
+  const disposition = azadPanelXrayDeliveryDisposition(
+    responses.map(({ response, linkCount: count }) => ({
+      status: response.status,
+      linkCount: count,
+    })),
+  );
+  if (disposition === "available") return "available";
+  if (disposition === "denied") return "denied";
+
+  const failed = responses.find(({ response }) =>
+    response.status === 408 || response.status === 429 || response.status >= 500,
+  );
+  if (disposition === "retryable_error" && failed) {
+    const status = failed.response.status;
+    const detail = `HTTP ${status}`;
+    throw new RainApiError(
+      `AzadPanel ${panelKey(panel)} could not verify Xray subscription access: ${detail}`,
+      [{
+        key: panelKey(panel),
+        kind: "azadpanel",
+        status,
+        error: detail,
+        retryable: true,
+        retryAfterMs: retryAfterDelayMs(failed.response),
+      }],
+      true,
+    );
+  }
+
+  const status = responses.find(({ response }) =>
+    response.status < 200 || response.status >= 300,
+  )?.response.status ?? 502;
+  const error = disposition === "no_links"
+    ? "AzadPanel returned no usable Xray subscription links for this account."
+    : `AzadPanel Xray subscription access check returned HTTP ${status}.`;
+  throw new RainApiError(
+    `AzadPanel ${panelKey(panel)}: ${error}`,
+    [{
+      key: panelKey(panel),
+      kind: "azadpanel",
+      status,
+      error,
+      retryable: false,
+    }],
+    false,
+  );
 }
 
 async function azadPanelCore(panel: Panel, forceRefresh = false): Promise<string> {
@@ -1827,8 +1907,52 @@ async function provisionAzadPanel(
                        updated_at = NOW()`,
         [serviceId, panelKey(panel), providerUsername],
       );
+      azadPanelXrayReadRouteCache.delete(`${panelKey(panel)}:${serviceId}`);
     }
   };
+  if (
+    isAzadPanelV2Ray
+    && options.onlyIfMissingAzadPanel
+    && existing.status === 200
+  ) {
+    let delivery = await inspectAzadPanelV2RayDelivery(panel, providerUsername);
+    if (delivery === "denied" && providerUsername === username) {
+      const collisionUsername = azadPanelV2RayCollisionUsername(Number(serviceId));
+      if (!collisionUsername) {
+        throw new RainApiError(
+          `AzadPanel ${panelKey(panel)} denied Xray subscription access and no service-specific account name could be generated.`,
+          [{
+            key: panelKey(panel),
+            kind: "azadpanel",
+            status: 403,
+            error: "Xray subscription access denied; no fallback username available.",
+            retryable: false,
+          }],
+          false,
+        );
+      }
+      providerUsername = collisionUsername;
+      encoded = encodeURIComponent(providerUsername);
+      existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+      if (existing.status === 200) {
+        delivery = await inspectAzadPanelV2RayDelivery(panel, providerUsername);
+      }
+    }
+    if (existing.status === 200 && delivery === "denied") {
+      const error = "AzadPanel denied Xray subscription access for this account.";
+      throw new RainApiError(
+        `AzadPanel ${panelKey(panel)}: ${error}`,
+        [{
+          key: panelKey(panel),
+          kind: "azadpanel",
+          status: 403,
+          error,
+          retryable: false,
+        }],
+        false,
+      );
+    }
+  }
   if (options.onlyIfMissingAzadPanel && existing.status === 200) {
     await persistProviderUsername();
     return existing.status;

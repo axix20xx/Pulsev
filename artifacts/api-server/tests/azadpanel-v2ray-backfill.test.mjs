@@ -15,7 +15,10 @@ const { outputFiles } = await build({
   write: false,
 });
 const code = Buffer.from(outputFiles[0].text).toString("base64");
-const { azadPanelV2RayBackfillPlan } = await import(
+const {
+  azadPanelV2RayBackfillPlan,
+  hasAzadPanelV2RayBackfillProviderResult,
+} = await import(
   `data:text/javascript;base64,${code}`
 );
 
@@ -46,6 +49,24 @@ test("V2Ray backfill derives remaining quota when no snapshot exists", () => {
     expiresAtUnix: null,
   });
   assert.deepEqual(plan, { eligible: true, quotaGb: 30, expiresAtUnix: null });
+});
+
+test("V2Ray backfill cannot silently complete without a result from its target Provider", () => {
+  assert.equal(hasAzadPanelV2RayBackfillProviderResult([], ["azad_v2ray"]), false);
+  assert.equal(
+    hasAzadPanelV2RayBackfillProviderResult(
+      [{ key: "other_provider", status: 200 }],
+      ["azad_v2ray"],
+    ),
+    false,
+  );
+  assert.equal(
+    hasAzadPanelV2RayBackfillProviderResult(
+      [{ key: "azad_v2ray", status: 403 }],
+      ["azad_v2ray"],
+    ),
+    true,
+  );
 });
 
 test("unlimited services remain unlimited in the V2Ray backfill", () => {

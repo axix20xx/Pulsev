@@ -14,6 +14,7 @@ const code = Buffer.from(outputFiles[0].text).toString("base64");
 const {
   azadPanelExpectedCore,
   azadPanelXraySubscriptionLinks,
+  azadPanelXrayDeliveryDisposition,
   azadPanelXraySubscriptionPath,
   azadPanelXrayUserPath,
   isAzadPanelCoreCandidate,
@@ -71,6 +72,36 @@ test("AzadPanel Xray prefers its dynamic subscription URL and falls back to retu
       links: ["vless://direct-node"],
     }),
     ["https://azad.example/sub/public-token", "vless://direct-node"],
+  );
+});
+
+test("AzadPanel Xray delivery check distinguishes usable, denied, empty, and transient responses", () => {
+  assert.equal(
+    azadPanelXrayDeliveryDisposition([
+      { status: 403, linkCount: 0 },
+      { status: 200, linkCount: 2 },
+    ]),
+    "available",
+  );
+  assert.equal(
+    azadPanelXrayDeliveryDisposition([
+      { status: 403, linkCount: 0 },
+      { status: 404, linkCount: 0 },
+    ]),
+    "denied",
+  );
+  assert.equal(
+    azadPanelXrayDeliveryDisposition([
+      { status: 200, linkCount: 0 },
+      { status: 403, linkCount: 0 },
+    ]),
+    "no_links",
+  );
+  assert.equal(
+    azadPanelXrayDeliveryDisposition([
+      { status: 429, linkCount: 0 },
+    ]),
+    "retryable_error",
   );
 });
 

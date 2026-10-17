@@ -15,6 +15,15 @@ export type AzadPanelV2RayBackfillPlan = {
   reason?: "inactive" | "expired" | "quota_exhausted" | "invalid";
 };
 
+export function hasAzadPanelV2RayBackfillProviderResult(
+  results: Array<{ key: string; status: number }>,
+  providerKeys: string[],
+): boolean {
+  return providerKeys.some((providerKey) =>
+    results.some((result) => result.key === providerKey),
+  );
+}
+
 export function azadPanelV2RayBackfillPlan(
   service: AzadPanelV2RayBackfillService,
   nowUnix = Math.floor(Date.now() / 1000),
