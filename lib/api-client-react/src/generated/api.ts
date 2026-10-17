@@ -32,6 +32,7 @@ import type {
   DashboardSummary,
   GetSalesSummaryParams,
   HealthStatus,
+  IpsecDelivery,
   ListAdminSalesParams,
   ListAwgUsageParams,
   ListCustomersParams,
@@ -4126,6 +4127,231 @@ export const useCreateWireGuardAccount = <TError = ErrorType<void>,
       > => {
       return useMutation(getCreateWireGuardAccountMutationOptions(options));
     }
+
+export const getGetIpsecAccountUrl = (token: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/ipsec`
+}
+
+/**
+ * @summary Read previously saved IPsec account information
+ */
+export const getIpsecAccount = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<IpsecDelivery> => {
+
+  return customFetch<IpsecDelivery>(getGetIpsecAccountUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetIpsecAccountQueryKey = (token: string,) => {
+    return [
+    `/api/public/subscription/${token}/ipsec`
+    ] as const;
+    }
+
+
+export const getGetIpsecAccountQueryOptions = <TData = Awaited<ReturnType<typeof getIpsecAccount>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIpsecAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetIpsecAccountQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getIpsecAccount>>> = ({ signal }) => getIpsecAccount(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getIpsecAccount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetIpsecAccountQueryResult = NonNullable<Awaited<ReturnType<typeof getIpsecAccount>>>
+export type GetIpsecAccountQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read previously saved IPsec account information
+ */
+
+export function useGetIpsecAccount<TData = Awaited<ReturnType<typeof getIpsecAccount>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIpsecAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetIpsecAccountQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateIpsecAccountUrl = (token: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/ipsec`
+}
+
+/**
+ * @summary Create or retrieve IPsec access after an explicit customer action
+ */
+export const createIpsecAccount = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<IpsecDelivery> => {
+
+  return customFetch<IpsecDelivery>(getCreateIpsecAccountUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateIpsecAccountMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createIpsecAccount>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createIpsecAccount>>, TError,{token: string}, TContext> => {
+
+const mutationKey = ['createIpsecAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createIpsecAccount>>, {token: string}> = (props) => {
+          const {token} = props ?? {};
+
+          return  createIpsecAccount(token,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateIpsecAccountMutationResult = NonNullable<Awaited<ReturnType<typeof createIpsecAccount>>>
+
+    export type CreateIpsecAccountMutationError = ErrorType<void>
+
+    /**
+ * @summary Create or retrieve IPsec access after an explicit customer action
+ */
+export const useCreateIpsecAccount = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createIpsecAccount>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createIpsecAccount>>,
+        TError,
+        {token: string},
+        TContext
+      > => {
+      return useMutation(getCreateIpsecAccountMutationOptions(options));
+    }
+
+export const getDownloadIpsecMobileConfigUrl = (token: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/ipsec/mobileconfig`
+}
+
+/**
+ * @summary Download the Apple IKEv2 profile for a saved IPsec account
+ */
+export const downloadIpsecMobileConfig = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getDownloadIpsecMobileConfigUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadIpsecMobileConfigQueryKey = (token: string,) => {
+    return [
+    `/api/public/subscription/${token}/ipsec/mobileconfig`
+    ] as const;
+    }
+
+
+export const getDownloadIpsecMobileConfigQueryOptions = <TData = Awaited<ReturnType<typeof downloadIpsecMobileConfig>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadIpsecMobileConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadIpsecMobileConfigQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadIpsecMobileConfig>>> = ({ signal }) => downloadIpsecMobileConfig(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadIpsecMobileConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadIpsecMobileConfigQueryResult = NonNullable<Awaited<ReturnType<typeof downloadIpsecMobileConfig>>>
+export type DownloadIpsecMobileConfigQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download the Apple IKEv2 profile for a saved IPsec account
+ */
+
+export function useDownloadIpsecMobileConfig<TData = Awaited<ReturnType<typeof downloadIpsecMobileConfig>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadIpsecMobileConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadIpsecMobileConfigQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getDownloadWireGuardConfigUrl = (token: string,
     provider: string,

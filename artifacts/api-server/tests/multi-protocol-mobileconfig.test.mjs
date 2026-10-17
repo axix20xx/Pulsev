@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { parse as parsePlist } from "plist";
 
 async function loadProfileBuilder() {
   const result = await build({
@@ -106,4 +107,35 @@ test("combined profiles reject duplicate server identities and invalid tunnel co
   assert.throws(() => createMultiProtocolMobileConfigBundle([
     { protocol: "amneziawg", config: "[Interface]\nPrivateKey = x\n", serverId: "awg", serverName: "AWG" },
   ], 127), /cannot be represented as an iOS configuration/);
+});
+
+test("combined iOS profile retains all AzadPanel IKEv2 locations and certificate payloads", async () => {
+  const { createMultiProtocolMobileConfigBundle } = await loadProfileBuilder();
+  const ipsecProfile = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>PayloadContent</key><array>
+    <dict><key>PayloadType</key><string>com.apple.security.pem</string><key>PayloadUUID</key><string>CA-ONE</string><key>PayloadContent</key><data>VGVzdA==</data></dict>
+    <dict><key>PayloadType</key><string>com.apple.vpn.managed</string><key>PayloadUUID</key><string>VPN-ONE</string><key>VPNType</key><string>IKEv2</string><key>VPN</key><dict><key>VPNType</key><string>IKEv2</string><key>RemoteAddress</key><string>one.example</string></dict></dict>
+    <dict><key>PayloadType</key><string>com.apple.vpn.managed</string><key>PayloadUUID</key><string>VPN-TWO</string><key>VPNType</key><string>IKEv2</string><key>VPN</key><dict><key>VPNType</key><string>IKEv2</string><key>RemoteAddress</key><string>two.example</string></dict></dict>
+  </array>
+</dict></plist>`;
+  const profile = createMultiProtocolMobileConfigBundle([], 129, ipsecProfile);
+  const parsed = parsePlist(profile);
+  const payloads = parsed.PayloadContent;
+  assert.equal(payloads.filter((payload) => payload.PayloadType === "com.apple.vpn.managed").length, 2);
+  assert.equal(payloads.filter((payload) => payload.PayloadType === "com.apple.security.pem").length, 1);
+  assert.deepEqual(
+    payloads.filter((payload) => payload.PayloadType === "com.apple.vpn.managed").map((payload) => payload.VPN.RemoteAddress),
+    ["one.example", "two.example"],
+  );
+  assert.match(profile, /Pulse · IPsec/);
+});
+
+test("an AzadPanel profile without an IKEv2 connection is not included", async () => {
+  const { createMultiProtocolMobileConfigBundle } = await loadProfileBuilder();
+  const invalidProfile = `<?xml version="1.0"?><plist version="1.0"><dict><key>PayloadContent</key><array>
+    <dict><key>PayloadType</key><string>com.apple.wifi.managed</string></dict>
+  </array></dict></plist>`;
+  assert.throws(() => createMultiProtocolMobileConfigBundle([], 130, invalidProfile), /no IKEv2 connection/);
 });

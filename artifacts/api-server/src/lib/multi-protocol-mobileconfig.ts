@@ -191,7 +191,7 @@ export function createMultiProtocolMobileConfigBundle(
   if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
     throw new Error("Invalid service identity in mobileconfig.");
   }
-  if (!entries.length || entries.length > MAX_ENTRIES) {
+  if ((!entries.length && !ipsecProfile) || entries.length > MAX_ENTRIES) {
     throw new Error(`An iOS profile must contain between 1 and ${MAX_ENTRIES} connections.`);
   }
   const identities = entries.map((entry) => `${entry.protocol}:${entry.serverId}`);
@@ -253,7 +253,7 @@ export function createMultiProtocolMobileConfigBundle(
   if (payloads.length > MAX_ENTRIES) {
     throw new Error(`An iOS profile must contain no more than ${MAX_ENTRIES} connections and certificates.`);
   }
-  const displayProtocols = [...new Set(normalized.map((entry) => entry.protocol))]
+  const displayProtocols: string[] = [...new Set(normalized.map((entry) => entry.protocol))]
     .map((protocol) => protocol === "openvpn" ? "OpenVPN" : protocol === "amneziawg" ? "AmneziaWG" : "WireGuard");
   if (ipsecProfile) displayProtocols.push("IPsec");
 

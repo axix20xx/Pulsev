@@ -19,5 +19,6 @@ export interface Reseller {
   customer_price_per_gb: number;
   enabled: boolean;
   wireguard_enabled: boolean;
+  ipsec_enabled: boolean;
   created_at: string;
 }

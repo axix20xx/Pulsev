@@ -972,6 +972,7 @@ export interface Reseller {
   customer_price_per_gb: number;
   enabled: boolean;
   wireguard_enabled: boolean;
+  ipsec_enabled: boolean;
   created_at: string;
 }
 
@@ -982,6 +983,7 @@ export interface ResellerUpdate {
   /** @minimum 0 */
   customer_price_per_gb?: number;
   wireguard_enabled?: boolean;
+  ipsec_enabled?: boolean;
 }
 
 export interface WireGuardLocation {
@@ -1004,6 +1006,30 @@ export interface WireGuardDelivery {
   core: WireGuardDeliveryCore;
   bundle_url: string;
   locations: WireGuardLocation[];
+}
+
+export interface IpsecLocation {
+  id: string;
+  name: string;
+  server: string;
+  ikev2_remote_id: string;
+}
+
+export type IpsecDeliveryCore = typeof IpsecDeliveryCore[keyof typeof IpsecDeliveryCore];
+
+
+export const IpsecDeliveryCore = {
+  ipsec: 'ipsec',
+} as const;
+
+export interface IpsecDelivery {
+  provider_key: string;
+  username: string;
+  core: IpsecDeliveryCore;
+  login: string;
+  password: string;
+  mobileconfig_url: string;
+  locations: IpsecLocation[];
 }
 
 export type OpenVpnDeliveryCore = typeof OpenVpnDeliveryCore[keyof typeof OpenVpnDeliveryCore];

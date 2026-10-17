@@ -13,4 +13,5 @@ export interface ResellerUpdate {
   /** @minimum 0 */
   customer_price_per_gb?: number;
   wireguard_enabled?: boolean;
+  ipsec_enabled?: boolean;
 }

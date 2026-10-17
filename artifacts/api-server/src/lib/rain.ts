@@ -61,32 +61,24 @@ export async function readSavedIpsecProviderUsernames(
   const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
   const accounts = new Map<number, { providerKey: string | null; username: string | null }>();
   if (!ids.length) return accounts;
-  const result = await pool.query<{ service_id: number | string; delivery_secret: string }>(
-    `SELECT service_id, delivery_secret
+  const result = await pool.query<{
+    service_id: number | string;
+    provider_key: string | null;
+    provider_username: string | null;
+  }>(
+    `SELECT service_id, provider_key, provider_username
      FROM reseller_service_ipsec_accounts
      WHERE service_id = ANY($1::bigint[])`,
     [ids],
   );
   for (const row of result.rows) {
     const serviceId = Number(row.service_id);
-    const decoded = decryptPanelCredential(row.delivery_secret);
-    let providerKey: string | null = null;
-    let username: string | null = null;
-    if (decoded) {
-      try {
-        const delivery = JSON.parse(decoded) as { core?: unknown; provider_key?: unknown; username?: unknown };
-        if (delivery.core === "ipsec") {
-          providerKey = typeof delivery.provider_key === "string" && delivery.provider_key.trim()
-            ? delivery.provider_key.trim()
-            : null;
-          username = typeof delivery.username === "string" && delivery.username.trim()
-            ? delivery.username.trim()
-            : null;
-        }
-      } catch {
-        // Keep the account entry unresolved; callers must preserve its usage and lifecycle state.
-      }
-    }
+    const providerKey = typeof row.provider_key === "string" && row.provider_key.trim()
+      ? row.provider_key.trim()
+      : null;
+    const username = typeof row.provider_username === "string" && row.provider_username.trim()
+      ? row.provider_username.trim()
+      : null;
     accounts.set(serviceId, { providerKey, username });
   }
   return accounts;
@@ -1542,9 +1534,12 @@ export async function provisionUser(
   options?: { resetUsage?: boolean },
 ): Promise<{ ok: boolean; results: PanelResult[] }> {
   const configured = await panels(ownerId, role);
+  const serviceProvisioningPanels = configured.filter(
+    (panel) => panel.kind?.trim().toLowerCase() !== "azadpanel_ipsec",
+  );
   const configuredPanels = onlyPanelKeys?.length
-    ? configured.filter((panel) => onlyPanelKeys.includes(panelKey(panel)))
-    : configured;
+    ? serviceProvisioningPanels.filter((panel) => onlyPanelKeys.includes(panelKey(panel)))
+    : serviceProvisioningPanels;
   const hasCredentials = configuredPanels.some((panel) => {
     const kind = panelKind(panel);
     return Boolean(kind === "falcon" ? panel.api_key : panel.admin_user && panel.admin_pass);
@@ -1977,6 +1972,40 @@ export async function prepareIpsecAccount(
     throw new RainApiError(`AzadPanel ${panelKey(panel)} returned incomplete IPsec credentials or server locations.`);
   }
   return { provider_key: panelKey(panel), username: providerUsername, core: "ipsec", login, password, locations };
+}
+
+export async function renewIpsecAccount(
+  providerKey: string,
+  username: string,
+  gb: number,
+  days: number,
+  ownerId?: number,
+  role?: string,
+): Promise<void> {
+  const panel = await findIpsecProvider(providerKey, ownerId, role);
+  const encoded = encodeURIComponent(username);
+  const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (existing.status !== 200) {
+    throw new RainApiError(
+      existing.status === 404
+        ? `AzadPanel ${providerKey} could not find the saved IPsec account; it was not recreated.`
+        : `AzadPanel ${providerKey} could not check the saved IPsec account: ${safeError(existing)}`,
+    );
+  }
+  const expiresAt = new Date(Date.now() + Math.max(0, days) * 86_400_000);
+  const update = await panelRequest(panel, "PUT", `/api/user/${encoded}`, {
+    status: "active",
+    expire: Math.floor(expiresAt.getTime() / 1000),
+    data_limit: bytesForGb(gb),
+    data_limit_reset_strategy: "no_reset",
+  });
+  if (update.status < 200 || update.status >= 300) {
+    throw new RainApiError(`AzadPanel ${providerKey} could not renew the saved IPsec account: ${safeError(update)}`);
+  }
+  const reset = await panelRequest(panel, "POST", `/api/user/${encoded}/reset`);
+  if (reset.status < 200 || reset.status >= 300) {
+    throw new RainApiError(`AzadPanel ${providerKey} renewed the IPsec plan but could not reset its usage: ${safeError(reset)}`);
+  }
 }
 
 async function findIpsecProvider(

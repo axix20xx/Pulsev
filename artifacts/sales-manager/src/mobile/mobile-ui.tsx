@@ -138,6 +138,16 @@ type MobileWireGuardDelivery = {
   locations: Array<{ id: string; name: string; config_url: string; mobileconfig_url: string }>;
 };
 
+type MobileIpsecDelivery = {
+  provider_key: string;
+  username: string;
+  core: "ipsec";
+  login: string;
+  password: string;
+  mobileconfig_url: string;
+  locations: Array<{ id: string; name: string; server: string; ikev2_remote_id: string }>;
+};
+
 const mobileClientCatalog = (url: string, name: string): MobileClient[] => {
   const encodedName = encodeURIComponent(name || 'Pulse');
   const encodedUrl = encodeURIComponent(url);
@@ -176,6 +186,10 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
   const [wireguardBusy, setWireguardBusy] = useState(false);
   const [wireguardLoading, setWireguardLoading] = useState(false);
   const [wireguardError, setWireguardError] = useState('');
+  const [ipsecData, setIpsecData] = useState<MobileIpsecDelivery | null>(null);
+  const [ipsecBusy, setIpsecBusy] = useState(false);
+  const [ipsecLoading, setIpsecLoading] = useState(false);
+  const [ipsecError, setIpsecError] = useState('');
   const isIOSDevice = typeof navigator !== 'undefined'
     && (/iPhone|iPad|iPod/i.test(navigator.userAgent)
       || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
@@ -244,6 +258,35 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
       });
     return () => { active = false; };
   }, [openVpnToken, item.status, item.wireguard_available]);
+  useEffect(() => {
+    if (!openVpnToken || item.status !== 'active' || !item.ipsec_available) {
+      setIpsecData(null);
+      setIpsecError('');
+      setIpsecLoading(false);
+      return;
+    }
+    let active = true;
+    setIpsecLoading(true);
+    void fetch(`/api/public/subscription/${encodeURIComponent(openVpnToken)}/ipsec`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (response.status === 404 || response.status === 410) return null;
+        const payload = await response.json().catch(() => null) as (MobileIpsecDelivery & { error?: string }) | null;
+        if (!response.ok || !payload) throw new Error(payload?.error || 'دریافت اطلاعات IPsec ناموفق بود.');
+        return payload;
+      })
+      .then((payload) => {
+        if (!active) return;
+        setIpsecData(payload);
+        setIpsecError('');
+      })
+      .catch((cause) => {
+        if (active) setIpsecError(cause instanceof Error ? cause.message : 'دریافت اطلاعات IPsec ناموفق بود.');
+      })
+      .finally(() => {
+        if (active) setIpsecLoading(false);
+      });
+    return () => { active = false; };
+  }, [openVpnToken, item.status, item.ipsec_available]);
   const copyValue = async (value: string, label: string) => { await navigator.clipboard?.writeText(value); setCopied(label); };
   const shareValue = async (value: string) => { if (navigator.share) await navigator.share({ title: item.plan, url: value }); else await copyValue(value, 'لینک Provider'); };
   const showQr = async (value: string) => setQr(await QRCode.toDataURL(value, { margin: 2, width: 240, color: { dark: '#163d40', light: '#f7f6f0' } }));
@@ -293,6 +336,25 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
       setWireguardError(cause instanceof Error ? cause.message : 'ساخت کانفیگ WireGuard ناموفق بود.');
     } finally {
       setWireguardBusy(false);
+    }
+  };
+  const prepareIpsec = async () => {
+    if (!openVpnToken || ipsecBusy) return;
+    setIpsecBusy(true);
+    setIpsecError('');
+    try {
+      const response = await fetch(`/api/public/subscription/${encodeURIComponent(openVpnToken)}/ipsec`, {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const payload = await response.json().catch(() => null) as (MobileIpsecDelivery & { error?: string }) | null;
+      if (!response.ok || !payload) throw new Error(payload?.error || 'ساخت حساب IPsec ناموفق بود.');
+      setIpsecData(payload);
+    } catch (cause) {
+      setIpsecError(cause instanceof Error ? cause.message : 'ساخت حساب IPsec ناموفق بود.');
+    } finally {
+      setIpsecBusy(false);
     }
   };
   const clients = providerUrl ? mobileClientCatalog(providerUrl, item.plan) : [];
@@ -363,6 +425,19 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
           <p className="mobile-openvpn-hint">در iPhone/iPad، نصب پروفایل تکی یا «نصب همهٔ سرورها» را بزنید و در Settings → Profile Downloaded تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. پروفایل چندسروره تونل‌های جداگانه را یک‌جا اضافه می‌کند؛ در برنامه هر بار یکی را فعال کنید. فایل .conf نیز برای واردکردن دستی موجود است. کلید خصوصی را محرمانه نگه دارید.</p>
         </>}
         {wireguardError ? <p className="mobile-openvpn-error" role="alert">{wireguardError}</p> : null}
+      </section> : null}
+      {item.ipsec_available && item.status === 'active' ? <section className="mobile-openvpn-card mobile-wireguard-card" data-testid={`panel-mobile-ipsec-${item.id}`}>
+        <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">اتصال مستقل · IKEv2</span><h3>IPsec</h3><p>حساب IPsec و پروفایل iOS مخصوص همین سرویس.</p></div></div>
+        {ipsecLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی حساب ذخیره‌شدهٔ IPsec...</div> : !ipsecData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareIpsec()} disabled={ipsecBusy} data-testid={`button-mobile-ipsec-create-${item.id}`}>{ipsecBusy ? 'در حال آماده‌سازی...' : 'ساخت یا دریافت حساب IPsec'}</button> : <>
+          <div className="mobile-openvpn-credentials">
+            <div><span>نام کاربری</span><strong dir="ltr">{ipsecData.login}</strong><button type="button" onClick={() => void copyValue(ipsecData.login, 'نام کاربری IPsec')} aria-label="کپی نام کاربری IPsec"><Copy size={14} /></button></div>
+            <div><span>رمز عبور</span><strong dir="ltr">{ipsecData.password}</strong><button type="button" onClick={() => void copyValue(ipsecData.password, 'رمز IPsec')} aria-label="کپی رمز IPsec"><Copy size={14} /></button></div>
+          </div>
+          {isIOSDevice && <a className="mobile-openvpn-primary" href={ipsecData.mobileconfig_url} data-testid={`link-mobile-ipsec-ios-profile-${item.id}`}><Download size={15} /> نصب پروفایل iOS · همهٔ سرورها</a>}
+          <div className="mobile-openvpn-locations">{ipsecData.locations.map((location) => <div className="mobile-openvpn-location" key={location.id}><span>{location.name}</span><bdi dir="ltr">{location.server}</bdi></div>)}</div>
+          <p className="mobile-openvpn-hint">در iPhone/iPad پس از بازکردن فایل، نصب را در Settings → Profile Downloaded تأیید و سپس IKEv2 را در تنظیمات VPN روشن کنید.</p>
+        </>}
+        {ipsecError ? <p className="mobile-openvpn-error" role="alert">{ipsecError}</p> : null}
       </section> : null}
     {copied ? <div className="mobile-toast mobile-toast-inline"><Check size={16} /> {copied} کپی شد</div> : null}
     {qr ? <div className="mobile-modal-backdrop" onClick={() => setQr('')}><div className="mobile-qr-modal" onClick={(event) => event.stopPropagation()}><button className="mobile-icon-button mobile-modal-close" onClick={() => setQr('')}><X size={18} /></button><p>اسکن کنید تا اشتراک اضافه شود</p><img src={qr} alt="کد QR اشتراک" /><small>{item.plan}</small></div></div> : null}

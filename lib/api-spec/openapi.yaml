@@ -1000,6 +1000,63 @@ paths:
           description: Subscription is no longer active
         "503":
           description: No enabled WireGuard AzadPanel provider is configured
+  /public/subscription/{token}/ipsec:
+    get:
+      operationId: getIpsecAccount
+      tags: [services]
+      summary: Read previously saved IPsec account information
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+      responses:
+        "200":
+          description: Saved IPsec/IKEv2 credentials and locations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IpsecDelivery"
+        "404":
+          description: Subscription, reseller permission, or saved account not found
+        "410":
+          description: Subscription is no longer active
+    post:
+      operationId: createIpsecAccount
+      tags: [services]
+      summary: Create or retrieve IPsec access after an explicit customer action
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+      responses:
+        "200":
+          description: IPsec credentials and locations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IpsecDelivery"
+        "404":
+          description: Subscription or reseller IPsec permission not found
+        "409":
+          description: Account preparation is already in progress
+        "410":
+          description: Subscription is no longer active
+        "503":
+          description: No enabled IPsec AzadPanel provider is configured
+  /public/subscription/{token}/ipsec/mobileconfig:
+    get:
+      operationId: downloadIpsecMobileConfig
+      tags: [services]
+      summary: Download the Apple IKEv2 profile for a saved IPsec account
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+      responses:
+        "200":
+          description: Apple configuration profile
+          content:
+            application/x-apple-aspen-config:
+              schema:
+                type: string
+        "404":
+          description: Subscription, permission, or saved account not found
+        "410":
+          description: Subscription is no longer active
   /public/subscription/{token}/wireguard/config/{provider}/{host}:
     get:
       operationId: downloadWireGuardConfig
@@ -2381,7 +2438,7 @@ components:
                 $ref: "#/components/schemas/Sale"
     Reseller:
       type: object
-      required: [id, telegram_id, title, total_gb, used_gb, per_gig_price, customer_price_per_gb, enabled, wireguard_enabled, created_at]
+      required: [id, telegram_id, title, total_gb, used_gb, per_gig_price, customer_price_per_gb, enabled, wireguard_enabled, ipsec_enabled, created_at]
       properties:
         id:
           type: number
@@ -2404,6 +2461,8 @@ components:
           type: boolean
         wireguard_enabled:
           type: boolean
+        ipsec_enabled:
+          type: boolean
         created_at:
           type: string
     ResellerUpdate:
@@ -2419,6 +2478,8 @@ components:
           type: number
           minimum: 0
         wireguard_enabled:
+          type: boolean
+        ipsec_enabled:
           type: boolean
     WireGuardLocation:
       type: object
@@ -2449,6 +2510,40 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WireGuardLocation"
+    IpsecLocation:
+      type: object
+      required: [id, name, server, ikev2_remote_id]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        server:
+          type: string
+        ikev2_remote_id:
+          type: string
+    IpsecDelivery:
+      type: object
+      required: [provider_key, username, core, login, password, mobileconfig_url, locations]
+      properties:
+        provider_key:
+          type: string
+        username:
+          type: string
+        core:
+          type: string
+          enum: [ipsec]
+        login:
+          type: string
+        password:
+          type: string
+        mobileconfig_url:
+          type: string
+          format: uri-reference
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/IpsecLocation"
     OpenVpnDelivery:
       type: object
       required: [provider_key, server, username, password, core, bundle_url, bundle_import_url, locations]

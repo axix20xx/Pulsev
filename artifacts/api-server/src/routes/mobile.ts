@@ -46,11 +46,21 @@ type MobileServiceRow = {
   awg_client_id: string | null;
   panel: string | null;
   wireguard_enabled: boolean;
+  ipsec_enabled: boolean;
 };
 
 export const mobileReady = pool.query(`
   ALTER TABLE resellers
-    ADD COLUMN IF NOT EXISTS wireguard_enabled SMALLINT NOT NULL DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS wireguard_enabled SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS ipsec_enabled SMALLINT NOT NULL DEFAULT 0;
+  CREATE TABLE IF NOT EXISTS reseller_service_ipsec_accounts (
+    service_id BIGINT PRIMARY KEY,
+    provider_key TEXT NOT NULL,
+    provider_username TEXT NOT NULL,
+    delivery_secret TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
   CREATE TABLE IF NOT EXISTS mobile_sessions (
     id TEXT PRIMARY KEY,
     customer_id BIGINT NOT NULL,
@@ -385,6 +395,11 @@ const mapService = (req: Request, row: MobileServiceRow) => {
       && status === "active"
       && remainingBytes > 0
       && !(expiresAt > 0 && expiresAt <= Date.now()),
+    ipsec_available: Boolean(row.ipsec_enabled)
+      && Boolean(token)
+      && status === "active"
+      && remainingBytes > 0
+      && !(expiresAt > 0 && expiresAt <= Date.now()),
     awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
     service_code: `PULSE-${String(row.id).padStart(6, "0")}`,
   };
@@ -401,6 +416,7 @@ const listServices = async (req: Request, customerId: number) => {
             COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
             ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
             COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled,
+            COALESCE(reseller.ipsec_enabled, 0) = 1 AS ipsec_enabled,
             COALESCE(svc.falco_system_name, 'V2Box') AS panel
      FROM reseller_services svc
      JOIN reseller_customers c ON c.id = svc.customer_id

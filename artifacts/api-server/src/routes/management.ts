@@ -73,16 +73,21 @@ import {
   downloadWireGuardProfile,
   downloadWireGuardProfiles,
   downloadOpenVpnProfile,
+  downloadIpsecAppleProfile,
   disablePanelUser,
   fetchPanelSubscription,
   listAvailablePanels,
   listPasarguardConnectionUsers,
   readSavedWireGuardProviderUsernames,
+  readSavedIpsecProviderUsernames,
+  prepareIpsecAccount,
+  renewIpsecAccount,
   prepareOpenVpnAccount,
   prepareWireGuardAccount,
   provisionUser,
   repairXrayProviderUser,
   type WireGuardDelivery,
+  type IpsecDelivery,
   scanProviderAccountsForService,
   reactivateProviderAccountStatus,
   RainApiError,
@@ -743,6 +748,9 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
         WHERE renewal_request_id IS NOT NULL;
      ALTER TABLE resellers
        ADD COLUMN IF NOT EXISTS customer_price_per_gb NUMERIC(14,2);
+      ALTER TABLE resellers
+        ADD COLUMN IF NOT EXISTS wireguard_enabled SMALLINT NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS ipsec_enabled SMALLINT NOT NULL DEFAULT 0;
      UPDATE resellers
        SET customer_price_per_gb = COALESCE(customer_price_per_gb, per_gig_price, 0)
        WHERE customer_price_per_gb IS NULL;
@@ -833,6 +841,17 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
        );
+       CREATE TABLE IF NOT EXISTS reseller_service_ipsec_accounts (
+         service_id BIGINT PRIMARY KEY,
+         provider_key TEXT NOT NULL,
+         provider_username TEXT NOT NULL,
+         delivery_secret TEXT NOT NULL,
+         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+       );
+       ALTER TABLE reseller_service_ipsec_accounts
+         ADD COLUMN IF NOT EXISTS provider_key TEXT,
+         ADD COLUMN IF NOT EXISTS provider_username TEXT;
       CREATE TABLE IF NOT EXISTS reseller_notifications (
         id BIGSERIAL PRIMARY KEY,
         reseller_tg_id BIGINT NOT NULL,
@@ -1408,7 +1427,11 @@ async function loadPublicOpenVpnService(token: string): Promise<any | null> {
     `SELECT svc.id, svc.reseller_tg_id, svc.rain_username AS username,
             svc.gb::float8 AS limit_gb, svc.status, svc.expire_at AS expires_at,
             svc.last_used_bytes, svc.last_total_bytes,
-            COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled
+            ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+            COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
+            COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
+            COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled,
+            (COALESCE(reseller.ipsec_enabled, 0) = 1 OR reseller.tg_id = ${MASTER_ADMIN_TELEGRAM_ID}) AS ipsec_enabled
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
      LEFT JOIN resellers reseller ON reseller.tg_id = svc.reseller_tg_id
@@ -1424,7 +1447,12 @@ function publicOpenVpnServiceFinished(service: any): boolean {
   const totalBytes = Number(service.last_total_bytes) > 0
     ? Number(service.last_total_bytes)
     : Math.round(Number(service.limit_gb ?? 0) * 1024 ** 3);
-  const usedBytes = Math.max(0, Number(service.last_used_bytes ?? 0));
+  const usedBytes = serviceUsageBytes({
+    lastUsedBytes: service.last_used_bytes,
+    panelUsageBytes: service.panel_usage_bytes,
+    awgTotalBytes: service.awg_total_bytes,
+    awgOffsetBytes: service.awg_offset_bytes,
+  });
   return service.status === "disabled"
     || service.status === "expired"
     || (totalBytes > 0 && usedBytes >= totalBytes)
@@ -1444,7 +1472,8 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
             svc.awg_client_id, COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
             COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
             ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
-            COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled,
+             COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled,
+             (COALESCE(reseller.ipsec_enabled, 0) = 1 OR reseller.tg_id = ${MASTER_ADMIN_TELEGRAM_ID}) AS ipsec_enabled,
             COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name, rst.token
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
@@ -1515,6 +1544,7 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     awg_mobileconfig_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg/mobileconfig` : null,
     openvpn_available: !finished && Boolean(token),
     wireguard_available: !finished && Boolean(row.wireguard_enabled),
+    ipsec_available: !finished && Boolean(row.ipsec_enabled),
     provider_label: "V2Box",
     announcement: { ...announcement, service_code: serviceCode },
   });
@@ -1617,6 +1647,55 @@ function publicWireGuardDelivery(token: string, delivery: WireGuardDelivery) {
   return {
     ...delivery,
     ...publicWireGuardDeliveryLinks(token, delivery.provider_key, delivery.locations),
+  };
+}
+
+function isIpsecDelivery(value: unknown): value is IpsecDelivery {
+  if (!value || typeof value !== "object") return false;
+  const delivery = value as Partial<IpsecDelivery>;
+  return typeof delivery.provider_key === "string"
+    && typeof delivery.username === "string"
+    && delivery.core === "ipsec"
+    && typeof delivery.login === "string"
+    && typeof delivery.password === "string"
+    && Array.isArray(delivery.locations)
+    && delivery.locations.length > 0
+    && delivery.locations.every((location) =>
+      Boolean(location)
+      && typeof location.id === "string"
+      && typeof location.name === "string"
+      && typeof location.server === "string"
+      && typeof location.ikev2_remote_id === "string",
+    );
+}
+
+async function loadSavedIpsecDelivery(serviceId: number): Promise<IpsecDelivery | null> {
+  const result = await pool.query<{ delivery_secret: string }>(
+    `SELECT delivery_secret
+     FROM reseller_service_ipsec_accounts
+     WHERE service_id = $1
+     LIMIT 1`,
+    [serviceId],
+  );
+  const secret = result.rows[0]?.delivery_secret;
+  if (!secret) return null;
+  const decoded = decryptPanelCredential(secret);
+  if (!decoded) throw new Error("Saved IPsec account could not be decrypted.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(decoded);
+  } catch {
+    throw new Error("Saved IPsec account data is invalid.");
+  }
+  if (!isIpsecDelivery(parsed)) throw new Error("Saved IPsec account data is invalid.");
+  return parsed;
+}
+
+function publicIpsecDelivery(token: string, delivery: IpsecDelivery) {
+  const providerPath = `/api/public/subscription/${encodeURIComponent(token)}/ipsec`;
+  return {
+    ...delivery,
+    mobileconfig_url: `${providerPath}/mobileconfig`,
   };
 }
 
@@ -1836,6 +1915,155 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
       ).catch(() => undefined);
     }
     lockClient.release();
+  }
+});
+
+router.get("/public/subscription/:token/ipsec", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).json({ error: "لینک اشتراک معتبر نیست" });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "لینک اشتراک پیدا نشد" });
+    return;
+  }
+  if (!service.ipsec_enabled) {
+    res.status(404).json({ error: "IPsec برای این فروشنده فعال نیست." });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "اشتراک پایان یافته است؛ برای دریافت IPsec آن را تمدید کنید." });
+    return;
+  }
+  try {
+    const delivery = await loadSavedIpsecDelivery(Number(service.id));
+    if (!delivery) {
+      res.status(404).json({ error: "حساب IPsec ذخیره‌شده‌ای پیدا نشد", code: "IPSEC_NOT_CREATED" });
+      return;
+    }
+    res.json(publicIpsecDelivery(token, delivery));
+  } catch {
+    res.status(500).json({ error: "اطلاعات ذخیره‌شده IPsec قابل خواندن نیست." });
+  }
+});
+
+router.post("/public/subscription/:token/ipsec", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).json({ error: "لینک اشتراک معتبر نیست" });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "لینک اشتراک پیدا نشد" });
+    return;
+  }
+  if (!service.ipsec_enabled) {
+    res.status(404).json({ error: "IPsec برای این فروشنده فعال نیست." });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "اشتراک پایان یافته است؛ امکان ساخت IPsec وجود ندارد." });
+    return;
+  }
+  const serviceId = Number(service.id);
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
+    res.status(500).json({ error: "شناسه سرویس معتبر نیست." });
+    return;
+  }
+  const lockClient = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lockClient.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(74424, hashtext($1::text)) AS locked",
+      [serviceId],
+    );
+    lockAcquired = Boolean(lockResult.rows[0]?.locked);
+    if (!lockAcquired) {
+      res.status(409).json({ error: "آماده‌سازی IPsec همین سرویس در حال انجام است؛ چند لحظه دیگر دوباره تلاش کنید." });
+      return;
+    }
+    const savedDelivery = await loadSavedIpsecDelivery(serviceId);
+    if (savedDelivery) {
+      res.json(publicIpsecDelivery(token, savedDelivery));
+      return;
+    }
+    const delivery = await prepareIpsecAccount(
+      Number(service.limit_gb ?? 0),
+      service.expires_at ? new Date(service.expires_at) : new Date(Date.now() + 3650 * 86_400_000),
+      serviceId,
+      Number(service.reseller_tg_id),
+      "reseller",
+    );
+    await pool.query(
+      `INSERT INTO reseller_service_ipsec_accounts
+         (service_id, provider_key, provider_username, delivery_secret)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (service_id) DO NOTHING`,
+      [serviceId, delivery.provider_key, delivery.username, encryptPanelCredential(JSON.stringify(delivery))],
+    );
+    const persistedDelivery = await loadSavedIpsecDelivery(serviceId);
+    if (!persistedDelivery) throw new Error("IPsec account details were not persisted.");
+    res.json(publicIpsecDelivery(token, persistedDelivery));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "IPsec account setup failed.";
+    const unavailable = message.includes("No enabled AzadPanel IPsec provider");
+    const savedAccountError = message.startsWith("Saved IPsec account")
+      || message.startsWith("IPsec account details were not persisted");
+    res.status(savedAccountError ? 500 : unavailable ? 503 : 502).json({
+      error: savedAccountError ? "اطلاعات ذخیره‌شده IPsec قابل خواندن نیست." : message,
+    });
+  } finally {
+    if (lockAcquired) {
+      await lockClient.query(
+        "SELECT pg_advisory_unlock(74424, hashtext($1::text))",
+        [serviceId],
+      ).catch(() => undefined);
+    }
+    lockClient.release();
+  }
+});
+
+router.get("/public/subscription/:token/ipsec/mobileconfig", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).type("text/plain").send("لینک اشتراک معتبر نیست.");
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service || !service.ipsec_enabled || publicOpenVpnServiceFinished(service)) {
+    res.status(404).type("text/plain").send("IPsec برای این اشتراک در دسترس نیست.");
+    return;
+  }
+  try {
+    const delivery = await loadSavedIpsecDelivery(Number(service.id));
+    if (!delivery) {
+      res.status(404).type("text/plain").send("ابتدا حساب IPsec را از صفحه اشتراک بسازید.");
+      return;
+    }
+    const profile = await downloadIpsecAppleProfile(
+      delivery.username,
+      delivery.provider_key,
+      Number(service.reseller_tg_id),
+      "reseller",
+    );
+    const filename = `Pulse-IPsec-${String(service.id).padStart(6, "0")}.mobileconfig`;
+    res.setHeader("content-type", "application/x-apple-aspen-config");
+    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send(profile.body);
+  } catch (error) {
+    res.status(422).type("text/plain").send(
+      error instanceof Error ? error.message : "Could not prepare the iOS IPsec profile.",
+    );
   }
 });
 
@@ -2452,6 +2680,7 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
     const serviceId = Number(service.id);
     const resellerId = Number(service.reseller_tg_id);
     const entries: MobileConfigEntry[] = [];
+    let ipsecProfile: string | null = null;
 
     const openVpn = await loadSavedOpenVpnDelivery(serviceId);
     if (openVpn) {
@@ -2504,6 +2733,19 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
       }
     }
 
+    if (service.ipsec_enabled) {
+      const ipsec = await loadSavedIpsecDelivery(serviceId);
+      if (ipsec) {
+        const profile = await downloadIpsecAppleProfile(
+          ipsec.username,
+          ipsec.provider_key,
+          resellerId,
+          "reseller",
+        );
+        ipsecProfile = profile.body;
+      }
+    }
+
     const awg = await resolvePublicAwgProfile(token);
     if (awg.status === 200) {
       entries.push({
@@ -2520,13 +2762,16 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
       return;
     }
 
-    if (!entries.length) {
+    if (!entries.length && !ipsecProfile) {
       res.status(409).type("text/plain").send("برای این اشتراک هیچ کانفیگ فعال و آماده‌ای برای نصب iOS پیدا نشد.");
       return;
     }
 
-    const profile = createMultiProtocolMobileConfigBundle(entries, serviceId);
-    const protocols = [...new Set(entries.map((entry) => entry.protocol))].join(",");
+    const profile = createMultiProtocolMobileConfigBundle(entries, serviceId, ipsecProfile);
+    const protocols = [
+      ...new Set(entries.map((entry) => entry.protocol)),
+      ...(ipsecProfile ? ["ipsec"] : []),
+    ].join(",");
     const filename = safeDownloadFilename(
       null,
       `Pulse-${serviceId}-all-active-services`,
@@ -2591,7 +2836,7 @@ router.post("/panels/:key/test", requireMasterAdmin, async (req, res): Promise<v
   });
 });
 
-const providerKinds = ["marzban", "rain_admin", "azadpanel", "azadpanel_openvpn", "azadpanel_wireguard"] as const;
+const providerKinds = ["marzban", "rain_admin", "azadpanel", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"] as const;
 type ProviderKind = (typeof providerKinds)[number];
 
 function isProviderKind(value: unknown): value is ProviderKind {
@@ -5203,6 +5448,7 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> => {
+  await managementReady;
   const params = RenewServiceParams.safeParse(req.params);
   const body = RenewServiceBody.safeParse(req.body ?? {});
   if (!params.success || !body.success) {
@@ -5253,6 +5499,34 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
    if (req.auth?.role === "reseller" && body.data.sell_price == null && customerPricePerGb <= 0) {
      res.status(400).json({ error: "قیمت فروش به مشتری را وارد کنید" });
      return;
+   }
+   let savedIpsecAccount: { providerKey: string | null; username: string | null } | null = null;
+   try {
+     savedIpsecAccount = (await readSavedIpsecProviderUsernames([serviceId])).get(serviceId) ?? null;
+   } catch {
+     res.status(502).json({ error: "هویت ذخیره‌شدهٔ IPsec خوانده نشد؛ تمدید انجام نشد." });
+     return;
+   }
+   if (savedIpsecAccount) {
+     if (!savedIpsecAccount.providerKey || !savedIpsecAccount.username) {
+       res.status(502).json({ error: "Provider یا نام کاربری ذخیره‌شدهٔ IPsec قابل شناسایی نیست؛ تمدید انجام نشد." });
+       return;
+     }
+     try {
+       await renewIpsecAccount(
+         savedIpsecAccount.providerKey,
+         savedIpsecAccount.username,
+         body.data.gb ?? Number(current.gb),
+         body.data.days ?? 30,
+         Number(current.reseller_tg_id),
+         "reseller",
+       );
+     } catch (error) {
+       res.status(502).json({
+         error: error instanceof Error ? error.message : "تمدید حساب IPsec انجام نشد.",
+       });
+       return;
+     }
    }
    const sellPrice = body.data.sell_price ?? gb * customerPricePerGb;
    const renewalRequestId = body.data.request_id?.trim() || null;
@@ -5390,6 +5664,17 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
        WHERE username = $1`,
       [current.username],
     );
+     if (savedIpsecAccount?.providerKey && savedIpsecAccount.username) {
+       await client.query(
+         `DELETE FROM user_panel_usages
+          WHERE username = $1 AND panel_key = $2`,
+         [savedIpsecAccount.username, savedIpsecAccount.providerKey],
+       );
+       await client.query(
+         "DELETE FROM panel_usage_curr WHERE username = $1",
+         [savedIpsecAccount.username],
+       );
+     }
     const ownerParam = values.length + 1;
     result = await client.query(
       `UPDATE reseller_services svc
@@ -6108,6 +6393,7 @@ router.get("/resellers", requireMasterAdmin, async (_req, res): Promise<void> =>
        CASE WHEN tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(per_gig_price, 0) END::float8 AS per_gig_price,
        COALESCE(customer_price_per_gb, per_gig_price, 0)::float8 AS customer_price_per_gb,
         is_enabled = 1 AS enabled, wireguard_enabled = 1 AS wireguard_enabled,
+        (ipsec_enabled = 1 OR tg_id = ${MASTER_ADMIN_TELEGRAM_ID}) AS ipsec_enabled,
         created_at::text AS created_at
      FROM resellers
      ORDER BY created_at DESC, id DESC`,
@@ -6128,6 +6414,9 @@ router.patch("/resellers/:id", requireMasterAdmin, async (req, res): Promise<voi
   const wireguardEnabled = body.data.wireguard_enabled === undefined
     ? null
     : body.data.wireguard_enabled ? 1 : 0;
+  const ipsecEnabled = body.data.ipsec_enabled === undefined
+    ? null
+    : body.data.ipsec_enabled ? 1 : 0;
   if (
     perGigPrice !== null && (!Number.isFinite(perGigPrice) || perGigPrice < 0) ||
     customerPricePerGb !== null && (!Number.isFinite(customerPricePerGb) || customerPricePerGb < 0)
@@ -6140,16 +6429,18 @@ router.patch("/resellers/:id", requireMasterAdmin, async (req, res): Promise<voi
      SET is_enabled = $1,
          per_gig_price = CASE WHEN tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE($2, per_gig_price) END,
          customer_price_per_gb = COALESCE($3, customer_price_per_gb),
-         wireguard_enabled = COALESCE($4, wireguard_enabled),
+          wireguard_enabled = COALESCE($4, wireguard_enabled),
+          ipsec_enabled = COALESCE($5, ipsec_enabled),
          updated_at = NOW()
-      WHERE id = $5
+       WHERE id = $6
      RETURNING id, tg_id::float8 AS telegram_id, title, total_gb::float8 AS total_gb,
         used_gb::float8 AS used_gb,
         CASE WHEN tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(per_gig_price, 0) END::float8 AS per_gig_price,
        COALESCE(customer_price_per_gb, per_gig_price, 0)::float8 AS customer_price_per_gb,
-         is_enabled = 1 AS enabled, wireguard_enabled = 1 AS wireguard_enabled,
+          is_enabled = 1 AS enabled, wireguard_enabled = 1 AS wireguard_enabled,
+          (ipsec_enabled = 1 OR tg_id = ${MASTER_ADMIN_TELEGRAM_ID}) AS ipsec_enabled,
          created_at::text AS created_at`,
-    [body.data.enabled ? 1 : 0, perGigPrice, customerPricePerGb, wireguardEnabled, params.data.id],
+    [body.data.enabled ? 1 : 0, perGigPrice, customerPricePerGb, wireguardEnabled, ipsecEnabled, params.data.id],
   );
   if (!result.rows[0]) {
     res.status(404).json({ error: "فروشنده پیدا نشد" });
@@ -6159,8 +6450,11 @@ router.patch("/resellers/:id", requireMasterAdmin, async (req, res): Promise<voi
     owner_telegram_id: result.rows[0].telegram_id,
     owner_name: result.rows[0].title,
     wireguard_enabled: result.rows[0].wireguard_enabled,
-    safe_summary: body.data.wireguard_enabled !== undefined
-      ? body.data.wireguard_enabled ? "دسترسی WireGuard فروشنده فعال شد" : "دسترسی WireGuard فروشنده غیرفعال شد"
+    ipsec_enabled: result.rows[0].ipsec_enabled,
+    safe_summary: body.data.ipsec_enabled !== undefined
+      ? body.data.ipsec_enabled ? "دسترسی IPsec فروشنده فعال شد" : "دسترسی IPsec فروشنده غیرفعال شد"
+      : body.data.wireguard_enabled !== undefined
+        ? body.data.wireguard_enabled ? "دسترسی WireGuard فروشنده فعال شد" : "دسترسی WireGuard فروشنده غیرفعال شد"
       : body.data.enabled ? "حساب فروشنده فعال شد" : "حساب فروشنده غیرفعال شد",
   });
   res.json(UpdateResellerResponse.parse(result.rows[0]));

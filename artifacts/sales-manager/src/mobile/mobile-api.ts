@@ -23,6 +23,7 @@ export type MobileSubscription = {
   awg_mobileconfig_url?: string | null;
   openvpn_available?: boolean;
   wireguard_available?: boolean;
+  ipsec_available?: boolean;
   service_code?: string | null;
 };
 export type MobileNotification = {

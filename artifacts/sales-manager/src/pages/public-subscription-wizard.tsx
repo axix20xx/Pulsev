@@ -25,7 +25,7 @@ import { openVpnConnectImportUrl } from '@/lib/openvpn-connect-link';
 import { dateLabel } from '@/lib/pulse-data';
 
 export type PublicSubscriptionOS = 'iOS' | 'Android' | 'Windows' | 'macOS' | 'Linux';
-export type PublicSubscriptionProtocol = 'openvpn' | 'wireguard' | 'amneziawg' | 'v2ray';
+export type PublicSubscriptionProtocol = 'openvpn' | 'wireguard' | 'ipsec' | 'amneziawg' | 'v2ray';
 export type PublicSubscriptionAppRecommendation = {
   id: string;
   name: string;
@@ -66,6 +66,21 @@ type WireGuardAccount = {
   }>;
 };
 
+type IpsecAccount = {
+  provider_key: string;
+  username: string;
+  core: 'ipsec';
+  login: string;
+  password: string;
+  mobileconfig_url: string;
+  locations: Array<{
+    id: string;
+    name: string;
+    server: string;
+    ikev2_remote_id: string;
+  }>;
+};
+
 type Props = {
   data: any;
   pageUrl: string;
@@ -98,6 +113,13 @@ type Props = {
   wireguardData: WireGuardAccount | null;
   wireguardError: string;
   prepareWireGuard: () => void;
+  ipsecLoading: boolean;
+  ipsecBusy: boolean;
+  ipsecData: IpsecAccount | null;
+  ipsecError: string;
+  prepareIpsec: () => void;
+  ipsecCopied: 'username' | 'password' | null;
+  copyIpsecValue: (value: string, kind: 'username' | 'password') => void;
   allMobileConfigBusy: boolean;
   allMobileConfigError: string;
   prepareAllMobileConfig: () => void;
@@ -139,6 +161,13 @@ const protocolInfo: Array<{
     short: 'کانفیگ اختصاصی برای اپ رسمی',
     detail: 'فایل کانفیگ یا پروفایل نصب iOS برای هر سرور',
     icon: Wifi,
+  },
+  {
+    id: 'ipsec',
+    title: 'IPsec / IKEv2',
+    short: 'پروفایل iOS و حساب جداگانه',
+    detail: 'پروفایل امن AzadPanel را برای همهٔ سرورها یک‌جا نصب کنید',
+    icon: ShieldCheck,
   },
   {
     id: 'amneziawg',
@@ -236,6 +265,13 @@ export function PublicSubscriptionWizard(props: Props) {
     wireguardData,
     wireguardError,
     prepareWireGuard,
+    ipsecLoading,
+    ipsecBusy,
+    ipsecData,
+    ipsecError,
+    prepareIpsec,
+    ipsecCopied,
+    copyIpsecValue,
     allMobileConfigBusy,
     allMobileConfigError,
     prepareAllMobileConfig,
@@ -345,9 +381,12 @@ export function PublicSubscriptionWizard(props: Props) {
                 </div>
               ) : (
                 <div className="public-sub-protocol-grid">
-                  {protocolInfo.filter((item) => item.id !== 'wireguard' || data?.wireguard_available === true).map((item, index) => {
+                  {protocolInfo.filter((item) =>
+                    (item.id !== 'wireguard' || data?.wireguard_available === true)
+                    && (item.id !== 'ipsec' || data?.ipsec_available === true),
+                  ).map((item, index) => {
                     const Icon = item.icon;
-                    const ready = item.id === 'amneziawg' ? awgAvailable : item.id === 'openvpn' ? Boolean(openVpnData) : item.id === 'wireguard' ? Boolean(wireguardData) : Boolean(feedUrl);
+                    const ready = item.id === 'amneziawg' ? awgAvailable : item.id === 'openvpn' ? Boolean(openVpnData) : item.id === 'wireguard' ? Boolean(wireguardData) : item.id === 'ipsec' ? Boolean(ipsecData) : Boolean(feedUrl);
                     return (
                       <motion.button
                         key={item.id}
@@ -397,7 +436,7 @@ export function PublicSubscriptionWizard(props: Props) {
               </button>
               <div className="public-sub-protocol-detail-head">
                 <span className={`public-sub-protocol-detail-icon ${selectedProtocol}`}>
-                  {selectedProtocol === 'openvpn' ? <ShieldCheck size={24} /> : selectedProtocol === 'amneziawg' ? <Wifi size={24} /> : <Globe2 size={24} />}
+                  {selectedProtocol === 'openvpn' || selectedProtocol === 'ipsec' ? <ShieldCheck size={24} /> : selectedProtocol === 'wireguard' || selectedProtocol === 'amneziawg' ? <Wifi size={24} /> : <Globe2 size={24} />}
                 </span>
                 <div><p className="public-sub-kicker">مرحله ۰۲ · راهنمای اتصال</p><h2>{protocolInfo.find((item) => item.id === selectedProtocol)?.title}</h2><span>{protocolInfo.find((item) => item.id === selectedProtocol)?.detail}</span></div>
                 <span className="public-sub-protocol-ready ready"><CheckCircle2 size={13} />امن و اختصاصی</span>
@@ -493,6 +532,30 @@ export function PublicSubscriptionWizard(props: Props) {
                     {wireguardError && wireguardData && <p className="public-sub-openvpn-error" role="alert">{wireguardError}</p>}
                   </section>
                   <div className="public-sub-guide-card second"><span className="public-sub-guide-number">02</span><div><strong>در iOS نصب را تأیید کنید</strong><p>پس از دریافت پروفایل، Settings را باز کنید و در Profile Downloaded نصب را تأیید کنید. در دستگاه‌های دیگر، فایل .conf را از داخل WireGuard وارد کنید.</p></div></div>
+                </div>
+              )}
+
+              {selectedProtocol === 'ipsec' && (
+                <div className="public-sub-protocol-content">
+                  <div className="public-sub-guide-card"><span className="public-sub-guide-number">01</span><div><strong>حساب IPsec را دریافت کنید</strong><p>اطلاعات ورود از هستهٔ IPsec دریافت و برای همین اشتراک ذخیره می‌شود.</p></div></div>
+                  <section className="public-sub-openvpn-card public-sub-wireguard-card" data-testid="card-public-sub-ipsec">
+                    <div className="public-sub-openvpn-heading"><div className="public-sub-openvpn-icon"><ShieldCheck size={20} /></div><div><p className="public-sub-kicker">اتصال امن · IKEv2</p><h2>IPsec</h2><p>پروفایل iOS شامل سرورهای آمادهٔ همین حساب است.</p></div></div>
+                    {ipsecLoading ? <div className="public-sub-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی حساب ذخیره‌شدهٔ IPsec...</div> : !ipsecData ? <div className="public-sub-openvpn-setup"><button type="button" className="public-sub-openvpn-button primary" onClick={prepareIpsec} disabled={ipsecBusy} data-testid="button-public-sub-ipsec-create">{ipsecBusy ? <><RefreshCw size={15} className="public-sub-spin" />در حال آماده‌سازی حساب...</> : <><Plus size={15} />ساخت یا دریافت حساب IPsec</>}</button>{ipsecError && <p className="public-sub-openvpn-error" role="alert">{ipsecError}</p>}</div> : <>
+                      <div className="public-sub-openvpn-credentials">
+                        {([
+                          ['username', 'نام کاربری', ipsecData.login],
+                          ['password', 'رمز عبور', ipsecData.password],
+                        ] as const).map(([kind, label, value]) => <div key={kind}><span>{label}</span><strong dir="ltr">{value}</strong><button type="button" onClick={() => copyIpsecValue(value, kind)} aria-label={`کپی ${label}`} data-testid={`button-public-sub-ipsec-copy-${kind}`}>{ipsecCopied === kind ? <Check size={15} /> : <Copy size={15} />}</button></div>)}
+                      </div>
+                      <div className="public-sub-openvpn-actions">
+                        {(activeOS === 'iOS' || isIOSDevice()) && <a className="public-sub-openvpn-button primary" href={ipsecData.mobileconfig_url} data-testid="link-public-sub-ipsec-ios-profile"><Smartphone size={15} />نصب پروفایل iOS · همهٔ سرورها</a>}
+                      </div>
+                      <div className="public-sub-openvpn-locations"><strong>سرورهای داخل پروفایل</strong>{ipsecData.locations.map((location) => <div className="public-sub-openvpn-location" key={location.id}><span>{location.name}</span><bdi dir="ltr">{location.server}</bdi></div>)}</div>
+                      <p className="public-sub-openvpn-hint">در iPhone یا iPad فایل را باز کنید و در Settings نصب پروفایل را تأیید کنید؛ سپس اتصال IKEv2 را از تنظیمات VPN روشن کنید. فایل پروفایل فقط برای این اشتراک است.</p>
+                    </>}
+                    {ipsecError && ipsecData && <p className="public-sub-openvpn-error" role="alert">{ipsecError}</p>}
+                  </section>
+                  <div className="public-sub-guide-card second"><span className="public-sub-guide-number">02</span><div><strong>پروفایل را در iOS نصب کنید</strong><p>بعد از دریافت فایل، Settings → Profile Downloaded را باز و نصب را تأیید کنید. تمام مکان‌های آماده داخل همان پروفایل هستند.</p></div></div>
                 </div>
               )}
 

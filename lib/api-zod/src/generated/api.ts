@@ -1750,6 +1750,7 @@ export const ListResellersResponseItem = zod.object({
   "customer_price_per_gb": zod.number().min(listResellersResponseCustomerPricePerGbMin),
   "enabled": zod.boolean(),
   "wireguard_enabled": zod.boolean(),
+  "ipsec_enabled": zod.boolean(),
   "created_at": zod.string()
 })
 export const ListResellersResponse = zod.array(ListResellersResponseItem)
@@ -1775,7 +1776,8 @@ export const UpdateResellerBody = zod.object({
   "enabled": zod.boolean(),
   "per_gig_price": zod.number().min(updateResellerBodyPerGigPriceMin).optional(),
   "customer_price_per_gb": zod.number().min(updateResellerBodyCustomerPricePerGbMin).optional(),
-  "wireguard_enabled": zod.boolean().optional()
+  "wireguard_enabled": zod.boolean().optional(),
+  "ipsec_enabled": zod.boolean().optional()
 })
 
 export const updateResellerResponsePerGigPriceMin = 0;
@@ -1794,6 +1796,7 @@ export const UpdateResellerResponse = zod.object({
   "customer_price_per_gb": zod.number().min(updateResellerResponseCustomerPricePerGbMin),
   "enabled": zod.boolean(),
   "wireguard_enabled": zod.boolean(),
+  "ipsec_enabled": zod.boolean(),
   "created_at": zod.string()
 })
 
@@ -1933,6 +1936,71 @@ export const CreateWireGuardAccountResponse = zod.object({
   "mobileconfig_url": zod.string()
 }))
 })
+
+
+/**
+ * @summary Read previously saved IPsec account information
+ */
+export const getIpsecAccountPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+
+
+export const GetIpsecAccountParams = zod.object({
+  "token": zod.coerce.string().regex(getIpsecAccountPathTokenRegExp)
+})
+
+export const GetIpsecAccountResponse = zod.object({
+  "provider_key": zod.string(),
+  "username": zod.string(),
+  "core": zod.enum(['ipsec']),
+  "login": zod.string(),
+  "password": zod.string(),
+  "mobileconfig_url": zod.string(),
+  "locations": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "server": zod.string(),
+  "ikev2_remote_id": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create or retrieve IPsec access after an explicit customer action
+ */
+export const createIpsecAccountPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+
+
+export const CreateIpsecAccountParams = zod.object({
+  "token": zod.coerce.string().regex(createIpsecAccountPathTokenRegExp)
+})
+
+export const CreateIpsecAccountResponse = zod.object({
+  "provider_key": zod.string(),
+  "username": zod.string(),
+  "core": zod.enum(['ipsec']),
+  "login": zod.string(),
+  "password": zod.string(),
+  "mobileconfig_url": zod.string(),
+  "locations": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "server": zod.string(),
+  "ikev2_remote_id": zod.string()
+}))
+})
+
+
+/**
+ * @summary Download the Apple IKEv2 profile for a saved IPsec account
+ */
+export const downloadIpsecMobileConfigPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+
+
+export const DownloadIpsecMobileConfigParams = zod.object({
+  "token": zod.coerce.string().regex(downloadIpsecMobileConfigPathTokenRegExp)
+})
+
+export const DownloadIpsecMobileConfigResponse = zod.unknown()
 
 
 /**

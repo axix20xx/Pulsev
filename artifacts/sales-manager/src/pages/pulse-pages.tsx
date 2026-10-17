@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
 type PulseContextValue = {
   sales: Sale[]; services: Service[]; customers: Customer[]; servicesLoading: boolean; servicesError: string | null; refreshServices: () => Promise<void>; prefs: Prefs; session: { authenticated?: boolean; role?: string; telegram_id?: number | null; reseller_id?: number | null; display_name?: string | null; customer_price_per_gb?: number | null } | null;
-  sessionLoading: boolean; authFallback: boolean; dashboard: any | null; dashboardLoading: boolean; dashboardError: string | null; refreshDashboard: () => Promise<void>; resellers: { id: number; telegram_id: number; title?: string | null; enabled: boolean; wireguard_enabled: boolean; used_gb: number; total_gb: number; per_gig_price?: number; customer_price_per_gb?: number }[];
+  sessionLoading: boolean; authFallback: boolean; dashboard: any | null; dashboardLoading: boolean; dashboardError: string | null; refreshDashboard: () => Promise<void>; resellers: { id: number; telegram_id: number; title?: string | null; enabled: boolean; wireguard_enabled: boolean; ipsec_enabled: boolean; used_gb: number; total_gb: number; per_gig_price?: number; customer_price_per_gb?: number }[];
   addSale: (sale: Sale) => void; updateSale: (sale: Sale) => Promise<void>; createService: (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean; storefront_lead_id?: number | null }) => Promise<Service>; updateService: (service: Service) => void; renewService: (service: Service, days?: number, gb?: number, sellPrice?: number | null, isPaid?: boolean, requestId?: string) => Promise<Service>; openRenewWizard: (service: Service) => void; resetServiceToken: (service: Service) => Promise<string>; setPrefs: (prefs: Prefs) => void; updateReseller: (id: number, enabled: boolean) => void;
 };
 const PulseContext = createContext<PulseContextValue | null>(null);
@@ -269,7 +269,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const customers = useMemo(() => canLoadApi ? apiCustomers ?? [] : [], [apiCustomers, canLoadApi]);
   const displaySession = sessionQuery.data ?? null;
   const authFallback = sessionQuery.isError;
-  const resellers = Array.isArray(resellerQuery.data) ? resellerQuery.data.map((r: any) => ({ id: r.id, telegram_id: Number(r.telegram_id), title: r.title, enabled: r.enabled, wireguard_enabled: Boolean(r.wireguard_enabled), used_gb: r.used_gb, total_gb: r.total_gb, per_gig_price: Number(r.per_gig_price ?? 0), customer_price_per_gb: Number(r.customer_price_per_gb ?? 0) })) : localResellers;
+  const resellers = Array.isArray(resellerQuery.data) ? resellerQuery.data.map((r: any) => ({ id: r.id, telegram_id: Number(r.telegram_id), title: r.title, enabled: r.enabled, wireguard_enabled: Boolean(r.wireguard_enabled), ipsec_enabled: Boolean(r.ipsec_enabled), used_gb: r.used_gb, total_gb: r.total_gb, per_gig_price: Number(r.per_gig_price ?? 0), customer_price_per_gb: Number(r.customer_price_per_gb ?? 0) })) : localResellers;
   const updateSale = async (sale: Sale) => {
     setSales((items) => items.map((item) => item.id === sale.id ? sale : item));
     const id = Number(sale.id.replace(/\D/g, ''));
@@ -2988,6 +2988,11 @@ function PublicSubscriptionContentV2() {
   const [wireguardLoading, setWireguardLoading] = useState(false);
   const [wireguardData, setWireguardData] = useState<any>(null);
   const [wireguardError, setWireguardError] = useState('');
+  const [ipsecBusy, setIpsecBusy] = useState(false);
+  const [ipsecLoading, setIpsecLoading] = useState(false);
+  const [ipsecData, setIpsecData] = useState<any>(null);
+  const [ipsecError, setIpsecError] = useState('');
+  const [ipsecCopied, setIpsecCopied] = useState<'username' | 'password' | null>(null);
   const [allMobileConfigBusy, setAllMobileConfigBusy] = useState(false);
   const [allMobileConfigError, setAllMobileConfigError] = useState('');
 
@@ -3095,6 +3100,35 @@ function PublicSubscriptionContentV2() {
       });
     return () => { active = false; };
   }, [token, finished, data?.wireguard_available]);
+  useEffect(() => {
+    if (!token || finished || data?.ipsec_available !== true) {
+      setIpsecData(null);
+      setIpsecError('');
+      setIpsecLoading(false);
+      return;
+    }
+    let active = true;
+    setIpsecLoading(true);
+    void fetch(`/api/public/subscription/${encodeURIComponent(token)}/ipsec`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (response.status === 404 || response.status === 410) return null;
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.error || 'اطلاعات حساب IPsec دریافت نشد.');
+        return result;
+      })
+      .then((result) => {
+        if (!active) return;
+        setIpsecData(result);
+        setIpsecError('');
+      })
+      .catch((cause) => {
+        if (active) setIpsecError(cause instanceof Error ? cause.message : 'اطلاعات IPsec دریافت نشد.');
+      })
+      .finally(() => {
+        if (active) setIpsecLoading(false);
+      });
+    return () => { active = false; };
+  }, [token, finished, data?.ipsec_available]);
   const number = (value: number, maximumFractionDigits = 1) => new Intl.NumberFormat('fa-IR', { maximumFractionDigits }).format(value);
   const flashCopy = (kind: 'page' | 'feed' | 'awg') => {
     setCopied(kind);
@@ -3152,6 +3186,24 @@ function PublicSubscriptionContentV2() {
       setWireguardBusy(false);
     }
   };
+  const prepareIpsec = async () => {
+    if (!token || ipsecBusy || finished || data?.ipsec_available !== true) return;
+    setIpsecBusy(true);
+    setIpsecError('');
+    try {
+      const response = await fetch(`/api/public/subscription/${encodeURIComponent(token)}/ipsec`, {
+        method: 'POST',
+        cache: 'no-store',
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || 'اطلاعات IPsec دریافت نشد.');
+      setIpsecData(result);
+    } catch (cause) {
+      setIpsecError(cause instanceof Error ? cause.message : 'ساخت حساب IPsec ناموفق بود.');
+    } finally {
+      setIpsecBusy(false);
+    }
+  };
   const prepareAllMobileConfig = async () => {
     if (!token || allMobileConfigBusy || finished || activeOS !== 'iOS') return;
     setAllMobileConfigBusy(true);
@@ -3159,7 +3211,7 @@ function PublicSubscriptionContentV2() {
     const publicPath = `/api/public/subscription/${encodeURIComponent(token)}`;
     const readJson = async (response: Response) => response.json().catch(() => null) as Promise<any>;
     const ensureAccount = async (
-      protocol: 'openvpn' | 'wireguard',
+      protocol: 'openvpn' | 'wireguard' | 'ipsec',
       notCreatedCode: string,
       setValue: (value: any) => void,
     ): Promise<boolean> => {
@@ -3198,6 +3250,13 @@ function PublicSubscriptionContentV2() {
           throw new Error(cause instanceof Error ? `WireGuard: ${cause.message}` : 'آماده‌سازی WireGuard ناموفق بود.');
         }
       }
+      if (data?.ipsec_available === true) {
+        try {
+          if (await ensureAccount('ipsec', 'IPSEC_NOT_CREATED', setIpsecData)) readyCount += 1;
+        } catch (cause) {
+          throw new Error(cause instanceof Error ? `IPsec: ${cause.message}` : 'آماده‌سازی IPsec ناموفق بود.');
+        }
+      }
       if (awgAvailable) readyCount += 1;
       if (!readyCount) {
         throw new Error('برای این اشتراک هیچ کانفیگ فعال و آماده‌ای برای نصب iOS پیدا نشد.');
@@ -3214,6 +3273,11 @@ function PublicSubscriptionContentV2() {
     if (!(await copyTextToClipboard(value))) return;
     setOpenVpnCopied(kind);
     window.setTimeout(() => setOpenVpnCopied((current) => current === kind ? null : current), 1800);
+  };
+  const copyIpsecValue = async (value: string, kind: 'username' | 'password') => {
+    if (!(await copyTextToClipboard(value))) return;
+    setIpsecCopied(kind);
+    window.setTimeout(() => setIpsecCopied((current) => current === kind ? null : current), 1800);
   };
   const openVpnBundleImportHref = openVpnData
     ? openVpnConnectImportUrl(openVpnData.bundle_import_url, window.location.origin)
@@ -3307,6 +3371,13 @@ function PublicSubscriptionContentV2() {
         wireguardData={wireguardData}
         wireguardError={wireguardError}
         prepareWireGuard={prepareWireGuard}
+        ipsecLoading={ipsecLoading}
+        ipsecBusy={ipsecBusy}
+        ipsecData={ipsecData}
+        ipsecError={ipsecError}
+        prepareIpsec={prepareIpsec}
+        ipsecCopied={ipsecCopied}
+        copyIpsecValue={copyIpsecValue}
         allMobileConfigBusy={allMobileConfigBusy}
         allMobileConfigError={allMobileConfigError}
         prepareAllMobileConfig={prepareAllMobileConfig}
@@ -3413,12 +3484,12 @@ function SettingsConsole() {
         <SectionPanel className="ax-settings-section" id="settings-display" eyebrow="چیدمان عملیاتی" title="نمایش و تراکم اطلاعات" description="تنظیم نحوهٔ نمایش فهرست‌ها در فضای کاری شما." action={<span className="ax-kpi-icon sage"><Sparkles size={17} /></span>}>
           <div className="ax-preference-row"><div><p className="font-bold">ردیف‌های فشرده</p><p className="text-xs text-muted-foreground">اطلاعات بیشتری در صفحه فروش ببینید.</p></div><button className={`ax-toggle ${draft.compact ? 'on' : ''}`} onClick={() => setDraft({ ...draft, compact: !draft.compact })} aria-pressed={draft.compact}><span /></button></div>
         </SectionPanel>
-        {session?.role === 'master_admin' && <SectionPanel className="ax-settings-section" id="settings-resellers" eyebrow="دسترسی و ظرفیت" title="مدیریت فروشندگان" description="دسترسی فروشنده و فعال‌سازی جداگانهٔ WireGuard را برای هر حساب مدیریت کنید." action={<span className="ax-kpi-icon sage"><Settings2 size={17} /></span>}>
-          {resellers.length ? <div className="ax-records mt-5">{resellers.map((reseller) => <div className="ax-settings-reseller-row" key={reseller.id}><Avatar name={reseller.title || `فروشنده ${reseller.id}`} color="sage" /><div className="min-w-0 flex-1"><p className="text-sm font-bold">{reseller.title || `فروشنده ${reseller.id}`}</p><p className="text-xs text-muted-foreground">{new Intl.NumberFormat('fa-IR').format(reseller.used_gb)} از {new Intl.NumberFormat('fa-IR').format(reseller.total_gb)} گیگ مصرف</p><ResellerWireGuardAccess reseller={reseller} /></div><span className={`ax-settings-reseller-state ${reseller.enabled ? 'enabled' : ''}`}>{reseller.enabled ? 'فعال' : 'غیرفعال'}</span><button className={`ax-toggle ${reseller.enabled ? 'on' : ''}`} onClick={() => updateReseller(reseller.id, !reseller.enabled)} aria-label={`تغییر دسترسی ${reseller.title || reseller.id}`} aria-pressed={reseller.enabled}><span /></button></div>)}</div> : <EmptyState title="فروشنده‌ای در فهرست نیست" detail="وضعیت فروشندگان پس از دریافت داده‌های حساب نمایش داده می‌شود." />}
+        {session?.role === 'master_admin' && <SectionPanel className="ax-settings-section" id="settings-resellers" eyebrow="دسترسی و ظرفیت" title="مدیریت فروشندگان" description="دسترسی جداگانهٔ WireGuard و IPsec را برای اشتراک‌های هر فروشنده کنترل کنید." action={<span className="ax-kpi-icon sage"><Settings2 size={17} /></span>}>
+          {resellers.length ? <div className="ax-records mt-5">{resellers.map((reseller) => <div className="ax-settings-reseller-row" key={reseller.id}><Avatar name={reseller.title || `فروشنده ${reseller.id}`} color="sage" /><div className="min-w-0 flex-1"><p className="text-sm font-bold">{reseller.title || `فروشنده ${reseller.id}`}</p><p className="text-xs text-muted-foreground">{new Intl.NumberFormat('fa-IR').format(reseller.used_gb)} از {new Intl.NumberFormat('fa-IR').format(reseller.total_gb)} گیگ مصرف</p><ResellerWireGuardAccess reseller={reseller} /><ResellerIpsecAccess reseller={reseller} /></div><span className={`ax-settings-reseller-state ${reseller.enabled ? 'enabled' : ''}`}>{reseller.enabled ? 'فعال' : 'غیرفعال'}</span><button className={`ax-toggle ${reseller.enabled ? 'on' : ''}`} onClick={() => updateReseller(reseller.id, !reseller.enabled)} aria-label={`تغییر دسترسی ${reseller.title || reseller.id}`} aria-pressed={reseller.enabled}><span /></button></div>)}</div> : <EmptyState title="فروشنده‌ای در فهرست نیست" detail="وضعیت فروشندگان پس از دریافت داده‌های حساب نمایش داده می‌شود." />}
         </SectionPanel>}
         {session?.role === 'master_admin' && <>
           <section className="ax-settings-provider-group" id="settings-panels" aria-labelledby="settings-panels-heading">
-             <header className="ax-settings-provider-heading"><div><p className="ax-eyebrow">دسترسی مدیریتی</p><h2 id="settings-panels-heading">اتصال و مدیریت Providerها</h2><p>برای WireGuard، یک اتصال مستقل AzadPanel با هستهٔ WireGuard و نام کاربری/رمز جداگانه اضافه کنید؛ اتصال OpenVPN برای این کار استفاده نمی‌شود.</p></div><Server size={19} /></header>
+              <header className="ax-settings-provider-heading"><div><p className="ax-eyebrow">دسترسی مدیریتی</p><h2 id="settings-panels-heading">اتصال و مدیریت Providerها</h2><p>هر هستهٔ AzadPanel، از جمله OpenVPN، WireGuard و IPsec، باید با credential مستقل خودش ثبت شود.</p></div><Server size={19} /></header>
             <PanelAssignments resellers={resellers} />
           </section>
           <div id="settings-pricing" className="ax-settings-pricing-anchor"><AdminPricing resellers={resellers} /></div>
@@ -3464,6 +3535,43 @@ function ResellerWireGuardAccess({ reseller }: { reseller: PulseContextValue['re
       <p className="text-[11px] text-muted-foreground">{error || (reseller.wireguard_enabled ? 'برای اشتراک‌های این فروشنده فعال است' : 'برای این فروشنده غیرفعال است')}</p>
     </div>
     <button type="button" className={`ax-toggle ${reseller.wireguard_enabled ? 'on' : ''}`} onClick={() => void toggle()} disabled={saving} aria-label={`${reseller.wireguard_enabled ? 'غیرفعال‌سازی' : 'فعال‌سازی'} WireGuard برای ${reseller.title || reseller.id}`} aria-pressed={reseller.wireguard_enabled}>
+      <span />
+    </button>
+  </div>;
+}
+
+function ResellerIpsecAccess({ reseller }: { reseller: PulseContextValue['resellers'][number] }) {
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const toggle = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/resellers/${reseller.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: reseller.enabled, ipsec_enabled: !reseller.ipsec_enabled }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || 'ذخیره دسترسی IPsec ناموفق بود.');
+      }
+      await queryClient.invalidateQueries({ queryKey: getListResellersQueryKey() });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ذخیره دسترسی IPsec ناموفق بود.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-200/70 pt-2">
+    <div className="min-w-0">
+      <p className="text-xs font-semibold">دسترسی IPsec / IKEv2</p>
+      <p className="text-[11px] text-muted-foreground">{error || (reseller.ipsec_enabled ? 'برای اشتراک‌های این فروشنده فعال است' : 'برای این فروشنده غیرفعال است')}</p>
+    </div>
+    <button type="button" className={`ax-toggle ${reseller.ipsec_enabled ? 'on' : ''}`} onClick={() => void toggle()} disabled={saving} aria-label={`${reseller.ipsec_enabled ? 'غیرفعال‌سازی' : 'فعال‌سازی'} IPsec برای ${reseller.title || reseller.id}`} aria-pressed={reseller.ipsec_enabled}>
       <span />
     </button>
   </div>;
@@ -3713,8 +3821,10 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
               <option value="marzban">Marzban</option>
               <option value="azadpanel_openvpn">AzadPanel · OpenVPN</option>
               <option value="azadpanel_wireguard">AzadPanel · WireGuard</option>
+              <option value="azadpanel_ipsec">AzadPanel · IPsec / IKEv2</option>
             </select>
             {newPanel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">نام کاربری و رمز مخصوص هستهٔ WireGuard را وارد کنید؛ این اعتبارنامه از OpenVPN جداست.</small>}
+            {newPanel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">credential مدیر AzadPanel مخصوص هستهٔ IPsec را وارد کنید؛ حساب و رمز اتصال کاربران جداگانه از API دریافت می‌شود.</small>}
           </label>
           <Field label="آدرس API" value={newPanel.api_base} placeholder="https://panel.example.com" inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, api_base: value })} />
           <Field label="نام کاربری (اختیاری)" value={newPanel.username} inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, username: value })} />
@@ -3746,8 +3856,10 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
                   {panel.kind === 'azadpanel' && <option value="azadpanel">AzadPanel · تشخیص هسته (قدیمی)</option>}
                   <option value="azadpanel_openvpn">AzadPanel · OpenVPN</option>
                   <option value="azadpanel_wireguard">AzadPanel · WireGuard</option>
+                  <option value="azadpanel_ipsec">AzadPanel · IPsec / IKEv2</option>
                 </select>
                 {panel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از اعتبارنامهٔ مستقل هستهٔ WireGuard استفاده کند.</small>}
+                {panel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از credential مستقل هستهٔ IPsec استفاده کند.</small>}
               </label>
               <Field label="آدرس API" value={panel.api_base} inputDir="ltr" onChange={(value) => edit(panel.key, 'api_base', value)} />
               <Field label="نام کاربری پنل (خالی = حفظ مقدار قبلی)" value={panel.username || ''} placeholder="username پنل" inputDir="ltr" onChange={(value) => edit(panel.key, 'username', value)} />

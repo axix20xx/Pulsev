@@ -20,6 +20,7 @@ export const resellersTable = pgTable("resellers", {
   usedGb: numeric("used_gb", { precision: 10, scale: 2 }).notNull(),
   isEnabled: smallint("is_enabled").notNull(),
   wireguardEnabled: smallint("wireguard_enabled").notNull().default(0),
+  ipsecEnabled: smallint("ipsec_enabled").notNull().default(0),
   perGigPrice: integer("per_gig_price"),
   customerPricePerGb: numeric("customer_price_per_gb", { precision: 14, scale: 2 }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),

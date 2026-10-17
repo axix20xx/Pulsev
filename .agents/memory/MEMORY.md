@@ -47,3 +47,4 @@
 - [Provider operation safety](provider-operation-safety.md) — keep provider account writes explicit, single-service and counter-preserving; avoid bulk or scheduled user mutations.
 - [Storefront inquiry boundary](storefront-inquiry-boundary.md) — public storefronts collect inquiries only; a reseller must explicitly create and attribute the service sale.
 - [Admin page redesign scope](admin-page-redesign.md) — redesign requests mean rebuilding route-level content hierarchy and responsive cards, not just adding shared theme CSS.
+- [AzadPanel IPsec accounts](azadpanel-ipsec.md) — IPsec is a separate AzadPanel core and identity; keep provider credentials, reseller access, combined usage, and Apple IKEv2 payloads protocol-scoped.
