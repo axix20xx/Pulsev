@@ -1346,3 +1346,17 @@ mtime_ms = 1792238335238
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f4a6a4ca-36b2-4ea0-b0af-84726b7f92f5/ac70c0ce-380c-4ced-9e4d-f47ca2a5f0f8"
 storage_version_token = "1792238443307802"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "g2_f9g3rxH5rAbLPp9Hjz"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T12-08-25-431Z.zip"
+type = "unspecified"
+title = "Updated Pulse Hostinger migration ZIP"
+description = "Updated full Hostinger package. AmneziaWG iOS profiles now target AmneziaWG's app identifier; WireGuard profiles remain linked to the WireGuard app."
+logical_id = "936f54cf-1c07-476c-9ec9-8b561088a5b2"
+content_hash = "sha256:88b8a684e6d2f6bd104c6543b09613e24e5ec2613b11b36f9ad5a0eebae03bce"
+size = 28784587
+mtime_ms = 1792239030281
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/936f54cf-1c07-476c-9ec9-8b561088a5b2/feb593dc-04ea-4cdd-8da1-ccc515e3be16"
+storage_version_token = "1792239060088548"
+content_type = "application/octet-stream"

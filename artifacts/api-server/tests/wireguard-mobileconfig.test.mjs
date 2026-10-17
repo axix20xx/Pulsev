@@ -38,6 +38,7 @@ test("one iOS profile contains independent tunnels for every selected WireGuard 
   assert.match(profile, /edge-one\.example:51820/);
   assert.match(profile, /edge-two\.example:51820/);
   assert.match(profile, /Pulse WireGuard - Edge &amp; Two/);
+  assert.match(profile, /<key>VPNSubType<\/key><string>com\.wireguard\.ios<\/string>/);
   assert.match(profile, /<string>com\.pulse\.wireguard\.service-79\.location-edge-one\.vpn<\/string>/);
 });
 
@@ -53,7 +54,7 @@ test("an AmneziaWG iOS profile keeps AWG settings inside the tunnel payload", as
 
   assert.match(profile, /com\.pulse\.amneziawg\.service-81\.location-amneziawg\.vpn/);
   assert.ok(profile.includes("Jc = 4\nJmin = 40\nJmax = 80\nS1 = 23"));
-  assert.match(profile, /<key>VPNSubType<\/key><string>com\.wireguard\.ios<\/string>/);
+  assert.match(profile, /<key>VPNSubType<\/key><string>org\.amnezia\.awg<\/string>/);
 });
 
 test("unsupported options and duplicate tunnel identities are rejected", async () => {

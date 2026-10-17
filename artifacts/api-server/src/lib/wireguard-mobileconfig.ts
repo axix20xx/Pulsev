@@ -49,6 +49,7 @@ function tunnelPayload(
 ): string {
   const displayName = `Pulse ${protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} - ${tunnel.locationName}`;
   const identifier = `com.pulse.${protocol}.service-${serviceId}.location-${tunnel.hostId}`;
+  const appBundleId = protocol === "amneziawg" ? "org.amnezia.awg" : "com.wireguard.ios";
   return `    <dict>
       <key>PayloadDisplayName</key><string>VPN</string>
       <key>PayloadType</key><string>com.apple.vpn.managed</string>
@@ -57,7 +58,7 @@ function tunnelPayload(
       <key>PayloadUUID</key><string>${randomUUID().toUpperCase()}</string>
       <key>UserDefinedName</key><string>${xmlEscape(displayName)}</string>
       <key>VPNType</key><string>VPN</string>
-      <key>VPNSubType</key><string>com.wireguard.ios</string>
+      <key>VPNSubType</key><string>${appBundleId}</string>
       <key>VendorConfig</key>
       <dict><key>WgQuickConfig</key><string>${xmlEscape(tunnel.config)}</string></dict>
       <key>VPN</key>
