@@ -4774,19 +4774,23 @@ async function loadServicePanelUsageMap(
             usage.upload, usage.download, usage.offset_bytes, usage.last_updated
      FROM requested_services requested
      CROSS JOIN panel_configs panel
+      LEFT JOIN reseller_service_ipsec_accounts ipsec_account
+        ON ipsec_account.service_id = requested.service_id
+       AND ipsec_account.provider_key = panel.key
      LEFT JOIN LATERAL (
        SELECT saved.upload, saved.download, saved.offset_bytes, saved.last_updated
        FROM user_panel_usages saved
        WHERE saved.panel_key = panel.key
          AND saved.username = CASE
            WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN requested.wireguard_username
+            WHEN LOWER(panel.kind) = 'azadpanel_ipsec' THEN ipsec_account.provider_username
            ELSE requested.username
          END
        ORDER BY saved.id DESC
        LIMIT 1
      ) usage ON TRUE
      WHERE panel.is_enabled = 1
-       AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard')
+        AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
        AND (
          LOWER(panel.kind) <> 'azadpanel_wireguard'
          OR (
@@ -4797,6 +4801,10 @@ async function loadServicePanelUsageMap(
            )
          )
        )
+        AND (
+          LOWER(panel.kind) <> 'azadpanel_ipsec'
+          OR ipsec_account.service_id IS NOT NULL
+        )
      ORDER BY requested.service_id, panel.key`,
     [
       serviceIds,

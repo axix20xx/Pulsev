@@ -49,6 +49,15 @@ test("signed AWG carry-forward offsets preserve quota usage after a remote count
   }), 20);
 });
 
+test("IPsec usage is added with all provider usage in the shared service total", () => {
+  assert.equal(serviceUsageBytes({
+    lastUsedBytes: 0,
+    panelUsageBytes: 11, // provider rows, including OpenVPN and IPsec
+    awgTotalBytes: 3,
+    awgOffsetBytes: 1,
+  }), 13);
+});
+
 test("AWG actions require an active, unexpired service with quota remaining", () => {
   const active = {
     status: "active",
@@ -67,5 +76,8 @@ test("panel snapshot SQL reads only the latest saved row per configured panel", 
   const sql = storedPanelUsageSql("svc");
   assert.match(sql, /ORDER BY usage\.id DESC\s+LIMIT 1/);
   assert.match(sql, /panel\.is_enabled = 1/);
+  assert.match(sql, /reseller_service_ipsec_accounts ipsec_account/);
+  assert.match(sql, /panel\.kind = 'azadpanel_ipsec' THEN ipsec_account\.provider_username/);
+  assert.match(sql, /'azadpanel_ipsec'/);
   assert.throws(() => storedPanelUsageSql("svc; DROP TABLE reseller_services"), /Invalid SQL alias/);
 });
