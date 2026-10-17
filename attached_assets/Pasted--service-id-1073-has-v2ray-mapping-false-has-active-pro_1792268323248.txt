@@ -1,0 +1,1002 @@
+[
+  {
+    "service_id": 1073,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 569,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:28:01.339284"
+  },
+  {
+    "service_id": 1072,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 568,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:55.637594"
+  },
+  {
+    "service_id": 1071,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 567,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:51.123546"
+  },
+  {
+    "service_id": 1070,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 566,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:45.76342"
+  },
+  {
+    "service_id": 1069,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 565,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:40.963633"
+  },
+  {
+    "service_id": 1068,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 564,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:35.464002"
+  },
+  {
+    "service_id": 1067,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 563,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:30.352146"
+  },
+  {
+    "service_id": 1066,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 562,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:25.365261"
+  },
+  {
+    "service_id": 1065,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 561,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:20.414757"
+  },
+  {
+    "service_id": 1064,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 560,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:15.794185"
+  },
+  {
+    "service_id": 1063,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 559,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:10.410182"
+  },
+  {
+    "service_id": 1062,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 558,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:05.638201"
+  },
+  {
+    "service_id": 1061,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 557,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:27:00.488694"
+  },
+  {
+    "service_id": 1060,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 556,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:56.206446"
+  },
+  {
+    "service_id": 1059,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 555,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:50.930615"
+  },
+  {
+    "service_id": 1058,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 554,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:46.038977"
+  },
+  {
+    "service_id": 1057,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 553,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:40.698814"
+  },
+  {
+    "service_id": 1056,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 552,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:35.525037"
+  },
+  {
+    "service_id": 1055,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 551,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:30.319884"
+  },
+  {
+    "service_id": 1054,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 550,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:27.157655"
+  },
+  {
+    "service_id": 1053,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 549,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:20.674668"
+  },
+  {
+    "service_id": 1052,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 548,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:16.559509"
+  },
+  {
+    "service_id": 1051,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 547,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:10.467689"
+  },
+  {
+    "service_id": 1050,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 546,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:05.442713"
+  },
+  {
+    "service_id": 1049,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 545,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:26:00.754185"
+  },
+  {
+    "service_id": 1048,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 544,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:56.028032"
+  },
+  {
+    "service_id": 1047,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 543,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:50.455095"
+  },
+  {
+    "service_id": 1046,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 542,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:42.47206"
+  },
+  {
+    "service_id": 1045,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 541,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:35.405729"
+  },
+  {
+    "service_id": 1044,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 540,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:30.460351"
+  },
+  {
+    "service_id": 1043,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 539,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:25.504645"
+  },
+  {
+    "service_id": 1042,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 538,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:20.402449"
+  },
+  {
+    "service_id": 1041,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 537,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:15.340576"
+  },
+  {
+    "service_id": 1040,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 536,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:10.460055"
+  },
+  {
+    "service_id": 1038,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 535,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:05.869837"
+  },
+  {
+    "service_id": 1037,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 534,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:25:00.469387"
+  },
+  {
+    "service_id": 1036,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 533,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:55.537414"
+  },
+  {
+    "service_id": 1034,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 532,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:50.527256"
+  },
+  {
+    "service_id": 1033,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 531,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:45.755705"
+  },
+  {
+    "service_id": 1032,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 530,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:40.393107"
+  },
+  {
+    "service_id": 1031,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 529,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:35.392566"
+  },
+  {
+    "service_id": 1030,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 528,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:30.932315"
+  },
+  {
+    "service_id": 1029,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 527,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:25.461452"
+  },
+  {
+    "service_id": 1028,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 526,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:20.451003"
+  },
+  {
+    "service_id": 1027,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 525,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:15.56512"
+  },
+  {
+    "service_id": 1026,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 524,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:10.424208"
+  },
+  {
+    "service_id": 1025,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 523,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:05.665236"
+  },
+  {
+    "service_id": 1024,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 522,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:24:00.868064"
+  },
+  {
+    "service_id": 1023,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 521,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:55.6273"
+  },
+  {
+    "service_id": 1022,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 520,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:50.626076"
+  },
+  {
+    "service_id": 1021,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 519,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:45.503891"
+  },
+  {
+    "service_id": 1020,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 518,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:41.796079"
+  },
+  {
+    "service_id": 1019,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 517,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:35.519734"
+  },
+  {
+    "service_id": 1018,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 516,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:30.384198"
+  },
+  {
+    "service_id": 1017,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 515,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:25.365211"
+  },
+  {
+    "service_id": 1016,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 514,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:20.956583"
+  },
+  {
+    "service_id": 1015,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 513,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:15.461494"
+  },
+  {
+    "service_id": 1014,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 512,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:10.458985"
+  },
+  {
+    "service_id": 1013,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 511,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:05.307944"
+  },
+  {
+    "service_id": 1011,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 510,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:23:00.342598"
+  },
+  {
+    "service_id": 1010,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 509,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:55.340497"
+  },
+  {
+    "service_id": 1008,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 508,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:50.346119"
+  },
+  {
+    "service_id": 1006,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 507,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:45.516508"
+  },
+  {
+    "service_id": 1005,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 506,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:40.390256"
+  },
+  {
+    "service_id": 1004,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 505,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:35.375041"
+  },
+  {
+    "service_id": 1002,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 504,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:30.375116"
+  },
+  {
+    "service_id": 999,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 503,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:25.58503"
+  },
+  {
+    "service_id": 998,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 502,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:20.578287"
+  },
+  {
+    "service_id": 997,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 501,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:15.307748"
+  },
+  {
+    "service_id": 995,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 500,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:10.376574"
+  },
+  {
+    "service_id": 994,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 499,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:22:02.288585"
+  },
+  {
+    "service_id": 992,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 498,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:55.676455"
+  },
+  {
+    "service_id": 991,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 497,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:50.792877"
+  },
+  {
+    "service_id": 990,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 496,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:45.933789"
+  },
+  {
+    "service_id": 989,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 495,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:41.55905"
+  },
+  {
+    "service_id": 988,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 494,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:35.699824"
+  },
+  {
+    "service_id": 985,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 493,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:30.60656"
+  },
+  {
+    "service_id": 984,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 492,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:25.517953"
+  },
+  {
+    "service_id": 983,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 491,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:20.386492"
+  },
+  {
+    "service_id": 982,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 490,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:17.184136"
+  },
+  {
+    "service_id": 981,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 489,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:10.60889"
+  },
+  {
+    "service_id": 979,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 488,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:05.725454"
+  },
+  {
+    "service_id": 978,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 487,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:21:00.687747"
+  },
+  {
+    "service_id": 977,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 486,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:55.866219"
+  },
+  {
+    "service_id": 975,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 485,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:47.572788"
+  },
+  {
+    "service_id": 973,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 484,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:41.220619"
+  },
+  {
+    "service_id": 970,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 483,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:35.441709"
+  },
+  {
+    "service_id": 964,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 482,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:30.543439"
+  },
+  {
+    "service_id": 959,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 481,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:25.553909"
+  },
+  {
+    "service_id": 957,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 480,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:21.087035"
+  },
+  {
+    "service_id": 956,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 479,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:15.505776"
+  },
+  {
+    "service_id": 953,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 478,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:10.525689"
+  },
+  {
+    "service_id": 952,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 477,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:05.499163"
+  },
+  {
+    "service_id": 947,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 476,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:20:00.402441"
+  },
+  {
+    "service_id": 946,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 475,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:19:55.528952"
+  },
+  {
+    "service_id": 941,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 474,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:19:50.322389"
+  },
+  {
+    "service_id": 940,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 473,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:19:45.409138"
+  },
+  {
+    "service_id": 939,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 472,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:19:40.552092"
+  },
+  {
+    "service_id": 938,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 471,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:19:35.387334"
+  },
+  {
+    "service_id": 934,
+    "has_v2ray_mapping": false,
+    "has_active_provider_job": false,
+    "backfill_job_id": 470,
+    "backfill_status": "completed",
+    "attempts": 1,
+    "last_error": null,
+    "updated_at": "2026-10-17 19:19:30.418727"
+  }
+]
