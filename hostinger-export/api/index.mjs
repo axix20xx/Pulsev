@@ -75390,6 +75390,70 @@ function azadPanelV2RayCollisionUsername(serviceId) {
   return `pulsev2_${serviceId}`;
 }
 
+// src/lib/azadpanel-v2ray-backfill.ts
+var BYTES_PER_GB = 1073741824;
+function hasAzadPanelV2RayBackfillProviderResult(results, providerKeys) {
+  return providerKeys.some(
+    (providerKey) => results.some((result) => result.key === providerKey)
+  );
+}
+function shouldPersistAzadPanelV2RayAccountMapping(input) {
+  return input.isAzadPanelV2Ray && Number.isSafeInteger(input.serviceId) && Number(input.serviceId) > 0 && (input.providerUsername !== input.serviceUsername || input.isBackfill);
+}
+function azadPanelV2RayBackfillPlan(service, nowUnix = Math.floor(Date.now() / 1e3)) {
+  if (service.status !== "active") {
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: null,
+      reason: "inactive"
+    };
+  }
+  const expiry = service.expiresAtUnix === null ? null : Number(service.expiresAtUnix);
+  if (expiry !== null && (!Number.isFinite(expiry) || expiry <= nowUnix)) {
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: null,
+      reason: "expired"
+    };
+  }
+  const totalGb = Number(service.gb);
+  if (!Number.isFinite(totalGb) || totalGb < 0) {
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: expiry,
+      reason: "invalid"
+    };
+  }
+  if (totalGb === 0) {
+    return { eligible: true, quotaGb: 0, expiresAtUnix: expiry };
+  }
+  const remainingBytes = service.lastRemainingBytes === null ? totalGb * BYTES_PER_GB - Number(service.lastUsedBytes ?? 0) : Number(service.lastRemainingBytes);
+  if (!Number.isFinite(remainingBytes)) {
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: expiry,
+      reason: "invalid"
+    };
+  }
+  if (remainingBytes <= 0) {
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: expiry,
+      reason: "quota_exhausted"
+    };
+  }
+  return {
+    eligible: true,
+    quotaGb: remainingBytes / BYTES_PER_GB,
+    expiresAtUnix: expiry
+  };
+}
+
 // src/lib/panel-protocol-policy.ts
 var normalizeKind = (kind) => typeof kind === "string" ? kind.trim().toLowerCase() : "";
 function azadPanelExpectedCore(kind) {
@@ -76985,7 +77049,13 @@ async function provisionAzadPanel(panel, username, gb, days, options) {
     }
   }
   const persistProviderUsername = async () => {
-    if (isAzadPanelV2Ray && Number.isSafeInteger(serviceId) && Number(serviceId) > 0 && providerUsername !== username) {
+    if (shouldPersistAzadPanelV2RayAccountMapping({
+      isAzadPanelV2Ray,
+      serviceId,
+      providerUsername,
+      serviceUsername: username,
+      isBackfill: options.onlyIfMissingAzadPanel === true
+    })) {
       await pool.query(
         `INSERT INTO reseller_service_v2ray_accounts
            (service_id, provider_key, provider_username)
@@ -88901,7 +88971,7 @@ router5.use(mobile_default);
 var routes_default = router5;
 
 // src/lib/usage-sync.ts
-var BYTES_PER_GB = 1024 ** 3;
+var BYTES_PER_GB2 = 1024 ** 3;
 var DEFAULT_INTERVAL_MS = 6e4;
 var COMBINED_WORKER_LOCK_NAMESPACE = 74424;
 var running2 = false;
@@ -88990,7 +89060,7 @@ async function syncServiceUnlocked(service) {
     }
   }
   const calculatedCombinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
-  const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB));
+  const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB2));
   const expired = service.expired_in_db;
   const usageSnapshotFresh = awgStatsFresh && panelUsages.every((usage) => !usage.stale);
   const combinedBytes = usageSnapshotFresh ? calculatedCombinedBytes : Math.max(Math.max(0, Number(service.last_used_bytes ?? 0)), calculatedCombinedBytes);
@@ -89287,67 +89357,6 @@ if (isBackgroundWorkersPaused()) {
   startTelegramBotWorker();
 }
 var app_default = app;
-
-// src/lib/azadpanel-v2ray-backfill.ts
-var BYTES_PER_GB2 = 1073741824;
-function hasAzadPanelV2RayBackfillProviderResult(results, providerKeys) {
-  return providerKeys.some(
-    (providerKey) => results.some((result) => result.key === providerKey)
-  );
-}
-function azadPanelV2RayBackfillPlan(service, nowUnix = Math.floor(Date.now() / 1e3)) {
-  if (service.status !== "active") {
-    return {
-      eligible: false,
-      quotaGb: 0,
-      expiresAtUnix: null,
-      reason: "inactive"
-    };
-  }
-  const expiry = service.expiresAtUnix === null ? null : Number(service.expiresAtUnix);
-  if (expiry !== null && (!Number.isFinite(expiry) || expiry <= nowUnix)) {
-    return {
-      eligible: false,
-      quotaGb: 0,
-      expiresAtUnix: null,
-      reason: "expired"
-    };
-  }
-  const totalGb = Number(service.gb);
-  if (!Number.isFinite(totalGb) || totalGb < 0) {
-    return {
-      eligible: false,
-      quotaGb: 0,
-      expiresAtUnix: expiry,
-      reason: "invalid"
-    };
-  }
-  if (totalGb === 0) {
-    return { eligible: true, quotaGb: 0, expiresAtUnix: expiry };
-  }
-  const remainingBytes = service.lastRemainingBytes === null ? totalGb * BYTES_PER_GB2 - Number(service.lastUsedBytes ?? 0) : Number(service.lastRemainingBytes);
-  if (!Number.isFinite(remainingBytes)) {
-    return {
-      eligible: false,
-      quotaGb: 0,
-      expiresAtUnix: expiry,
-      reason: "invalid"
-    };
-  }
-  if (remainingBytes <= 0) {
-    return {
-      eligible: false,
-      quotaGb: 0,
-      expiresAtUnix: expiry,
-      reason: "quota_exhausted"
-    };
-  }
-  return {
-    eligible: true,
-    quotaGb: remainingBytes / BYTES_PER_GB2,
-    expiresAtUnix: expiry
-  };
-}
 
 // src/lib/provisioning-worker.ts
 import { hostname as hostname2 } from "node:os";

@@ -24,6 +24,22 @@ export function hasAzadPanelV2RayBackfillProviderResult(
   );
 }
 
+export function shouldPersistAzadPanelV2RayAccountMapping(input: {
+  isAzadPanelV2Ray: boolean;
+  serviceId: number | undefined;
+  providerUsername: string;
+  serviceUsername: string;
+  isBackfill: boolean;
+}): boolean {
+  return input.isAzadPanelV2Ray
+    && Number.isSafeInteger(input.serviceId)
+    && Number(input.serviceId) > 0
+    && (
+      input.providerUsername !== input.serviceUsername
+      || input.isBackfill
+    );
+}
+
 export function azadPanelV2RayBackfillPlan(
   service: AzadPanelV2RayBackfillService,
   nowUnix = Math.floor(Date.now() / 1000),

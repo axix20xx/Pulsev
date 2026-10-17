@@ -3,6 +3,7 @@ import { pool } from "@workspace/db";
 import { decryptPanelCredential } from "./panel-credentials";
 import { isRetryableAzadPanelStatus } from "./azadpanel-retry-policy";
 import { azadPanelV2RayCollisionUsername } from "./azadpanel-v2ray-username";
+import { shouldPersistAzadPanelV2RayAccountMapping } from "./azadpanel-v2ray-backfill";
 import {
   azadPanelExpectedCore,
   azadPanelXrayDeliveryDisposition,
@@ -1892,12 +1893,13 @@ async function provisionAzadPanel(
     }
   }
   const persistProviderUsername = async () => {
-    if (
-      isAzadPanelV2Ray
-      && Number.isSafeInteger(serviceId)
-      && Number(serviceId) > 0
-      && providerUsername !== username
-    ) {
+    if (shouldPersistAzadPanelV2RayAccountMapping({
+      isAzadPanelV2Ray,
+      serviceId,
+      providerUsername,
+      serviceUsername: username,
+      isBackfill: options.onlyIfMissingAzadPanel === true,
+    })) {
       await pool.query(
         `INSERT INTO reseller_service_v2ray_accounts
            (service_id, provider_key, provider_username)

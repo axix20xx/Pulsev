@@ -18,6 +18,7 @@ const code = Buffer.from(outputFiles[0].text).toString("base64");
 const {
   azadPanelV2RayBackfillPlan,
   hasAzadPanelV2RayBackfillProviderResult,
+  shouldPersistAzadPanelV2RayAccountMapping,
 } = await import(
   `data:text/javascript;base64,${code}`
 );
@@ -66,6 +67,39 @@ test("V2Ray backfill cannot silently complete without a result from its target P
       ["azad_v2ray"],
     ),
     true,
+  );
+});
+
+test("successful V2Ray backfills persist an explicit mapping even when the provider username matches", () => {
+  assert.equal(
+    shouldPersistAzadPanelV2RayAccountMapping({
+      isAzadPanelV2Ray: true,
+      serviceId: 1073,
+      providerUsername: "service-user",
+      serviceUsername: "service-user",
+      isBackfill: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldPersistAzadPanelV2RayAccountMapping({
+      isAzadPanelV2Ray: true,
+      serviceId: 1073,
+      providerUsername: "pulsev2_1073",
+      serviceUsername: "service-user",
+      isBackfill: false,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldPersistAzadPanelV2RayAccountMapping({
+      isAzadPanelV2Ray: true,
+      serviceId: 1073,
+      providerUsername: "service-user",
+      serviceUsername: "service-user",
+      isBackfill: false,
+    }),
+    false,
   );
 });
 

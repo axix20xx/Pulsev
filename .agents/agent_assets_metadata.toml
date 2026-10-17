@@ -1640,3 +1640,17 @@ mtime_ms = 1792268763889
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6ed42d3d-76c5-4b4d-828d-0bcb979deff3/b3a19acc-bb07-4544-aa78-f25e239c7d72"
 storage_version_token = "1792268809910462"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "llMEh_tJxHTOG3B6ybiNQ"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T21-07-54-210Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP — V2Ray mapping fix"
+description = "Installs successful V2Ray backfill mappings explicitly, including services using the same username on AzadPanel. SHA-256: 5f772ffd1290553894a2f8688250ba7832a9e8948baa7753a427e1e0a9f4bcd4"
+logical_id = "bd6d54c1-7440-46bd-bbff-709398b40b21"
+content_hash = "sha256:5f772ffd1290553894a2f8688250ba7832a9e8948baa7753a427e1e0a9f4bcd4"
+size = 29049924
+mtime_ms = 1792271397052
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/bd6d54c1-7440-46bd-bbff-709398b40b21/7e88f816-a673-41be-96b4-477a6c889039"
+storage_version_token = "1792271427355167"
+content_type = "application/octet-stream"
