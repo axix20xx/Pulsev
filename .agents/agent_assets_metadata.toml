@@ -1248,3 +1248,17 @@ mtime_ms = 1792230004738
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/23abc67b-f570-4624-a69b-b9816068482b/41e63425-bf59-4f3f-a43e-a170b4e4ed62"
 storage_version_token = "1792230095169440"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "xVyK4EBVr4QcrhF2_9e3q"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T10-02-55-353Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP — iOS WireGuard profile import"
+description = "Full Hostinger package with WireGuard iOS .mobileconfig profile downloads. Typecheck, generated plist validation, release-package check, and ZIP integrity all passed."
+logical_id = "80776570-c933-4ec6-8199-99ab0e24d2af"
+content_hash = "sha256:bf2789b5e976f62dce6be1bc778a698fb1148f8a38340966bdf60fb749deec7d"
+size = 28767867
+mtime_ms = 1792231496886
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/80776570-c933-4ec6-8199-99ab0e24d2af/7afb02ed-59cc-4bad-a909-97800c821aa7"
+storage_version_token = "1792231578507742"
+content_type = "application/octet-stream"

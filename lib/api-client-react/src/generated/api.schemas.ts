@@ -988,6 +988,7 @@ export interface WireGuardLocation {
   id: string;
   name: string;
   config_url: string;
+  mobileconfig_url: string;
 }
 
 export type WireGuardDeliveryCore = typeof WireGuardDeliveryCore[keyof typeof WireGuardDeliveryCore];

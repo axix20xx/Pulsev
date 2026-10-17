@@ -134,7 +134,7 @@ type MobileWireGuardDelivery = {
   username: string;
   core: "wireguard";
   bundle_url: string;
-  locations: Array<{ id: string; name: string; config_url: string }>;
+  locations: Array<{ id: string; name: string; config_url: string; mobileconfig_url: string }>;
 };
 
 const mobileClientCatalog = (url: string, name: string): MobileClient[] => {
@@ -175,6 +175,9 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
   const [wireguardBusy, setWireguardBusy] = useState(false);
   const [wireguardLoading, setWireguardLoading] = useState(false);
   const [wireguardError, setWireguardError] = useState('');
+  const isIOSDevice = typeof navigator !== 'undefined'
+    && (/iPhone|iPad|iPod/i.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
   const providerUrl = item.provider_url || item.subscription_url || item.public_url;
   const v2boxUrl = item.v2box_url || (providerUrl ? `v2box://install-sub?url=${encodeURIComponent(providerUrl)}&name=${encodeURIComponent(item.plan)}` : '');
   const openVpnToken = (() => {
@@ -352,9 +355,9 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
         <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">اتصال مستقل</span><h3>WireGuard</h3><p>ساخت کانفیگ فقط با انتخاب شما انجام می‌شود.</p></div></div>
         {wireguardLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی کانفیگ ذخیره‌شدهٔ WireGuard...</div> : !wireguardData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareWireGuard()} disabled={wireguardBusy} data-testid={`button-mobile-wireguard-create-${item.id}`}>{wireguardBusy ? 'در حال آماده‌سازی...' : 'ساخت یا دریافت کانفیگ WireGuard'}</button> : <>
           <a className="mobile-openvpn-download primary" href={wireguardData.bundle_url} download data-testid={`link-mobile-wireguard-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ کانفیگ‌ها</a>
-          <div className="mobile-openvpn-locations">{wireguardData.locations.map((location) => <div className="mobile-openvpn-location" key={location.id}><span>{location.name}</span><a href={location.config_url} download data-testid={`link-mobile-wireguard-config-${item.id}-${location.id}`}><Download size={13} />دانلود فایل .conf</a></div>)}</div>
+          <div className="mobile-openvpn-locations">{wireguardData.locations.map((location) => <div className="mobile-openvpn-location" key={location.id}><span>{location.name}</span><a href={location.config_url} download data-testid={`link-mobile-wireguard-config-${item.id}-${location.id}`}><Download size={13} />دانلود .conf</a>{isIOSDevice && <a href={location.mobileconfig_url} data-testid={`link-mobile-wireguard-ios-profile-${item.id}-${location.id}`}>نصب iOS</a>}</div>)}</div>
           <div className="mobile-openvpn-app-links"><a href="https://apps.apple.com/us/app/wireguard/id1441195209" target="_blank" rel="noreferrer">WireGuard برای iOS <ExternalLink size={13} /></a><a href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" rel="noreferrer">WireGuard برای Android <ExternalLink size={13} /></a></div>
-          <p className="mobile-openvpn-hint">WireGuard لینک واردسازی خودکار ندارد. فایل را دانلود کنید و در برنامهٔ WireGuard گزینهٔ افزودن تونل یا Import from file را بزنید.</p>
+          <p className="mobile-openvpn-hint">در iPhone/iPad، «نصب iOS» را بزنید و در Settings → Profile Downloaded نصب پروفایل را تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. این روش رسمی پروفایل iOS است، نه URL scheme مستقیم. فایل .conf نیز برای واردکردن دستی موجود است. کلید خصوصی را محرمانه نگه دارید.</p>
         </>}
         {wireguardError ? <p className="mobile-openvpn-error" role="alert">{wireguardError}</p> : null}
       </section> : null}

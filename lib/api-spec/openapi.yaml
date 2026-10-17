@@ -1020,6 +1020,27 @@ paths:
           description: Subscription, provider, or location not found
         "410":
           description: Subscription is no longer active
+  /public/subscription/{token}/wireguard/mobileconfig/{provider}/{host}:
+    get:
+      operationId: downloadWireGuardIOSMobileConfig
+      tags: [services]
+      summary: Download an official iOS configuration profile for a WireGuard location
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+        - $ref: "#/components/parameters/WireGuardProviderPath"
+        - $ref: "#/components/parameters/WireGuardHostPath"
+      responses:
+        "200":
+          description: iOS WireGuard configuration profile; iOS requires the customer to confirm installation in Settings
+          content:
+            application/x-apple-aspen-config:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Subscription, provider, or location not found
+        "410":
+          description: Subscription is no longer active
   /public/subscription/{token}/wireguard/bundle/{provider}:
     get:
       operationId: downloadWireGuardBundle
@@ -2401,13 +2422,15 @@ components:
           type: boolean
     WireGuardLocation:
       type: object
-      required: [id, name, config_url]
+      required: [id, name, config_url, mobileconfig_url]
       properties:
         id:
           type: string
         name:
           type: string
         config_url:
+          type: string
+        mobileconfig_url:
           type: string
     WireGuardDelivery:
       type: object

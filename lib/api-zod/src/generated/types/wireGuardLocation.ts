@@ -10,4 +10,5 @@ export interface WireGuardLocation {
   id: string;
   name: string;
   config_url: string;
+  mobileconfig_url: string;
 }

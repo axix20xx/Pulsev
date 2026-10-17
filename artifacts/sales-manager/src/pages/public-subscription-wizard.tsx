@@ -61,6 +61,7 @@ type WireGuardAccount = {
     id: string;
     name: string;
     config_url: string;
+    mobileconfig_url: string;
   }>;
 };
 
@@ -132,7 +133,7 @@ const protocolInfo: Array<{
     id: 'wireguard',
     title: 'WireGuard',
     short: 'کانفیگ اختصاصی برای اپ رسمی',
-    detail: 'فایل هر سرور را دانلود و در برنامهٔ WireGuard وارد کنید',
+    detail: 'فایل کانفیگ یا پروفایل نصب iOS برای هر سرور',
     icon: Wifi,
   },
   {
@@ -193,6 +194,10 @@ function stepMotion(reduceMotion: boolean) {
         transition: { duration: 0.38, ease: 'easeOut' as const },
       };
 }
+
+const isIOSDevice = (): boolean => typeof navigator !== 'undefined'
+  && (/iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 
 export function PublicSubscriptionWizard(props: Props) {
   const {
@@ -465,12 +470,12 @@ export function PublicSubscriptionWizard(props: Props) {
                         <a className="public-sub-openvpn-button" href="https://apps.apple.com/us/app/wireguard/id1441195209" target="_blank" rel="noreferrer" data-testid="link-public-sub-wireguard-ios"><ExternalLink size={14} />نصب WireGuard · iOS</a>
                         <a className="public-sub-openvpn-button" href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" rel="noreferrer" data-testid="link-public-sub-wireguard-android"><ExternalLink size={14} />نصب WireGuard · Android</a>
                       </div>
-                      {wireguardData.locations.length ? <div className="public-sub-openvpn-locations"><strong>سرورها</strong>{wireguardData.locations.map((location) => <div className="public-sub-openvpn-location" key={location.id}><span>{location.name}</span><a href={location.config_url} download data-testid={`link-public-sub-wireguard-config-${location.id}`}><Download size={13} />دانلود فایل</a></div>)}</div> : <p className="public-sub-openvpn-error" role="status">برای این حساب هنوز سرور آماده‌ای وجود ندارد.</p>}
-                      <p className="public-sub-openvpn-hint">WireGuard از لینک واردسازی عمومی پشتیبانی نمی‌کند. فایل .conf را دانلود کنید و در برنامهٔ WireGuard از گزینهٔ افزودن تونل یا Import from file وارد کنید.</p>
+                      {wireguardData.locations.length ? <div className="public-sub-openvpn-locations"><strong>سرورها</strong>{wireguardData.locations.map((location) => <div className="public-sub-openvpn-location" key={location.id}><span>{location.name}</span><a href={location.config_url} download data-testid={`link-public-sub-wireguard-config-${location.id}`}><Download size={13} />دانلود .conf</a>{isIOSDevice() && <a href={location.mobileconfig_url} data-testid={`link-public-sub-wireguard-ios-profile-${location.id}`}><Smartphone size={13} />نصب پروفایل iOS</a>}</div>)}</div> : <p className="public-sub-openvpn-error" role="status">برای این حساب هنوز سرور آماده‌ای وجود ندارد.</p>}
+                      <p className="public-sub-openvpn-hint">در iPhone/iPad، «نصب پروفایل iOS» را بزنید و نصب را در Settings → Profile Downloaded تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. این روش رسمی پروفایل iOS است، نه URL scheme مستقیم. فایل .conf هم برای واردکردن دستی در برنامه در دسترس است. کلید خصوصی را محرمانه نگه دارید.</p>
                     </>}
                     {wireguardError && wireguardData && <p className="public-sub-openvpn-error" role="alert">{wireguardError}</p>}
                   </section>
-                  <div className="public-sub-guide-card second"><span className="public-sub-guide-number">02</span><div><strong>کانفیگ را در برنامه وارد کنید</strong><p>در برنامهٔ WireGuard، افزودن تونل و سپس Import from file را انتخاب کنید. برای هر سرور می‌توانید یک فایل جداگانه وارد کنید.</p></div></div>
+                  <div className="public-sub-guide-card second"><span className="public-sub-guide-number">02</span><div><strong>در iOS نصب را تأیید کنید</strong><p>پس از دریافت پروفایل، Settings را باز کنید و در Profile Downloaded نصب را تأیید کنید. در دستگاه‌های دیگر، فایل .conf را از داخل WireGuard وارد کنید.</p></div></div>
                 </div>
               )}
 

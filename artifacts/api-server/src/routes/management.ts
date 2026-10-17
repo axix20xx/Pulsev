@@ -109,6 +109,7 @@ import {
   toClashSubscription,
 } from "../lib/subscription-formats";
 import { logger } from "../lib/logger";
+import { createWireGuardMobileConfig } from "../lib/wireguard-mobileconfig";
 import { getAwgUsageWorkerLog, recordAwgUsagePollEvent } from "../lib/awg-usage-poll";
 import {
   ensureStorefrontSchema,
@@ -1607,6 +1608,7 @@ function publicWireGuardDelivery(token: string, delivery: WireGuardDelivery) {
     locations: delivery.locations.map((location) => ({
       ...location,
       config_url: `${providerPath}/config/${encodeURIComponent(delivery.provider_key)}/${encodeURIComponent(location.id)}`,
+      mobileconfig_url: `${providerPath}/mobileconfig/${encodeURIComponent(delivery.provider_key)}/${encodeURIComponent(location.id)}`,
     })),
   };
 }
@@ -1829,7 +1831,11 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
   }
 });
 
-function safeDownloadFilename(contentDisposition: string | null, fallback: string, extension: ".conf" | ".txt"): string {
+function safeDownloadFilename(
+  contentDisposition: string | null,
+  fallback: string,
+  extension: ".conf" | ".txt" | ".mobileconfig",
+): string {
   const encoded = contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
   const plain = contentDisposition?.match(/filename="?([^";]+)"?/i)?.[1];
   let filename = fallback;
@@ -1849,7 +1855,11 @@ async function resolvePublicWireGuardProfile(
   token: string,
   providerKey: string,
   hostId?: string,
-): Promise<{ serviceId: number; profile: { body: string; contentType: string; contentDisposition: string | null } } | { status: number; error: string }> {
+): Promise<{
+  serviceId: number;
+  locationName: string;
+  profile: { body: string; contentType: string; contentDisposition: string | null };
+} | { status: number; error: string }> {
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     return { status: 404, error: "Invalid subscription token" };
   }
@@ -1865,6 +1875,8 @@ async function resolvePublicWireGuardProfile(
     if (!delivery || delivery.provider_key !== providerKey) {
       return { status: 404, error: "WireGuard account not found" };
     }
+    const location = hostId ? delivery.locations.find((candidate) => candidate.id === hostId) : null;
+    if (hostId && !location) return { status: 404, error: "WireGuard location not found" };
     const profile = hostId
       ? await downloadWireGuardProfile(
           delivery.username,
@@ -1879,12 +1891,49 @@ async function resolvePublicWireGuardProfile(
           Number(service.reseller_tg_id),
           "reseller",
         );
-    return { serviceId: Number(service.id), profile };
+    return { serviceId: Number(service.id), locationName: location?.name ?? "WireGuard", profile };
   } catch (error) {
     const message = error instanceof Error ? error.message : "WireGuard profile download failed.";
     return { status: message.includes("not available for this account") ? 404 : 502, error: message };
   }
 }
+
+router.get("/public/subscription/:token/wireguard/mobileconfig/:provider/:host", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  const hostId = String(req.params.host ?? "");
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  const result = await resolvePublicWireGuardProfile(
+    token,
+    String(req.params.provider ?? ""),
+    hostId,
+  );
+  if ("status" in result) {
+    res.status(result.status).type("text/plain").send(result.error);
+    return;
+  }
+  try {
+    const content = createWireGuardMobileConfig(
+      result.profile.body,
+      result.serviceId,
+      hostId,
+      result.locationName,
+    );
+    const filename = safeDownloadFilename(
+      null,
+      `Pulse-${result.serviceId}-${hostId}`,
+      ".mobileconfig",
+    );
+    res.setHeader("content-type", "application/x-apple-aspen-config");
+    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send(content);
+  } catch (error) {
+    res.status(422).type("text/plain").send(
+      error instanceof Error ? error.message : "Could not prepare the iOS WireGuard profile.",
+    );
+  }
+});
 
 router.get("/public/subscription/:token/wireguard/config/:provider/:host", async (req, res): Promise<void> => {
   const token = String(req.params.token ?? "").trim();

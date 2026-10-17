@@ -4214,6 +4214,93 @@ export function useDownloadWireGuardConfig<TData = Awaited<ReturnType<typeof dow
 
 
 
+export const getDownloadWireGuardIOSMobileConfigUrl = (token: string,
+    provider: string,
+    host: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/wireguard/mobileconfig/${provider}/${host}`
+}
+
+/**
+ * @summary Download an official iOS configuration profile for a WireGuard location
+ */
+export const downloadWireGuardIOSMobileConfig = async (token: string,
+    provider: string,
+    host: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadWireGuardIOSMobileConfigUrl(token,provider,host),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadWireGuardIOSMobileConfigQueryKey = (token: string,
+    provider: string,
+    host: string,) => {
+    return [
+    `/api/public/subscription/${token}/wireguard/mobileconfig/${provider}/${host}`
+    ] as const;
+    }
+
+
+export const getDownloadWireGuardIOSMobileConfigQueryOptions = <TData = Awaited<ReturnType<typeof downloadWireGuardIOSMobileConfig>>, TError = ErrorType<void>>(token: string,
+    provider: string,
+    host: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadWireGuardIOSMobileConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadWireGuardIOSMobileConfigQueryKey(token,provider,host);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadWireGuardIOSMobileConfig>>> = ({ signal }) => downloadWireGuardIOSMobileConfig(token,provider,host, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined && provider !== null && provider !== undefined && host !== null && host !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadWireGuardIOSMobileConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadWireGuardIOSMobileConfigQueryResult = NonNullable<Awaited<ReturnType<typeof downloadWireGuardIOSMobileConfig>>>
+export type DownloadWireGuardIOSMobileConfigQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download an official iOS configuration profile for a WireGuard location
+ */
+
+export function useDownloadWireGuardIOSMobileConfig<TData = Awaited<ReturnType<typeof downloadWireGuardIOSMobileConfig>>, TError = ErrorType<void>>(
+ token: string,
+    provider: string,
+    host: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadWireGuardIOSMobileConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadWireGuardIOSMobileConfigQueryOptions(token,provider,host,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getDownloadWireGuardBundleUrl = (token: string,
     provider: string,) => {
 

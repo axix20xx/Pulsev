@@ -1905,7 +1905,8 @@ export const GetWireGuardAccountResponse = zod.object({
   "locations": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),
-  "config_url": zod.string()
+  "config_url": zod.string(),
+  "mobileconfig_url": zod.string()
 }))
 })
 
@@ -1928,7 +1929,8 @@ export const CreateWireGuardAccountResponse = zod.object({
   "locations": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),
-  "config_url": zod.string()
+  "config_url": zod.string(),
+  "mobileconfig_url": zod.string()
 }))
 })
 
@@ -1951,6 +1953,26 @@ export const DownloadWireGuardConfigParams = zod.object({
 })
 
 export const DownloadWireGuardConfigResponse = zod.string()
+
+
+/**
+ * @summary Download an official iOS configuration profile for a WireGuard location
+ */
+export const downloadWireGuardIOSMobileConfigPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+export const downloadWireGuardIOSMobileConfigPathProviderRegExp = new RegExp('^[a-z0-9_-]{2,64}$');
+export const downloadWireGuardIOSMobileConfigPathHostMax = 80;
+
+
+export const downloadWireGuardIOSMobileConfigPathHostRegExp = new RegExp('^[A-Za-z0-9._-]{1,80}$');
+
+
+export const DownloadWireGuardIOSMobileConfigParams = zod.object({
+  "token": zod.coerce.string().regex(downloadWireGuardIOSMobileConfigPathTokenRegExp),
+  "provider": zod.coerce.string().regex(downloadWireGuardIOSMobileConfigPathProviderRegExp),
+  "host": zod.coerce.string().max(downloadWireGuardIOSMobileConfigPathHostMax).regex(downloadWireGuardIOSMobileConfigPathHostRegExp)
+})
+
+export const DownloadWireGuardIOSMobileConfigResponse = zod.unknown()
 
 
 /**

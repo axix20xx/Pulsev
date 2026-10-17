@@ -45742,7 +45742,8 @@ var GetWireGuardAccountResponse = objectType({
   "locations": arrayType(objectType({
     "id": stringType(),
     "name": stringType(),
-    "config_url": stringType()
+    "config_url": stringType(),
+    "mobileconfig_url": stringType()
   }))
 });
 var createWireGuardAccountPathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
@@ -45757,7 +45758,8 @@ var CreateWireGuardAccountResponse = objectType({
   "locations": arrayType(objectType({
     "id": stringType(),
     "name": stringType(),
-    "config_url": stringType()
+    "config_url": stringType(),
+    "mobileconfig_url": stringType()
   }))
 });
 var downloadWireGuardConfigPathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
@@ -45770,6 +45772,16 @@ var DownloadWireGuardConfigParams = objectType({
   "host": coerce.string().max(downloadWireGuardConfigPathHostMax).regex(downloadWireGuardConfigPathHostRegExp)
 });
 var DownloadWireGuardConfigResponse = stringType();
+var downloadWireGuardIOSMobileConfigPathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
+var downloadWireGuardIOSMobileConfigPathProviderRegExp = new RegExp("^[a-z0-9_-]{2,64}$");
+var downloadWireGuardIOSMobileConfigPathHostMax = 80;
+var downloadWireGuardIOSMobileConfigPathHostRegExp = new RegExp("^[A-Za-z0-9._-]{1,80}$");
+var DownloadWireGuardIOSMobileConfigParams = objectType({
+  "token": coerce.string().regex(downloadWireGuardIOSMobileConfigPathTokenRegExp),
+  "provider": coerce.string().regex(downloadWireGuardIOSMobileConfigPathProviderRegExp),
+  "host": coerce.string().max(downloadWireGuardIOSMobileConfigPathHostMax).regex(downloadWireGuardIOSMobileConfigPathHostRegExp)
+});
+var DownloadWireGuardIOSMobileConfigResponse = unknownType();
 var downloadWireGuardBundlePathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
 var downloadWireGuardBundlePathProviderRegExp = new RegExp("^[a-z0-9_-]{2,64}$");
 var DownloadWireGuardBundleParams = objectType({
@@ -68526,6 +68538,61 @@ function toClashSubscription(body) {
 `;
 }
 
+// src/lib/wireguard-mobileconfig.ts
+import { randomUUID as randomUUID3 } from "node:crypto";
+var xmlEscape = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+function createWireGuardMobileConfig(config3, serviceId, hostId, locationName) {
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0 || !/^[A-Za-z0-9._-]{1,80}$/.test(hostId)) {
+    throw new Error("Invalid WireGuard profile identity.");
+  }
+  if (!/^\s*\[Interface\]\s*$/im.test(config3) || !/^\s*\[Peer\]\s*$/im.test(config3)) {
+    throw new Error("WireGuard config cannot be represented as an iOS profile.");
+  }
+  if (/^\s*(?:FwMark|Table|PreUp|PostUp|PreDown|PostDown|SaveConfig)\s*=/im.test(config3)) {
+    throw new Error("This WireGuard config contains options unsupported by iOS configuration profiles.");
+  }
+  const endpoint = config3.match(/^\s*Endpoint\s*=\s*(.+?)\s*$/im)?.[1]?.trim();
+  if (!endpoint) throw new Error("WireGuard config is missing the endpoint required by iOS.");
+  const safeLocation = hostId.replace(/[^A-Za-z0-9.-]/g, "-");
+  const identifier = `com.pulse.wireguard.service-${serviceId}.location-${safeLocation}`;
+  const displayName = `Pulse WireGuard - ${locationName}`;
+  const profileUuid = randomUUID3().toUpperCase();
+  const tunnelUuid = randomUUID3().toUpperCase();
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadDisplayName</key><string>${xmlEscape(displayName)}</string>
+  <key>PayloadType</key><string>Configuration</string>
+  <key>PayloadVersion</key><integer>1</integer>
+  <key>PayloadIdentifier</key><string>${xmlEscape(identifier)}</string>
+  <key>PayloadUUID</key><string>${profileUuid}</string>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadDisplayName</key><string>VPN</string>
+      <key>PayloadType</key><string>com.apple.vpn.managed</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${xmlEscape(`${identifier}.vpn`)}</string>
+      <key>PayloadUUID</key><string>${tunnelUuid}</string>
+      <key>UserDefinedName</key><string>${xmlEscape(displayName)}</string>
+      <key>VPNType</key><string>VPN</string>
+      <key>VPNSubType</key><string>com.wireguard.ios</string>
+      <key>VendorConfig</key>
+      <dict>
+        <key>WgQuickConfig</key><string>${xmlEscape(config3.trim())}</string>
+      </dict>
+      <key>VPN</key>
+      <dict>
+        <key>RemoteAddress</key><string>${xmlEscape(endpoint)}</string>
+        <key>AuthenticationMethod</key><string>Password</string>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>`;
+}
+
 // src/lib/awg-usage-poll.ts
 var AWG_USAGE_POLL_INTERVAL_MS = 5 * 6e4;
 var AWG_USAGE_POLL_START_DELAY_MS = 5e3;
@@ -70720,7 +70787,8 @@ function publicWireGuardDelivery(token, delivery) {
     bundle_url: `${providerPath}/bundle/${encodeURIComponent(delivery.provider_key)}`,
     locations: delivery.locations.map((location) => ({
       ...location,
-      config_url: `${providerPath}/config/${encodeURIComponent(delivery.provider_key)}/${encodeURIComponent(location.id)}`
+      config_url: `${providerPath}/config/${encodeURIComponent(delivery.provider_key)}/${encodeURIComponent(location.id)}`,
+      mobileconfig_url: `${providerPath}/mobileconfig/${encodeURIComponent(delivery.provider_key)}/${encodeURIComponent(location.id)}`
     }))
   };
 }
@@ -70963,6 +71031,8 @@ async function resolvePublicWireGuardProfile(token, providerKey, hostId) {
     if (!delivery || delivery.provider_key !== providerKey) {
       return { status: 404, error: "WireGuard account not found" };
     }
+    const location = hostId ? delivery.locations.find((candidate) => candidate.id === hostId) : null;
+    if (hostId && !location) return { status: 404, error: "WireGuard location not found" };
     const profile = hostId ? await downloadWireGuardProfile(
       delivery.username,
       providerKey,
@@ -70975,12 +71045,48 @@ async function resolvePublicWireGuardProfile(token, providerKey, hostId) {
       Number(service.reseller_tg_id),
       "reseller"
     );
-    return { serviceId: Number(service.id), profile };
+    return { serviceId: Number(service.id), locationName: location?.name ?? "WireGuard", profile };
   } catch (error40) {
     const message = error40 instanceof Error ? error40.message : "WireGuard profile download failed.";
     return { status: message.includes("not available for this account") ? 404 : 502, error: message };
   }
 }
+router2.get("/public/subscription/:token/wireguard/mobileconfig/:provider/:host", async (req, res) => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  const hostId = String(req.params.host ?? "");
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  const result = await resolvePublicWireGuardProfile(
+    token,
+    String(req.params.provider ?? ""),
+    hostId
+  );
+  if ("status" in result) {
+    res.status(result.status).type("text/plain").send(result.error);
+    return;
+  }
+  try {
+    const content = createWireGuardMobileConfig(
+      result.profile.body,
+      result.serviceId,
+      hostId,
+      result.locationName
+    );
+    const filename = safeDownloadFilename(
+      null,
+      `Pulse-${result.serviceId}-${hostId}`,
+      ".mobileconfig"
+    );
+    res.setHeader("content-type", "application/x-apple-aspen-config");
+    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send(content);
+  } catch (error40) {
+    res.status(422).type("text/plain").send(
+      error40 instanceof Error ? error40.message : "Could not prepare the iOS WireGuard profile."
+    );
+  }
+});
 router2.get("/public/subscription/:token/wireguard/config/:provider/:host", async (req, res) => {
   const token = String(req.params.token ?? "").trim();
   res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
@@ -75929,8 +76035,8 @@ var app_default = app;
 
 // src/lib/provisioning-worker.ts
 import { hostname as hostname2 } from "node:os";
-import { randomUUID as randomUUID3 } from "node:crypto";
-var workerId = `${hostname2()}:${process.pid}:${randomUUID3()}`;
+import { randomUUID as randomUUID4 } from "node:crypto";
+var workerId = `${hostname2()}:${process.pid}:${randomUUID4()}`;
 var leaseDurationMs = 2 * 6e4;
 var heartbeatIntervalMs = 3e4;
 var retryDelayMs = (attempts) => Math.min(15 * 6e4, 15e3 * 2 ** Math.min(Math.max(attempts - 1, 0), 6));
@@ -76014,7 +76120,7 @@ async function completeJob(jobId) {
   );
 }
 async function saveAwgCandidate(job) {
-  const existing = typeof job.payload.awg_client_candidate === "string" ? job.payload.awg_client_candidate : randomUUID3();
+  const existing = typeof job.payload.awg_client_candidate === "string" ? job.payload.awg_client_candidate : randomUUID4();
   await pool.query(
     `UPDATE service_provision_jobs
      SET payload = payload || jsonb_build_object('awg_client_candidate', $1::text),
