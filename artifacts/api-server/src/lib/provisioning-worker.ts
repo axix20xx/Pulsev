@@ -77,7 +77,10 @@ async function claimJob(): Promise<ProvisionJob | null> {
   }
 }
 
-async function retryJob(job: ProvisionJob, error: string, providerKeys?: string[]) {
+async function retryJob(job: ProvisionJob, error: string, providerKeys?: string[], requestedDelayMs?: number) {
+  const delayMs = Number.isFinite(requestedDelayMs)
+    ? Math.min(24 * 60 * 60_000, Math.max(1000, Number(requestedDelayMs)))
+    : retryDelayMs(job.attempts);
   await pool.query(
     `UPDATE service_provision_jobs
      SET status = 'retrying',
@@ -92,7 +95,7 @@ async function retryJob(job: ProvisionJob, error: string, providerKeys?: string[
     [
       providerKeys ? JSON.stringify(providerKeys) : null,
       error.slice(0, 500),
-      retryDelayMs(job.attempts),
+      delayMs,
       job.id,
       workerId,
     ],
@@ -103,14 +106,32 @@ async function retryJob(job: ProvisionJob, error: string, providerKeys?: string[
   );
 }
 
-async function completeJob(jobId: number) {
+async function pauseRemainingV2rayBackfillJobs(job: ProvisionJob, delayMs: number) {
+  if (job.payload.azadPanelV2RayBackfill !== true || job.provider_keys.length !== 1) return;
   await pool.query(
     `UPDATE service_provision_jobs
-      SET status = 'completed', last_error = NULL, updated_at = NOW(), completed_at = NOW(),
+     SET next_attempt_at = GREATEST(
+           next_attempt_at,
+           NOW() + ($1 * INTERVAL '1 millisecond')
+         ),
+         updated_at = NOW()
+     WHERE id <> $2
+       AND action = 'providers'
+       AND status IN ('pending', 'retrying')
+       AND payload->>'azadPanelV2RayBackfill' = 'true'
+       AND provider_keys @> jsonb_build_array($3::text)`,
+    [delayMs, job.id, job.provider_keys[0]],
+  );
+}
+
+async function completeJob(jobId: number, warning?: string) {
+  await pool.query(
+    `UPDATE service_provision_jobs
+      SET status = 'completed', last_error = $2, updated_at = NOW(), completed_at = NOW(),
           lease_owner = NULL, lease_expires_at = NULL, heartbeat_at = NULL,
           payload = payload - 'awg_client_candidate'
-      WHERE id = $1 AND lease_owner = $2`,
-    [jobId, workerId],
+      WHERE id = $1 AND lease_owner = $3`,
+    [jobId, warning?.slice(0, 500) ?? null, workerId],
   );
 }
 
@@ -182,9 +203,65 @@ async function saveAwgCandidate(job: ProvisionJob): Promise<string> {
   return existing;
 }
 
+async function refreshV2rayBackfillPlan(job: ProvisionJob): Promise<boolean> {
+  const result = await pool.query<{
+    gb: number | string;
+    last_remaining_bytes: number | string | null;
+    last_used_bytes: number | string | null;
+    expires_at_unix: number | string | null;
+    label: string | null;
+  }>(
+    `SELECT gb::float8 AS gb,
+            last_remaining_bytes,
+            last_used_bytes,
+            CASE WHEN expire_at IS NULL THEN NULL
+                 ELSE FLOOR(EXTRACT(EPOCH FROM expire_at))::bigint
+            END AS expires_at_unix,
+            label
+     FROM reseller_services
+     WHERE id = $1
+       AND status = 'active'
+       AND lifecycle_version = $2
+       AND (expire_at IS NULL OR expire_at > NOW())
+     LIMIT 1`,
+    [job.service_id, job.lifecycle_version],
+  );
+  const service = result.rows[0];
+  if (!service) {
+    await completeJob(job.id, "سرویس پیش از اجرای صف منقضی یا غیرفعال شد.");
+    return false;
+  }
+
+  const gb = Number(service.gb ?? 0);
+  const totalBytes = gb > 0 ? gb * 1073741824 : 0;
+  const remainingBytes = gb <= 0
+    ? 0
+    : Math.max(
+        0,
+        service.last_remaining_bytes !== null
+          ? Number(service.last_remaining_bytes)
+          : totalBytes - Number(service.last_used_bytes ?? 0),
+      );
+  if (gb > 0 && remainingBytes <= 0) {
+    await completeJob(job.id, "سهمیهٔ سرویس پیش از اجرای صف به پایان رسید.");
+    return false;
+  }
+
+  job.payload.gb = gb > 0 ? remainingBytes / 1073741824 : 0;
+  job.payload.days = 0;
+  job.payload.label = service.label ?? "";
+  job.payload.expiresAtUnix = service.expires_at_unix === null
+    ? null
+    : Number(service.expires_at_unix);
+  return true;
+}
+
 async function processProviderJob(job: ProvisionJob) {
   const payload = job.payload;
   try {
+    if (payload.azadPanelV2RayBackfill === true && !(await refreshV2rayBackfillPlan(job))) {
+      return;
+    }
     const result = await provisionUser(
       job.username,
       Number(payload.gb),
@@ -193,11 +270,41 @@ async function processProviderJob(job: ProvisionJob) {
       job.owner_tg_id,
       typeof payload.role === "string" ? payload.role : undefined,
       job.provider_keys,
-      { resetUsage: payload.resetUsage === true },
+      {
+        resetUsage: payload.resetUsage === true,
+        expiresAtUnix: payload.expiresAtUnix === null
+          ? null
+          : Number.isFinite(Number(payload.expiresAtUnix))
+            ? Number(payload.expiresAtUnix)
+            : undefined,
+        onlyIfMissingAzadPanel: payload.onlyIfMissingAzadPanel === true,
+      },
     );
     const failed = result.results.filter((item) => item.status < 200 || item.status >= 300);
+    const retryableFailures = failed.filter((item) => item.retryable !== false);
+    if (retryableFailures.length) {
+      const retryAfterMs = Math.max(
+        0,
+        ...retryableFailures.map((item) => Number(item.retryAfterMs) || 0),
+      );
+      const rateLimitDelayMs = retryableFailures.some((item) => item.status === 429)
+        ? retryAfterMs || retryDelayMs(job.attempts)
+        : 0;
+      if (rateLimitDelayMs > 0) {
+        await pauseRemainingV2rayBackfillJobs(job, rateLimitDelayMs);
+      }
+      await retryJob(
+        job,
+        failed.map(providerFailure).join(" · "),
+        retryableFailures.map((item) => item.key),
+        retryAfterMs || rateLimitDelayMs || undefined,
+      );
+      return;
+    }
     if (failed.length) {
-      await retryJob(job, failed.map(providerFailure).join(" · "), failed.map((item) => item.key));
+      const warning = failed.map(providerFailure).join(" · ");
+      await completeJob(job.id, warning);
+      logger.warn({ jobId: job.id, action: job.action, warning }, "Provisioning job stopped after a non-retryable Provider response");
       return;
     }
     await completeJob(job.id);
@@ -205,12 +312,29 @@ async function processProviderJob(job: ProvisionJob) {
   } catch (error) {
     const results = error instanceof RainApiError ? error.results : [];
     const failedKeys = results
-      .filter((item) => item.status < 200 || item.status >= 300)
+      .filter((item) => (item.status < 200 || item.status >= 300) && item.retryable !== false)
       .map((item) => item.key);
+    const nonRetryable = results.filter(
+      (item) => (item.status < 200 || item.status >= 300) && item.retryable === false,
+    );
+    if ((results.length && failedKeys.length === 0 && nonRetryable.length > 0) || (error instanceof RainApiError && !error.retryable)) {
+      const warning = (nonRetryable.length ? nonRetryable : results).map(providerFailure).join(" · ") || safeError(error);
+      await completeJob(job.id, warning);
+      logger.warn({ jobId: job.id, action: job.action, warning }, "Provisioning job stopped after a non-retryable Provider response");
+      return;
+    }
+    const retryAfterMs = Math.max(0, ...results.map((item) => Number(item.retryAfterMs) || 0));
+    const rateLimitDelayMs = results.some((item) => item.status === 429)
+      ? retryAfterMs || retryDelayMs(job.attempts)
+      : 0;
+    if (rateLimitDelayMs > 0) {
+      await pauseRemainingV2rayBackfillJobs(job, rateLimitDelayMs);
+    }
     await retryJob(
       job,
       results.length ? results.map(providerFailure).join(" · ") : safeError(error),
       failedKeys.length ? failedKeys : job.provider_keys,
+      retryAfterMs || rateLimitDelayMs || undefined,
     );
   }
 }

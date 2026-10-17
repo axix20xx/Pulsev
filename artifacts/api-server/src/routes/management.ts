@@ -51,6 +51,7 @@ import {
 } from "@workspace/api-zod";
 import { pool } from "@workspace/db";
 import { serviceCanUseAwg, serviceUsageBytes, storedPanelUsageSql } from "../lib/service-usage-snapshot";
+type ManagementClient = { query: typeof pool.query };
 import {
   attachAuth,
   clearSessionCookie,
@@ -823,6 +824,11 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
        ON service_provision_jobs (status, next_attempt_at);
      CREATE INDEX IF NOT EXISTS service_provision_jobs_service_idx
        ON service_provision_jobs (service_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS azadpanel_v2ray_backfill_runs (
+        provider_key TEXT PRIMARY KEY REFERENCES panel_configs(key) ON DELETE CASCADE,
+        queued_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS subscription_feed_cache (
         service_id BIGINT PRIMARY KEY,
         body_secret TEXT NOT NULL,
@@ -961,6 +967,102 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
     console.error("Panel management schema initialization failed", error);
     throw error;
   });
+
+async function queueAzadPanelV2RayBackfill(
+  client: ManagementClient,
+  providerKey: string,
+): Promise<{ queued: number; alreadyQueued: boolean }> {
+  const created = await client.query(
+    `INSERT INTO azadpanel_v2ray_backfill_runs (provider_key)
+     VALUES ($1)
+     ON CONFLICT (provider_key) DO NOTHING
+     RETURNING provider_key`,
+    [providerKey],
+  );
+  if (!created.rowCount) {
+    const existing = await client.query<{ queued_count: number }>(
+      "SELECT queued_count FROM azadpanel_v2ray_backfill_runs WHERE provider_key = $1",
+      [providerKey],
+    );
+    return { queued: Number(existing.rows[0]?.queued_count ?? 0), alreadyQueued: true };
+  }
+
+  const queued = await client.query(
+    `WITH eligible AS (
+       SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.label,
+              svc.lifecycle_version,
+              CASE
+                WHEN COALESCE(svc.gb, 0) <= 0 THEN 0::float8
+                ELSE GREATEST(
+                  COALESCE(
+                    svc.last_remaining_bytes,
+                    (svc.gb::float8 * 1073741824) - COALESCE(svc.last_used_bytes, 0)
+                  ),
+                  0
+                ) / 1073741824.0
+              END AS remaining_gb,
+              CASE
+                WHEN svc.expire_at IS NULL THEN NULL
+                ELSE FLOOR(EXTRACT(EPOCH FROM svc.expire_at))::bigint
+              END AS expires_at_unix,
+              ROW_NUMBER() OVER (ORDER BY svc.id) AS queue_order
+       FROM reseller_services svc
+       WHERE svc.status = 'active'
+         AND (svc.expire_at IS NULL OR svc.expire_at > NOW())
+         AND (
+           COALESCE(svc.gb, 0) <= 0
+           OR COALESCE(
+             svc.last_remaining_bytes,
+             (svc.gb::float8 * 1073741824) - COALESCE(svc.last_used_bytes, 0)
+           ) > 0
+         )
+         AND svc.rain_username IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1
+           FROM service_provision_jobs job
+           WHERE job.service_id = svc.id
+             AND job.action = 'providers'
+             AND job.status IN ('pending', 'running', 'retrying')
+             AND job.provider_keys @> jsonb_build_array($1::text)
+         )
+     ),
+     inserted AS (
+       INSERT INTO service_provision_jobs
+         (service_id, owner_tg_id, username, action, provider_keys, payload,
+          status, next_attempt_at, lifecycle_version)
+       SELECT eligible.id,
+              eligible.reseller_tg_id,
+              eligible.rain_username,
+              'providers',
+              jsonb_build_array($1::text),
+              jsonb_build_object(
+                'gb', eligible.remaining_gb,
+                'days', 0,
+                'label', COALESCE(eligible.label, ''),
+                'role', 'reseller',
+                'azadPanelV2RayBackfill', true,
+                'onlyIfMissingAzadPanel', true,
+                'expiresAtUnix', eligible.expires_at_unix
+              ),
+              'pending',
+              NOW() + ((eligible.queue_order - 1) * 5 * INTERVAL '1 second'),
+              eligible.lifecycle_version
+       FROM eligible
+       RETURNING id
+     )
+     UPDATE azadpanel_v2ray_backfill_runs
+     SET queued_count = (SELECT COUNT(*)::int FROM inserted)
+     WHERE provider_key = $1`,
+    [providerKey],
+  );
+  const count = Number(queued.rowCount ?? 0);
+  const result = await client.query<{ queued_count: number }>(
+    "SELECT queued_count FROM azadpanel_v2ray_backfill_runs WHERE provider_key = $1",
+    [providerKey],
+  );
+  return { queued: Number(result.rows[0]?.queued_count ?? count), alreadyQueued: false };
+}
+
 router.use(async (_req, _res, next) => {
   try {
      await managementReady;
@@ -2858,6 +2960,7 @@ function credentialValue(value: unknown): string | null {
 }
 
 router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
+  await managementReady;
   const body = req.body ?? {};
   const key = typeof body.key === "string" ? body.key.trim() : "";
   const kind = body.kind;
@@ -2879,8 +2982,10 @@ router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
     return;
   }
 
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query("BEGIN");
+    const result = await client.query(
       `INSERT INTO panel_configs (
          key, kind, api_base, username_env, password_env, api_key_env,
          username_secret, password_secret, api_key_secret, is_enabled
@@ -2896,17 +3001,25 @@ router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
         enabled ? 1 : 0,
       ],
     );
+    const backfill = kind === "azadpanel_v2ray" && enabled && username && password
+      ? await queueAzadPanelV2RayBackfill(client, key)
+      : null;
+    await client.query("COMMIT");
     res.status(201).json({
       ...result.rows[0],
       has_data: Boolean(username && password),
       available_to_all_resellers: true,
+      backfill,
     });
   } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
     if (error && typeof error === "object" && "code" in error && error.code === "23505") {
       res.status(409).json({ error: "این کلید Provider قبلاً ثبت شده است" });
       return;
     }
     throw error;
+  } finally {
+    client.release();
   }
 });
 
@@ -2916,6 +3029,7 @@ router.get("/providers/available", requireAuth, async (_req, res): Promise<void>
 });
 
 router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void> => {
+  await managementReady;
   const key = String(req.params.key ?? "").trim();
   const body = req.body ?? {};
   const requestedKind =
@@ -2936,8 +3050,11 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
     res.status(400).json({ error: "تنظیمات پنل معتبر نیست" });
     return;
   }
-  const result = await pool.query(
-    `UPDATE panel_configs SET
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `UPDATE panel_configs SET
        is_enabled = COALESCE($1, is_enabled),
        kind = COALESCE(NULLIF($2, ''), kind),
        api_base = COALESCE(NULLIF($3, ''), api_base),
@@ -2949,23 +3066,36 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
        api_key_secret = COALESCE(NULLIF($6, ''), api_key_secret),
        updated_at = NOW()
      WHERE key = $7
-     RETURNING key, kind, api_base, is_enabled = 1 AS enabled,
-       username_env, password_env, api_key_env`,
-    [
-      body.enabled === undefined ? null : body.enabled ? 1 : 0,
-      requestedKind ?? null,
-      typeof body.api_base === "string" ? body.api_base.trim() : null,
-       body.username ? encryptPanelCredential(body.username.trim()) : null,
-       body.password ? encryptPanelCredential(body.password) : null,
-       body.api_key ? encryptPanelCredential(body.api_key.trim()) : null,
-      key,
-    ],
-  );
-  if (!result.rows[0]) {
-    res.status(404).json({ error: "پنل پیدا نشد" });
-    return;
+      RETURNING key, kind, api_base, is_enabled = 1 AS enabled,
+        ((username_secret IS NOT NULL AND password_secret IS NOT NULL)
+          OR (username_env IS NOT NULL AND password_env IS NOT NULL)) AS has_data`,
+      [
+        body.enabled === undefined ? null : body.enabled ? 1 : 0,
+        requestedKind ?? null,
+        typeof body.api_base === "string" ? body.api_base.trim() : null,
+        body.username ? encryptPanelCredential(body.username.trim()) : null,
+        body.password ? encryptPanelCredential(body.password) : null,
+        body.api_key ? encryptPanelCredential(body.api_key.trim()) : null,
+        key,
+      ],
+    );
+    if (!result.rows[0]) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "پنل پیدا نشد" });
+      return;
+    }
+    const panel = result.rows[0];
+    const backfill = panel.kind === "azadpanel_v2ray" && panel.enabled && panel.has_data
+      ? await queueAzadPanelV2RayBackfill(client, key)
+      : null;
+    await client.query("COMMIT");
+    res.json({ ...panel, backfill });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
   }
-  res.json(result.rows[0]);
 });
 
 router.delete("/panels/:key", requireMasterAdmin, async (req, res): Promise<void> => {

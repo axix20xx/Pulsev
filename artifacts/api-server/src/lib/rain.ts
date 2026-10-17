@@ -96,15 +96,19 @@ type PanelResult = {
   kind: string;
   status: number;
   error?: string;
+  retryable?: boolean;
+  retryAfterMs?: number;
 };
 
 export class RainApiError extends Error {
   readonly results: PanelResult[];
+  readonly retryable: boolean;
 
-  constructor(message: string, results: PanelResult[] = []) {
+  constructor(message: string, results: PanelResult[] = [], retryable = true) {
     super(message);
     this.name = "RainApiError";
     this.results = results;
+    this.retryable = retryable;
   }
 }
 
@@ -396,7 +400,7 @@ async function request(
   path: string,
   token: string,
   body?: unknown,
-): Promise<{ status: number; json: any; text: string; contentDisposition: string | null }> {
+): Promise<{ status: number; json: any; text: string; contentDisposition: string | null; retryAfter: string | null }> {
   const response = await fetch(`${panel.api_base}${path}`, {
     method,
     headers: {
@@ -419,6 +423,7 @@ async function request(
     json,
     text,
     contentDisposition: response.headers.get("content-disposition"),
+    retryAfter: response.headers.get("retry-after"),
   };
 }
 
@@ -467,7 +472,19 @@ async function tokenFor(panel: Panel, forceRefresh = false): Promise<string> {
     const retryHint = response.status === 429 && retryAfter
       ? `; retry after ${retryAfter}`
       : "";
-    throw new RainApiError(`Could not authenticate with AzadPanel ${key} (HTTP ${response.status}${retryHint})`);
+    const retryable = response.status === 429 || response.status >= 500;
+    throw new RainApiError(
+      `Could not authenticate with AzadPanel ${key} (HTTP ${response.status}${retryHint})`,
+      [{
+        key,
+        kind: "azadpanel",
+        status: response.status,
+        error: `HTTP ${response.status}`,
+        retryable,
+        retryAfterMs: retryAfterDelayMs({ retryAfter }),
+      }],
+      retryable,
+    );
   }
 
   const paths =
@@ -640,7 +657,7 @@ async function panelRequest(
   method: string,
   path: string,
   body?: unknown,
-): Promise<{ status: number; json: any; text: string; contentDisposition: string | null }> {
+): Promise<{ status: number; json: any; text: string; contentDisposition: string | null; retryAfter: string | null }> {
   let token = await tokenFor(panel);
   let response = await request(panel, method, path, token, body);
   if (response.status === 401) {
@@ -661,12 +678,28 @@ async function azadPanelCore(panel: Panel, forceRefresh = false): Promise<string
   }
   const response = await panelRequest(panel, "GET", "/api/admin");
   if (response.status < 200 || response.status >= 300) {
-    throw new RainApiError(`Could not read AzadPanel ${key} settings: ${safeError(response)}`);
+    const retryable = response.status === 429 || response.status >= 500;
+    throw new RainApiError(
+      `Could not read AzadPanel ${key} settings: ${safeError(response)}`,
+      [{
+        key,
+        kind: "azadpanel",
+        status: response.status,
+        error: safeError(response),
+        retryable,
+        retryAfterMs: retryAfterDelayMs(response),
+      }],
+      retryable,
+    );
   }
   const core = typeof response.json?.core === "string" ? response.json.core.trim().toLowerCase() : "";
-  if (!core) throw new RainApiError(`AzadPanel ${key} did not return a core type.`);
+  if (!core) {
+    const message = `AzadPanel ${key} did not return a core type.`;
+    throw new RainApiError(message, [{ key, kind: "azadpanel", status: 502, error: message, retryable: false }], false);
+  }
   if (expectedCore && core !== expectedCore) {
-    throw new RainApiError(`AzadPanel ${key} is configured for ${expectedCore} but reports ${core || "unknown"}.`);
+    const message = `AzadPanel ${key} is configured for ${expectedCore} but reports ${core || "unknown"}.`;
+    throw new RainApiError(message, [{ key, kind: "azadpanel", status: 400, error: message, retryable: false }], false);
   }
   azadPanelCoreCache.set(key, { core, expiresAt: Date.now() + 5 * 60_000 });
   return core;
@@ -680,6 +713,15 @@ function safeError(response: { status: number; json: any; text: string }): strin
         ? response.json.message
         : "";
   return detail ? `HTTP ${response.status}: ${detail.slice(0, 160)}` : `HTTP ${response.status}`;
+}
+
+function retryAfterDelayMs(response: { retryAfter?: string | null }): number | undefined {
+  const raw = response.retryAfter?.trim();
+  if (!raw) return undefined;
+  const seconds = Number(raw);
+  const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(raw) - Date.now();
+  if (!Number.isFinite(delay)) return undefined;
+  return Math.min(24 * 60 * 60 * 1000, Math.max(1000, delay));
 }
 
 export type PanelUsage = {
@@ -1416,11 +1458,11 @@ async function provisionRainAdmin(
   throw new RainApiError(`Rain panel ${panelKey(panel)} rejected the user: ${safeError(last)}`);
 }
 
-function azadPanelUserBody(username: string, gb: number, expiresAt: Date): Record<string, unknown> {
+function azadPanelUserBody(username: string, gb: number, expiresAt: Date | null): Record<string, unknown> {
   return {
     username,
     status: "active",
-    expire: Math.floor(expiresAt.getTime() / 1000),
+    expire: expiresAt ? Math.floor(expiresAt.getTime() / 1000) : null,
     data_limit: bytesForGb(gb),
     data_limit_reset_strategy: "no_reset",
     device_limit: 2,
@@ -1435,7 +1477,11 @@ async function provisionAzadPanel(
   username: string,
   gb: number,
   days: number,
-  resetUsage: boolean,
+  options: {
+    resetUsage?: boolean;
+    expiresAtUnix?: number | null;
+    onlyIfMissingAzadPanel?: boolean;
+  },
 ): Promise<number> {
   const core = await azadPanelCore(panel);
   const expectedCore = azadPanelExpectedCore(panel.kind) ?? "openvpn";
@@ -1444,14 +1490,31 @@ async function provisionAzadPanel(
   }
   const encoded = encodeURIComponent(username);
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (options.onlyIfMissingAzadPanel && existing.status === 200) return existing.status;
   if (existing.status !== 200 && existing.status !== 404) {
-    throw new RainApiError(`AzadPanel ${panelKey(panel)} could not check the user: ${safeError(existing)}`);
+    const retryable = !options.onlyIfMissingAzadPanel || ![400, 401, 403, 409].includes(existing.status);
+    throw new RainApiError(
+      `AzadPanel ${panelKey(panel)} could not check the user: ${safeError(existing)}`,
+      [{
+        key: panelKey(panel),
+        kind: "azadpanel",
+        status: existing.status,
+        error: safeError(existing),
+        retryable,
+        retryAfterMs: retryAfterDelayMs(existing),
+      }],
+      retryable,
+    );
   }
-  const expiresAt = new Date(Date.now() + Math.max(0, days) * 86_400_000);
+  const expiresAt = options.expiresAtUnix === undefined
+    ? new Date(Date.now() + Math.max(0, days) * 86_400_000)
+    : options.expiresAtUnix === null
+      ? null
+      : new Date(options.expiresAtUnix * 1000);
   const body = existing.status === 200
     ? {
         status: "active",
-        expire: Math.floor(expiresAt.getTime() / 1000),
+        expire: expiresAt ? Math.floor(expiresAt.getTime() / 1000) : null,
         data_limit: bytesForGb(gb),
         data_limit_reset_strategy: "no_reset",
       }
@@ -1460,9 +1523,21 @@ async function provisionAzadPanel(
     ? await panelRequest(panel, "PUT", `/api/user/${encoded}`, body)
     : await panelRequest(panel, "POST", "/api/user", body);
   if (response.status < 200 || response.status >= 300) {
-    throw new RainApiError(`AzadPanel ${panelKey(panel)} rejected the user: ${safeError(response)}`);
+    const retryable = !options.onlyIfMissingAzadPanel || ![400, 401, 403, 409].includes(response.status);
+    throw new RainApiError(
+      `AzadPanel ${panelKey(panel)} rejected the user: ${safeError(response)}`,
+      [{
+        key: panelKey(panel),
+        kind: "azadpanel",
+        status: response.status,
+        error: safeError(response),
+        retryable,
+        retryAfterMs: retryAfterDelayMs(response),
+      }],
+      retryable,
+    );
   }
-  if (resetUsage && existing.status === 200) {
+  if (options.resetUsage && existing.status === 200) {
     const reset = await panelRequest(panel, "POST", `/api/user/${encoded}/reset`);
     if (reset.status < 200 || reset.status >= 300) {
       throw new RainApiError(`AzadPanel ${panelKey(panel)} updated the plan but could not reset usage: ${safeError(reset)}`);
@@ -1541,7 +1616,11 @@ export async function provisionUser(
   ownerId?: number,
   role?: string,
   onlyPanelKeys?: string[],
-  options?: { resetUsage?: boolean },
+  options?: {
+    resetUsage?: boolean;
+    expiresAtUnix?: number | null;
+    onlyIfMissingAzadPanel?: boolean;
+  },
 ): Promise<{ ok: boolean; results: PanelResult[] }> {
   const configured = await panels(ownerId, role);
   const serviceProvisioningPanels = configured.filter(
@@ -1572,18 +1651,21 @@ export async function provisionUser(
         kind === "rain_admin"
           ? await provisionRainAdmin(panel, username, gb, days, options?.resetUsage === true)
           : kind === "azadpanel"
-            ? await provisionAzadPanel(panel, username, gb, days, options?.resetUsage === true)
+            ? await provisionAzadPanel(panel, username, gb, days, options ?? {})
           : kind === "falcon"
             ? await provisionFalcon(panel, gb, days, label)
             : await provisionMarzban(panel, username, gb, days);
       return { key: panelKey(panel), kind, status };
     } catch (error) {
       const detail = error instanceof Error ? error.message : "خطای ناشناخته در ارتباط با Provider";
+      const providerResult = error instanceof RainApiError ? error.results[0] : undefined;
       return {
         key: panelKey(panel),
         kind,
-        status: error instanceof RainApiError ? 502 : 500,
-        error: detail.slice(0, 240),
+        status: providerResult?.status ?? (error instanceof RainApiError ? 502 : 500),
+        error: providerResult?.error ?? detail.slice(0, 240),
+        retryable: providerResult?.retryable ?? (error instanceof RainApiError ? error.retryable : undefined),
+        retryAfterMs: providerResult?.retryAfterMs,
       };
     }
   }));

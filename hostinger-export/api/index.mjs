@@ -75168,7 +75168,7 @@ function storedPanelUsageSql(serviceAlias = "svc") {
       LIMIT 1
     ) latest_usage ON TRUE
     WHERE panel.is_enabled = 1
-      AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
+      AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
   ), 0)::float8`;
 }
 
@@ -75381,13 +75381,41 @@ function decryptPanelCredential(value) {
 
 // src/lib/panel-protocol-policy.ts
 var normalizeKind = (kind) => typeof kind === "string" ? kind.trim().toLowerCase() : "";
+function azadPanelExpectedCore(kind) {
+  switch (normalizeKind(kind)) {
+    case "azadpanel_v2ray":
+      return "xray";
+    case "azadpanel_openvpn":
+      return "openvpn";
+    case "azadpanel_wireguard":
+      return "wireguard";
+    case "azadpanel_ipsec":
+      return "ipsec";
+    default:
+      return null;
+  }
+}
 function isAzadPanelCoreCandidate(kind, core) {
   const normalized = normalizeKind(kind);
-  return normalized === "azadpanel" || normalized === `azadpanel_${core}`;
+  return normalized === "azadpanel" || azadPanelExpectedCore(normalized) === core;
 }
 function isStandardServiceProvisioningPanel(kind) {
   const normalized = normalizeKind(kind);
   return normalized !== "azadpanel_wireguard" && normalized !== "azadpanel_ipsec";
+}
+function azadPanelXraySubscriptionPath(username) {
+  return `/api/xray/user/${encodeURIComponent(username)}/link`;
+}
+function azadPanelXraySubscriptionLinks(payload) {
+  if (!payload || typeof payload !== "object") return [];
+  const root = payload;
+  const source = root.data && typeof root.data === "object" ? root.data : root;
+  const subscriptionUrl2 = source.subscription_url;
+  if (typeof subscriptionUrl2 === "string" && subscriptionUrl2.trim()) {
+    return [subscriptionUrl2.trim()];
+  }
+  const links = source.links;
+  return Array.isArray(links) ? [...new Set(links.filter((link) => typeof link === "string" && link.trim().length > 0).map((link) => link.trim()))] : [];
 }
 
 // src/lib/rain.ts
@@ -75457,7 +75485,7 @@ function panelKind(panel) {
   const kind = panel.kind?.trim().toLowerCase();
   if (kind === "rain_admin") return "rain_admin";
   if (kind === "falcon") return "falcon";
-  if (kind === "azadpanel" || kind === "azadpanel_openvpn" || kind === "azadpanel_wireguard" || kind === "azadpanel_ipsec") return "azadpanel";
+  if (kind === "azadpanel" || kind === "azadpanel_v2ray" || kind === "azadpanel_openvpn" || kind === "azadpanel_wireguard" || kind === "azadpanel_ipsec") return "azadpanel";
   return "marzban";
 }
 function panelEnvCredential(key, suffix) {
@@ -75604,14 +75632,15 @@ async function fetchPanelSubscription(username, ownerId, role) {
   const encodedUsername = encodeURIComponent(username);
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
-    if (kind === "azadpanel") continue;
-    const paths = kind === "rain_admin" ? [`/api/users/${encodedUsername}`, `/api/user/${encodedUsername}`] : kind === "falcon" ? [`/api/v1/configs?username=${encodedUsername}`] : [`/api/user/${encodedUsername}`];
+    const isAzadPanelV2Ray = kind === "azadpanel" && panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
+    if (kind === "azadpanel" && !isAzadPanelV2Ray) continue;
+    const paths = isAzadPanelV2Ray ? [azadPanelXraySubscriptionPath(username)] : kind === "rain_admin" ? [`/api/users/${encodedUsername}`, `/api/user/${encodedUsername}`] : kind === "falcon" ? [`/api/v1/configs?username=${encodedUsername}`] : [`/api/user/${encodedUsername}`];
     let links = [];
     for (const path of paths) {
       try {
         const response = await panelRequest(panel, "GET", path);
         if (response.status >= 200 && response.status < 300) {
-          links = [...new Set(collectSubscriptionLinks(response.json))];
+          links = [...new Set(isAzadPanelV2Ray ? azadPanelXraySubscriptionLinks(response.json) : collectSubscriptionLinks(response.json))];
           if (links.length) break;
         }
         if (![404, 405].includes(response.status)) break;
@@ -75791,8 +75820,7 @@ async function testPanelAuthentication(key, ownerId, role) {
     }
     if (panelKind(panel) === "azadpanel") {
       const core = await azadPanelCore(panel, true);
-      const configuredKind = panel.kind?.trim().toLowerCase();
-      const requiredCore = configuredKind === "azadpanel_wireguard" ? "wireguard" : configuredKind === "azadpanel_ipsec" ? "ipsec" : "openvpn";
+      const requiredCore = azadPanelExpectedCore(panel.kind) ?? "openvpn";
       if (core !== requiredCore) {
         return { ok: false, detail: `AzadPanel core is ${core || "unknown"}; ${requiredCore} is required.` };
       }
@@ -75859,8 +75887,7 @@ async function panelRequest(panel, method, path, body) {
 }
 async function azadPanelCore(panel, forceRefresh = false) {
   const key = panelKey(panel);
-  const configuredKind = panel.kind?.trim().toLowerCase();
-  const expectedCore = configuredKind === "azadpanel_wireguard" ? "wireguard" : configuredKind === "azadpanel_ipsec" ? "ipsec" : configuredKind === "azadpanel_openvpn" ? "openvpn" : null;
+  const expectedCore = azadPanelExpectedCore(panel.kind);
   const cached2 = azadPanelCoreCache.get(key);
   if (!forceRefresh && cached2 && cached2.expiresAt > Date.now()) {
     if (!expectedCore || cached2.core === expectedCore) return cached2.core;
@@ -76462,8 +76489,9 @@ function azadPanelUserBody(username, gb, expiresAt) {
 }
 async function provisionAzadPanel(panel, username, gb, days, resetUsage) {
   const core = await azadPanelCore(panel);
-  if (core !== "openvpn") {
-    throw new RainApiError(`AzadPanel ${panelKey(panel)} is configured for ${core}, not OpenVPN.`);
+  const expectedCore = azadPanelExpectedCore(panel.kind) ?? "openvpn";
+  if (core !== expectedCore) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} is configured for ${core}, not ${expectedCore}.`);
   }
   const encoded = encodeURIComponent(username);
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
@@ -83827,7 +83855,7 @@ router2.post("/panels/:key/test", requireMasterAdmin, async (req, res) => {
     checked_at: (/* @__PURE__ */ new Date()).toISOString()
   });
 });
-var providerKinds = ["marzban", "rain_admin", "azadpanel", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"];
+var providerKinds = ["marzban", "rain_admin", "azadpanel", "azadpanel_v2ray", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"];
 function isProviderKind(value) {
   return typeof value === "string" && providerKinds.includes(value);
 }
@@ -85615,7 +85643,7 @@ async function loadServicePanelUsageMap(services) {
        LIMIT 1
      ) usage ON TRUE
      WHERE panel.is_enabled = 1
-        AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
+         AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
        AND (
          LOWER(panel.kind) <> 'azadpanel_wireguard'
          OR (

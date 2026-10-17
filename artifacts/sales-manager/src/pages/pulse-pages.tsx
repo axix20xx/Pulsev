@@ -3757,6 +3757,7 @@ function PanelAssignments({ resellers }: { resellers: PulseContextValue['reselle
 function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseContextValue['resellers'] }) {
   const [items, setItems] = useState<any[]>([]);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState('');
   const [deleting, setDeleting] = useState('');
@@ -3764,12 +3765,46 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
   const [newPanel, setNewPanel] = useState({ key: '', kind: 'rain_admin', api_base: '', enabled: true, username: '', password: '', api_key: '' });
   const loadPanels = async () => { setLoading(true); setError(''); try { const response = await fetch('/api/panels', { credentials: 'include' }); if (!response.ok) throw new Error('دریافت پنل‌ها ناموفق بود'); setItems(await response.json()); } finally { setLoading(false); } };
   useEffect(() => { loadPanels().catch((cause) => setError(cause instanceof Error ? cause.message : 'خطای پنل')); }, []);
-  const save = async (panel: any) => { setSaving(panel.key); setError(''); try { const response = await fetch(`/api/panels/${panel.key}`, { method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: panel.enabled, kind: String(panel.kind || '').trim().toLowerCase(), api_base: String(panel.api_base || '').trim(), username: panel.username || '', password: panel.password || '', api_key: panel.api_key || '' }) }); if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'ذخیره Provider ناموفق بود'); await loadPanels(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'خطای ذخیره'); } finally { setSaving(''); } };
+  const backfillMessage = (payload: any) => {
+    const backfill = payload?.backfill;
+    if (!backfill) return '';
+    if (backfill.alreadyQueued) return `صف یک‌بارهٔ سرویس‌های موجود قبلاً ثبت شده است (${numberFa(backfill.queued || 0)} سرویس).`;
+    return `${numberFa(backfill.queued || 0)} سرویس فعال و واجد شرایط برای ساخت حساب V2Ray به‌صورت مرحله‌ای در صف قرار گرفت.`;
+  };
+  const save = async (panel: any) => {
+    setSaving(panel.key);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`/api/panels/${panel.key}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          enabled: panel.enabled,
+          kind: String(panel.kind || '').trim().toLowerCase(),
+          api_base: String(panel.api_base || '').trim(),
+          username: panel.username || '',
+          password: panel.password || '',
+          api_key: panel.api_key || '',
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error || 'ذخیره Provider ناموفق بود');
+      setNotice(backfillMessage(payload) || 'تنظیمات Provider ذخیره شد.');
+      await loadPanels();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'خطای ذخیره');
+    } finally {
+      setSaving('');
+    }
+  };
   const edit = (key: string, field: string, value: string | boolean) => setItems((current) => current.map((panel) => panel.key === key ? { ...panel, [field]: field === 'kind' && typeof value === 'string' ? value.trim().toLowerCase() : value } : panel));
   const create = async (event: FormEvent) => {
     event.preventDefault();
     setCreating(true);
     setError('');
+    setNotice('');
     try {
       const response = await fetch('/api/panels', {
         method: 'POST',
@@ -3777,7 +3812,9 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(newPanel),
       });
-      if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'افزودن Provider ناموفق بود');
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error || 'افزودن Provider ناموفق بود');
+      setNotice(backfillMessage(payload) || 'Provider جدید ذخیره شد.');
       setNewPanel({ key: '', kind: 'rain_admin', api_base: '', enabled: true, username: '', password: '', api_key: '' });
       await loadPanels();
     } catch (cause) {
@@ -3807,11 +3844,13 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
         <span className="ax-kpi-icon"><Server size={17} /></span>
       </header>
       {error && <div className="ax-alert is-error mt-4" role="alert"><span>{error}</span><Button variant="secondary" onClick={() => void loadPanels().catch((cause) => setError(cause instanceof Error ? cause.message : 'خطای دریافت پنل‌ها'))} disabled={loading}><RefreshCw size={13} className={loading ? 'ax-spin' : ''} /> تلاش دوباره</Button></div>}
+      {notice && <div className="ax-alert mt-4" role="status">{notice}</div>}
       <form className="ax-provider-create-form" onSubmit={create}>
         <div className="ax-provider-create-heading">
           <div><p className="ax-eyebrow">Provider جدید</p><strong>افزودن منبع اتصال</strong></div>
           <span className="text-xs text-muted-foreground">فقط Providerهای دارای credential و فعال در ساخت سرویس استفاده می‌شوند.</span>
         </div>
+        {newPanel.kind === 'azadpanel_v2ray' && <div className="ax-alert mt-3" role="note">پس از ذخیرهٔ Provider فعال، سرویس‌های موجودِ فعال، منقضی‌نشده و دارای حجم باقی‌مانده فقط یک‌بار و با فاصلهٔ امن در صف قرار می‌گیرند؛ حساب‌هایی که از قبل وجود دارند تغییر نمی‌کنند.</div>}
         <div className="ax-provider-fields">
           <Field label="کلید یکتا" value={newPanel.key} placeholder="مثلاً panel_new" inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, key: value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} />
           <label className="ax-field">
@@ -3861,7 +3900,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
                   <option value="azadpanel_wireguard">AzadPanel · WireGuard</option>
                   <option value="azadpanel_ipsec">AzadPanel · IPsec / IKEv2</option>
                 </select>
-                {panel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف از credential مستقل نمایندگی Xray استفاده می‌کند؛ فید آن خودکار به اشتراک V2Ray اضافه می‌شود.</small>}
+            {panel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف از credential مستقل نمایندگی Xray استفاده می‌کند؛ فید آن خودکار به اشتراک V2Ray اضافه می‌شود. با فعال‌سازی، سرویس‌های موجود واجد شرایط نیز یک‌بار وارد صف می‌شوند.</small>}
                 {panel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از اعتبارنامهٔ مستقل هستهٔ WireGuard استفاده کند.</small>}
                 {panel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از credential مستقل هستهٔ IPsec استفاده کند.</small>}
               </label>
