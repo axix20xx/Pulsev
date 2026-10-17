@@ -1,0 +1,77 @@
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+[migration] {"timestamp":"2026-10-17T16:55:16.472Z","level":"INFO","message":"Connecting to PostgreSQL for the legacy migration check..."}
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+[migration] {"timestamp":"2026-10-17T16:55:18.475Z","level":"INFO","message":"Legacy migration lock acquired."}
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+[migration] {"timestamp":"2026-10-17T16:55:20.456Z","level":"INFO","message":"PostgreSQL target: database=postgres, schema=public, user=postgres"}
+[migration] {"timestamp":"2026-10-17T16:55:21.514Z","level":"INFO","message":"Legacy SQL migration already completed."}
+Starting API child 1000390 on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock; health timeout 180s.
+[api] [api bootstrap] child started; Node v20.20.2; PID 1000390; PORT 3001
+[api] [api bootstrap] importing API bundle
+[api] [api bootstrap] modules loaded; about to bind private socket /tmp/pulse-api-517065565-8cff136dcd89.sock
+[api] [api bootstrap] API bundle import completed
+[api] [api bootstrap] listening on Unix socket /tmp/pulse-api-517065565-8cff136dcd89.sock
+[api] [api bootstrap] actual socket "/tmp/pulse-api-517065565-8cff136dcd89.sock"
+[api] [api bootstrap] self-health HTTP 200
+[api] {"timestamp":"2026-10-17T16:55:24.987Z","level":"ERROR","message":"Panel management schema initialization failed error: new row for relation \"service_provision_jobs\" violates check constraint \"service_provision_jobs_status_check\"\n    at file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/api/index.mjs:33069:15\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+API child 1000390 stopped (exit code SIGTERM)
+Error: API child 1000390 reported a readiness failure on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock within 180s (readiness endpoint returned HTTP 503 (error); liveness endpoint is responding; child remained running).
+    at startApiInternal (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/launcher.mjs:782:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+API child 1000390 reported a readiness failure on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock within 180s (readiness endpoint returned HTTP 503 (error); liveness endpoint is responding; child remained running).
+Starting API child 1000789 on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock; health timeout 180s.
+[api] [api bootstrap] child started; Node v20.20.2; PID 1000789; PORT 3001
+[api] {"timestamp":"2026-10-17T16:55:30.015Z","level":"ERROR","message":"Panel management schema initialization failed error: new row for relation \"service_provision_jobs\" violates check constraint \"service_provision_jobs_status_check\"\n    at file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/api/index.mjs:33069:15\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+API child 1000789 stopped (exit code SIGTERM)
+Error: API child 1000789 reported a readiness failure on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock within 180s (readiness endpoint returned HTTP 503 (error); liveness endpoint is responding; child remained running).
+    at startApiInternal (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/launcher.mjs:782:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+API child 1000789 reported a readiness failure on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock within 180s (readiness endpoint returned HTTP 503 (error); liveness endpoint is responding; child remained running).
+Starting API child 1001168 on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock; health timeout 180s.
+[api] [api bootstrap] child started; Node v20.20.2; PID 1001168; PORT 3001
+[api] {"timestamp":"2026-10-17T16:55:34.608Z","level":"ERROR","message":"Panel management schema initialization failed error: new row for relation \"service_provision_jobs\" violates check constraint \"service_provision_jobs_status_check\"\n    at file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/api/index.mjs:33069:15\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+API child 1001168 stopped (exit code SIGTERM)
+Error: API child 1001168 reported a readiness failure on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock within 180s (readiness endpoint returned HTTP 503 (error); liveness endpoint is responding; child remained running).
+    at startApiInternal (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/launcher.mjs:782:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Starting API child 1001480 on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock; health timeout 180s.
+[api] [api bootstrap] child started; Node v20.20.2; PID 1001480; PORT 3001
+[api] {"timestamp":"2026-10-17T16:55:39.806Z","level":"ERROR","message":"Panel management schema initialization failed error: new row for relation \"service_provision_jobs\" violates check constraint \"service_provision_jobs_status_check\"\n    at file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/api/index.mjs:33069:15\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+API child 1001480 stopped (exit code SIGTERM)
+Error: API child 1001480 reported a readiness failure on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock within 180s (readiness endpoint returned HTTP 503 (error); liveness endpoint is responding; child remained running).
+    at startApiInternal (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/launcher.mjs:782:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Starting API child 1001753 on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock; health timeout 180s.
+[api] [api bootstrap] child started; Node v20.20.2; PID 1001753; PORT 3001
+Pulse Hostinger server listening on port 3000
+Running one-time legacy SQL migration when needed (attempt 1/3)...
+[migration] {"timestamp":"2026-10-17T16:55:42.944Z","level":"INFO","message":"Connecting to PostgreSQL for the legacy migration check..."}
+[migration] {"timestamp":"2026-10-17T16:55:44.947Z","level":"INFO","message":"Legacy migration lock acquired."}
+[migration] {"timestamp":"2026-10-17T16:55:46.964Z","level":"INFO","message":"PostgreSQL target: database=postgres, schema=public, user=postgres"}
+[migration] {"timestamp":"2026-10-17T16:55:47.883Z","level":"INFO","message":"Legacy SQL migration already completed."}
+Starting API child 1002571 on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock; health timeout 180s.
+[api] [api bootstrap] child started; Node v20.20.2; PID 1002571; PORT 3001
+[api] [api bootstrap] importing API bundle
+[api] [api bootstrap] modules loaded; about to bind private socket /tmp/pulse-api-517065565-8cff136dcd89.sock
+[api] [api bootstrap] API bundle import completed
+[api] [api bootstrap] listening on Unix socket /tmp/pulse-api-517065565-8cff136dcd89.sock
+[api] [api bootstrap] actual socket "/tmp/pulse-api-517065565-8cff136dcd89.sock"
+[api] [api bootstrap] self-health HTTP 200
+[api] {"timestamp":"2026-10-17T16:55:51.167Z","level":"ERROR","message":"Panel management schema initialization failed error: new row for relation \"service_provision_jobs\" violates check constraint \"service_provision_jobs_status_check\"\n    at file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/api/index.mjs:33069:15\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+API child 1002571 stopped (exit code SIGTERM)
+Error: API child 1002571 reported a readiness failure on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock within 180s (readiness endpoint returned HTTP 503 (error); liveness endpoint is responding; child remained running).
+    at startApiInternal (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/launcher.mjs:782:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+API child 1002571 reported a readiness failure on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock within 180s (readiness endpoint returned HTTP 503 (error); liveness endpoint is responding; child remained running).
+Starting API child 1002879 on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock; health timeout 180s.
+[api] [api bootstrap] child started; Node v20.20.2; PID 1002879; PORT 3001
+[api] {"timestamp":"2026-10-17T16:55:55.240Z","level":"ERROR","message":"Panel management schema initialization failed error: new row for relation \"service_provision_jobs\" violates check constraint \"service_provision_jobs_status_check\"\n    at file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/api/index.mjs:33069:15\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+API child 1002879 stopped (exit code SIGTERM)
+Error: API child 1002879 reported a readiness failure on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock within 180s (readiness endpoint returned HTTP 503 (error); liveness endpoint is responding; child remained running).
+    at startApiInternal (file:///home/u517065565/domains/vinte.peppernopepper.com/hbuilds/versions/01a14ac9-bc9a-728d-9d11-94687cddb8ac/nodejs/launcher.mjs:782:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Starting API child 1003311 on private socket /tmp/pulse-api-517065565-8cff136dcd89.sock; health timeout 180s.
+[api] [api bootstrap] child started; Node v20.20.2; PID 1003311; PORT 3001

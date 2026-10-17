@@ -1514,3 +1514,17 @@ mtime_ms = 1792255976975
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/0953b694-1e56-4448-bf1d-0acdf52f8c39/441880f4-2b6b-475f-a213-a07d2dd8b2f8"
 storage_version_token = "1792256016427366"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "BUJ87TKFmm1ASgCho1-Vn"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T16-57-37-425Z.zip"
+type = "unspecified"
+title = "Corrected Hostinger migration ZIP"
+description = "Replacement archive fixing the existing PostgreSQL job-status constraint so Hostinger starts successfully, plus the AzadPanel 403 and V2Ray backfill fixes."
+logical_id = "8f753350-8f29-41e1-a255-dd5fb5f4b36c"
+content_hash = "sha256:0b8519090a25ee43e79e73ff8c7f6c2ab740874339dbcead6f2b9d558470cbbe"
+size = 29037364
+mtime_ms = 1792256373655
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8f753350-8f29-41e1-a255-dd5fb5f4b36c/7a25926c-08d2-4d7b-b8d4-157a9d61080e"
+storage_version_token = "1792256395735755"
+content_type = "application/octet-stream"

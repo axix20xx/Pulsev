@@ -800,7 +800,7 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
        action TEXT NOT NULL CHECK (action IN ('providers', 'awg')),
        provider_keys JSONB NOT NULL DEFAULT '[]'::jsonb,
        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-       status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'retrying', 'completed')),
+       status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'retrying', 'completed', 'failed')),
        attempts INTEGER NOT NULL DEFAULT 0,
        last_error TEXT,
        next_attempt_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -814,6 +814,30 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
         ADD COLUMN IF NOT EXISTS lease_owner TEXT,
         ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMP,
         ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'service_provision_jobs'::regclass
+            AND conname = 'service_provision_jobs_status_check'
+            AND pg_get_constraintdef(oid) NOT ILIKE '%failed%'
+        ) THEN
+          ALTER TABLE service_provision_jobs
+            DROP CONSTRAINT service_provision_jobs_status_check;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'service_provision_jobs'::regclass
+            AND conname = 'service_provision_jobs_status_check'
+        ) THEN
+          ALTER TABLE service_provision_jobs
+            ADD CONSTRAINT service_provision_jobs_status_check
+            CHECK (status IN ('pending', 'running', 'retrying', 'completed', 'failed'));
+        END IF;
+      END
+      $$;
       UPDATE service_provision_jobs job
         SET lifecycle_version = svc.lifecycle_version
         FROM reseller_services svc
