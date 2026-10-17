@@ -3,11 +3,11 @@ name: Panel availability policy
 description: Defines when external VPN providers appear and who can use them.
 ---
 
-Only providers with complete server-side credentials are considered active. Credential readiness must use the same database-backed encrypted-credential resolution as provisioning; environment variables are not a provider source. Every active provider is available to every enabled reseller; do not require per-reseller panel assignments.
+Only providers with complete server-side credentials are considered active. Credential readiness must use the same database-backed encrypted-credential resolution as provisioning; environment variables are not a provider source. Standard service-provisioning providers remain shared across enabled resellers, but protocol-specific capabilities such as WireGuard and IPsec require their explicit reseller access flags and must never enter generic OpenVPN/Xray provisioning.
 
-**Why:** The user explicitly wants only panels with real data/credentials to appear and wants the complete available panel set shared by all users.
+**Why:** The user wants only panels with real data/credentials to appear, while keeping WireGuard and IPsec access separately controlled per reseller.
 
-**How to apply:** Filter provider lists and provisioning targets by enabled state plus effective credential availability, then use the resulting full set for every authenticated reseller.
+**How to apply:** Filter provider lists and provisioning targets by enabled state plus effective credential availability. Share standard providers with enabled resellers, but enforce protocol-specific reseller permissions on every WireGuard/IPsec service, subscription, and provisioning path.
 
 Provider kind values are lowercase machine identifiers (`marzban`, `rain_admin`, `falcon`), not editable display labels.
 

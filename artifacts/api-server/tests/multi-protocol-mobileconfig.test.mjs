@@ -126,7 +126,7 @@ test("combined iOS profile retains all AzadPanel IKEv2 locations and certificate
   assert.equal(payloads.filter((payload) => payload.PayloadType === "com.apple.vpn.managed").length, 2);
   assert.equal(payloads.filter((payload) => payload.PayloadType === "com.apple.security.pem").length, 1);
   assert.deepEqual(
-    payloads.filter((payload) => payload.PayloadType === "com.apple.vpn.managed").map((payload) => payload.VPN.RemoteAddress),
+    payloads.filter((payload) => payload.PayloadType === "com.apple.vpn.managed").map((payload) => payload.IKEv2.RemoteAddress),
     ["one.example", "two.example"],
   );
   assert.match(profile, /Pulse · IPsec/);

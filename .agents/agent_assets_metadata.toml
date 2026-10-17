@@ -1472,3 +1472,17 @@ mtime_ms = 1792249696438
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/9ded8c27-dddc-4c1f-b0f3-3d2d42a3cb9e/8a567923-4d30-4973-8fe1-a97c005cd659"
 storage_version_token = "1792249721346803"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "MNKfx123MLKWvyQv3vAm-"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T15-32-56-603Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP"
+description = "Includes the fix preventing WireGuard-only AzadPanel rows from producing OpenVPN provisioning errors and reseller queue logs."
+logical_id = "069d72c8-d0d8-4783-bb1e-d6570da4cfa3"
+content_hash = "sha256:bdc17cff821b3818868813ebb1556eb18149daaec3cf46b01a22adc2d6035d2a"
+size = 29023625
+mtime_ms = 1792251295606
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/069d72c8-d0d8-4783-bb1e-d6570da4cfa3/e04f605c-94ee-49a2-96cf-7fd304b79c45"
+storage_version_token = "1792251324054859"
+content_type = "application/octet-stream"

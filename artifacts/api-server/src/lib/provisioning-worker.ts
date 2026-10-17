@@ -114,6 +114,59 @@ async function completeJob(jobId: number) {
   );
 }
 
+async function clearMisroutedWireGuardProviderJobs() {
+  const result = await pool.query(
+    `WITH affected_jobs AS (
+       SELECT job.id,
+              COALESCE(
+                jsonb_agg(to_jsonb(target.provider_key) ORDER BY target.ordinal)
+                  FILTER (WHERE LOWER(COALESCE(panel.kind, '')) <> 'azadpanel_wireguard'),
+                '[]'::jsonb
+              ) AS remaining_provider_keys
+       FROM service_provision_jobs job
+       JOIN resellers reseller
+         ON reseller.tg_id = job.owner_tg_id
+        AND COALESCE(reseller.wireguard_enabled, 0) = 0
+       CROSS JOIN LATERAL jsonb_array_elements_text(
+         CASE
+           WHEN jsonb_typeof(job.provider_keys) = 'array' THEN job.provider_keys
+           ELSE '[]'::jsonb
+         END
+       ) WITH ORDINALITY AS target(provider_key, ordinal)
+       LEFT JOIN panel_configs panel ON panel.key = target.provider_key
+       WHERE job.action = 'providers'
+         AND job.status IN ('pending', 'retrying', 'failed')
+         AND job.last_error ILIKE '%configured for wireguard, not OpenVPN%'
+       GROUP BY job.id
+       HAVING BOOL_OR(LOWER(COALESCE(panel.kind, '')) = 'azadpanel_wireguard')
+     )
+     UPDATE service_provision_jobs job
+     SET provider_keys = affected_jobs.remaining_provider_keys,
+         status = CASE
+           WHEN jsonb_array_length(affected_jobs.remaining_provider_keys) = 0 THEN 'completed'
+           ELSE 'retrying'
+         END,
+         last_error = NULL,
+         next_attempt_at = NOW(),
+         completed_at = CASE
+           WHEN jsonb_array_length(affected_jobs.remaining_provider_keys) = 0 THEN NOW()
+           ELSE NULL
+         END,
+         lease_owner = NULL,
+         lease_expires_at = NULL,
+         heartbeat_at = NULL,
+         updated_at = NOW()
+     FROM affected_jobs
+     WHERE job.id = affected_jobs.id`,
+  );
+  if (result.rowCount) {
+    logger.info(
+      { jobsCorrected: result.rowCount },
+      "Removed unauthorized WireGuard panels from OpenVPN provisioning retries",
+    );
+  }
+}
+
 async function saveAwgCandidate(job: ProvisionJob): Promise<string> {
   const existing = typeof job.payload.awg_client_candidate === "string"
     ? job.payload.awg_client_candidate
@@ -260,29 +313,33 @@ export function startProvisioningWorker() {
      ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMP,
      ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP`,
   );
-  void leaseMigration.then(() => pool.query(
-    `UPDATE service_provision_jobs
-     SET status = 'retrying',
-         last_error = CASE
-           WHEN last_error IS NULL THEN 'اجرای جاب با راه‌اندازی دوباره Worker قطع شد'
-           ELSE left('اجرای جاب با راه‌اندازی دوباره Worker قطع شد · ' || last_error, 500)
-         END,
-         next_attempt_at = NOW(),
-         updated_at = NOW(),
-         completed_at = NULL,
-         lease_owner = NULL,
-         lease_expires_at = NULL,
-         heartbeat_at = NULL
-     WHERE status = 'running'
-       AND (
-         lease_expires_at < NOW()
-         OR (lease_expires_at IS NULL AND updated_at < NOW() - INTERVAL '10 minutes')
-       )`,
-   )).then((result) => {
-    if (result.rowCount) {
-      logger.warn({ jobsRecovered: result.rowCount }, "Recovered stale running provisioning jobs");
+  const workerReady = leaseMigration.then(async () => {
+    const recovered = await pool.query(
+      `UPDATE service_provision_jobs
+       SET status = 'retrying',
+           last_error = CASE
+             WHEN last_error IS NULL THEN 'اجرای جاب با راه‌اندازی دوباره Worker قطع شد'
+             ELSE left('اجرای جاب با راه‌اندازی دوباره Worker قطع شد · ' || last_error, 500)
+           END,
+           next_attempt_at = NOW(),
+           updated_at = NOW(),
+           completed_at = NULL,
+           lease_owner = NULL,
+           lease_expires_at = NULL,
+           heartbeat_at = NULL
+       WHERE status = 'running'
+         AND (
+           lease_expires_at < NOW()
+           OR (lease_expires_at IS NULL AND updated_at < NOW() - INTERVAL '10 minutes')
+         )`,
+    );
+    if (recovered.rowCount) {
+      logger.warn({ jobsRecovered: recovered.rowCount }, "Recovered stale running provisioning jobs");
     }
-  }).catch((error) => logger.error({ err: error }, "Failed to recover stale provisioning jobs"));
+    await clearMisroutedWireGuardProviderJobs();
+  }).catch((error) => {
+    logger.error({ err: error }, "Failed to initialize provisioning worker");
+  });
   void pool.query(
     `UPDATE service_provision_jobs job
      SET status = 'retrying',
@@ -318,7 +375,7 @@ export function startProvisioningWorker() {
        logger.info({ jobsRequeued: result.rowCount }, "Requeued old AWG jobs");
      }
    }).catch((error) => logger.error({ err: error }, "Failed to requeue old AWG jobs"));
-  void tick();
-  setInterval(() => void tick(), 5_000);
+  void workerReady.then(() => tick());
+  setInterval(() => void workerReady.then(() => tick()), 5_000);
   logger.info("Service provisioning worker started");
 }

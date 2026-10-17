@@ -75379,6 +75379,17 @@ function decryptPanelCredential(value) {
   }
 }
 
+// src/lib/panel-protocol-policy.ts
+var normalizeKind = (kind) => typeof kind === "string" ? kind.trim().toLowerCase() : "";
+function isAzadPanelCoreCandidate(kind, core) {
+  const normalized = normalizeKind(kind);
+  return normalized === "azadpanel" || normalized === `azadpanel_${core}`;
+}
+function isStandardServiceProvisioningPanel(kind) {
+  const normalized = normalizeKind(kind);
+  return normalized !== "azadpanel_wireguard" && normalized !== "azadpanel_ipsec";
+}
+
 // src/lib/rain.ts
 async function readSavedWireGuardProviderUsernames(serviceIds) {
   const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
@@ -76522,9 +76533,12 @@ async function provisionFalcon(panel, gb, days, label) {
 async function provisionUser(username, gb, days, label, ownerId, role, onlyPanelKeys, options) {
   const configured = await panels(ownerId, role);
   const serviceProvisioningPanels = configured.filter(
-    (panel) => panel.kind?.trim().toLowerCase() !== "azadpanel_ipsec"
+    (panel) => isStandardServiceProvisioningPanel(panel.kind)
   );
   const configuredPanels = onlyPanelKeys?.length ? serviceProvisioningPanels.filter((panel) => onlyPanelKeys.includes(panelKey(panel))) : serviceProvisioningPanels;
+  if (onlyPanelKeys?.length && configuredPanels.length === 0) {
+    return { ok: true, results: [] };
+  }
   const hasCredentials = configuredPanels.some((panel) => {
     const kind = panelKind(panel);
     return Boolean(kind === "falcon" ? panel.api_key : panel.admin_user && panel.admin_pass);
@@ -76603,7 +76617,9 @@ async function repairXrayProviderUser(username, gb, expiresAt, providerKey, owne
   return { key: panelKey(panel), kind, status: response.status };
 }
 async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, requestedPanelKey) {
-  const openVpnPanels = (await panels(ownerId, role)).filter((panel2) => panelKind(panel2) === "azadpanel");
+  const openVpnPanels = (await panels(ownerId, role)).filter(
+    (panel2) => isAzadPanelCoreCandidate(panel2.kind, "openvpn")
+  );
   const panel = requestedPanelKey ? openVpnPanels.find((candidate) => panelKey(candidate) === requestedPanelKey) : openVpnPanels[0];
   if (!panel) throw new RainApiError("No enabled AzadPanel OpenVPN provider is configured.");
   if (await azadPanelCore(panel) !== "openvpn") {
@@ -76663,7 +76679,7 @@ async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, req
 }
 async function downloadOpenVpnProfile(username, providerKey, hostId, ownerId, role) {
   const panel = (await panels(ownerId, role)).find(
-    (candidate) => panelKey(candidate) === providerKey && panelKind(candidate) === "azadpanel"
+    (candidate) => panelKey(candidate) === providerKey && isAzadPanelCoreCandidate(candidate.kind, "openvpn")
   );
   if (!panel) throw new RainApiError("The selected AzadPanel OpenVPN provider is unavailable.");
   if (await azadPanelCore(panel) !== "openvpn") {
@@ -76686,7 +76702,7 @@ function wireGuardLocationId(endpoint) {
   return id === null || id === void 0 ? "" : String(id).trim();
 }
 async function findAzadPanelCore(expectedCore, ownerId, role, requestedPanelKey) {
-  const candidates = (await panels(ownerId, role)).filter((panel) => panelKind(panel) === "azadpanel").filter((panel) => !requestedPanelKey || panelKey(panel) === requestedPanelKey);
+  const candidates = (await panels(ownerId, role)).filter((panel) => isAzadPanelCoreCandidate(panel.kind, expectedCore)).filter((panel) => !requestedPanelKey || panelKey(panel) === requestedPanelKey);
   let lastError = null;
   for (const panel of candidates) {
     try {
@@ -88553,6 +88569,58 @@ async function completeJob(jobId) {
     [jobId, workerId]
   );
 }
+async function clearMisroutedWireGuardProviderJobs() {
+  const result = await pool.query(
+    `WITH affected_jobs AS (
+       SELECT job.id,
+              COALESCE(
+                jsonb_agg(to_jsonb(target.provider_key) ORDER BY target.ordinal)
+                  FILTER (WHERE LOWER(COALESCE(panel.kind, '')) <> 'azadpanel_wireguard'),
+                '[]'::jsonb
+              ) AS remaining_provider_keys
+       FROM service_provision_jobs job
+       JOIN resellers reseller
+         ON reseller.tg_id = job.owner_tg_id
+        AND COALESCE(reseller.wireguard_enabled, 0) = 0
+       CROSS JOIN LATERAL jsonb_array_elements_text(
+         CASE
+           WHEN jsonb_typeof(job.provider_keys) = 'array' THEN job.provider_keys
+           ELSE '[]'::jsonb
+         END
+       ) WITH ORDINALITY AS target(provider_key, ordinal)
+       LEFT JOIN panel_configs panel ON panel.key = target.provider_key
+       WHERE job.action = 'providers'
+         AND job.status IN ('pending', 'retrying', 'failed')
+         AND job.last_error ILIKE '%configured for wireguard, not OpenVPN%'
+       GROUP BY job.id
+       HAVING BOOL_OR(LOWER(COALESCE(panel.kind, '')) = 'azadpanel_wireguard')
+     )
+     UPDATE service_provision_jobs job
+     SET provider_keys = affected_jobs.remaining_provider_keys,
+         status = CASE
+           WHEN jsonb_array_length(affected_jobs.remaining_provider_keys) = 0 THEN 'completed'
+           ELSE 'retrying'
+         END,
+         last_error = NULL,
+         next_attempt_at = NOW(),
+         completed_at = CASE
+           WHEN jsonb_array_length(affected_jobs.remaining_provider_keys) = 0 THEN NOW()
+           ELSE NULL
+         END,
+         lease_owner = NULL,
+         lease_expires_at = NULL,
+         heartbeat_at = NULL,
+         updated_at = NOW()
+     FROM affected_jobs
+     WHERE job.id = affected_jobs.id`
+  );
+  if (result.rowCount) {
+    logger.info(
+      { jobsCorrected: result.rowCount },
+      "Removed unauthorized WireGuard panels from OpenVPN provisioning retries"
+    );
+  }
+}
 async function saveAwgCandidate(job) {
   const existing = typeof job.payload.awg_client_candidate === "string" ? job.payload.awg_client_candidate : randomUUID3();
   await pool.query(
@@ -88687,29 +88755,33 @@ function startProvisioningWorker() {
      ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMP,
      ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP`
   );
-  void leaseMigration.then(() => pool.query(
-    `UPDATE service_provision_jobs
-     SET status = 'retrying',
-         last_error = CASE
-           WHEN last_error IS NULL THEN '\u0627\u062C\u0631\u0627\u06CC \u062C\u0627\u0628 \u0628\u0627 \u0631\u0627\u0647\u200C\u0627\u0646\u062F\u0627\u0632\u06CC \u062F\u0648\u0628\u0627\u0631\u0647 Worker \u0642\u0637\u0639 \u0634\u062F'
-           ELSE left('\u0627\u062C\u0631\u0627\u06CC \u062C\u0627\u0628 \u0628\u0627 \u0631\u0627\u0647\u200C\u0627\u0646\u062F\u0627\u0632\u06CC \u062F\u0648\u0628\u0627\u0631\u0647 Worker \u0642\u0637\u0639 \u0634\u062F \xB7 ' || last_error, 500)
-         END,
-         next_attempt_at = NOW(),
-         updated_at = NOW(),
-         completed_at = NULL,
-         lease_owner = NULL,
-         lease_expires_at = NULL,
-         heartbeat_at = NULL
-     WHERE status = 'running'
-       AND (
-         lease_expires_at < NOW()
-         OR (lease_expires_at IS NULL AND updated_at < NOW() - INTERVAL '10 minutes')
-       )`
-  )).then((result) => {
-    if (result.rowCount) {
-      logger.warn({ jobsRecovered: result.rowCount }, "Recovered stale running provisioning jobs");
+  const workerReady = leaseMigration.then(async () => {
+    const recovered = await pool.query(
+      `UPDATE service_provision_jobs
+       SET status = 'retrying',
+           last_error = CASE
+             WHEN last_error IS NULL THEN '\u0627\u062C\u0631\u0627\u06CC \u062C\u0627\u0628 \u0628\u0627 \u0631\u0627\u0647\u200C\u0627\u0646\u062F\u0627\u0632\u06CC \u062F\u0648\u0628\u0627\u0631\u0647 Worker \u0642\u0637\u0639 \u0634\u062F'
+             ELSE left('\u0627\u062C\u0631\u0627\u06CC \u062C\u0627\u0628 \u0628\u0627 \u0631\u0627\u0647\u200C\u0627\u0646\u062F\u0627\u0632\u06CC \u062F\u0648\u0628\u0627\u0631\u0647 Worker \u0642\u0637\u0639 \u0634\u062F \xB7 ' || last_error, 500)
+           END,
+           next_attempt_at = NOW(),
+           updated_at = NOW(),
+           completed_at = NULL,
+           lease_owner = NULL,
+           lease_expires_at = NULL,
+           heartbeat_at = NULL
+       WHERE status = 'running'
+         AND (
+           lease_expires_at < NOW()
+           OR (lease_expires_at IS NULL AND updated_at < NOW() - INTERVAL '10 minutes')
+         )`
+    );
+    if (recovered.rowCount) {
+      logger.warn({ jobsRecovered: recovered.rowCount }, "Recovered stale running provisioning jobs");
     }
-  }).catch((error40) => logger.error({ err: error40 }, "Failed to recover stale provisioning jobs"));
+    await clearMisroutedWireGuardProviderJobs();
+  }).catch((error40) => {
+    logger.error({ err: error40 }, "Failed to initialize provisioning worker");
+  });
   void pool.query(
     `UPDATE service_provision_jobs job
      SET status = 'retrying',
@@ -88745,8 +88817,8 @@ function startProvisioningWorker() {
       logger.info({ jobsRequeued: result.rowCount }, "Requeued old AWG jobs");
     }
   }).catch((error40) => logger.error({ err: error40 }, "Failed to requeue old AWG jobs"));
-  void tick();
-  setInterval(() => void tick(), 5e3);
+  void workerReady.then(() => tick());
+  setInterval(() => void workerReady.then(() => tick()), 5e3);
   logger.info("Service provisioning worker started");
 }
 

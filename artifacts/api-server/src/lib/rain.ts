@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { decryptPanelCredential } from "./panel-credentials";
+import {
+  isAzadPanelCoreCandidate,
+  isStandardServiceProvisioningPanel,
+} from "./panel-protocol-policy";
 
 type Panel = {
   key?: string;
@@ -1539,11 +1543,17 @@ export async function provisionUser(
 ): Promise<{ ok: boolean; results: PanelResult[] }> {
   const configured = await panels(ownerId, role);
   const serviceProvisioningPanels = configured.filter(
-    (panel) => panel.kind?.trim().toLowerCase() !== "azadpanel_ipsec",
+    (panel) => isStandardServiceProvisioningPanel(panel.kind),
   );
   const configuredPanels = onlyPanelKeys?.length
     ? serviceProvisioningPanels.filter((panel) => onlyPanelKeys.includes(panelKey(panel)))
     : serviceProvisioningPanels;
+  // A stale retry may point only to a protocol-specific row that no longer
+  // belongs in generic service provisioning. Complete it without contacting
+  // that Provider instead of producing another misleading OpenVPN error.
+  if (onlyPanelKeys?.length && configuredPanels.length === 0) {
+    return { ok: true, results: [] };
+  }
   const hasCredentials = configuredPanels.some((panel) => {
     const kind = panelKind(panel);
     return Boolean(kind === "falcon" ? panel.api_key : panel.admin_user && panel.admin_pass);
@@ -1668,7 +1678,9 @@ export async function prepareOpenVpnAccount(
   role?: string,
   requestedPanelKey?: string,
 ): Promise<OpenVpnDelivery> {
-  const openVpnPanels = (await panels(ownerId, role)).filter((panel) => panelKind(panel) === "azadpanel");
+  const openVpnPanels = (await panels(ownerId, role)).filter((panel) =>
+    isAzadPanelCoreCandidate(panel.kind, "openvpn"),
+  );
   const panel = requestedPanelKey
     ? openVpnPanels.find((candidate) => panelKey(candidate) === requestedPanelKey)
     : openVpnPanels[0];
@@ -1747,7 +1759,7 @@ export async function downloadOpenVpnProfile(
   role?: string,
 ): Promise<{ body: string; contentType: string }> {
   const panel = (await panels(ownerId, role)).find(
-    (candidate) => panelKey(candidate) === providerKey && panelKind(candidate) === "azadpanel",
+    (candidate) => panelKey(candidate) === providerKey && isAzadPanelCoreCandidate(candidate.kind, "openvpn"),
   );
   if (!panel) throw new RainApiError("The selected AzadPanel OpenVPN provider is unavailable.");
   if (await azadPanelCore(panel) !== "openvpn") {
@@ -1793,7 +1805,7 @@ async function findAzadPanelCore(
   requestedPanelKey?: string,
 ): Promise<Panel> {
   const candidates = (await panels(ownerId, role))
-    .filter((panel) => panelKind(panel) === "azadpanel")
+    .filter((panel) => isAzadPanelCoreCandidate(panel.kind, expectedCore))
     .filter((panel) => !requestedPanelKey || panelKey(panel) === requestedPanelKey);
   let lastError: unknown = null;
   for (const panel of candidates) {
