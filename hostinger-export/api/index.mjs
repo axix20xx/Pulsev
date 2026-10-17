@@ -75781,7 +75781,7 @@ async function testPanelAuthentication(key, ownerId, role) {
     if (panelKind(panel) === "azadpanel") {
       const core = await azadPanelCore(panel, true);
       const configuredKind = panel.kind?.trim().toLowerCase();
-      const requiredCore = configuredKind === "azadpanel_wireguard" ? "wireguard" : "openvpn";
+      const requiredCore = configuredKind === "azadpanel_wireguard" ? "wireguard" : configuredKind === "azadpanel_ipsec" ? "ipsec" : "openvpn";
       if (core !== requiredCore) {
         return { ok: false, detail: `AzadPanel core is ${core || "unknown"}; ${requiredCore} is required.` };
       }

@@ -1430,3 +1430,17 @@ mtime_ms = 1792247235568
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f1328bc7-0bb0-443c-8cd6-5960d313076f/5c3718cb-fb18-41c4-b045-cf3271ed9530"
 storage_version_token = "1792247268811477"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "M_ORhzfJiIrySiOdScUgj"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T14-45-04-600Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger IPsec core validation fix"
+description = "Updated full Hostinger migration package. AzadPanel IPsec connection tests now require the IPsec core instead of incorrectly requiring OpenVPN."
+logical_id = "4202eda2-4c6c-41d3-8ee7-33b408fd5fb2"
+content_hash = "sha256:e0881b47ba9d8b6b8e1fb31f9267732ce57a809bca9767a5f84a165495eca91e"
+size = 29020782
+mtime_ms = 1792248459730
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4202eda2-4c6c-41d3-8ee7-33b408fd5fb2/b32e3666-a826-4c8c-86c7-da1dd3e5b64f"
+storage_version_token = "1792248497580596"
+content_type = "application/octet-stream"
