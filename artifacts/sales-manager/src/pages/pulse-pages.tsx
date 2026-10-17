@@ -1786,7 +1786,7 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
           const isRepairing = repairingKey === repairKey;
           return <div className="ax-usage-source" key={`${service.id}-${usage.panelKey}`}>
             <div className="ax-usage-source-icon"><Server size={13} /></div>
-              <div className="ax-usage-source-name"><strong><bdi dir="ltr">{usage.panelKey}</bdi>{usage.panelKind === 'azadpanel_ipsec' ? ' · IPsec / IKEv2' : usage.panelKind === 'azadpanel_wireguard' ? ' · WireGuard' : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? ' · OpenVPN' : ''}</strong><small>{usageDate(usage.lastUpdated)}</small></div>
+              <div className="ax-usage-source-name"><strong><bdi dir="ltr">{usage.panelKey}</bdi>{usage.panelKind === 'azadpanel_v2ray' ? ' · V2Ray / Xray' : usage.panelKind === 'azadpanel_ipsec' ? ' · IPsec / IKEv2' : usage.panelKind === 'azadpanel_wireguard' ? ' · WireGuard' : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? ' · OpenVPN' : ''}</strong><small>{usageDate(usage.lastUpdated)}</small></div>
             <div className="ax-usage-source-value">
                <strong>{usage.lastUpdated ? usageLabel(usage.usedGb) : 'آمار هنوز دریافت نشده'}</strong>
                <small>{usage.lastUpdated ? `عدد خام: ${usageLabel(usage.rawUsedGb)} · پایه مصرف: ${usageLabel(usage.offsetGb)}` : 'صفر بودن مصرف این اتصال تأیید نشده است.'}</small>
@@ -1817,7 +1817,7 @@ function ServiceInventoryCard({ service, onNote, onToggle, onRenew }: {
     <td><bdi dir="ltr">{service.panel || 'پنل ثبت‌نشده'}</bdi><small className="ax-sub">ایجاد: {service.createdAt ? dateLabel(service.createdAt) : '—'} · تمدید: {service.lastRenewedAt ? dateLabel(service.lastRenewedAt) : '—'}</small>
       {(service.provisionStatus || service.cancelStatus || service.provisionLastError) && <small className="ax-sub">{service.provisionStatus === 'completed' ? 'ساخت تکمیل‌شده' : service.provisionStatus === 'running' ? 'در حال ساخت' : service.provisionStatus === 'retrying' ? 'تلاش مجدد' : service.provisionStatus === 'pending' ? 'در صف ساخت' : ''}{service.cancelStatus && service.cancelStatus !== 'not_requested' ? ` · لغو ${service.cancelStatus === 'pending' ? 'در انتظار' : service.cancelStatus === 'approved' ? 'تأییدشده' : 'ردشده'}` : ''}</small>}
       {service.provisionLastError && <small className="text-rose-600" role="note">{service.provisionLastError}</small>}
-       {(service.panelUsages?.length || service.awgUsage || service.awgReady) && <details className="ax-service-inventory-usage"><summary>ریز مصرف اتصال‌ها · مجموع {usageLabel(service.usedGb)}</summary><div>{service.panelUsages?.map((usage) => <p key={usage.panelKey}><bdi dir="ltr">{usage.panelKey}{usage.panelKind === 'azadpanel_ipsec' ? ' · IPsec / IKEv2' : usage.panelKind === 'azadpanel_wireguard' ? ' · WireGuard' : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? ' · OpenVPN' : usage.panelKind ? ` · ${usage.panelKind}` : ''}</bdi> · {usage.lastUpdated ? usageLabel(usage.usedGb) : 'آمار هنوز دریافت نشده'}<small>{usage.lastUpdated ? `خام ${usageLabel(usage.rawUsedGb)} · مبنا ${usageLabel(usage.offsetGb)} · ${usageDate(usage.lastUpdated)}` : 'صفر بودن مصرف تأیید نشده است.'}</small></p>)}{(service.awgUsage || service.awgReady) && <p>AmneziaWG · {service.awgUsage && (!service.awgReady || service.awgUsage.lastUpdated) ? usageLabel(service.awgUsage.usedGb) : 'آمار هنوز دریافت نشده'}{service.awgUsage && <small>{service.awgReady && !service.awgUsage.lastUpdated ? 'صفر بودن مصرف تأیید نشده است.' : `دریافت ${usageLabel(service.awgUsage.rxGb)} · ارسال ${usageLabel(service.awgUsage.txGb)} · ${usageDate(service.awgUsage.lastUpdated)}`}</small>}</p>}</div></details>}
+       {(service.panelUsages?.length || service.awgUsage || service.awgReady) && <details className="ax-service-inventory-usage"><summary>ریز مصرف اتصال‌ها · مجموع {usageLabel(service.usedGb)}</summary><div>{service.panelUsages?.map((usage) => <p key={usage.panelKey}><bdi dir="ltr">{usage.panelKey}{usage.panelKind === 'azadpanel_v2ray' ? ' · V2Ray / Xray' : usage.panelKind === 'azadpanel_ipsec' ? ' · IPsec / IKEv2' : usage.panelKind === 'azadpanel_wireguard' ? ' · WireGuard' : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? ' · OpenVPN' : usage.panelKind ? ` · ${usage.panelKind}` : ''}</bdi> · {usage.lastUpdated ? usageLabel(usage.usedGb) : 'آمار هنوز دریافت نشده'}<small>{usage.lastUpdated ? `خام ${usageLabel(usage.rawUsedGb)} · مبنا ${usageLabel(usage.offsetGb)} · ${usageDate(usage.lastUpdated)}` : 'صفر بودن مصرف تأیید نشده است.'}</small></p>)}{(service.awgUsage || service.awgReady) && <p>AmneziaWG · {service.awgUsage && (!service.awgReady || service.awgUsage.lastUpdated) ? usageLabel(service.awgUsage.usedGb) : 'آمار هنوز دریافت نشده'}{service.awgUsage && <small>{service.awgReady && !service.awgUsage.lastUpdated ? 'صفر بودن مصرف تأیید نشده است.' : `دریافت ${usageLabel(service.awgUsage.rxGb)} · ارسال ${usageLabel(service.awgUsage.txGb)} · ${usageDate(service.awgUsage.lastUpdated)}`}</small>}</p>}</div></details>}
       {service.note && <small className="ax-sub">یادداشت: {service.note}</small>}
     </td>
     <td><div className="ax-cell-actions"><button type="button" className="ax-btn is-quiet" onClick={() => onNote(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? 'یادداشت' : 'افزودن یادداشت'}</button><Button variant="quiet" onClick={() => onToggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Disabled' && <Button variant="secondary" onClick={() => onRenew(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={13} /> تمدید</Button>}</div></td>
@@ -3489,7 +3489,7 @@ function SettingsConsole() {
         </SectionPanel>}
         {session?.role === 'master_admin' && <>
           <section className="ax-settings-provider-group" id="settings-panels" aria-labelledby="settings-panels-heading">
-              <header className="ax-settings-provider-heading"><div><p className="ax-eyebrow">دسترسی مدیریتی</p><h2 id="settings-panels-heading">اتصال و مدیریت Providerها</h2><p>هر هستهٔ AzadPanel، از جمله OpenVPN، WireGuard و IPsec، باید با credential مستقل خودش ثبت شود.</p></div><Server size={19} /></header>
+              <header className="ax-settings-provider-heading"><div><p className="ax-eyebrow">دسترسی مدیریتی</p><h2 id="settings-panels-heading">اتصال و مدیریت Providerها</h2><p>هر هستهٔ AzadPanel، از جمله V2Ray، OpenVPN، WireGuard و IPsec، باید با credential مستقل خودش ثبت شود.</p></div><Server size={19} /></header>
             <PanelAssignments resellers={resellers} />
           </section>
           <div id="settings-pricing" className="ax-settings-pricing-anchor"><AdminPricing resellers={resellers} /></div>
@@ -3819,10 +3819,12 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
             <select dir="ltr" value={newPanel.kind} onChange={(event) => setNewPanel({ ...newPanel, kind: event.target.value })}>
               <option value="rain_admin">Rain Admin</option>
               <option value="marzban">Marzban</option>
+              <option value="azadpanel_v2ray">AzadPanel · V2Ray / Xray</option>
               <option value="azadpanel_openvpn">AzadPanel · OpenVPN</option>
               <option value="azadpanel_wireguard">AzadPanel · WireGuard</option>
               <option value="azadpanel_ipsec">AzadPanel · IPsec / IKEv2</option>
             </select>
+            {newPanel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">نام کاربری و رمز نمایندگی مخصوص هستهٔ Xray/V2Ray را وارد کنید؛ حساب جداگانه به‌صورت خودکار هنگام ساخت یا تمدید سرویس ایجاد می‌شود.</small>}
             {newPanel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">نام کاربری و رمز مخصوص هستهٔ WireGuard را وارد کنید؛ این اعتبارنامه از OpenVPN جداست.</small>}
             {newPanel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">credential مدیر AzadPanel مخصوص هستهٔ IPsec را وارد کنید؛ حساب و رمز اتصال کاربران جداگانه از API دریافت می‌شود.</small>}
           </label>
@@ -3854,10 +3856,12 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
                   <option value="rain_admin">Rain Admin</option>
                   <option value="marzban">Marzban</option>
                   {panel.kind === 'azadpanel' && <option value="azadpanel">AzadPanel · تشخیص هسته (قدیمی)</option>}
+                  <option value="azadpanel_v2ray">AzadPanel · V2Ray / Xray</option>
                   <option value="azadpanel_openvpn">AzadPanel · OpenVPN</option>
                   <option value="azadpanel_wireguard">AzadPanel · WireGuard</option>
                   <option value="azadpanel_ipsec">AzadPanel · IPsec / IKEv2</option>
                 </select>
+                {panel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف از credential مستقل نمایندگی Xray استفاده می‌کند؛ فید آن خودکار به اشتراک V2Ray اضافه می‌شود.</small>}
                 {panel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از اعتبارنامهٔ مستقل هستهٔ WireGuard استفاده کند.</small>}
                 {panel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از credential مستقل هستهٔ IPsec استفاده کند.</small>}
               </label>

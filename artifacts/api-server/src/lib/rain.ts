@@ -2,6 +2,9 @@ import { randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { decryptPanelCredential } from "./panel-credentials";
 import {
+  azadPanelExpectedCore,
+  azadPanelXraySubscriptionLinks,
+  azadPanelXraySubscriptionPath,
   isAzadPanelCoreCandidate,
   isStandardServiceProvisioningPanel,
 } from "./panel-protocol-policy";
@@ -118,7 +121,13 @@ function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" | "azadpan
   const kind = panel.kind?.trim().toLowerCase();
   if (kind === "rain_admin") return "rain_admin";
   if (kind === "falcon") return "falcon";
-  if (kind === "azadpanel" || kind === "azadpanel_openvpn" || kind === "azadpanel_wireguard" || kind === "azadpanel_ipsec") return "azadpanel";
+  if (
+    kind === "azadpanel"
+    || kind === "azadpanel_v2ray"
+    || kind === "azadpanel_openvpn"
+    || kind === "azadpanel_wireguard"
+    || kind === "azadpanel_ipsec"
+  ) return "azadpanel";
   return "marzban";
 }
 
@@ -314,9 +323,11 @@ export async function fetchPanelSubscription(
 
   for (const panel of await panels(ownerId, role)) {
     const kind = panelKind(panel);
-    if (kind === "azadpanel") continue;
-    const paths =
-      kind === "rain_admin"
+    const isAzadPanelV2Ray = kind === "azadpanel" && panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
+    if (kind === "azadpanel" && !isAzadPanelV2Ray) continue;
+    const paths = isAzadPanelV2Ray
+      ? [azadPanelXraySubscriptionPath(username)]
+      : kind === "rain_admin"
         ? [`/api/users/${encodedUsername}`, `/api/user/${encodedUsername}`]
         : kind === "falcon"
           ? [`/api/v1/configs?username=${encodedUsername}`]
@@ -327,7 +338,9 @@ export async function fetchPanelSubscription(
       try {
         const response = await panelRequest(panel, "GET", path);
         if (response.status >= 200 && response.status < 300) {
-          links = [...new Set(collectSubscriptionLinks(response.json))];
+          links = [...new Set(isAzadPanelV2Ray
+            ? azadPanelXraySubscriptionLinks(response.json)
+            : collectSubscriptionLinks(response.json))];
           if (links.length) break;
         }
         if (![404, 405].includes(response.status)) break;
@@ -544,12 +557,7 @@ export async function testPanelAuthentication(
     }
     if (panelKind(panel) === "azadpanel") {
       const core = await azadPanelCore(panel, true);
-      const configuredKind = panel.kind?.trim().toLowerCase();
-      const requiredCore = configuredKind === "azadpanel_wireguard"
-        ? "wireguard"
-        : configuredKind === "azadpanel_ipsec"
-          ? "ipsec"
-          : "openvpn";
+      const requiredCore = azadPanelExpectedCore(panel.kind) ?? "openvpn";
       if (core !== requiredCore) {
         return { ok: false, detail: `AzadPanel core is ${core || "unknown"}; ${requiredCore} is required.` };
       }
@@ -645,14 +653,7 @@ async function panelRequest(
 
 async function azadPanelCore(panel: Panel, forceRefresh = false): Promise<string> {
   const key = panelKey(panel);
-  const configuredKind = panel.kind?.trim().toLowerCase();
-  const expectedCore = configuredKind === "azadpanel_wireguard"
-    ? "wireguard"
-    : configuredKind === "azadpanel_ipsec"
-      ? "ipsec"
-    : configuredKind === "azadpanel_openvpn"
-      ? "openvpn"
-      : null;
+  const expectedCore = azadPanelExpectedCore(panel.kind);
   const cached = azadPanelCoreCache.get(key);
   if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
     if (!expectedCore || cached.core === expectedCore) return cached.core;
@@ -1437,8 +1438,9 @@ async function provisionAzadPanel(
   resetUsage: boolean,
 ): Promise<number> {
   const core = await azadPanelCore(panel);
-  if (core !== "openvpn") {
-    throw new RainApiError(`AzadPanel ${panelKey(panel)} is configured for ${core}, not OpenVPN.`);
+  const expectedCore = azadPanelExpectedCore(panel.kind) ?? "openvpn";
+  if (core !== expectedCore) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} is configured for ${core}, not ${expectedCore}.`);
   }
   const encoded = encodeURIComponent(username);
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);

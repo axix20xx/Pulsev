@@ -2836,7 +2836,7 @@ router.post("/panels/:key/test", requireMasterAdmin, async (req, res): Promise<v
   });
 });
 
-const providerKinds = ["marzban", "rain_admin", "azadpanel", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"] as const;
+const providerKinds = ["marzban", "rain_admin", "azadpanel", "azadpanel_v2ray", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"] as const;
 type ProviderKind = (typeof providerKinds)[number];
 
 function isProviderKind(value: unknown): value is ProviderKind {
@@ -4790,7 +4790,7 @@ async function loadServicePanelUsageMap(
        LIMIT 1
      ) usage ON TRUE
      WHERE panel.is_enabled = 1
-        AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
+         AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
        AND (
          LOWER(panel.kind) <> 'azadpanel_wireguard'
          OR (
