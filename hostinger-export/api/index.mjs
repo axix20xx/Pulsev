@@ -64693,6 +64693,35 @@ function decryptPanelCredential(value) {
 }
 
 // src/lib/rain.ts
+async function readSavedWireGuardProviderUsernames(serviceIds) {
+  const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const accounts = /* @__PURE__ */ new Map();
+  if (!ids.length) return accounts;
+  const result = await pool.query(
+    `SELECT service_id, delivery_secret
+     FROM reseller_service_wireguard_accounts
+     WHERE service_id = ANY($1::bigint[])`,
+    [ids]
+  );
+  for (const row of result.rows) {
+    const serviceId = Number(row.service_id);
+    const decoded = decryptPanelCredential(row.delivery_secret);
+    let providerKey = null;
+    let username = null;
+    if (decoded) {
+      try {
+        const delivery = JSON.parse(decoded);
+        if (delivery.core === "wireguard") {
+          providerKey = typeof delivery.provider_key === "string" && delivery.provider_key.trim() ? delivery.provider_key.trim() : null;
+          username = typeof delivery.username === "string" && delivery.username.trim() ? delivery.username.trim() : null;
+        }
+      } catch {
+      }
+    }
+    accounts.set(serviceId, { providerKey, username });
+  }
+  return accounts;
+}
 var RainApiError = class extends Error {
   results;
   constructor(message, results = []) {
@@ -65205,6 +65234,7 @@ async function lastKnownPanelUsage(username, key) {
   if (!row) return null;
   return {
     panelKey: key,
+    username,
     usedBytes: Math.max(0, Math.round(Number(row.upload) + Number(row.download) - Number(row.offset_bytes))),
     totalBytes: null,
     expiresAt: null,
@@ -65217,8 +65247,16 @@ function expiryValue(payload) {
   const date6 = typeof value === "number" ? new Date(value > 1e10 ? value : value * 1e3) : new Date(String(value));
   return Number.isNaN(date6.getTime()) ? null : date6.toISOString();
 }
-async function readPanelUsages(username, falcoConfigId, ownerId, role) {
+async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role) {
   const result = [];
+  const configuredPanels = await panels(ownerId, role);
+  let wireGuardAccounts = /* @__PURE__ */ new Map();
+  let wireGuardLookupFailed = false;
+  try {
+    wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
+  } catch {
+    wireGuardLookupFailed = true;
+  }
   const safePanelRequest = async (panel, method, path) => {
     try {
       return await panelRequest(panel, method, path);
@@ -65226,22 +65264,52 @@ async function readPanelUsages(username, falcoConfigId, ownerId, role) {
       return null;
     }
   };
-  for (const panel of await panels(ownerId, role)) {
+  for (const panel of configuredPanels) {
+    const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
+    let requestUsername = username;
+    if (wireGuardPanel) {
+      if (!wireGuardLookupFailed && !wireGuardAccounts.has(serviceId)) continue;
+      const savedAccount2 = wireGuardAccounts.get(serviceId);
+      if (wireGuardLookupFailed || !savedAccount2?.providerKey) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: "",
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true
+        });
+        continue;
+      }
+      if (savedAccount2.providerKey !== panelKey(panel)) continue;
+      if (!savedAccount2.username) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: "",
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true
+        });
+        continue;
+      }
+      requestUsername = savedAccount2.username;
+    }
     const kind = panelKind(panel);
     let response = null;
     if (kind === "falcon") {
       response = await safePanelRequest(
         panel,
         "GET",
-        falcoConfigId ? `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}` : `/api/v1/configs?username=${encodeURIComponent(username)}`
+        falcoConfigId ? `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}` : `/api/v1/configs?username=${encodeURIComponent(requestUsername)}`
       );
       if (response?.status === 200 && !falcoConfigId && Array.isArray(response.json?.data)) {
-        const match = response.json.data.find((item) => String(item?.username ?? item?.name ?? "") === username);
+        const match = response.json.data.find((item) => String(item?.username ?? item?.name ?? "") === requestUsername);
         response = match ? { ...response, json: match } : response;
       }
     } else {
-      const encoded = encodeURIComponent(username);
-      const paths = kind === "azadpanel" ? [`/api/user/${encodeURIComponent(username)}`] : kind === "rain_admin" ? [
+      const encoded = encodeURIComponent(requestUsername);
+      const paths = kind === "azadpanel" ? [`/api/user/${encoded}`] : kind === "rain_admin" ? [
         `/api/users/${encoded}`,
         `/api/user/${encoded}`,
         `/api/users?username=${encoded}`,
@@ -65251,7 +65319,7 @@ async function readPanelUsages(username, falcoConfigId, ownerId, role) {
       for (const path of paths) {
         response = await safePanelRequest(panel, "GET", path);
         if (response?.status === 200) {
-          const matched = findUserPayload(response.json, username);
+          const matched = findUserPayload(response.json, requestUsername);
           if (matched) {
             response = { ...response, json: matched };
             break;
@@ -65263,35 +65331,110 @@ async function readPanelUsages(username, falcoConfigId, ownerId, role) {
       }
     }
     if (!response || response.status < 200 || response.status >= 300) {
-      if (response?.status !== 404) {
-        const stale = await lastKnownPanelUsage(username, panelKey(panel));
+      if (wireGuardPanel) {
+        const stale = await lastKnownPanelUsage(requestUsername, panelKey(panel));
+        result.push(stale ?? {
+          panelKey: panelKey(panel),
+          username: requestUsername,
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true
+        });
+      } else if (response?.status !== 404) {
+        const stale = await lastKnownPanelUsage(requestUsername, panelKey(panel));
         if (stale) result.push(stale);
       }
       continue;
     }
-    const payload = findUserPayload(response.json, username) ?? nestedPayload(response.json);
+    const payload = findUserPayload(response.json, requestUsername) ?? nestedPayload(response.json);
     const usedBytes = usedBytesValue(payload);
     if (usedBytes === null) {
-      const stale = await lastKnownPanelUsage(username, panelKey(panel));
+      const stale = await lastKnownPanelUsage(requestUsername, panelKey(panel));
       if (stale) result.push(stale);
+      else if (wireGuardPanel) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: requestUsername,
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true
+        });
+      }
       continue;
     }
     result.push({
       panelKey: panelKey(panel),
+      username: requestUsername,
       usedBytes,
       totalBytes: bytesValue(payload, ["data_limit", "data_limit_bytes", "total_bytes", "quota_bytes"], ["data_limit_gb", "limit_gb", "quota_gb"]),
       expiresAt: expiryValue(payload)
     });
   }
+  const savedAccount = wireGuardAccounts.get(serviceId);
+  if (wireGuardLookupFailed) {
+    result.push({
+      panelKey: "WireGuard",
+      username: "",
+      usedBytes: 0,
+      totalBytes: null,
+      expiresAt: null,
+      stale: true
+    });
+  } else if (savedAccount && !savedAccount.providerKey) {
+    if (!result.some((usage) => configuredPanels.some(
+      (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_wireguard" && usage.panelKey === panelKey(panel)
+    ))) {
+      result.push({
+        panelKey: "WireGuard",
+        username: "",
+        usedBytes: 0,
+        totalBytes: null,
+        expiresAt: null,
+        stale: true
+      });
+    }
+  } else if (savedAccount?.providerKey && !configuredPanels.some(
+    (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_wireguard" && panelKey(panel) === savedAccount.providerKey
+  )) {
+    result.push({
+      panelKey: savedAccount.providerKey,
+      username: "",
+      usedBytes: 0,
+      totalBytes: null,
+      expiresAt: null,
+      stale: true
+    });
+  }
   return result;
 }
-async function disablePanelUser(username, falcoConfigId, ownerId, role) {
+async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, role) {
   let attempted = 0;
   let disabled = 0;
-  for (const panel of await panels(ownerId, role)) {
+  const configuredPanels = await panels(ownerId, role);
+  let wireGuardAccounts = /* @__PURE__ */ new Map();
+  let wireGuardLookupFailed = false;
+  try {
+    wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
+  } catch {
+    wireGuardLookupFailed = true;
+  }
+  const savedWireGuardAccount = wireGuardAccounts.get(serviceId);
+  const wireGuardAccountUnresolved = wireGuardLookupFailed ? true : Boolean(savedWireGuardAccount && (!savedWireGuardAccount.providerKey || !savedWireGuardAccount.username || !configuredPanels.some(
+    (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_wireguard" && panelKey(panel) === savedWireGuardAccount.providerKey
+  )));
+  if (wireGuardAccountUnresolved) attempted += 1;
+  for (const panel of configuredPanels) {
     const kind = panelKind(panel);
+    let providerUsername = username;
+    if (panel.kind?.trim().toLowerCase() === "azadpanel_wireguard") {
+      if (wireGuardAccountUnresolved || !savedWireGuardAccount || savedWireGuardAccount.providerKey !== panelKey(panel)) continue;
+      if (!savedWireGuardAccount.username) continue;
+      providerUsername = savedWireGuardAccount.username;
+    }
     attempted += 1;
-    const encoded = encodeURIComponent(username);
+    const encoded = encodeURIComponent(providerUsername);
     const candidates = kind === "falcon" ? falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [] : kind === "rain_admin" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : kind === "azadpanel" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
     let success2 = false;
     for (const [method, path, body] of candidates) {
@@ -72569,6 +72712,7 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
         panelResult = await disablePanelUser(
           current.rain_username ?? "",
           current.falco_config_id,
+          Number(current.service_id),
           current.reseller_tg_id,
           "master_admin"
         );
@@ -73239,7 +73383,74 @@ router2.post("/admin/provider-account-audit/repair", requireMasterAdmin, async (
     lifecycleLock.release();
   }
 });
+async function loadServicePanelUsageMap(services) {
+  const serviceIds = services.map((service) => Number(service.id)).filter((id) => Number.isSafeInteger(id) && id > 0);
+  const usageByService = /* @__PURE__ */ new Map();
+  if (!serviceIds.length) return usageByService;
+  const wireGuardAccounts = await readSavedWireGuardProviderUsernames(serviceIds);
+  const usernamesById = new Map(services.map((service) => [Number(service.id), service.username]));
+  const usage = await pool.query(
+    `WITH requested_services AS (
+       SELECT *
+       FROM unnest($1::bigint[], $2::text[], $3::text[], $4::text[], $5::boolean[])
+         AS requested(service_id, username, wireguard_provider_key, wireguard_username, wireguard_account_present)
+     )
+     SELECT requested.service_id, panel.key AS panel_key, panel.kind AS panel_kind,
+            usage.upload, usage.download, usage.offset_bytes, usage.last_updated
+     FROM requested_services requested
+     CROSS JOIN panel_configs panel
+     LEFT JOIN LATERAL (
+       SELECT saved.upload, saved.download, saved.offset_bytes, saved.last_updated
+       FROM user_panel_usages saved
+       WHERE saved.panel_key = panel.key
+         AND saved.username = CASE
+           WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN requested.wireguard_username
+           ELSE requested.username
+         END
+       ORDER BY saved.id DESC
+       LIMIT 1
+     ) usage ON TRUE
+     WHERE panel.is_enabled = 1
+       AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard')
+       AND (
+         LOWER(panel.kind) <> 'azadpanel_wireguard'
+         OR (
+           requested.wireguard_account_present
+           AND (
+             requested.wireguard_provider_key IS NULL
+             OR panel.key = requested.wireguard_provider_key
+           )
+         )
+       )
+     ORDER BY requested.service_id, panel.key`,
+    [
+      serviceIds,
+      serviceIds.map((id) => usernamesById.get(id) ?? ""),
+      serviceIds.map((id) => wireGuardAccounts.get(id)?.providerKey ?? null),
+      serviceIds.map((id) => wireGuardAccounts.get(id)?.username ?? null),
+      serviceIds.map((id) => wireGuardAccounts.has(id))
+    ]
+  );
+  for (const row of usage.rows) {
+    const serviceId = Number(row.service_id);
+    const upload = Number(row.upload ?? 0);
+    const download = Number(row.download ?? 0);
+    const offset = Number(row.offset_bytes ?? 0);
+    const entries = usageByService.get(serviceId) ?? [];
+    entries.push({
+      panel_key: row.panel_key,
+      panel_kind: row.panel_kind,
+      used_gb: Math.max(0, upload + download - offset) / 1024 ** 3,
+      raw_used_gb: (upload + download) / 1024 ** 3,
+      offset_gb: offset / 1024 ** 3,
+      last_updated: row.last_updated?.toString?.() ?? row.last_updated ?? null
+    });
+    usageByService.set(serviceId, entries);
+  }
+  return usageByService;
+}
 router2.get("/services", requireAuth, async (req, res) => {
+  await managementReady;
   const parsed = ListServicesQueryParams.parse(req.query);
   const owner = ownership("svc", req);
   const params = [...owner.params];
@@ -73310,27 +73521,6 @@ router2.get("/services", requireAuth, async (req, res) => {
        svc.awg_client_id IS NOT NULL AS awg_ready,
            CASE WHEN svc.awg_client_id IS NULL THEN NULL ELSE '/api/services/' || svc.id || '/awg/config' END AS awg_config_url,
             svc.awg_client_id, svc.awg_rx, svc.awg_tx, svc.awg_total, svc.awg_offset_bytes, svc.last_usage_updated_at,
-       COALESCE((
-         SELECT json_agg(json_build_object(
-           'panel_key', panel.key,
-           'panel_kind', panel.kind,
-           'used_gb', GREATEST(0, COALESCE(usage.upload, 0) + COALESCE(usage.download, 0) - COALESCE(usage.offset_bytes, 0)) / 1073741824.0,
-           'raw_used_gb', (COALESCE(usage.upload, 0) + COALESCE(usage.download, 0)) / 1073741824.0,
-           'offset_gb', COALESCE(usage.offset_bytes, 0) / 1073741824.0,
-           'last_updated', usage.last_updated
-         ) ORDER BY panel.key)
-         FROM panel_configs panel
-       LEFT JOIN LATERAL (
-         SELECT usage.upload, usage.download, usage.offset_bytes, usage.last_updated
-         FROM user_panel_usages usage
-         WHERE usage.username = svc.rain_username
-           AND usage.panel_key = panel.key
-         ORDER BY usage.id DESC
-         LIMIT 1
-       ) usage ON TRUE
-         WHERE panel.is_enabled = 1
-           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard')
-       ), '[]'::json) AS panel_usages,
         CASE
           WHEN svc.awg_client_id IS NULL
            AND COALESCE(svc.awg_rx, 0) = 0
@@ -73354,7 +73544,15 @@ router2.get("/services", requireAuth, async (req, res) => {
      LIMIT $${params.length}`,
     params
   );
-  res.json(ListServicesResponse.parse(result.rows));
+  const panelUsages = await loadServicePanelUsageMap(result.rows);
+  res.json(
+    ListServicesResponse.parse(
+      result.rows.map((service) => ({
+        ...service,
+        panel_usages: panelUsages.get(Number(service.id)) ?? []
+      }))
+    )
+  );
 });
 router2.post("/services", requireAuth, async (req, res) => {
   const body = CreateServiceBody.safeParse(req.body ?? {});
@@ -73474,7 +73672,7 @@ router2.post("/services", requireAuth, async (req, res) => {
       }
     } catch (error40) {
       try {
-        await disablePanelUser(username, null, ownerId, req.auth?.role);
+        await disablePanelUser(username, null, serviceId, ownerId, req.auth?.role);
       } catch {
       }
       await client.query("ROLLBACK");
@@ -73733,6 +73931,7 @@ router2.patch("/services/:id", requireAuth, async (req, res) => {
           panelResult = await disablePanelUser(
             service.rain_username,
             service.falco_config_id,
+            params.data.id,
             Number(req.auth?.telegramId),
             req.auth?.role
           );
@@ -74538,6 +74737,7 @@ router2.get("/customers", requireAuth, async (req, res) => {
   res.json(ListCustomersResponse.parse(result.rows));
 });
 router2.get("/customers/:id", requireAuth, async (req, res) => {
+  await managementReady;
   const parsed = GetCustomerParams.safeParse(req.params);
   if (!parsed.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0645\u0634\u062A\u0631\u06CC \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -74605,45 +74805,12 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
       childOwnerParams
     )
   ]);
-  const usageResult = services.rows.length ? await pool.query(
-    `WITH requested_usernames AS (
-           SELECT unnest($1::text[]) AS username
-         )
-         SELECT requested.username, panel.key AS panel_key,
-                panel.kind AS panel_kind,
-                COALESCE(usage.upload, 0) AS upload,
-                COALESCE(usage.download, 0) AS download,
-                COALESCE(usage.offset_bytes, 0) AS offset_bytes,
-                usage.last_updated
-         FROM requested_usernames requested
-         CROSS JOIN panel_configs panel
-         LEFT JOIN user_panel_usages usage
-           ON usage.username = requested.username
-          AND usage.panel_key = panel.key
-         WHERE panel.is_enabled = 1
-           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard')
-         ORDER BY requested.username, panel.key`,
-    [services.rows.map((service) => service.username)]
-  ) : { rows: [] };
-  const usageByUsername = /* @__PURE__ */ new Map();
-  for (const usage of usageResult.rows) {
-    const entries = usageByUsername.get(usage.username) ?? [];
-    const rawBytes = Number(usage.upload ?? 0) + Number(usage.download ?? 0);
-    entries.push({
-      panel_key: usage.panel_key,
-      panel_kind: usage.panel_kind,
-      used_gb: Math.max(0, rawBytes - Number(usage.offset_bytes ?? 0)) / 1073741824,
-      raw_used_gb: rawBytes / 1073741824,
-      offset_gb: Number(usage.offset_bytes ?? 0) / 1073741824,
-      last_updated: usage.last_updated?.toISOString?.() ?? usage.last_updated ?? null
-    });
-    usageByUsername.set(usage.username, entries);
-  }
+  const panelUsages = await loadServicePanelUsageMap(services.rows);
   const detailedServices = services.rows.map((service) => {
     const hasAwgUsage = Boolean(service.awg_client_id) || Number(service.awg_rx ?? 0) > 0 || Number(service.awg_tx ?? 0) > 0 || Number(service.awg_total ?? 0) > 0 || Number(service.awg_offset_bytes ?? 0) > 0;
     return {
       ...service,
-      panel_usages: usageByUsername.get(service.username) ?? [],
+      panel_usages: panelUsages.get(Number(service.id)) ?? [],
       awg_usage: hasAwgUsage ? {
         rx_gb: Number(service.awg_rx ?? 0) / 1073741824,
         tx_gb: Number(service.awg_tx ?? 0) / 1073741824,
@@ -75728,6 +75895,7 @@ async function updatePanelUsage(username, panelKey2, rawBytes) {
 }
 async function syncServiceUnlocked(service) {
   const panelUsages = await readPanelUsages(
+    service.id,
     service.rain_username,
     service.falco_config_id,
     Number(service.reseller_tg_id),
@@ -75735,7 +75903,7 @@ async function syncServiceUnlocked(service) {
   );
   let panelUsedBytes = 0;
   for (const usage of panelUsages) {
-    panelUsedBytes += usage.stale ? usage.usedBytes : await updatePanelUsage(service.rain_username, usage.panelKey, usage.usedBytes);
+    panelUsedBytes += usage.stale ? usage.usedBytes : await updatePanelUsage(usage.username, usage.panelKey, usage.usedBytes);
   }
   let awgUsedBytes = effectiveAwgBytes(service.awg_total, service.awg_offset_bytes);
   let awgRx = 0;
@@ -75763,10 +75931,11 @@ async function syncServiceUnlocked(service) {
       }
     }
   }
-  const combinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
+  const calculatedCombinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
   const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB));
   const expired = service.expired_in_db;
   const usageSnapshotFresh = awgStatsFresh && panelUsages.every((usage) => !usage.stale);
+  const combinedBytes = usageSnapshotFresh ? calculatedCombinedBytes : Math.max(Math.max(0, Number(service.last_used_bytes ?? 0)), calculatedCombinedBytes);
   const quotaReached = usageSnapshotFresh && limitBytes > 0 && combinedBytes >= limitBytes;
   const alreadyDisabled = service.status === "disabled";
   const shouldDisable = alreadyDisabled || expired || quotaReached;
@@ -75806,6 +75975,7 @@ async function syncServiceUnlocked(service) {
     const panelResult = sharedUsername ? { attempted: 0, disabled: 0 } : await disablePanelUser(
       service.rain_username,
       service.falco_config_id,
+      service.id,
       Number(service.reseller_tg_id),
       "reseller"
     );
@@ -75881,6 +76051,7 @@ async function syncService(service) {
     const fresh = await pool.query(
       `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              svc.last_used_bytes,
               COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
               svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
               svc.lifecycle_version, svc.remote_disable_pending
@@ -75920,6 +76091,7 @@ async function runUsageSync() {
     const result = await workerLockClient.query(
       `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              svc.last_used_bytes,
               COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
                svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
                svc.lifecycle_version, svc.remote_disable_pending

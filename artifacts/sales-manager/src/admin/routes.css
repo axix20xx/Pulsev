@@ -473,6 +473,9 @@
 .ax-root .ax-service-inventory-usage p { margin: 0; font-size: 12px; }
 .ax-root .ax-service-openvpn-link { display: inline-flex; align-items: center; gap: 6px; color: hsl(var(--ax-info)); font-size: 12px; font-weight: 700; }
 .ax-root .ax-usage-breakdown { display: grid; gap: 6px; min-width: 240px; font-size: 12px; }
+.ax-root .ax-usage-breakdown-summary { display: grid; gap: 3px; border: 1px solid hsl(var(--ax-border)); border-radius: 10px; background: hsl(var(--ax-sunken)); padding: 9px 11px; }
+.ax-root .ax-usage-breakdown-summary strong { color: hsl(var(--ax-foreground)); }
+.ax-root .ax-usage-breakdown-summary small { color: hsl(var(--ax-muted)); font-size: 11px; }
 .ax-root .ax-usage-breakdown > svg { color: hsl(var(--ax-muted)); }
 .ax-root .ax-usage-breakdown-title { display: flex; justify-content: space-between; color: hsl(var(--ax-muted)); }
 .ax-root .ax-usage-source { display: flex; align-items: center; gap: 8px; border-radius: 8px; background: hsl(var(--ax-sunken)); padding: 6px 8px; }

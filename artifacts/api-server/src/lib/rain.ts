@@ -19,10 +19,10 @@ type StoredPanel = Panel & {
 
 export async function readSavedWireGuardProviderUsernames(
   serviceIds: number[],
-): Promise<Map<number, string | null>> {
+): Promise<Map<number, { providerKey: string | null; username: string | null }>> {
   const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
-  const usernames = new Map<number, string | null>();
-  if (!ids.length) return usernames;
+  const accounts = new Map<number, { providerKey: string | null; username: string | null }>();
+  if (!ids.length) return accounts;
   const result = await pool.query<{ service_id: number | string; delivery_secret: string }>(
     `SELECT service_id, delivery_secret
      FROM reseller_service_wireguard_accounts
@@ -32,21 +32,27 @@ export async function readSavedWireGuardProviderUsernames(
   for (const row of result.rows) {
     const serviceId = Number(row.service_id);
     const decoded = decryptPanelCredential(row.delivery_secret);
+    let providerKey: string | null = null;
     let username: string | null = null;
     if (decoded) {
       try {
-        const delivery = JSON.parse(decoded) as { core?: unknown; username?: unknown };
-        if (delivery.core === "wireguard" && typeof delivery.username === "string" && delivery.username.trim()) {
-          username = delivery.username.trim();
+        const delivery = JSON.parse(decoded) as { core?: unknown; provider_key?: unknown; username?: unknown };
+        if (delivery.core === "wireguard") {
+          providerKey = typeof delivery.provider_key === "string" && delivery.provider_key.trim()
+            ? delivery.provider_key.trim()
+            : null;
+          username = typeof delivery.username === "string" && delivery.username.trim()
+            ? delivery.username.trim()
+            : null;
         }
       } catch {
         // Retain a null map entry so callers know an account exists but its
         // provider identity cannot safely be used.
       }
     }
-    usernames.set(serviceId, username);
+    accounts.set(serviceId, { providerKey, username });
   }
-  return usernames;
+  return accounts;
 }
 
 type PanelResult = {
@@ -744,17 +750,12 @@ export async function readPanelUsages(
 ): Promise<PanelUsage[]> {
   const result: PanelUsage[] = [];
   const configuredPanels = await panels(ownerId, role);
-  const hasWireGuardPanel = configuredPanels.some(
-    (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_wireguard",
-  );
-  let wireGuardUsernames = new Map<number, string | null>();
+  let wireGuardAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
   let wireGuardLookupFailed = false;
-  if (hasWireGuardPanel) {
-    try {
-      wireGuardUsernames = await readSavedWireGuardProviderUsernames([serviceId]);
-    } catch {
-      wireGuardLookupFailed = true;
-    }
+  try {
+    wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
+  } catch {
+    wireGuardLookupFailed = true;
   }
   const safePanelRequest = async (panel: Panel, method: string, path: string): Promise<{ status: number; json: any; text: string } | null> => {
     try {
@@ -767,9 +768,9 @@ export async function readPanelUsages(
     const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
     let requestUsername = username;
     if (wireGuardPanel) {
-      if (!wireGuardLookupFailed && !wireGuardUsernames.has(serviceId)) continue;
-      const savedUsername = wireGuardUsernames.get(serviceId);
-      if (wireGuardLookupFailed || !savedUsername) {
+      if (!wireGuardLookupFailed && !wireGuardAccounts.has(serviceId)) continue;
+      const savedAccount = wireGuardAccounts.get(serviceId);
+      if (wireGuardLookupFailed || !savedAccount?.providerKey) {
         result.push({
           panelKey: panelKey(panel),
           username: "",
@@ -780,7 +781,19 @@ export async function readPanelUsages(
         });
         continue;
       }
-      requestUsername = savedUsername;
+      if (savedAccount.providerKey !== panelKey(panel)) continue;
+      if (!savedAccount.username) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: "",
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true,
+        });
+        continue;
+      }
+      requestUsername = savedAccount.username;
     }
     const kind = panelKind(panel);
     let response: { status: number; json: any; text: string } | null = null;
@@ -797,7 +810,7 @@ export async function readPanelUsages(
     } else {
       const encoded = encodeURIComponent(requestUsername);
       const paths = kind === "azadpanel"
-        ? [`/api/user/${encodeURIComponent(username)}`]
+        ? [`/api/user/${encoded}`]
         : kind === "rain_admin"
           ? [
             `/api/users/${encoded}`,
@@ -863,6 +876,46 @@ export async function readPanelUsages(
       expiresAt: expiryValue(payload),
     });
   }
+  const savedAccount = wireGuardAccounts.get(serviceId);
+  if (wireGuardLookupFailed) {
+    result.push({
+      panelKey: "WireGuard",
+      username: "",
+      usedBytes: 0,
+      totalBytes: null,
+      expiresAt: null,
+      stale: true,
+    });
+  } else if (savedAccount && !savedAccount.providerKey) {
+    if (!result.some((usage) => configuredPanels.some((panel) =>
+      panel.kind?.trim().toLowerCase() === "azadpanel_wireguard"
+      && usage.panelKey === panelKey(panel),
+    ))) {
+      result.push({
+        panelKey: "WireGuard",
+        username: "",
+        usedBytes: 0,
+        totalBytes: null,
+        expiresAt: null,
+        stale: true,
+      });
+    }
+  } else if (
+    savedAccount?.providerKey
+    && !configuredPanels.some((panel) =>
+      panel.kind?.trim().toLowerCase() === "azadpanel_wireguard"
+      && panelKey(panel) === savedAccount.providerKey,
+    )
+  ) {
+    result.push({
+      panelKey: savedAccount.providerKey,
+      username: "",
+      usedBytes: 0,
+      totalBytes: null,
+      expiresAt: null,
+      stale: true,
+    });
+  }
   return result;
 }
 
@@ -876,22 +929,32 @@ export async function disablePanelUser(
   let attempted = 0;
   let disabled = 0;
   const configuredPanels = await panels(ownerId, role);
-  const hasWireGuardPanel = configuredPanels.some(
-    (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_wireguard",
-  );
-  const wireGuardUsernames = hasWireGuardPanel
-    ? await readSavedWireGuardProviderUsernames([serviceId])
-    : new Map<number, string | null>();
+  let wireGuardAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
+  let wireGuardLookupFailed = false;
+  try {
+    wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
+  } catch {
+    wireGuardLookupFailed = true;
+  }
+  const savedWireGuardAccount = wireGuardAccounts.get(serviceId);
+  const wireGuardAccountUnresolved = wireGuardLookupFailed
+    ? true
+    : Boolean(savedWireGuardAccount && (
+      !savedWireGuardAccount.providerKey
+      || !savedWireGuardAccount.username
+      || !configuredPanels.some((panel) =>
+      panel.kind?.trim().toLowerCase() === "azadpanel_wireguard"
+      && panelKey(panel) === savedWireGuardAccount.providerKey,
+      )
+    ));
+  if (wireGuardAccountUnresolved) attempted += 1;
   for (const panel of configuredPanels) {
     const kind = panelKind(panel);
     let providerUsername = username;
     if (panel.kind?.trim().toLowerCase() === "azadpanel_wireguard") {
-      if (!wireGuardUsernames.has(serviceId)) continue;
-      const savedUsername = wireGuardUsernames.get(serviceId);
-      if (!savedUsername) {
-        throw new RainApiError(`Saved WireGuard account identity for service ${serviceId} is unavailable.`);
-      }
-      providerUsername = savedUsername;
+      if (wireGuardAccountUnresolved || !savedWireGuardAccount || savedWireGuardAccount.providerKey !== panelKey(panel)) continue;
+      if (!savedWireGuardAccount.username) continue;
+      providerUsername = savedWireGuardAccount.username;
     }
     attempted += 1;
     const encoded = encodeURIComponent(providerUsername);

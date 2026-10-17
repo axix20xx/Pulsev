@@ -1768,12 +1768,16 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
     <div className={`ax-notice ${finished ? 'ax-notice-danger' : expiring ? 'ax-notice-warning' : ''}`}><Sparkles size={14} /><div><strong>{announcementTitle}</strong><span>شناسه {serviceDisplayCode(service)} · {announcementDetail}</span></div></div>
     {repairNotice && <div className="ax-notice" role="status">{repairNotice}<button type="button" onClick={() => setRepairNotice('')} aria-label="بستن پیام"><X size={14} /></button></div>}
     {service.publicSubscriptionUrl && <div className="ax-customer-openvpn-action"><a className="ax-service-openvpn-link" href={service.publicSubscriptionUrl} target="_blank" rel="noreferrer" data-testid={`link-customer-openvpn-${service.id}`}><ShieldCheck size={13} /> ساخت / دریافت OpenVPN</a></div>}
-    {!hasPanelUsage && !hasAwgUsage
-      ? <div className="ax-usage-breakdown empty"><Wifi size={14} /><span>مصرف تفکیکی هنوز از پنل‌ها دریافت نشده است.</span></div>
-      : <div className="ax-usage-breakdown">
+     <div className="ax-usage-breakdown-summary">
+       <strong>مصرف ترکیبی این سرویس: {usageLabel(service.usedGb)} از {usageLabel(service.limitGb)}</strong>
+       <small>جمع مصرف Providerها، WireGuard و AmneziaWG؛ هر اشتراک جداگانه محاسبه می‌شود.</small>
+     </div>
+     {!hasPanelUsage && !hasAwgUsage
+       ? <div className="ax-usage-breakdown empty"><Wifi size={14} /><span>مصرف تفکیکی هنوز از پنل‌ها دریافت نشده است؛ مقدار صفر تأیید نشده است.</span></div>
+       : <div className="ax-usage-breakdown">
         <div className="ax-usage-breakdown-title">
-          <span>مصرف تفکیکی اتصال‌ها</span>
-          <small>آخرین همگام‌سازی هر منبع جداست</small>
+           <span>مصرف تفکیکی اتصال‌ها</span>
+           <small>مقادیر هر اتصال در مجموع ترکیبی همین سرویس لحاظ می‌شوند.</small>
         </div>
         {service.panelUsages?.map((usage) => {
           const canRepair = !finished && service.limitGb > service.usedGb &&
@@ -1782,16 +1786,16 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
           const isRepairing = repairingKey === repairKey;
           return <div className="ax-usage-source" key={`${service.id}-${usage.panelKey}`}>
             <div className="ax-usage-source-icon"><Server size={13} /></div>
-            <div className="ax-usage-source-name"><strong>{usage.panelKind === 'azadpanel' ? `${usage.panelKey} · OpenVPN` : usage.panelKey}</strong><small>{usageDate(usage.lastUpdated)}</small></div>
+             <div className="ax-usage-source-name"><strong>{usage.panelKind === 'azadpanel_wireguard' ? `${usage.panelKey} · WireGuard` : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? `${usage.panelKey} · OpenVPN` : usage.panelKey}</strong><small>{usageDate(usage.lastUpdated)}</small></div>
             <div className="ax-usage-source-value">
-              <strong>{usageLabel(usage.usedGb)}</strong>
-              <small>عدد خام: {usageLabel(usage.rawUsedGb)} · پایه مصرف: {usageLabel(usage.offsetGb)}</small>
+               <strong>{usage.lastUpdated ? usageLabel(usage.usedGb) : 'آمار هنوز دریافت نشده'}</strong>
+               <small>{usage.lastUpdated ? `عدد خام: ${usageLabel(usage.rawUsedGb)} · پایه مصرف: ${usageLabel(usage.offsetGb)}` : 'صفر بودن مصرف این اتصال تأیید نشده است.'}</small>
               {canRepair && <button type="button" className="ax-service-provider-repair" onClick={() => void repairProvider(usage.panelKey)} disabled={Boolean(repairingKey)} data-testid={`button-repair-provider-${service.id}-${usage.panelKey}`}>{isRepairing ? <><RefreshCw size={12} className="ax-spin" /> در حال تعمیر...</> : <><RefreshCw size={12} /> تعمیر این Provider</>}</button>}
             </div>
           </div>;
         })}
-        {service.awgUsage
-          ? <div className="ax-usage-source awg"><div className="ax-usage-source-icon"><Wifi size={13} /></div><div className="ax-usage-source-name"><strong>AmneziaWG</strong><small>{service.awgReady ? usageDate(service.awgUsage.lastUpdated) : 'آخرین آمار ذخیره‌شده'}</small></div><div className="ax-usage-source-value"><strong>{usageLabel(service.awgUsage.usedGb)}</strong><small>دریافت: {usageLabel(service.awgUsage.rxGb)} · ارسال: {usageLabel(service.awgUsage.txGb)}</small></div></div>
+         {service.awgUsage
+           ? <div className="ax-usage-source awg"><div className="ax-usage-source-icon"><Wifi size={13} /></div><div className="ax-usage-source-name"><strong>AmneziaWG</strong><small>{service.awgReady ? usageDate(service.awgUsage.lastUpdated) : 'آخرین آمار ذخیره‌شده'}</small></div><div className="ax-usage-source-value"><strong>{service.awgReady && !service.awgUsage.lastUpdated ? 'آمار هنوز دریافت نشده' : usageLabel(service.awgUsage.usedGb)}</strong><small>{service.awgReady && !service.awgUsage.lastUpdated ? 'صفر بودن مصرف تأیید نشده است.' : `دریافت: ${usageLabel(service.awgUsage.rxGb)} · ارسال: ${usageLabel(service.awgUsage.txGb)}`}</small></div></div>
           : service.awgReady && <div className="ax-usage-source awg"><div className="ax-usage-source-icon"><Wifi size={13} /></div><div className="ax-usage-source-name"><strong>AmneziaWG</strong><small>در انتظار اولین همگام‌سازی</small></div><div className="ax-usage-source-value"><strong>۰ گیگابایت</strong><small>آمار هنوز دریافت نشده است</small></div></div>}
       </div>}
   </>;
@@ -1813,7 +1817,7 @@ function ServiceInventoryCard({ service, onNote, onToggle, onRenew }: {
     <td><bdi dir="ltr">{service.panel || 'پنل ثبت‌نشده'}</bdi><small className="ax-sub">ایجاد: {service.createdAt ? dateLabel(service.createdAt) : '—'} · تمدید: {service.lastRenewedAt ? dateLabel(service.lastRenewedAt) : '—'}</small>
       {(service.provisionStatus || service.cancelStatus || service.provisionLastError) && <small className="ax-sub">{service.provisionStatus === 'completed' ? 'ساخت تکمیل‌شده' : service.provisionStatus === 'running' ? 'در حال ساخت' : service.provisionStatus === 'retrying' ? 'تلاش مجدد' : service.provisionStatus === 'pending' ? 'در صف ساخت' : ''}{service.cancelStatus && service.cancelStatus !== 'not_requested' ? ` · لغو ${service.cancelStatus === 'pending' ? 'در انتظار' : service.cancelStatus === 'approved' ? 'تأییدشده' : 'ردشده'}` : ''}</small>}
       {service.provisionLastError && <small className="text-rose-600" role="note">{service.provisionLastError}</small>}
-      {(service.panelUsages?.length || service.awgUsage || service.awgReady) && <details className="ax-service-inventory-usage"><summary>ریز مصرف Provider / AWG</summary><div>{service.panelUsages?.map((usage) => <p key={usage.panelKey}><bdi dir="ltr">{usage.panelKey}{usage.panelKind ? ` · ${usage.panelKind}` : ''}</bdi> · {usageLabel(usage.usedGb)}<small> خام {usageLabel(usage.rawUsedGb)} · مبنا {usageLabel(usage.offsetGb)} · {usageDate(usage.lastUpdated)}</small></p>)}{(service.awgUsage || service.awgReady) && <p>AmneziaWG · {service.awgUsage ? usageLabel(service.awgUsage.usedGb) : 'در انتظار همگام‌سازی'}{service.awgUsage && <small> دریافت {usageLabel(service.awgUsage.rxGb)} · ارسال {usageLabel(service.awgUsage.txGb)} · {usageDate(service.awgUsage.lastUpdated)}</small>}</p>}</div></details>}
+       {(service.panelUsages?.length || service.awgUsage || service.awgReady) && <details className="ax-service-inventory-usage"><summary>ریز مصرف اتصال‌ها · مجموع {usageLabel(service.usedGb)}</summary><div>{service.panelUsages?.map((usage) => <p key={usage.panelKey}><bdi dir="ltr">{usage.panelKey}{usage.panelKind === 'azadpanel_wireguard' ? ' · WireGuard' : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? ' · OpenVPN' : usage.panelKind ? ` · ${usage.panelKind}` : ''}</bdi> · {usage.lastUpdated ? usageLabel(usage.usedGb) : 'آمار هنوز دریافت نشده'}<small>{usage.lastUpdated ? `خام ${usageLabel(usage.rawUsedGb)} · مبنا ${usageLabel(usage.offsetGb)} · ${usageDate(usage.lastUpdated)}` : 'صفر بودن مصرف تأیید نشده است.'}</small></p>)}{(service.awgUsage || service.awgReady) && <p>AmneziaWG · {service.awgUsage && (!service.awgReady || service.awgUsage.lastUpdated) ? usageLabel(service.awgUsage.usedGb) : 'آمار هنوز دریافت نشده'}{service.awgUsage && <small>{service.awgReady && !service.awgUsage.lastUpdated ? 'صفر بودن مصرف تأیید نشده است.' : `دریافت ${usageLabel(service.awgUsage.rxGb)} · ارسال ${usageLabel(service.awgUsage.txGb)} · ${usageDate(service.awgUsage.lastUpdated)}`}</small>}</p>}</div></details>}
       {service.note && <small className="ax-sub">یادداشت: {service.note}</small>}
     </td>
     <td><div className="ax-cell-actions"><button type="button" className="ax-btn is-quiet" onClick={() => onNote(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? 'یادداشت' : 'افزودن یادداشت'}</button><Button variant="quiet" onClick={() => onToggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Disabled' && <Button variant="secondary" onClick={() => onRenew(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={13} /> تمدید</Button>}</div></td>
@@ -2433,7 +2437,7 @@ function CustomerDetailContent() {
   const { id } = useParams<{ id: string }>();
   const { customers, services, sales, openRenewWizard, resetServiceToken, session } = usePulse();
   const numericId = Number((id || '').replace(/\D/g, ''));
-  const customerDetailQuery = useGetCustomer(numericId, { query: { enabled: session?.authenticated === true && Number.isFinite(numericId) && numericId > 0, queryKey: [...getGetCustomerQueryKey(numericId), 'usage-v4'] } });
+   const customerDetailQuery = useGetCustomer(numericId, { query: { enabled: session?.authenticated === true && Number.isFinite(numericId) && numericId > 0, queryKey: [...getGetCustomerQueryKey(numericId), 'usage-v5-wireguard-combined'], staleTime: LIVE_DATA_STALE_MS, refetchInterval: LIVE_DATA_REFRESH_MS, refetchOnReconnect: true, refetchOnWindowFocus: true } });
   const apiDetail = customerDetailQuery.data;
   const apiCustomer = apiDetail ? mapCustomer(apiDetail) : null;
   const customer = apiCustomer ?? customers.find((item) => item.id === id);
@@ -2666,7 +2670,7 @@ function CustomerDetailContent() {
         <SectionPanel className="ax-customer-services-workspace" eyebrow="دسترسی‌ها" title="سرویس‌ها و اشتراک‌ها" description="مصرف، تمدید و لینک اتصال در یک پروندهٔ عملیاتی." action={<Link href="/services" className="ax-btn"><Plus size={14} /> ساخت سرویس</Link>}>
           {(session?.role === 'reseller' || session?.role === 'master_admin') && <div className="ax-customer-profile-quick-actions"><Button variant="secondary" onClick={() => void requestMobileOtp()} disabled={mobileOtpLoading}><KeyRound size={14} />{mobileOtpLoading ? 'در حال ساخت کد...' : mobileOtp ? 'ساخت کد تازه' : 'کد ورود موبایل'}</Button>{allCustomerServices[0] && <Button variant="quiet" onClick={() => void copyTextToClipboard(customerWhatsAppMessage(allCustomerServices[0], Math.max(0, daysUntil(allCustomerServices[0].expiresAt)), { phone: customer?.phone, otp: mobileOtp }))}><Copy size={14} /> کپی پیام واتساپ</Button>}</div>}
           <CustomerServiceControls services={allCustomerServices} tab={serviceTab} issueFilter={serviceIssueFilter} search={serviceSearch} onTabChange={setServiceTab} onIssueFilterChange={setServiceIssueFilter} onSearchChange={setServiceSearch} />
-           {visibleCustomerServices.length ? <div className="ax-table-wrap is-stack"><table className="ax-table ax-customer-service-table" aria-label="اشتراک‌های مشتری"><thead><tr><th>اشتراک</th><th>مصرف</th><th>اعتبار</th><th>جزئیات</th><th>عملیات</th></tr></thead><tbody>{visibleCustomerServices.map((service) => {
+            {visibleCustomerServices.length ? <div className="ax-table-wrap is-stack"><table className="ax-table ax-customer-service-table" aria-label="اشتراک‌های مشتری"><thead><tr><th>اشتراک</th><th>مصرف ترکیبی</th><th>اعتبار</th><th>جزئیات</th><th>عملیات</th></tr></thead><tbody>{visibleCustomerServices.map((service) => {
             const ratio = service.limitGb ? Math.min(100, Math.round(service.usedGb / service.limitGb * 100)) : 0;
             const publicUrl = service.publicSubscriptionUrl ?? service.subscriptionUrl;
             const hasSaleLog = customerSales.some((sale) => sale.serviceId === service.id);
@@ -2676,7 +2680,7 @@ function CustomerDetailContent() {
                <td><strong>{service.plan}</strong><small className="ax-sub" dir="ltr">@{service.username} · {serviceDisplayCode(service)}</small><StatusPill value={service.status} /></td>
                <td><strong>{service.usedGb} / {service.limitGb} GB</strong><small className="ax-sub">{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</small><span className="ax-service-inventory-meter" role="progressbar" aria-label={`مصرف ${service.plan}`} aria-valuenow={ratio} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${ratio}%` }} /></span></td>
                <td><strong>{dateLabel(service.expiresAt)}</strong><small className="ax-sub">{Math.max(0, daysUntil(service.expiresAt))} روز مانده</small></td>
-               <td><details><summary>مصرف Provider / AWG</summary><ServiceUsageBreakdown service={service} />{requestStatusItems.length > 0 && <p className="ax-customer-request-status">{requestStatusItems.map(([label, status]) => <span key={label}>{label}: {status === 'pending' ? 'در انتظار بررسی' : status === 'approved' ? 'تأیید شد' : status === 'rejected' ? 'رد شد' : 'ثبت نشده'}</span>)} <Link href="/action-requests">پیگیری</Link></p>}</details></td>
+                <td><details><summary>ریز مصرف اتصال‌ها · مجموع {usageLabel(service.usedGb)} / {usageLabel(service.limitGb)}</summary><ServiceUsageBreakdown service={service} />{requestStatusItems.length > 0 && <p className="ax-customer-request-status">{requestStatusItems.map(([label, status]) => <span key={label}>{label}: {status === 'pending' ? 'در انتظار بررسی' : status === 'approved' ? 'تأیید شد' : status === 'rejected' ? 'رد شد' : 'ثبت نشده'}</span>)} <Link href="/action-requests">پیگیری</Link></p>}</details></td>
                <td><div className="ax-cell-actions">
                  {service.subscriptionUrl && <><button className="ax-btn" type="button" onClick={() => void copyTextToClipboard(publicUrl || service.subscriptionUrl || '')}><Copy size={13} /> کپی لینک</button><a className="ax-btn is-primary" href={v2boxUrl(service)} target="_blank" rel="noreferrer"><ExternalLink size={13} /> V2Box</a><details><summary>QR</summary><SubscriptionQr url={publicUrl || service.subscriptionUrl} /></details></>}
                  {service.awgReady && service.awgConfigUrl ? <a className="ax-btn" href={service.awgConfigUrl} download><Download size={13} /> AWG</a> : <span className="ax-badge is-quiet">AWG آماده نیست</span>}

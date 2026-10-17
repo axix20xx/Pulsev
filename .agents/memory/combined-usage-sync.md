@@ -50,3 +50,9 @@ Usage attribution requires identity isolation at every cache layer, including en
 **Why:** Reusing an identity-bearing endpoint across clients copied one client's readings to other services. Successful HTTP responses therefore do not by themselves prove the reading belongs to the selected service.
 
 **How to apply:** Keep shared discovery information identity-free and rebuild requests for the selected client. Verify this offline with distinct clients, including a zero-usage first client. Treat null, blank, boolean, or incomplete counter pairs as invalid rather than authoritative zeroes.
+
+WireGuard usage and lifecycle calls must resolve the service's saved encrypted delivery and target only its recorded provider key and provider-side username.
+
+**Why:** AzadPanel WireGuard uses a separate account identity; querying the customer username can return a 403 or attribute another reseller's account.
+
+**How to apply:** Never broadcast a WireGuard username across configured WireGuard panels. If delivery identity or its enabled provider is unavailable, mark the usage snapshot stale, preserve the combined total, and leave remote disable pending rather than treating it as complete. Use the same provider key and username for usage reads and disable requests.
