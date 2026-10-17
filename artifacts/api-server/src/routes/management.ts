@@ -115,6 +115,7 @@ import {
   createWireGuardMobileConfig,
   createWireGuardMobileConfigBundle,
 } from "../lib/wireguard-mobileconfig";
+import { publicWireGuardDeliveryLinks } from "../lib/wireguard-delivery-links";
 import { getAwgUsageWorkerLog, recordAwgUsagePollEvent } from "../lib/awg-usage-poll";
 import {
   ensureStorefrontSchema,
@@ -1609,15 +1610,9 @@ async function loadSavedWireGuardDelivery(serviceId: number): Promise<WireGuardD
 }
 
 function publicWireGuardDelivery(token: string, delivery: WireGuardDelivery) {
-  const providerPath = `/api/public/subscription/${encodeURIComponent(token)}/wireguard`;
   return {
     ...delivery,
-    bundle_url: `${providerPath}/bundle/${encodeURIComponent(delivery.provider_key)}`,
-    locations: delivery.locations.map((location) => ({
-      ...location,
-      config_url: `${providerPath}/config/${encodeURIComponent(delivery.provider_key)}/${encodeURIComponent(location.id)}`,
-      mobileconfig_url: `${providerPath}/mobileconfig/${encodeURIComponent(delivery.provider_key)}/${encodeURIComponent(location.id)}`,
-    })),
+    ...publicWireGuardDeliveryLinks(token, delivery.provider_key, delivery.locations),
   };
 }
 

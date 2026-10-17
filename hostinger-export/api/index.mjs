@@ -68813,6 +68813,21 @@ function createWireGuardMobileConfig(config3, serviceId, hostId, locationName) {
   );
 }
 
+// src/lib/wireguard-delivery-links.ts
+function publicWireGuardDeliveryLinks(token, providerKey, locations) {
+  const providerPath = `/api/public/subscription/${encodeURIComponent(token)}/wireguard`;
+  const encodedProvider = encodeURIComponent(providerKey);
+  return {
+    bundle_url: `${providerPath}/bundle/${encodedProvider}`,
+    bundle_mobileconfig_url: `${providerPath}/mobileconfig/${encodedProvider}`,
+    locations: locations.map((location) => ({
+      ...location,
+      config_url: `${providerPath}/config/${encodedProvider}/${encodeURIComponent(location.id)}`,
+      mobileconfig_url: `${providerPath}/mobileconfig/${encodedProvider}/${encodeURIComponent(location.id)}`
+    }))
+  };
+}
+
 // src/lib/awg-usage-poll.ts
 var AWG_USAGE_POLL_INTERVAL_MS = 5 * 6e4;
 var AWG_USAGE_POLL_START_DELAY_MS = 5e3;
@@ -71004,15 +71019,9 @@ async function loadSavedWireGuardDelivery(serviceId) {
   return parsed;
 }
 function publicWireGuardDelivery(token, delivery) {
-  const providerPath = `/api/public/subscription/${encodeURIComponent(token)}/wireguard`;
   return {
     ...delivery,
-    bundle_url: `${providerPath}/bundle/${encodeURIComponent(delivery.provider_key)}`,
-    locations: delivery.locations.map((location) => ({
-      ...location,
-      config_url: `${providerPath}/config/${encodeURIComponent(delivery.provider_key)}/${encodeURIComponent(location.id)}`,
-      mobileconfig_url: `${providerPath}/mobileconfig/${encodeURIComponent(delivery.provider_key)}/${encodeURIComponent(location.id)}`
-    }))
+    ...publicWireGuardDeliveryLinks(token, delivery.provider_key, delivery.locations)
   };
 }
 router2.get("/public/subscription/:token/openvpn", async (req, res) => {
