@@ -82,6 +82,21 @@ test("OpenVPN profile paths and unsupported local directives are rejected instea
   ], 126), /cannot be represented safely/);
 });
 
+test("OpenVPN TLS Crypt v2 inline key material is kept inside the app configuration", async () => {
+  const { createMultiProtocolMobileConfigBundle } = await loadProfileBuilder();
+  const profile = createMultiProtocolMobileConfigBundle([
+    {
+      protocol: "openvpn",
+      config: `${openVpnConfig}<tls-crypt-v2>\n-----BEGIN OpenVPN tls-crypt-v2 client key-----\nopaque-key-material\n-----END OpenVPN tls-crypt-v2 client key-----\n</tls-crypt-v2>\n`,
+      serverId: "azad-openvpn",
+      serverName: "OpenVPN",
+    },
+  ], 128);
+
+  assert.match(profile, /<key>tls-crypt-v2<\/key><string>-----BEGIN OpenVPN tls-crypt-v2 client key-----\\nopaque-key-material\\n-----END OpenVPN tls-crypt-v2 client key-----<\/string>/);
+  assert.doesNotMatch(profile, /invalid directive/i);
+});
+
 test("combined profiles reject duplicate server identities and invalid tunnel configs", async () => {
   const { createMultiProtocolMobileConfigBundle } = await loadProfileBuilder();
   assert.throws(() => createMultiProtocolMobileConfigBundle([

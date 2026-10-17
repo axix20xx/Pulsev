@@ -1402,3 +1402,17 @@ mtime_ms = 1792243660276
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/47c5f036-0eab-46cb-9e09-c8e73d6d7b27/322b7415-85e9-4745-bd83-2570ed8e85f8"
 storage_version_token = "1792243725770599"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Mw7s8KZu_ZkxkCn6ZflCF"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T13-34-33-496Z.zip"
+type = "unspecified"
+title = "Updated Hostinger migration ZIP"
+description = "Full Hostinger migration package updated to accept the uploaded OpenVPN profile’s inline TLS-Crypt-v2 block."
+logical_id = "1c212602-7548-49cd-be81-e5394cebea36"
+content_hash = "sha256:5a0919afbd0e807d41a5d3f07abb7172913da44d0071c3785c71a789200f5c48"
+size = 28798535
+mtime_ms = 1792244190919
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1c212602-7548-49cd-be81-e5394cebea36/f8d9c88f-2ff2-4e31-a8a7-ae7abed82904"
+storage_version_token = "1792244230287294"
+content_type = "application/octet-stream"

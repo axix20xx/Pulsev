@@ -62,7 +62,7 @@ function parseOpenVpnVendorConfig(profile: string): Map<string, string> {
       continue;
     }
     if (line.startsWith("#") || line.startsWith(";")) continue;
-    const openTag = line.match(/^<(ca|cert|key|tls-auth|tls-crypt|dh)>$/i);
+    const openTag = line.match(/^<(ca|cert|key|tls-auth|tls-crypt|tls-crypt-v2|dh)>$/i);
     if (openTag) {
       inlineTag = openTag[1].toLowerCase();
       inlineValue = [];
@@ -74,7 +74,7 @@ function parseOpenVpnVendorConfig(profile: string): Map<string, string> {
       }
       throw new Error("OpenVPN auth blocks cannot be converted to a mobileconfig.");
     }
-    if (/^<(?:ca|cert|key|tls-auth|tls-crypt|dh|connection|auth-user-pass)>/i.test(line)) {
+    if (/^<(?:ca|cert|key|tls-auth|tls-crypt|tls-crypt-v2|dh|connection|auth-user-pass)>/i.test(line)) {
       throw new Error("OpenVPN profile contains an unsupported or malformed inline block.");
     }
 
@@ -86,7 +86,7 @@ function parseOpenVpnVendorConfig(profile: string): Map<string, string> {
     if (["config", "cd", "chroot", "daemon", "group", "log", "log-append", "management", "plugin", "script-security", "status", "user", "writepid", "up", "down", "route-up", "route-pre-down"].includes(name)) {
       throw new Error(`OpenVPN directive "${name}" cannot be represented safely in an iOS profile.`);
     }
-    if (["ca", "cert", "key", "tls-auth", "tls-crypt", "dh", "pkcs12"].includes(name)) {
+    if (["ca", "cert", "key", "tls-auth", "tls-crypt", "tls-crypt-v2", "dh", "pkcs12"].includes(name)) {
       if (value) {
         throw new Error(`OpenVPN directive "${name}" must contain inline data for iOS import.`);
       }
