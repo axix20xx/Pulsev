@@ -1458,3 +1458,17 @@ mtime_ms = 1792248954119
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/78c17295-54cd-4833-8fbb-8799f0ad5a92/4bae9b84-50ab-40bb-b778-13086ea02339"
 storage_version_token = "1792249022925923"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "HZFJjuI05Pw2VhIiHlUS2"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T15-06-15-320Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP"
+description = "Full Hostinger release including the customer-profile IPsec usage breakdown and combined provider usage fix."
+logical_id = "9ded8c27-dddc-4c1f-b0f3-3d2d42a3cb9e"
+content_hash = "sha256:02859be7063dc291f9653afe51ee3ba23857bf5e359214d967d2fd6bb821c787"
+size = 29021708
+mtime_ms = 1792249696438
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/9ded8c27-dddc-4c1f-b0f3-3d2d42a3cb9e/8a567923-4d30-4973-8fe1-a97c005cd659"
+storage_version_token = "1792249721346803"
+content_type = "application/octet-stream"
