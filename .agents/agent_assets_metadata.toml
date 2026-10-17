@@ -1416,3 +1416,17 @@ mtime_ms = 1792244190919
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1c212602-7548-49cd-be81-e5394cebea36/f8d9c88f-2ff2-4e31-a8a7-ae7abed82904"
 storage_version_token = "1792244230287294"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "CZmYoAHwSnCzZetKVRwpe"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T14-25-13-376Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP"
+description = "Validated full Hostinger release with the latest API, admin/mobile/subscription bundles, and AzadPanel IPsec support."
+logical_id = "f1328bc7-0bb0-443c-8cd6-5960d313076f"
+content_hash = "sha256:a5a96bb1931c2370fb4a2c82328136ee6c7b017996dbb73150ba81d1c88a1987"
+size = 29020773
+mtime_ms = 1792247235568
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f1328bc7-0bb0-443c-8cd6-5960d313076f/5c3718cb-fb18-41c4-b045-cf3271ed9530"
+storage_version_token = "1792247268811477"
+content_type = "application/octet-stream"
