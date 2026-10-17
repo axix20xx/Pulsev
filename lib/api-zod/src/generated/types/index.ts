@@ -107,5 +107,8 @@ export * from './telegramRecipientRevocation';
 export * from './telegramRecipientRole';
 export * from './telegramSettingsInput';
 export * from './toDateParameter';
+export * from './wireGuardDelivery';
+export * from './wireGuardDeliveryCore';
+export * from './wireGuardLocation';
 export * from './workspaceSearchResult';
 export * from './workspaceSearchResultKind';

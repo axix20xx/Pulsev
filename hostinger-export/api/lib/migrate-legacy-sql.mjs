@@ -23573,6 +23573,7 @@ var resellersTable = pgTable("resellers", {
   totalGb: numeric("total_gb", { precision: 10, scale: 2 }).notNull(),
   usedGb: numeric("used_gb", { precision: 10, scale: 2 }).notNull(),
   isEnabled: smallint("is_enabled").notNull(),
+  wireguardEnabled: smallint("wireguard_enabled").notNull().default(0),
   perGigPrice: integer("per_gig_price"),
   customerPricePerGb: numeric("customer_price_per_gb", { precision: 14, scale: 2 }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),

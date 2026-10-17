@@ -312,7 +312,7 @@ async function request(
   path: string,
   token: string,
   body?: unknown,
-): Promise<{ status: number; json: any; text: string }> {
+): Promise<{ status: number; json: any; text: string; contentDisposition: string | null }> {
   const response = await fetch(`${panel.api_base}${path}`, {
     method,
     headers: {
@@ -330,7 +330,12 @@ async function request(
   } catch {
     json = null;
   }
-  return { status: response.status, json, text };
+  return {
+    status: response.status,
+    json,
+    text,
+    contentDisposition: response.headers.get("content-disposition"),
+  };
 }
 
 async function tokenFor(panel: Panel, forceRefresh = false): Promise<string> {
@@ -550,7 +555,7 @@ async function panelRequest(
   method: string,
   path: string,
   body?: unknown,
-): Promise<{ status: number; json: any; text: string }> {
+): Promise<{ status: number; json: any; text: string; contentDisposition: string | null }> {
   let token = await tokenFor(panel);
   let response = await request(panel, method, path, token, body);
   if (response.status === 401 || response.status === 403) {
@@ -1438,6 +1443,208 @@ export async function downloadOpenVpnProfile(
     throw new RainApiError(`AzadPanel ${providerKey} could not download the OpenVPN profile: ${safeError(response)}`);
   }
   return { body: response.text, contentType: "text/plain; charset=utf-8" };
+}
+
+export type WireGuardLocation = {
+  id: string;
+  name: string;
+};
+
+export type WireGuardDelivery = {
+  provider_key: string;
+  username: string;
+  core: "wireguard";
+  locations: WireGuardLocation[];
+};
+
+function azadPanelWireGuardEndpoints(value: any): any[] {
+  const payload = value?.data ?? value;
+  return Array.isArray(payload?.endpoints) ? payload.endpoints : [];
+}
+
+function wireGuardLocationId(endpoint: any): string {
+  const id = endpoint?.id ?? endpoint?.host_id;
+  return id === null || id === undefined ? "" : String(id).trim();
+}
+
+async function findAzadPanelCore(
+  expectedCore: "wireguard",
+  ownerId?: number,
+  role?: string,
+  requestedPanelKey?: string,
+): Promise<Panel> {
+  const candidates = (await panels(ownerId, role))
+    .filter((panel) => panelKind(panel) === "azadpanel")
+    .filter((panel) => !requestedPanelKey || panelKey(panel) === requestedPanelKey);
+  let lastError: unknown = null;
+  for (const panel of candidates) {
+    try {
+      if (await azadPanelCore(panel) === expectedCore) return panel;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastError) throw lastError;
+  throw new RainApiError(`No enabled AzadPanel ${expectedCore === "wireguard" ? "WireGuard" : expectedCore} provider is configured.`);
+}
+
+async function listWireGuardEndpoints(panel: Panel, username: string): Promise<any[]> {
+  let response: Awaited<ReturnType<typeof panelRequest>> | null = null;
+  for (const delayMs of [0, 1_000, 2_000, 4_000, 8_000]) {
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    response = await panelRequest(panel, "GET", `/api/wg/user/${encodeURIComponent(username)}/configs`);
+    if (response.status !== 503) break;
+  }
+  if (!response) throw new RainApiError(`AzadPanel ${panelKey(panel)} did not return WireGuard locations.`);
+  if (response.status < 200 || response.status >= 300) {
+    throw new RainApiError(
+      `AzadPanel ${panelKey(panel)} could not read WireGuard locations: ${safeError(response)}`,
+    );
+  }
+  return azadPanelWireGuardEndpoints(response.json);
+}
+
+export async function prepareWireGuardAccount(
+  username: string,
+  gb: number,
+  expiresAt: Date,
+  ownerId?: number,
+  role?: string,
+  requestedPanelKey?: string,
+): Promise<WireGuardDelivery> {
+  const panel = await findAzadPanelCore("wireguard", ownerId, role, requestedPanelKey);
+  const encoded = encodeURIComponent(username);
+  let existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (existing.status === 404) {
+    const created = await panelRequest(
+      panel,
+      "POST",
+      "/api/user",
+      azadPanelUserBody(username, gb, expiresAt),
+    );
+    if (created.status < 200 || created.status >= 300) {
+      if (created.status !== 409) {
+        throw new RainApiError(
+          `AzadPanel ${panelKey(panel)} could not create the WireGuard account: ${safeError(created)}`,
+        );
+      }
+      existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+      if (existing.status !== 200) {
+        throw new RainApiError(
+          `AzadPanel ${panelKey(panel)} could not confirm the WireGuard account: ${safeError(existing)}`,
+        );
+      }
+    }
+  } else if (existing.status !== 200) {
+    throw new RainApiError(
+      `AzadPanel ${panelKey(panel)} could not check the WireGuard account: ${safeError(existing)}`,
+    );
+  }
+
+  const endpointData = await listWireGuardEndpoints(panel, username);
+  const locations = endpointData.flatMap(
+    (endpoint: any): WireGuardLocation[] => {
+      const id = wireGuardLocationId(endpoint);
+      if (!id) return [];
+      const name = typeof endpoint?.name === "string" && endpoint.name.trim()
+        ? endpoint.name.trim().slice(0, 120)
+        : `Location ${id}`;
+      return [{ id, name }];
+    },
+  );
+  if (!locations.length) {
+    throw new RainApiError(`AzadPanel ${panelKey(panel)} returned no ready WireGuard locations.`);
+  }
+  return {
+    provider_key: panelKey(panel),
+    username,
+    core: "wireguard",
+    locations,
+  };
+}
+
+async function findWireGuardProvider(
+  providerKey: string,
+  ownerId?: number,
+  role?: string,
+): Promise<Panel> {
+  const panel = (await panels(ownerId, role)).find(
+    (candidate) => panelKey(candidate) === providerKey && panelKind(candidate) === "azadpanel",
+  );
+  if (!panel) throw new RainApiError("The selected AzadPanel WireGuard provider is unavailable.");
+  if (await azadPanelCore(panel) !== "wireguard") {
+    throw new RainApiError(`AzadPanel ${providerKey} is not configured for WireGuard.`);
+  }
+  return panel;
+}
+
+export async function downloadWireGuardProfile(
+  username: string,
+  providerKey: string,
+  hostId: string,
+  ownerId?: number,
+  role?: string,
+): Promise<{ body: string; contentType: string; contentDisposition: string | null }> {
+  const panel = await findWireGuardProvider(providerKey, ownerId, role);
+  const endpoints = await listWireGuardEndpoints(panel, username);
+  const endpoint = endpoints.find((candidate) => wireGuardLocationId(candidate) === hostId);
+  if (!endpoint || typeof endpoint.config_url !== "string") {
+    throw new RainApiError("The requested WireGuard location is not available for this account.");
+  }
+  let configUrl: URL;
+  try {
+    configUrl = new URL(endpoint.config_url, panel.api_base);
+  } catch {
+    throw new RainApiError("AzadPanel returned an invalid WireGuard configuration path.");
+  }
+  const panelOrigin = new URL(panel.api_base).origin;
+  const expectedPath = `/api/wg/user/${encodeURIComponent(username)}/config`;
+  if (
+    configUrl.origin !== panelOrigin ||
+    configUrl.pathname !== expectedPath ||
+    configUrl.searchParams.get("host") !== hostId
+  ) {
+    throw new RainApiError("AzadPanel returned an unsafe WireGuard configuration path.");
+  }
+  const response = await panelRequest(
+    panel,
+    "GET",
+    `${configUrl.pathname}${configUrl.search}`,
+  );
+  if (response.status < 200 || response.status >= 300 || !response.text.trim()) {
+    throw new RainApiError(
+      `AzadPanel ${providerKey} could not download the WireGuard profile: ${safeError(response)}`,
+    );
+  }
+  return {
+    body: response.text,
+    contentType: "text/plain; charset=utf-8",
+    contentDisposition: response.contentDisposition,
+  };
+}
+
+export async function downloadWireGuardBundle(
+  username: string,
+  providerKey: string,
+  ownerId?: number,
+  role?: string,
+): Promise<{ body: string; contentType: string; contentDisposition: string | null }> {
+  const panel = await findWireGuardProvider(providerKey, ownerId, role);
+  const response = await panelRequest(
+    panel,
+    "GET",
+    `/api/wg/user/${encodeURIComponent(username)}/bundle`,
+  );
+  if (response.status < 200 || response.status >= 300 || !response.text.trim()) {
+    throw new RainApiError(
+      `AzadPanel ${providerKey} could not download the WireGuard bundle: ${safeError(response)}`,
+    );
+  }
+  return {
+    body: response.text,
+    contentType: "text/plain; charset=utf-8",
+    contentDisposition: response.contentDisposition,
+  };
 }
 
 export function createServiceUsername(customerId: number): string {

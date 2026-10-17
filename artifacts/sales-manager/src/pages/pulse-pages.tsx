@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 type Prefs = { businessName: string; currency: string; reminderDays: string; compact: boolean };
 type PulseContextValue = {
   sales: Sale[]; services: Service[]; customers: Customer[]; servicesLoading: boolean; servicesError: string | null; refreshServices: () => Promise<void>; prefs: Prefs; session: { authenticated?: boolean; role?: string; telegram_id?: number | null; reseller_id?: number | null; display_name?: string | null; customer_price_per_gb?: number | null } | null;
-  sessionLoading: boolean; authFallback: boolean; dashboard: any | null; dashboardLoading: boolean; dashboardError: string | null; refreshDashboard: () => Promise<void>; resellers: { id: number; telegram_id: number; title?: string | null; enabled: boolean; used_gb: number; total_gb: number; per_gig_price?: number; customer_price_per_gb?: number }[];
+  sessionLoading: boolean; authFallback: boolean; dashboard: any | null; dashboardLoading: boolean; dashboardError: string | null; refreshDashboard: () => Promise<void>; resellers: { id: number; telegram_id: number; title?: string | null; enabled: boolean; wireguard_enabled: boolean; used_gb: number; total_gb: number; per_gig_price?: number; customer_price_per_gb?: number }[];
   addSale: (sale: Sale) => void; updateSale: (sale: Sale) => Promise<void>; createService: (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean; storefront_lead_id?: number | null }) => Promise<Service>; updateService: (service: Service) => void; renewService: (service: Service, days?: number, gb?: number, sellPrice?: number | null, isPaid?: boolean, requestId?: string) => Promise<Service>; openRenewWizard: (service: Service) => void; resetServiceToken: (service: Service) => Promise<string>; setPrefs: (prefs: Prefs) => void; updateReseller: (id: number, enabled: boolean) => void;
 };
 const PulseContext = createContext<PulseContextValue | null>(null);
@@ -269,7 +269,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const customers = useMemo(() => canLoadApi ? apiCustomers ?? [] : [], [apiCustomers, canLoadApi]);
   const displaySession = sessionQuery.data ?? null;
   const authFallback = sessionQuery.isError;
-  const resellers = Array.isArray(resellerQuery.data) ? resellerQuery.data.map((r: any) => ({ id: r.id, telegram_id: Number(r.telegram_id), title: r.title, enabled: r.enabled, used_gb: r.used_gb, total_gb: r.total_gb, per_gig_price: Number(r.per_gig_price ?? 0), customer_price_per_gb: Number(r.customer_price_per_gb ?? 0) })) : localResellers;
+  const resellers = Array.isArray(resellerQuery.data) ? resellerQuery.data.map((r: any) => ({ id: r.id, telegram_id: Number(r.telegram_id), title: r.title, enabled: r.enabled, wireguard_enabled: Boolean(r.wireguard_enabled), used_gb: r.used_gb, total_gb: r.total_gb, per_gig_price: Number(r.per_gig_price ?? 0), customer_price_per_gb: Number(r.customer_price_per_gb ?? 0) })) : localResellers;
   const updateSale = async (sale: Sale) => {
     setSales((items) => items.map((item) => item.id === sale.id ? sale : item));
     const id = Number(sale.id.replace(/\D/g, ''));
@@ -2980,6 +2980,10 @@ function PublicSubscriptionContentV2() {
   const [openVpnData, setOpenVpnData] = useState<any>(null);
   const [openVpnError, setOpenVpnError] = useState('');
   const [openVpnCopied, setOpenVpnCopied] = useState<'server' | 'username' | 'password' | null>(null);
+  const [wireguardBusy, setWireguardBusy] = useState(false);
+  const [wireguardLoading, setWireguardLoading] = useState(false);
+  const [wireguardData, setWireguardData] = useState<any>(null);
+  const [wireguardError, setWireguardError] = useState('');
 
   useEffect(() => {
     const detected = detectClientOS();
@@ -3056,6 +3060,35 @@ function PublicSubscriptionContentV2() {
       });
     return () => { active = false; };
   }, [token, finished]);
+  useEffect(() => {
+    if (!token || finished || data?.wireguard_available !== true) {
+      setWireguardData(null);
+      setWireguardError('');
+      setWireguardLoading(false);
+      return;
+    }
+    let active = true;
+    setWireguardLoading(true);
+    void fetch(`/api/public/subscription/${encodeURIComponent(token)}/wireguard`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (response.status === 404 || response.status === 410) return null;
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.error || 'اطلاعات کانفیگ WireGuard دریافت نشد.');
+        return result;
+      })
+      .then((result) => {
+        if (!active) return;
+        setWireguardData(result);
+        setWireguardError('');
+      })
+      .catch((cause) => {
+        if (active) setWireguardError(cause instanceof Error ? cause.message : 'اطلاعات WireGuard دریافت نشد.');
+      })
+      .finally(() => {
+        if (active) setWireguardLoading(false);
+      });
+    return () => { active = false; };
+  }, [token, finished, data?.wireguard_available]);
   const number = (value: number, maximumFractionDigits = 1) => new Intl.NumberFormat('fa-IR', { maximumFractionDigits }).format(value);
   const flashCopy = (kind: 'page' | 'feed' | 'awg') => {
     setCopied(kind);
@@ -3093,6 +3126,24 @@ function PublicSubscriptionContentV2() {
       setOpenVpnError(cause instanceof Error ? cause.message : 'ساخت حساب OpenVPN ناموفق بود.');
     } finally {
       setOpenVpnBusy(false);
+    }
+  };
+  const prepareWireGuard = async () => {
+    if (!token || wireguardBusy || finished || data?.wireguard_available !== true) return;
+    setWireguardBusy(true);
+    setWireguardError('');
+    try {
+      const response = await fetch(`/api/public/subscription/${encodeURIComponent(token)}/wireguard`, {
+        method: 'POST',
+        cache: 'no-store',
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || 'کانفیگ WireGuard دریافت نشد.');
+      setWireguardData(result);
+    } catch (cause) {
+      setWireguardError(cause instanceof Error ? cause.message : 'ساخت کانفیگ WireGuard ناموفق بود.');
+    } finally {
+      setWireguardBusy(false);
     }
   };
   const copyOpenVpnValue = async (value: string, kind: 'server' | 'username' | 'password') => {
@@ -3187,6 +3238,11 @@ function PublicSubscriptionContentV2() {
         openVpnBundleImportHref={openVpnBundleImportHref}
         prepareOpenVpn={prepareOpenVpn}
         copyOpenVpnValue={copyOpenVpnValue}
+        wireguardLoading={wireguardLoading}
+        wireguardBusy={wireguardBusy}
+        wireguardData={wireguardData}
+        wireguardError={wireguardError}
+        prepareWireGuard={prepareWireGuard}
         copied={copied}
         copyUrl={copyUrl}
         copyAwg={copyAwg}
@@ -3290,12 +3346,12 @@ function SettingsConsole() {
         <SectionPanel className="ax-settings-section" id="settings-display" eyebrow="چیدمان عملیاتی" title="نمایش و تراکم اطلاعات" description="تنظیم نحوهٔ نمایش فهرست‌ها در فضای کاری شما." action={<span className="ax-kpi-icon sage"><Sparkles size={17} /></span>}>
           <div className="ax-preference-row"><div><p className="font-bold">ردیف‌های فشرده</p><p className="text-xs text-muted-foreground">اطلاعات بیشتری در صفحه فروش ببینید.</p></div><button className={`ax-toggle ${draft.compact ? 'on' : ''}`} onClick={() => setDraft({ ...draft, compact: !draft.compact })} aria-pressed={draft.compact}><span /></button></div>
         </SectionPanel>
-        {session?.role === 'master_admin' && <SectionPanel className="ax-settings-section" id="settings-resellers" eyebrow="دسترسی و ظرفیت" title="مدیریت فروشندگان" description="دسترسی و مصرف هر فروشنده را کنترل کنید." action={<span className="ax-kpi-icon sage"><Settings2 size={17} /></span>}>
-          {resellers.length ? <div className="ax-records mt-5">{resellers.map((reseller) => <div className="ax-settings-reseller-row" key={reseller.id}><Avatar name={reseller.title || `فروشنده ${reseller.id}`} color="sage" /><div className="min-w-0 flex-1"><p className="text-sm font-bold">{reseller.title || `فروشنده ${reseller.id}`}</p><p className="text-xs text-muted-foreground">{new Intl.NumberFormat('fa-IR').format(reseller.used_gb)} از {new Intl.NumberFormat('fa-IR').format(reseller.total_gb)} گیگ مصرف</p></div><span className={`ax-settings-reseller-state ${reseller.enabled ? 'enabled' : ''}`}>{reseller.enabled ? 'فعال' : 'غیرفعال'}</span><button className={`ax-toggle ${reseller.enabled ? 'on' : ''}`} onClick={() => updateReseller(reseller.id, !reseller.enabled)} aria-label={`تغییر دسترسی ${reseller.title || reseller.id}`} aria-pressed={reseller.enabled}><span /></button></div>)}</div> : <EmptyState title="فروشنده‌ای در فهرست نیست" detail="وضعیت فروشندگان پس از دریافت داده‌های حساب نمایش داده می‌شود." />}
+        {session?.role === 'master_admin' && <SectionPanel className="ax-settings-section" id="settings-resellers" eyebrow="دسترسی و ظرفیت" title="مدیریت فروشندگان" description="دسترسی فروشنده و فعال‌سازی جداگانهٔ WireGuard را برای هر حساب مدیریت کنید." action={<span className="ax-kpi-icon sage"><Settings2 size={17} /></span>}>
+          {resellers.length ? <div className="ax-records mt-5">{resellers.map((reseller) => <div className="ax-settings-reseller-row" key={reseller.id}><Avatar name={reseller.title || `فروشنده ${reseller.id}`} color="sage" /><div className="min-w-0 flex-1"><p className="text-sm font-bold">{reseller.title || `فروشنده ${reseller.id}`}</p><p className="text-xs text-muted-foreground">{new Intl.NumberFormat('fa-IR').format(reseller.used_gb)} از {new Intl.NumberFormat('fa-IR').format(reseller.total_gb)} گیگ مصرف</p><ResellerWireGuardAccess reseller={reseller} /></div><span className={`ax-settings-reseller-state ${reseller.enabled ? 'enabled' : ''}`}>{reseller.enabled ? 'فعال' : 'غیرفعال'}</span><button className={`ax-toggle ${reseller.enabled ? 'on' : ''}`} onClick={() => updateReseller(reseller.id, !reseller.enabled)} aria-label={`تغییر دسترسی ${reseller.title || reseller.id}`} aria-pressed={reseller.enabled}><span /></button></div>)}</div> : <EmptyState title="فروشنده‌ای در فهرست نیست" detail="وضعیت فروشندگان پس از دریافت داده‌های حساب نمایش داده می‌شود." />}
         </SectionPanel>}
         {session?.role === 'master_admin' && <>
           <section className="ax-settings-provider-group" id="settings-panels" aria-labelledby="settings-panels-heading">
-            <header className="ax-settings-provider-heading"><div><p className="ax-eyebrow">دسترسی مدیریتی</p><h2 id="settings-panels-heading">اتصال و مدیریت Providerها</h2><p>وضعیت اتصال، مشخصات پنل و credentialهای پیکربندی‌شده را مدیریت کنید.</p></div><Server size={19} /></header>
+             <header className="ax-settings-provider-heading"><div><p className="ax-eyebrow">دسترسی مدیریتی</p><h2 id="settings-panels-heading">اتصال و مدیریت Providerها</h2><p>برای WireGuard، یک اتصال مستقل AzadPanel با هستهٔ WireGuard و نام کاربری/رمز جداگانه اضافه کنید؛ اتصال OpenVPN برای این کار استفاده نمی‌شود.</p></div><Server size={19} /></header>
             <PanelAssignments resellers={resellers} />
           </section>
           <div id="settings-pricing" className="ax-settings-pricing-anchor"><AdminPricing resellers={resellers} /></div>
@@ -3304,6 +3360,46 @@ function SettingsConsole() {
     </div>
     {saved && <div className="ax-save-toast" role="status"><Check size={15} /> تغییرات ذخیره شد</div>}
   </>;
+}
+
+function ResellerWireGuardAccess({ reseller }: { reseller: PulseContextValue['resellers'][number] }) {
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const toggle = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/resellers/${reseller.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          enabled: reseller.enabled,
+          wireguard_enabled: !reseller.wireguard_enabled,
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || 'ذخیره دسترسی WireGuard ناموفق بود.');
+      }
+      await queryClient.invalidateQueries({ queryKey: getListResellersQueryKey() });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ذخیره دسترسی WireGuard ناموفق بود.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-200/70 pt-2">
+    <div className="min-w-0">
+      <p className="text-xs font-semibold">دسترسی WireGuard</p>
+      <p className="text-[11px] text-muted-foreground">{error || (reseller.wireguard_enabled ? 'برای اشتراک‌های این فروشنده فعال است' : 'برای این فروشنده غیرفعال است')}</p>
+    </div>
+    <button type="button" className={`ax-toggle ${reseller.wireguard_enabled ? 'on' : ''}`} onClick={() => void toggle()} disabled={saving} aria-label={`${reseller.wireguard_enabled ? 'غیرفعال‌سازی' : 'فعال‌سازی'} WireGuard برای ${reseller.title || reseller.id}`} aria-pressed={reseller.wireguard_enabled}>
+      <span />
+    </button>
+  </div>;
 }
 
 function AdminPricing({ resellers }: { resellers: PulseContextValue['resellers'] }) {

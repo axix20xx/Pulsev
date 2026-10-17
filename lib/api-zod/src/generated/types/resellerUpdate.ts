@@ -12,4 +12,5 @@ export interface ResellerUpdate {
   per_gig_price?: number;
   /** @minimum 0 */
   customer_price_per_gb?: number;
+  wireguard_enabled?: boolean;
 }

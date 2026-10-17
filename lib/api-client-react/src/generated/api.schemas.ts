@@ -971,6 +971,7 @@ export interface Reseller {
   /** @minimum 0 */
   customer_price_per_gb: number;
   enabled: boolean;
+  wireguard_enabled: boolean;
   created_at: string;
 }
 
@@ -980,6 +981,28 @@ export interface ResellerUpdate {
   per_gig_price?: number;
   /** @minimum 0 */
   customer_price_per_gb?: number;
+  wireguard_enabled?: boolean;
+}
+
+export interface WireGuardLocation {
+  id: string;
+  name: string;
+  config_url: string;
+}
+
+export type WireGuardDeliveryCore = typeof WireGuardDeliveryCore[keyof typeof WireGuardDeliveryCore];
+
+
+export const WireGuardDeliveryCore = {
+  wireguard: 'wireguard',
+} as const;
+
+export interface WireGuardDelivery {
+  provider_key: string;
+  username: string;
+  core: WireGuardDeliveryCore;
+  bundle_url: string;
+  locations: WireGuardLocation[];
 }
 
 export type OpenVpnDeliveryCore = typeof OpenVpnDeliveryCore[keyof typeof OpenVpnDeliveryCore];

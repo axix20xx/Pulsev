@@ -69,14 +69,18 @@ import {
   brandSubscriptionBody,
   createServiceUsername,
   createSubscriptionToken,
+  downloadWireGuardBundle,
+  downloadWireGuardProfile,
   downloadOpenVpnProfile,
   disablePanelUser,
   fetchPanelSubscription,
   listAvailablePanels,
   listPasarguardConnectionUsers,
   prepareOpenVpnAccount,
+  prepareWireGuardAccount,
   provisionUser,
   repairXrayProviderUser,
+  type WireGuardDelivery,
   scanProviderAccountsForService,
   reactivateProviderAccountStatus,
   RainApiError,
@@ -811,6 +815,12 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+       CREATE TABLE IF NOT EXISTS reseller_service_wireguard_accounts (
+         service_id BIGINT PRIMARY KEY,
+         delivery_secret TEXT NOT NULL,
+         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+       );
       CREATE TABLE IF NOT EXISTS reseller_notifications (
         id BIGSERIAL PRIMARY KEY,
         reseller_tg_id BIGINT NOT NULL,
@@ -913,6 +923,7 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
        ON CONFLICT (key) DO NOTHING;
   `)
   .then(async () => {
+    await mobileReady;
     await ensureStorefrontSchema();
   })
    .catch((error) => {
@@ -1384,9 +1395,11 @@ async function loadPublicOpenVpnService(token: string): Promise<any | null> {
   const result = await pool.query(
     `SELECT svc.id, svc.reseller_tg_id, svc.rain_username AS username,
             svc.gb::float8 AS limit_gb, svc.status, svc.expire_at AS expires_at,
-            svc.last_used_bytes, svc.last_total_bytes
+            svc.last_used_bytes, svc.last_total_bytes,
+            COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
+     LEFT JOIN resellers reseller ON reseller.tg_id = svc.reseller_tg_id
      WHERE rst.token = $1
      LIMIT 1`,
     [token],
@@ -1407,6 +1420,7 @@ function publicOpenVpnServiceFinished(service: any): boolean {
 }
 
 router.get("/public/subscription/:token", async (req, res): Promise<void> => {
+  await managementReady;
   const token = String(req.params.token ?? "").trim();
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     res.status(404).json({ error: "لینک اشتراک معتبر نیست" });
@@ -1418,9 +1432,11 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
             svc.awg_client_id, COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
             COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
             ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+            COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled,
             COALESCE(c.full_name, 'مشتری حذف‌شده') AS customer_name, rst.token
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
+     LEFT JOIN resellers reseller ON reseller.tg_id = svc.reseller_tg_id
      LEFT JOIN reseller_customers c ON c.id = svc.customer_id
      WHERE rst.token = $1
      LIMIT 1`,
@@ -1485,6 +1501,7 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     awg_ready: !finished && Boolean(row.awg_client_id),
     awg_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
     openvpn_available: !finished && Boolean(token),
+    wireguard_available: !finished && Boolean(row.wireguard_enabled),
     provider_label: "V2Box",
     announcement: { ...announcement, service_code: serviceCode },
   });
@@ -1542,6 +1559,54 @@ function publicOpenVpnDelivery(token: string, delivery: OpenVpnDelivery) {
       ...location,
       config_url: `${configBase}/${encodeURIComponent(location.id)}`,
       import_url: `${importBase}/${encodeURIComponent(location.id)}`,
+    })),
+  };
+}
+
+function isWireGuardDelivery(value: unknown): value is WireGuardDelivery {
+  if (!value || typeof value !== "object") return false;
+  const delivery = value as Partial<WireGuardDelivery>;
+  return typeof delivery.provider_key === "string"
+    && typeof delivery.username === "string"
+    && delivery.core === "wireguard"
+    && Array.isArray(delivery.locations)
+    && delivery.locations.every((location) =>
+      Boolean(location)
+      && typeof location.id === "string"
+      && typeof location.name === "string",
+    );
+}
+
+async function loadSavedWireGuardDelivery(serviceId: number): Promise<WireGuardDelivery | null> {
+  const result = await pool.query<{ delivery_secret: string }>(
+    `SELECT delivery_secret
+     FROM reseller_service_wireguard_accounts
+     WHERE service_id = $1
+     LIMIT 1`,
+    [serviceId],
+  );
+  const secret = result.rows[0]?.delivery_secret;
+  if (!secret) return null;
+  const decoded = decryptPanelCredential(secret);
+  if (!decoded) throw new Error("Saved WireGuard account could not be decrypted.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(decoded);
+  } catch {
+    throw new Error("Saved WireGuard account data is invalid.");
+  }
+  if (!isWireGuardDelivery(parsed)) throw new Error("Saved WireGuard account data is invalid.");
+  return parsed;
+}
+
+function publicWireGuardDelivery(token: string, delivery: WireGuardDelivery) {
+  const providerPath = `/api/public/subscription/${encodeURIComponent(token)}/wireguard`;
+  return {
+    ...delivery,
+    bundle_url: `${providerPath}/bundle/${encodeURIComponent(delivery.provider_key)}`,
+    locations: delivery.locations.map((location) => ({
+      ...location,
+      config_url: `${providerPath}/config/${encodeURIComponent(delivery.provider_key)}/${encodeURIComponent(location.id)}`,
     })),
   };
 }
@@ -1649,6 +1714,218 @@ router.post("/public/subscription/:token/openvpn", async (req, res): Promise<voi
     }
     lockClient.release();
   }
+});
+
+router.get("/public/subscription/:token/wireguard", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).json({ error: "لینک اشتراک معتبر نیست" });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "لینک اشتراک پیدا نشد" });
+    return;
+  }
+  if (!service.wireguard_enabled) {
+    res.status(404).json({ error: "WireGuard برای این فروشنده فعال نیست." });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "اشتراک پایان یافته است؛ برای دریافت WireGuard آن را تمدید کنید." });
+    return;
+  }
+  try {
+    const delivery = await loadSavedWireGuardDelivery(Number(service.id));
+    if (!delivery) {
+      res.status(404).json({ error: "حساب WireGuard ذخیره‌شده‌ای پیدا نشد", code: "WIREGUARD_NOT_CREATED" });
+      return;
+    }
+    res.json(publicWireGuardDelivery(token, delivery));
+  } catch {
+    res.status(500).json({ error: "اطلاعات ذخیره‌شده WireGuard قابل خواندن نیست." });
+  }
+});
+
+router.post("/public/subscription/:token/wireguard", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).json({ error: "لینک اشتراک معتبر نیست" });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "لینک اشتراک پیدا نشد" });
+    return;
+  }
+  if (!service.wireguard_enabled) {
+    res.status(404).json({ error: "WireGuard برای این فروشنده فعال نیست." });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "اشتراک پایان یافته است؛ برای دریافت WireGuard آن را تمدید کنید." });
+    return;
+  }
+  const serviceId = Number(service.id);
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
+    res.status(500).json({ error: "شناسه سرویس معتبر نیست." });
+    return;
+  }
+  const lockClient = await pool.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lockClient.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(74423, hashtext($1::text)) AS locked",
+      [serviceId],
+    );
+    lockAcquired = Boolean(lockResult.rows[0]?.locked);
+    if (!lockAcquired) {
+      res.status(409).json({ error: "آماده‌سازی WireGuard همین سرویس در حال انجام است؛ چند لحظه دیگر دوباره تلاش کنید." });
+      return;
+    }
+
+    const savedDelivery = await loadSavedWireGuardDelivery(serviceId);
+    if (savedDelivery) {
+      res.json(publicWireGuardDelivery(token, savedDelivery));
+      return;
+    }
+
+    const delivery = await prepareWireGuardAccount(
+      String(service.username),
+      Number(service.limit_gb ?? 0),
+      service.expires_at ? new Date(service.expires_at) : new Date(Date.now() + 3650 * 86_400_000),
+      Number(service.reseller_tg_id),
+      "reseller",
+    );
+    await pool.query(
+      `INSERT INTO reseller_service_wireguard_accounts (service_id, delivery_secret)
+       VALUES ($1, $2)
+       ON CONFLICT (service_id) DO NOTHING`,
+      [serviceId, encryptPanelCredential(JSON.stringify(delivery))],
+    );
+    const persistedDelivery = await loadSavedWireGuardDelivery(serviceId);
+    if (!persistedDelivery) throw new Error("WireGuard account details were not persisted.");
+    res.json(publicWireGuardDelivery(token, persistedDelivery));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "WireGuard account setup failed.";
+    const unavailable = message.includes("No enabled AzadPanel WireGuard provider");
+    const savedAccountError = message.startsWith("Saved WireGuard account")
+      || message.startsWith("WireGuard account details were not persisted");
+    res.status(savedAccountError ? 500 : unavailable ? 503 : 502).json({
+      error: savedAccountError ? "اطلاعات ذخیره‌شده WireGuard قابل خواندن نیست." : message,
+    });
+  } finally {
+    if (lockAcquired) {
+      await lockClient.query(
+        "SELECT pg_advisory_unlock(74423, hashtext($1::text))",
+        [serviceId],
+      ).catch(() => undefined);
+    }
+    lockClient.release();
+  }
+});
+
+function safeDownloadFilename(contentDisposition: string | null, fallback: string, extension: ".conf" | ".txt"): string {
+  const encoded = contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plain = contentDisposition?.match(/filename="?([^";]+)"?/i)?.[1];
+  let filename = fallback;
+  try {
+    if (encoded) filename = decodeURIComponent(encoded);
+    else if (plain) filename = plain;
+  } catch {
+    filename = fallback;
+  }
+  filename = filename.replace(/[\\/\r\n"]/g, "_").replace(/[^\p{L}\p{N} ._()-]/gu, "_").trim().slice(0, 120);
+  if (!filename) filename = fallback;
+  if (!filename.toLowerCase().endsWith(extension)) filename += extension;
+  return filename;
+}
+
+async function resolvePublicWireGuardProfile(
+  token: string,
+  providerKey: string,
+  hostId?: string,
+): Promise<{ serviceId: number; profile: { body: string; contentType: string; contentDisposition: string | null } } | { status: number; error: string }> {
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    return { status: 404, error: "Invalid subscription token" };
+  }
+  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey) || (hostId && !/^[A-Za-z0-9._-]{1,80}$/.test(hostId))) {
+    return { status: 400, error: "Invalid WireGuard profile request" };
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) return { status: 404, error: "Subscription not found" };
+  if (!service.wireguard_enabled) return { status: 404, error: "WireGuard is not enabled for this reseller" };
+  if (publicOpenVpnServiceFinished(service)) return { status: 410, error: "Subscription has expired" };
+  try {
+    const delivery = await loadSavedWireGuardDelivery(Number(service.id));
+    if (!delivery || delivery.provider_key !== providerKey) {
+      return { status: 404, error: "WireGuard account not found" };
+    }
+    const profile = hostId
+      ? await downloadWireGuardProfile(
+          delivery.username,
+          providerKey,
+          hostId,
+          Number(service.reseller_tg_id),
+          "reseller",
+        )
+      : await downloadWireGuardBundle(
+          delivery.username,
+          providerKey,
+          Number(service.reseller_tg_id),
+          "reseller",
+        );
+    return { serviceId: Number(service.id), profile };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "WireGuard profile download failed.";
+    return { status: message.includes("not available for this account") ? 404 : 502, error: message };
+  }
+}
+
+router.get("/public/subscription/:token/wireguard/config/:provider/:host", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  const result = await resolvePublicWireGuardProfile(
+    token,
+    String(req.params.provider ?? ""),
+    String(req.params.host ?? ""),
+  );
+  if ("status" in result) {
+    res.status(result.status).type("text/plain").send(result.error);
+    return;
+  }
+  const filename = safeDownloadFilename(
+    result.profile.contentDisposition,
+    `Pulse-${String(result.serviceId)}-${String(req.params.host)}`,
+    ".conf",
+  );
+  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  res.send(result.profile.body);
+});
+
+router.get("/public/subscription/:token/wireguard/bundle/:provider", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  const result = await resolvePublicWireGuardProfile(token, String(req.params.provider ?? ""));
+  if ("status" in result) {
+    res.status(result.status).type("text/plain").send(result.error);
+    return;
+  }
+  const filename = safeDownloadFilename(
+    result.profile.contentDisposition,
+    `Pulse-${String(result.serviceId)}-wireguard-all`,
+    ".txt",
+  );
+  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  res.send(result.profile.body);
 });
 
 async function resolvePublicOpenVpnProfile(
@@ -5506,12 +5783,14 @@ router.post("/customers/:id/mobile-otp", requireAuth, async (req, res): Promise<
 });
 
 router.get("/resellers", requireMasterAdmin, async (_req, res): Promise<void> => {
+  await managementReady;
   const result = await pool.query(
     `SELECT id, tg_id::float8 AS telegram_id, title, total_gb::float8 AS total_gb,
        used_gb::float8 AS used_gb,
        CASE WHEN tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(per_gig_price, 0) END::float8 AS per_gig_price,
        COALESCE(customer_price_per_gb, per_gig_price, 0)::float8 AS customer_price_per_gb,
-       is_enabled = 1 AS enabled, created_at::text AS created_at
+        is_enabled = 1 AS enabled, wireguard_enabled = 1 AS wireguard_enabled,
+        created_at::text AS created_at
      FROM resellers
      ORDER BY created_at DESC, id DESC`,
   );
@@ -5519,6 +5798,7 @@ router.get("/resellers", requireMasterAdmin, async (_req, res): Promise<void> =>
 });
 
 router.patch("/resellers/:id", requireMasterAdmin, async (req, res): Promise<void> => {
+  await managementReady;
   const params = UpdateResellerParams.safeParse(req.params);
   const body = UpdateResellerBody.safeParse(req.body);
   if (!params.success || !body.success) {
@@ -5527,6 +5807,9 @@ router.patch("/resellers/:id", requireMasterAdmin, async (req, res): Promise<voi
   }
   const perGigPrice = req.body?.per_gig_price === undefined ? null : Number(req.body.per_gig_price);
   const customerPricePerGb = req.body?.customer_price_per_gb === undefined ? null : Number(req.body.customer_price_per_gb);
+  const wireguardEnabled = body.data.wireguard_enabled === undefined
+    ? null
+    : body.data.wireguard_enabled ? 1 : 0;
   if (
     perGigPrice !== null && (!Number.isFinite(perGigPrice) || perGigPrice < 0) ||
     customerPricePerGb !== null && (!Number.isFinite(customerPricePerGb) || customerPricePerGb < 0)
@@ -5539,14 +5822,16 @@ router.patch("/resellers/:id", requireMasterAdmin, async (req, res): Promise<voi
      SET is_enabled = $1,
          per_gig_price = CASE WHEN tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE($2, per_gig_price) END,
          customer_price_per_gb = COALESCE($3, customer_price_per_gb),
+         wireguard_enabled = COALESCE($4, wireguard_enabled),
          updated_at = NOW()
      WHERE id = $4
      RETURNING id, tg_id::float8 AS telegram_id, title, total_gb::float8 AS total_gb,
         used_gb::float8 AS used_gb,
         CASE WHEN tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(per_gig_price, 0) END::float8 AS per_gig_price,
        COALESCE(customer_price_per_gb, per_gig_price, 0)::float8 AS customer_price_per_gb,
-        is_enabled = 1 AS enabled, created_at::text AS created_at`,
-    [body.data.enabled ? 1 : 0, perGigPrice, customerPricePerGb, params.data.id],
+         is_enabled = 1 AS enabled, wireguard_enabled = 1 AS wireguard_enabled,
+         created_at::text AS created_at`,
+    [body.data.enabled ? 1 : 0, perGigPrice, customerPricePerGb, wireguardEnabled, params.data.id],
   );
   if (!result.rows[0]) {
     res.status(404).json({ error: "فروشنده پیدا نشد" });
@@ -5555,7 +5840,10 @@ router.patch("/resellers/:id", requireMasterAdmin, async (req, res): Promise<voi
   await recordAudit(req, "reseller_updated", "reseller", result.rows[0].id, {
     owner_telegram_id: result.rows[0].telegram_id,
     owner_name: result.rows[0].title,
-    safe_summary: body.data.enabled ? "حساب فروشنده فعال شد" : "حساب فروشنده غیرفعال شد",
+    wireguard_enabled: result.rows[0].wireguard_enabled,
+    safe_summary: body.data.wireguard_enabled !== undefined
+      ? body.data.wireguard_enabled ? "دسترسی WireGuard فروشنده فعال شد" : "دسترسی WireGuard فروشنده غیرفعال شد"
+      : body.data.enabled ? "حساب فروشنده فعال شد" : "حساب فروشنده غیرفعال شد",
   });
   res.json(UpdateResellerResponse.parse(result.rows[0]));
 });

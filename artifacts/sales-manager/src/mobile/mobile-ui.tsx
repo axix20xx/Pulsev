@@ -129,6 +129,14 @@ type MobileOpenVpnDelivery = {
   locations: MobileOpenVpnLocation[];
 };
 
+type MobileWireGuardDelivery = {
+  provider_key: string;
+  username: string;
+  core: "wireguard";
+  bundle_url: string;
+  locations: Array<{ id: string; name: string; config_url: string }>;
+};
+
 const mobileClientCatalog = (url: string, name: string): MobileClient[] => {
   const encodedName = encodeURIComponent(name || 'Pulse');
   const encodedUrl = encodeURIComponent(url);
@@ -163,6 +171,10 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
   const [openVpnBusy, setOpenVpnBusy] = useState(false);
   const [openVpnLoading, setOpenVpnLoading] = useState(false);
   const [openVpnError, setOpenVpnError] = useState('');
+  const [wireguardData, setWireguardData] = useState<MobileWireGuardDelivery | null>(null);
+  const [wireguardBusy, setWireguardBusy] = useState(false);
+  const [wireguardLoading, setWireguardLoading] = useState(false);
+  const [wireguardError, setWireguardError] = useState('');
   const providerUrl = item.provider_url || item.subscription_url || item.public_url;
   const v2boxUrl = item.v2box_url || (providerUrl ? `v2box://install-sub?url=${encodeURIComponent(providerUrl)}&name=${encodeURIComponent(item.plan)}` : '');
   const openVpnToken = (() => {
@@ -170,8 +182,6 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
     try { return new URL(item.public_url, window.location.origin).searchParams.get('t') || ''; }
     catch { return ''; }
   })();
-  const isIosDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent)
-    || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   useEffect(() => {
     if (!openVpnToken || item.status !== 'active') {
       setOpenVpnData(null);
@@ -201,6 +211,35 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
       });
     return () => { active = false; };
   }, [openVpnToken, item.status]);
+  useEffect(() => {
+    if (!openVpnToken || item.status !== 'active' || !item.wireguard_available) {
+      setWireguardData(null);
+      setWireguardError('');
+      setWireguardLoading(false);
+      return;
+    }
+    let active = true;
+    setWireguardLoading(true);
+    void fetch(`/api/public/subscription/${encodeURIComponent(openVpnToken)}/wireguard`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (response.status === 404 || response.status === 410) return null;
+        const payload = await response.json().catch(() => null) as (MobileWireGuardDelivery & { error?: string }) | null;
+        if (!response.ok || !payload) throw new Error(payload?.error || 'دریافت کانفیگ WireGuard ناموفق بود.');
+        return payload;
+      })
+      .then((payload) => {
+        if (!active) return;
+        setWireguardData(payload);
+        setWireguardError('');
+      })
+      .catch((cause) => {
+        if (active) setWireguardError(cause instanceof Error ? cause.message : 'دریافت کانفیگ WireGuard ناموفق بود.');
+      })
+      .finally(() => {
+        if (active) setWireguardLoading(false);
+      });
+    return () => { active = false; };
+  }, [openVpnToken, item.status, item.wireguard_available]);
   const copyValue = async (value: string, label: string) => { await navigator.clipboard?.writeText(value); setCopied(label); };
   const shareValue = async (value: string) => { if (navigator.share) await navigator.share({ title: item.plan, url: value }); else await copyValue(value, 'لینک Provider'); };
   const showQr = async (value: string) => setQr(await QRCode.toDataURL(value, { margin: 2, width: 240, color: { dark: '#163d40', light: '#f7f6f0' } }));
@@ -231,6 +270,25 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
       setOpenVpnError(cause instanceof Error ? cause.message : 'دریافت اطلاعات OpenVPN ناموفق بود.');
     } finally {
       setOpenVpnBusy(false);
+    }
+  };
+  const prepareWireGuard = async () => {
+    if (!openVpnToken || wireguardBusy) return;
+    setWireguardBusy(true);
+    setWireguardError('');
+    try {
+      const response = await fetch(`/api/public/subscription/${encodeURIComponent(openVpnToken)}/wireguard`, {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const payload = await response.json().catch(() => null) as (MobileWireGuardDelivery & { error?: string }) | null;
+      if (!response.ok || !payload) throw new Error(payload?.error || 'ساخت کانفیگ WireGuard ناموفق بود.');
+      setWireguardData(payload);
+    } catch (cause) {
+      setWireguardError(cause instanceof Error ? cause.message : 'ساخت کانفیگ WireGuard ناموفق بود.');
+    } finally {
+      setWireguardBusy(false);
     }
   };
   const clients = providerUrl ? mobileClientCatalog(providerUrl, item.plan) : [];
@@ -276,20 +334,30 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
            <div><span>رمز عبور</span><strong dir="ltr">{openVpnData.password}</strong><button type="button" onClick={() => void copyValue(openVpnData.password, 'رمز OpenVPN')}>کپی</button></div>
          </div>
          <a className="mobile-openvpn-download primary" href={openVpnData.bundle_url} download data-testid={`link-mobile-openvpn-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ فایل‌ها</a>
-         {isIosDevice && openVpnBundleImportHref && <a className="mobile-openvpn-primary" href={openVpnBundleImportHref} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-ios-${item.id}`}><ExternalLink size={14} /> واردکردن همه در OpenVPN Connect · iOS</a>}
+          {openVpnBundleImportHref && <a className="mobile-openvpn-primary" href={openVpnBundleImportHref} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-connect-${item.id}`}><ExternalLink size={14} /> واردکردن همه در OpenVPN Connect</a>}
          <div className="mobile-openvpn-locations">{openVpnData.locations.map((location) => {
            const importHref = openVpnConnectImportUrl(location.import_url, window.location.origin);
            return <div className="mobile-openvpn-location" key={location.id}>
              <span>{location.name}</span>
-             {isIosDevice && importHref && <a href={importHref} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-ios-${item.id}-${location.id}`}><ExternalLink size={13} />واردکردن</a>}
+              {importHref && <a href={importHref} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-connect-${item.id}-${location.id}`}><ExternalLink size={13} />واردکردن</a>}
              <a href={location.config_url} download data-testid={`link-mobile-openvpn-config-${item.id}-${location.id}`}><Download size={13} />دانلود</a>
            </div>;
          })}</div>
          <div className="mobile-openvpn-app-links"><a href="https://apps.apple.com/us/app/openvpn-connect-openvpn-app/id590379981" target="_blank" rel="noreferrer">OpenVPN Connect برای iOS <ExternalLink size={13} /></a><a href="https://play.google.com/store/apps/details?id=net.openvpn.openvpn" target="_blank" rel="noreferrer">OpenVPN Connect برای Android <ExternalLink size={13} /></a></div>
-        <p className="mobile-openvpn-hint">در iPhone دکمهٔ واردکردن، فایل امن پروفایل را مستقیم در OpenVPN Connect باز می‌کند. برای دستگاه‌های دیگر، در برنامه Import Profile ← URL را انتخاب کنید؛ فایل .ovpn هر سرور هم جداگانه در دسترس است.</p>
+         <p className="mobile-openvpn-hint">دکمهٔ واردکردن، لینک امن پروفایل همین اشتراک را برای OpenVPN Connect باز می‌کند. اگر برنامه روی دستگاه شما باز نشد یا نصب نیست، فایل .ovpn سرور را دانلود و از داخل برنامه وارد کنید.</p>
        </>}
        {openVpnError ? <p className="mobile-openvpn-error" role="alert">{openVpnError}</p> : null}
      </section> : null}
+      {item.wireguard_available && item.status === 'active' ? <section className="mobile-openvpn-card mobile-wireguard-card" data-testid={`panel-mobile-wireguard-${item.id}`}>
+        <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">اتصال مستقل</span><h3>WireGuard</h3><p>ساخت کانفیگ فقط با انتخاب شما انجام می‌شود.</p></div></div>
+        {wireguardLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی کانفیگ ذخیره‌شدهٔ WireGuard...</div> : !wireguardData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareWireGuard()} disabled={wireguardBusy} data-testid={`button-mobile-wireguard-create-${item.id}`}>{wireguardBusy ? 'در حال آماده‌سازی...' : 'ساخت یا دریافت کانفیگ WireGuard'}</button> : <>
+          <a className="mobile-openvpn-download primary" href={wireguardData.bundle_url} download data-testid={`link-mobile-wireguard-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ کانفیگ‌ها</a>
+          <div className="mobile-openvpn-locations">{wireguardData.locations.map((location) => <div className="mobile-openvpn-location" key={location.id}><span>{location.name}</span><a href={location.config_url} download data-testid={`link-mobile-wireguard-config-${item.id}-${location.id}`}><Download size={13} />دانلود فایل .conf</a></div>)}</div>
+          <div className="mobile-openvpn-app-links"><a href="https://apps.apple.com/us/app/wireguard/id1441195209" target="_blank" rel="noreferrer">WireGuard برای iOS <ExternalLink size={13} /></a><a href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" rel="noreferrer">WireGuard برای Android <ExternalLink size={13} /></a></div>
+          <p className="mobile-openvpn-hint">WireGuard لینک واردسازی خودکار ندارد. فایل را دانلود کنید و در برنامهٔ WireGuard گزینهٔ افزودن تونل یا Import from file را بزنید.</p>
+        </>}
+        {wireguardError ? <p className="mobile-openvpn-error" role="alert">{wireguardError}</p> : null}
+      </section> : null}
     {copied ? <div className="mobile-toast mobile-toast-inline"><Check size={16} /> {copied} کپی شد</div> : null}
     {qr ? <div className="mobile-modal-backdrop" onClick={() => setQr('')}><div className="mobile-qr-modal" onClick={(event) => event.stopPropagation()}><button className="mobile-icon-button mobile-modal-close" onClick={() => setQr('')}><X size={18} /></button><p>اسکن کنید تا اشتراک اضافه شود</p><img src={qr} alt="کد QR اشتراک" /><small>{item.plan}</small></div></div> : null}
   </div>;

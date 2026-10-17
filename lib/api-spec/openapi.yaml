@@ -961,6 +961,84 @@ paths:
           description: Subscription or provider not found
         "410":
           description: Subscription is no longer active
+  /public/subscription/{token}/wireguard:
+    get:
+      operationId: getWireGuardAccount
+      tags: [services]
+      summary: Read previously saved WireGuard access without contacting the provider
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+      responses:
+        "200":
+          description: Persisted WireGuard account and locations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WireGuardDelivery"
+        "404":
+          description: Subscription, enabled reseller feature, or saved account not found
+        "410":
+          description: Subscription is no longer active
+    post:
+      operationId: createWireGuardAccount
+      tags: [services]
+      summary: Create or retrieve WireGuard access after an explicit user action
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+      responses:
+        "200":
+          description: WireGuard account and locations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WireGuardDelivery"
+        "404":
+          description: Subscription or enabled reseller feature not found
+        "409":
+          description: Account preparation is already in progress
+        "410":
+          description: Subscription is no longer active
+        "503":
+          description: No enabled WireGuard AzadPanel provider is configured
+  /public/subscription/{token}/wireguard/config/{provider}/{host}:
+    get:
+      operationId: downloadWireGuardConfig
+      tags: [services]
+      summary: Download a private WireGuard configuration for a subscription
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+        - $ref: "#/components/parameters/WireGuardProviderPath"
+        - $ref: "#/components/parameters/WireGuardHostPath"
+      responses:
+        "200":
+          description: WireGuard .conf profile
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          description: Subscription, provider, or location not found
+        "410":
+          description: Subscription is no longer active
+  /public/subscription/{token}/wireguard/bundle/{provider}:
+    get:
+      operationId: downloadWireGuardBundle
+      tags: [services]
+      summary: Download all WireGuard locations as a text bundle
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+        - $ref: "#/components/parameters/WireGuardProviderPath"
+      responses:
+        "200":
+          description: WireGuard configuration bundle
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          description: Subscription or provider not found
+        "410":
+          description: Subscription is no longer active
 components:
   parameters:
     Id:
@@ -994,6 +1072,21 @@ components:
         type: string
         pattern: "^[a-z0-9_-]{2,64}$"
     OpenVpnHostPath:
+      name: host
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 80
+        pattern: "^[A-Za-z0-9._-]{1,80}$"
+    WireGuardProviderPath:
+      name: provider
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z0-9_-]{2,64}$"
+    WireGuardHostPath:
       name: host
       in: path
       required: true
@@ -2267,7 +2360,7 @@ components:
                 $ref: "#/components/schemas/Sale"
     Reseller:
       type: object
-      required: [id, telegram_id, title, total_gb, used_gb, per_gig_price, customer_price_per_gb, enabled, created_at]
+      required: [id, telegram_id, title, total_gb, used_gb, per_gig_price, customer_price_per_gb, enabled, wireguard_enabled, created_at]
       properties:
         id:
           type: number
@@ -2288,6 +2381,8 @@ components:
           minimum: 0
         enabled:
           type: boolean
+        wireguard_enabled:
+          type: boolean
         created_at:
           type: string
     ResellerUpdate:
@@ -2302,6 +2397,35 @@ components:
         customer_price_per_gb:
           type: number
           minimum: 0
+        wireguard_enabled:
+          type: boolean
+    WireGuardLocation:
+      type: object
+      required: [id, name, config_url]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        config_url:
+          type: string
+    WireGuardDelivery:
+      type: object
+      required: [provider_key, username, core, bundle_url, locations]
+      properties:
+        provider_key:
+          type: string
+        username:
+          type: string
+        core:
+          type: string
+          enum: [wireguard]
+        bundle_url:
+          type: string
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/WireGuardLocation"
     OpenVpnDelivery:
       type: object
       required: [provider_key, server, username, password, core, bundle_url, bundle_import_url, locations]

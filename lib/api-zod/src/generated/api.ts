@@ -1749,6 +1749,7 @@ export const ListResellersResponseItem = zod.object({
   "per_gig_price": zod.number().min(listResellersResponsePerGigPriceMin),
   "customer_price_per_gb": zod.number().min(listResellersResponseCustomerPricePerGbMin),
   "enabled": zod.boolean(),
+  "wireguard_enabled": zod.boolean(),
   "created_at": zod.string()
 })
 export const ListResellersResponse = zod.array(ListResellersResponseItem)
@@ -1773,7 +1774,8 @@ export const updateResellerBodyCustomerPricePerGbMin = 0;
 export const UpdateResellerBody = zod.object({
   "enabled": zod.boolean(),
   "per_gig_price": zod.number().min(updateResellerBodyPerGigPriceMin).optional(),
-  "customer_price_per_gb": zod.number().min(updateResellerBodyCustomerPricePerGbMin).optional()
+  "customer_price_per_gb": zod.number().min(updateResellerBodyCustomerPricePerGbMin).optional(),
+  "wireguard_enabled": zod.boolean().optional()
 })
 
 export const updateResellerResponsePerGigPriceMin = 0;
@@ -1791,6 +1793,7 @@ export const UpdateResellerResponse = zod.object({
   "per_gig_price": zod.number().min(updateResellerResponsePerGigPriceMin),
   "customer_price_per_gb": zod.number().min(updateResellerResponseCustomerPricePerGbMin),
   "enabled": zod.boolean(),
+  "wireguard_enabled": zod.boolean(),
   "created_at": zod.string()
 })
 
@@ -1882,5 +1885,86 @@ export const DownloadOpenVpnBundleParams = zod.object({
 })
 
 export const DownloadOpenVpnBundleResponse = zod.string()
+
+
+/**
+ * @summary Read previously saved WireGuard access without contacting the provider
+ */
+export const getWireGuardAccountPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+
+
+export const GetWireGuardAccountParams = zod.object({
+  "token": zod.coerce.string().regex(getWireGuardAccountPathTokenRegExp)
+})
+
+export const GetWireGuardAccountResponse = zod.object({
+  "provider_key": zod.string(),
+  "username": zod.string(),
+  "core": zod.enum(['wireguard']),
+  "bundle_url": zod.string(),
+  "locations": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "config_url": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create or retrieve WireGuard access after an explicit user action
+ */
+export const createWireGuardAccountPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+
+
+export const CreateWireGuardAccountParams = zod.object({
+  "token": zod.coerce.string().regex(createWireGuardAccountPathTokenRegExp)
+})
+
+export const CreateWireGuardAccountResponse = zod.object({
+  "provider_key": zod.string(),
+  "username": zod.string(),
+  "core": zod.enum(['wireguard']),
+  "bundle_url": zod.string(),
+  "locations": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "config_url": zod.string()
+}))
+})
+
+
+/**
+ * @summary Download a private WireGuard configuration for a subscription
+ */
+export const downloadWireGuardConfigPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+export const downloadWireGuardConfigPathProviderRegExp = new RegExp('^[a-z0-9_-]{2,64}$');
+export const downloadWireGuardConfigPathHostMax = 80;
+
+
+export const downloadWireGuardConfigPathHostRegExp = new RegExp('^[A-Za-z0-9._-]{1,80}$');
+
+
+export const DownloadWireGuardConfigParams = zod.object({
+  "token": zod.coerce.string().regex(downloadWireGuardConfigPathTokenRegExp),
+  "provider": zod.coerce.string().regex(downloadWireGuardConfigPathProviderRegExp),
+  "host": zod.coerce.string().max(downloadWireGuardConfigPathHostMax).regex(downloadWireGuardConfigPathHostRegExp)
+})
+
+export const DownloadWireGuardConfigResponse = zod.string()
+
+
+/**
+ * @summary Download all WireGuard locations as a text bundle
+ */
+export const downloadWireGuardBundlePathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+export const downloadWireGuardBundlePathProviderRegExp = new RegExp('^[a-z0-9_-]{2,64}$');
+
+
+export const DownloadWireGuardBundleParams = zod.object({
+  "token": zod.coerce.string().regex(downloadWireGuardBundlePathTokenRegExp),
+  "provider": zod.coerce.string().regex(downloadWireGuardBundlePathProviderRegExp)
+})
+
+export const DownloadWireGuardBundleResponse = zod.string()
 
 

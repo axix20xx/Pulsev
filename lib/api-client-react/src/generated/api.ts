@@ -80,6 +80,7 @@ import type {
   TelegramRecipient,
   TelegramRecipientRevocation,
   TelegramSettingsInput,
+  WireGuardDelivery,
   WorkspaceSearchResult
 } from './api.schemas';
 
@@ -3966,6 +3967,323 @@ export function useDownloadOpenVpnBundle<TData = Awaited<ReturnType<typeof downl
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getDownloadOpenVpnBundleQueryOptions(token,provider,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetWireGuardAccountUrl = (token: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/wireguard`
+}
+
+/**
+ * @summary Read previously saved WireGuard access without contacting the provider
+ */
+export const getWireGuardAccount = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<WireGuardDelivery> => {
+
+  return customFetch<WireGuardDelivery>(getGetWireGuardAccountUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWireGuardAccountQueryKey = (token: string,) => {
+    return [
+    `/api/public/subscription/${token}/wireguard`
+    ] as const;
+    }
+
+
+export const getGetWireGuardAccountQueryOptions = <TData = Awaited<ReturnType<typeof getWireGuardAccount>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWireGuardAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWireGuardAccountQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWireGuardAccount>>> = ({ signal }) => getWireGuardAccount(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWireGuardAccount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWireGuardAccountQueryResult = NonNullable<Awaited<ReturnType<typeof getWireGuardAccount>>>
+export type GetWireGuardAccountQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read previously saved WireGuard access without contacting the provider
+ */
+
+export function useGetWireGuardAccount<TData = Awaited<ReturnType<typeof getWireGuardAccount>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWireGuardAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWireGuardAccountQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateWireGuardAccountUrl = (token: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/wireguard`
+}
+
+/**
+ * @summary Create or retrieve WireGuard access after an explicit user action
+ */
+export const createWireGuardAccount = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<WireGuardDelivery> => {
+
+  return customFetch<WireGuardDelivery>(getCreateWireGuardAccountUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateWireGuardAccountMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWireGuardAccount>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWireGuardAccount>>, TError,{token: string}, TContext> => {
+
+const mutationKey = ['createWireGuardAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWireGuardAccount>>, {token: string}> = (props) => {
+          const {token} = props ?? {};
+
+          return  createWireGuardAccount(token,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWireGuardAccountMutationResult = NonNullable<Awaited<ReturnType<typeof createWireGuardAccount>>>
+
+    export type CreateWireGuardAccountMutationError = ErrorType<void>
+
+    /**
+ * @summary Create or retrieve WireGuard access after an explicit user action
+ */
+export const useCreateWireGuardAccount = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWireGuardAccount>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWireGuardAccount>>,
+        TError,
+        {token: string},
+        TContext
+      > => {
+      return useMutation(getCreateWireGuardAccountMutationOptions(options));
+    }
+
+export const getDownloadWireGuardConfigUrl = (token: string,
+    provider: string,
+    host: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/wireguard/config/${provider}/${host}`
+}
+
+/**
+ * @summary Download a private WireGuard configuration for a subscription
+ */
+export const downloadWireGuardConfig = async (token: string,
+    provider: string,
+    host: string, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getDownloadWireGuardConfigUrl(token,provider,host),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadWireGuardConfigQueryKey = (token: string,
+    provider: string,
+    host: string,) => {
+    return [
+    `/api/public/subscription/${token}/wireguard/config/${provider}/${host}`
+    ] as const;
+    }
+
+
+export const getDownloadWireGuardConfigQueryOptions = <TData = Awaited<ReturnType<typeof downloadWireGuardConfig>>, TError = ErrorType<void>>(token: string,
+    provider: string,
+    host: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadWireGuardConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadWireGuardConfigQueryKey(token,provider,host);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadWireGuardConfig>>> = ({ signal }) => downloadWireGuardConfig(token,provider,host, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined && provider !== null && provider !== undefined && host !== null && host !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadWireGuardConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadWireGuardConfigQueryResult = NonNullable<Awaited<ReturnType<typeof downloadWireGuardConfig>>>
+export type DownloadWireGuardConfigQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download a private WireGuard configuration for a subscription
+ */
+
+export function useDownloadWireGuardConfig<TData = Awaited<ReturnType<typeof downloadWireGuardConfig>>, TError = ErrorType<void>>(
+ token: string,
+    provider: string,
+    host: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadWireGuardConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadWireGuardConfigQueryOptions(token,provider,host,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDownloadWireGuardBundleUrl = (token: string,
+    provider: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/wireguard/bundle/${provider}`
+}
+
+/**
+ * @summary Download all WireGuard locations as a text bundle
+ */
+export const downloadWireGuardBundle = async (token: string,
+    provider: string, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getDownloadWireGuardBundleUrl(token,provider),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadWireGuardBundleQueryKey = (token: string,
+    provider: string,) => {
+    return [
+    `/api/public/subscription/${token}/wireguard/bundle/${provider}`
+    ] as const;
+    }
+
+
+export const getDownloadWireGuardBundleQueryOptions = <TData = Awaited<ReturnType<typeof downloadWireGuardBundle>>, TError = ErrorType<void>>(token: string,
+    provider: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadWireGuardBundle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadWireGuardBundleQueryKey(token,provider);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadWireGuardBundle>>> = ({ signal }) => downloadWireGuardBundle(token,provider, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined && provider !== null && provider !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadWireGuardBundle>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadWireGuardBundleQueryResult = NonNullable<Awaited<ReturnType<typeof downloadWireGuardBundle>>>
+export type DownloadWireGuardBundleQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download all WireGuard locations as a text bundle
+ */
+
+export function useDownloadWireGuardBundle<TData = Awaited<ReturnType<typeof downloadWireGuardBundle>>, TError = ErrorType<void>>(
+ token: string,
+    provider: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadWireGuardBundle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadWireGuardBundleQueryOptions(token,provider,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

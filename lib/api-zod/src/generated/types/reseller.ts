@@ -18,5 +18,6 @@ export interface Reseller {
   /** @minimum 0 */
   customer_price_per_gb: number;
   enabled: boolean;
+  wireguard_enabled: boolean;
   created_at: string;
 }

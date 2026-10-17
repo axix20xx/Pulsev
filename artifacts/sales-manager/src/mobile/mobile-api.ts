@@ -21,6 +21,7 @@ export type MobileSubscription = {
   public_url?: string | null;
   awg_url?: string | null;
   openvpn_available?: boolean;
+  wireguard_available?: boolean;
   service_code?: string | null;
 };
 export type MobileNotification = {

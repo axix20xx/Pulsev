@@ -1234,3 +1234,17 @@ mtime_ms = 1792179955336
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/49fc3e8a-97d6-487a-be44-d19c81018be7/d0829b7d-f421-4618-a6e4-868b17e3053b"
 storage_version_token = "1792180016574432"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "F3IuvvRdn21Ka1Zb9XS9m"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T09-38-13-538Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP"
+description = "Full Hostinger migration package with WireGuard support. Typecheck, Hostinger release validation, and ZIP integrity checks passed."
+logical_id = "23abc67b-f570-4624-a69b-b9816068482b"
+content_hash = "sha256:777fbd30f00b409edd71408298552d7a7990b5f08ad8b5ced2e64640c999dcb2"
+size = 28761694
+mtime_ms = 1792230004738
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/23abc67b-f570-4624-a69b-b9816068482b/41e63425-bf59-4f3f-a43e-a170b4e4ed62"
+storage_version_token = "1792230095169440"
+content_type = "application/octet-stream"

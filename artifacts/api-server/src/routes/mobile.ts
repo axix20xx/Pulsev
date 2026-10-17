@@ -45,9 +45,12 @@ type MobileServiceRow = {
   subscription_token: string | null;
   awg_client_id: string | null;
   panel: string | null;
+  wireguard_enabled: boolean;
 };
 
 export const mobileReady = pool.query(`
+  ALTER TABLE resellers
+    ADD COLUMN IF NOT EXISTS wireguard_enabled SMALLINT NOT NULL DEFAULT 0;
   CREATE TABLE IF NOT EXISTS mobile_sessions (
     id TEXT PRIMARY KEY,
     customer_id BIGINT NOT NULL,
@@ -376,6 +379,11 @@ const mapService = (req: Request, row: MobileServiceRow) => {
       : null,
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
     openvpn_available: Boolean(token) && status === "active",
+    wireguard_available: Boolean(row.wireguard_enabled)
+      && Boolean(token)
+      && status === "active"
+      && remainingBytes > 0
+      && !(expiresAt > 0 && expiresAt <= Date.now()),
     awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
     service_code: `PULSE-${String(row.id).padStart(6, "0")}`,
   };
@@ -391,9 +399,11 @@ const listServices = async (req: Request, customerId: number) => {
             COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
             COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
             ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
+            COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled,
             COALESCE(svc.falco_system_name, 'V2Box') AS panel
      FROM reseller_services svc
      JOIN reseller_customers c ON c.id = svc.customer_id
+     LEFT JOIN resellers reseller ON reseller.tg_id = svc.reseller_tg_id
      LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
      WHERE svc.customer_id = $1
      ORDER BY CASE WHEN svc.status = 'active' THEN 0 ELSE 1 END, svc.expire_at DESC NULLS LAST, svc.id DESC`,
