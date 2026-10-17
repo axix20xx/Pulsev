@@ -1556,3 +1556,17 @@ mtime_ms = 1792258537542
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2bb80771-1d37-44b1-8e7c-6cdcdf71b05b/ba8bd9a7-9cf2-4824-b865-c0d2c1af1ab5"
 storage_version_token = "1792258589904826"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "03CgLBAoD-fNiSJ6wrFlN"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T17-44-52-139Z.zip"
+type = "unspecified"
+title = "Hostinger migration ZIP — V2Ray subscription fallback"
+description = "Adds AzadPanel V2Ray direct-link fallback when its dynamic subscription feed is empty or unavailable, fixes root-relative subscription URL resolution, and logs safe provider feed diagnostics."
+logical_id = "89bc5fb3-8a16-4197-befa-a8a62b91aa92"
+content_hash = "sha256:86aae2395948397dee1ad7ef4504edca958cd30d395217e7d1e2b3338c562fa4"
+size = 29041862
+mtime_ms = 1792259209214
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/89bc5fb3-8a16-4197-befa-a8a62b91aa92/841c73dc-2c23-4400-8850-e00b069cd688"
+storage_version_token = "1792259248117677"
+content_type = "application/octet-stream"

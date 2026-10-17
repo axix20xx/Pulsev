@@ -33,6 +33,12 @@ Clash-family clients must receive generated Mihomo YAML, while URI clients must 
 
 **How to apply:** Detect Clash/Mihomo/Stash User-Agents or an explicit `format=clash`, convert supported VLESS/VMess/Trojan/Shadowsocks links to YAML, and return a `.yaml` content disposition without changing the cached source feed.
 
+For AzadPanel Xray, treat its dynamic `subscription_url` as primary but preserve the returned individual config links as a fallback when that URL fails or contains no recognizable configs. Resolve root-relative subscription paths from the panel origin, not by appending them below an API path. Keep diagnostics safe: log provider key and status/error type, never subscription URLs, tokens, or config payloads.
+
+**Why:** The link endpoint can return both forms; discarding the individual links makes a successfully created account invisible whenever the dynamic feed is empty or unreachable.
+
+**How to apply:** Fetch the dynamic feed first, require at least one supported config URI before accepting it, then append the returned individual links only if the dynamic feed did not yield configs.
+
 When detecting the one-link response mode, treat recognizable browser User-Agents as browser requests even if their `Accept` header is `*/*`; only known VPN client signatures should override that.
 
 **Why:** Some embedded browsers and screenshot/proxy browsers omit `text/html` from `Accept`, so relying only on content negotiation can return a feed or provider error instead of the status page.

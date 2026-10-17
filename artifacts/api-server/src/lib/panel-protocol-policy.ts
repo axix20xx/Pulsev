@@ -38,12 +38,15 @@ export function azadPanelXraySubscriptionLinks(payload: unknown): string[] {
   const source = root.data && typeof root.data === "object"
     ? root.data as Record<string, unknown>
     : root;
-  const subscriptionUrl = source.subscription_url;
-  if (typeof subscriptionUrl === "string" && subscriptionUrl.trim()) {
-    return [subscriptionUrl.trim()];
-  }
+  const subscriptionUrl = typeof source.subscription_url === "string"
+    ? source.subscription_url.trim()
+    : "";
   const links = source.links;
-  return Array.isArray(links)
-    ? [...new Set(links.filter((link): link is string => typeof link === "string" && link.trim().length > 0).map((link) => link.trim()))]
-    : [];
+  return [...new Set([
+    ...(subscriptionUrl ? [subscriptionUrl] : []),
+    ...(Array.isArray(links)
+      ? links.filter((link): link is string => typeof link === "string" && link.trim().length > 0)
+        .map((link) => link.trim())
+      : []),
+  ])];
 }

@@ -56,7 +56,7 @@ test("AzadPanel Xray prefers its dynamic subscription URL and falls back to retu
       subscription_url: "/sub/token",
       links: ["vless://static-config"],
     }),
-    ["/sub/token"],
+    ["/sub/token", "vless://static-config"],
   );
   assert.deepEqual(
     azadPanelXraySubscriptionLinks({ data: { links: ["vless://one", "vless://one", "vmess://two"] } }),

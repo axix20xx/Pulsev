@@ -33,7 +33,7 @@
 - [Hostinger framework detection](hostinger-framework-detection.md) — keep Express declared in the flat deployment manifest so Hostinger can detect the bundled Node app.
 - [Hostinger private API transport](hostinger-private-api-transport.md) — keep parent/child API traffic on a private Unix socket when Hostinger loopback TCP refuses despite a listening server.
 - [Hostinger bundle synchronization](hostinger-bundle-synchronization.md) — source route changes do not update the deploy ZIP until API and each route-specific frontend bundle are rebuilt and copied.
-- [Provider subscription feed](provider-subscription-feed.md) — public feeds must resolve through active Provider URLs; legacy token proxying is compatibility-only.
+- [Provider subscription feed](provider-subscription-feed.md) — prefer live Provider feeds, but retain safe direct-link fallbacks when a dynamic subscription URL fails.
 - [Session guard and logout](session-guard-logout.md) — management UI must trust only server sessions; same-origin login and logout must survive proxy hosts and stale client caches.
 - [PasarGuard Provider contract](pasarguard-provider-contract.md) — rain_admin uses singular user routes; Group 1 reconciliation must preserve lifecycle shutdown safety.
 - [Public subscription visual boundary](public-sub-visual-boundary.md) — keep `/sub` presentation changes in a dedicated class namespace so management UI styling stays untouched.

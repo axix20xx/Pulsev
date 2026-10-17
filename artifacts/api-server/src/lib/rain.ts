@@ -252,7 +252,13 @@ function isClientConfigUri(value: string): boolean {
 
 function resolvePanelUrl(panel: Panel, rawUrl: string): string {
   if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
-  return `${panel.api_base.replace(/\/+$/, "")}/${rawUrl.replace(/^\/+/, "")}`;
+  try {
+    const base = new URL(panel.api_base);
+    if (!base.pathname.endsWith("/")) base.pathname += "/";
+    return new URL(rawUrl, base).toString();
+  } catch {
+    return `${panel.api_base.replace(/\/+$/, "")}/${rawUrl.replace(/^\/+/, "")}`;
+  }
 }
 
 function decodeSubscriptionBody(body: string): { text: string; encoded: boolean } {
@@ -391,15 +397,30 @@ export async function fetchPanelSubscription(
             : collectSubscriptionLinks(response.json))];
           if (links.length) break;
         }
+        if (isAzadPanelV2Ray) {
+          console.warn("[subscription] AzadPanel V2Ray link lookup returned no usable links", {
+            providerKey: panelKey(panel),
+            status: response.status,
+          });
+        }
         if (![404, 405].includes(response.status)) break;
-      } catch {
+      } catch (error) {
+        if (isAzadPanelV2Ray) {
+          console.warn("[subscription] AzadPanel V2Ray link lookup failed", {
+            providerKey: panelKey(panel),
+            error: error instanceof Error ? error.name : "unknown",
+          });
+        }
         // A single unavailable Provider must not prevent another Provider from serving a feed.
       }
     }
 
+    const fallbackConfigLinks: string[] = [];
+    let azadPanelFeedLoaded = false;
     for (const rawLink of links) {
       if (isClientConfigUri(rawLink)) {
-        feeds.push({ text: rawLink, encoded: false });
+        if (isAzadPanelV2Ray) fallbackConfigLinks.push(rawLink);
+        else feeds.push({ text: rawLink, encoded: false });
         continue;
       }
       try {
@@ -410,11 +431,48 @@ export async function fetchPanelSubscription(
           },
           signal: AbortSignal.timeout(20_000),
         });
-        if (!response.ok) continue;
+        if (!response.ok) {
+          if (isAzadPanelV2Ray) {
+            console.warn("[subscription] AzadPanel V2Ray subscription URL was rejected", {
+              providerKey: panelKey(panel),
+              status: response.status,
+            });
+          }
+          continue;
+        }
         const body = await response.text();
-        if (body.trim()) feeds.push(decodeSubscriptionBody(body));
-      } catch {
+        const decoded = decodeSubscriptionBody(body);
+        if (isAzadPanelV2Ray) {
+          const containsConfigs = decoded.text
+            .split(/\r?\n/)
+            .some((line) => isClientConfigUri(line.trim()));
+          if (!containsConfigs) {
+            console.warn("[subscription] AzadPanel V2Ray subscription URL returned no configs", {
+              providerKey: panelKey(panel),
+            });
+            continue;
+          }
+        } else if (!body.trim()) {
+          continue;
+        }
+        feeds.push(decoded);
+        if (isAzadPanelV2Ray) {
+          azadPanelFeedLoaded = true;
+          break;
+        }
+      } catch (error) {
+        if (isAzadPanelV2Ray) {
+          console.warn("[subscription] AzadPanel V2Ray subscription URL fetch failed", {
+            providerKey: panelKey(panel),
+            error: error instanceof Error ? error.name : "unknown",
+          });
+        }
         // Try the next link or Provider.
+      }
+    }
+    if (isAzadPanelV2Ray && !azadPanelFeedLoaded) {
+      for (const rawLink of fallbackConfigLinks) {
+        feeds.push({ text: rawLink, encoded: false });
       }
     }
   }

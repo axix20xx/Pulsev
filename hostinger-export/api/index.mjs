@@ -75421,12 +75421,12 @@ function azadPanelXraySubscriptionLinks(payload) {
   if (!payload || typeof payload !== "object") return [];
   const root = payload;
   const source = root.data && typeof root.data === "object" ? root.data : root;
-  const subscriptionUrl2 = source.subscription_url;
-  if (typeof subscriptionUrl2 === "string" && subscriptionUrl2.trim()) {
-    return [subscriptionUrl2.trim()];
-  }
+  const subscriptionUrl2 = typeof source.subscription_url === "string" ? source.subscription_url.trim() : "";
   const links = source.links;
-  return Array.isArray(links) ? [...new Set(links.filter((link) => typeof link === "string" && link.trim().length > 0).map((link) => link.trim()))] : [];
+  return [.../* @__PURE__ */ new Set([
+    ...subscriptionUrl2 ? [subscriptionUrl2] : [],
+    ...Array.isArray(links) ? links.filter((link) => typeof link === "string" && link.trim().length > 0).map((link) => link.trim()) : []
+  ])];
 }
 
 // src/lib/rain.ts
@@ -75582,7 +75582,13 @@ function isClientConfigUri(value) {
 }
 function resolvePanelUrl(panel, rawUrl) {
   if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
-  return `${panel.api_base.replace(/\/+$/, "")}/${rawUrl.replace(/^\/+/, "")}`;
+  try {
+    const base = new URL(panel.api_base);
+    if (!base.pathname.endsWith("/")) base.pathname += "/";
+    return new URL(rawUrl, base).toString();
+  } catch {
+    return `${panel.api_base.replace(/\/+$/, "")}/${rawUrl.replace(/^\/+/, "")}`;
+  }
 }
 function decodeSubscriptionBody(body) {
   const trimmed = body.trim();
@@ -75688,13 +75694,28 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
           links = [...new Set(isAzadPanelV2Ray ? azadPanelXraySubscriptionLinks(response.json) : collectSubscriptionLinks(response.json))];
           if (links.length) break;
         }
+        if (isAzadPanelV2Ray) {
+          console.warn("[subscription] AzadPanel V2Ray link lookup returned no usable links", {
+            providerKey: panelKey(panel),
+            status: response.status
+          });
+        }
         if (![404, 405].includes(response.status)) break;
-      } catch {
+      } catch (error40) {
+        if (isAzadPanelV2Ray) {
+          console.warn("[subscription] AzadPanel V2Ray link lookup failed", {
+            providerKey: panelKey(panel),
+            error: error40 instanceof Error ? error40.name : "unknown"
+          });
+        }
       }
     }
+    const fallbackConfigLinks = [];
+    let azadPanelFeedLoaded = false;
     for (const rawLink of links) {
       if (isClientConfigUri(rawLink)) {
-        feeds.push({ text: rawLink, encoded: false });
+        if (isAzadPanelV2Ray) fallbackConfigLinks.push(rawLink);
+        else feeds.push({ text: rawLink, encoded: false });
         continue;
       }
       try {
@@ -75705,10 +75726,45 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
           },
           signal: AbortSignal.timeout(2e4)
         });
-        if (!response.ok) continue;
+        if (!response.ok) {
+          if (isAzadPanelV2Ray) {
+            console.warn("[subscription] AzadPanel V2Ray subscription URL was rejected", {
+              providerKey: panelKey(panel),
+              status: response.status
+            });
+          }
+          continue;
+        }
         const body = await response.text();
-        if (body.trim()) feeds.push(decodeSubscriptionBody(body));
-      } catch {
+        const decoded = decodeSubscriptionBody(body);
+        if (isAzadPanelV2Ray) {
+          const containsConfigs = decoded.text.split(/\r?\n/).some((line2) => isClientConfigUri(line2.trim()));
+          if (!containsConfigs) {
+            console.warn("[subscription] AzadPanel V2Ray subscription URL returned no configs", {
+              providerKey: panelKey(panel)
+            });
+            continue;
+          }
+        } else if (!body.trim()) {
+          continue;
+        }
+        feeds.push(decoded);
+        if (isAzadPanelV2Ray) {
+          azadPanelFeedLoaded = true;
+          break;
+        }
+      } catch (error40) {
+        if (isAzadPanelV2Ray) {
+          console.warn("[subscription] AzadPanel V2Ray subscription URL fetch failed", {
+            providerKey: panelKey(panel),
+            error: error40 instanceof Error ? error40.name : "unknown"
+          });
+        }
+      }
+    }
+    if (isAzadPanelV2Ray && !azadPanelFeedLoaded) {
+      for (const rawLink of fallbackConfigLinks) {
+        feeds.push({ text: rawLink, encoded: false });
       }
     }
   }
