@@ -1500,3 +1500,17 @@ mtime_ms = 1792253617121
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/07725634-e54c-4521-a8d1-bca6349f9b06/cfb9eb28-9ac9-44ea-9d21-cf8e43a6c909"
 storage_version_token = "1792253650093699"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "4aj4BgYnC7DoXwYYRHuNW"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T16-50-57-765Z.zip"
+type = "unspecified"
+title = "Hostinger fix migration ZIP"
+description = "Fixes AzadPanel 403 retry loops, exposes permanent provisioning failures with manual retry, and lets an explicit V2Ray Provider save queue eligible existing services missed earlier."
+logical_id = "0953b694-1e56-4448-bf1d-0acdf52f8c39"
+content_hash = "sha256:88009b72e8acaf75871ec8630a11514db02c9d69b57beba5041ade96572f072a"
+size = 29037020
+mtime_ms = 1792255976975
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/0953b694-1e56-4448-bf1d-0acdf52f8c39/441880f4-2b6b-475f-a213-a07d2dd8b2f8"
+storage_version_token = "1792256016427366"
+content_type = "application/octet-stream"

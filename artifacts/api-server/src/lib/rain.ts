@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { decryptPanelCredential } from "./panel-credentials";
+import { isRetryableAzadPanelStatus } from "./azadpanel-retry-policy";
 import {
   azadPanelExpectedCore,
   azadPanelXraySubscriptionLinks,
@@ -1492,7 +1493,7 @@ async function provisionAzadPanel(
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
   if (options.onlyIfMissingAzadPanel && existing.status === 200) return existing.status;
   if (existing.status !== 200 && existing.status !== 404) {
-    const retryable = !options.onlyIfMissingAzadPanel || ![400, 401, 403, 409].includes(existing.status);
+    const retryable = isRetryableAzadPanelStatus(existing.status);
     throw new RainApiError(
       `AzadPanel ${panelKey(panel)} could not check the user: ${safeError(existing)}`,
       [{
@@ -1523,7 +1524,7 @@ async function provisionAzadPanel(
     ? await panelRequest(panel, "PUT", `/api/user/${encoded}`, body)
     : await panelRequest(panel, "POST", "/api/user", body);
   if (response.status < 200 || response.status >= 300) {
-    const retryable = !options.onlyIfMissingAzadPanel || ![400, 401, 403, 409].includes(response.status);
+    const retryable = isRetryableAzadPanelStatus(response.status);
     throw new RainApiError(
       `AzadPanel ${panelKey(panel)} rejected the user: ${safeError(response)}`,
       [{

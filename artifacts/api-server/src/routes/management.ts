@@ -824,6 +824,36 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
        ON service_provision_jobs (status, next_attempt_at);
      CREATE INDEX IF NOT EXISTS service_provision_jobs_service_idx
        ON service_provision_jobs (service_id, created_at DESC);
+      UPDATE service_provision_jobs job
+      SET status = 'failed',
+          completed_at = NULL,
+          updated_at = NOW()
+      WHERE job.action = 'providers'
+        AND job.status IN ('pending', 'retrying')
+        AND job.last_error ILIKE '%HTTP 403%'
+        AND EXISTS (
+          SELECT 1
+          FROM panel_configs panel
+          WHERE job.provider_keys @> jsonb_build_array(panel.key)
+            AND LOWER(panel.kind) IN (
+              'azadpanel', 'azadpanel_openvpn', 'azadpanel_v2ray',
+              'azadpanel_wireguard', 'azadpanel_ipsec'
+            )
+        );
+      UPDATE service_provision_jobs job
+      SET status = 'failed',
+          completed_at = NULL,
+          updated_at = NOW()
+      WHERE job.action = 'providers'
+        AND job.status = 'completed'
+        AND job.payload->>'azadPanelV2RayBackfill' = 'true'
+        AND job.last_error ILIKE '%HTTP 403%'
+        AND EXISTS (
+          SELECT 1
+          FROM panel_configs panel
+          WHERE job.provider_keys @> jsonb_build_array(panel.key)
+            AND LOWER(panel.kind) = 'azadpanel_v2ray'
+        );
       CREATE TABLE IF NOT EXISTS azadpanel_v2ray_backfill_runs (
         provider_key TEXT PRIMARY KEY REFERENCES panel_configs(key) ON DELETE CASCADE,
         queued_count INTEGER NOT NULL DEFAULT 0,
@@ -979,13 +1009,6 @@ async function queueAzadPanelV2RayBackfill(
      RETURNING provider_key`,
     [providerKey],
   );
-  if (!created.rowCount) {
-    const existing = await client.query<{ queued_count: number }>(
-      "SELECT queued_count FROM azadpanel_v2ray_backfill_runs WHERE provider_key = $1",
-      [providerKey],
-    );
-    return { queued: Number(existing.rows[0]?.queued_count ?? 0), alreadyQueued: true };
-  }
 
   const queued = await client.query(
     `WITH eligible AS (
@@ -1019,14 +1042,22 @@ async function queueAzadPanelV2RayBackfill(
          AND svc.rain_username IS NOT NULL
          AND NOT EXISTS (
            SELECT 1
-           FROM service_provision_jobs job
-           WHERE job.service_id = svc.id
-             AND job.action = 'providers'
-             AND job.status IN ('pending', 'running', 'retrying')
-             AND job.provider_keys @> jsonb_build_array($1::text)
+            FROM service_provision_jobs active_job
+            WHERE active_job.service_id = svc.id
+              AND active_job.action = 'providers'
+              AND active_job.status IN ('pending', 'running', 'retrying')
+              AND active_job.provider_keys @> jsonb_build_array($1::text)
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM service_provision_jobs backfill_job
+            WHERE backfill_job.service_id = svc.id
+              AND backfill_job.action = 'providers'
+              AND backfill_job.payload->>'azadPanelV2RayBackfill' = 'true'
+              AND backfill_job.provider_keys @> jsonb_build_array($1::text)
          )
      ),
-     inserted AS (
+      inserted_jobs AS (
        INSERT INTO service_provision_jobs
          (service_id, owner_tg_id, username, action, provider_keys, payload,
           status, next_attempt_at, lifecycle_version)
@@ -1049,18 +1080,24 @@ async function queueAzadPanelV2RayBackfill(
               eligible.lifecycle_version
        FROM eligible
        RETURNING id
-     )
+      ),
+      inserted_count AS (
+        SELECT COUNT(*)::int AS queued FROM inserted_jobs
+      ),
+      updated_run AS (
      UPDATE azadpanel_v2ray_backfill_runs
-     SET queued_count = (SELECT COUNT(*)::int FROM inserted)
-     WHERE provider_key = $1`,
+      SET queued_count = queued_count + (SELECT queued FROM inserted_count)
+      WHERE provider_key = $1
+      RETURNING queued_count
+      )
+      SELECT inserted_count.queued, updated_run.queued_count AS total_queued
+      FROM inserted_count CROSS JOIN updated_run`,
     [providerKey],
   );
-  const count = Number(queued.rowCount ?? 0);
-  const result = await client.query<{ queued_count: number }>(
-    "SELECT queued_count FROM azadpanel_v2ray_backfill_runs WHERE provider_key = $1",
-    [providerKey],
-  );
-  return { queued: Number(result.rows[0]?.queued_count ?? count), alreadyQueued: false };
+  return {
+    queued: Number(queued.rows[0]?.queued ?? 0),
+    alreadyQueued: !created.rowCount,
+  };
 }
 
 router.use(async (_req, _res, next) => {
@@ -4559,6 +4596,7 @@ router.get("/monitoring", requireAuth, async (req, res): Promise<void> => {
          COUNT(*) FILTER (WHERE j.status IN ('pending', 'retrying'))::int AS pending,
          COUNT(*) FILTER (WHERE j.status = 'running')::int AS running,
          COUNT(*) FILTER (WHERE j.status = 'completed')::int AS completed,
+         COUNT(*) FILTER (WHERE j.status = 'failed')::int AS failed,
          COUNT(*)::int AS total
        FROM service_provision_jobs j
        JOIN reseller_services svc ON svc.id = j.service_id
@@ -4574,7 +4612,7 @@ router.get("/monitoring", requireAuth, async (req, res): Promise<void> => {
          j.provider_keys,
          j.status,
          j.attempts,
-          CASE WHEN j.status IN ('pending', 'running', 'retrying') THEN j.last_error ELSE NULL END AS last_error,
+          CASE WHEN j.status <> 'completed' THEN j.last_error ELSE NULL END AS last_error,
          j.next_attempt_at,
          j.created_at,
          j.updated_at,
@@ -4617,7 +4655,7 @@ router.post("/monitoring/jobs/:id/retry", requireAuth, async (req, res): Promise
          updated_at = NOW(),
          completed_at = NULL
      WHERE job.id = $${jobParam}
-       AND (job.status IN ('pending', 'retrying')
+        AND (job.status IN ('pending', 'retrying', 'failed')
             OR (job.status = 'running' AND (
               job.lease_expires_at < NOW()
               OR (job.lease_expires_at IS NULL AND job.updated_at < NOW() - INTERVAL '10 minutes')

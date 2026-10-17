@@ -15,19 +15,24 @@ const { outputFiles } = await build({
   write: false,
 });
 const code = Buffer.from(outputFiles[0].text).toString("base64");
-const { azadPanelV2RayBackfillPlan } = await import(`data:text/javascript;base64,${code}`);
+const { azadPanelV2RayBackfillPlan } = await import(
+  `data:text/javascript;base64,${code}`
+);
 
 const GB = 1_073_741_824;
 
 test("V2Ray backfill uses the service's latest remaining quota and exact expiry", () => {
   assert.deepEqual(
-    azadPanelV2RayBackfillPlan({
-      status: "active",
-      gb: 50,
-      lastRemainingBytes: 12.5 * GB,
-      lastUsedBytes: 1 * GB,
-      expiresAtUnix: 2_000,
-    }, 1_000),
+    azadPanelV2RayBackfillPlan(
+      {
+        status: "active",
+        gb: 50,
+        lastRemainingBytes: 12.5 * GB,
+        lastUsedBytes: 1 * GB,
+        expiresAtUnix: 2_000,
+      },
+      1_000,
+    ),
     { eligible: true, quotaGb: 12.5, expiresAtUnix: 2_000 },
   );
 });
@@ -73,7 +78,8 @@ test("inactive, expired, exhausted, and invalid services are not backfilled", ()
     "expired",
   );
   assert.equal(
-    azadPanelV2RayBackfillPlan({ ...base, lastRemainingBytes: 0 }, 1_000).reason,
+    azadPanelV2RayBackfillPlan({ ...base, lastRemainingBytes: 0 }, 1_000)
+      .reason,
     "quota_exhausted",
   );
   assert.equal(

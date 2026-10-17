@@ -75379,6 +75379,11 @@ function decryptPanelCredential(value) {
   }
 }
 
+// src/lib/azadpanel-retry-policy.ts
+function isRetryableAzadPanelStatus(status) {
+  return status === 408 || status === 429 || status >= 500;
+}
+
 // src/lib/panel-protocol-policy.ts
 var normalizeKind = (kind) => typeof kind === "string" ? kind.trim().toLowerCase() : "";
 function azadPanelExpectedCore(kind) {
@@ -76536,7 +76541,7 @@ async function provisionAzadPanel(panel, username, gb, days, options) {
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
   if (options.onlyIfMissingAzadPanel && existing.status === 200) return existing.status;
   if (existing.status !== 200 && existing.status !== 404) {
-    const retryable = !options.onlyIfMissingAzadPanel || ![400, 401, 403, 409].includes(existing.status);
+    const retryable = isRetryableAzadPanelStatus(existing.status);
     throw new RainApiError(
       `AzadPanel ${panelKey(panel)} could not check the user: ${safeError(existing)}`,
       [{
@@ -76559,7 +76564,7 @@ async function provisionAzadPanel(panel, username, gb, days, options) {
   } : azadPanelUserBody(username, gb, expiresAt);
   const response = existing.status === 200 ? await panelRequest(panel, "PUT", `/api/user/${encoded}`, body) : await panelRequest(panel, "POST", "/api/user", body);
   if (response.status < 200 || response.status >= 300) {
-    const retryable = !options.onlyIfMissingAzadPanel || ![400, 401, 403, 409].includes(response.status);
+    const retryable = isRetryableAzadPanelStatus(response.status);
     throw new RainApiError(
       `AzadPanel ${panelKey(panel)} rejected the user: ${safeError(response)}`,
       [{
@@ -82116,6 +82121,36 @@ var managementReady = pool.query(`
        ON service_provision_jobs (status, next_attempt_at);
      CREATE INDEX IF NOT EXISTS service_provision_jobs_service_idx
        ON service_provision_jobs (service_id, created_at DESC);
+      UPDATE service_provision_jobs job
+      SET status = 'failed',
+          completed_at = NULL,
+          updated_at = NOW()
+      WHERE job.action = 'providers'
+        AND job.status IN ('pending', 'retrying')
+        AND job.last_error ILIKE '%HTTP 403%'
+        AND EXISTS (
+          SELECT 1
+          FROM panel_configs panel
+          WHERE job.provider_keys @> jsonb_build_array(panel.key)
+            AND LOWER(panel.kind) IN (
+              'azadpanel', 'azadpanel_openvpn', 'azadpanel_v2ray',
+              'azadpanel_wireguard', 'azadpanel_ipsec'
+            )
+        );
+      UPDATE service_provision_jobs job
+      SET status = 'failed',
+          completed_at = NULL,
+          updated_at = NOW()
+      WHERE job.action = 'providers'
+        AND job.status = 'completed'
+        AND job.payload->>'azadPanelV2RayBackfill' = 'true'
+        AND job.last_error ILIKE '%HTTP 403%'
+        AND EXISTS (
+          SELECT 1
+          FROM panel_configs panel
+          WHERE job.provider_keys @> jsonb_build_array(panel.key)
+            AND LOWER(panel.kind) = 'azadpanel_v2ray'
+        );
       CREATE TABLE IF NOT EXISTS azadpanel_v2ray_backfill_runs (
         provider_key TEXT PRIMARY KEY REFERENCES panel_configs(key) ON DELETE CASCADE,
         queued_count INTEGER NOT NULL DEFAULT 0,
@@ -82265,13 +82300,6 @@ async function queueAzadPanelV2RayBackfill(client, providerKey) {
      RETURNING provider_key`,
     [providerKey]
   );
-  if (!created.rowCount) {
-    const existing = await client.query(
-      "SELECT queued_count FROM azadpanel_v2ray_backfill_runs WHERE provider_key = $1",
-      [providerKey]
-    );
-    return { queued: Number(existing.rows[0]?.queued_count ?? 0), alreadyQueued: true };
-  }
   const queued = await client.query(
     `WITH eligible AS (
        SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.label,
@@ -82304,14 +82332,22 @@ async function queueAzadPanelV2RayBackfill(client, providerKey) {
          AND svc.rain_username IS NOT NULL
          AND NOT EXISTS (
            SELECT 1
-           FROM service_provision_jobs job
-           WHERE job.service_id = svc.id
-             AND job.action = 'providers'
-             AND job.status IN ('pending', 'running', 'retrying')
-             AND job.provider_keys @> jsonb_build_array($1::text)
+            FROM service_provision_jobs active_job
+            WHERE active_job.service_id = svc.id
+              AND active_job.action = 'providers'
+              AND active_job.status IN ('pending', 'running', 'retrying')
+              AND active_job.provider_keys @> jsonb_build_array($1::text)
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM service_provision_jobs backfill_job
+            WHERE backfill_job.service_id = svc.id
+              AND backfill_job.action = 'providers'
+              AND backfill_job.payload->>'azadPanelV2RayBackfill' = 'true'
+              AND backfill_job.provider_keys @> jsonb_build_array($1::text)
          )
      ),
-     inserted AS (
+      inserted_jobs AS (
        INSERT INTO service_provision_jobs
          (service_id, owner_tg_id, username, action, provider_keys, payload,
           status, next_attempt_at, lifecycle_version)
@@ -82334,18 +82370,24 @@ async function queueAzadPanelV2RayBackfill(client, providerKey) {
               eligible.lifecycle_version
        FROM eligible
        RETURNING id
-     )
+      ),
+      inserted_count AS (
+        SELECT COUNT(*)::int AS queued FROM inserted_jobs
+      ),
+      updated_run AS (
      UPDATE azadpanel_v2ray_backfill_runs
-     SET queued_count = (SELECT COUNT(*)::int FROM inserted)
-     WHERE provider_key = $1`,
+      SET queued_count = queued_count + (SELECT queued FROM inserted_count)
+      WHERE provider_key = $1
+      RETURNING queued_count
+      )
+      SELECT inserted_count.queued, updated_run.queued_count AS total_queued
+      FROM inserted_count CROSS JOIN updated_run`,
     [providerKey]
   );
-  const count = Number(queued.rowCount ?? 0);
-  const result = await client.query(
-    "SELECT queued_count FROM azadpanel_v2ray_backfill_runs WHERE provider_key = $1",
-    [providerKey]
-  );
-  return { queued: Number(result.rows[0]?.queued_count ?? count), alreadyQueued: false };
+  return {
+    queued: Number(queued.rows[0]?.queued ?? 0),
+    alreadyQueued: !created.rowCount
+  };
 }
 router2.use(async (_req, _res, next) => {
   try {
@@ -85514,6 +85556,7 @@ router2.get("/monitoring", requireAuth, async (req, res) => {
          COUNT(*) FILTER (WHERE j.status IN ('pending', 'retrying'))::int AS pending,
          COUNT(*) FILTER (WHERE j.status = 'running')::int AS running,
          COUNT(*) FILTER (WHERE j.status = 'completed')::int AS completed,
+         COUNT(*) FILTER (WHERE j.status = 'failed')::int AS failed,
          COUNT(*)::int AS total
        FROM service_provision_jobs j
        JOIN reseller_services svc ON svc.id = j.service_id
@@ -85529,7 +85572,7 @@ router2.get("/monitoring", requireAuth, async (req, res) => {
          j.provider_keys,
          j.status,
          j.attempts,
-          CASE WHEN j.status IN ('pending', 'running', 'retrying') THEN j.last_error ELSE NULL END AS last_error,
+          CASE WHEN j.status <> 'completed' THEN j.last_error ELSE NULL END AS last_error,
          j.next_attempt_at,
          j.created_at,
          j.updated_at,
@@ -85571,7 +85614,7 @@ router2.post("/monitoring/jobs/:id/retry", requireAuth, async (req, res) => {
          updated_at = NOW(),
          completed_at = NULL
      WHERE job.id = $${jobParam}
-       AND (job.status IN ('pending', 'retrying')
+        AND (job.status IN ('pending', 'retrying', 'failed')
             OR (job.status = 'running' AND (
               job.lease_expires_at < NOW()
               OR (job.lease_expires_at IS NULL AND job.updated_at < NOW() - INTERVAL '10 minutes')
@@ -88701,25 +88744,50 @@ var app_default = app;
 var BYTES_PER_GB2 = 1073741824;
 function azadPanelV2RayBackfillPlan(service, nowUnix = Math.floor(Date.now() / 1e3)) {
   if (service.status !== "active") {
-    return { eligible: false, quotaGb: 0, expiresAtUnix: null, reason: "inactive" };
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: null,
+      reason: "inactive"
+    };
   }
   const expiry = service.expiresAtUnix === null ? null : Number(service.expiresAtUnix);
   if (expiry !== null && (!Number.isFinite(expiry) || expiry <= nowUnix)) {
-    return { eligible: false, quotaGb: 0, expiresAtUnix: null, reason: "expired" };
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: null,
+      reason: "expired"
+    };
   }
   const totalGb = Number(service.gb);
   if (!Number.isFinite(totalGb) || totalGb < 0) {
-    return { eligible: false, quotaGb: 0, expiresAtUnix: expiry, reason: "invalid" };
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: expiry,
+      reason: "invalid"
+    };
   }
   if (totalGb === 0) {
     return { eligible: true, quotaGb: 0, expiresAtUnix: expiry };
   }
   const remainingBytes = service.lastRemainingBytes === null ? totalGb * BYTES_PER_GB2 - Number(service.lastUsedBytes ?? 0) : Number(service.lastRemainingBytes);
   if (!Number.isFinite(remainingBytes)) {
-    return { eligible: false, quotaGb: 0, expiresAtUnix: expiry, reason: "invalid" };
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: expiry,
+      reason: "invalid"
+    };
   }
   if (remainingBytes <= 0) {
-    return { eligible: false, quotaGb: 0, expiresAtUnix: expiry, reason: "quota_exhausted" };
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: expiry,
+      reason: "quota_exhausted"
+    };
   }
   return {
     eligible: true,
@@ -88830,6 +88898,16 @@ async function completeJob(jobId, warning) {
           payload = payload - 'awg_client_candidate'
       WHERE id = $1 AND lease_owner = $3`,
     [jobId, warning?.slice(0, 500) ?? null, workerId]
+  );
+}
+async function failJob(jobId, error40) {
+  await pool.query(
+    `UPDATE service_provision_jobs
+      SET status = 'failed', last_error = $2, updated_at = NOW(), completed_at = NOW(),
+          lease_owner = NULL, lease_expires_at = NULL, heartbeat_at = NULL,
+          payload = payload - 'awg_client_candidate'
+      WHERE id = $1 AND lease_owner = $3`,
+    [jobId, error40.slice(0, 500), workerId]
   );
 }
 async function clearMisroutedWireGuardProviderJobs() {
@@ -88977,7 +89055,7 @@ async function processProviderJob(job) {
     }
     if (failed.length) {
       const warning = failed.map(providerFailure).join(" \xB7 ");
-      await completeJob(job.id, warning);
+      await failJob(job.id, warning);
       logger.warn({ jobId: job.id, action: job.action, warning }, "Provisioning job stopped after a non-retryable Provider response");
       return;
     }
@@ -88991,7 +89069,7 @@ async function processProviderJob(job) {
     );
     if (results.length && failedKeys.length === 0 && nonRetryable.length > 0 || error40 instanceof RainApiError && !error40.retryable) {
       const warning = (nonRetryable.length ? nonRetryable : results).map(providerFailure).join(" \xB7 ") || safeError2(error40);
-      await completeJob(job.id, warning);
+      await failJob(job.id, warning);
       logger.warn({ jobId: job.id, action: job.action, warning }, "Provisioning job stopped after a non-retryable Provider response");
       return;
     }

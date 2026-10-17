@@ -1936,7 +1936,7 @@ type MonitoringJob = {
   username: string;
   action: 'providers' | 'awg';
   provider_keys: string[];
-  status: 'pending' | 'running' | 'retrying' | 'completed';
+  status: 'pending' | 'running' | 'retrying' | 'completed' | 'failed';
   attempts: number;
   last_error?: string | null;
   next_attempt_at?: string | null;
@@ -1952,6 +1952,7 @@ const monitoringStatus = (status: MonitoringJob['status']) => ({
   running: 'در حال اجرا',
   retrying: 'تلاش مجدد',
   completed: 'انجام شد',
+  failed: 'نیازمند بررسی',
 }[status]);
 
 export function Services() {
@@ -2105,7 +2106,7 @@ export function ActionRequests() {
 }
 
 function MonitoringContent() {
-  const [data, setData] = useState<{ summary: { pending: number; running: number; completed: number; total: number }; jobs: MonitoringJob[] }>({ summary: { pending: 0, running: 0, completed: 0, total: 0 }, jobs: [] });
+  const [data, setData] = useState<{ summary: { pending: number; running: number; completed: number; failed: number; total: number }; jobs: MonitoringJob[] }>({ summary: { pending: 0, running: 0, completed: 0, failed: 0, total: 0 }, jobs: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retryingJob, setRetryingJob] = useState<number | null>(null);
@@ -2152,6 +2153,7 @@ function MonitoringContent() {
     { key: 'pending', label: 'در صف', count: data.jobs.filter((job) => job.status === 'pending').length },
     { key: 'retrying', label: 'تلاش مجدد', count: data.jobs.filter((job) => job.status === 'retrying').length },
     { key: 'running', label: 'در حال اجرا', count: data.jobs.filter((job) => job.status === 'running').length },
+    { key: 'failed', label: 'نیازمند بررسی', count: data.jobs.filter((job) => job.status === 'failed').length },
     { key: 'completed', label: 'تکمیل‌شده', count: data.jobs.filter((job) => job.status === 'completed').length },
   ];
   const retryButton = <RefreshBtn onClick={() => { setLoading(true); void loadMonitoring(); }} loading={loading} testId="button-refresh-monitoring" />;
@@ -2162,7 +2164,7 @@ function MonitoringContent() {
       <Kpi label="نرخ تکمیل" value={`${number(completionRate)}٪`} detail={<Meter value={completionRate} label="نرخ تکمیل jobها" />} icon={Gauge} tone="primary" loading={loading && !data.jobs.length} />
       <Kpi label="در صف / تلاش مجدد" value={number(data.summary.pending)} icon={Clock3} tone="warn" loading={loading && !data.jobs.length} />
       <Kpi label="در حال اجرا" value={number(data.summary.running)} icon={Activity} tone="info" loading={loading && !data.jobs.length} />
-      <Kpi label="تکمیل‌شده" value={number(data.summary.completed)} detail={`از ${number(data.summary.total)} تلاش`} icon={Check} tone="good" loading={loading && !data.jobs.length} />
+       <Kpi label="تکمیل‌شده" value={number(data.summary.completed)} detail={`نیازمند بررسی: ${number(data.summary.failed)} · از ${number(data.summary.total)} تلاش`} icon={Check} tone="good" loading={loading && !data.jobs.length} />
     </KpiGrid>
     <Card title="تلاش‌های ساخت" description="هر ردیف به سرویس، منبع ساخت و زمان‌بندی واقعی job متصل است." actions={<Badge>{loading && !data.jobs.length ? '…' : `${number(visibleJobs.length)} از ${number(data.jobs.length)}`}</Badge>} flush>
       <Toolbar label="فیلتر وضعیت job"><Segment label="وضعیت job" value={jobFilter} onChange={setJobFilter} options={filterOptions.map((option) => ({ value: option.key, label: option.label, count: option.count }))} /></Toolbar>
@@ -2170,7 +2172,7 @@ function MonitoringContent() {
         <DataTable label="صف ساخت سرویس" head={['کاربر و سرویس', 'منبع ساخت', 'وضعیت', 'تلاش / زمان', 'خطای آخر', 'عملیات']}>{visibleJobs.map((job) => {
           const scheduleTime = job.status === 'completed' ? job.completed_at : job.status === 'running' ? job.lease_expires_at : job.next_attempt_at;
           const scheduleLabel = job.status === 'completed' ? 'پایان' : job.status === 'running' ? 'پایان مهلت' : 'تلاش بعدی';
-          const tone = job.status === 'completed' ? 'good' : job.status === 'running' ? 'info' : 'warn';
+          const tone = job.status === 'completed' ? 'good' : job.status === 'failed' ? 'warn' : job.status === 'running' ? 'info' : 'warn';
           return <tr key={job.id} data-testid={`row-monitoring-job-${job.id}`}>
             <td><div className="ax-cell-main"><span><strong>{job.customer_name}</strong><small className="ax-sub" dir="ltr">@{job.username} · #{job.service_id}</small><small className="ax-sub">{job.plan || 'سرویس'}{job.updated_at ? ` · ${dateTimeLabel(job.updated_at)}` : ''}</small></span></div></td>
             <td><bdi dir="ltr">{job.action === 'awg' ? 'AmneziaWG' : job.provider_keys.join(', ') || 'Provider'}</bdi></td>
@@ -3768,8 +3770,13 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
   const backfillMessage = (payload: any) => {
     const backfill = payload?.backfill;
     if (!backfill) return '';
-    if (backfill.alreadyQueued) return `صف یک‌بارهٔ سرویس‌های موجود قبلاً ثبت شده است (${numberFa(backfill.queued || 0)} سرویس).`;
-    return `${numberFa(backfill.queued || 0)} سرویس فعال و واجد شرایط برای ساخت حساب V2Ray به‌صورت مرحله‌ای در صف قرار گرفت.`;
+    const queued = Number(backfill.queued || 0);
+    if (queued > 0) {
+      return `${numberFa(queued)} سرویس فعال و واجد شرایط برای ساخت حساب V2Ray به‌صورت مرحله‌ای به صف افزوده شد.`;
+    }
+    return backfill.alreadyQueued
+      ? 'سرویس واجد شرایط جدیدی برای صف پیدا نشد؛ خطاهای قبلی را در مانیتورینگ سرویس بررسی کنید.'
+      : 'سرویس فعال و واجد شرایطی برای ساخت حساب V2Ray در صف پیدا نشد.';
   };
   const save = async (panel: any) => {
     setSaving(panel.key);

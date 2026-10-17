@@ -136,6 +136,17 @@ async function completeJob(jobId: number, warning?: string) {
   );
 }
 
+async function failJob(jobId: number, error: string) {
+  await pool.query(
+    `UPDATE service_provision_jobs
+      SET status = 'failed', last_error = $2, updated_at = NOW(), completed_at = NOW(),
+          lease_owner = NULL, lease_expires_at = NULL, heartbeat_at = NULL,
+          payload = payload - 'awg_client_candidate'
+      WHERE id = $1 AND lease_owner = $3`,
+    [jobId, error.slice(0, 500), workerId],
+  );
+}
+
 async function clearMisroutedWireGuardProviderJobs() {
   const result = await pool.query(
     `WITH affected_jobs AS (
@@ -303,7 +314,7 @@ async function processProviderJob(job: ProvisionJob) {
     }
     if (failed.length) {
       const warning = failed.map(providerFailure).join(" · ");
-      await completeJob(job.id, warning);
+      await failJob(job.id, warning);
       logger.warn({ jobId: job.id, action: job.action, warning }, "Provisioning job stopped after a non-retryable Provider response");
       return;
     }
@@ -319,7 +330,7 @@ async function processProviderJob(job: ProvisionJob) {
     );
     if ((results.length && failedKeys.length === 0 && nonRetryable.length > 0) || (error instanceof RainApiError && !error.retryable)) {
       const warning = (nonRetryable.length ? nonRetryable : results).map(providerFailure).join(" · ") || safeError(error);
-      await completeJob(job.id, warning);
+      await failJob(job.id, warning);
       logger.warn({ jobId: job.id, action: job.action, warning }, "Provisioning job stopped after a non-retryable Provider response");
       return;
     }

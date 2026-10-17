@@ -20,31 +20,57 @@ export function azadPanelV2RayBackfillPlan(
   nowUnix = Math.floor(Date.now() / 1000),
 ): AzadPanelV2RayBackfillPlan {
   if (service.status !== "active") {
-    return { eligible: false, quotaGb: 0, expiresAtUnix: null, reason: "inactive" };
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: null,
+      reason: "inactive",
+    };
   }
 
   const expiry =
     service.expiresAtUnix === null ? null : Number(service.expiresAtUnix);
   if (expiry !== null && (!Number.isFinite(expiry) || expiry <= nowUnix)) {
-    return { eligible: false, quotaGb: 0, expiresAtUnix: null, reason: "expired" };
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: null,
+      reason: "expired",
+    };
   }
 
   const totalGb = Number(service.gb);
   if (!Number.isFinite(totalGb) || totalGb < 0) {
-    return { eligible: false, quotaGb: 0, expiresAtUnix: expiry, reason: "invalid" };
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: expiry,
+      reason: "invalid",
+    };
   }
   if (totalGb === 0) {
     return { eligible: true, quotaGb: 0, expiresAtUnix: expiry };
   }
 
-  const remainingBytes = service.lastRemainingBytes === null
-    ? totalGb * BYTES_PER_GB - Number(service.lastUsedBytes ?? 0)
-    : Number(service.lastRemainingBytes);
+  const remainingBytes =
+    service.lastRemainingBytes === null
+      ? totalGb * BYTES_PER_GB - Number(service.lastUsedBytes ?? 0)
+      : Number(service.lastRemainingBytes);
   if (!Number.isFinite(remainingBytes)) {
-    return { eligible: false, quotaGb: 0, expiresAtUnix: expiry, reason: "invalid" };
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: expiry,
+      reason: "invalid",
+    };
   }
   if (remainingBytes <= 0) {
-    return { eligible: false, quotaGb: 0, expiresAtUnix: expiry, reason: "quota_exhausted" };
+    return {
+      eligible: false,
+      quotaGb: 0,
+      expiresAtUnix: expiry,
+      reason: "quota_exhausted",
+    };
   }
   return {
     eligible: true,
