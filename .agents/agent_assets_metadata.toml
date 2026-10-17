@@ -1444,3 +1444,17 @@ mtime_ms = 1792248459730
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4202eda2-4c6c-41d3-8ee7-33b408fd5fb2/b32e3666-a826-4c8c-86c7-da1dd3e5b64f"
 storage_version_token = "1792248497580596"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "NtcPrBmAEJCxBzN-SUTkG"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T14-53-42-274Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger IKEv2 profile fix"
+description = "Full Hostinger package with the IKEv2 profile parser fixed to recognize AzadPanel's top-level VPNType field, plus coverage for the legacy nested format."
+logical_id = "78c17295-54cd-4833-8fbb-8799f0ad5a92"
+content_hash = "sha256:d54d88a0af11c592793a864f9f397e1577454a09e9599acdeaa9d63bb187a454"
+size = 29021042
+mtime_ms = 1792248954119
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/78c17295-54cd-4833-8fbb-8799f0ad5a92/4bae9b84-50ab-40bb-b778-13086ea02339"
+storage_version_token = "1792249022925923"
+content_type = "application/octet-stream"

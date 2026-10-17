@@ -116,8 +116,8 @@ test("combined iOS profile retains all AzadPanel IKEv2 locations and certificate
 <plist version="1.0"><dict>
   <key>PayloadContent</key><array>
     <dict><key>PayloadType</key><string>com.apple.security.pem</string><key>PayloadUUID</key><string>CA-ONE</string><key>PayloadContent</key><data>VGVzdA==</data></dict>
-    <dict><key>PayloadType</key><string>com.apple.vpn.managed</string><key>PayloadUUID</key><string>VPN-ONE</string><key>VPNType</key><string>IKEv2</string><key>VPN</key><dict><key>VPNType</key><string>IKEv2</string><key>RemoteAddress</key><string>one.example</string></dict></dict>
-    <dict><key>PayloadType</key><string>com.apple.vpn.managed</string><key>PayloadUUID</key><string>VPN-TWO</string><key>VPNType</key><string>IKEv2</string><key>VPN</key><dict><key>VPNType</key><string>IKEv2</string><key>RemoteAddress</key><string>two.example</string></dict></dict>
+    <dict><key>PayloadType</key><string>com.apple.vpn.managed</string><key>PayloadUUID</key><string>VPN-ONE</string><key>VPNType</key><string>IKEv2</string><key>IKEv2</key><dict><key>RemoteAddress</key><string>one.example</string></dict></dict>
+    <dict><key>PayloadType</key><string>com.apple.vpn.managed</string><key>PayloadUUID</key><string>VPN-TWO</string><key>VPNType</key><string>IKEv2</string><key>IKEv2</key><dict><key>RemoteAddress</key><string>two.example</string></dict></dict>
   </array>
 </dict></plist>`;
   const profile = createMultiProtocolMobileConfigBundle([], 129, ipsecProfile);
@@ -138,4 +138,14 @@ test("an AzadPanel profile without an IKEv2 connection is not included", async (
     <dict><key>PayloadType</key><string>com.apple.wifi.managed</string></dict>
   </array></dict></plist>`;
   assert.throws(() => createMultiProtocolMobileConfigBundle([], 130, invalidProfile), /no IKEv2 connection/);
+});
+
+test("combined profile accepts the nested IKEv2 marker used by older Apple profiles", async () => {
+  const { createMultiProtocolMobileConfigBundle } = await loadProfileBuilder();
+  const nestedProfile = `<?xml version="1.0"?><plist version="1.0"><dict><key>PayloadContent</key><array>
+    <dict><key>PayloadType</key><string>com.apple.vpn.managed</string><key>VPN</key><dict><key>VPNType</key><string>IKEv2</string></dict></dict>
+  </array></dict></plist>`;
+  const profile = createMultiProtocolMobileConfigBundle([], 131, nestedProfile);
+  const parsed = parsePlist(profile);
+  assert.equal(parsed.PayloadContent[0].VPN.VPNType, "IKEv2");
 });

@@ -17,6 +17,18 @@ const IPSEC_CERTIFICATE_PAYLOAD_TYPES = new Set([
   "com.apple.security.pkcs12",
   "com.apple.security.root",
 ]);
+function isPlistDictionary(value: PlistValue | undefined): value is { [key: string]: PlistValue } {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date));
+}
+
+function isIkev2VpnPayload(payload: { [key: string]: PlistValue }): boolean {
+  const nestedVpnType = isPlistDictionary(payload.VPN) ? payload.VPN.VPNType : undefined;
+  const hasIkev2Settings = isPlistDictionary(payload.IKEv2) && Object.keys(payload.IKEv2).length > 0;
+  return [payload.VPNType, nestedVpnType].some(
+    (value) => typeof value === "string" && value.trim().toLowerCase() === "ikev2",
+  ) || hasIkev2Settings;
+}
+
 const escapeXml = (value: string): string =>
   value
     .replace(/&/g, "&amp;")
@@ -224,13 +236,7 @@ export function createMultiProtocolMobileConfigBundle(
       const payload = value as { [key: string]: PlistValue };
       const type = payload.PayloadType;
       if (type === "com.apple.vpn.managed") {
-        const vpn = payload.VPN;
-        return Boolean(
-          vpn
-          && typeof vpn === "object"
-          && !Array.isArray(vpn)
-          && (vpn as { [key: string]: PlistValue }).VPNType === "IKEv2",
-        );
+        return isIkev2VpnPayload(payload);
       }
       return typeof type === "string" && IPSEC_CERTIFICATE_PAYLOAD_TYPES.has(type);
     });

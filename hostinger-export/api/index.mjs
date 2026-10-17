@@ -80281,6 +80281,16 @@ var IPSEC_CERTIFICATE_PAYLOAD_TYPES = /* @__PURE__ */ new Set([
   "com.apple.security.pkcs12",
   "com.apple.security.root"
 ]);
+function isPlistDictionary(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date));
+}
+function isIkev2VpnPayload(payload) {
+  const nestedVpnType = isPlistDictionary(payload.VPN) ? payload.VPN.VPNType : void 0;
+  const hasIkev2Settings = isPlistDictionary(payload.IKEv2) && Object.keys(payload.IKEv2).length > 0;
+  return [payload.VPNType, nestedVpnType].some(
+    (value) => typeof value === "string" && value.trim().toLowerCase() === "ikev2"
+  ) || hasIkev2Settings;
+}
 var escapeXml = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 function stableUuid(value) {
   const bytes = Buffer.from(createHash6("sha1").update("pulse-mobileconfig-v1\0").update(value).digest().subarray(0, 16));
@@ -80455,10 +80465,7 @@ function createMultiProtocolMobileConfigBundle(entries, serviceId, ipsecProfile)
       const payload = value;
       const type = payload.PayloadType;
       if (type === "com.apple.vpn.managed") {
-        const vpn = payload.VPN;
-        return Boolean(
-          vpn && typeof vpn === "object" && !Array.isArray(vpn) && vpn.VPNType === "IKEv2"
-        );
+        return isIkev2VpnPayload(payload);
       }
       return typeof type === "string" && IPSEC_CERTIFICATE_PAYLOAD_TYPES.has(type);
     });
