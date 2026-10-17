@@ -1654,3 +1654,17 @@ mtime_ms = 1792271397052
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/bd6d54c1-7440-46bd-bbff-709398b40b21/7e88f816-a673-41be-96b4-477a6c889039"
 storage_version_token = "1792271427355167"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "u1ksGxE8lv6rAVCiHaJgm"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T21-46-45-704Z.zip"
+type = "unspecified"
+title = "Hostinger full ZIP — PostgreSQL ID and V2Ray mapping fix"
+description = "Fixes string BIGINT service IDs in the provisioning worker and blocks successful backfill completion without a saved Provider mapping. Package validated; not yet installed on Hostinger."
+logical_id = "617ee216-f9af-4b68-a35e-3c0248cb1fd7"
+content_hash = "sha256:b07257142cf0631c20603d46bd0931cf440d98b24e8af742e952102ab4e63fb4"
+size = 29051086
+mtime_ms = 1792273725359
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/617ee216-f9af-4b68-a35e-3c0248cb1fd7/5d0224d5-5976-46da-aab5-9d752f68e7a6"
+storage_version_token = "1792273773900763"
+content_type = "application/octet-stream"

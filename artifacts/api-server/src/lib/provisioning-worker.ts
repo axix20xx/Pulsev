@@ -11,6 +11,7 @@ import { createAwgClient, disableAwgClient, replaceAwgClient } from "./amneziawg
 import { logger } from "./logger";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
+import { normalizeProvisioningJobIds } from "./provisioning-job-ids";
 
 type ProvisionJob = {
   id: number;
@@ -42,7 +43,15 @@ async function claimJob(): Promise<ProvisionJob | null> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const result = await client.query<ProvisionJob & { provider_keys: unknown; payload: unknown }>(
+    const result = await client.query<
+      Omit<ProvisionJob, "id" | "service_id" | "owner_tg_id" | "provider_keys" | "payload"> & {
+        id: number | string;
+        service_id: number | string;
+        owner_tg_id: number | string;
+        provider_keys: unknown;
+        payload: unknown;
+      }
+    >(
       `SELECT id, service_id, owner_tg_id, username, action, provider_keys, payload, attempts,
                lifecycle_version, lease_owner
        FROM service_provision_jobs
@@ -58,6 +67,7 @@ async function claimJob(): Promise<ProvisionJob | null> {
       return null;
     }
     const attempts = Number(row.attempts) + 1;
+    const normalizedIds = normalizeProvisioningJobIds(row);
     await client.query(
       `UPDATE service_provision_jobs
        SET status = 'running', attempts = $1, lease_owner = $2,
@@ -69,6 +79,7 @@ async function claimJob(): Promise<ProvisionJob | null> {
     await client.query("COMMIT");
     return {
       ...row,
+      ...normalizedIds,
       attempts,
       provider_keys: Array.isArray(row.provider_keys) ? row.provider_keys.map(String) : [],
       payload: row.payload && typeof row.payload === "object" ? row.payload as Record<string, unknown> : {},
@@ -333,6 +344,19 @@ async function processProviderJob(job: ProvisionJob) {
       await failJob(job.id, warning);
       logger.warn({ jobId: job.id, action: job.action, warning }, "Provisioning job stopped after a non-retryable Provider response");
       return;
+    }
+    if (payload.azadPanelV2RayBackfill === true) {
+      const mappings = await pool.query<{ provider_key: string }>(
+        `SELECT provider_key FROM reseller_service_v2ray_accounts
+         WHERE service_id = $1 AND provider_key = ANY($2::text[])
+           AND length(trim(provider_username)) > 0`,
+        [job.service_id, job.provider_keys],
+      );
+      const mapped = new Set(mappings.rows.map((row) => row.provider_key));
+      if (job.provider_keys.some((key) => !mapped.has(key))) {
+        await failJob(job.id, "V2Ray Provider returned success but its account mapping was not saved. Backfill was not completed.");
+        return;
+      }
     }
     await completeJob(job.id);
     logger.info({ jobId: job.id, action: job.action }, "Provisioning job completed");

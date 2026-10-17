@@ -49,3 +49,4 @@
 - [Admin page redesign scope](admin-page-redesign.md) — redesign requests mean rebuilding route-level content hierarchy and responsive cards, not just adding shared theme CSS.
 - [AzadPanel IPsec accounts](azadpanel-ipsec.md) — IPsec is a separate AzadPanel core and identity; keep provider credentials, reseller access, combined usage, and Apple IKEv2 payloads protocol-scoped.
 - [AzadPanel V2Ray provisioning](azadpanel-v2ray.md) — use separate credentials and persist a V2Ray-only username after cross-reseller 403s for all account operations.
+- [PostgreSQL BIGINT boundaries](postgres-bigint-boundaries.md) — pg returns IDs as strings; normalize before identity guards and verify durable mappings before completing backfills.

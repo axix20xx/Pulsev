@@ -89361,6 +89361,27 @@ var app_default = app;
 // src/lib/provisioning-worker.ts
 import { hostname as hostname2 } from "node:os";
 import { randomUUID as randomUUID3 } from "node:crypto";
+
+// src/lib/provisioning-job-ids.ts
+function normalizeProvisioningJobIds(row) {
+  const parse4 = (value, field) => {
+    if (typeof value !== "number" && typeof value !== "string" || typeof value === "string" && !/^[0-9]+$/.test(value)) {
+      throw new Error(`Invalid provisioning job ${field}`);
+    }
+    const number4 = Number(value);
+    if (!Number.isSafeInteger(number4) || number4 <= 0) {
+      throw new Error(`Unsafe provisioning job ${field}`);
+    }
+    return number4;
+  };
+  return {
+    id: parse4(row.id, "id"),
+    service_id: parse4(row.service_id, "service_id"),
+    owner_tg_id: parse4(row.owner_tg_id, "owner_tg_id")
+  };
+}
+
+// src/lib/provisioning-worker.ts
 var workerId = `${hostname2()}:${process.pid}:${randomUUID3()}`;
 var leaseDurationMs = 2 * 6e4;
 var heartbeatIntervalMs = 3e4;
@@ -89387,6 +89408,7 @@ async function claimJob() {
       return null;
     }
     const attempts = Number(row.attempts) + 1;
+    const normalizedIds = normalizeProvisioningJobIds(row);
     await client.query(
       `UPDATE service_provision_jobs
        SET status = 'running', attempts = $1, lease_owner = $2,
@@ -89398,6 +89420,7 @@ async function claimJob() {
     await client.query("COMMIT");
     return {
       ...row,
+      ...normalizedIds,
       attempts,
       provider_keys: Array.isArray(row.provider_keys) ? row.provider_keys.map(String) : [],
       payload: row.payload && typeof row.payload === "object" ? row.payload : {}
@@ -89630,6 +89653,19 @@ async function processProviderJob(job) {
       await failJob(job.id, warning);
       logger.warn({ jobId: job.id, action: job.action, warning }, "Provisioning job stopped after a non-retryable Provider response");
       return;
+    }
+    if (payload.azadPanelV2RayBackfill === true) {
+      const mappings = await pool.query(
+        `SELECT provider_key FROM reseller_service_v2ray_accounts
+         WHERE service_id = $1 AND provider_key = ANY($2::text[])
+           AND length(trim(provider_username)) > 0`,
+        [job.service_id, job.provider_keys]
+      );
+      const mapped = new Set(mappings.rows.map((row) => row.provider_key));
+      if (job.provider_keys.some((key) => !mapped.has(key))) {
+        await failJob(job.id, "V2Ray Provider returned success but its account mapping was not saved. Backfill was not completed.");
+        return;
+      }
     }
     await completeJob(job.id);
     logger.info({ jobId: job.id, action: job.action }, "Provisioning job completed");
