@@ -71,6 +71,7 @@ import {
   createSubscriptionToken,
   downloadWireGuardBundle,
   downloadWireGuardProfile,
+  downloadWireGuardProfiles,
   downloadOpenVpnProfile,
   disablePanelUser,
   fetchPanelSubscription,
@@ -110,7 +111,10 @@ import {
   toClashSubscription,
 } from "../lib/subscription-formats";
 import { logger } from "../lib/logger";
-import { createWireGuardMobileConfig } from "../lib/wireguard-mobileconfig";
+import {
+  createWireGuardMobileConfig,
+  createWireGuardMobileConfigBundle,
+} from "../lib/wireguard-mobileconfig";
 import { getAwgUsageWorkerLog, recordAwgUsagePollEvent } from "../lib/awg-usage-poll";
 import {
   ensureStorefrontSchema,
@@ -226,6 +230,7 @@ router.get("/admin/notification-subscriptions", requireMasterAdmin, async (req, 
       qr_url: row.token ? `/sub?t=${encodeURIComponent(row.token)}&qr=1` : null,
       subscription_url: row.token ? `/api/public/subscription/${encodeURIComponent(row.token)}/feed` : null,
       awg_url: row.token && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(row.token)}/awg` : null,
+      awg_mobileconfig_url: row.token && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(row.token)}/awg/mobileconfig` : null,
       renew_url: `/login?next=${encodeURIComponent(`/services?renew=${row.id}`)}`,
     })),
   });
@@ -1502,6 +1507,7 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     public_url: `/sub?t=${encodeURIComponent(token)}`,
     awg_ready: !finished && Boolean(row.awg_client_id),
     awg_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
+    awg_mobileconfig_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg/mobileconfig` : null,
     openvpn_available: !finished && Boolean(token),
     wireguard_available: !finished && Boolean(row.wireguard_enabled),
     provider_label: "V2Box",
@@ -1556,6 +1562,7 @@ function publicOpenVpnDelivery(token: string, delivery: OpenVpnDelivery) {
   return {
     ...delivery,
     bundle_url: `${providerPath}/bundle/${encodeURIComponent(delivery.provider_key)}`,
+    bundle_mobileconfig_url: `${providerPath}/mobileconfig/${encodeURIComponent(delivery.provider_key)}`,
     bundle_import_url: `${providerPath}/import-bundle/${encodeURIComponent(delivery.provider_key)}`,
     locations: delivery.locations.map((location) => ({
       ...location,
@@ -1900,6 +1907,70 @@ async function resolvePublicWireGuardProfile(
   }
 }
 
+router.get("/public/subscription/:token/wireguard/mobileconfig/:provider", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  const providerKey = String(req.params.provider ?? "");
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    res.status(404).type("text/plain").send("Invalid subscription token");
+    return;
+  }
+  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey)) {
+    res.status(400).type("text/plain").send("Invalid WireGuard provider");
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).type("text/plain").send("Subscription not found");
+    return;
+  }
+  if (!service.wireguard_enabled) {
+    res.status(404).type("text/plain").send("WireGuard is not enabled for this reseller");
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).type("text/plain").send("Subscription has expired");
+    return;
+  }
+  try {
+    const delivery = await loadSavedWireGuardDelivery(Number(service.id));
+    if (!delivery || delivery.provider_key !== providerKey) {
+      res.status(404).type("text/plain").send("WireGuard account not found");
+      return;
+    }
+    const profiles = await downloadWireGuardProfiles(
+      delivery.username,
+      providerKey,
+      delivery.locations.map((location) => location.id),
+      Number(service.reseller_tg_id),
+      "reseller",
+    );
+    const locationById = new Map(delivery.locations.map((location) => [location.id, location]));
+    const profile = createWireGuardMobileConfigBundle(
+      profiles.map((entry) => ({
+        config: entry.body,
+        hostId: entry.hostId,
+        locationName: locationById.get(entry.hostId)?.name ?? `Location ${entry.hostId}`,
+      })),
+      Number(service.id),
+      "wireguard",
+    );
+    const filename = safeDownloadFilename(
+      null,
+      `Pulse-${String(service.id)}-wireguard-all-servers`,
+      ".mobileconfig",
+    );
+    res.setHeader("content-type", "application/x-apple-aspen-config");
+    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send(profile);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not prepare the iOS WireGuard profile.";
+    res.status(message.includes("not available for this account") ? 404 : 502).type("text/plain").send(message);
+  }
+});
+
 router.get("/public/subscription/:token/wireguard/mobileconfig/:provider/:host", async (req, res): Promise<void> => {
   await managementReady;
   const token = String(req.params.token ?? "").trim();
@@ -2240,9 +2311,14 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
   res.send(body);
 });
 
-router.get("/public/subscription/:token/awg", async (req, res): Promise<void> => {
-  const token = String(req.params.token ?? "").trim();
+type PublicAwgProfileResult =
+  | { status: 404 | 410; error: string }
+  | { status: 502; error: string }
+  | { status: 200; serviceId: number; username: string; config: string };
+
+async function resolvePublicAwgProfile(token: string): Promise<PublicAwgProfileResult> {
   const result = await pool.query<{
+    service_id: number;
     awg_client_id: string | null;
     username: string;
     status: string;
@@ -2256,7 +2332,7 @@ router.get("/public/subscription/:token/awg", async (req, res): Promise<void> =>
     panel_usage_bytes: number | null;
     remote_disable_pending: number | null;
   }>(
-    `SELECT svc.awg_client_id, svc.rain_username AS username, svc.status,
+    `SELECT svc.id::float8 AS service_id, svc.awg_client_id, svc.rain_username AS username, svc.status,
             svc.disable_reason, svc.expire_at AS expires_at, svc.gb::float8 AS limit_gb,
             svc.last_used_bytes, svc.last_total_bytes,
             COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
@@ -2270,45 +2346,86 @@ router.get("/public/subscription/:token/awg", async (req, res): Promise<void> =>
     [token],
   );
   const row = result.rows[0];
-  const totalBytes = Number(row?.last_total_bytes) > 0
-    ? Number(row?.last_total_bytes)
-    : Math.round(Number(row?.limit_gb ?? 0) * 1024 ** 3);
-  const usedBytes = row
-    ? serviceUsageBytes({
-        lastUsedBytes: row.last_used_bytes,
-        panelUsageBytes: row.panel_usage_bytes,
-        awgTotalBytes: row.awg_total_bytes,
-        awgOffsetBytes: row.awg_offset_bytes,
-      })
-    : 0;
-  const finished = row ? !serviceCanUseAwg({
+  if (!row) return { status: 404, error: "لینک اشتراک پیدا نشد." };
+  const totalBytes = Number(row.last_total_bytes) > 0
+    ? Number(row.last_total_bytes)
+    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = serviceUsageBytes({
+    lastUsedBytes: row.last_used_bytes,
+    panelUsageBytes: row.panel_usage_bytes,
+    awgTotalBytes: row.awg_total_bytes,
+    awgOffsetBytes: row.awg_offset_bytes,
+  });
+  const finished = !serviceCanUseAwg({
     status: row.status,
     expiresAt: row.expires_at,
     totalBytes,
     usedBytes,
     remoteDisablePending: row.remote_disable_pending,
-  }) : false;
-  if (row && finished) {
-    res.status(410).json({
+  });
+  if (finished) {
+    return {
+      status: 410,
       error: row.disable_reason || (usedBytes >= totalBytes ? "حجم اشتراک به پایان رسیده است" : "اعتبار اشتراک به پایان رسیده است"),
-    });
+    };
+  }
+  if (!row.awg_client_id) {
+    return { status: 404, error: "کانفیگ AmneziaWG برای این اشتراک آماده نیست" };
+  }
+  try {
+    return {
+      status: 200,
+      serviceId: Number(row.service_id),
+      username: row.username,
+      config: await getAwgConfiguration(row.awg_client_id),
+    };
+  } catch (error) {
+    if (error instanceof AwgApiError) return { status: 502, error: error.message };
+    throw error;
+  }
+}
+
+router.get("/public/subscription/:token/awg", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  const result = await resolvePublicAwgProfile(token);
+  if (result.status !== 200) {
+    res.status(result.status).json({ error: result.error });
     return;
   }
-  if (!row?.awg_client_id) {
-    res.status(404).json({ error: "کانفیگ AmneziaWG برای این اشتراک آماده نیست" });
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${result.username}-amneziawg.conf"`);
+  res.send(result.config);
+});
+
+router.get("/public/subscription/:token/awg/mobileconfig", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  const result = await resolvePublicAwgProfile(token);
+  if (result.status !== 200) {
+    res.status(result.status).type("text/plain").send(result.error);
     return;
   }
   try {
-    const configuration = await getAwgConfiguration(row.awg_client_id);
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="${row.username}-amneziawg.conf"`);
-    res.send(configuration);
+    const profile = createWireGuardMobileConfigBundle(
+      [{ config: result.config, hostId: "amneziawg", locationName: "AmneziaWG" }],
+      result.serviceId,
+      "amneziawg",
+    );
+    const filename = safeDownloadFilename(
+      null,
+      `Pulse-${result.serviceId}-amneziawg`,
+      ".mobileconfig",
+    );
+    res.setHeader("content-type", "application/x-apple-aspen-config");
+    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send(profile);
   } catch (error) {
-    if (error instanceof AwgApiError) {
-      res.status(502).json({ error: error.message });
-      return;
-    }
-    throw error;
+    res.status(422).type("text/plain").send(
+      error instanceof Error ? error.message : "Could not prepare the iOS AmneziaWG profile.",
+    );
   }
 });
 

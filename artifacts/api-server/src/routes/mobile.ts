@@ -378,6 +378,7 @@ const mapService = (req: Request, row: MobileServiceRow) => {
       ? `v2box://install-sub?url=${encodeURIComponent(subscriptionUrl)}&name=${encodeURIComponent(row.plan)}`
       : null,
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
+    awg_mobileconfig_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg/mobileconfig`) : null,
     openvpn_available: Boolean(token) && status === "active",
     wireguard_available: Boolean(row.wireguard_enabled)
       && Boolean(token)

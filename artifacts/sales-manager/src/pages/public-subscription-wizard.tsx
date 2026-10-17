@@ -57,6 +57,7 @@ type WireGuardAccount = {
   username: string;
   core: 'wireguard';
   bundle_url: string;
+  bundle_mobileconfig_url: string;
   locations: Array<{
     id: string;
     name: string;
@@ -426,7 +427,7 @@ export function PublicSubscriptionWizard(props: Props) {
               )}
 
               {selectedProtocol === 'openvpn' && (
-                <div className="public-sub-protocol-content">
+                  <div className="public-sub-protocol-content">
                   <div className="public-sub-guide-card">
                     <span className="public-sub-guide-number">01</span>
                     <div><strong>حساب را دریافت کنید</strong><p>حساب ذخیره‌شده نمایش داده می‌شود؛ ساخت حساب تازه فقط با انتخاب شما انجام می‌شود.</p></div>
@@ -467,11 +468,12 @@ export function PublicSubscriptionWizard(props: Props) {
                     {wireguardLoading ? <div className="public-sub-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی کانفیگ ذخیره‌شدهٔ WireGuard...</div> : !wireguardData ? <div className="public-sub-openvpn-setup"><button type="button" className="public-sub-openvpn-button primary" onClick={prepareWireGuard} disabled={wireguardBusy} data-testid="button-public-sub-wireguard-create">{wireguardBusy ? <><RefreshCw size={15} className="public-sub-spin" />در حال آماده‌سازی کانفیگ...</> : <><Plus size={15} />ساخت یا دریافت کانفیگ WireGuard</>}</button>{wireguardError && <p className="public-sub-openvpn-error" role="alert">{wireguardError}</p>}</div> : <>
                       <div className="public-sub-openvpn-actions">
                         <a className="public-sub-openvpn-button primary" href={wireguardData.bundle_url} download data-testid="link-public-sub-wireguard-bundle"><Download size={15} />دانلود همهٔ کانفیگ‌ها</a>
+                        {(activeOS === 'iOS' || isIOSDevice()) && <a className="public-sub-openvpn-button" href={wireguardData.bundle_mobileconfig_url} data-testid="link-public-sub-wireguard-ios-all-profile"><Smartphone size={14} />نصب همهٔ سرورها در یک پروفایل iOS</a>}
                         <a className="public-sub-openvpn-button" href="https://apps.apple.com/us/app/wireguard/id1441195209" target="_blank" rel="noreferrer" data-testid="link-public-sub-wireguard-ios"><ExternalLink size={14} />نصب WireGuard · iOS</a>
                         <a className="public-sub-openvpn-button" href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" rel="noreferrer" data-testid="link-public-sub-wireguard-android"><ExternalLink size={14} />نصب WireGuard · Android</a>
                       </div>
                       {wireguardData.locations.length ? <div className="public-sub-openvpn-locations"><strong>سرورها</strong>{wireguardData.locations.map((location) => <div className="public-sub-openvpn-location" key={location.id}><span>{location.name}</span><a href={location.config_url} download data-testid={`link-public-sub-wireguard-config-${location.id}`}><Download size={13} />دانلود .conf</a>{isIOSDevice() && <a href={location.mobileconfig_url} data-testid={`link-public-sub-wireguard-ios-profile-${location.id}`}><Smartphone size={13} />نصب پروفایل iOS</a>}</div>)}</div> : <p className="public-sub-openvpn-error" role="status">برای این حساب هنوز سرور آماده‌ای وجود ندارد.</p>}
-                      <p className="public-sub-openvpn-hint">در iPhone/iPad، «نصب پروفایل iOS» را بزنید و نصب را در Settings → Profile Downloaded تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. این روش رسمی پروفایل iOS است، نه URL scheme مستقیم. فایل .conf هم برای واردکردن دستی در برنامه در دسترس است. کلید خصوصی را محرمانه نگه دارید.</p>
+                      <p className="public-sub-openvpn-hint">در iPhone/iPad، نصب پروفایل تکی یا «نصب همهٔ سرورها» را بزنید و در Settings → Profile Downloaded تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. پروفایل چندسروره، تونل‌های جداگانه را یک‌جا اضافه می‌کند؛ در برنامه هر بار یکی را فعال کنید. فایل .conf هم برای واردکردن دستی موجود است. کلید خصوصی را محرمانه نگه دارید.</p>
                     </>}
                     {wireguardError && wireguardData && <p className="public-sub-openvpn-error" role="alert">{wireguardError}</p>}
                   </section>
@@ -481,10 +483,10 @@ export function PublicSubscriptionWizard(props: Props) {
 
               {selectedProtocol === 'amneziawg' && (
                 <div className="public-sub-protocol-content">
-                  <div className="public-sub-guide-card"><span className="public-sub-guide-number">01</span><div><strong>اپ رسمی را نصب کنید</strong><p>برای iPhone و Android، اپ AmneziaWG را دریافت کنید؛ در مرحله بعد فایل همین اشتراک را وارد کنید.</p></div></div>
+                  <div className="public-sub-guide-card"><span className="public-sub-guide-number">01</span><div><strong>اپ رسمی را نصب کنید</strong><p>برای iPhone و Android، اپ AmneziaWG را دریافت کنید؛ در مرحله بعد پروفایل iOS یا فایل همین اشتراک را وارد کنید.</p></div></div>
                   <section className="public-sub-awg-card open" data-testid="card-public-sub-amneziawg">
                     <div className="public-sub-awg-heading"><div className="public-sub-awg-icon"><Wifi size={20} /></div><div><p className="public-sub-kicker">پروتکل اختصاصی</p><h2>AmneziaWG</h2><p>کانفیگ اختصاصی همین اشتراک را دریافت کنید.</p></div><span className={`public-sub-awg-status ${awgAvailable ? 'ready' : 'pending'}`}>{awgAvailable ? <><CheckCircle2 size={14} /> آماده</> : <><CircleHelp size={14} /> در انتظار کانفیگ</>}</span></div>
-                    {awgAvailable ? <div className="public-sub-awg-body"><p>فایل را ذخیره کنید و در اپ AmneziaWG گزینهٔ افزودن کانفیگ یا Import from file را انتخاب کنید.</p><div><a href={data.awg_url} className="public-sub-awg-action primary" download referrerPolicy="no-referrer" data-testid="link-public-sub-awg-download"><Download size={15} />دانلود فایل کانفیگ</a><button type="button" className="public-sub-awg-action" onClick={copyAwg} data-testid="button-public-sub-awg-copy"><Copy size={15} />{copied === 'awg' ? 'کپی شد' : 'کپی متن کانفیگ'}</button></div></div> : <div className="public-sub-awg-unavailable"><strong>کانفیگ هنوز آماده نیست</strong><p>اپ را می‌توانید نصب کنید؛ پس از آماده‌شدن کانفیگ، همین صفحه را دوباره باز کنید.</p></div>}
+                    {awgAvailable ? <div className="public-sub-awg-body"><p>در iPhone پروفایل AmneziaWG را نصب کنید؛ در Android فایل .conf را در اپ وارد کنید.</p><div><a href={data.awg_url} className="public-sub-awg-action primary" download referrerPolicy="no-referrer" data-testid="link-public-sub-awg-download"><Download size={15} />دانلود فایل کانفیگ</a>{(activeOS === 'iOS' || isIOSDevice()) && data.awg_mobileconfig_url && <a href={data.awg_mobileconfig_url} className="public-sub-awg-action" referrerPolicy="no-referrer" data-testid="link-public-sub-awg-ios-profile"><Smartphone size={15} />نصب پروفایل AmneziaWG · iOS</a>}<button type="button" className="public-sub-awg-action" onClick={copyAwg} data-testid="button-public-sub-awg-copy"><Copy size={15} />{copied === 'awg' ? 'کپی شد' : 'کپی متن کانفیگ'}</button></div>{(activeOS === 'iOS' || isIOSDevice()) && <p className="public-sub-openvpn-hint">بعد از بازشدن فایل، نصب را در Settings → Profile Downloaded تأیید کنید و سپس برنامهٔ AmneziaWG را یک‌بار باز کنید.</p>}</div> : <div className="public-sub-awg-unavailable"><strong>کانفیگ هنوز آماده نیست</strong><p>اپ را می‌توانید نصب کنید؛ پس از آماده‌شدن کانفیگ، همین صفحه را دوباره باز کنید.</p></div>}
                     <div className="public-sub-awg-divider"><span>اپ رسمی و راهنمای هر دستگاه</span><a href="https://amnezia.org/downloads" target="_blank" rel="noreferrer" data-testid="link-public-sub-awg-official-downloads"><ExternalLink size={13} />دانلودهای رسمی</a></div>
                     <div className="public-sub-awg-grid">{awgPlatforms.map((platform) => { const Icon = platform.icon; return <a key={platform.id} href={platform.href} target="_blank" rel="noreferrer" className="public-sub-awg-platform" data-testid={`link-public-sub-awg-${platform.id}`}><span className="public-sub-awg-platform-icon"><Icon size={18} /></span><span><strong>{platform.label}</strong><small>{platform.detail}</small></span><ExternalLink size={14} /></a>; })}</div>
                   </section>

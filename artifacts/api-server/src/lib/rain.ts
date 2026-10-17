@@ -1785,8 +1785,21 @@ export async function downloadWireGuardProfile(
   const panel = await findWireGuardProvider(providerKey, ownerId, role);
   const endpoints = await listWireGuardEndpoints(panel, username);
   const endpoint = endpoints.find((candidate) => wireGuardLocationId(candidate) === hostId);
-  if (!endpoint || typeof endpoint.config_url !== "string") {
+  if (!endpoint) {
     throw new RainApiError("The requested WireGuard location is not available for this account.");
+  }
+  return downloadWireGuardEndpointConfig(panel, username, providerKey, hostId, endpoint);
+}
+
+async function downloadWireGuardEndpointConfig(
+  panel: Panel,
+  username: string,
+  providerKey: string,
+  hostId: string,
+  endpoint: any,
+): Promise<{ body: string; contentType: string; contentDisposition: string | null }> {
+  if (typeof endpoint?.config_url !== "string") {
+    throw new RainApiError("AzadPanel did not return a WireGuard configuration path for this location.");
   }
   let configUrl: URL;
   try {
@@ -1803,11 +1816,7 @@ export async function downloadWireGuardProfile(
   ) {
     throw new RainApiError("AzadPanel returned an unsafe WireGuard configuration path.");
   }
-  const response = await panelRequest(
-    panel,
-    "GET",
-    `${configUrl.pathname}${configUrl.search}`,
-  );
+  const response = await panelRequest(panel, "GET", `${configUrl.pathname}${configUrl.search}`);
   if (response.status < 200 || response.status >= 300 || !response.text.trim()) {
     throw new RainApiError(
       `AzadPanel ${providerKey} could not download the WireGuard profile: ${safeError(response)}`,
@@ -1818,6 +1827,35 @@ export async function downloadWireGuardProfile(
     contentType: "text/plain; charset=utf-8",
     contentDisposition: response.contentDisposition,
   };
+}
+
+export async function downloadWireGuardProfiles(
+  username: string,
+  providerKey: string,
+  hostIds: string[],
+  ownerId?: number,
+  role?: string,
+): Promise<Array<{ hostId: string; body: string; contentType: string; contentDisposition: string | null }>> {
+  const panel = await findWireGuardProvider(providerKey, ownerId, role);
+  const endpoints = await listWireGuardEndpoints(panel, username);
+  const requestedHostIds = [...new Set(hostIds)];
+  if (!requestedHostIds.length || requestedHostIds.length > 40) {
+    throw new RainApiError("The WireGuard profile bundle must contain between 1 and 40 servers.");
+  }
+  const selected = requestedHostIds.map((hostId) => {
+    if (!/^[A-Za-z0-9._-]{1,80}$/.test(hostId)) {
+      throw new RainApiError("Invalid WireGuard server identity.");
+    }
+    const endpoint = endpoints.find((candidate) => wireGuardLocationId(candidate) === hostId);
+    if (!endpoint) {
+      throw new RainApiError("A requested WireGuard server is no longer available for this account.");
+    }
+    return { hostId, endpoint };
+  });
+  return Promise.all(selected.map(async ({ hostId, endpoint }) => ({
+    hostId,
+    ...await downloadWireGuardEndpointConfig(panel, username, providerKey, hostId, endpoint),
+  })));
 }
 
 export async function downloadWireGuardBundle(

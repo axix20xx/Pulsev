@@ -1332,3 +1332,17 @@ mtime_ms = 1792235870703
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/333d5691-44f6-40c1-84cc-77708ab78431/2c6d10bf-d7ec-4d85-915e-ef8bdd89b123"
 storage_version_token = "1792235937082650"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "fKDeqThnqzW9xiz-lZXd9"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T11-57-05-219Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP"
+description = "Full Hostinger deployment package with AmneziaWG iOS profile installation and one-profile multi-server WireGuard imports."
+logical_id = "f4a6a4ca-36b2-4ea0-b0af-84726b7f92f5"
+content_hash = "sha256:b30b09b684d32c502c2181ef08f29cd93322aac88837c9500fd6edff31eb1eb7"
+size = 28784503
+mtime_ms = 1792238335238
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f4a6a4ca-36b2-4ea0-b0af-84726b7f92f5/ac70c0ce-380c-4ced-9e4d-f47ca2a5f0f8"
+storage_version_token = "1792238443307802"
+content_type = "application/octet-stream"

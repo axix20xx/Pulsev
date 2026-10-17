@@ -134,6 +134,7 @@ type MobileWireGuardDelivery = {
   username: string;
   core: "wireguard";
   bundle_url: string;
+  bundle_mobileconfig_url: string;
   locations: Array<{ id: string; name: string; config_url: string; mobileconfig_url: string }>;
 };
 
@@ -324,7 +325,8 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
     </section> : null}
     {item.awg_url ? <section className="mobile-awg-card">
       <div className="mobile-connection-card-head"><span className="mobile-awg-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">اتصال اختصاصی</span><h3>AmneziaWG</h3><p>کانفیگ جداگانه برای اتصال پایدارتر</p></div></div>
-       <div className="mobile-awg-actions"><a href={item.awg_url} download data-testid={`link-mobile-download-awg-${item.id}`}><Download size={16} /> دانلود کانفیگ</a><button onClick={() => void copyAwg()} data-testid={`button-mobile-copy-awg-${item.id}`}><Copy size={15} /> کپی متن کانفیگ</button></div>
+       <div className="mobile-awg-actions"><a href={item.awg_url} download data-testid={`link-mobile-download-awg-${item.id}`}><Download size={16} /> دانلود کانفیگ</a>{isIOSDevice && item.awg_mobileconfig_url ? <a href={item.awg_mobileconfig_url} data-testid={`link-mobile-awg-ios-profile-${item.id}`}><Download size={16} /> نصب پروفایل iOS</a> : null}<button onClick={() => void copyAwg()} data-testid={`button-mobile-copy-awg-${item.id}`}><Copy size={15} /> کپی متن کانفیگ</button></div>
+       {isIOSDevice && item.awg_mobileconfig_url ? <p className="mobile-openvpn-hint">برای iPhone، نصب پروفایل را در Settings → Profile Downloaded تأیید کنید و سپس AmneziaWG را یک‌بار باز کنید. فایل .conf هم برای واردکردن دستی موجود است.</p> : null}
        <div className="mobile-awg-download-heading"><span>دانلود اپ رسمی</span><a href="https://amnezia.org/downloads" target="_blank" rel="noreferrer"><ExternalLink size={13} /> همهٔ دانلودها</a></div>
        <div className="mobile-awg-download-grid">{awgDownloads.map((download) => <a href={download.href} target="_blank" rel="noreferrer" key={download.id} data-testid={`link-mobile-awg-download-${download.id}`}><strong>{download.label}</strong><small>{download.detail}</small><ExternalLink size={13} /></a>)}</div>
     </section> : null}
@@ -355,9 +357,10 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
         <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">اتصال مستقل</span><h3>WireGuard</h3><p>ساخت کانفیگ فقط با انتخاب شما انجام می‌شود.</p></div></div>
         {wireguardLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی کانفیگ ذخیره‌شدهٔ WireGuard...</div> : !wireguardData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareWireGuard()} disabled={wireguardBusy} data-testid={`button-mobile-wireguard-create-${item.id}`}>{wireguardBusy ? 'در حال آماده‌سازی...' : 'ساخت یا دریافت کانفیگ WireGuard'}</button> : <>
           <a className="mobile-openvpn-download primary" href={wireguardData.bundle_url} download data-testid={`link-mobile-wireguard-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ کانفیگ‌ها</a>
+          {isIOSDevice ? <a className="mobile-openvpn-primary" href={wireguardData.bundle_mobileconfig_url} data-testid={`link-mobile-wireguard-ios-all-profile-${item.id}`}><Download size={15} /> نصب همهٔ سرورها در یک پروفایل iOS</a> : null}
           <div className="mobile-openvpn-locations">{wireguardData.locations.map((location) => <div className="mobile-openvpn-location" key={location.id}><span>{location.name}</span><a href={location.config_url} download data-testid={`link-mobile-wireguard-config-${item.id}-${location.id}`}><Download size={13} />دانلود .conf</a>{isIOSDevice && <a href={location.mobileconfig_url} data-testid={`link-mobile-wireguard-ios-profile-${item.id}-${location.id}`}>نصب iOS</a>}</div>)}</div>
           <div className="mobile-openvpn-app-links"><a href="https://apps.apple.com/us/app/wireguard/id1441195209" target="_blank" rel="noreferrer">WireGuard برای iOS <ExternalLink size={13} /></a><a href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" rel="noreferrer">WireGuard برای Android <ExternalLink size={13} /></a></div>
-          <p className="mobile-openvpn-hint">در iPhone/iPad، «نصب iOS» را بزنید و در Settings → Profile Downloaded نصب پروفایل را تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. این روش رسمی پروفایل iOS است، نه URL scheme مستقیم. فایل .conf نیز برای واردکردن دستی موجود است. کلید خصوصی را محرمانه نگه دارید.</p>
+          <p className="mobile-openvpn-hint">در iPhone/iPad، نصب پروفایل تکی یا «نصب همهٔ سرورها» را بزنید و در Settings → Profile Downloaded تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. پروفایل چندسروره تونل‌های جداگانه را یک‌جا اضافه می‌کند؛ در برنامه هر بار یکی را فعال کنید. فایل .conf نیز برای واردکردن دستی موجود است. کلید خصوصی را محرمانه نگه دارید.</p>
         </>}
         {wireguardError ? <p className="mobile-openvpn-error" role="alert">{wireguardError}</p> : null}
       </section> : null}
