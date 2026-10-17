@@ -47,7 +47,7 @@ function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" | "azadpan
   const kind = panel.kind?.trim().toLowerCase();
   if (kind === "rain_admin") return "rain_admin";
   if (kind === "falcon") return "falcon";
-  if (kind === "azadpanel") return "azadpanel";
+  if (kind === "azadpanel" || kind === "azadpanel_openvpn" || kind === "azadpanel_wireguard") return "azadpanel";
   return "marzban";
 }
 
@@ -473,8 +473,10 @@ export async function testPanelAuthentication(
     }
     if (panelKind(panel) === "azadpanel") {
       const core = await azadPanelCore(panel, true);
-      if (core !== "openvpn") {
-        return { ok: false, detail: `AzadPanel core is ${core || "unknown"}; OpenVPN is required.` };
+      const configuredKind = panel.kind?.trim().toLowerCase();
+      const requiredCore = configuredKind === "azadpanel_wireguard" ? "wireguard" : "openvpn";
+      if (core !== requiredCore) {
+        return { ok: false, detail: `AzadPanel core is ${core || "unknown"}; ${requiredCore} is required.` };
       }
     }
     return { ok: true, detail: "Authentication succeeded." };
@@ -568,14 +570,26 @@ async function panelRequest(
 
 async function azadPanelCore(panel: Panel, forceRefresh = false): Promise<string> {
   const key = panelKey(panel);
+  const configuredKind = panel.kind?.trim().toLowerCase();
+  const expectedCore = configuredKind === "azadpanel_wireguard"
+    ? "wireguard"
+    : configuredKind === "azadpanel_openvpn"
+      ? "openvpn"
+      : null;
   const cached = azadPanelCoreCache.get(key);
-  if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.core;
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
+    if (!expectedCore || cached.core === expectedCore) return cached.core;
+    azadPanelCoreCache.delete(key);
+  }
   const response = await panelRequest(panel, "GET", "/api/admin");
   if (response.status < 200 || response.status >= 300) {
     throw new RainApiError(`Could not read AzadPanel ${key} settings: ${safeError(response)}`);
   }
   const core = typeof response.json?.core === "string" ? response.json.core.trim().toLowerCase() : "";
   if (!core) throw new RainApiError(`AzadPanel ${key} did not return a core type.`);
+  if (expectedCore && core !== expectedCore) {
+    throw new RainApiError(`AzadPanel ${key} is configured for ${expectedCore} but reports ${core || "unknown"}.`);
+  }
   azadPanelCoreCache.set(key, { core, expiresAt: Date.now() + 5 * 60_000 });
   return core;
 }

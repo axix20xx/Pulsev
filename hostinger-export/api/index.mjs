@@ -64481,7 +64481,7 @@ function storedPanelUsageSql(serviceAlias = "svc") {
       LIMIT 1
     ) latest_usage ON TRUE
     WHERE panel.is_enabled = 1
-      AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
+      AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard')
   ), 0)::float8`;
 }
 
@@ -64712,7 +64712,7 @@ function panelKind(panel) {
   const kind = panel.kind?.trim().toLowerCase();
   if (kind === "rain_admin") return "rain_admin";
   if (kind === "falcon") return "falcon";
-  if (kind === "azadpanel") return "azadpanel";
+  if (kind === "azadpanel" || kind === "azadpanel_openvpn" || kind === "azadpanel_wireguard") return "azadpanel";
   return "marzban";
 }
 function panelEnvCredential(key, suffix) {
@@ -65046,8 +65046,10 @@ async function testPanelAuthentication(key, ownerId, role) {
     }
     if (panelKind(panel) === "azadpanel") {
       const core = await azadPanelCore(panel, true);
-      if (core !== "openvpn") {
-        return { ok: false, detail: `AzadPanel core is ${core || "unknown"}; OpenVPN is required.` };
+      const configuredKind = panel.kind?.trim().toLowerCase();
+      const requiredCore = configuredKind === "azadpanel_wireguard" ? "wireguard" : "openvpn";
+      if (core !== requiredCore) {
+        return { ok: false, detail: `AzadPanel core is ${core || "unknown"}; ${requiredCore} is required.` };
       }
     }
     return { ok: true, detail: "Authentication succeeded." };
@@ -65112,14 +65114,22 @@ async function panelRequest(panel, method, path, body) {
 }
 async function azadPanelCore(panel, forceRefresh = false) {
   const key = panelKey(panel);
+  const configuredKind = panel.kind?.trim().toLowerCase();
+  const expectedCore = configuredKind === "azadpanel_wireguard" ? "wireguard" : configuredKind === "azadpanel_openvpn" ? "openvpn" : null;
   const cached2 = azadPanelCoreCache.get(key);
-  if (!forceRefresh && cached2 && cached2.expiresAt > Date.now()) return cached2.core;
+  if (!forceRefresh && cached2 && cached2.expiresAt > Date.now()) {
+    if (!expectedCore || cached2.core === expectedCore) return cached2.core;
+    azadPanelCoreCache.delete(key);
+  }
   const response = await panelRequest(panel, "GET", "/api/admin");
   if (response.status < 200 || response.status >= 300) {
     throw new RainApiError(`Could not read AzadPanel ${key} settings: ${safeError(response)}`);
   }
   const core = typeof response.json?.core === "string" ? response.json.core.trim().toLowerCase() : "";
   if (!core) throw new RainApiError(`AzadPanel ${key} did not return a core type.`);
+  if (expectedCore && core !== expectedCore) {
+    throw new RainApiError(`AzadPanel ${key} is configured for ${expectedCore} but reports ${core || "unknown"}.`);
+  }
   azadPanelCoreCache.set(key, { core, expiresAt: Date.now() + 5 * 6e4 });
   return core;
 }
@@ -71459,7 +71469,7 @@ router2.post("/panels/:key/test", requireMasterAdmin, async (req, res) => {
     checked_at: (/* @__PURE__ */ new Date()).toISOString()
   });
 });
-var providerKinds = ["marzban", "rain_admin", "azadpanel"];
+var providerKinds = ["marzban", "rain_admin", "azadpanel", "azadpanel_openvpn", "azadpanel_wireguard"];
 function isProviderKind(value) {
   return typeof value === "string" && providerKinds.includes(value);
 }
@@ -73304,7 +73314,7 @@ router2.get("/services", requireAuth, async (req, res) => {
          LIMIT 1
        ) usage ON TRUE
          WHERE panel.is_enabled = 1
-           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
+           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard')
        ), '[]'::json) AS panel_usages,
         CASE
           WHEN svc.awg_client_id IS NULL
@@ -74596,7 +74606,7 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
            ON usage.username = requested.username
           AND usage.panel_key = panel.key
          WHERE panel.is_enabled = 1
-           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
+           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard')
          ORDER BY requested.username, panel.key`,
     [services.rows.map((service) => service.username)]
   ) : { rows: [] };

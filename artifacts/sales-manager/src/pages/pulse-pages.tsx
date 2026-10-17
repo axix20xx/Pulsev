@@ -3644,8 +3644,10 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
             <select dir="ltr" value={newPanel.kind} onChange={(event) => setNewPanel({ ...newPanel, kind: event.target.value })}>
               <option value="rain_admin">Rain Admin</option>
               <option value="marzban">Marzban</option>
-              <option value="azadpanel">AzadPanel · OpenVPN</option>
+              <option value="azadpanel_openvpn">AzadPanel · OpenVPN</option>
+              <option value="azadpanel_wireguard">AzadPanel · WireGuard</option>
             </select>
+            {newPanel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">نام کاربری و رمز مخصوص هستهٔ WireGuard را وارد کنید؛ این اعتبارنامه از OpenVPN جداست.</small>}
           </label>
           <Field label="آدرس API" value={newPanel.api_base} placeholder="https://panel.example.com" inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, api_base: value })} />
           <Field label="نام کاربری (اختیاری)" value={newPanel.username} inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, username: value })} />
@@ -3674,8 +3676,11 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
                 <select dir="ltr" value={panel.kind} onChange={(event) => edit(panel.key, 'kind', event.target.value)}>
                   <option value="rain_admin">Rain Admin</option>
                   <option value="marzban">Marzban</option>
-                  <option value="azadpanel">AzadPanel · OpenVPN</option>
+                  {panel.kind === 'azadpanel' && <option value="azadpanel">AzadPanel · تشخیص هسته (قدیمی)</option>}
+                  <option value="azadpanel_openvpn">AzadPanel · OpenVPN</option>
+                  <option value="azadpanel_wireguard">AzadPanel · WireGuard</option>
                 </select>
+                {panel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از اعتبارنامهٔ مستقل هستهٔ WireGuard استفاده کند.</small>}
               </label>
               <Field label="آدرس API" value={panel.api_base} inputDir="ltr" onChange={(value) => edit(panel.key, 'api_base', value)} />
               <Field label="نام کاربری پنل (خالی = حفظ مقدار قبلی)" value={panel.username || ''} placeholder="username پنل" inputDir="ltr" onChange={(value) => edit(panel.key, 'username', value)} />

@@ -2359,7 +2359,7 @@ router.post("/panels/:key/test", requireMasterAdmin, async (req, res): Promise<v
   });
 });
 
-const providerKinds = ["marzban", "rain_admin", "azadpanel"] as const;
+const providerKinds = ["marzban", "rain_admin", "azadpanel", "azadpanel_openvpn", "azadpanel_wireguard"] as const;
 type ProviderKind = (typeof providerKinds)[number];
 
 function isProviderKind(value: unknown): value is ProviderKind {
@@ -4357,7 +4357,7 @@ router.get("/services", requireAuth, async (req, res): Promise<void> => {
          LIMIT 1
        ) usage ON TRUE
          WHERE panel.is_enabled = 1
-           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
+           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard')
        ), '[]'::json) AS panel_usages,
         CASE
           WHEN svc.awg_client_id IS NULL
@@ -5749,7 +5749,7 @@ router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {
            ON usage.username = requested.username
           AND usage.panel_key = panel.key
          WHERE panel.is_enabled = 1
-           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
+           AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard')
          ORDER BY requested.username, panel.key`,
         [services.rows.map((service: any) => service.username)],
       )

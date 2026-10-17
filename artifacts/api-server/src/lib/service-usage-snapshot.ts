@@ -72,6 +72,6 @@ export function storedPanelUsageSql(serviceAlias = "svc"): string {
       LIMIT 1
     ) latest_usage ON TRUE
     WHERE panel.is_enabled = 1
-      AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel')
+      AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_openvpn', 'azadpanel_wireguard')
   ), 0)::float8`;
 }

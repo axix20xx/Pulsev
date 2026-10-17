@@ -1262,3 +1262,17 @@ mtime_ms = 1792231496886
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/80776570-c933-4ec6-8199-99ab0e24d2af/7afb02ed-59cc-4bad-a909-97800c821aa7"
 storage_version_token = "1792231578507742"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "TcyK-n1KjBxp4lFdQIysZ"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T10-15-28-963Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP — WireGuard provider selector"
+description = "Full Hostinger package with an explicit AzadPanel WireGuard provider type, separate credentials and protocol-core validation. Typecheck, package validation and ZIP integrity passed."
+logical_id = "e4bec0e1-a2a4-49b0-a769-04744e7ad6f5"
+content_hash = "sha256:1815a2c7a44fa302e68ff2cb2b190a0a2cdb97fbfc6b74c26dbba4346cec7fa6"
+size = 28769469
+mtime_ms = 1792232246339
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e4bec0e1-a2a4-49b0-a769-04744e7ad6f5/b3c9e41a-cd23-4f25-add9-a1de99ed261e"
+storage_version_token = "1792232311138343"
+content_type = "application/octet-stream"
