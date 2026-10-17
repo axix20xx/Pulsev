@@ -1800,6 +1800,7 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
       String(service.username),
       Number(service.limit_gb ?? 0),
       service.expires_at ? new Date(service.expires_at) : new Date(Date.now() + 3650 * 86_400_000),
+      serviceId,
       Number(service.reseller_tg_id),
       "reseller",
     );

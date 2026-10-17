@@ -65105,7 +65105,7 @@ async function listPasarguardConnectionUsers(ownerId, role) {
 async function panelRequest(panel, method, path, body) {
   let token = await tokenFor(panel);
   let response = await request(panel, method, path, token, body);
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     tokenCache.delete(panelKey(panel));
     token = await tokenFor(panel, true);
     response = await request(panel, method, path, token, body);
@@ -65774,16 +65774,30 @@ async function listWireGuardEndpoints(panel, username) {
   }
   return azadPanelWireGuardEndpoints(response.json);
 }
-async function prepareWireGuardAccount(username, gb, expiresAt, ownerId, role, requestedPanelKey) {
-  const panel = await findAzadPanelCore("wireguard", ownerId, role, requestedPanelKey);
-  const encoded = encodeURIComponent(username);
+async function prepareWireGuardAccount(username, gb, expiresAt, serviceId, ownerId, role) {
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
+    throw new RainApiError("Invalid service ID for WireGuard account.");
+  }
+  const panel = await findAzadPanelCore("wireguard", ownerId, role);
+  let providerUsername = username;
+  let encoded = encodeURIComponent(providerUsername);
   let existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (existing.status === 403) {
+    providerUsername = `pulsewg_${serviceId}`;
+    encoded = encodeURIComponent(providerUsername);
+    existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+    if (existing.status === 403) {
+      throw new RainApiError(
+        `AzadPanel ${panelKey(panel)} cannot access the dedicated WireGuard account ${providerUsername}: ${safeError(existing)}. Confirm this Provider login belongs to the intended reseller and is not blocked.`
+      );
+    }
+  }
   if (existing.status === 404) {
     const created = await panelRequest(
       panel,
       "POST",
       "/api/user",
-      azadPanelUserBody(username, gb, expiresAt)
+      azadPanelUserBody(providerUsername, gb, expiresAt)
     );
     if (created.status < 200 || created.status >= 300) {
       if (created.status !== 409) {
@@ -65803,7 +65817,7 @@ async function prepareWireGuardAccount(username, gb, expiresAt, ownerId, role, r
       `AzadPanel ${panelKey(panel)} could not check the WireGuard account: ${safeError(existing)}`
     );
   }
-  const endpointData = await listWireGuardEndpoints(panel, username);
+  const endpointData = await listWireGuardEndpoints(panel, providerUsername);
   const locations = endpointData.flatMap(
     (endpoint) => {
       const id = wireGuardLocationId(endpoint);
@@ -65817,7 +65831,7 @@ async function prepareWireGuardAccount(username, gb, expiresAt, ownerId, role, r
   }
   return {
     provider_key: panelKey(panel),
-    username,
+    username: providerUsername,
     core: "wireguard",
     locations
   };
@@ -70981,6 +70995,7 @@ router2.post("/public/subscription/:token/wireguard", async (req, res) => {
       String(service.username),
       Number(service.limit_gb ?? 0),
       service.expires_at ? new Date(service.expires_at) : new Date(Date.now() + 3650 * 864e5),
+      serviceId,
       Number(service.reseller_tg_id),
       "reseller"
     );

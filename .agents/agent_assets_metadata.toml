@@ -1290,3 +1290,17 @@ mtime_ms = 1792232949604
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ca38b5f1-0418-478e-aafc-76225c9d010c/833c2e6d-90b9-415c-bfde-0d5b1b745910"
 storage_version_token = "1792233054079446"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "LSW1tPr3EtVXMogNcWRcy"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-17T10-39-46-276Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP — WireGuard 403 ownership handling"
+description = "Includes stable WireGuard-only provider usernames on AzadPanel ownership collisions, avoids retrying forbidden 403 requests, and retains the provider alias for subsequent configuration downloads."
+logical_id = "31377604-e4a1-4726-8f67-7428ade4c7cd"
+content_hash = "sha256:245820cddd3f76da753743a703c59063cac32b2579c649ee711e2d9cef05aa1c"
+size = 28769961
+mtime_ms = 1792233704542
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/31377604-e4a1-4726-8f67-7428ade4c7cd/06f13a0e-af56-4a52-8329-1b6cf3b771c1"
+storage_version_token = "1792233785483887"
+content_type = "application/octet-stream"

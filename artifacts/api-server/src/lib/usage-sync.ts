@@ -37,6 +37,7 @@ type ServiceRow = {
   disable_reason: string | null;
   lifecycle_version: number;
   remote_disable_pending: number;
+  last_used_bytes: number | null;
 };
 
 function epochSeconds(date: string | null): number | null {
@@ -79,6 +80,7 @@ async function updatePanelUsage(username: string, panelKey: string, rawBytes: nu
 
 async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
   const panelUsages = await readPanelUsages(
+    service.id,
     service.rain_username,
     service.falco_config_id,
     Number(service.reseller_tg_id),
@@ -88,7 +90,7 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
   for (const usage of panelUsages) {
     panelUsedBytes += usage.stale
       ? usage.usedBytes
-      : await updatePanelUsage(service.rain_username, usage.panelKey, usage.usedBytes);
+      : await updatePanelUsage(usage.username, usage.panelKey, usage.usedBytes);
   }
 
   let awgUsedBytes = effectiveAwgBytes(service.awg_total, service.awg_offset_bytes);
@@ -118,10 +120,13 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
     }
   }
 
-  const combinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
+  const calculatedCombinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
   const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB));
   const expired = service.expired_in_db;
   const usageSnapshotFresh = awgStatsFresh && panelUsages.every((usage) => !usage.stale);
+  const combinedBytes = usageSnapshotFresh
+    ? calculatedCombinedBytes
+    : Math.max(Math.max(0, Number(service.last_used_bytes ?? 0)), calculatedCombinedBytes);
   const quotaReached = usageSnapshotFresh && limitBytes > 0 && combinedBytes >= limitBytes;
   const alreadyDisabled = service.status === "disabled";
   const shouldDisable = alreadyDisabled || expired || quotaReached;
@@ -168,6 +173,7 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
       : await disablePanelUser(
           service.rain_username,
           service.falco_config_id,
+          service.id,
           Number(service.reseller_tg_id),
           "reseller",
         );
@@ -252,6 +258,7 @@ async function syncService(service: ServiceRow): Promise<void> {
     const fresh = await pool.query<ServiceRow>(
       `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              svc.last_used_bytes,
               COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
               svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
               svc.lifecycle_version, svc.remote_disable_pending
@@ -272,6 +279,7 @@ export async function syncServiceUsageById(serviceId: number): Promise<boolean> 
   const result = await pool.query<ServiceRow>(
     `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
             svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+            svc.last_used_bytes,
             COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
              svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
              svc.lifecycle_version, svc.remote_disable_pending
@@ -311,6 +319,7 @@ export async function runUsageSync(): Promise<void> {
     const result = await workerLockClient.query<ServiceRow>(
       `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
+              svc.last_used_bytes,
               COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
                svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
                svc.lifecycle_version, svc.remote_disable_pending

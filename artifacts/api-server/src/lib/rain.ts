@@ -17,6 +17,38 @@ type StoredPanel = Panel & {
   api_key_secret?: string | null;
 };
 
+export async function readSavedWireGuardProviderUsernames(
+  serviceIds: number[],
+): Promise<Map<number, string | null>> {
+  const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const usernames = new Map<number, string | null>();
+  if (!ids.length) return usernames;
+  const result = await pool.query<{ service_id: number | string; delivery_secret: string }>(
+    `SELECT service_id, delivery_secret
+     FROM reseller_service_wireguard_accounts
+     WHERE service_id = ANY($1::bigint[])`,
+    [ids],
+  );
+  for (const row of result.rows) {
+    const serviceId = Number(row.service_id);
+    const decoded = decryptPanelCredential(row.delivery_secret);
+    let username: string | null = null;
+    if (decoded) {
+      try {
+        const delivery = JSON.parse(decoded) as { core?: unknown; username?: unknown };
+        if (delivery.core === "wireguard" && typeof delivery.username === "string" && delivery.username.trim()) {
+          username = delivery.username.trim();
+        }
+      } catch {
+        // Retain a null map entry so callers know an account exists but its
+        // provider identity cannot safely be used.
+      }
+    }
+    usernames.set(serviceId, username);
+  }
+  return usernames;
+}
+
 type PanelResult = {
   key: string;
   kind: string;
@@ -560,7 +592,7 @@ async function panelRequest(
 ): Promise<{ status: number; json: any; text: string; contentDisposition: string | null }> {
   let token = await tokenFor(panel);
   let response = await request(panel, method, path, token, body);
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     tokenCache.delete(panelKey(panel));
     token = await tokenFor(panel, true);
     response = await request(panel, method, path, token, body);
@@ -606,6 +638,7 @@ function safeError(response: { status: number; json: any; text: string }): strin
 
 export type PanelUsage = {
   panelKey: string;
+  username: string;
   usedBytes: number;
   totalBytes: number | null;
   expiresAt: string | null;
@@ -685,6 +718,7 @@ async function lastKnownPanelUsage(username: string, key: string): Promise<Panel
   if (!row) return null;
   return {
     panelKey: key,
+    username,
     usedBytes: Math.max(0, Math.round(Number(row.upload) + Number(row.download) - Number(row.offset_bytes))),
     totalBytes: null,
     expiresAt: null,
@@ -702,12 +736,26 @@ function expiryValue(payload: any): string | null {
 }
 
 export async function readPanelUsages(
+  serviceId: number,
   username: string,
   falcoConfigId: number | null,
   ownerId?: number,
   role?: string,
 ): Promise<PanelUsage[]> {
   const result: PanelUsage[] = [];
+  const configuredPanels = await panels(ownerId, role);
+  const hasWireGuardPanel = configuredPanels.some(
+    (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_wireguard",
+  );
+  let wireGuardUsernames = new Map<number, string | null>();
+  let wireGuardLookupFailed = false;
+  if (hasWireGuardPanel) {
+    try {
+      wireGuardUsernames = await readSavedWireGuardProviderUsernames([serviceId]);
+    } catch {
+      wireGuardLookupFailed = true;
+    }
+  }
   const safePanelRequest = async (panel: Panel, method: string, path: string): Promise<{ status: number; json: any; text: string } | null> => {
     try {
       return await panelRequest(panel, method, path);
@@ -715,21 +763,39 @@ export async function readPanelUsages(
       return null;
     }
   };
-  for (const panel of await panels(ownerId, role)) {
+  for (const panel of configuredPanels) {
+    const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
+    let requestUsername = username;
+    if (wireGuardPanel) {
+      if (!wireGuardLookupFailed && !wireGuardUsernames.has(serviceId)) continue;
+      const savedUsername = wireGuardUsernames.get(serviceId);
+      if (wireGuardLookupFailed || !savedUsername) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: "",
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true,
+        });
+        continue;
+      }
+      requestUsername = savedUsername;
+    }
     const kind = panelKind(panel);
     let response: { status: number; json: any; text: string } | null = null;
     if (kind === "falcon") {
       response = await safePanelRequest(
         panel,
         "GET",
-        falcoConfigId ? `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}` : `/api/v1/configs?username=${encodeURIComponent(username)}`,
+        falcoConfigId ? `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}` : `/api/v1/configs?username=${encodeURIComponent(requestUsername)}`,
       );
       if (response?.status === 200 && !falcoConfigId && Array.isArray(response.json?.data)) {
-        const match = response.json.data.find((item: any) => String(item?.username ?? item?.name ?? "") === username);
+        const match = response.json.data.find((item: any) => String(item?.username ?? item?.name ?? "") === requestUsername);
         response = match ? { ...response, json: match } : response;
       }
     } else {
-      const encoded = encodeURIComponent(username);
+      const encoded = encodeURIComponent(requestUsername);
       const paths = kind === "azadpanel"
         ? [`/api/user/${encodeURIComponent(username)}`]
         : kind === "rain_admin"
@@ -744,7 +810,7 @@ export async function readPanelUsages(
       for (const path of paths) {
         response = await safePanelRequest(panel, "GET", path);
         if (response?.status === 200) {
-          const matched = findUserPayload(response.json, username);
+          const matched = findUserPayload(response.json, requestUsername);
           if (matched) {
             response = { ...response, json: matched };
             break;
@@ -756,21 +822,42 @@ export async function readPanelUsages(
       }
     }
     if (!response || response.status < 200 || response.status >= 300) {
-      if (response?.status !== 404) {
-        const stale = await lastKnownPanelUsage(username, panelKey(panel));
+      if (wireGuardPanel) {
+        const stale = await lastKnownPanelUsage(requestUsername, panelKey(panel));
+        result.push(stale ?? {
+          panelKey: panelKey(panel),
+          username: requestUsername,
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true,
+        });
+      } else if (response?.status !== 404) {
+        const stale = await lastKnownPanelUsage(requestUsername, panelKey(panel));
         if (stale) result.push(stale);
       }
       continue;
     }
-    const payload = findUserPayload(response.json, username) ?? nestedPayload(response.json);
+    const payload = findUserPayload(response.json, requestUsername) ?? nestedPayload(response.json);
     const usedBytes = usedBytesValue(payload);
     if (usedBytes === null) {
-      const stale = await lastKnownPanelUsage(username, panelKey(panel));
+      const stale = await lastKnownPanelUsage(requestUsername, panelKey(panel));
       if (stale) result.push(stale);
+      else if (wireGuardPanel) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: requestUsername,
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true,
+        });
+      }
       continue;
     }
     result.push({
       panelKey: panelKey(panel),
+      username: requestUsername,
       usedBytes,
       totalBytes: bytesValue(payload, ["data_limit", "data_limit_bytes", "total_bytes", "quota_bytes"], ["data_limit_gb", "limit_gb", "quota_gb"]),
       expiresAt: expiryValue(payload),
@@ -782,15 +869,32 @@ export async function readPanelUsages(
 export async function disablePanelUser(
   username: string,
   falcoConfigId: number | null,
+  serviceId: number,
   ownerId?: number,
   role?: string,
 ): Promise<{ attempted: number; disabled: number }> {
   let attempted = 0;
   let disabled = 0;
-  for (const panel of await panels(ownerId, role)) {
+  const configuredPanels = await panels(ownerId, role);
+  const hasWireGuardPanel = configuredPanels.some(
+    (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_wireguard",
+  );
+  const wireGuardUsernames = hasWireGuardPanel
+    ? await readSavedWireGuardProviderUsernames([serviceId])
+    : new Map<number, string | null>();
+  for (const panel of configuredPanels) {
     const kind = panelKind(panel);
+    let providerUsername = username;
+    if (panel.kind?.trim().toLowerCase() === "azadpanel_wireguard") {
+      if (!wireGuardUsernames.has(serviceId)) continue;
+      const savedUsername = wireGuardUsernames.get(serviceId);
+      if (!savedUsername) {
+        throw new RainApiError(`Saved WireGuard account identity for service ${serviceId} is unavailable.`);
+      }
+      providerUsername = savedUsername;
+    }
     attempted += 1;
-    const encoded = encodeURIComponent(username);
+    const encoded = encodeURIComponent(providerUsername);
     const candidates: Array<[string, string, unknown]> = kind === "falcon"
       ? (falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [])
       : kind === "rain_admin"
@@ -1522,19 +1626,35 @@ export async function prepareWireGuardAccount(
   username: string,
   gb: number,
   expiresAt: Date,
+  serviceId: number,
   ownerId?: number,
   role?: string,
-  requestedPanelKey?: string,
 ): Promise<WireGuardDelivery> {
-  const panel = await findAzadPanelCore("wireguard", ownerId, role, requestedPanelKey);
-  const encoded = encodeURIComponent(username);
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
+    throw new RainApiError("Invalid service ID for WireGuard account.");
+  }
+  const panel = await findAzadPanelCore("wireguard", ownerId, role);
+  let providerUsername = username;
+  let encoded = encodeURIComponent(providerUsername);
   let existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+
+  if (existing.status === 403) {
+    providerUsername = `pulsewg_${serviceId}`;
+    encoded = encodeURIComponent(providerUsername);
+    existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+    if (existing.status === 403) {
+      throw new RainApiError(
+        `AzadPanel ${panelKey(panel)} cannot access the dedicated WireGuard account ${providerUsername}: ${safeError(existing)}. Confirm this Provider login belongs to the intended reseller and is not blocked.`,
+      );
+    }
+  }
+
   if (existing.status === 404) {
     const created = await panelRequest(
       panel,
       "POST",
       "/api/user",
-      azadPanelUserBody(username, gb, expiresAt),
+      azadPanelUserBody(providerUsername, gb, expiresAt),
     );
     if (created.status < 200 || created.status >= 300) {
       if (created.status !== 409) {
@@ -1555,7 +1675,7 @@ export async function prepareWireGuardAccount(
     );
   }
 
-  const endpointData = await listWireGuardEndpoints(panel, username);
+  const endpointData = await listWireGuardEndpoints(panel, providerUsername);
   const locations = endpointData.flatMap(
     (endpoint: any): WireGuardLocation[] => {
       const id = wireGuardLocationId(endpoint);
@@ -1571,7 +1691,7 @@ export async function prepareWireGuardAccount(
   }
   return {
     provider_key: panelKey(panel),
-    username,
+    username: providerUsername,
     core: "wireguard",
     locations,
   };
