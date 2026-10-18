@@ -438,6 +438,107 @@ export interface AuthSession {
   customer_price_per_gb?: number | null;
 }
 
+export interface MobileOtpRequest {
+  /**
+     * @minLength 8
+     * @maxLength 20
+     */
+  phone: string;
+}
+
+export interface MobileOtpChallenge {
+  /** @pattern ^[A-Fa-f0-9]{48}$ */
+  challenge_id: string;
+  expires_at: string;
+}
+
+export interface MobileOtpVerification {
+  /**
+     * @minLength 8
+     * @maxLength 20
+     */
+  phone: string;
+  /** @pattern ^[A-Fa-f0-9]{48}$ */
+  challenge_id: string;
+  /** @pattern ^[0-9۰-۹٠-٩]{4}$ */
+  otp: string;
+}
+
+export interface MobileCustomer {
+  id: string;
+  name: string;
+  phone: string;
+}
+
+export interface MobileSession {
+  authenticated: boolean;
+  customer: MobileCustomer;
+  /** @pattern ^[A-Fa-f0-9]{64}$ */
+  access_token?: string;
+  expires_at?: string;
+}
+
+export interface MobileSessionState {
+  authenticated: boolean;
+  customer?: MobileCustomer;
+}
+
+export type MobileSubscriptionStatus = typeof MobileSubscriptionStatus[keyof typeof MobileSubscriptionStatus];
+
+
+export const MobileSubscriptionStatus = {
+  active: 'active',
+  expired: 'expired',
+  cancelled: 'cancelled',
+  pending: 'pending',
+} as const;
+
+export interface MobileSubscription {
+  id: string;
+  plan: string;
+  status: MobileSubscriptionStatus;
+  /** @nullable */
+  started_at: string | null;
+  /** @nullable */
+  expires_at: string | null;
+  /** @nullable */
+  remaining_days: number | null;
+  total_gb: number;
+  used_gb: number;
+  remaining_gb: number;
+  usage_percent: number;
+  customer_name: string;
+  server: string;
+  provider_name: string;
+  /** @nullable */
+  username: string | null;
+  /** @nullable */
+  subscription_url: string | null;
+  /** @nullable */
+  provider_url: string | null;
+  /** @nullable */
+  v2box_url: string | null;
+  /** @nullable */
+  public_url: string | null;
+  /** @nullable */
+  awg_mobileconfig_url: string | null;
+  openvpn_available: boolean;
+  wireguard_available: boolean;
+  ipsec_available: boolean;
+  /** @nullable */
+  awg_url: string | null;
+  service_code: string;
+}
+
+export type MobileDashboardNotificationsItem = { [key: string]: unknown };
+
+export interface MobileDashboard {
+  customer: MobileCustomer;
+  subscriptions: MobileSubscription[];
+  notifications: MobileDashboardNotificationsItem[];
+  unread_count: number;
+}
+
 export interface DashboardDay {
   /** @pattern ^\d{4}-\d{2}-\d{2}$ */
   day: string;

@@ -432,6 +432,153 @@ export const GetAuthSessionResponse = zod.object({
 
 
 /**
+ * @summary Start a customer phone OTP login challenge
+ */
+export const requestMobileOtpBodyPhoneMin = 8;
+export const requestMobileOtpBodyPhoneMax = 20;
+
+
+
+export const RequestMobileOtpBody = zod.object({
+  "phone": zod.string().min(requestMobileOtpBodyPhoneMin).max(requestMobileOtpBodyPhoneMax)
+})
+
+export const requestMobileOtpResponseChallengeIdRegExp = new RegExp('^[A-Fa-f0-9]{48}$');
+
+
+export const RequestMobileOtpResponse = zod.object({
+  "challenge_id": zod.string().regex(requestMobileOtpResponseChallengeIdRegExp),
+  "expires_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Verify a customer OTP and create a mobile session
+ */
+export const VerifyMobileOtpHeader = zod.object({
+  "X-Pulse-Mobile-Client": zod.enum(['native']).optional()
+})
+
+export const verifyMobileOtpBodyPhoneMin = 8;
+export const verifyMobileOtpBodyPhoneMax = 20;
+
+export const verifyMobileOtpBodyChallengeIdRegExp = new RegExp('^[A-Fa-f0-9]{48}$');
+export const verifyMobileOtpBodyOtpRegExp = new RegExp('^[0-9۰-۹٠-٩]{4}$');
+
+
+export const VerifyMobileOtpBody = zod.object({
+  "phone": zod.string().min(verifyMobileOtpBodyPhoneMin).max(verifyMobileOtpBodyPhoneMax),
+  "challenge_id": zod.string().regex(verifyMobileOtpBodyChallengeIdRegExp),
+  "otp": zod.string().regex(verifyMobileOtpBodyOtpRegExp)
+})
+
+export const verifyMobileOtpResponseAccessTokenRegExp = new RegExp('^[A-Fa-f0-9]{64}$');
+
+
+export const VerifyMobileOtpResponse = zod.object({
+  "authenticated": zod.boolean(),
+  "customer": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "phone": zod.string()
+}),
+  "access_token": zod.string().regex(verifyMobileOtpResponseAccessTokenRegExp).optional(),
+  "expires_at": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Restore the current customer mobile session
+ */
+export const GetMobileSessionResponse = zod.object({
+  "authenticated": zod.boolean(),
+  "customer": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "phone": zod.string()
+}).optional()
+})
+
+
+/**
+ * @summary Revoke the current customer mobile session
+ */
+export const LogoutMobileResponse = zod.void()
+
+
+/**
+ * @summary Get the customer's dashboard and subscriptions
+ */
+export const GetMobileDashboardResponse = zod.object({
+  "customer": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "phone": zod.string()
+}),
+  "subscriptions": zod.array(zod.object({
+  "id": zod.string(),
+  "plan": zod.string(),
+  "status": zod.enum(['active', 'expired', 'cancelled', 'pending']),
+  "started_at": zod.coerce.date().nullable(),
+  "expires_at": zod.coerce.date().nullable(),
+  "remaining_days": zod.number().nullable(),
+  "total_gb": zod.number(),
+  "used_gb": zod.number(),
+  "remaining_gb": zod.number(),
+  "usage_percent": zod.number(),
+  "customer_name": zod.string(),
+  "server": zod.string(),
+  "provider_name": zod.string(),
+  "username": zod.string().nullable(),
+  "subscription_url": zod.string().nullable(),
+  "provider_url": zod.string().nullable(),
+  "v2box_url": zod.string().nullable(),
+  "public_url": zod.string().nullable(),
+  "awg_mobileconfig_url": zod.string().nullable(),
+  "openvpn_available": zod.boolean(),
+  "wireguard_available": zod.boolean(),
+  "ipsec_available": zod.boolean(),
+  "awg_url": zod.string().nullable(),
+  "service_code": zod.string()
+})),
+  "notifications": zod.array(zod.record(zod.string(), zod.unknown())),
+  "unread_count": zod.number()
+})
+
+
+/**
+ * @summary List subscriptions owned by the authenticated customer
+ */
+export const ListMobileSubscriptionsResponseItem = zod.object({
+  "id": zod.string(),
+  "plan": zod.string(),
+  "status": zod.enum(['active', 'expired', 'cancelled', 'pending']),
+  "started_at": zod.coerce.date().nullable(),
+  "expires_at": zod.coerce.date().nullable(),
+  "remaining_days": zod.number().nullable(),
+  "total_gb": zod.number(),
+  "used_gb": zod.number(),
+  "remaining_gb": zod.number(),
+  "usage_percent": zod.number(),
+  "customer_name": zod.string(),
+  "server": zod.string(),
+  "provider_name": zod.string(),
+  "username": zod.string().nullable(),
+  "subscription_url": zod.string().nullable(),
+  "provider_url": zod.string().nullable(),
+  "v2box_url": zod.string().nullable(),
+  "public_url": zod.string().nullable(),
+  "awg_mobileconfig_url": zod.string().nullable(),
+  "openvpn_available": zod.boolean(),
+  "wireguard_available": zod.boolean(),
+  "ipsec_available": zod.boolean(),
+  "awg_url": zod.string().nullable(),
+  "service_code": zod.string()
+})
+export const ListMobileSubscriptionsResponse = zod.array(ListMobileSubscriptionsResponseItem)
+
+
+/**
  * @summary Sign in with a Telegram Login Widget payload
  */
 export const LoginWithTelegramBody = zod.object({
@@ -1853,6 +2000,32 @@ export const CreateOpenVpnAccountResponse = zod.object({
   "import_url": zod.string()
 }))
 })
+
+
+/**
+ * @summary Read the subscription's provider configuration feed
+ */
+export const getPublicSubscriptionFeedPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+
+
+export const GetPublicSubscriptionFeedParams = zod.object({
+  "token": zod.coerce.string().regex(getPublicSubscriptionFeedPathTokenRegExp)
+})
+
+export const GetPublicSubscriptionFeedResponse = zod.string()
+
+
+/**
+ * @summary Read the saved AmneziaWG configuration for this subscription
+ */
+export const downloadAmneziaWgConfigPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]{12,256}$');
+
+
+export const DownloadAmneziaWgConfigParams = zod.object({
+  "token": zod.coerce.string().regex(downloadAmneziaWgConfigPathTokenRegExp)
+})
+
+export const DownloadAmneziaWgConfigResponse = zod.string()
 
 
 /**

@@ -41,6 +41,13 @@ import type {
   ListServicesParams,
   ListTelegramDeliveriesParams,
   ListTelegramEventsParams,
+  MobileDashboard,
+  MobileOtpChallenge,
+  MobileOtpRequest,
+  MobileOtpVerification,
+  MobileSession,
+  MobileSessionState,
+  MobileSubscription,
   OpenVpnDelivery,
   ProviderAccountAuditRepairInput,
   ProviderAccountAuditRepairResult,
@@ -857,6 +864,450 @@ export function useGetAuthSession<TData = Awaited<ReturnType<typeof getAuthSessi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAuthSessionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestMobileOtpUrl = () => {
+
+
+
+
+  return `/api/mobile/auth/otp/request`
+}
+
+/**
+ * @summary Start a customer phone OTP login challenge
+ */
+export const requestMobileOtp = async (mobileOtpRequest: MobileOtpRequest, options?: Parameters<typeof customFetch>[1]): Promise<MobileOtpChallenge> => {
+
+  return customFetch<MobileOtpChallenge>(getRequestMobileOtpUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mobileOtpRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestMobileOtpMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestMobileOtp>>, TError,{data: BodyType<MobileOtpRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestMobileOtp>>, TError,{data: BodyType<MobileOtpRequest>}, TContext> => {
+
+const mutationKey = ['requestMobileOtp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestMobileOtp>>, {data: BodyType<MobileOtpRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestMobileOtp(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestMobileOtpMutationResult = NonNullable<Awaited<ReturnType<typeof requestMobileOtp>>>
+    export type RequestMobileOtpMutationBody = BodyType<MobileOtpRequest>
+    export type RequestMobileOtpMutationError = ErrorType<void>
+
+    /**
+ * @summary Start a customer phone OTP login challenge
+ */
+export const useRequestMobileOtp = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestMobileOtp>>, TError,{data: BodyType<MobileOtpRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestMobileOtp>>,
+        TError,
+        {data: BodyType<MobileOtpRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestMobileOtpMutationOptions(options));
+    }
+
+export const getVerifyMobileOtpUrl = () => {
+
+
+
+
+  return `/api/mobile/auth/otp/verify`
+}
+
+/**
+ * @summary Verify a customer OTP and create a mobile session
+ */
+export const verifyMobileOtp = async (mobileOtpVerification: MobileOtpVerification, options?: Parameters<typeof customFetch>[1]): Promise<MobileSession> => {
+
+  return customFetch<MobileSession>(getVerifyMobileOtpUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mobileOtpVerification)
+  }
+);}
+
+
+
+
+
+export const getVerifyMobileOtpMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyMobileOtp>>, TError,{data: BodyType<MobileOtpVerification>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyMobileOtp>>, TError,{data: BodyType<MobileOtpVerification>}, TContext> => {
+
+const mutationKey = ['verifyMobileOtp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyMobileOtp>>, {data: BodyType<MobileOtpVerification>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyMobileOtp(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyMobileOtpMutationResult = NonNullable<Awaited<ReturnType<typeof verifyMobileOtp>>>
+    export type VerifyMobileOtpMutationBody = BodyType<MobileOtpVerification>
+    export type VerifyMobileOtpMutationError = ErrorType<void>
+
+    /**
+ * @summary Verify a customer OTP and create a mobile session
+ */
+export const useVerifyMobileOtp = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyMobileOtp>>, TError,{data: BodyType<MobileOtpVerification>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyMobileOtp>>,
+        TError,
+        {data: BodyType<MobileOtpVerification>},
+        TContext
+      > => {
+      return useMutation(getVerifyMobileOtpMutationOptions(options));
+    }
+
+export const getGetMobileSessionUrl = () => {
+
+
+
+
+  return `/api/mobile/auth/session`
+}
+
+/**
+ * @summary Restore the current customer mobile session
+ */
+export const getMobileSession = async ( options?: Parameters<typeof customFetch>[1]): Promise<MobileSessionState> => {
+
+  return customFetch<MobileSessionState>(getGetMobileSessionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMobileSessionQueryKey = () => {
+    return [
+    `/api/mobile/auth/session`
+    ] as const;
+    }
+
+
+export const getGetMobileSessionQueryOptions = <TData = Awaited<ReturnType<typeof getMobileSession>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMobileSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMobileSessionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMobileSession>>> = ({ signal }) => getMobileSession({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMobileSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMobileSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getMobileSession>>>
+export type GetMobileSessionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Restore the current customer mobile session
+ */
+
+export function useGetMobileSession<TData = Awaited<ReturnType<typeof getMobileSession>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMobileSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMobileSessionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLogoutMobileUrl = () => {
+
+
+
+
+  return `/api/mobile/auth/logout`
+}
+
+/**
+ * @summary Revoke the current customer mobile session
+ */
+export const logoutMobile = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getLogoutMobileUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLogoutMobileMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logoutMobile>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logoutMobile>>, TError,void, TContext> => {
+
+const mutationKey = ['logoutMobile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logoutMobile>>, void> = () => {
+
+
+          return  logoutMobile(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogoutMobileMutationResult = NonNullable<Awaited<ReturnType<typeof logoutMobile>>>
+
+    export type LogoutMobileMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Revoke the current customer mobile session
+ */
+export const useLogoutMobile = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logoutMobile>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logoutMobile>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getLogoutMobileMutationOptions(options));
+    }
+
+export const getGetMobileDashboardUrl = () => {
+
+
+
+
+  return `/api/mobile/dashboard`
+}
+
+/**
+ * @summary Get the customer's dashboard and subscriptions
+ */
+export const getMobileDashboard = async ( options?: Parameters<typeof customFetch>[1]): Promise<MobileDashboard> => {
+
+  return customFetch<MobileDashboard>(getGetMobileDashboardUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMobileDashboardQueryKey = () => {
+    return [
+    `/api/mobile/dashboard`
+    ] as const;
+    }
+
+
+export const getGetMobileDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getMobileDashboard>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMobileDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMobileDashboardQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMobileDashboard>>> = ({ signal }) => getMobileDashboard({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMobileDashboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMobileDashboardQueryResult = NonNullable<Awaited<ReturnType<typeof getMobileDashboard>>>
+export type GetMobileDashboardQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the customer's dashboard and subscriptions
+ */
+
+export function useGetMobileDashboard<TData = Awaited<ReturnType<typeof getMobileDashboard>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMobileDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMobileDashboardQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListMobileSubscriptionsUrl = () => {
+
+
+
+
+  return `/api/mobile/subscriptions`
+}
+
+/**
+ * @summary List subscriptions owned by the authenticated customer
+ */
+export const listMobileSubscriptions = async ( options?: Parameters<typeof customFetch>[1]): Promise<MobileSubscription[]> => {
+
+  return customFetch<MobileSubscription[]>(getListMobileSubscriptionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMobileSubscriptionsQueryKey = () => {
+    return [
+    `/api/mobile/subscriptions`
+    ] as const;
+    }
+
+
+export const getListMobileSubscriptionsQueryOptions = <TData = Awaited<ReturnType<typeof listMobileSubscriptions>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMobileSubscriptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMobileSubscriptionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMobileSubscriptions>>> = ({ signal }) => listMobileSubscriptions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMobileSubscriptions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMobileSubscriptionsQueryResult = NonNullable<Awaited<ReturnType<typeof listMobileSubscriptions>>>
+export type ListMobileSubscriptionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List subscriptions owned by the authenticated customer
+ */
+
+export function useListMobileSubscriptions<TData = Awaited<ReturnType<typeof listMobileSubscriptions>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMobileSubscriptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMobileSubscriptionsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -3810,6 +4261,160 @@ export const useCreateOpenVpnAccount = <TError = ErrorType<void>,
       > => {
       return useMutation(getCreateOpenVpnAccountMutationOptions(options));
     }
+
+export const getGetPublicSubscriptionFeedUrl = (token: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/feed`
+}
+
+/**
+ * @summary Read the subscription's provider configuration feed
+ */
+export const getPublicSubscriptionFeed = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getGetPublicSubscriptionFeedUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicSubscriptionFeedQueryKey = (token: string,) => {
+    return [
+    `/api/public/subscription/${token}/feed`
+    ] as const;
+    }
+
+
+export const getGetPublicSubscriptionFeedQueryOptions = <TData = Awaited<ReturnType<typeof getPublicSubscriptionFeed>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicSubscriptionFeed>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicSubscriptionFeedQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicSubscriptionFeed>>> = ({ signal }) => getPublicSubscriptionFeed(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicSubscriptionFeed>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicSubscriptionFeedQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicSubscriptionFeed>>>
+export type GetPublicSubscriptionFeedQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read the subscription's provider configuration feed
+ */
+
+export function useGetPublicSubscriptionFeed<TData = Awaited<ReturnType<typeof getPublicSubscriptionFeed>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicSubscriptionFeed>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicSubscriptionFeedQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDownloadAmneziaWgConfigUrl = (token: string,) => {
+
+
+
+
+  return `/api/public/subscription/${token}/awg`
+}
+
+/**
+ * @summary Read the saved AmneziaWG configuration for this subscription
+ */
+export const downloadAmneziaWgConfig = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getDownloadAmneziaWgConfigUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadAmneziaWgConfigQueryKey = (token: string,) => {
+    return [
+    `/api/public/subscription/${token}/awg`
+    ] as const;
+    }
+
+
+export const getDownloadAmneziaWgConfigQueryOptions = <TData = Awaited<ReturnType<typeof downloadAmneziaWgConfig>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadAmneziaWgConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadAmneziaWgConfigQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadAmneziaWgConfig>>> = ({ signal }) => downloadAmneziaWgConfig(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadAmneziaWgConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadAmneziaWgConfigQueryResult = NonNullable<Awaited<ReturnType<typeof downloadAmneziaWgConfig>>>
+export type DownloadAmneziaWgConfigQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read the saved AmneziaWG configuration for this subscription
+ */
+
+export function useDownloadAmneziaWgConfig<TData = Awaited<ReturnType<typeof downloadAmneziaWgConfig>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadAmneziaWgConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadAmneziaWgConfigQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getDownloadOpenVpnProfileUrl = (token: string,
     provider: string,

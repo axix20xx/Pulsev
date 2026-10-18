@@ -50,8 +50,13 @@ app.use((req, res, next) => {
         ]
           .filter((host): host is string => Boolean(host))
           .map((host) => host.toLowerCase());
+        const replitExpoSibling = requestHosts.some((host) => {
+          const match = host.match(/^([^.]+)\.([^.]+\.replit\.dev)$/);
+          return Boolean(match && originHost === `${match[1]}.expo.${match[2]}`);
+        });
         if (
           requestHosts.includes(originHost) ||
+          replitExpoSibling ||
           allowedCorsOrigins.includes(requestOrigin)
         ) {
           callback(null, requestOrigin);

@@ -288,8 +288,10 @@ const createMobileSession = async (
   customerName: string,
   phone: string,
   serviceId: number | null,
+  nativeClient: boolean,
 ) => {
   const raw = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   await pool.query(
     `INSERT INTO mobile_sessions (id, customer_id, source_service_id, expires_at)
      VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
@@ -301,11 +303,17 @@ const createMobileSession = async (
     [customerId],
   );
   setMobileCookie(res, raw);
-  res.json({ authenticated: true, customer: { id: String(customerId), name: customerName, phone } });
+  res.json({
+    authenticated: true,
+    customer: { id: String(customerId), name: customerName, phone },
+    ...(nativeClient ? { access_token: raw, expires_at: expiresAt } : {}),
+  });
 };
 
 const attachMobileAuth = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
-  const raw = req.cookies?.[mobileSessionCookie];
+  const authorization = req.get("authorization") ?? "";
+  const token = authorization.match(/^Bearer\s+([A-Fa-f0-9]{64})$/i)?.[1];
+  const raw = token ?? req.cookies?.[mobileSessionCookie];
   if (typeof raw !== "string" || !raw) {
     next();
     return;
@@ -994,7 +1002,14 @@ router.post("/mobile/auth/otp/verify", async (req, res): Promise<void> => {
     res.status(401).json({ error: "شماره موبایل یا کد ورود معتبر نیست یا منقضی شده است." });
     return;
   }
-  await createMobileSession(res, row.customer_id, row.customer_name, row.phone, row.service_id ?? null);
+  await createMobileSession(
+    res,
+    row.customer_id,
+    row.customer_name,
+    row.phone,
+    row.service_id ?? null,
+    req.get("x-pulse-mobile-client") === "native",
+  );
 });
 
 router.get("/mobile/auth/session", async (req, res): Promise<void> => {
@@ -1002,7 +1017,9 @@ router.get("/mobile/auth/session", async (req, res): Promise<void> => {
 });
 
 router.post("/mobile/auth/logout", async (req, res): Promise<void> => {
-  const raw = req.cookies?.[mobileSessionCookie];
+  const authorization = req.get("authorization") ?? "";
+  const token = authorization.match(/^Bearer\s+([A-Fa-f0-9]{64})$/i)?.[1];
+  const raw = token ?? req.cookies?.[mobileSessionCookie];
   if (typeof raw === "string" && raw) await pool.query("DELETE FROM mobile_sessions WHERE id = $1", [sessionHash(raw)]);
   clearMobileCookie(res);
   res.sendStatus(204);

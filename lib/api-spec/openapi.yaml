@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: auth
     description: Telegram authentication and sessions
+  - name: mobile
+    description: Customer mobile authentication and subscriptions
   - name: dashboard
     description: Workspace summaries
   - name: sales
@@ -208,6 +210,117 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthSession"
+  /mobile/auth/otp/request:
+    post:
+      operationId: requestMobileOtp
+      tags: [mobile]
+      summary: Start a customer phone OTP login challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileOtpRequest"
+      responses:
+        "200":
+          description: Opaque short-lived challenge
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileOtpChallenge"
+        "400":
+          description: Invalid phone number
+        "429":
+          description: Too many login requests
+  /mobile/auth/otp/verify:
+    post:
+      operationId: verifyMobileOtp
+      tags: [mobile]
+      summary: Verify a customer OTP and create a mobile session
+      parameters:
+        - name: X-Pulse-Mobile-Client
+          in: header
+          required: false
+          schema:
+            type: string
+            enum: [native]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileOtpVerification"
+      responses:
+        "200":
+          description: Session; native clients receive an opaque bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileSession"
+        "400":
+          description: Invalid phone, challenge, or code
+        "401":
+          description: Invalid or expired code
+        "429":
+          description: Too many verification attempts
+  /mobile/auth/session:
+    get:
+      operationId: getMobileSession
+      tags: [mobile]
+      summary: Restore the current customer mobile session
+      security:
+        - MobileBearer: []
+      responses:
+        "200":
+          description: Authenticated customer or signed-out state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileSessionState"
+  /mobile/auth/logout:
+    post:
+      operationId: logoutMobile
+      tags: [mobile]
+      summary: Revoke the current customer mobile session
+      security:
+        - MobileBearer: []
+      responses:
+        "204":
+          description: Session revoked
+  /mobile/dashboard:
+    get:
+      operationId: getMobileDashboard
+      tags: [mobile]
+      summary: Get the customer's dashboard and subscriptions
+      security:
+        - MobileBearer: []
+      responses:
+        "200":
+          description: Customer dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileDashboard"
+        "401":
+          description: Sign in required
+  /mobile/subscriptions:
+    get:
+      operationId: listMobileSubscriptions
+      tags: [mobile]
+      summary: List subscriptions owned by the authenticated customer
+      security:
+        - MobileBearer: []
+      responses:
+        "200":
+          description: Customer-owned subscriptions only
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MobileSubscription"
+        "401":
+          description: Sign in required
   /auth/telegram:
     post:
       operationId: loginWithTelegram
@@ -922,6 +1035,42 @@ paths:
           description: Subscription is no longer active
         "503":
           description: No OpenVPN provider is configured
+  /public/subscription/{token}/feed:
+    get:
+      operationId: getPublicSubscriptionFeed
+      tags: [services]
+      summary: Read the subscription's provider configuration feed
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+      responses:
+        "200":
+          description: Provider configuration feed for compatible V2Ray clients
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          description: Subscription not found
+        "410":
+          description: Subscription is no longer active
+  /public/subscription/{token}/awg:
+    get:
+      operationId: downloadAmneziaWgConfig
+      tags: [services]
+      summary: Read the saved AmneziaWG configuration for this subscription
+      parameters:
+        - $ref: "#/components/parameters/SubscriptionToken"
+      responses:
+        "200":
+          description: AmneziaWG configuration text
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          description: Subscription or saved AmneziaWG identity not found
+        "410":
+          description: Subscription is no longer active
   /public/subscription/{token}/openvpn/config/{provider}/{host}:
     get:
       operationId: downloadOpenVpnProfile
@@ -1118,6 +1267,11 @@ paths:
         "410":
           description: Subscription is no longer active
 components:
+  securitySchemes:
+    MobileBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
   parameters:
     Id:
       name: id
@@ -1676,6 +1830,115 @@ components:
           type: ["string", "null"]
         customer_price_per_gb:
           type: ["number", "null"]
+    MobileOtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          minLength: 8
+          maxLength: 20
+    MobileOtpChallenge:
+      type: object
+      required: [challenge_id, expires_at]
+      properties:
+        challenge_id:
+          type: string
+          pattern: "^[A-Fa-f0-9]{48}$"
+        expires_at:
+          type: string
+          format: date-time
+    MobileOtpVerification:
+      type: object
+      required: [phone, challenge_id, otp]
+      properties:
+        phone:
+          type: string
+          minLength: 8
+          maxLength: 20
+        challenge_id:
+          type: string
+          pattern: "^[A-Fa-f0-9]{48}$"
+        otp:
+          type: string
+          pattern: "^[0-9۰-۹٠-٩]{4}$"
+    MobileCustomer:
+      type: object
+      required: [id, name, phone]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+    MobileSession:
+      type: object
+      required: [authenticated, customer]
+      properties:
+        authenticated:
+          type: boolean
+        customer:
+          $ref: "#/components/schemas/MobileCustomer"
+        access_token:
+          type: string
+          pattern: "^[A-Fa-f0-9]{64}$"
+        expires_at:
+          type: string
+          format: date-time
+    MobileSessionState:
+      type: object
+      required: [authenticated]
+      properties:
+        authenticated:
+          type: boolean
+        customer:
+          $ref: "#/components/schemas/MobileCustomer"
+    MobileSubscription:
+      type: object
+      required: [id, plan, status, started_at, expires_at, remaining_days, total_gb, used_gb, remaining_gb, usage_percent, customer_name, server, provider_name, username, subscription_url, provider_url, v2box_url, public_url, awg_mobileconfig_url, openvpn_available, wireguard_available, ipsec_available, awg_url, service_code]
+      properties:
+        id: { type: string }
+        plan: { type: string }
+        status: { type: string, enum: [active, expired, cancelled, pending] }
+        started_at: { type: ["string", "null"], format: date-time }
+        expires_at: { type: ["string", "null"], format: date-time }
+        remaining_days: { type: ["number", "null"] }
+        total_gb: { type: number }
+        used_gb: { type: number }
+        remaining_gb: { type: number }
+        usage_percent: { type: number }
+        customer_name: { type: string }
+        server: { type: string }
+        provider_name: { type: string }
+        username: { type: ["string", "null"] }
+        subscription_url: { type: ["string", "null"] }
+        provider_url: { type: ["string", "null"] }
+        v2box_url: { type: ["string", "null"] }
+        public_url: { type: ["string", "null"] }
+        awg_mobileconfig_url: { type: ["string", "null"] }
+        openvpn_available: { type: boolean }
+        wireguard_available: { type: boolean }
+        ipsec_available: { type: boolean }
+        awg_url: { type: ["string", "null"] }
+        service_code: { type: string }
+    MobileDashboard:
+      type: object
+      required: [customer, subscriptions, notifications, unread_count]
+      properties:
+        customer:
+          $ref: "#/components/schemas/MobileCustomer"
+        subscriptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/MobileSubscription"
+        notifications:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        unread_count:
+          type: number
     DashboardDay:
       type: object
       required: [day, sales_count, sold_gb, income, paid_income, unpaid_income, profit, paid_profit, unpaid_profit]
