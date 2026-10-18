@@ -1,0 +1,445 @@
+Build a Production-Ready Multi-Protocol VPN Client with Expo
+
+Role and Objective
+
+Act as a senior React Native/Expo engineer, Android VPN engineer, iOS Network Extension engineer, and backend integration architect.
+
+Build a production-oriented VPN client for Android and iOS using Expo, React Native, and TypeScript.
+
+The application must authenticate users using their mobile phone number and SMS OTP, retrieve their assigned VPN configurations from my existing backend, allow them to choose a supported VPN protocol and server, and establish a real VPN connection.
+
+This must be a functional VPN client, not a UI prototype, simulated connection, or WebView wrapper.
+
+I have an existing VPN subscription/backend system. Inspect the provided project files and existing backend integration before implementing anything. Reuse existing authentication, subscription, configuration-delivery, and user-management systems wherever possible. Do not replace working backend functionality with mock services.
+
+1. Supported Platforms and Deliverables
+
+Build:
+
+* Android application with a production APK and an Android App Bundle (AAB).
+* iOS application compatible with supported iPhone versions.
+* A shared React Native/TypeScript codebase using Expo.
+* Custom native development builds where required.
+* A configurable production backend API integration.
+* A complete setup guide and reproducible build instructions.
+
+Use Expo SDK, Expo Router, TypeScript, and EAS Build where appropriate.
+
+Expo Go must not be treated as the production runtime for native VPN functionality.
+
+2. Phone Number Authentication
+
+Implement the complete authentication flow:
+
+1. Display a polished phone-number login screen.
+2. Allow country-code selection and international phone number formatting.
+3. Submit the number to the existing backend to request an OTP.
+4. Display a six-digit OTP verification screen.
+5. Support OTP auto-fill where supported by the operating system.
+6. Allow users to request another OTP subject to server-side rate limits.
+7. Verify the OTP through the backend.
+8. Securely persist the resulting session or access token.
+9. Restore the authenticated session after restarting the application.
+10. Refresh or renew tokens when supported by the existing backend.
+11. Provide logout and session-expiration handling.
+12. Handle invalid codes, expired codes, rate limits, network failures, and suspended accounts.
+
+Security requirements:
+
+* Never hardcode a production OTP or bypass OTP verification.
+* Never trust client-side authentication or subscription status.
+* Do not store passwords or sensitive tokens in plain-text storage.
+* Use SecureStore or an appropriate native secure-storage solution.
+* Do not log OTPs, access tokens, private keys, or full VPN configuration secrets.
+* Do not invent API endpoints. Discover the existing endpoints from the provided code, documentation, or backend configuration.
+
+3. Retrieve User-Specific VPN Configurations
+
+After successful login, request the authenticated user’s available VPN subscriptions and configurations from the existing backend.
+
+The backend must determine which configurations the user is authorized to access.
+
+Support the following configuration sources when available:
+
+* A user-specific subscription URL.
+* A JSON API returning multiple configuration profiles.
+* Individual WireGuard configuration data.
+* AmneziaWG configuration data.
+* OpenVPN configuration files.
+* V2Ray-compatible subscription URLs.
+* VLESS, VMess, Trojan, Shadowsocks, and other protocols only when the selected native engine explicitly supports them.
+
+Handle subscription updates, expired subscriptions, revoked access, disabled accounts, and missing configurations.
+
+For each profile, display the available metadata:
+
+* Server name and location.
+* Protocol type.
+* Hostname or server address, when safe to display.
+* Port.
+* Subscription status.
+* Expiration date, if supplied.
+* Traffic allowance and usage, if supplied.
+* Connection availability and latency, when measurable.
+
+Never assume every configuration contains all these fields.
+
+Configuration Processing
+
+Implement a secure configuration adapter layer that:
+
+* Identifies the actual configuration format.
+* Parses supported subscription formats.
+* Normalizes profiles into a common internal data model.
+* Validates configuration fields before use.
+* Associates each profile with a compatible native VPN engine.
+* Rejects unsupported or malformed configurations with a clear error.
+* Refreshes profiles from the backend when required.
+* Avoids writing private keys or configuration secrets to application logs.
+
+Do not treat V2Box as a VPN protocol. Identify the underlying protocol or configuration format provided by the backend and select a compatible engine.
+
+4. Multi-Protocol VPN Engine Architecture
+
+Create a modular native engine architecture with a separate adapter for each protocol family.
+
+A. WireGuard
+
+Implement a genuine WireGuard client integration using a compatible, maintained native WireGuard implementation.
+
+Requirements:
+
+* Parse valid WireGuard configurations.
+* Handle private keys and peer public keys securely.
+* Configure the interface, peers, routes, DNS, and allowed IP ranges.
+* Start and stop the tunnel through the native operating-system VPN interface.
+* Report real connection state and errors.
+* Support server selection and reconnection.
+
+Do not implement WireGuard cryptography from scratch.
+
+B. AmneziaWG
+
+Implement AmneziaWG only through a compatible native implementation that supports the actual AmneziaWG protocol and configuration version.
+
+Requirements:
+
+* Recognize AmneziaWG configurations separately from standard WireGuard.
+* Preserve all required AmneziaWG-specific parameters.
+* Integrate a compatible Android VPN implementation.
+* Investigate the availability and licensing of an iOS-compatible implementation.
+* Do not silently reinterpret an AmneziaWG configuration as standard WireGuard.
+* If a compatible native implementation is unavailable for a platform, report that limitation instead of faking a successful connection.
+
+C. OpenVPN
+
+Integrate a maintained OpenVPN client engine compatible with Android and iOS.
+
+Requirements:
+
+* Parse and validate supported .ovpn profiles.
+* Handle certificate-based and credential-based authentication when required.
+* Support supported transport modes and encryption options.
+* Implement native connection, disconnection, reconnect, and error reporting.
+* Handle certificate validation securely.
+* Never disable certificate or TLS verification to make a connection work.
+
+D. V2Ray-Compatible Protocols
+
+Support VLESS, VMess, Trojan, Shadowsocks, and other protocols only where the chosen engine supports them.
+
+Evaluate a maintained native engine such as sing-box or another suitable implementation.
+
+Requirements:
+
+* Identify supported subscription formats.
+* Parse supported URI schemes and subscription encodings.
+* Support TLS, REALITY, WebSocket, gRPC, and other transport features only when the chosen engine implements them.
+* Translate supported configurations into the engine’s native configuration format.
+* Validate DNS, routing, outbound, and inbound configuration.
+* Implement a real system-wide VPN tunnel rather than merely routing requests made by the app.
+* Verify engine licensing and distribution requirements before integrating it.
+
+Do not assume that VLESS, VMess, Trojan, WireGuard, and OpenVPN are interchangeable protocols.
+
+E. Engine Selection
+
+Create a registry that maps configuration types to compatible engines.
+
+The application must never claim that a protocol is supported until the native engine is integrated, built, and tested on that platform.
+
+Display only protocols for which the user has an authorized profile and the current platform has a functioning implementation.
+
+5. Native VPN Integration
+
+Android
+
+Implement the required native Android VPN integration using Android’s VpnService architecture or the relevant supported native engine.
+
+Requirements:
+
+* Request VPN permission through the operating system.
+* Establish the actual TUN interface.
+* Route traffic through the selected engine.
+* Configure DNS and routes.
+* Handle foreground-service requirements and notifications.
+* Handle app lifecycle changes, network changes, and reconnection.
+* Stop the tunnel cleanly.
+* Prevent duplicate VPN sessions.
+* Respect Android battery and background-execution policies.
+
+Use Kotlin or an appropriate native module when necessary.
+
+iOS
+
+Implement VPN functionality using Network Extension and the appropriate packet-tunnel architecture.
+
+Requirements:
+
+* Identify the required Apple capabilities and entitlements.
+* Use an appropriate packet-tunnel provider or compatible native SDK.
+* Handle VPN profile installation and system authorization.
+* Configure packet routing and DNS.
+* Report connection state and native error messages.
+* Handle disconnects, network changes, and reconnection.
+* Document provisioning, signing, and distribution requirements.
+* Verify the feasibility of each protocol on iOS before promising support.
+
+Do not assume Android’s VpnService can be reused directly on iOS.
+
+If an engine requires a native project modification, use Expo prebuild and a custom development/production build. Preserve reproducibility and document native dependencies.
+
+6. Main Application Screens
+
+Build a polished, premium, mobile-first interface with the following screens.
+
+Authentication
+
+* Phone number login.
+* OTP verification.
+* Loading, error, and retry states.
+
+Home / VPN Dashboard
+
+* Large Connect/Disconnect button.
+* Current VPN connection state.
+* Selected protocol.
+* Selected server.
+* Real connection duration.
+* Download and upload statistics where available.
+* Current subscription status.
+* Remaining traffic and expiration when supplied by the backend.
+
+Protocol Selection
+
+* WireGuard.
+* AmneziaWG.
+* OpenVPN.
+* V2Ray-compatible protocols supported by the integrated engine.
+
+Show only compatible profiles. Clearly identify unavailable protocols.
+
+Server Selection
+
+* List the user’s assigned servers.
+* Display country and city when available.
+* Display protocol availability.
+* Measure latency using an appropriate method.
+* Sort by latency, location, or server name.
+* Allow the user to select a preferred server.
+* Never invent server locations or latency values.
+
+Subscription
+
+* Subscription status.
+* Expiration date.
+* Remaining quota.
+* Renewal information.
+* A clear expired-subscription state.
+* A renewal link or flow provided by the existing backend.
+
+Settings
+
+* Auto-connect preferences where supported.
+* Reconnect behavior.
+* Protocol preference.
+* DNS and routing settings only where safely supported.
+* Language selection.
+* Theme selection.
+* Support information.
+* Privacy policy and terms.
+* Logout.
+
+Connection Diagnostics
+
+* Native engine status.
+* Last connection error.
+* DNS and network reachability checks.
+* Selected server and protocol.
+* Diagnostic export with secrets removed.
+
+7. Connection State Management
+
+Implement a reliable state machine:
+
+* Disconnected.
+* Fetching configurations.
+* Connecting.
+* Connected.
+* Reconnecting.
+* Disconnecting.
+* Failed.
+* Subscription expired.
+* Permission required.
+* Unsupported configuration.
+
+The UI must reflect the actual native engine state.
+
+Do not mark the user as connected simply because a button was tapped or a connection request was accepted.
+
+Provide actionable error messages and safe retry behavior.
+
+Handle network switching between Wi-Fi and mobile data, application restarts, operating-system VPN state changes, and expired credentials.
+
+8. Backend Integration
+
+First inspect the existing backend and identify:
+
+* Authentication endpoints.
+* OTP request and verification endpoints.
+* Token/session mechanism.
+* User profile endpoint.
+* Subscription endpoint.
+* Configuration-delivery endpoint.
+* Server and protocol metadata.
+* Traffic and expiration endpoints.
+* Logout or token-revocation behavior.
+
+Create a typed API service layer and environment-based API configuration.
+
+Use the existing API contracts wherever possible.
+
+If an endpoint is missing, document the exact required contract and implement the client integration behind a clearly defined interface. Do not fabricate successful responses or ship production code dependent on mock configurations.
+
+Do not expose administrative APIs, database credentials, service secrets, or privileged server operations in the mobile application.
+
+9. VPN Security
+
+Implement:
+
+* Secure handling of configuration secrets.
+* Certificate and TLS validation.
+* Strict validation of remote configuration data.
+* Safe deep-link and subscription URL handling.
+* Protection against unauthorized profile access.
+* Session expiration and revocation.
+* Redaction of secrets from diagnostic reports.
+* No arbitrary shell execution.
+* No hardcoded private keys.
+* No disabled certificate checks.
+* No silent fallback to an unencrypted connection.
+* No claim of a kill switch unless it is genuinely implemented and verified for the platform.
+* Clear handling of unsupported protocols and invalid configurations.
+
+A client-side VPN connection must not be considered proof that the subscription is valid. The backend remains authoritative.
+
+10. Design and User Experience
+
+Create a premium, modern VPN application with:
+
+* Dark and light themes.
+* Smooth but restrained animations.
+* A large central connection control.
+* Clear protocol and server cards.
+* Responsive layouts.
+* Loading skeletons.
+* Useful empty states.
+* Accessible controls.
+* Native-feeling navigation.
+* Consistent typography and spacing.
+* Internationalization support.
+* Persian RTL support and proper Persian font configuration, while preserving correct LTR formatting for phone numbers, IP addresses, hostnames, and technical values.
+
+Do not sacrifice connection reliability for visual effects.
+
+11. Performance and Reliability
+
+* Avoid blocking the UI during configuration parsing.
+* Reuse network clients appropriately.
+* Cache non-sensitive metadata where appropriate.
+* Refresh subscriptions safely.
+* Prevent duplicate connection requests.
+* Handle memory and lifecycle cleanup.
+* Avoid excessive background polling.
+* Provide meaningful logs without exposing secrets.
+* Handle unavailable servers and failed handshakes.
+* Verify that disconnecting actually terminates the native tunnel.
+
+12. Testing Requirements
+
+Provide automated and manual tests for:
+
+* Phone login and OTP verification.
+* Session restoration and logout.
+* Configuration fetching and parsing.
+* Unsupported and malformed configurations.
+* Protocol-to-engine selection.
+* Permission denial.
+* Successful connection and disconnection.
+* Invalid credentials and failed handshakes.
+* Subscription expiration and revocation.
+* Wi-Fi/mobile-data transitions.
+* DNS and routing behavior.
+* App restart while connected.
+* Secret redaction.
+* Android background behavior.
+* iOS provisioning and packet-tunnel behavior.
+
+Test each protocol independently on each platform. Do not mark a protocol complete based only on a successful build or a simulated connection.
+
+13. Build and Delivery
+
+Deliver:
+
+1. Complete React Native/Expo source code.
+2. All required native Android modules and iOS extension code.
+3. Dependency and license documentation.
+4. Environment variable examples without real secrets.
+5. Backend integration documentation.
+6. Android APK build instructions.
+7. Android AAB build instructions.
+8. iOS development and distribution build instructions.
+9. A list of tested protocols for each platform.
+10. A list of unsupported capabilities and remaining blockers.
+11. A reproducible build configuration.
+12. A concise deployment and troubleshooting guide.
+
+Build the Android APK and verify that it installs and launches. Where the environment supports it, test an actual VPN connection using valid test configurations.
+
+Do not claim to have generated or tested an artifact unless the operation succeeded.
+
+14. Required Implementation Workflow
+
+Follow this sequence:
+
+Phase 1: Inspect the existing project, backend APIs, database-related integration, and configuration formats.
+
+Phase 2: Produce a protocol/platform compatibility matrix and identify the native engines, licensing requirements, and required OS entitlements.
+
+Phase 3: Implement authentication and configuration retrieval using the existing backend.
+
+Phase 4: Implement the shared UI and protocol registry.
+
+Phase 5: Integrate one native engine at a time, starting with the protocol that has the clearest compatible implementation in the existing infrastructure.
+
+Phase 6: Implement actual connection-state reporting and system VPN integration.
+
+Phase 7: Test the engines independently on Android and iOS.
+
+Phase 8: Generate the Android APK and AAB, and prepare the iOS build.
+
+Phase 9: Document all remaining limitations.
+
+Start by inspecting the supplied files and reporting the actual existing API endpoints, configuration formats, and integration gaps. Then implement the project incrementally.
+
+Final acceptance criterion: A user can log in with a real OTP, retrieve their own authorized VPN profiles, select a genuinely supported protocol, establish a real system-level VPN connection, see its actual state, and disconnect reliably. No mock connection states or fabricated configurations are acceptable.
