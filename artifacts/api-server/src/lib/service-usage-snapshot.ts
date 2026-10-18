@@ -66,11 +66,16 @@ export function storedPanelUsageSql(serviceAlias = "svc"): string {
     LEFT JOIN reseller_service_ipsec_accounts ipsec_account
       ON ipsec_account.service_id = ${serviceAlias}.id
       AND ipsec_account.provider_key = panel.key
+    LEFT JOIN reseller_service_openvpn_provider_accounts openvpn_account
+      ON openvpn_account.service_id = ${serviceAlias}.id
+      AND openvpn_account.provider_key = panel.key
     LEFT JOIN LATERAL (
       SELECT usage.upload, usage.download, usage.offset_bytes
       FROM user_panel_usages usage
       WHERE usage.username = CASE
           WHEN panel.kind = 'azadpanel_ipsec' THEN ipsec_account.provider_username
+          WHEN panel.kind IN ('azadpanel', 'azadpanel_openvpn')
+            THEN COALESCE(openvpn_account.provider_username, ${serviceAlias}.rain_username)
           ELSE ${serviceAlias}.rain_username
         END
         AND usage.panel_key = panel.key

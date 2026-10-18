@@ -4998,6 +4998,9 @@ async function loadServicePanelUsageMap(
        LEFT JOIN reseller_service_v2ray_accounts v2ray_account
          ON v2ray_account.service_id = requested.service_id
         AND v2ray_account.provider_key = panel.key
+      LEFT JOIN reseller_service_openvpn_provider_accounts openvpn_account
+        ON openvpn_account.service_id = requested.service_id
+       AND openvpn_account.provider_key = panel.key
      LEFT JOIN LATERAL (
        SELECT saved.upload, saved.download, saved.offset_bytes, saved.last_updated
        FROM user_panel_usages saved
@@ -5006,6 +5009,8 @@ async function loadServicePanelUsageMap(
            WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN requested.wireguard_username
             WHEN LOWER(panel.kind) = 'azadpanel_ipsec' THEN ipsec_account.provider_username
             WHEN LOWER(panel.kind) = 'azadpanel_v2ray' THEN COALESCE(v2ray_account.provider_username, requested.username)
+          WHEN LOWER(panel.kind) IN ('azadpanel', 'azadpanel_openvpn')
+            THEN COALESCE(openvpn_account.provider_username, requested.username)
            ELSE requested.username
          END
        ORDER BY saved.id DESC
