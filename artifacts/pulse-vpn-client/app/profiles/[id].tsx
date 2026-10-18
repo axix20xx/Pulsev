@@ -16,6 +16,7 @@ import {
 import type { WireGuardLocation } from '@workspace/api-client-react';
 import { Card, Heading, InlineState, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
+import { getSubscriptionToken } from '@/lib/subscription-token';
 import {
   connectAmneziaWg,
   connectOpenVpn,
@@ -37,16 +38,6 @@ import {
   type WireGuardVpnStatus,
   type XrayVpnState,
 } from '@/lib/vpn-engine';
-
-function privateToken(value: string | null): string {
-  if (!value) return '';
-  try {
-    const path = new URL(value).pathname.split('/').filter(Boolean);
-    return path[path.length - 1] ?? '';
-  } catch {
-    return value.split('/').filter(Boolean).pop() ?? '';
-  }
-}
 
 function wireGuardRoute(configUrl: string): { provider: string; host: string } {
   const parsed = new URL(configUrl, 'https://pulse.invalid');
@@ -76,7 +67,7 @@ export default function ProfileDetail() {
   const dashboard = useGetMobileDashboard();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const item = (subscriptions.data ?? dashboard.data?.subscriptions ?? []).find((subscription) => subscription.id === id);
-  const token = privateToken(item?.subscription_url ?? null);
+  const token = getSubscriptionToken(item?.subscription_url ?? null);
   const openVpn = useGetOpenVpnAccount(token, { query: { enabled: !!token && !!item?.openvpn_available, queryKey: ['/mobile-profile', token, 'openvpn'] } });
   const wireguard = useGetWireGuardAccount(token, { query: { enabled: !!token && !!item?.wireguard_available, queryKey: ['/mobile-profile', token, 'wireguard'] } });
   const ipsec = useGetIpsecAccount(token, { query: { enabled: !!token && !!item?.ipsec_available, queryKey: ['/mobile-profile', token, 'ipsec'] } });
@@ -244,6 +235,9 @@ export default function ProfileDetail() {
           throw new Error('حجم این اشتراک به پایان رسیده است.');
         }
         const freshFeed = await subscriptionFeed.refetch();
+        if (freshFeed.isError) {
+          throw new Error('دریافت فید اتصال V2Ray ناموفق بود؛ اتصال را بررسی و دوباره تلاش کنید.');
+        }
         const source = freshFeed.data;
         if (typeof source !== 'string' || !source.trim()) {
           throw new Error('فید اتصال V2Ray خالی است؛ دوباره تلاش کنید.');
