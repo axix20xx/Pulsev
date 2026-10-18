@@ -75156,11 +75156,16 @@ function storedPanelUsageSql(serviceAlias = "svc") {
     LEFT JOIN reseller_service_ipsec_accounts ipsec_account
       ON ipsec_account.service_id = ${serviceAlias}.id
       AND ipsec_account.provider_key = panel.key
+    LEFT JOIN reseller_service_openvpn_provider_accounts openvpn_account
+      ON openvpn_account.service_id = ${serviceAlias}.id
+      AND openvpn_account.provider_key = panel.key
     LEFT JOIN LATERAL (
       SELECT usage.upload, usage.download, usage.offset_bytes
       FROM user_panel_usages usage
       WHERE usage.username = CASE
           WHEN panel.kind = 'azadpanel_ipsec' THEN ipsec_account.provider_username
+          WHEN panel.kind IN ('azadpanel', 'azadpanel_openvpn')
+            THEN COALESCE(openvpn_account.provider_username, ${serviceAlias}.rain_username)
           ELSE ${serviceAlias}.rain_username
         END
         AND usage.panel_key = panel.key
@@ -75696,6 +75701,27 @@ async function readSavedAzadPanelV2RayUsernames(serviceIds) {
   const result = await pool.query(
     `SELECT service_id, provider_key, provider_username
      FROM reseller_service_v2ray_accounts
+     WHERE service_id = ANY($1::bigint[])`,
+    [ids]
+  );
+  for (const row of result.rows) {
+    const serviceId = Number(row.service_id);
+    const providerKey = String(row.provider_key ?? "").trim();
+    const username = String(row.provider_username ?? "").trim();
+    if (!providerKey || !username) continue;
+    const perProvider = accounts.get(serviceId) ?? /* @__PURE__ */ new Map();
+    perProvider.set(providerKey, username);
+    accounts.set(serviceId, perProvider);
+  }
+  return accounts;
+}
+async function readSavedAzadPanelOpenVpnUsernames(serviceIds) {
+  const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const accounts = /* @__PURE__ */ new Map();
+  if (!ids.length) return accounts;
+  const result = await pool.query(
+    `SELECT service_id, provider_key, provider_username
+     FROM reseller_service_openvpn_provider_accounts
      WHERE service_id = ANY($1::bigint[])`,
     [ids]
   );
@@ -76473,6 +76499,8 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
   let ipsecLookupFailed = false;
   let v2rayAccounts = /* @__PURE__ */ new Map();
   let v2rayLookupFailed = false;
+  let openVpnAccounts = /* @__PURE__ */ new Map();
+  let openVpnLookupFailed = false;
   try {
     wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
   } catch {
@@ -76488,6 +76516,11 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
   } catch {
     v2rayLookupFailed = true;
   }
+  try {
+    openVpnAccounts = await readSavedAzadPanelOpenVpnUsernames([serviceId]);
+  } catch {
+    openVpnLookupFailed = true;
+  }
   const safePanelRequest = async (panel, method, path) => {
     try {
       return await panelRequest(panel, method, path);
@@ -76499,7 +76532,23 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
     const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
     const ipsecPanel = panel.kind?.trim().toLowerCase() === "azadpanel_ipsec";
     const v2rayPanel = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
+    const openVpnPanel = isAzadPanelCoreCandidate(panel.kind, "openvpn");
     let requestUsername = username;
+    if (openVpnPanel) {
+      if (openVpnLookupFailed) {
+        const stale = await lastKnownPanelUsage(username, panelKey(panel));
+        result.push(stale ?? {
+          panelKey: panelKey(panel),
+          username,
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true
+        });
+        continue;
+      }
+      requestUsername = openVpnAccounts.get(serviceId)?.get(panelKey(panel)) ?? username;
+    }
     if (v2rayPanel) {
       if (v2rayLookupFailed) {
         result.push({
@@ -86572,6 +86621,9 @@ async function loadServicePanelUsageMap(services) {
        LEFT JOIN reseller_service_v2ray_accounts v2ray_account
          ON v2ray_account.service_id = requested.service_id
         AND v2ray_account.provider_key = panel.key
+      LEFT JOIN reseller_service_openvpn_provider_accounts openvpn_account
+        ON openvpn_account.service_id = requested.service_id
+       AND openvpn_account.provider_key = panel.key
      LEFT JOIN LATERAL (
        SELECT saved.upload, saved.download, saved.offset_bytes, saved.last_updated
        FROM user_panel_usages saved
@@ -86580,6 +86632,8 @@ async function loadServicePanelUsageMap(services) {
            WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN requested.wireguard_username
             WHEN LOWER(panel.kind) = 'azadpanel_ipsec' THEN ipsec_account.provider_username
             WHEN LOWER(panel.kind) = 'azadpanel_v2ray' THEN COALESCE(v2ray_account.provider_username, requested.username)
+          WHEN LOWER(panel.kind) IN ('azadpanel', 'azadpanel_openvpn')
+            THEN COALESCE(openvpn_account.provider_username, requested.username)
            ELSE requested.username
          END
        ORDER BY saved.id DESC

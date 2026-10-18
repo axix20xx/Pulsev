@@ -1682,3 +1682,17 @@ mtime_ms = 1792309054039
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6059a252-8b00-40c7-b015-e0304c86adf8/1c33c5d8-33f7-4dcf-b3eb-f14d100d9994"
 storage_version_token = "1792309078991354"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "uNSzAdUYDiNEx6ySioQHZ"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-18T08-23-29-426Z.zip"
+type = "unspecified"
+title = "Hostinger Full Migration ZIP"
+description = "Includes the OpenVPN mapped-usage fix. SHA-256: fe379c04049807ed2b0609c2f7783e70d9f84968dd32ddc8d9149dfc9b182868"
+logical_id = "4293ca5b-3943-4250-8a73-b19eb7c221c9"
+content_hash = "sha256:fe379c04049807ed2b0609c2f7783e70d9f84968dd32ddc8d9149dfc9b182868"
+size = 29052595
+mtime_ms = 1792311909122
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4293ca5b-3943-4250-8a73-b19eb7c221c9/ead5349a-51aa-48a2-87c2-623a6cedb889"
+storage_version_token = "1792311956794809"
+content_type = "application/octet-stream"
