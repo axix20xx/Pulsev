@@ -167,6 +167,34 @@ export async function readSavedAzadPanelV2RayUsernames(
   return accounts;
 }
 
+export async function readSavedAzadPanelOpenVpnUsernames(
+  serviceIds: number[],
+): Promise<Map<number, Map<string, string>>> {
+  const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const accounts = new Map<number, Map<string, string>>();
+  if (!ids.length) return accounts;
+  const result = await pool.query<{
+    service_id: number | string;
+    provider_key: string;
+    provider_username: string;
+  }>(
+    `SELECT service_id, provider_key, provider_username
+     FROM reseller_service_openvpn_provider_accounts
+     WHERE service_id = ANY($1::bigint[])`,
+    [ids],
+  );
+  for (const row of result.rows) {
+    const serviceId = Number(row.service_id);
+    const providerKey = String(row.provider_key ?? "").trim();
+    const username = String(row.provider_username ?? "").trim();
+    if (!providerKey || !username) continue;
+    const perProvider = accounts.get(serviceId) ?? new Map<string, string>();
+    perProvider.set(providerKey, username);
+    accounts.set(serviceId, perProvider);
+  }
+  return accounts;
+}
+
 type PanelResult = {
   key: string;
   kind: string;
@@ -1145,6 +1173,8 @@ export async function readPanelUsages(
   let ipsecLookupFailed = false;
   let v2rayAccounts = new Map<number, Map<string, string>>();
   let v2rayLookupFailed = false;
+  let openVpnAccounts = new Map<number, Map<string, string>>();
+  let openVpnLookupFailed = false;
   try {
     wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
   } catch {
@@ -1160,6 +1190,11 @@ export async function readPanelUsages(
   } catch {
     v2rayLookupFailed = true;
   }
+  try {
+    openVpnAccounts = await readSavedAzadPanelOpenVpnUsernames([serviceId]);
+  } catch {
+    openVpnLookupFailed = true;
+  }
   const safePanelRequest = async (panel: Panel, method: string, path: string): Promise<{ status: number; json: any; text: string } | null> => {
     try {
       return await panelRequest(panel, method, path);
@@ -1171,7 +1206,23 @@ export async function readPanelUsages(
     const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
     const ipsecPanel = panel.kind?.trim().toLowerCase() === "azadpanel_ipsec";
     const v2rayPanel = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
+    const openVpnPanel = isAzadPanelCoreCandidate(panel.kind, "openvpn");
     let requestUsername = username;
+    if (openVpnPanel) {
+      if (openVpnLookupFailed) {
+        const stale = await lastKnownPanelUsage(username, panelKey(panel));
+        result.push(stale ?? {
+          panelKey: panelKey(panel),
+          username,
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true,
+        });
+        continue;
+      }
+      requestUsername = openVpnAccounts.get(serviceId)?.get(panelKey(panel)) ?? username;
+    }
     if (v2rayPanel) {
       if (v2rayLookupFailed) {
         result.push({
