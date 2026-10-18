@@ -896,6 +896,14 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS reseller_service_openvpn_provider_accounts (
+        service_id BIGINT NOT NULL,
+        provider_key TEXT NOT NULL,
+        provider_username TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (service_id, provider_key)
+      );
        CREATE TABLE IF NOT EXISTS reseller_service_wireguard_accounts (
          service_id BIGINT PRIMARY KEY,
          delivery_secret TEXT NOT NULL,
@@ -1945,6 +1953,8 @@ router.post("/public/subscription/:token/openvpn", async (req, res): Promise<voi
       new Date(service.expires_at),
       Number(service.reseller_tg_id),
       "reseller",
+      undefined,
+      serviceId,
     );
     await pool.query(
       `INSERT INTO reseller_service_openvpn_accounts (service_id, delivery_secret)
@@ -2468,6 +2478,7 @@ async function resolvePublicOpenVpnProfile(
       hostId,
       Number(service.reseller_tg_id),
       "reseller",
+      Number(service.id),
     );
     return { serviceId: String(service.id), profile };
   } catch (error) {
@@ -2865,6 +2876,7 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
           undefined,
           resellerId,
           "reseller",
+          serviceId,
         );
         entries.push({
           protocol: "openvpn",

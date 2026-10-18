@@ -75454,6 +75454,15 @@ function azadPanelV2RayBackfillPlan(service, nowUnix = Math.floor(Date.now() / 1
   };
 }
 
+// src/lib/azadpanel-openvpn-identity.ts
+function azadPanelOpenVpnCollisionUsername(serviceId) {
+  if (!Number.isSafeInteger(serviceId) || Number(serviceId) <= 0) return null;
+  return `pulseovpn_${serviceId}`;
+}
+function shouldUseAzadPanelOpenVpnCollision(input) {
+  return input.status === 403 && input.providerUsername === input.serviceUsername && azadPanelOpenVpnCollisionUsername(input.serviceId) !== null;
+}
+
 // src/lib/panel-protocol-policy.ts
 var normalizeKind = (kind) => typeof kind === "string" ? kind.trim().toLowerCase() : "";
 function azadPanelExpectedCore(kind) {
@@ -77025,6 +77034,7 @@ async function provisionAzadPanel(panel, username, gb, days, options) {
     throw new RainApiError(`AzadPanel ${panelKey(panel)} is configured for ${core}, not ${expectedCore}.`);
   }
   const isAzadPanelV2Ray = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
+  const isAzadPanelOpenVpn = !isAzadPanelV2Ray && expectedCore === "openvpn";
   const serviceId = options.serviceId;
   let providerUsername = username;
   if (isAzadPanelV2Ray && Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
@@ -77032,6 +77042,17 @@ async function provisionAzadPanel(panel, username, gb, days, options) {
       `SELECT provider_username
        FROM reseller_service_v2ray_accounts
        WHERE service_id = $1 AND provider_key = $2`,
+      [serviceId, panelKey(panel)]
+    );
+    if (saved.rows[0]?.provider_username?.trim()) {
+      providerUsername = saved.rows[0].provider_username.trim();
+    }
+  } else if (isAzadPanelOpenVpn && Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
+    const saved = await pool.query(
+      `SELECT provider_username
+       FROM reseller_service_openvpn_provider_accounts
+       WHERE service_id = $1 AND provider_key = $2
+       LIMIT 1`,
       [serviceId, panelKey(panel)]
     );
     if (saved.rows[0]?.provider_username?.trim()) {
@@ -77047,6 +77068,16 @@ async function provisionAzadPanel(panel, username, gb, days, options) {
       encoded = encodeURIComponent(providerUsername);
       existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
     }
+  }
+  if (shouldUseAzadPanelOpenVpnCollision({
+    status: existing.status,
+    providerUsername,
+    serviceUsername: username,
+    serviceId
+  })) {
+    providerUsername = azadPanelOpenVpnCollisionUsername(serviceId);
+    encoded = encodeURIComponent(providerUsername);
+    existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
   }
   const persistProviderUsername = async () => {
     if (shouldPersistAzadPanelV2RayAccountMapping({
@@ -77066,6 +77097,15 @@ async function provisionAzadPanel(panel, username, gb, days, options) {
         [serviceId, panelKey(panel), providerUsername]
       );
       azadPanelXrayReadRouteCache.delete(`${panelKey(panel)}:${serviceId}`);
+    } else if (isAzadPanelOpenVpn && providerUsername !== username && Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
+      await pool.query(
+        `INSERT INTO reseller_service_openvpn_provider_accounts
+           (service_id, provider_key, provider_username)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (service_id, provider_key)
+         DO UPDATE SET provider_username = EXCLUDED.provider_username, updated_at = NOW()`,
+        [serviceId, panelKey(panel), providerUsername]
+      );
     }
   };
   if (isAzadPanelV2Ray && options.onlyIfMissingAzadPanel && existing.status === 200) {
@@ -77291,7 +77331,7 @@ async function repairXrayProviderUser(username, gb, expiresAt, providerKey, owne
   }
   return { key: panelKey(panel), kind, status: response.status };
 }
-async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, requestedPanelKey) {
+async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, requestedPanelKey, serviceId) {
   const openVpnPanels = (await panels(ownerId, role)).filter(
     (panel2) => isAzadPanelCoreCandidate(panel2.kind, "openvpn")
   );
@@ -77300,10 +77340,33 @@ async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, req
   if (await azadPanelCore(panel) !== "openvpn") {
     throw new RainApiError(`AzadPanel ${panelKey(panel)} is not configured for OpenVPN.`);
   }
-  const encoded = encodeURIComponent(username);
+  let providerUsername = username;
+  if (Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
+    const saved = await pool.query(
+      `SELECT provider_username
+       FROM reseller_service_openvpn_provider_accounts
+       WHERE service_id = $1 AND provider_key = $2
+       LIMIT 1`,
+      [serviceId, panelKey(panel)]
+    );
+    if (saved.rows[0]?.provider_username?.trim()) {
+      providerUsername = saved.rows[0].provider_username.trim();
+    }
+  }
+  let encoded = encodeURIComponent(providerUsername);
   let existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (shouldUseAzadPanelOpenVpnCollision({
+    status: existing.status,
+    providerUsername,
+    serviceUsername: username,
+    serviceId
+  })) {
+    providerUsername = azadPanelOpenVpnCollisionUsername(serviceId);
+    encoded = encodeURIComponent(providerUsername);
+    existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  }
   if (existing.status === 404) {
-    const created = await panelRequest(panel, "POST", "/api/user", azadPanelUserBody(username, gb, expiresAt));
+    const created = await panelRequest(panel, "POST", "/api/user", azadPanelUserBody(providerUsername, gb, expiresAt));
     if (created.status < 200 || created.status >= 300) {
       if (created.status !== 409) {
         throw new RainApiError(`AzadPanel ${panelKey(panel)} could not create the OpenVPN account: ${safeError(created)}`);
@@ -77315,6 +77378,16 @@ async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, req
     }
   } else if (existing.status !== 200) {
     throw new RainApiError(`AzadPanel ${panelKey(panel)} could not check the OpenVPN account: ${safeError(existing)}`);
+  }
+  if (providerUsername !== username && Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
+    await pool.query(
+      `INSERT INTO reseller_service_openvpn_provider_accounts
+         (service_id, provider_key, provider_username)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (service_id, provider_key)
+       DO UPDATE SET provider_username = EXCLUDED.provider_username, updated_at = NOW()`,
+      [serviceId, panelKey(panel), providerUsername]
+    );
   }
   const configsResponse = await panelRequest(panel, "GET", `/api/ovpn/user/${encoded}/configs`);
   if (configsResponse.status < 200 || configsResponse.status >= 300) {
@@ -77352,7 +77425,7 @@ async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, req
     locations
   };
 }
-async function downloadOpenVpnProfile(username, providerKey, hostId, ownerId, role) {
+async function downloadOpenVpnProfile(username, providerKey, hostId, ownerId, role, serviceId) {
   const panel = (await panels(ownerId, role)).find(
     (candidate) => panelKey(candidate) === providerKey && isAzadPanelCoreCandidate(candidate.kind, "openvpn")
   );
@@ -77360,7 +77433,20 @@ async function downloadOpenVpnProfile(username, providerKey, hostId, ownerId, ro
   if (await azadPanelCore(panel) !== "openvpn") {
     throw new RainApiError(`AzadPanel ${providerKey} is not configured for OpenVPN.`);
   }
-  const encoded = encodeURIComponent(username);
+  let providerUsername = username;
+  if (Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
+    const saved = await pool.query(
+      `SELECT provider_username
+       FROM reseller_service_openvpn_provider_accounts
+       WHERE service_id = $1 AND provider_key = $2
+       LIMIT 1`,
+      [serviceId, providerKey]
+    );
+    if (saved.rows[0]?.provider_username?.trim()) {
+      providerUsername = saved.rows[0].provider_username.trim();
+    }
+  }
+  const encoded = encodeURIComponent(providerUsername);
   const path = hostId ? `/api/ovpn/user/${encoded}/config?host=${encodeURIComponent(hostId)}` : `/api/ovpn/user/${encoded}/bundle`;
   const response = await panelRequest(panel, "GET", path);
   if (response.status < 200 || response.status >= 300 || !response.text.trim()) {
@@ -82767,6 +82853,14 @@ var managementReady = pool.query(`
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS reseller_service_openvpn_provider_accounts (
+        service_id BIGINT NOT NULL,
+        provider_key TEXT NOT NULL,
+        provider_username TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (service_id, provider_key)
+      );
        CREATE TABLE IF NOT EXISTS reseller_service_wireguard_accounts (
          service_id BIGINT PRIMARY KEY,
          delivery_secret TEXT NOT NULL,
@@ -83698,7 +83792,9 @@ router2.post("/public/subscription/:token/openvpn", async (req, res) => {
       Number(service.limit_gb ?? 0),
       new Date(service.expires_at),
       Number(service.reseller_tg_id),
-      "reseller"
+      "reseller",
+      void 0,
+      serviceId
     );
     await pool.query(
       `INSERT INTO reseller_service_openvpn_accounts (service_id, delivery_secret)
@@ -84186,7 +84282,8 @@ async function resolvePublicOpenVpnProfile(token, providerKey, hostId) {
       providerKey,
       hostId,
       Number(service.reseller_tg_id),
-      "reseller"
+      "reseller",
+      Number(service.id)
     );
     return { serviceId: String(service.id), profile };
   } catch (error40) {
@@ -84533,7 +84630,8 @@ router2.get("/public/subscription/:token/all/mobileconfig", async (req, res) => 
           openVpn.provider_key,
           void 0,
           resellerId,
-          "reseller"
+          "reseller",
+          serviceId
         );
         entries.push({
           protocol: "openvpn",

@@ -1668,3 +1668,17 @@ mtime_ms = 1792273725359
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/617ee216-f9af-4b68-a35e-3c0248cb1fd7/5d0224d5-5976-46da-aab5-9d752f68e7a6"
 storage_version_token = "1792273773900763"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "dCz31FZPXJcprQv58Tt2d"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-18T07-35-45-633Z.zip"
+type = "unspecified"
+title = "Hostinger full ZIP — safe AzadPanel OpenVPN collision fix"
+description = "Handles OpenVPN ownership 403s with a stable service-specific username only for affected services. Existing OpenVPN usernames stay unchanged; mappings are used by provisioning, .ovpn downloads, and combined iOS profiles. Validated package; install and restart on Hostinger to apply."
+logical_id = "6059a252-8b00-40c7-b015-e0304c86adf8"
+content_hash = "sha256:6dc5a33abc67f91bfebf68496c35601c26608519be72a3385a5ab2543b2e25e8"
+size = 29052015
+mtime_ms = 1792309054039
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6059a252-8b00-40c7-b015-e0304c86adf8/1c33c5d8-33f7-4dcf-b3eb-f14d100d9994"
+storage_version_token = "1792309078991354"
+content_type = "application/octet-stream"
