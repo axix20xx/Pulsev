@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import {
   useDownloadAmneziaWgConfig,
+  downloadWireGuardConfig,
   useGetIpsecAccount,
   useGetMobileDashboard,
   useGetOpenVpnAccount,
@@ -11,8 +12,26 @@ import {
   useGetWireGuardAccount,
   useListMobileSubscriptions,
 } from '@workspace/api-client-react';
+import type { WireGuardLocation } from '@workspace/api-client-react';
 import { Card, Heading, InlineState, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
+import {
+  connectAmneziaWg,
+  connectWireGuard,
+  connectXray,
+  disconnectXray,
+  disconnectAmneziaWg,
+  disconnectWireGuard,
+  getAmneziaWgStatus,
+  isAmneziaWgEngineAvailable,
+  getXrayState,
+  getWireGuardStatus,
+  isXrayEngineAvailable,
+  isWireGuardEngineAvailable,
+  subscribeXrayState,
+  type WireGuardVpnStatus,
+  type XrayVpnState,
+} from '@/lib/vpn-engine';
 
 function privateToken(value: string | null): string {
   if (!value) return '';
@@ -22,6 +41,16 @@ function privateToken(value: string | null): string {
   } catch {
     return value.split('/').filter(Boolean).pop() ?? '';
   }
+}
+
+function wireGuardRoute(configUrl: string): { provider: string; host: string } {
+  const parsed = new URL(configUrl, 'https://pulse.invalid');
+  const segments = parsed.pathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment));
+  const index = segments.findIndex((segment, position) => segment === 'wireguard' && segments[position + 1] === 'config');
+  const provider = index >= 0 ? segments[index + 2] : undefined;
+  const host = index >= 0 ? segments[index + 3] : undefined;
+  if (!provider || !host) throw new Error('نشانی پیکربندی WireGuard معتبر نیست.');
+  return { provider, host };
 }
 
 export default function ProfileDetail() {
@@ -39,6 +68,94 @@ export default function ProfileDetail() {
   const amnezia = useDownloadAmneziaWgConfig(token, { query: { enabled: !!token && !!item?.awg_url, queryKey: ['/mobile-profile', token, 'amneziawg'] } });
   const subscriptionFeed = useGetPublicSubscriptionFeed(token, { query: { enabled: !!token && !!item?.subscription_url, queryKey: ['/mobile-profile', token, 'subscription-feed'] } });
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [xrayState, setXrayState] = useState<XrayVpnState>({ state: 'disconnected' });
+  const [xrayEngineAvailable, setXrayEngineAvailable] = useState(false);
+  const [xrayBusy, setXrayBusy] = useState(false);
+  const [xrayActionError, setXrayActionError] = useState<string | null>(null);
+  const [wireguardStatus, setWireguardStatus] = useState<WireGuardVpnStatus>({
+    status: 'DISCONNECTED',
+    tunnelState: 'INACTIVE',
+    isConnected: false,
+  });
+  const [wireguardEngineAvailable, setWireguardEngineAvailable] = useState(false);
+  const [wireguardBusy, setWireguardBusy] = useState(false);
+  const [wireguardError, setWireguardError] = useState<string | null>(null);
+  const [wireguardLocationId, setWireguardLocationId] = useState<string | null>(null);
+  const [amneziaStatus, setAmneziaStatus] = useState<WireGuardVpnStatus>({
+    status: 'UNKNOWN',
+    tunnelState: 'UNKNOWN',
+    isConnected: false,
+  });
+  const [amneziaEngineAvailable, setAmneziaEngineAvailable] = useState(false);
+  const [amneziaBusy, setAmneziaBusy] = useState(false);
+  const [amneziaError, setAmneziaError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    let disposed = false;
+    let removeStateListener: () => void = () => undefined;
+
+    void isXrayEngineAvailable().then((available) => {
+      if (!disposed) setXrayEngineAvailable(available);
+    });
+    void getXrayState().then((state) => {
+      if (!disposed) setXrayState(state);
+    }).catch(() => undefined);
+    void subscribeXrayState((state) => {
+      if (!disposed) setXrayState(state);
+    }).then((remove) => {
+      if (disposed) remove();
+      else removeStateListener = remove;
+    }).catch(() => undefined);
+
+    return () => {
+      disposed = true;
+      removeStateListener();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let disposed = false;
+    const refreshAmnezia = async () => {
+      try {
+        const status = await getAmneziaWgStatus();
+        if (!disposed) setAmneziaStatus(status);
+      } catch {
+        // Expo Go has no native tunnel module, so its state cannot be asserted.
+      }
+    };
+    void isAmneziaWgEngineAvailable().then((available) => {
+      if (!disposed) setAmneziaEngineAvailable(available);
+    });
+    void refreshAmnezia();
+    const timer = setInterval(() => void refreshAmnezia(), 4000);
+    return () => {
+      disposed = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let disposed = false;
+    const refreshWireGuard = async () => {
+      try {
+        const status = await getWireGuardStatus();
+        if (disposed) return;
+        setWireguardStatus(status);
+        if (!status.isConnected) setWireguardLocationId(null);
+      } catch {
+        // An unlinked native module is expected in Expo Go. It is not an active tunnel.
+      }
+    };
+    void isWireGuardEngineAvailable().then((available) => {
+      if (!disposed) setWireguardEngineAvailable(available);
+    });
+    void refreshWireGuard();
+    const timer = setInterval(() => void refreshWireGuard(), 4000);
+    return () => {
+      disposed = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   if (subscriptions.isLoading && dashboard.isLoading) return <Screen><View style={styles.loading}><ActivityIndicator color={c.primary} /><Text style={{ color: c.mutedForeground }}>در حال دریافت اطلاعات…</Text></View></Screen>;
   if (subscriptions.isError && dashboard.isError) return <Screen><InlineState title="اطلاعات دریافت نشد" detail="برای بازیابی جزئیات پروفایل، اتصال را بررسی کنید." retry={() => { subscriptions.refetch(); dashboard.refetch(); }} /></Screen>;
@@ -67,6 +184,108 @@ export default function ProfileDetail() {
     ] : [] },
   ];
 
+  const handleXrayAction = async () => {
+    if (!item || !token) return;
+    setXrayBusy(true);
+    setXrayActionError(null);
+    try {
+      if (xrayState.state === 'connected') {
+        await disconnectXray();
+      } else {
+        if (item.status !== 'active') {
+          throw new Error('این اشتراک فعال نیست.');
+        }
+        const remaining = Number(item.remaining_gb);
+        if (Number.isFinite(remaining) && remaining <= 0) {
+          throw new Error('حجم این اشتراک به پایان رسیده است.');
+        }
+        const freshFeed = await subscriptionFeed.refetch();
+        const source = freshFeed.data;
+        if (typeof source !== 'string' || !source.trim()) {
+          throw new Error('فید اتصال V2Ray خالی است؛ دوباره تلاش کنید.');
+        }
+        await connectXray(item.id, item.plan, source);
+        setXrayState(await getXrayState());
+      }
+    } catch (error) {
+      setXrayActionError(error instanceof Error ? error.message : 'اتصال برقرار نشد.');
+      try {
+        setXrayState(await getXrayState());
+      } catch {
+        // Keep the last confirmed state. An unavailable native module is not
+        // treated as a connected tunnel.
+      }
+    } finally {
+      setXrayBusy(false);
+    }
+  };
+
+  const handleWireGuardAction = async (location: WireGuardLocation) => {
+    if (!item || !token) return;
+    setWireguardBusy(true);
+    setWireguardError(null);
+    try {
+      if (wireguardStatus.isConnected && wireguardLocationId === location.id) {
+        await disconnectWireGuard();
+        setWireguardStatus(await getWireGuardStatus());
+        setWireguardLocationId(null);
+        return;
+      }
+      if (item.status !== 'active') throw new Error('این اشتراک فعال نیست.');
+      const remaining = Number(item.remaining_gb);
+      if (Number.isFinite(remaining) && remaining <= 0) throw new Error('حجم این اشتراک به پایان رسیده است.');
+
+      const { provider, host } = wireGuardRoute(location.config_url);
+      const configText = await downloadWireGuardConfig(token, provider, host);
+      if (wireguardStatus.isConnected) await disconnectWireGuard();
+      const status = await connectWireGuard(item.id, location.name, configText);
+      setWireguardStatus(status);
+      setWireguardLocationId(location.id);
+    } catch (error) {
+      setWireguardError(error instanceof Error ? error.message : 'اتصال WireGuard برقرار نشد.');
+      try {
+        setWireguardStatus(await getWireGuardStatus());
+      } catch {
+        // Keep the last confirmed native state.
+      }
+    } finally {
+      setWireguardBusy(false);
+    }
+  };
+
+  const handleAmneziaAction = async () => {
+    if (!item || !token) return;
+    setAmneziaBusy(true);
+    setAmneziaError(null);
+    try {
+      if (amneziaStatus.isConnected && amneziaStatus.profileId === item.id) {
+        await disconnectAmneziaWg();
+        setAmneziaStatus(await getAmneziaWgStatus());
+        return;
+      }
+      if (item.status !== 'active') throw new Error('این اشتراک فعال نیست.');
+      const remaining = Number(item.remaining_gb);
+      if (Number.isFinite(remaining) && remaining <= 0) throw new Error('حجم این اشتراک به پایان رسیده است.');
+
+      const freshConfig = await amnezia.refetch();
+      const configText = freshConfig.data;
+      if (typeof configText !== 'string' || !configText.trim()) {
+        throw new Error('پیکربندی AmneziaWG خالی است؛ دوباره تلاش کنید.');
+      }
+      const status = await connectAmneziaWg(item.id, item.plan, configText);
+      setAmneziaStatus(status);
+    } catch (error) {
+      setAmneziaError(error instanceof Error ? error.message : 'اتصال AmneziaWG برقرار نشد.');
+      try {
+        setAmneziaStatus(await getAmneziaWgStatus());
+      } catch {
+        // Keep the last confirmed native state.
+      }
+    } finally {
+      setAmneziaBusy(false);
+    }
+  };
+
   return (
     <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -83,9 +302,45 @@ export default function ProfileDetail() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: c.foreground }]}>پروفایل‌های موجود</Text>
-          <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>جزئیات زیر از حساب سرویس خوانده می‌شود. اتصال VPN از داخل این برنامه هنوز در دسترس نیست.</Text>
+          <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>جزئیات از حساب سرویس خوانده می‌شود. هر اتصال فقط با تأیید واقعی موتور بومی نمایش داده می‌شود.</Text>
         </View>
         {!token ? <InlineState title="دسترسی پروفایل موجود نیست" detail="نشانی خصوصی این اشتراک در داده‌های حساب ثبت نشده است." icon="lock" /> : null}
+        {!!item.subscription_url ? (
+          <Card style={styles.connectionCard}>
+            <View style={styles.connectionHeading}>
+              <View style={[styles.protocolIcon, { backgroundColor: xrayState.state === 'connected' ? c.success + '22' : c.accent }]}>
+                <Feather name="shield" size={18} color={xrayState.state === 'connected' ? c.success : c.primary} />
+              </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={[styles.protocolTitle, { color: c.foreground }]}>اتصال V2Ray درون‌برنامه‌ای</Text>
+                <Text style={[styles.protocolState, { color: xrayState.state === 'connected' ? c.success : c.mutedForeground }]}>
+                  {xrayState.state === 'connected' ? 'اتصال برقرار است' : xrayState.state === 'connecting' || xrayState.state === 'preparing' ? 'در حال اتصال…' : xrayState.state === 'disconnecting' ? 'در حال قطع اتصال…' : 'آمادهٔ اتصال'}
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !xrayEngineAvailable || xrayBusy || subscriptionFeed.isLoading }}
+              disabled={!xrayEngineAvailable || xrayBusy || subscriptionFeed.isLoading || xrayState.state === 'connecting' || xrayState.state === 'preparing' || xrayState.state === 'disconnecting'}
+              onPress={handleXrayAction}
+              style={[
+                styles.connectButton,
+                { backgroundColor: xrayState.state === 'connected' ? c.destructive : c.primary },
+                (!xrayEngineAvailable || xrayBusy || subscriptionFeed.isLoading) && styles.disabledButton,
+              ]}
+            >
+              {xrayBusy ? <ActivityIndicator color={c.primaryForeground} size="small" /> : null}
+              <Text style={[styles.connectButtonText, { color: c.primaryForeground }]}>
+                {xrayState.state === 'connected' ? 'قطع اتصال' : xrayEngineAvailable ? 'اتصال امن' : 'نیازمند نسخهٔ Android سفارشی'}
+              </Text>
+            </Pressable>
+            {!xrayEngineAvailable ? (
+              <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>این پیش‌نمایش Expo Go موتور VPN را ندارد. اتصال V2Ray فقط پس از ساخت و نصب نسخهٔ بومی Android در دسترس است.</Text>
+            ) : null}
+            {xrayActionError ? <Text accessibilityRole="alert" style={[styles.fetchError, { color: c.destructive }]}>{xrayActionError}</Text> : null}
+            {xrayState.state === 'error' ? <Text accessibilityRole="alert" style={[styles.fetchError, { color: c.destructive }]}>موتور اتصال خطا گزارش کرد؛ وضعیت اتصال برقرار نیست.</Text> : null}
+          </Card>
+        ) : null}
         {protocols.map((protocol) => (
           <Card key={protocol.key} style={{ padding: 0, overflow: 'hidden' }}>
             <Pressable accessibilityRole="button" onPress={() => setExpanded(expanded === protocol.key ? null : protocol.key)} style={styles.protocolHeader}>
@@ -124,6 +379,70 @@ export default function ProfileDetail() {
                     ) : null}
                   </View>
                 ))}
+                {protocol.result && protocol.key === 'wireguard' && wireguard.data?.locations.map((location) => (
+                  <View key={location.id} style={styles.wireguardLocation}>
+                    <View style={styles.wireguardLocationHeading}>
+                      <Feather name="globe" size={15} color={c.primary} />
+                      <Text style={[styles.protocolTitle, { color: c.foreground, flex: 1 }]}>{location.name}</Text>
+                      {wireguardStatus.isConnected && wireguardLocationId === location.id ? (
+                        <Text style={[styles.protocolState, { color: c.success }]}>متصل</Text>
+                      ) : null}
+                    </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: !wireguardEngineAvailable || wireguardBusy }}
+                      disabled={!wireguardEngineAvailable || wireguardBusy}
+                      onPress={() => void handleWireGuardAction(location)}
+                      style={[
+                        styles.serverConnectButton,
+                        { backgroundColor: wireguardStatus.isConnected && wireguardLocationId === location.id ? c.destructive : c.primary },
+                        (!wireguardEngineAvailable || wireguardBusy) && styles.disabledButton,
+                      ]}
+                    >
+                      {wireguardBusy ? <ActivityIndicator color={c.primaryForeground} size="small" /> : null}
+                      <Text style={[styles.connectButtonText, { color: c.primaryForeground }]}>
+                        {wireguardStatus.isConnected && wireguardLocationId === location.id ? 'قطع اتصال WireGuard' : 'اتصال به این سرور'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ))}
+                {protocol.result && protocol.key === 'wireguard' && !wireguardEngineAvailable ? (
+                  <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>برای اتصال WireGuard باید نسخهٔ سفارشی Android نصب شود؛ Expo Go موتور بومی را ندارد.</Text>
+                ) : null}
+                {protocol.key === 'wireguard' && wireguardError ? (
+                  <Text accessibilityRole="alert" style={[styles.fetchError, { color: c.destructive }]}>{wireguardError}</Text>
+                ) : null}
+                {protocol.result && protocol.key === 'amneziawg' ? (
+                  <View style={styles.wireguardLocation}>
+                    <View style={styles.wireguardLocationHeading}>
+                      <Feather name="shield" size={15} color={amneziaStatus.isConnected ? c.success : c.primary} />
+                      <Text style={[styles.protocolTitle, { color: c.foreground, flex: 1 }]}>اتصال روی همین دستگاه</Text>
+                      <Text style={[styles.protocolState, { color: amneziaStatus.isConnected ? c.success : c.mutedForeground }]}>
+                        {amneziaStatus.isConnected && amneziaStatus.profileId === item.id ? 'متصل' : 'آمادهٔ اتصال'}
+                      </Text>
+                    </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: !amneziaEngineAvailable || amneziaBusy }}
+                      disabled={!amneziaEngineAvailable || amneziaBusy}
+                      onPress={() => void handleAmneziaAction()}
+                      style={[
+                        styles.serverConnectButton,
+                        { backgroundColor: amneziaStatus.isConnected && amneziaStatus.profileId === item.id ? c.destructive : c.primary },
+                        (!amneziaEngineAvailable || amneziaBusy) && styles.disabledButton,
+                      ]}
+                    >
+                      {amneziaBusy ? <ActivityIndicator color={c.primaryForeground} size="small" /> : null}
+                      <Text style={[styles.connectButtonText, { color: c.primaryForeground }]}>
+                        {amneziaStatus.isConnected && amneziaStatus.profileId === item.id ? 'قطع اتصال AmneziaWG' : 'اتصال امن'}
+                      </Text>
+                    </Pressable>
+                    {!amneziaEngineAvailable ? (
+                      <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>برای اتصال AmneziaWG باید نسخهٔ سفارشی Android نصب شود؛ Expo Go موتور بومی را ندارد.</Text>
+                    ) : null}
+                    {amneziaError ? <Text accessibilityRole="alert" style={[styles.fetchError, { color: c.destructive }]}>{amneziaError}</Text> : null}
+                  </View>
+                ) : null}
                 {protocol.result && protocol.rows.length === 0 ? <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>موردی برای نمایش ثبت نشده است.</Text> : null}
               </View>
             ) : null}
@@ -132,8 +451,8 @@ export default function ProfileDetail() {
         <Card style={[styles.engineCard, { backgroundColor: c.accent, borderColor: c.accent }]}>
           <Feather name="info" size={18} color={c.primary} />
           <View style={{ flex: 1, gap: 5 }}>
-            <Text style={[styles.engineTitle, { color: c.accentForeground }]}>اتصال درون‌برنامه‌ای فعال نیست</Text>
-            <Text style={[styles.sectionNote, { color: c.accentForeground }]}>این نسخه هنوز موتورهای بومی OpenVPN، WireGuard، AmneziaWG و V2Ray را ندارد. هیچ وضعیت اتصالی جعل نمی‌شود و برنامهٔ VPN دیگری باز نخواهد شد.</Text>
+            <Text style={[styles.engineTitle, { color: c.accentForeground }]}>سایر موتورهای اتصال</Text>
+            <Text style={[styles.sectionNote, { color: c.accentForeground }]}>موتورهای OpenVPN، WireGuard، AmneziaWG و IPsec هنوز به نسخهٔ بومی اضافه نشده‌اند. از برنامهٔ دیگری استفاده نمی‌شود و وضعیت اتصال ساختگی نمایش داده نخواهد شد.</Text>
           </View>
         </Card>
       </ScrollView>
@@ -158,6 +477,14 @@ const styles = StyleSheet.create({
   protocolTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 14, textAlign: 'right' },
   protocolState: { fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'right' },
   protocolBody: { padding: 15, gap: 14, borderTopWidth: 1 },
+  connectionCard: { gap: 13 },
+  connectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  connectButton: { minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
+  wireguardLocation: { padding: 12, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: '#D9E1E6', gap: 9 },
+  wireguardLocationHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  serverConnectButton: { minHeight: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, paddingHorizontal: 12 },
+  connectButtonText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+  disabledButton: { opacity: 0.55 },
   secretRow: { gap: 6, alignItems: 'stretch' },
   secretValue: { fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 19, textAlign: 'left' },
   shareButton: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 },

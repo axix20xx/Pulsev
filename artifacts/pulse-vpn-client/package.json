@@ -55,6 +55,8 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
-    "expo-secure-store": "~57.0.4"
+    "expo-modules-core": "~57.0.23",
+    "expo-secure-store": "~57.0.4",
+    "expo-xray-vpn": "0.7.30"
   }
 }

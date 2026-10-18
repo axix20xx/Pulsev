@@ -603,9 +603,15 @@ importers:
 
   artifacts/pulse-vpn-client:
     dependencies:
+      expo-modules-core:
+        specifier: ~57.0.23
+        version: 57.0.23(react-native-worklets@0.10.1(@babel/core@7.29.7)(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
       expo-secure-store:
         specifier: ~57.0.4
         version: 57.0.4(expo@57.0.30)
+      expo-xray-vpn:
+        specifier: 0.7.30
+        version: 0.7.30(expo@57.0.30)(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))
     devDependencies:
       '@babel/core':
         specifier: ^7.25.2
@@ -3607,6 +3613,12 @@ packages:
 
   expo-web-browser@57.0.3:
     resolution: {integrity: sha512-+ecvhyS/PdWkpv4ai6FF1Trd6Y/4kn/eQ3O86mie2ecU3w+I8bKZh13kppY/jw1uSL7yikt03L5W/iiHojrFwQ==}
+    peerDependencies:
+      expo: '*'
+      react-native: '*'
+
+  expo-xray-vpn@0.7.30:
+    resolution: {integrity: sha512-VIXWNIvyAM9VvGR+w0EsllgLqNC0YigIa0AwfrCj/46qL2e4Fczxdl5L5w/BO30zm6+ygRGZDprct1d1IH2ixw==}
     peerDependencies:
       expo: '*'
       react-native: '*'
@@ -8845,6 +8857,11 @@ snapshots:
       - supports-color
 
   expo-web-browser@57.0.3(expo@57.0.30)(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3)):
+    dependencies:
+      expo: 57.0.30(@babel/core@7.29.7)(@expo/metro-runtime@57.0.17)(expo-router@57.0.28)(react-dom@19.2.3(react@19.2.3))(react-native-web@0.21.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native-worklets@0.10.1(@babel/core@7.29.7)(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
+      react-native: 0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3)
+
+  expo-xray-vpn@0.7.30(expo@57.0.30)(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3)):
     dependencies:
       expo: 57.0.30(@babel/core@7.29.7)(@expo/metro-runtime@57.0.17)(expo-router@57.0.28)(react-dom@19.2.3(react@19.2.3))(react-native-web@0.21.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native-worklets@0.10.1(@babel/core@7.29.7)(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
       react-native: 0.86.3(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3)

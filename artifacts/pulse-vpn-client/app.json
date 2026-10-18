@@ -21,6 +21,9 @@
       "expo-router",
       "expo-secure-store"
     ],
+    "autolinking": {
+      "nativeModulesDir": "./modules"
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
