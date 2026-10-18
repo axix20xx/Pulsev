@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import {
+  downloadOpenVpnProfile,
   useDownloadAmneziaWgConfig,
   downloadWireGuardConfig,
   useGetIpsecAccount,
@@ -17,13 +18,17 @@ import { Card, Heading, InlineState, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import {
   connectAmneziaWg,
+  connectOpenVpn,
   connectWireGuard,
   connectXray,
   disconnectXray,
   disconnectAmneziaWg,
+  disconnectOpenVpn,
   disconnectWireGuard,
   getAmneziaWgStatus,
+  getOpenVpnStatus,
   isAmneziaWgEngineAvailable,
+  isOpenVpnEngineAvailable,
   getXrayState,
   getWireGuardStatus,
   isXrayEngineAvailable,
@@ -53,6 +58,16 @@ function wireGuardRoute(configUrl: string): { provider: string; host: string } {
   return { provider, host };
 }
 
+function openVpnRoute(configUrl: string): { provider: string; host: string } {
+  const parsed = new URL(configUrl, 'https://pulse.invalid');
+  const segments = parsed.pathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment));
+  const index = segments.findIndex((segment, position) => segment === 'openvpn' && segments[position + 1] === 'config');
+  const provider = index >= 0 ? segments[index + 2] : undefined;
+  const host = index >= 0 ? segments[index + 3] : undefined;
+  if (!provider || !host) throw new Error('نشانی پیکربندی OpenVPN معتبر نیست.');
+  return { provider, host };
+}
+
 export default function ProfileDetail() {
   const c = useColors();
   const router = useRouter();
@@ -68,6 +83,14 @@ export default function ProfileDetail() {
   const amnezia = useDownloadAmneziaWgConfig(token, { query: { enabled: !!token && !!item?.awg_url, queryKey: ['/mobile-profile', token, 'amneziawg'] } });
   const subscriptionFeed = useGetPublicSubscriptionFeed(token, { query: { enabled: !!token && !!item?.subscription_url, queryKey: ['/mobile-profile', token, 'subscription-feed'] } });
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [openVpnStatus, setOpenVpnStatus] = useState<WireGuardVpnStatus>({
+    status: 'UNKNOWN',
+    tunnelState: 'UNKNOWN',
+    isConnected: false,
+  });
+  const [openVpnEngineAvailable, setOpenVpnEngineAvailable] = useState(false);
+  const [openVpnBusy, setOpenVpnBusy] = useState(false);
+  const [openVpnError, setOpenVpnError] = useState<string | null>(null);
   const [xrayState, setXrayState] = useState<XrayVpnState>({ state: 'disconnected' });
   const [xrayEngineAvailable, setXrayEngineAvailable] = useState(false);
   const [xrayBusy, setXrayBusy] = useState(false);
@@ -110,6 +133,27 @@ export default function ProfileDetail() {
     return () => {
       disposed = true;
       removeStateListener();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let disposed = false;
+    const refreshOpenVpn = async () => {
+      try {
+        const status = await getOpenVpnStatus();
+        if (!disposed) setOpenVpnStatus(status);
+      } catch {
+        // Expo Go does not include the native VPN module.
+      }
+    };
+    void isOpenVpnEngineAvailable().then((available) => {
+      if (!disposed) setOpenVpnEngineAvailable(available);
+    });
+    void refreshOpenVpn();
+    const timer = setInterval(() => void refreshOpenVpn(), 3000);
+    return () => {
+      disposed = true;
+      clearInterval(timer);
     };
   }, []);
 
@@ -217,6 +261,51 @@ export default function ProfileDetail() {
       }
     } finally {
       setXrayBusy(false);
+    }
+  };
+
+  const handleOpenVpnAction = async (location: NonNullable<typeof openVpn.data>['locations'][number]) => {
+    if (!item || !token || !openVpn.data) return;
+    setOpenVpnBusy(true);
+    setOpenVpnError(null);
+    try {
+      const sameLocation =
+        openVpnStatus.profileId === item.id &&
+        openVpnStatus.profileName === location.name;
+      if (openVpnStatus.isConnected && sameLocation) {
+        await disconnectOpenVpn();
+        setOpenVpnStatus(await getOpenVpnStatus());
+        return;
+      }
+      if (openVpnStatus.isConnected) {
+        throw new Error('ابتدا اتصال OpenVPN فعال را قطع کنید، سپس سرور دیگری را انتخاب کنید.');
+      }
+      if (openVpnStatus.status === 'CONNECTING' || openVpnStatus.status === 'DISCONNECTING') {
+        throw new Error('لطفاً تا پایان تغییر وضعیت اتصال صبر کنید.');
+      }
+      if (item.status !== 'active') throw new Error('این اشتراک فعال نیست.');
+      const remaining = Number(item.remaining_gb);
+      if (Number.isFinite(remaining) && remaining <= 0) throw new Error('حجم این اشتراک به پایان رسیده است.');
+
+      const { provider, host } = openVpnRoute(location.config_url);
+      const configText = await downloadOpenVpnProfile(token, provider, host);
+      const status = await connectOpenVpn(
+        item.id,
+        location.name,
+        configText,
+        openVpn.data.username,
+        openVpn.data.password,
+      );
+      setOpenVpnStatus(status);
+    } catch (error) {
+      setOpenVpnError(error instanceof Error ? error.message : 'اتصال OpenVPN برقرار نشد.');
+      try {
+        setOpenVpnStatus(await getOpenVpnStatus());
+      } catch {
+        // Keep the last confirmed native state.
+      }
+    } finally {
+      setOpenVpnBusy(false);
     }
   };
 
@@ -379,6 +468,44 @@ export default function ProfileDetail() {
                     ) : null}
                   </View>
                 ))}
+                {protocol.result && protocol.key === 'openvpn' && openVpn.data?.locations.map((location) => {
+                  const isThisLocationConnected =
+                    openVpnStatus.isConnected &&
+                    openVpnStatus.profileId === item.id &&
+                    openVpnStatus.profileName === location.name;
+                  const openVpnChanging = openVpnStatus.status === 'CONNECTING' || openVpnStatus.status === 'DISCONNECTING';
+                  return (
+                    <View key={location.id} style={styles.wireguardLocation}>
+                      <View style={styles.wireguardLocationHeading}>
+                        <Feather name="globe" size={15} color={isThisLocationConnected ? c.success : c.primary} />
+                        <Text style={[styles.protocolTitle, { color: c.foreground, flex: 1 }]}>{location.name}</Text>
+                        {isThisLocationConnected ? <Text style={[styles.protocolState, { color: c.success }]}>متصل</Text> : null}
+                      </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: !openVpnEngineAvailable || openVpnBusy || openVpnChanging }}
+                        disabled={!openVpnEngineAvailable || openVpnBusy || openVpnChanging}
+                        onPress={() => void handleOpenVpnAction(location)}
+                        style={[
+                          styles.serverConnectButton,
+                          { backgroundColor: isThisLocationConnected ? c.destructive : c.primary },
+                          (!openVpnEngineAvailable || openVpnBusy || openVpnChanging) && styles.disabledButton,
+                        ]}
+                      >
+                        {openVpnBusy || openVpnChanging ? <ActivityIndicator color={c.primaryForeground} size="small" /> : null}
+                        <Text style={[styles.connectButtonText, { color: c.primaryForeground }]}>
+                          {openVpnChanging ? 'در حال تغییر وضعیت اتصال…' : isThisLocationConnected ? 'قطع اتصال OpenVPN' : 'اتصال به این سرور'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+                {protocol.result && protocol.key === 'openvpn' && !openVpnEngineAvailable ? (
+                  <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>برای اتصال OpenVPN باید نسخهٔ سفارشی Android نصب شود؛ Expo Go موتور بومی را ندارد.</Text>
+                ) : null}
+                {protocol.key === 'openvpn' && openVpnError ? (
+                  <Text accessibilityRole="alert" style={[styles.fetchError, { color: c.destructive }]}>{openVpnError}</Text>
+                ) : null}
                 {protocol.result && protocol.key === 'wireguard' && wireguard.data?.locations.map((location) => (
                   <View key={location.id} style={styles.wireguardLocation}>
                     <View style={styles.wireguardLocationHeading}>

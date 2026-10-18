@@ -1696,3 +1696,17 @@ mtime_ms = 1792311909122
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4293ca5b-3943-4250-8a73-b19eb7c221c9/ead5349a-51aa-48a2-87c2-623a6cedb889"
 storage_version_token = "1792311956794809"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "lVfnTbSw1agNU5uWnf3sZ"
+uri = "file://artifacts/pulse-vpn-client/android/app/build/outputs/apk/release/app-release.apk"
+type = "unspecified"
+title = "Pulse VPN Client — Android APK (arm64)"
+description = "Directly installable 58 MB APK for 64-bit ARM Android phones. Includes native in-app OpenVPN, WireGuard, AmneziaWG, and Xray/V2Ray engines. Signed with Android's debug certificate; for sideload/testing, not Play Store publication."
+logical_id = "ff5332b5-61ef-47f5-86e6-f678c9240c44"
+content_hash = "sha256:eee1898865fbb91537a03939ae6684ad83f63d98cff771866beab1e9b2296216"
+size = 60759951
+mtime_ms = 1792358510994
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ff5332b5-61ef-47f5-86e6-f678c9240c44/d53f5c61-6115-4272-b4d9-bd14aa48052b"
+storage_version_token = "1792358540220933"
+content_type = "application/octet-stream"

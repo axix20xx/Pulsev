@@ -12,6 +12,9 @@ type PulseVpnNativeModule = {
   connectAmneziaWg(profileId: string, profileName: string, configText: string): Promise<WireGuardVpnStatus>;
   disconnectAmneziaWg(): Promise<WireGuardVpnStatus>;
   getAmneziaWgStatus(): Promise<WireGuardVpnStatus>;
+  connectOpenVpn(profileId: string, profileName: string, configText: string, username: string, password: string): Promise<WireGuardVpnStatus>;
+  disconnectOpenVpn(): Promise<WireGuardVpnStatus>;
+  getOpenVpnStatus(): Promise<WireGuardVpnStatus>;
 };
 
 let modulePromise: Promise<XrayModule> | undefined;
@@ -35,7 +38,7 @@ function toState(state: ExpoXrayVpnState): XrayVpnState {
   };
 }
 
-async function assertNoOtherTunnel(protocol: 'xray' | 'wireguard' | 'amneziawg') {
+async function assertNoOtherTunnel(protocol: 'xray' | 'wireguard' | 'amneziawg' | 'openvpn') {
   if (protocol !== 'xray') {
     try {
       const state = await (await loadModule()).getState();
@@ -64,6 +67,16 @@ async function assertNoOtherTunnel(protocol: 'xray' | 'wireguard' | 'amneziawg')
       }
     } catch (error) {
       if (error instanceof Error && error.message.includes('اتصال فعال AmneziaWG')) throw error;
+    }
+  }
+  if (protocol !== 'openvpn') {
+    try {
+      const status = await loadPulseNativeModule().getOpenVpnStatus();
+      if (status.isConnected || ['CONNECTING', 'DISCONNECTING'].includes(status.status)) {
+        throw new Error('ابتدا اتصال فعال OpenVPN را قطع کنید.');
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('اتصال فعال OpenVPN')) throw error;
     }
   }
 }
@@ -194,4 +207,35 @@ export async function connectAmneziaWg(
 
 export async function disconnectAmneziaWg(): Promise<void> {
   await loadPulseNativeModule().disconnectAmneziaWg();
+}
+
+export async function isOpenVpnEngineAvailable(): Promise<boolean> {
+  try {
+    return await loadPulseNativeModule().isSupported();
+  } catch {
+    return false;
+  }
+}
+
+export async function getOpenVpnStatus(): Promise<WireGuardVpnStatus> {
+  return loadPulseNativeModule().getOpenVpnStatus();
+}
+
+export async function connectOpenVpn(
+  profileId: string,
+  profileName: string,
+  configText: string,
+  username: string,
+  password: string,
+): Promise<WireGuardVpnStatus> {
+  const module = loadPulseNativeModule();
+  await assertNoOtherTunnel('openvpn');
+  if (!(await module.isSupported())) throw new Error('این دستگاه از OpenVPN پشتیبانی نمی‌کند.');
+  const permission = await module.requestPermission();
+  if (!permission.granted) throw new Error('دسترسی VPN داده نشد.');
+  return module.connectOpenVpn(profileId, profileName, configText, username, password);
+}
+
+export async function disconnectOpenVpn(): Promise<void> {
+  await loadPulseNativeModule().disconnectOpenVpn();
 }

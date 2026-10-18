@@ -88,3 +88,25 @@ export async function connectAmneziaWg(
 export async function disconnectAmneziaWg(): Promise<void> {
   throw new Error('In-app VPN connections are supported only in the custom Android build.');
 }
+
+export async function isOpenVpnEngineAvailable(): Promise<boolean> {
+  return false;
+}
+
+export async function getOpenVpnStatus(): Promise<WireGuardVpnStatus> {
+  return { status: 'UNKNOWN', tunnelState: 'UNKNOWN', isConnected: false };
+}
+
+export async function connectOpenVpn(
+  _profileId: string,
+  _profileName: string,
+  _configText: string,
+  _username: string,
+  _password: string,
+): Promise<WireGuardVpnStatus> {
+  throw new Error('In-app VPN connections are supported only in the custom Android build.');
+}
+
+export async function disconnectOpenVpn(): Promise<void> {
+  throw new Error('In-app VPN connections are supported only in the custom Android build.');
+}
