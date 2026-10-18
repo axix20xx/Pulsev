@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/pulse-vpn-client/"
+title = "Pulse VPN Client"
+description = "A native VPN client for Pulse subscribers to sign in with phone OTP, browse their authorized subscriptions, inspect compatible VPN profiles, and connect through verified platform-native engines."
+version = "1.0.0"
+id = "artifacts/pulse-vpn-client"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/pulse-vpn-client/" ]
+localPort = 25136
+
+[services.development]
+run = "pnpm --filter @workspace/pulse-vpn-client run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pulse-vpn-client", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/pulse-vpn-client", "run", "serve" ]
+
+[services.env]
+PORT = "25136"
+BASE_PATH = "/pulse-vpn-client/"
