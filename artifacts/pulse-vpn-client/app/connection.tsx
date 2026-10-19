@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -38,7 +38,10 @@ import {
   isWireGuardEngineAvailable,
   isXrayEngineAvailable,
   pingXrayServers,
+  setTunnelTestKeepScreenOn,
   subscribeXrayState,
+  testTunnelConnectivity,
+  type TunnelConnectivityReport,
   type WireGuardVpnStatus,
   type XrayVpnState,
 } from '@/lib/vpn-engine';
@@ -120,6 +123,36 @@ function nativeStateIsConnecting(status: WireGuardVpnStatus) {
   return isBusyStatus(status.status) || isBusyStatus(status.tunnelState);
 }
 
+function connectivityFailureMessage(report: TunnelConnectivityReport) {
+  if (!report.vpnActive) return 'اندروید مسیر VPN فعالی گزارش نکرد؛ ترافیک آزمایشی ارسال نشد.';
+  const failed = report.endpoints
+    .filter((endpoint) => !endpoint.success)
+    .map((endpoint) => `${endpoint.endpoint.includes('google.com') ? 'Google' : 'Cloudflare'}: ${endpoint.error ?? `HTTP ${endpoint.statusCode ?? '—'}`}`)
+    .join(' · ');
+  return failed
+    ? `موتور اتصال فعال است، اما آزمون HTTPS عبور ترافیک را تأیید نکرد. ${failed}`
+    : 'اتصال اینترنت از مسیر VPN تأیید نشد.';
+}
+
+async function waitForXrayTraffic(timeoutMs = 18_000): Promise<TunnelConnectivityReport> {
+  const deadline = Date.now() + timeoutMs;
+  let state = await getXrayState();
+  while (state.state !== 'connected' && state.state !== 'error' && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    state = await getXrayState();
+  }
+  if (state.state === 'error') {
+    throw new Error(state.error ?? 'موتور Xray نتوانست اتصال را برقرار کند.');
+  }
+  if (state.state !== 'connected') {
+    throw new Error('موتور Xray در زمان مجاز به وضعیت متصل نرسید.');
+  }
+
+  const report = await testTunnelConnectivity();
+  if (!report.passed) throw new Error(connectivityFailureMessage(report));
+  return report;
+}
+
 async function disconnectTunnel(protocol: Protocol) {
   if (protocol === 'v2ray') await disconnectXray();
   else if (protocol === 'openvpn') await disconnectOpenVpn();
@@ -173,6 +206,87 @@ export default function ConnectionScreen() {
   const [isPingingXray, setIsPingingXray] = useState(false);
   const attemptKeyRef = useRef<string | null>(null);
   const timedOutAttemptRef = useRef<number | null>(null);
+  const [trafficReport, setTrafficReport] = useState<TunnelConnectivityReport | null>(null);
+  const [trafficTestError, setTrafficTestError] = useState<string | null>(null);
+  const [trafficTesting, setTrafficTesting] = useState(false);
+  const [stabilityTest, setStabilityTest] = useState({
+    running: false,
+    checks: 0,
+    passed: 0,
+    failed: 0,
+    startedAt: null as number | null,
+  });
+  const probeInFlightRef = useRef(false);
+  const stabilityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stabilityEndAtRef = useRef<number | null>(null);
+
+  const stopStabilityTest = useCallback(() => {
+    if (stabilityTimerRef.current) clearInterval(stabilityTimerRef.current);
+    stabilityTimerRef.current = null;
+    stabilityEndAtRef.current = null;
+    setStabilityTest((current) => ({ ...current, running: false }));
+    void setTunnelTestKeepScreenOn(false);
+  }, []);
+
+  const runTunnelConnectivityTest = useCallback(async () => {
+    if (probeInFlightRef.current) return null;
+    probeInFlightRef.current = true;
+    setTrafficTesting(true);
+    setTrafficTestError(null);
+    try {
+      const report = await testTunnelConnectivity();
+      setTrafficReport(report);
+      if (stabilityEndAtRef.current !== null) {
+        setStabilityTest((current) => ({
+          ...current,
+          checks: current.checks + 1,
+          passed: current.passed + (report.passed ? 1 : 0),
+          failed: current.failed + (report.passed ? 0 : 1),
+        }));
+      }
+      if (stabilityEndAtRef.current !== null && Date.now() >= stabilityEndAtRef.current) {
+        stopStabilityTest();
+      }
+      return report;
+    } catch (error) {
+      const message = getErrorMessage(error, token);
+      setTrafficTestError(message);
+      if (stabilityEndAtRef.current !== null) {
+        setStabilityTest((current) => ({
+          ...current,
+          checks: current.checks + 1,
+          failed: current.failed + 1,
+        }));
+      }
+      return null;
+    } finally {
+      probeInFlightRef.current = false;
+      setTrafficTesting(false);
+    }
+  }, [stopStabilityTest, token]);
+
+  const startStabilityTest = useCallback(async () => {
+    if (stabilityTimerRef.current) clearInterval(stabilityTimerRef.current);
+    const startedAt = Date.now();
+    stabilityEndAtRef.current = startedAt + 5 * 60 * 1000;
+    setStabilityTest({ running: true, checks: 0, passed: 0, failed: 0, startedAt });
+    void setTunnelTestKeepScreenOn(true);
+    stabilityTimerRef.current = setInterval(() => {
+      if (stabilityEndAtRef.current !== null && Date.now() >= stabilityEndAtRef.current) {
+        stopStabilityTest();
+        return;
+      }
+      void runTunnelConnectivityTest();
+    }, 15_000);
+    await runTunnelConnectivityTest();
+  }, [runTunnelConnectivityTest, stopStabilityTest]);
+
+  useEffect(() => () => {
+    if (stabilityTimerRef.current) clearInterval(stabilityTimerRef.current);
+    stabilityTimerRef.current = null;
+    stabilityEndAtRef.current = null;
+    void setTunnelTestKeepScreenOn(false);
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -249,6 +363,38 @@ export default function ConnectionScreen() {
   const sameRequestedProfile = !!item && isRequestedProtocolActive && activeProfileId === item.id
     && (!locationName || activeProfileName === locationName);
 
+  const autoProbeSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!connected || !activeProtocol) {
+      autoProbeSessionRef.current = null;
+      if (stabilityEndAtRef.current !== null) stopStabilityTest();
+      return;
+    }
+
+    const sessionKey = `${activeProtocol}:${activeProfileId ?? ''}:${activeProfileName ?? ''}`;
+    if (trafficReport?.passed) {
+      autoProbeSessionRef.current = sessionKey;
+      return;
+    }
+    if (autoProbeSessionRef.current === sessionKey) return;
+    autoProbeSessionRef.current = sessionKey;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void testTunnelConnectivity().then((report) => {
+        if (!cancelled) {
+          setTrafficReport(report);
+          setTrafficTestError(null);
+        }
+      }).catch((error) => {
+        if (!cancelled) setTrafficTestError(getErrorMessage(error, token));
+      });
+    }, 1_000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [activeProfileId, activeProfileName, activeProtocol, connected, stopStabilityTest, token, trafficReport?.passed]);
+
   const profileLoading = protocol === 'v2ray' ? feed.isLoading
     : protocol === 'openvpn' ? openVpn.isLoading
       : protocol === 'wireguard' ? wireguard.isLoading
@@ -303,6 +449,8 @@ export default function ConnectionScreen() {
 
     attemptKeyRef.current = key;
     setActionError(null);
+    setTrafficReport(null);
+    setTrafficTestError(null);
     setAttemptStartedAt(null);
     setPhase('preparing');
     void (async () => {
@@ -329,24 +477,37 @@ export default function ConnectionScreen() {
             setIsPingingXray(false);
           }
 
-          const fastest = servers.reduce<XrayShareServer | null>((best, server) => {
-            const latency = pingResults[server.id];
-            if (latency == null) return best;
-            return best == null || latency < (pingResults[best.id] ?? Number.POSITIVE_INFINITY)
-              ? server
-              : best;
-          }, null);
-          const selectedServer = fastest ?? servers[0];
-          setSelectedXrayServerId(selectedServer.id);
+          const rankedServers = [...servers].sort((left, right) => {
+            const leftLatency = pingResults[left.id] ?? Number.POSITIVE_INFINITY;
+            const rightLatency = pingResults[right.id] ?? Number.POSITIVE_INFINITY;
+            return leftLatency - rightLatency;
+          });
+          const candidates = rankedServers.slice(0, Math.min(4, rankedServers.length));
           setPhase('connecting');
           setAttemptStartedAt(Date.now());
-          void connectXray(item.id, selectedServer.name, selectedServer.link)
-            .then(() => setPhase('monitoring'))
-            .catch((error) => {
-              setActionError(getErrorMessage(error, token));
-              setPhase('error');
-            });
-          return;
+          setTrafficReport(null);
+          const failures: string[] = [];
+          for (const [index, server] of candidates.entries()) {
+            setSelectedXrayServerId(server.id);
+            if (index > 0) setPhase('connecting');
+            try {
+              const state = await connectXray(item.id, server.name, server.link);
+              setXrayStatus(state);
+              if (state.state === 'error') {
+                throw new Error(state.error ?? 'موتور Xray نتوانست به این سرور وصل شود.');
+              }
+              const report = await waitForXrayTraffic();
+              setTrafficReport(report);
+              setAttemptStartedAt(null);
+              setPhase('monitoring');
+              return;
+            } catch (error) {
+              failures.push(`${server.name}: ${getErrorMessage(error, token)}`);
+              await disconnectXray().catch(() => undefined);
+              setXrayStatus({ state: 'disconnected' });
+            }
+          }
+          throw new Error(`اتصال واقعی از هیچ‌یک از ${fa(candidates.length)} سرور سریع آزمایش‌شده تأیید نشد. ${failures.slice(-2).join(' · ')}`);
         }
 
         if (protocol === 'openvpn') {
@@ -466,6 +627,8 @@ export default function ConnectionScreen() {
     attemptKeyRef.current = `${item.id}:v2ray:${locationName}:${retry}`;
     setSelectedXrayServerId(server.id);
     setActionError(null);
+    setTrafficTestError(null);
+    setTrafficReport(null);
     setAttemptStartedAt(null);
     setPhase('preparing');
     try {
@@ -476,8 +639,14 @@ export default function ConnectionScreen() {
       if (state.state === 'error') {
         throw new Error(state.error ?? 'موتور V2Ray نتوانست به این سرور وصل شود.');
       }
+      setXrayStatus(state);
+      const report = await waitForXrayTraffic();
+      setTrafficReport(report);
+      setAttemptStartedAt(null);
       setPhase('monitoring');
     } catch (error) {
+      await disconnectXray().catch(() => undefined);
+      setXrayStatus({ state: 'disconnected' });
       setActionError(getErrorMessage(error, token));
       setPhase('error');
     }
@@ -545,6 +714,7 @@ export default function ConnectionScreen() {
       const timeoutMessage =
         `مهلت اتصال ${protocolNames[protocol]} پس از ۷۵ ثانیه تمام شد. اتصال متوقف شد؛ دسترسی شبکه، مشخصات حساب و سرور انتخاب‌شده را بررسی کنید.`;
       setActionError(timeoutMessage);
+      stopStabilityTest();
       setDisconnecting(true);
       setPhase('disconnecting');
       void (async () => {
@@ -571,11 +741,12 @@ export default function ConnectionScreen() {
       })();
     }, remainingMs);
     return () => clearTimeout(timer);
-  }, [connecting, connected, phase, actionError, statusError, attemptStartedAt, protocol, token]);
+  }, [connecting, connected, phase, actionError, statusError, attemptStartedAt, protocol, token, stopStabilityTest]);
 
   const disconnectActive = async () => {
     const target = activeProtocol ?? protocol;
     if (!target) return;
+    stopStabilityTest();
     setAttemptStartedAt(null);
     timedOutAttemptRef.current = null;
     setDisconnecting(true);
@@ -603,6 +774,8 @@ export default function ConnectionScreen() {
   };
 
   const retryConnection = () => {
+    setTrafficReport(null);
+    setTrafficTestError(null);
     attemptKeyRef.current = null;
     timedOutAttemptRef.current = null;
     setActionError(null);
@@ -814,6 +987,90 @@ export default function ConnectionScreen() {
               ) : null}
             </View>
 
+            {connected && activeProtocol ? (
+              <Card style={styles.trafficCard}>
+                <View style={styles.sectionHeader}>
+                  <View style={[styles.sectionIcon, { backgroundColor: trafficReport?.passed ? `${c.success}18` : c.secondary }]}>
+                    <Feather name="activity" size={17} color={trafficReport?.passed ? c.success : c.primary} />
+                  </View>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={[styles.sectionTitle, { color: c.foreground }]}>آزمون واقعی اینترنت</Text>
+                    <Text style={[styles.sectionCaption, { color: c.mutedForeground }]}>اتصال موتور کافی نیست؛ این آزمون درخواست HTTPS را از مسیر VPN بررسی می‌کند.</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.trafficSummary, { backgroundColor: trafficReport?.passed ? `${c.success}12` : c.secondary, borderColor: c.border }]}>
+                  {trafficTesting ? <ActivityIndicator size="small" color={c.primary} /> : (
+                    <View style={[styles.liveDot, { backgroundColor: trafficReport?.passed ? c.success : trafficReport ? c.destructive : c.mutedForeground }]} />
+                  )}
+                  <Text style={[styles.trafficSummaryText, { color: trafficReport?.passed ? c.success : trafficReport ? c.destructive : c.mutedForeground }]}>
+                    {trafficTesting ? 'در حال بررسی DNS و HTTPS…'
+                      : trafficReport?.passed ? 'ترافیک اینترنت از مسیر VPN تأیید شد'
+                        : trafficReport ? trafficReport.vpnActive ? 'VPN فعال است، اما دسترسی HTTPS تأیید نشد' : 'مسیر VPN فعال نیست'
+                          : 'هنوز آزمون ترافیک انجام نشده است'}
+                  </Text>
+                </View>
+
+                {trafficReport?.endpoints.map((endpoint) => (
+                  <View key={endpoint.endpoint} style={[styles.trafficEndpoint, { borderBottomColor: c.border }]}>
+                    <View style={[styles.endpointDot, { backgroundColor: endpoint.success ? c.success : c.destructive }]} />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={[styles.endpointTitle, { color: c.foreground }]}>{endpoint.endpoint.includes('google.com') ? 'Google HTTPS' : 'Cloudflare HTTPS'}</Text>
+                      <Text style={[styles.endpointDetail, { color: endpoint.success ? c.success : c.mutedForeground }]}>
+                        {endpoint.success ? `HTTP ${endpoint.statusCode ?? '—'}` : endpoint.error ?? `HTTP ${endpoint.statusCode ?? '—'}`}
+                      </Text>
+                    </View>
+                    <Text style={[styles.endpointLatency, { color: c.mutedForeground }]}>{endpoint.latencyMs == null ? '—' : `${fa(endpoint.latencyMs)} ms`}</Text>
+                  </View>
+                ))}
+
+                {trafficTestError ? <Text style={[styles.trafficError, { color: c.destructive }]}>{trafficTestError}</Text> : null}
+                {stabilityTest.running || stabilityTest.checks > 0 ? (
+                  <View style={[styles.stabilityStats, { backgroundColor: c.secondary, borderColor: c.border }]}>
+                    <Text style={[styles.note, { color: c.foreground }]}>
+                      آزمون پایداری {stabilityTest.running ? 'در حال اجرا' : 'متوقف شد'} · {fa(stabilityTest.checks)} بررسی · {fa(stabilityTest.passed)} موفق · {fa(stabilityTest.failed)} ناموفق
+                    </Text>
+                    <Text style={[styles.sectionCaption, { color: c.mutedForeground }]}>آزمون پنج‌دقیقه‌ای، بررسی هر ۱۵ ثانیه؛ صفحه هنگام اجرا روشن می‌ماند.</Text>
+                  </View>
+                ) : null}
+
+                <View style={styles.testActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="آزمون ترافیک VPN"
+                    disabled={trafficTesting}
+                    onPress={() => void runTunnelConnectivityTest()}
+                    style={({ pressed }) => [styles.testButton, { backgroundColor: c.primary, opacity: pressed ? 0.86 : trafficTesting ? 0.6 : 1 }]}
+                  >
+                    {trafficTesting ? <ActivityIndicator size="small" color={c.primaryForeground} /> : <Feather name="wifi" size={15} color={c.primaryForeground} />}
+                    <Text style={[styles.testButtonText, { color: c.primaryForeground }]}>آزمون همین حالا</Text>
+                  </Pressable>
+                  {stabilityTest.running ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="توقف آزمون پایداری"
+                      onPress={stopStabilityTest}
+                      style={({ pressed }) => [styles.testButton, styles.testButtonSecondary, { borderColor: c.border, opacity: pressed ? 0.75 : 1 }]}
+                    >
+                      <Feather name="square" size={14} color={c.foreground} />
+                      <Text style={[styles.testButtonText, { color: c.foreground }]}>توقف آزمون</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="شروع آزمون پایداری پنج دقیقه‌ای"
+                      disabled={trafficTesting}
+                      onPress={() => void startStabilityTest()}
+                      style={({ pressed }) => [styles.testButton, styles.testButtonSecondary, { borderColor: c.border, opacity: pressed ? 0.75 : trafficTesting ? 0.55 : 1 }]}
+                    >
+                      <Feather name="clock" size={15} color={c.primary} />
+                      <Text style={[styles.testButtonText, { color: c.foreground }]}>آزمون پایداری ۵ دقیقه‌ای</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </Card>
+            ) : null}
+
             <Card style={styles.infoCard}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionIcon, { backgroundColor: c.secondary }]}>
@@ -947,6 +1204,20 @@ const styles = StyleSheet.create({
   errorText: { fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 20, textAlign: 'right' },
   errorCode: { fontFamily: 'Inter_500Medium', fontSize: 9, letterSpacing: 0.5, textAlign: 'left' },
   primaryActions: { gap: 9 },
+  trafficCard: { padding: 15, gap: 10 },
+  trafficSummary: { minHeight: 43, borderWidth: 1, borderRadius: 13, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trafficSummaryText: { flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 11, textAlign: 'right', lineHeight: 17 },
+  trafficEndpoint: { minHeight: 45, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  endpointDot: { width: 7, height: 7, borderRadius: 4 },
+  endpointTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 11, textAlign: 'left' },
+  endpointDetail: { fontFamily: 'Inter_400Regular', fontSize: 10, textAlign: 'left' },
+  endpointLatency: { fontFamily: 'Inter_600SemiBold', fontSize: 10, textAlign: 'left' },
+  trafficError: { fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 18, textAlign: 'right' },
+  stabilityStats: { borderWidth: 1, borderRadius: 13, padding: 10, gap: 4 },
+  testActions: { gap: 8, paddingTop: 2 },
+  testButton: { minHeight: 43, borderRadius: 13, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  testButtonSecondary: { borderWidth: 1 },
+  testButtonText: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
   disconnectButton: { minHeight: 54, borderRadius: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
   retryButton: { minHeight: 52, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
   actionText: { fontFamily: 'Inter_700Bold', fontSize: 14 },

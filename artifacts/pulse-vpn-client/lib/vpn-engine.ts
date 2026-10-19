@@ -30,6 +30,21 @@ export type WireGuardVpnStatus = {
   error?: string;
 };
 
+export type TunnelConnectivityEndpoint = {
+  endpoint: string;
+  success: boolean;
+  statusCode?: number;
+  latencyMs?: number;
+  error?: string;
+};
+
+export type TunnelConnectivityReport = {
+  vpnActive: boolean;
+  passed: boolean;
+  testedAt: number;
+  endpoints: TunnelConnectivityEndpoint[];
+};
+
 export async function isXrayEngineAvailable(): Promise<boolean> {
   return false;
 }
@@ -56,6 +71,14 @@ export async function pingXrayServers(
   servers: readonly XrayShareServer[],
 ): Promise<Record<string, number | null>> {
   return Object.fromEntries(servers.map((server) => [server.id, null]));
+}
+
+export async function testTunnelConnectivity(): Promise<TunnelConnectivityReport> {
+  throw new Error('Tunnel traffic tests are supported only in the custom Android build.');
+}
+
+export async function setTunnelTestKeepScreenOn(_enabled: boolean): Promise<boolean> {
+  return false;
 }
 
 export async function disconnectXray(): Promise<void> {

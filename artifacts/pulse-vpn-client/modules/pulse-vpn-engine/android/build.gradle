@@ -1,0 +1,24 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.pulse.vpn.engine'
+version = '1.0.0'
+
+android {
+  namespace 'com.pulse.vpn.engine'
+  defaultConfig {
+    minSdkVersion 24
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  implementation 'com.wireguard.android:tunnel:1.0.20211029'
+  implementation('com.zaneschepke:amneziawg-android:2.0.0') {
+    exclude group: 'amneziawg-android', module: 'hevtunnel'
+  }
+  implementation 'com.zaneschepke:hevtunnel:1.0.1'
+  implementation 'io.github.tim06:openvpn:1.1.3'
+}

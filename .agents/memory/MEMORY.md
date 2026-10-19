@@ -55,3 +55,4 @@
 - [Expo Android module publishing](expo-local-android-publishing.md) — Expo’s local-module plugin owns the release variant; set `versionName` and avoid duplicate `singleVariant` publishing DSL.
 - [Replit Android build environment](replit-android-build-environment.md) — keep large Android SDKs on the workspace volume and use the available Temurin JDK for stable Gradle builds.
 - [OpenVPN Android state and retry limits](openvpn-native-state-and-retries.md) — sync the separate-process service state after binding and override infinite profile retries with bounded client retries.
+- [Xray Reality and live traffic validation](xray-live-traffic-validation.md) — repair missing Reality SNI safely and verify real in-tunnel HTTPS before trusting “connected.”

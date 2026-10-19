@@ -1,7 +1,8 @@
 import { requireNativeModule } from 'expo-modules-core';
 import type { ExpoXrayVpnState } from 'expo-xray-vpn';
-import type { WireGuardVpnStatus, XrayVpnState } from './vpn-engine';
+import type { TunnelConnectivityReport, WireGuardVpnStatus, XrayVpnState } from './vpn-engine';
 import { normalizeXrayShareLinks, type XrayShareServer } from './xray-share-links';
+import { normalizeXrayRealityServerNames } from './xray-config-normalization';
 
 type XrayModule = typeof import('expo-xray-vpn').default;
 type PulseVpnNativeModule = {
@@ -20,6 +21,8 @@ type PulseVpnNativeModule = {
     servers: Array<{ id: string; host: string; port: number }>,
     timeoutMs: number,
   ): Promise<Array<{ id: string; reachable: boolean; latencyMs: number | null }>>;
+  probeTunnelConnectivity(): Promise<TunnelConnectivityReport>;
+  setTunnelTestKeepScreenOn(enabled: boolean): Promise<boolean>;
 };
 
 let modulePromise: Promise<XrayModule> | undefined;
@@ -166,6 +169,7 @@ export async function connectXray(
   if (!Array.isArray(outbounds) || outbounds.length === 0) {
     throw new Error('The V2Ray feed did not produce any usable connection profiles.');
   }
+  normalizeXrayRealityServerNames(parsedConfig, normalized.text);
   removeInvalidSendThroughValues(parsedConfig);
   const xrayConfigJson = JSON.stringify(parsedConfig);
 
@@ -220,6 +224,18 @@ export async function pingXrayServers(
     // Unavailable probes must not prevent the client from trying a real profile.
   }
   return results;
+}
+
+export async function testTunnelConnectivity(): Promise<TunnelConnectivityReport> {
+  return loadPulseNativeModule().probeTunnelConnectivity();
+}
+
+export async function setTunnelTestKeepScreenOn(enabled: boolean): Promise<boolean> {
+  try {
+    return await loadPulseNativeModule().setTunnelTestKeepScreenOn(enabled);
+  } catch {
+    return false;
+  }
 }
 
 export async function disconnectXray(): Promise<void> {
