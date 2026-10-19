@@ -119,6 +119,13 @@ function nativeStateIsConnecting(status: WireGuardVpnStatus) {
   return isBusyStatus(status.status) || isBusyStatus(status.tunnelState);
 }
 
+async function disconnectTunnel(protocol: Protocol) {
+  if (protocol === 'v2ray') await disconnectXray();
+  else if (protocol === 'openvpn') await disconnectOpenVpn();
+  else if (protocol === 'wireguard') await disconnectWireGuard();
+  else await disconnectAmneziaWg();
+}
+
 export default function ConnectionScreen() {
   const c = useColors();
   const router = useRouter();
@@ -157,6 +164,7 @@ export default function ConnectionScreen() {
   const [retry, setRetry] = useState(0);
   const [clock, setClock] = useState(Date.now());
   const attemptKeyRef = useRef<string | null>(null);
+  const timedOutAttemptRef = useRef<number | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -425,17 +433,63 @@ export default function ConnectionScreen() {
           ? 'پروفایل از اشتراک دریافت و برای موتور اتصال آماده می‌شود.'
           : actionError || statusError || (phase === 'error' ? 'اتصال کامل نشد. جزئیات خطا را پایین‌تر ببینید.' : 'برای شروع، از دکمهٔ تلاش دوباره استفاده کنید.');
 
+  useEffect(() => {
+    const pendingNativeAttempt = connecting || phase === 'connecting' || phase === 'monitoring';
+    if (
+      !pendingNativeAttempt ||
+      connected ||
+      actionError ||
+      statusError ||
+      attemptStartedAt == null ||
+      !protocol
+    ) return;
+    const attemptId = attemptStartedAt;
+    if (timedOutAttemptRef.current === attemptId) return;
+    const remainingMs = Math.max(0, 75_000 - (Date.now() - attemptId));
+    const timer = setTimeout(() => {
+      if (timedOutAttemptRef.current === attemptId) return;
+      timedOutAttemptRef.current = attemptId;
+      const timeoutMessage =
+        `مهلت اتصال ${protocolNames[protocol]} پس از ۷۵ ثانیه تمام شد. اتصال متوقف شد؛ دسترسی شبکه، مشخصات حساب و سرور انتخاب‌شده را بررسی کنید.`;
+      setActionError(timeoutMessage);
+      setDisconnecting(true);
+      setPhase('disconnecting');
+      void (async () => {
+        let finalMessage = timeoutMessage;
+        try {
+          await disconnectTunnel(protocol);
+        } catch (error) {
+          finalMessage += `\n${getErrorMessage(error, token)}`;
+        }
+        const [xray, openvpn, wg, awg] = await Promise.all([
+          getXrayState().catch(() => ({ state: 'disconnected' as const })),
+          getOpenVpnStatus().catch(() => initialTunnelStatus),
+          getWireGuardStatus().catch(() => initialTunnelStatus),
+          getAmneziaWgStatus().catch(() => initialTunnelStatus),
+        ]);
+        setXrayStatus(xray);
+        setOpenVpnStatus(openvpn);
+        setWireguardStatus(wg);
+        setAmneziaStatus(awg);
+        setAttemptStartedAt(null);
+        setActionError(finalMessage);
+        setPhase('error');
+        setDisconnecting(false);
+      })();
+    }, remainingMs);
+    return () => clearTimeout(timer);
+  }, [connecting, connected, phase, actionError, statusError, attemptStartedAt, protocol, token]);
+
   const disconnectActive = async () => {
     const target = activeProtocol ?? protocol;
     if (!target) return;
+    setAttemptStartedAt(null);
+    timedOutAttemptRef.current = null;
     setDisconnecting(true);
     setActionError(null);
     setPhase('disconnecting');
     try {
-      if (target === 'v2ray') await disconnectXray();
-      else if (target === 'openvpn') await disconnectOpenVpn();
-      else if (target === 'wireguard') await disconnectWireGuard();
-      else await disconnectAmneziaWg();
+      await disconnectTunnel(target);
       setPhase('monitoring');
     } catch (error) {
       setActionError(getErrorMessage(error, token));
@@ -457,6 +511,7 @@ export default function ConnectionScreen() {
 
   const retryConnection = () => {
     attemptKeyRef.current = null;
+    timedOutAttemptRef.current = null;
     setActionError(null);
     setAttemptStartedAt(null);
     setPhase('loading');

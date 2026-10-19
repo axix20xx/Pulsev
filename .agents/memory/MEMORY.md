@@ -54,3 +54,4 @@
 - [In-app VPN connection requirement](mobile-vpn-internal-connection.md) — establish tunnels in the app's native engines; never hand off to another VPN app or fake connected state.
 - [Expo Android module publishing](expo-local-android-publishing.md) — Expo’s local-module plugin owns the release variant; set `versionName` and avoid duplicate `singleVariant` publishing DSL.
 - [Replit Android build environment](replit-android-build-environment.md) — keep large Android SDKs on the workspace volume and use the available Temurin JDK for stable Gradle builds.
+- [OpenVPN Android state and retry limits](openvpn-native-state-and-retries.md) — sync the separate-process service state after binding and override infinite profile retries with bounded client retries.
