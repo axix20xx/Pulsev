@@ -32,6 +32,7 @@ function RootLayoutNav() {
       <Stack.Screen name="auth/otp" />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="profiles/[id]" />
+      <Stack.Screen name="connection" options={{ headerShown: false, presentation: 'card' }} />
     </Stack>
   );
 }

@@ -3,9 +3,12 @@ import { Platform } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabsLayout() {
   const c = useColors();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === 'web' ? 28 : Math.max(insets.bottom, 8);
   return (
     <Tabs screenOptions={{
       headerShown: false,
@@ -16,10 +19,14 @@ export default function TabsLayout() {
         backgroundColor: c.card,
         borderTopColor: c.border,
         borderTopWidth: 1,
-        height: Platform.OS === 'web' ? 84 : 64,
+        height: Platform.OS === 'web' ? 84 : 56 + bottomInset,
         paddingTop: 7,
-        paddingBottom: Platform.OS === 'web' ? 28 : 8,
-        elevation: 0,
+        paddingBottom: bottomInset,
+        elevation: Platform.OS === 'android' ? 12 : 0,
+        shadowColor: c.foreground,
+        shadowOpacity: Platform.OS === 'android' ? 0.08 : 0,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: -5 },
       },
     }}>
       <Tabs.Screen name="index" options={{ title: 'خانه', tabBarIcon: ({ color }) => <Feather name="grid" size={21} color={color} /> }} />

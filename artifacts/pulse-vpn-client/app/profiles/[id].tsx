@@ -3,9 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import {
-  downloadOpenVpnProfile,
   useDownloadAmneziaWgConfig,
-  downloadWireGuardConfig,
   useGetIpsecAccount,
   useGetMobileDashboard,
   useGetOpenVpnAccount,
@@ -18,14 +16,6 @@ import { Card, Heading, InlineState, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { getSubscriptionToken } from '@/lib/subscription-token';
 import {
-  connectAmneziaWg,
-  connectOpenVpn,
-  connectWireGuard,
-  connectXray,
-  disconnectXray,
-  disconnectAmneziaWg,
-  disconnectOpenVpn,
-  disconnectWireGuard,
   getAmneziaWgStatus,
   getOpenVpnStatus,
   isAmneziaWgEngineAvailable,
@@ -38,26 +28,7 @@ import {
   type WireGuardVpnStatus,
   type XrayVpnState,
 } from '@/lib/vpn-engine';
-
-function wireGuardRoute(configUrl: string): { provider: string; host: string } {
-  const parsed = new URL(configUrl, 'https://pulse.invalid');
-  const segments = parsed.pathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment));
-  const index = segments.findIndex((segment, position) => segment === 'wireguard' && segments[position + 1] === 'config');
-  const provider = index >= 0 ? segments[index + 2] : undefined;
-  const host = index >= 0 ? segments[index + 3] : undefined;
-  if (!provider || !host) throw new Error('نشانی پیکربندی WireGuard معتبر نیست.');
-  return { provider, host };
-}
-
-function openVpnRoute(configUrl: string): { provider: string; host: string } {
-  const parsed = new URL(configUrl, 'https://pulse.invalid');
-  const segments = parsed.pathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment));
-  const index = segments.findIndex((segment, position) => segment === 'openvpn' && segments[position + 1] === 'config');
-  const provider = index >= 0 ? segments[index + 2] : undefined;
-  const host = index >= 0 ? segments[index + 3] : undefined;
-  if (!provider || !host) throw new Error('نشانی پیکربندی OpenVPN معتبر نیست.');
-  return { provider, host };
-}
+import { normalizeXrayShareLinks } from '@/lib/xray-share-links';
 
 export default function ProfileDetail() {
   const c = useColors();
@@ -80,29 +51,20 @@ export default function ProfileDetail() {
     isConnected: false,
   });
   const [openVpnEngineAvailable, setOpenVpnEngineAvailable] = useState(false);
-  const [openVpnBusy, setOpenVpnBusy] = useState(false);
-  const [openVpnError, setOpenVpnError] = useState<string | null>(null);
   const [xrayState, setXrayState] = useState<XrayVpnState>({ state: 'disconnected' });
   const [xrayEngineAvailable, setXrayEngineAvailable] = useState(false);
-  const [xrayBusy, setXrayBusy] = useState(false);
-  const [xrayActionError, setXrayActionError] = useState<string | null>(null);
   const [wireguardStatus, setWireguardStatus] = useState<WireGuardVpnStatus>({
     status: 'DISCONNECTED',
     tunnelState: 'INACTIVE',
     isConnected: false,
   });
   const [wireguardEngineAvailable, setWireguardEngineAvailable] = useState(false);
-  const [wireguardBusy, setWireguardBusy] = useState(false);
-  const [wireguardError, setWireguardError] = useState<string | null>(null);
-  const [wireguardLocationId, setWireguardLocationId] = useState<string | null>(null);
   const [amneziaStatus, setAmneziaStatus] = useState<WireGuardVpnStatus>({
     status: 'UNKNOWN',
     tunnelState: 'UNKNOWN',
     isConnected: false,
   });
   const [amneziaEngineAvailable, setAmneziaEngineAvailable] = useState(false);
-  const [amneziaBusy, setAmneziaBusy] = useState(false);
-  const [amneziaError, setAmneziaError] = useState<string | null>(null);
 
   React.useEffect(() => {
     let disposed = false;
@@ -176,7 +138,6 @@ export default function ProfileDetail() {
         const status = await getWireGuardStatus();
         if (disposed) return;
         setWireguardStatus(status);
-        if (!status.isConnected) setWireguardLocationId(null);
       } catch {
         // An unlinked native module is expected in Expo Go. It is not an active tunnel.
       }
@@ -195,6 +156,10 @@ export default function ProfileDetail() {
   if (subscriptions.isLoading && dashboard.isLoading) return <Screen><View style={styles.loading}><ActivityIndicator color={c.primary} /><Text style={{ color: c.mutedForeground }}>در حال دریافت اطلاعات…</Text></View></Screen>;
   if (subscriptions.isError && dashboard.isError) return <Screen><InlineState title="اطلاعات دریافت نشد" detail="برای بازیابی جزئیات پروفایل، اتصال را بررسی کنید." retry={() => { subscriptions.refetch(); dashboard.refetch(); }} /></Screen>;
   if (!item) return <Screen><InlineState title="اشتراک پیدا نشد" detail="این اشتراک در حساب شما موجود نیست یا دسترسی آن تغییر کرده است." retry={() => router.replace('/(tabs)/profiles')} icon="search" /></Screen>;
+
+  const openConnection = (protocol: 'v2ray' | 'openvpn' | 'wireguard' | 'amneziawg', location?: string) => {
+    router.push({ pathname: '/connection', params: { id: item.id, protocol, location: location ?? '' } });
+  };
 
   const protocols = [
     { key: 'openvpn', name: 'OpenVPN', available: item.openvpn_available, result: openVpn.data, error: openVpn.error, loading: openVpn.isLoading, rows: openVpn.data ? [
@@ -215,159 +180,21 @@ export default function ProfileDetail() {
     ] : [] },
     { key: 'v2ray', name: 'فید سازگار با V2Box', available: !!item.subscription_url, result: subscriptionFeed.data, error: subscriptionFeed.error, loading: subscriptionFeed.isLoading, rows: subscriptionFeed.data ? [
       ['نشانی اشتراک', item.subscription_url ?? '—'],
-      ['تعداد خطوط فید', String(subscriptionFeed.data.split(/\r?\n/).filter(Boolean).length)],
+      ['تعداد سرورها', String(normalizeXrayShareLinks(subscriptionFeed.data).linkCount)],
     ] : [] },
   ];
 
-  const handleXrayAction = async () => {
-    if (!item || !token) return;
-    setXrayBusy(true);
-    setXrayActionError(null);
-    try {
-      if (xrayState.state === 'connected') {
-        await disconnectXray();
-      } else {
-        if (item.status !== 'active') {
-          throw new Error('این اشتراک فعال نیست.');
-        }
-        const remaining = Number(item.remaining_gb);
-        if (Number.isFinite(remaining) && remaining <= 0) {
-          throw new Error('حجم این اشتراک به پایان رسیده است.');
-        }
-        const freshFeed = await subscriptionFeed.refetch();
-        if (freshFeed.isError) {
-          throw new Error('دریافت فید اتصال V2Ray ناموفق بود؛ اتصال را بررسی و دوباره تلاش کنید.');
-        }
-        const source = freshFeed.data;
-        if (typeof source !== 'string' || !source.trim()) {
-          throw new Error('فید اتصال V2Ray خالی است؛ دوباره تلاش کنید.');
-        }
-        await connectXray(item.id, item.plan, source);
-        setXrayState(await getXrayState());
-      }
-    } catch (error) {
-      setXrayActionError(error instanceof Error ? error.message : 'اتصال برقرار نشد.');
-      try {
-        setXrayState(await getXrayState());
-      } catch {
-        // Keep the last confirmed state. An unavailable native module is not
-        // treated as a connected tunnel.
-      }
-    } finally {
-      setXrayBusy(false);
-    }
+  const handleXrayAction = () => openConnection('v2ray');
+
+  const handleOpenVpnAction = (location: NonNullable<typeof openVpn.data>['locations'][number]) => {
+    openConnection('openvpn', location.name);
   };
 
-  const handleOpenVpnAction = async (location: NonNullable<typeof openVpn.data>['locations'][number]) => {
-    if (!item || !token || !openVpn.data) return;
-    setOpenVpnBusy(true);
-    setOpenVpnError(null);
-    try {
-      const sameLocation =
-        openVpnStatus.profileId === item.id &&
-        openVpnStatus.profileName === location.name;
-      if (openVpnStatus.isConnected && sameLocation) {
-        await disconnectOpenVpn();
-        setOpenVpnStatus(await getOpenVpnStatus());
-        return;
-      }
-      if (openVpnStatus.isConnected) {
-        throw new Error('ابتدا اتصال OpenVPN فعال را قطع کنید، سپس سرور دیگری را انتخاب کنید.');
-      }
-      if (openVpnStatus.status === 'CONNECTING' || openVpnStatus.status === 'DISCONNECTING') {
-        throw new Error('لطفاً تا پایان تغییر وضعیت اتصال صبر کنید.');
-      }
-      if (item.status !== 'active') throw new Error('این اشتراک فعال نیست.');
-      const remaining = Number(item.remaining_gb);
-      if (Number.isFinite(remaining) && remaining <= 0) throw new Error('حجم این اشتراک به پایان رسیده است.');
-
-      const { provider, host } = openVpnRoute(location.config_url);
-      const configText = await downloadOpenVpnProfile(token, provider, host);
-      const status = await connectOpenVpn(
-        item.id,
-        location.name,
-        configText,
-        openVpn.data.username,
-        openVpn.data.password,
-      );
-      setOpenVpnStatus(status);
-    } catch (error) {
-      setOpenVpnError(error instanceof Error ? error.message : 'اتصال OpenVPN برقرار نشد.');
-      try {
-        setOpenVpnStatus(await getOpenVpnStatus());
-      } catch {
-        // Keep the last confirmed native state.
-      }
-    } finally {
-      setOpenVpnBusy(false);
-    }
+  const handleWireGuardAction = (location: WireGuardLocation) => {
+    openConnection('wireguard', location.name);
   };
 
-  const handleWireGuardAction = async (location: WireGuardLocation) => {
-    if (!item || !token) return;
-    setWireguardBusy(true);
-    setWireguardError(null);
-    try {
-      if (wireguardStatus.isConnected && wireguardLocationId === location.id) {
-        await disconnectWireGuard();
-        setWireguardStatus(await getWireGuardStatus());
-        setWireguardLocationId(null);
-        return;
-      }
-      if (item.status !== 'active') throw new Error('این اشتراک فعال نیست.');
-      const remaining = Number(item.remaining_gb);
-      if (Number.isFinite(remaining) && remaining <= 0) throw new Error('حجم این اشتراک به پایان رسیده است.');
-
-      const { provider, host } = wireGuardRoute(location.config_url);
-      const configText = await downloadWireGuardConfig(token, provider, host);
-      if (wireguardStatus.isConnected) await disconnectWireGuard();
-      const status = await connectWireGuard(item.id, location.name, configText);
-      setWireguardStatus(status);
-      setWireguardLocationId(location.id);
-    } catch (error) {
-      setWireguardError(error instanceof Error ? error.message : 'اتصال WireGuard برقرار نشد.');
-      try {
-        setWireguardStatus(await getWireGuardStatus());
-      } catch {
-        // Keep the last confirmed native state.
-      }
-    } finally {
-      setWireguardBusy(false);
-    }
-  };
-
-  const handleAmneziaAction = async () => {
-    if (!item || !token) return;
-    setAmneziaBusy(true);
-    setAmneziaError(null);
-    try {
-      if (amneziaStatus.isConnected && amneziaStatus.profileId === item.id) {
-        await disconnectAmneziaWg();
-        setAmneziaStatus(await getAmneziaWgStatus());
-        return;
-      }
-      if (item.status !== 'active') throw new Error('این اشتراک فعال نیست.');
-      const remaining = Number(item.remaining_gb);
-      if (Number.isFinite(remaining) && remaining <= 0) throw new Error('حجم این اشتراک به پایان رسیده است.');
-
-      const freshConfig = await amnezia.refetch();
-      const configText = freshConfig.data;
-      if (typeof configText !== 'string' || !configText.trim()) {
-        throw new Error('پیکربندی AmneziaWG خالی است؛ دوباره تلاش کنید.');
-      }
-      const status = await connectAmneziaWg(item.id, item.plan, configText);
-      setAmneziaStatus(status);
-    } catch (error) {
-      setAmneziaError(error instanceof Error ? error.message : 'اتصال AmneziaWG برقرار نشد.');
-      try {
-        setAmneziaStatus(await getAmneziaWgStatus());
-      } catch {
-        // Keep the last confirmed native state.
-      }
-    } finally {
-      setAmneziaBusy(false);
-    }
-  };
+  const handleAmneziaAction = () => openConnection('amneziawg');
 
   return (
     <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
@@ -403,24 +230,22 @@ export default function ProfileDetail() {
             </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: !xrayEngineAvailable || xrayBusy || subscriptionFeed.isLoading }}
-              disabled={!xrayEngineAvailable || xrayBusy || subscriptionFeed.isLoading || xrayState.state === 'connecting' || xrayState.state === 'preparing' || xrayState.state === 'disconnecting'}
+              accessibilityState={{ disabled: !xrayEngineAvailable }}
+              disabled={!xrayEngineAvailable}
               onPress={handleXrayAction}
               style={[
                 styles.connectButton,
                 { backgroundColor: xrayState.state === 'connected' ? c.destructive : c.primary },
-                (!xrayEngineAvailable || xrayBusy || subscriptionFeed.isLoading) && styles.disabledButton,
+                !xrayEngineAvailable && styles.disabledButton,
               ]}
             >
-              {xrayBusy ? <ActivityIndicator color={c.primaryForeground} size="small" /> : null}
               <Text style={[styles.connectButtonText, { color: c.primaryForeground }]}>
-                {xrayState.state === 'connected' ? 'قطع اتصال' : xrayEngineAvailable ? 'اتصال امن' : 'نیازمند نسخهٔ Android سفارشی'}
+                {xrayState.state === 'connected' ? 'مشاهده و مدیریت اتصال' : xrayEngineAvailable ? 'اتصال امن' : 'نیازمند نسخهٔ Android سفارشی'}
               </Text>
             </Pressable>
             {!xrayEngineAvailable ? (
               <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>این پیش‌نمایش Expo Go موتور VPN را ندارد. اتصال V2Ray فقط پس از ساخت و نصب نسخهٔ بومی Android در دسترس است.</Text>
             ) : null}
-            {xrayActionError ? <Text accessibilityRole="alert" style={[styles.fetchError, { color: c.destructive }]}>{xrayActionError}</Text> : null}
             {xrayState.state === 'error' ? <Text accessibilityRole="alert" style={[styles.fetchError, { color: c.destructive }]}>موتور اتصال خطا گزارش کرد؛ وضعیت اتصال برقرار نیست.</Text> : null}
           </Card>
         ) : null}
@@ -467,7 +292,6 @@ export default function ProfileDetail() {
                     openVpnStatus.isConnected &&
                     openVpnStatus.profileId === item.id &&
                     openVpnStatus.profileName === location.name;
-                  const openVpnChanging = openVpnStatus.status === 'CONNECTING' || openVpnStatus.status === 'DISCONNECTING';
                   return (
                     <View key={location.id} style={styles.wireguardLocation}>
                       <View style={styles.wireguardLocationHeading}>
@@ -477,18 +301,17 @@ export default function ProfileDetail() {
                       </View>
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityState={{ disabled: !openVpnEngineAvailable || openVpnBusy || openVpnChanging }}
-                        disabled={!openVpnEngineAvailable || openVpnBusy || openVpnChanging}
-                        onPress={() => void handleOpenVpnAction(location)}
+                        accessibilityState={{ disabled: !openVpnEngineAvailable }}
+                        disabled={!openVpnEngineAvailable}
+                        onPress={() => handleOpenVpnAction(location)}
                         style={[
                           styles.serverConnectButton,
                           { backgroundColor: isThisLocationConnected ? c.destructive : c.primary },
-                          (!openVpnEngineAvailable || openVpnBusy || openVpnChanging) && styles.disabledButton,
+                          !openVpnEngineAvailable && styles.disabledButton,
                         ]}
                       >
-                        {openVpnBusy || openVpnChanging ? <ActivityIndicator color={c.primaryForeground} size="small" /> : null}
                         <Text style={[styles.connectButtonText, { color: c.primaryForeground }]}>
-                          {openVpnChanging ? 'در حال تغییر وضعیت اتصال…' : isThisLocationConnected ? 'قطع اتصال OpenVPN' : 'اتصال به این سرور'}
+                          {isThisLocationConnected ? 'مشاهده و مدیریت اتصال' : 'اتصال به این سرور'}
                         </Text>
                       </Pressable>
                     </View>
@@ -497,41 +320,34 @@ export default function ProfileDetail() {
                 {protocol.result && protocol.key === 'openvpn' && !openVpnEngineAvailable ? (
                   <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>برای اتصال OpenVPN باید نسخهٔ سفارشی Android نصب شود؛ Expo Go موتور بومی را ندارد.</Text>
                 ) : null}
-                {protocol.key === 'openvpn' && openVpnError ? (
-                  <Text accessibilityRole="alert" style={[styles.fetchError, { color: c.destructive }]}>{openVpnError}</Text>
-                ) : null}
                 {protocol.result && protocol.key === 'wireguard' && wireguard.data?.locations.map((location) => (
                   <View key={location.id} style={styles.wireguardLocation}>
                     <View style={styles.wireguardLocationHeading}>
                       <Feather name="globe" size={15} color={c.primary} />
                       <Text style={[styles.protocolTitle, { color: c.foreground, flex: 1 }]}>{location.name}</Text>
-                      {wireguardStatus.isConnected && wireguardLocationId === location.id ? (
+                      {wireguardStatus.isConnected && wireguardStatus.profileId === item.id && wireguardStatus.profileName === location.name ? (
                         <Text style={[styles.protocolState, { color: c.success }]}>متصل</Text>
                       ) : null}
                     </View>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityState={{ disabled: !wireguardEngineAvailable || wireguardBusy }}
-                      disabled={!wireguardEngineAvailable || wireguardBusy}
-                      onPress={() => void handleWireGuardAction(location)}
+                      accessibilityState={{ disabled: !wireguardEngineAvailable }}
+                      disabled={!wireguardEngineAvailable}
+                      onPress={() => handleWireGuardAction(location)}
                       style={[
                         styles.serverConnectButton,
-                        { backgroundColor: wireguardStatus.isConnected && wireguardLocationId === location.id ? c.destructive : c.primary },
-                        (!wireguardEngineAvailable || wireguardBusy) && styles.disabledButton,
+                        { backgroundColor: wireguardStatus.isConnected && wireguardStatus.profileId === item.id && wireguardStatus.profileName === location.name ? c.destructive : c.primary },
+                        !wireguardEngineAvailable && styles.disabledButton,
                       ]}
                     >
-                      {wireguardBusy ? <ActivityIndicator color={c.primaryForeground} size="small" /> : null}
                       <Text style={[styles.connectButtonText, { color: c.primaryForeground }]}>
-                        {wireguardStatus.isConnected && wireguardLocationId === location.id ? 'قطع اتصال WireGuard' : 'اتصال به این سرور'}
+                        {wireguardStatus.isConnected && wireguardStatus.profileId === item.id && wireguardStatus.profileName === location.name ? 'مشاهده و مدیریت اتصال' : 'اتصال به این سرور'}
                       </Text>
                     </Pressable>
                   </View>
                 ))}
                 {protocol.result && protocol.key === 'wireguard' && !wireguardEngineAvailable ? (
                   <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>برای اتصال WireGuard باید نسخهٔ سفارشی Android نصب شود؛ Expo Go موتور بومی را ندارد.</Text>
-                ) : null}
-                {protocol.key === 'wireguard' && wireguardError ? (
-                  <Text accessibilityRole="alert" style={[styles.fetchError, { color: c.destructive }]}>{wireguardError}</Text>
                 ) : null}
                 {protocol.result && protocol.key === 'amneziawg' ? (
                   <View style={styles.wireguardLocation}>
@@ -544,24 +360,22 @@ export default function ProfileDetail() {
                     </View>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityState={{ disabled: !amneziaEngineAvailable || amneziaBusy }}
-                      disabled={!amneziaEngineAvailable || amneziaBusy}
-                      onPress={() => void handleAmneziaAction()}
+                      accessibilityState={{ disabled: !amneziaEngineAvailable }}
+                      disabled={!amneziaEngineAvailable}
+                      onPress={handleAmneziaAction}
                       style={[
                         styles.serverConnectButton,
                         { backgroundColor: amneziaStatus.isConnected && amneziaStatus.profileId === item.id ? c.destructive : c.primary },
-                        (!amneziaEngineAvailable || amneziaBusy) && styles.disabledButton,
+                        !amneziaEngineAvailable && styles.disabledButton,
                       ]}
                     >
-                      {amneziaBusy ? <ActivityIndicator color={c.primaryForeground} size="small" /> : null}
                       <Text style={[styles.connectButtonText, { color: c.primaryForeground }]}>
-                        {amneziaStatus.isConnected && amneziaStatus.profileId === item.id ? 'قطع اتصال AmneziaWG' : 'اتصال امن'}
+                        {amneziaStatus.isConnected && amneziaStatus.profileId === item.id ? 'مشاهده و مدیریت اتصال' : 'اتصال امن'}
                       </Text>
                     </Pressable>
                     {!amneziaEngineAvailable ? (
                       <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>برای اتصال AmneziaWG باید نسخهٔ سفارشی Android نصب شود؛ Expo Go موتور بومی را ندارد.</Text>
                     ) : null}
-                    {amneziaError ? <Text accessibilityRole="alert" style={[styles.fetchError, { color: c.destructive }]}>{amneziaError}</Text> : null}
                   </View>
                 ) : null}
                 {protocol.result && protocol.rows.length === 0 ? <Text style={[styles.sectionNote, { color: c.mutedForeground }]}>موردی برای نمایش ثبت نشده است.</Text> : null}
@@ -573,7 +387,7 @@ export default function ProfileDetail() {
           <Feather name="info" size={18} color={c.primary} />
           <View style={{ flex: 1, gap: 5 }}>
             <Text style={[styles.engineTitle, { color: c.accentForeground }]}>سایر موتورهای اتصال</Text>
-            <Text style={[styles.sectionNote, { color: c.accentForeground }]}>موتورهای OpenVPN، WireGuard، AmneziaWG و IPsec هنوز به نسخهٔ بومی اضافه نشده‌اند. از برنامهٔ دیگری استفاده نمی‌شود و وضعیت اتصال ساختگی نمایش داده نخواهد شد.</Text>
+            <Text style={[styles.sectionNote, { color: c.accentForeground }]}>اتصال OpenVPN، WireGuard، AmneziaWG و V2Ray در نسخهٔ بومی Android اجرا می‌شود. IPsec هنوز درون‌برنامه‌ای پشتیبانی نمی‌شود؛ هیچ برنامهٔ خارجی یا وضعیت ساختگی استفاده نمی‌شود.</Text>
           </View>
         </Card>
       </ScrollView>

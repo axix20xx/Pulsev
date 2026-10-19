@@ -10,8 +10,8 @@ import { ThemeMode, useAppearance } from '@/hooks/Appearance';
 import { clearMobileToken } from '@/lib/mobile-auth';
 
 const themeOptions: { id: ThemeMode; title: string; icon: 'smartphone' | 'sun' | 'moon'; hint: string }[] = [
-  { id: 'system', title: 'همگام با دستگاه', icon: 'smartphone', hint: 'پیشنهادشده' },
-  { id: 'light', title: 'روشن', icon: 'sun', hint: '' },
+  { id: 'light', title: 'روشن', icon: 'sun', hint: 'پیشنهادشده' },
+  { id: 'system', title: 'همگام با دستگاه', icon: 'smartphone', hint: '' },
   { id: 'dark', title: 'تیره', icon: 'moon', hint: '' },
 ];
 

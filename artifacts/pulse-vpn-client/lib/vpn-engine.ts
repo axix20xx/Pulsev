@@ -10,6 +10,8 @@ export type XrayVpnState = {
   state: XrayConnectionState;
   profileId?: string;
   profileName?: string;
+  connectedAt?: number;
+  lastChangedAt?: number;
   error?: string;
   errorCode?: string;
 };
@@ -20,6 +22,9 @@ export type WireGuardVpnStatus = {
   isConnected: boolean;
   profileId?: string;
   profileName?: string;
+  connectedAt?: number;
+  uploadBytes?: number;
+  downloadBytes?: number;
   error?: string;
 };
 

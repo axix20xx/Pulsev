@@ -10,8 +10,8 @@
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "android:prebuild": "expo prebuild --platform android",
-    "android:apk": "cd android && NODE_ENV=production EXPO_PUBLIC_DOMAIN=${EXPO_PUBLIC_DOMAIN:-vinte.peppernopepper.com} CMAKE_BUILD_PARALLEL_LEVEL=2 ./gradlew assembleRelease --no-daemon --max-workers=1",
-    "android:apk:arm64": "cd android && NODE_ENV=production EXPO_PUBLIC_DOMAIN=${EXPO_PUBLIC_DOMAIN:-vinte.peppernopepper.com} CMAKE_BUILD_PARALLEL_LEVEL=2 ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --max-workers=1"
+    "android:apk": "SDK_PATH=$(cd ../.. && pwd)/.cache/pulse-android-sdk; ANDROID_HOME=${ANDROID_HOME:-$SDK_PATH}; export ANDROID_HOME; ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-$ANDROID_HOME}; export ANDROID_SDK_ROOT; cd android && NODE_ENV=production EXPO_PUBLIC_DOMAIN=${EXPO_PUBLIC_DOMAIN:-vinte.peppernopepper.com} CMAKE_BUILD_PARALLEL_LEVEL=2 ./gradlew assembleRelease --no-daemon --max-workers=1",
+    "android:apk:arm64": "SDK_PATH=$(cd ../.. && pwd)/.cache/pulse-android-sdk; ANDROID_HOME=${ANDROID_HOME:-$SDK_PATH}; export ANDROID_HOME; ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-$ANDROID_HOME}; export ANDROID_SDK_ROOT; cd android && NODE_ENV=production EXPO_PUBLIC_DOMAIN=${EXPO_PUBLIC_DOMAIN:-vinte.peppernopepper.com} CMAKE_BUILD_PARALLEL_LEVEL=2 ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --max-workers=1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

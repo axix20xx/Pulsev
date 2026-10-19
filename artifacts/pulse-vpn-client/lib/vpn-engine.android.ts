@@ -1,6 +1,7 @@
 import { requireNativeModule } from 'expo-modules-core';
 import type { ExpoXrayVpnState } from 'expo-xray-vpn';
 import type { WireGuardVpnStatus, XrayVpnState } from './vpn-engine';
+import { normalizeXrayShareLinks } from './xray-share-links';
 
 type XrayModule = typeof import('expo-xray-vpn').default;
 type PulseVpnNativeModule = {
@@ -33,6 +34,8 @@ function toState(state: ExpoXrayVpnState): XrayVpnState {
     state: state.state,
     profileId: state.profileId,
     profileName: state.profileName,
+    connectedAt: state.connectedAt,
+    lastChangedAt: state.lastChangedAt,
     error: state.error,
     errorCode: state.errorCode,
   };
@@ -115,10 +118,13 @@ export async function connectXray(
 ): Promise<XrayVpnState> {
   const module = await loadModule();
   await assertNoOtherTunnel('xray');
-  const source = subscriptionText.trim();
-  if (!source) throw new Error('The V2Ray subscription is empty.');
+  const normalized = normalizeXrayShareLinks(subscriptionText);
+  if (!normalized.text) throw new Error('The V2Ray subscription is empty.');
+  if (!normalized.linkCount) {
+    throw new Error('The V2Ray feed did not contain readable server links. Refresh the subscription and try again.');
+  }
 
-  const xrayConfigJson = await module.convertShareLinksToXrayJson(source);
+  const xrayConfigJson = await module.convertShareLinksToXrayJson(normalized.text);
   let parsedConfig: unknown;
   try {
     parsedConfig = JSON.parse(xrayConfigJson);
@@ -127,6 +133,10 @@ export async function connectXray(
   }
   if (!parsedConfig || typeof parsedConfig !== 'object') {
     throw new Error('The subscription did not produce a valid Xray configuration.');
+  }
+  const outbounds = (parsedConfig as { outbounds?: unknown }).outbounds;
+  if (!Array.isArray(outbounds) || outbounds.length === 0) {
+    throw new Error('The V2Ray feed did not produce any usable connection profiles.');
   }
 
   const permission = await module.requestPermission();
