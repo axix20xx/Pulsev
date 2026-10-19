@@ -359,8 +359,23 @@ export async function customFetch<T = unknown>(
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
+  const isMobileSessionRequest =
+    method === "GET" &&
+    /\/api\/mobile\/auth\/session(?:\?|$)/.test(requestInfo.url);
 
-  const response = await fetch(input, { ...init, method, headers });
+  if (isMobileSessionRequest) {
+    // Authentication state must never be restored from an HTTP cache. A 304
+    // has no session body for the React Native query client to consume.
+    headers.set("cache-control", "no-cache, no-store");
+    headers.set("pragma", "no-cache");
+  }
+
+  const response = await fetch(input, {
+    ...init,
+    ...(isMobileSessionRequest ? { cache: "no-store" as RequestCache } : {}),
+    method,
+    headers,
+  });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

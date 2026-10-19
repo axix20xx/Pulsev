@@ -303,6 +303,8 @@ const createMobileSession = async (
     [customerId],
   );
   setMobileCookie(res, raw);
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
   res.json({
     authenticated: true,
     customer: { id: String(customerId), name: customerName, phone },
@@ -1013,6 +1015,8 @@ router.post("/mobile/auth/otp/verify", async (req, res): Promise<void> => {
 });
 
 router.get("/mobile/auth/session", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
   res.json(req.mobileAuth ? { authenticated: true, customer: { id: String(req.mobileAuth.customerId), name: req.mobileAuth.customerName, phone: req.mobileAuth.phone } } : { authenticated: false });
 });
 
