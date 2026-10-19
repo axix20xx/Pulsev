@@ -19,7 +19,7 @@ import type { WireGuardLocation } from '@workspace/api-client-react';
 import { Card, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { getSubscriptionToken } from '@/lib/subscription-token';
-import { normalizeXrayShareLinks } from '@/lib/xray-share-links';
+import { normalizeXrayShareLinks, parseXrayShareLinks, type XrayShareServer } from '@/lib/xray-share-links';
 import {
   connectAmneziaWg,
   connectOpenVpn,
@@ -37,6 +37,7 @@ import {
   isOpenVpnEngineAvailable,
   isWireGuardEngineAvailable,
   isXrayEngineAvailable,
+  pingXrayServers,
   subscribeXrayState,
   type WireGuardVpnStatus,
   type XrayVpnState,
@@ -145,6 +146,10 @@ export default function ConnectionScreen() {
   const wireguard = useGetWireGuardAccount(token, { query: { queryKey: ['connection-screen', token, 'wireguard'], enabled: !!token && protocol === 'wireguard' && !!item?.wireguard_available } });
   const amnezia = useDownloadAmneziaWgConfig(token, { query: { queryKey: ['connection-screen', token, 'amneziawg'], enabled: !!token && protocol === 'amneziawg' && !!item?.awg_url } });
   const feed = useGetPublicSubscriptionFeed(token, { query: { queryKey: ['connection-screen', token, 'v2ray-feed'], enabled: !!token && protocol === 'v2ray' && !!item?.subscription_url } });
+  const xrayServers = useMemo(
+    () => typeof feed.data === 'string' ? parseXrayShareLinks(feed.data) : [],
+    [feed.data],
+  );
 
   const [xrayStatus, setXrayStatus] = useState<XrayVpnState>({ state: 'disconnected' });
   const [openVpnStatus, setOpenVpnStatus] = useState(initialTunnelStatus);
@@ -163,6 +168,9 @@ export default function ConnectionScreen() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [retry, setRetry] = useState(0);
   const [clock, setClock] = useState(Date.now());
+  const [selectedXrayServerId, setSelectedXrayServerId] = useState<string | null>(null);
+  const [xrayPingResults, setXrayPingResults] = useState<Record<string, number | null>>({});
+  const [isPingingXray, setIsPingingXray] = useState(false);
   const attemptKeyRef = useRef<string | null>(null);
   const timedOutAttemptRef = useRef<number | null>(null);
 
@@ -305,9 +313,34 @@ export default function ConnectionScreen() {
           if (fresh.isError || typeof source !== 'string' || !source.trim()) {
             throw fresh.error ?? new Error('فید V2Ray خالی است یا دریافت نشد.');
           }
+          const servers = parseXrayShareLinks(source);
+          if (!servers.length) {
+            throw new Error('فید V2Ray هیچ سرور قابل‌استفاده‌ای ندارد.');
+          }
+
+          let pingResults: Record<string, number | null> = {};
+          setIsPingingXray(true);
+          try {
+            pingResults = await pingXrayServers(servers);
+            setXrayPingResults(pingResults);
+          } catch {
+            // TCP probing can be blocked on some networks. Still try a real profile.
+          } finally {
+            setIsPingingXray(false);
+          }
+
+          const fastest = servers.reduce<XrayShareServer | null>((best, server) => {
+            const latency = pingResults[server.id];
+            if (latency == null) return best;
+            return best == null || latency < (pingResults[best.id] ?? Number.POSITIVE_INFINITY)
+              ? server
+              : best;
+          }, null);
+          const selectedServer = fastest ?? servers[0];
+          setSelectedXrayServerId(selectedServer.id);
           setPhase('connecting');
           setAttemptStartedAt(Date.now());
-          void connectXray(item.id, item.plan, source)
+          void connectXray(item.id, selectedServer.name, selectedServer.link)
             .then(() => setPhase('monitoring'))
             .catch((error) => {
               setActionError(getErrorMessage(error, token));
@@ -389,6 +422,66 @@ export default function ConnectionScreen() {
     sameRequestedProfile,
     retry,
   ]);
+
+  const fastestXrayServerId = useMemo(() => {
+    let fastestId: string | null = null;
+    let fastestLatency = Number.POSITIVE_INFINITY;
+    for (const server of xrayServers) {
+      const latency = xrayPingResults[server.id];
+      if (latency != null && latency < fastestLatency) {
+        fastestId = server.id;
+        fastestLatency = latency;
+      }
+    }
+    return fastestId;
+  }, [xrayServers, xrayPingResults]);
+  const activeXrayServerId = xrayServers.find((server) => server.name === xrayStatus.profileName)?.id ?? null;
+
+  const pingAllXrayServers = async () => {
+    if (!xrayServers.length || isPingingXray || activeProtocol) return;
+    setIsPingingXray(true);
+    setActionError(null);
+    try {
+      const results = await pingXrayServers(xrayServers);
+      setXrayPingResults(results);
+    } catch (error) {
+      setActionError(getErrorMessage(error, token));
+    } finally {
+      setIsPingingXray(false);
+    }
+  };
+
+  const connectToXrayServer = async (server: XrayShareServer) => {
+    if (!item || !token || protocol !== 'v2ray' || isPingingXray) return;
+    if (activeProtocol && activeProtocol !== 'v2ray') {
+      setActionError(`ابتدا اتصال فعال ${protocolNames[activeProtocol]} را قطع کنید.`);
+      setPhase('error');
+      return;
+    }
+    if (
+      selectedXrayServerId === server.id &&
+      (xrayStatus.state === 'connected' || xrayStatus.state === 'connecting')
+    ) return;
+
+    attemptKeyRef.current = `${item.id}:v2ray:${locationName}:${retry}`;
+    setSelectedXrayServerId(server.id);
+    setActionError(null);
+    setAttemptStartedAt(null);
+    setPhase('preparing');
+    try {
+      if (xrayStatus.state !== 'disconnected') await disconnectXray();
+      setPhase('connecting');
+      setAttemptStartedAt(Date.now());
+      const state = await connectXray(item.id, server.name, server.link);
+      if (state.state === 'error') {
+        throw new Error(state.error ?? 'موتور V2Ray نتوانست به این سرور وصل شود.');
+      }
+      setPhase('monitoring');
+    } catch (error) {
+      setActionError(getErrorMessage(error, token));
+      setPhase('error');
+    }
+  };
 
   const nativeError = activeProtocol === 'v2ray' || (!activeProtocol && protocol === 'v2ray')
     ? xrayStatus.error
@@ -587,6 +680,90 @@ export default function ConnectionScreen() {
               </View>
             </LinearGradient>
 
+            {protocol === 'v2ray' && xrayServers.length > 0 ? (
+              <Card style={styles.xrayServerCard}>
+                <View style={styles.xrayServerHeader}>
+                  <View style={[styles.sectionIcon, { backgroundColor: c.secondary }]}>
+                    <Feather name="radio" size={17} color={c.primary} />
+                  </View>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={[styles.sectionTitle, { color: c.foreground }]}>سرورهای V2Ray</Text>
+                    <Text style={[styles.sectionCaption, { color: c.mutedForeground }]}>
+                      {fa(xrayServers.length)} سرور · انتخاب خودکار سریع‌ترین پاسخ
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="پینگ همه سرورها"
+                    disabled={isPingingXray || !!activeProtocol}
+                    onPress={() => void pingAllXrayServers()}
+                    style={({ pressed }) => [
+                      styles.xrayPingButton,
+                      { borderColor: c.border, backgroundColor: c.card, opacity: pressed ? 0.75 : (isPingingXray || !!activeProtocol) ? 0.5 : 1 },
+                    ]}
+                  >
+                    {isPingingXray ? <ActivityIndicator size="small" color={c.primary} /> : <Feather name="refresh-cw" size={14} color={c.primary} />}
+                    <Text style={[styles.xrayPingText, { color: c.primary }]}>{isPingingXray ? 'در حال سنجش' : 'پینگ همه'}</Text>
+                  </Pressable>
+                </View>
+                <Text style={[styles.note, { color: c.mutedForeground }]}>
+                  سنجش با زمان پاسخ TCP انجام می‌شود؛ اگر شبکه آن را مسدود کند، اتصال به سرور اول همچنان امتحان می‌شود.
+                </Text>
+                <View style={styles.xrayServerList}>
+                  {xrayServers.map((server, index) => {
+                    const active = activeXrayServerId === server.id && xrayStatus.state === 'connected';
+                    const selected = selectedXrayServerId === server.id || (!selectedXrayServerId && activeXrayServerId === server.id);
+                    const pingKnown = Object.prototype.hasOwnProperty.call(xrayPingResults, server.id);
+                    const latency = xrayPingResults[server.id];
+                    const serverTitle = server.name
+                      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
+                      .replace(/\uFE0F/g, '')
+                      .trim() || `سرور ${fa(index + 1)}`;
+                    const protocolLabel = server.protocol === 'vmess' ? 'VMess' : server.protocol.toUpperCase();
+
+                    return (
+                      <Pressable
+                        key={server.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`اتصال به ${serverTitle}`}
+                        accessibilityState={{ selected, disabled: isPingingXray || (connecting && !active) }}
+                        disabled={isPingingXray || (connecting && !active)}
+                        onPress={() => void connectToXrayServer(server)}
+                        style={({ pressed }) => [
+                          styles.xrayServerRow,
+                          {
+                            backgroundColor: selected ? `${c.primary}0A` : c.card,
+                            borderColor: selected ? c.primary : c.border,
+                            opacity: pressed ? 0.8 : 1,
+                          },
+                        ]}
+                      >
+                        <View style={[styles.xrayServerSelection, { backgroundColor: active ? `${c.success}18` : c.secondary }]}>
+                          <Feather name={active ? 'check' : selected ? 'radio' : 'globe'} size={16} color={active ? c.success : c.primary} />
+                        </View>
+                        <View style={styles.xrayServerInfo}>
+                          <View style={styles.xrayServerNameLine}>
+                            <Text numberOfLines={1} style={[styles.xrayServerName, { color: c.foreground }]}>{serverTitle}</Text>
+                            {server.id === fastestXrayServerId ? (
+                              <Text style={[styles.xrayFastest, { color: c.success, backgroundColor: `${c.success}16` }]}>سریع‌ترین</Text>
+                            ) : null}
+                          </View>
+                          <Text style={[styles.xrayServerMeta, { color: c.mutedForeground }]}>
+                            {protocolLabel}{server.port ? ` · ${server.port}` : ''}{active ? ' · متصل' : ''}
+                          </Text>
+                        </View>
+                        <View style={[styles.xrayLatency, { backgroundColor: selected ? `${c.primary}12` : c.secondary }]}>
+                          <Text style={[styles.xrayLatencyText, { color: latency != null ? c.foreground : c.mutedForeground }]}>
+                            {latency != null ? `${fa(Math.round(latency))} ms` : pingKnown ? 'بی‌پاسخ' : isPingingXray ? '…' : '—'}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </Card>
+            ) : null}
+
             {slowAttempt ? (
               <View style={[styles.notice, { backgroundColor: `${c.warning}14`, borderColor: `${c.warning}55` }]}>
                 <Feather name="clock" size={18} color={c.warning} />
@@ -774,6 +951,20 @@ const styles = StyleSheet.create({
   retryButton: { minHeight: 52, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
   actionText: { fontFamily: 'Inter_700Bold', fontSize: 14 },
   infoCard: { padding: 16, gap: 0 },
+  xrayServerCard: { padding: 15, gap: 10 },
+  xrayServerHeader: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  xrayPingButton: { minHeight: 36, borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  xrayPingText: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+  xrayServerList: { gap: 8 },
+  xrayServerRow: { minHeight: 66, borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  xrayServerSelection: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  xrayServerInfo: { flex: 1, minWidth: 0, gap: 4 },
+  xrayServerNameLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  xrayServerName: { flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 12, textAlign: 'right' },
+  xrayFastest: { overflow: 'hidden', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3, fontFamily: 'Inter_600SemiBold', fontSize: 9 },
+  xrayServerMeta: { fontFamily: 'Inter_400Regular', fontSize: 10, textAlign: 'right' },
+  xrayLatency: { minWidth: 60, minHeight: 30, borderRadius: 10, paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center' },
+  xrayLatencyText: { fontFamily: 'Inter_600SemiBold', fontSize: 10, textAlign: 'center' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 9 },
   sectionIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, textAlign: 'right' },

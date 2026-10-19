@@ -1,7 +1,7 @@
 import { requireNativeModule } from 'expo-modules-core';
 import type { ExpoXrayVpnState } from 'expo-xray-vpn';
 import type { WireGuardVpnStatus, XrayVpnState } from './vpn-engine';
-import { normalizeXrayShareLinks } from './xray-share-links';
+import { normalizeXrayShareLinks, type XrayShareServer } from './xray-share-links';
 
 type XrayModule = typeof import('expo-xray-vpn').default;
 type PulseVpnNativeModule = {
@@ -16,6 +16,10 @@ type PulseVpnNativeModule = {
   connectOpenVpn(profileId: string, profileName: string, configText: string, username: string, password: string): Promise<WireGuardVpnStatus>;
   disconnectOpenVpn(): Promise<WireGuardVpnStatus>;
   getOpenVpnStatus(): Promise<WireGuardVpnStatus>;
+  probeTcpServers(
+    servers: Array<{ id: string; host: string; port: number }>,
+    timeoutMs: number,
+  ): Promise<Array<{ id: string; reachable: boolean; latencyMs: number | null }>>;
 };
 
 let modulePromise: Promise<XrayModule> | undefined;
@@ -39,6 +43,30 @@ function toState(state: ExpoXrayVpnState): XrayVpnState {
     error: state.error,
     errorCode: state.errorCode,
   };
+}
+
+function isIpLiteral(value: string): boolean {
+  const address = value.replace(/^\[|\]$/g, '');
+  const ipv4Parts = address.split('.');
+  if (
+    ipv4Parts.length === 4 &&
+    ipv4Parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) >= 0 && Number(part) <= 255)
+  ) return true;
+  return address.includes(':') && /^[0-9a-fA-F:.]+$/.test(address);
+}
+
+function removeInvalidSendThroughValues(value: unknown): void {
+  if (Array.isArray(value)) {
+    value.forEach(removeInvalidSendThroughValues);
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.sendThrough === 'string' && !isIpLiteral(record.sendThrough)) {
+    delete record.sendThrough;
+  }
+  Object.values(record).forEach(removeInvalidSendThroughValues);
 }
 
 async function assertNoOtherTunnel(protocol: 'xray' | 'wireguard' | 'amneziawg' | 'openvpn') {
@@ -124,10 +152,10 @@ export async function connectXray(
     throw new Error('The V2Ray feed did not contain readable server links. Refresh the subscription and try again.');
   }
 
-  const xrayConfigJson = await module.convertShareLinksToXrayJson(normalized.text);
+  const convertedConfigJson = await module.convertShareLinksToXrayJson(normalized.text);
   let parsedConfig: unknown;
   try {
-    parsedConfig = JSON.parse(xrayConfigJson);
+    parsedConfig = JSON.parse(convertedConfigJson);
   } catch {
     throw new Error('The subscription could not be converted to an Xray configuration.');
   }
@@ -138,15 +166,28 @@ export async function connectXray(
   if (!Array.isArray(outbounds) || outbounds.length === 0) {
     throw new Error('The V2Ray feed did not produce any usable connection profiles.');
   }
+  removeInvalidSendThroughValues(parsedConfig);
+  const xrayConfigJson = JSON.stringify(parsedConfig);
 
   const permission = await module.requestPermission();
   if (!permission.granted) throw new Error('Android VPN permission was not granted.');
 
   const current = await module.getState();
-  if (current.state === 'connected' && current.profileId === profileId) {
+  if (current.state === 'connected' && current.profileId === profileId && current.profileName === profileName) {
     return toState(current);
   }
-  if (current.state !== 'disconnected') await module.disconnect();
+  if (current.state !== 'disconnected') {
+    await module.disconnect();
+    const deadline = Date.now() + 8_000;
+    let state = await module.getState();
+    while (state.state !== 'disconnected' && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      state = await module.getState();
+    }
+    if (state.state !== 'disconnected') {
+      throw new Error('The previous V2Ray tunnel did not stop; the selected server was not started.');
+    }
+  }
 
   await module.connect({
     profileId,
@@ -156,9 +197,45 @@ export async function connectXray(
   return toState(await module.getState());
 }
 
+export async function pingXrayServers(
+  servers: readonly XrayShareServer[],
+): Promise<Record<string, number | null>> {
+  const native = loadPulseNativeModule();
+  const results: Record<string, number | null> = Object.fromEntries(
+    servers.map((server) => [server.id, null]),
+  );
+  try {
+    const probes = await native.probeTcpServers(
+      servers.map((server) => ({
+        id: server.id,
+        host: server.host ?? '',
+        port: server.port ?? 0,
+      })),
+      1100,
+    );
+    for (const probe of probes) {
+      results[probe.id] = probe.reachable ? probe.latencyMs : null;
+    }
+  } catch {
+    // Unavailable probes must not prevent the client from trying a real profile.
+  }
+  return results;
+}
+
 export async function disconnectXray(): Promise<void> {
   const module = await loadModule();
+  const current = await module.getState();
+  if (current.state === 'disconnected') return;
   await module.disconnect();
+  const deadline = Date.now() + 8_000;
+  let state = await module.getState();
+  while (state.state !== 'disconnected' && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    state = await module.getState();
+  }
+  if (state.state !== 'disconnected') {
+    throw new Error('The V2Ray tunnel did not stop within the expected time.');
+  }
 }
 
 export async function isWireGuardEngineAvailable(): Promise<boolean> {

@@ -1,3 +1,5 @@
+import type { XrayShareServer } from './xray-share-links';
+
 export type XrayConnectionState =
   | 'disconnected'
   | 'preparing'
@@ -48,6 +50,12 @@ export async function connectXray(
   _subscriptionText: string,
 ): Promise<XrayVpnState> {
   throw new Error('In-app VPN connections are supported only in the custom Android build.');
+}
+
+export async function pingXrayServers(
+  servers: readonly XrayShareServer[],
+): Promise<Record<string, number | null>> {
+  return Object.fromEntries(servers.map((server) => [server.id, null]));
 }
 
 export async function disconnectXray(): Promise<void> {
