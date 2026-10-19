@@ -370,12 +370,9 @@ export async function customFetch<T = unknown>(
     headers.set("pragma", "no-cache");
   }
 
-  const response = await fetch(input, {
-    ...init,
-    ...(isMobileSessionRequest ? { cache: "no-store" as RequestCache } : {}),
-    method,
-    headers,
-  });
+  // Use standard headers instead of RequestInit.cache: React Native fetch
+  // implementations vary in their support for the cache option.
+  const response = await fetch(input, { ...init, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
