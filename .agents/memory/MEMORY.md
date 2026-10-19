@@ -56,3 +56,4 @@
 - [Replit Android build environment](replit-android-build-environment.md) — keep large Android SDKs on the workspace volume and use the available Temurin JDK for stable Gradle builds.
 - [OpenVPN Android state and retry limits](openvpn-native-state-and-retries.md) — sync the separate-process service state after binding and override infinite profile retries with bounded client retries.
 - [Xray Reality and live traffic validation](xray-live-traffic-validation.md) — normalize client SNI/public keys from the selected link and verify real in-tunnel HTTPS before trusting “connected.”
+- [Android OkHttp alignment](android-okhttp-alignment.md) — keep React Native’s cookie jar aligned with OkHttp core after adding native VPN-engine libraries.
