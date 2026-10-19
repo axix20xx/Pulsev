@@ -162,9 +162,9 @@
       externalAnnotations="annotations.zip"
       proguardRules="proguard.txt"/>
   <library
-      name="org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar"
-      jars="/home/runner/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/2.2.10/30de6faa127a4a012db8e71bf1b9c0a99b1402b2/kotlin-stdlib-2.2.10.jar"
-      resolved="org.jetbrains.kotlin:kotlin-stdlib:2.2.10"/>
+      name="org.jetbrains.kotlin:kotlin-stdlib:2.2.21@jar"
+      jars="/home/runner/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/2.2.21/fa374a986e128314c3db00a20aae55f72a258511/kotlin-stdlib-2.2.21.jar"
+      resolved="org.jetbrains.kotlin:kotlin-stdlib:2.2.21"/>
   <library
       name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20@jar"
       jars="/home/runner/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-jdk7/2.1.20/72672df5e83231744c00550955b10acb71ed49d6/kotlin-stdlib-jdk7-2.1.20.jar"
@@ -187,10 +187,10 @@
       externalAnnotations="annotations.zip"
       proguardRules="proguard.txt"/>
   <library
-      name="com.zaneschepke:amneziawg-android:2.0.0@aar"
-      jars="/home/runner/.gradle/caches/9.3.1/transforms/be39403cee8b829aea8ff29d76f721b5/transformed/amneziawg-android-2.0.0/jars/classes.jar"
-      resolved="com.zaneschepke:amneziawg-android:2.0.0"
-      folder="/home/runner/.gradle/caches/9.3.1/transforms/be39403cee8b829aea8ff29d76f721b5/transformed/amneziawg-android-2.0.0"
+      name="com.zaneschepke:amneziawg-android:2.3.7@aar"
+      jars="/home/runner/.gradle/caches/9.3.1/transforms/99ea69dac763c34684ffa74a286168be/transformed/amneziawg-android-2.3.7/jars/classes.jar"
+      resolved="com.zaneschepke:amneziawg-android:2.3.7"
+      folder="/home/runner/.gradle/caches/9.3.1/transforms/99ea69dac763c34684ffa74a286168be/transformed/amneziawg-android-2.3.7"
       manifest="AndroidManifest.xml"
       resFolder="res"
       assetsFolder="assets"
@@ -207,6 +207,10 @@
       name="org.jspecify:jspecify:1.0.0@jar"
       jars="/home/runner/.gradle/caches/modules-2/files-2.1/org.jspecify/jspecify/1.0.0/7425a601c1c7ec76645a78d22b8c6a627edee507/jspecify-1.0.0.jar"
       resolved="org.jspecify:jspecify:1.0.0"/>
+  <library
+      name="com.squareup.okhttp3:okhttp-dnsoverhttps:5.3.0@jar"
+      jars="/home/runner/.gradle/caches/modules-2/files-2.1/com.squareup.okhttp3/okhttp-dnsoverhttps/5.3.0/90425c3cd08129c74771fa30b966710e2dd3fdd/okhttp-dnsoverhttps-5.3.0.jar"
+      resolved="com.squareup.okhttp3:okhttp-dnsoverhttps:5.3.0"/>
   <library
       name="com.google.android.material:material:1.12.0@aar"
       jars="/home/runner/.gradle/caches/9.3.1/transforms/8c99c8bfce80aa1bb7cf46aa9733133b/transformed/material-1.12.0/jars/classes.jar"
@@ -662,6 +666,19 @@
       jars="/home/runner/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-parcelize-runtime/1.9.24/9c5abb5eeafea7e3b019c4976eb795a189a7351f/kotlin-parcelize-runtime-1.9.24.jar"
       resolved="org.jetbrains.kotlin:kotlin-parcelize-runtime:1.9.24"/>
   <library
+      name="com.squareup.okhttp3:okhttp-android:5.3.0@aar"
+      jars="/home/runner/.gradle/caches/9.3.1/transforms/faa598dcf59a56ee00010bcc15313357/transformed/okhttp-release/jars/classes.jar"
+      resolved="com.squareup.okhttp3:okhttp-android:5.3.0"
+      folder="/home/runner/.gradle/caches/9.3.1/transforms/faa598dcf59a56ee00010bcc15313357/transformed/okhttp-release"
+      manifest="AndroidManifest.xml"
+      resFolder="res"
+      assetsFolder="assets"
+      lintJar="lint.jar"
+      publicResources="public.txt"
+      symbolFile="R.txt"
+      externalAnnotations="annotations.zip"
+      proguardRules="proguard.txt"/>
+  <library
       name="androidx.cursoradapter:cursoradapter:1.0.0@aar"
       jars="/home/runner/.gradle/caches/9.3.1/transforms/e5452eefb490aae3cef43e9974fc0193/transformed/cursoradapter-1.0.0/jars/classes.jar"
       resolved="androidx.cursoradapter:cursoradapter:1.0.0"
@@ -705,10 +722,10 @@
       externalAnnotations="annotations.zip"
       proguardRules="proguard.txt"/>
   <library
-      name="androidx.interpolator:interpolator:1.0.0@aar"
-      jars="/home/runner/.gradle/caches/9.3.1/transforms/67d691c86828164a3989c0b300ac2b43/transformed/interpolator-1.0.0/jars/classes.jar"
-      resolved="androidx.interpolator:interpolator:1.0.0"
-      folder="/home/runner/.gradle/caches/9.3.1/transforms/67d691c86828164a3989c0b300ac2b43/transformed/interpolator-1.0.0"
+      name="androidx.startup:startup-runtime:1.2.0@aar"
+      jars="/home/runner/.gradle/caches/9.3.1/transforms/c4a607f004c69fbe69dd3a6c3eeaade5/transformed/startup-runtime-1.2.0/jars/classes.jar"
+      resolved="androidx.startup:startup-runtime:1.2.0"
+      folder="/home/runner/.gradle/caches/9.3.1/transforms/c4a607f004c69fbe69dd3a6c3eeaade5/transformed/startup-runtime-1.2.0"
       manifest="AndroidManifest.xml"
       resFolder="res"
       assetsFolder="assets"
@@ -718,10 +735,10 @@
       externalAnnotations="annotations.zip"
       proguardRules="proguard.txt"/>
   <library
-      name="androidx.startup:startup-runtime:1.1.1@aar"
-      jars="/home/runner/.gradle/caches/9.3.1/transforms/ed766e5c56c8b4117ff44c11bd30df8d/transformed/startup-runtime-1.1.1/jars/classes.jar"
-      resolved="androidx.startup:startup-runtime:1.1.1"
-      folder="/home/runner/.gradle/caches/9.3.1/transforms/ed766e5c56c8b4117ff44c11bd30df8d/transformed/startup-runtime-1.1.1"
+      name="androidx.interpolator:interpolator:1.0.0@aar"
+      jars="/home/runner/.gradle/caches/9.3.1/transforms/67d691c86828164a3989c0b300ac2b43/transformed/interpolator-1.0.0/jars/classes.jar"
+      resolved="androidx.interpolator:interpolator:1.0.0"
+      folder="/home/runner/.gradle/caches/9.3.1/transforms/67d691c86828164a3989c0b300ac2b43/transformed/interpolator-1.0.0"
       manifest="AndroidManifest.xml"
       resFolder="res"
       assetsFolder="assets"
@@ -804,21 +821,9 @@
       jars="/home/runner/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-android-extensions-runtime/1.9.24/b4483dafc070677389cb853355d85d11bf6c8fe5/kotlin-android-extensions-runtime-1.9.24.jar"
       resolved="org.jetbrains.kotlin:kotlin-android-extensions-runtime:1.9.24"/>
   <library
-      name="com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0@jar"
-      jars="/home/runner/.gradle/caches/modules-2/files-2.1/com.squareup.okhttp3/okhttp-dnsoverhttps/4.12.0/d3bbf4c71b32924ac58409d55a48115188be6f42/okhttp-dnsoverhttps-4.12.0.jar"
-      resolved="com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0"/>
-  <library
-      name="com.squareup.okhttp3:okhttp:4.12.0@jar"
-      jars="/home/runner/.gradle/caches/modules-2/files-2.1/com.squareup.okhttp3/okhttp/4.12.0/2f4525d4a200e97e1b87449c2cd9bd2e25b7e8cd/okhttp-4.12.0.jar"
-      resolved="com.squareup.okhttp3:okhttp:4.12.0"/>
-  <library
-      name="com.squareup.okio:okio-jvm:3.6.0@jar"
-      jars="/home/runner/.gradle/caches/modules-2/files-2.1/com.squareup.okio/okio-jvm/3.6.0/5600569133b7bdefe1daf9ec7f4abeb6d13e1786/okio-jvm-3.6.0.jar"
-      resolved="com.squareup.okio:okio-jvm:3.6.0"/>
-  <library
-      name="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10@jar"
-      jars="/home/runner/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-jdk8/1.9.10/c7510d64a83411a649c76f2778304ddf71d7437b/kotlin-stdlib-jdk8-1.9.10.jar"
-      resolved="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10"/>
+      name="com.squareup.okio:okio-jvm:3.16.2@jar"
+      jars="/home/runner/.gradle/caches/modules-2/files-2.1/com.squareup.okio/okio-jvm/3.16.2/243d8d1d6fce5571f38bda712b3caf8759b4af93/okio-jvm-3.16.2.jar"
+      resolved="com.squareup.okio:okio-jvm:3.16.2"/>
   <library
       name="com.getkeepsafe.relinker:relinker:1.4.5@aar"
       jars="/home/runner/.gradle/caches/9.3.1/transforms/26ab524c287132aa56bcf0740be50687/transformed/relinker-1.4.5/jars/classes.jar"

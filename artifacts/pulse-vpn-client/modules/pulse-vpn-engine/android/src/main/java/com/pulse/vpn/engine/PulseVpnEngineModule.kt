@@ -220,17 +220,26 @@ class PulseVpnEngineModule : Module() {
     AsyncFunction("connectAmneziaWg") { profileId: String, profileName: String, configText: String ->
       requireVpnPermission()
       if (configText.isBlank()) throw CodedException("ERR_AWG_CONFIG_EMPTY", "AmneziaWG config is empty.", null)
-      stopWireGuardIfRunning()
+      val normalizedConfig = normalizeAmneziaWgConfig(configText)
       val context = requireContext()
       val parsed = try {
-        AmneziaConfig.parse(BufferedReader(StringReader(configText)))
+        AmneziaConfig.parse(BufferedReader(StringReader(normalizedConfig)))
       } catch (error: Throwable) {
-        throw CodedException("ERR_AWG_CONFIG_INVALID", "The AmneziaWG configuration could not be parsed.", error)
+        val detail = sanitizeAmneziaParserError(error)
+        throw CodedException(
+          "ERR_AWG_CONFIG_INVALID",
+          "The AmneziaWG configuration could not be parsed: $detail",
+          error
+        )
       }
+      stopWireGuardIfRunning()
       val backend = amneziaBackend ?: AmneziaBackend(context, NoopTunnelActionHandler()).also { amneziaBackend = it }
       val tunnel = amneziaTunnel ?: object : AmneziaTunnel {
         override fun getName(): String = AMNEZIA_TUNNEL_NAME
         override fun isIpv4ResolutionPreferred(): Boolean = false
+        override fun isMetered(): Boolean =
+          (context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager)
+            ?.isActiveNetworkMetered ?: true
         override fun onStateChange(newState: AmneziaTunnel.State) {
           amneziaLastState = newState
           amneziaConnectedAt = if (newState == AmneziaTunnel.State.UP) {
@@ -330,6 +339,54 @@ class PulseVpnEngineModule : Module() {
     }
   }
 
+  private fun normalizeAmneziaWgConfig(configText: String): String {
+    val normalized = configText
+      .removePrefix("\uFEFF")
+      .replace("\r\n", "\n")
+      .replace('\r', '\n')
+      .trim()
+
+    if (normalized.startsWith("{") || normalized.startsWith("<")) {
+      throw CodedException(
+        "ERR_AWG_RESPONSE_NOT_CONFIG",
+        "The server returned an error page or JSON instead of an AmneziaWG profile.",
+        null
+      )
+    }
+    if (!Regex("(?im)^\\s*\\[Interface\\]\\s*$").containsMatchIn(normalized)) {
+      throw CodedException(
+        "ERR_AWG_INTERFACE_MISSING",
+        "The downloaded AmneziaWG profile is missing its [Interface] section.",
+        null
+      )
+    }
+    if (!Regex("(?im)^\\s*\\[Peer\\]\\s*$").containsMatchIn(normalized)) {
+      throw CodedException(
+        "ERR_AWG_PEER_MISSING",
+        "The downloaded AmneziaWG profile is missing its [Peer] section.",
+        null
+      )
+    }
+    return "$normalized\n"
+  }
+
+  private fun sanitizeAmneziaParserError(error: Throwable): String {
+    val root = generateSequence(error) { it.cause }.take(6).lastOrNull()
+    val raw = root?.localizedMessage?.takeIf { it.isNotBlank() }
+      ?: root?.javaClass?.simpleName
+      ?: "Invalid AmneziaWG profile."
+    return raw
+      .replace(
+        Regex("(?im)\\b(PrivateKey|PublicKey|PresharedKey|PreSharedKey)\\s*=\\s*[^\\r\\n]*"),
+        "${'$'}1=[redacted]"
+      )
+      .replace(Regex("(?<![A-Za-z0-9])[A-Za-z0-9+/_=-]{32,}(?![A-Za-z0-9])"), "[redacted]")
+      .replace(Regex("\\s+"), " ")
+      .trim()
+      .take(180)
+      .ifBlank { "The profile contains an invalid key or option." }
+  }
+
   private fun stopWireGuardIfRunning() {
     val backend = wireGuardBackend ?: return
     val tunnel = wireGuardTunnel ?: return
@@ -426,11 +483,17 @@ class PulseVpnEngineModule : Module() {
 
     val authFile = savePrivateFile("auth.txt", "$username\n$password")
     var prepared = configText
+      .removePrefix("\uFEFF")
+      .replace("\r\n", "\n")
+      .replace('\r', '\n')
     var proxyAuthFile: File? = null
     val sensitiveBlockNames = listOf(
-      "ca", "cert", "key", "tls-auth", "tls-crypt", "tls-crypt-v2",
+      "ca", "cert", "key", "tls-auth", "tls-crypt",
       "extra-certs", "pkcs12", "secret", "dh", "crl-verify"
     )
+    // Keep tls-crypt-v2 client keys inline. The OpenVPN 3 parser supports the
+    // inline form, and rewriting this wrapped client key to a temporary file
+    // has caused key-parse failures on otherwise valid downloaded profiles.
     try {
       prepared = prepared.replace(Regex("(?is)<auth-user-pass>.*?</auth-user-pass>")) {
         ""
@@ -652,6 +715,9 @@ class PulseVpnEngineModule : Module() {
       .replace(Regex("\\s+"), " ")
       .trim()
       .take(320)
+    if (cleaned.contains("tls_crypt_v2_client_key_parse_error", ignoreCase = true)) {
+      return "OpenVPN rejected the tls-crypt-v2 client key. The app now passes this key inline without rewriting it; the server may need to reissue a client key compatible with the bundled OpenVPN engine."
+    }
     return cleaned.ifBlank { "The OpenVPN core did not provide a more specific profile error." }
   }
 

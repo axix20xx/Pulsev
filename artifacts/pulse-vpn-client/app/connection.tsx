@@ -482,7 +482,9 @@ export default function ConnectionScreen() {
             const rightLatency = pingResults[right.id] ?? Number.POSITIVE_INFINITY;
             return leftLatency - rightLatency;
           });
-          const candidates = rankedServers.slice(0, Math.min(4, rankedServers.length));
+          // Reality/share-link conversion can reject a node even when its TCP
+          // port responds; try more of the ranked feed before giving up.
+          const candidates = rankedServers.slice(0, Math.min(8, rankedServers.length));
           setPhase('connecting');
           setAttemptStartedAt(Date.now());
           setTrafficReport(null);

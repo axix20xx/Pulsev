@@ -16,7 +16,7 @@ android {
 
 dependencies {
   implementation 'com.wireguard.android:tunnel:1.0.20211029'
-  implementation('com.zaneschepke:amneziawg-android:2.0.0') {
+  implementation('com.zaneschepke:amneziawg-android:2.3.7') {
     exclude group: 'amneziawg-android', module: 'hevtunnel'
   }
   implementation 'com.zaneschepke:hevtunnel:1.0.1'

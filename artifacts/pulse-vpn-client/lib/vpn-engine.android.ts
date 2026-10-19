@@ -2,7 +2,7 @@ import { requireNativeModule } from 'expo-modules-core';
 import type { ExpoXrayVpnState } from 'expo-xray-vpn';
 import type { TunnelConnectivityReport, WireGuardVpnStatus, XrayVpnState } from './vpn-engine';
 import { normalizeXrayShareLinks, type XrayShareServer } from './xray-share-links';
-import { normalizeXrayRealityServerNames } from './xray-config-normalization';
+import { normalizeXrayRealityOutboundSettings } from './xray-config-normalization';
 
 type XrayModule = typeof import('expo-xray-vpn').default;
 type PulseVpnNativeModule = {
@@ -169,7 +169,7 @@ export async function connectXray(
   if (!Array.isArray(outbounds) || outbounds.length === 0) {
     throw new Error('The V2Ray feed did not produce any usable connection profiles.');
   }
-  normalizeXrayRealityServerNames(parsedConfig, normalized.text);
+  normalizeXrayRealityOutboundSettings(parsedConfig, normalized.text);
   removeInvalidSendThroughValues(parsedConfig);
   const xrayConfigJson = JSON.stringify(parsedConfig);
 
