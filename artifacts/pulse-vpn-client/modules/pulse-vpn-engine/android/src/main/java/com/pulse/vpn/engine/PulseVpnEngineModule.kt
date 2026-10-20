@@ -854,7 +854,7 @@ class PulseVpnEngineModule : Module() {
         openVpnConnectedAt = null
         openVpnError = error.localizedMessage
           ?: "Could not reconnect to the OpenVPN status service."
-        android.util.Log.w(TAG, "Could not bind to the OpenVPN status service", error)
+        android.util.Log.w("PulseVpnEngine", "Could not bind to the OpenVPN status service", error)
       }
     }
     val remote = openVpnRemote
