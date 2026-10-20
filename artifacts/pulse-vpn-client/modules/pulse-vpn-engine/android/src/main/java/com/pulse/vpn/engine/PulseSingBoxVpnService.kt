@@ -197,10 +197,12 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     when (intent?.action) {
       ACTION_STOP -> {
+        PulseDiagnostics.log(this, "singbox_stop_requested")
         stopTunnel()
         return START_NOT_STICKY
       }
       ACTION_START -> {
+        PulseDiagnostics.log(this, "singbox_start_requested")
         stopping = false
         pendingConfig = intent.getStringExtra("config")
         profileId = intent.getStringExtra(EXTRA_PROFILE_ID)
@@ -225,6 +227,7 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
       val config = configureBootstrapDns(originalConfig)
       pendingConfig = config
       Libbox.checkConfig(config)
+      PulseDiagnostics.log(this, "singbox_config_valid")
       commandServer?.let {
         runCatching { it.closeService() }
         runCatching { it.close() }
@@ -233,6 +236,7 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
       commandServer = server
       server.start()
       server.startOrReloadService(config, OverrideOptions())
+      PulseDiagnostics.log(this, "singbox_core_started")
       if (!tunnelReady || tunDescriptor == null) {
         error("sing-box started without establishing the Android VPN interface.")
       }
@@ -241,6 +245,7 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
     } catch (error: Throwable) {
       val message = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
       Log.e(TAG, "Could not start sing-box tunnel", error)
+      PulseDiagnostics.log(this, "singbox_start_failed", "${error.javaClass.simpleName}: $message")
       closeCore()
       publishState("error", message)
       stopForeground(STOP_FOREGROUND_REMOVE)
@@ -284,6 +289,7 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
   }
 
   private fun publishState(state: String, error: String?) {
+    PulseDiagnostics.log(this, "singbox_state", "state=$state;error=${error.orEmpty()}")
     val now = System.currentTimeMillis()
     val current = getSharedPreferences(PREFS, MODE_PRIVATE)
     current.edit()
@@ -341,6 +347,7 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
   // sing-box Android platform contract
   override fun openTun(options: TunOptions): Int {
     if (VpnService.prepare(this) != null) error("Android VPN permission has not been granted.")
+    PulseDiagnostics.log(this, "singbox_tun_create_requested", "auto_route=${options.autoRoute};mtu=${options.mtu}")
     val builder = Builder().setSession(profileName?.takeIf { it.isNotBlank() } ?: "Pulse VPN")
       .setMtu(options.mtu.coerceIn(1280, 9000))
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
@@ -360,10 +367,16 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
       hasIpv6Address = true
     }
 
+    var dnsCount = 0
+    var route4Count = 0
+    var route6Count = 0
     if (options.autoRoute) {
       if (options.dnsMode.value != Libbox.DNSModeDisabled) {
         val dnsServers = options.dnsServerAddress
-        while (dnsServers.hasNext()) builder.addDnsServer(dnsServers.next())
+        while (dnsServers.hasNext()) {
+          builder.addDnsServer(dnsServers.next())
+          dnsCount++
+        }
       }
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val routes4 = options.inet4RouteAddress
@@ -372,8 +385,12 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
           val route = routes4.next()
           builder.addRoute(route.address(), route.prefix())
           hasRoutes4 = true
+          route4Count++
         }
-        if (!hasRoutes4 && hasIpv4Address) builder.addRoute("0.0.0.0", 0)
+        if (!hasRoutes4 && hasIpv4Address) {
+          builder.addRoute("0.0.0.0", 0)
+          route4Count++
+        }
 
         val routes6 = options.inet6RouteAddress
         var hasRoutes6 = false
@@ -381,20 +398,29 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
           val route = routes6.next()
           builder.addRoute(route.address(), route.prefix())
           hasRoutes6 = true
+          route6Count++
         }
-        if (!hasRoutes6 && hasIpv6Address) builder.addRoute("::", 0)
+        if (!hasRoutes6 && hasIpv6Address) {
+          builder.addRoute("::", 0)
+          route6Count++
+        }
 
         addExcludedRoutes(builder, options.inet4RouteExcludeAddress)
         addExcludedRoutes(builder, options.inet6RouteExcludeAddress)
       } else {
-        addRoutes(builder, options.inet4RouteRange)
-        addRoutes(builder, options.inet6RouteRange)
+        route4Count = addRoutes(builder, options.inet4RouteRange)
+        route6Count = addRoutes(builder, options.inet6RouteRange)
       }
       val included = options.includePackage
       while (included.hasNext()) builder.addAllowedApplication(included.next())
       val excluded = options.excludePackage
       while (excluded.hasNext()) builder.addDisallowedApplication(excluded.next())
     }
+    PulseDiagnostics.log(
+      this,
+      "singbox_tun_routes_configured",
+      "dns=$dnsCount;routes_ipv4=$route4Count;routes_ipv6=$route6Count;ipv4_address=$hasIpv4Address;ipv6_address=$hasIpv6Address"
+    )
 
     if (options.isHTTPProxyEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       builder.setHttpProxy(
@@ -408,14 +434,18 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
     tunDescriptor?.close()
     tunDescriptor = established
     tunnelReady = true
+    PulseDiagnostics.log(this, "singbox_tun_established", "fd_valid=${established.fd >= 0}")
     return established.fd
   }
 
-  private fun addRoutes(builder: Builder, routes: RoutePrefixIterator) {
+  private fun addRoutes(builder: Builder, routes: RoutePrefixIterator): Int {
+    var count = 0
     while (routes.hasNext()) {
       val route = routes.next()
       builder.addRoute(route.address(), route.prefix())
+      count++
     }
+    return count
   }
 
   private fun addExcludedRoutes(builder: Builder, routes: RoutePrefixIterator) {
@@ -634,7 +664,10 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
   override fun setSystemProxyEnabled(isEnabled: Boolean) = Unit
   override fun triggerNativeCrash() = Unit
   override fun writeDebugMessage(message: String?) {
-    if (!message.isNullOrBlank()) Log.d(TAG, message)
+    if (!message.isNullOrBlank()) {
+      Log.d(TAG, message)
+      PulseDiagnostics.log(this, "singbox_core_message", message)
+    }
   }
   override fun serviceReload() {
     val config = pendingConfig ?: return

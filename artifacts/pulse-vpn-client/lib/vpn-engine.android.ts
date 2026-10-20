@@ -28,6 +28,7 @@ type PulseVpnNativeModule = {
     timeoutMs: number,
   ): Promise<Array<{ id: string; reachable: boolean; latencyMs: number | null }>>;
   probeTunnelConnectivity(): Promise<TunnelConnectivityReport>;
+  getDiagnosticLog(): Promise<string>;
   setTunnelTestKeepScreenOn(enabled: boolean): Promise<boolean>;
 };
 
@@ -166,6 +167,10 @@ export async function pingXrayServers(
 
 export async function testTunnelConnectivity(): Promise<TunnelConnectivityReport> {
   return loadPulseNativeModule().probeTunnelConnectivity();
+}
+
+export async function getDiagnosticLog(): Promise<string> {
+  return loadPulseNativeModule().getDiagnosticLog();
 }
 
 export async function setTunnelTestKeepScreenOn(enabled: boolean): Promise<boolean> {

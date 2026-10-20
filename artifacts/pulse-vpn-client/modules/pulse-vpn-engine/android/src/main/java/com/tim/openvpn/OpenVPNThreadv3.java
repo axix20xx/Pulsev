@@ -52,11 +52,26 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
         if (message == null || message.trim().isEmpty()) return;
         String safe = sanitizeDiagnostic(message);
         writeSharedDiagnostic(ENGINE_ERROR_FILE, safe);
+        if (mService instanceof android.content.Context) {
+            com.pulse.vpn.engine.PulseDiagnostics.log(
+                (android.content.Context) mService,
+                "openvpn_engine_error",
+                safe
+            );
+        }
     }
 
     private void rememberEngineEvent(String message) {
         if (message == null || message.trim().isEmpty()) return;
-        writeSharedDiagnostic(ENGINE_EVENT_FILE, sanitizeDiagnostic(message));
+        String safe = sanitizeDiagnostic(message);
+        writeSharedDiagnostic(ENGINE_EVENT_FILE, safe);
+        if (mService instanceof android.content.Context) {
+            com.pulse.vpn.engine.PulseDiagnostics.log(
+                (android.content.Context) mService,
+                "openvpn_engine_event",
+                safe
+            );
+        }
     }
 
     private String sanitizeDiagnostic(String message) {

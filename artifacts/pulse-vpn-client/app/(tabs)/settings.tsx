@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLogoutMobile } from '@workspace/api-client-react';
+import * as FileSystem from 'expo-file-system/legacy';
 import { ActionButton, Card, Heading, InlineState, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { ThemeMode, useAppearance } from '@/hooks/Appearance';
 import { clearMobileToken } from '@/lib/mobile-auth';
+import { getDiagnosticLog } from '@/lib/vpn-engine';
 
 const themeOptions: { id: ThemeMode; title: string; icon: 'smartphone' | 'sun' | 'moon'; hint: string }[] = [
   { id: 'light', title: 'روشن', icon: 'sun', hint: 'پیشنهادشده' },
@@ -22,6 +24,7 @@ export default function Settings() {
   const { themeMode, setThemeMode } = useAppearance();
   const logout = useLogoutMobile();
   const [logoutError, setLogoutError] = useState('');
+  const [savingDiagnostics, setSavingDiagnostics] = useState(false);
 
   function signOut() {
     Alert.alert('خروج از حساب', 'از حساب Pulse خارج می‌شوید؟', [
@@ -42,6 +45,31 @@ export default function Settings() {
 
   function contactSupport() {
     Share.share({ message: 'سلام، برای اشتراک Pulse خود به راهنمایی نیاز دارم. لطفاً راهنمایی‌ام کنید.' });
+  }
+
+  async function downloadDiagnostics() {
+    if (Platform.OS !== 'android') return;
+    setSavingDiagnostics(true);
+    try {
+      const report = await getDiagnosticLog();
+      const folder = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!folder.granted || !folder.directoryUri) return;
+      const suffix = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+        folder.directoryUri,
+        `PulseVPN-diagnostics-${suffix}.txt`,
+        'text/plain',
+      );
+      await FileSystem.StorageAccessFramework.writeAsStringAsync(fileUri, report, { encoding: 'utf8' });
+      Alert.alert('گزارش ذخیره شد', 'فایل گزارش در پوشه‌ای که انتخاب کردید ذخیره شد. می‌توانید آن را برای بررسی ارسال کنید.');
+    } catch (error) {
+      Alert.alert(
+        'ذخیره گزارش انجام نشد',
+        error instanceof Error ? error.message : 'ذخیره فایل گزارش ناموفق بود. دوباره تلاش کنید.',
+      );
+    } finally {
+      setSavingDiagnostics(false);
+    }
   }
 
   return (
@@ -80,6 +108,24 @@ export default function Settings() {
         </Pressable>
 
         <Text style={[styles.sectionTitle, { color: c.foreground }]}>راهنما و حساب</Text>
+        {Platform.OS === 'android' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: savingDiagnostics, busy: savingDiagnostics }}
+            disabled={savingDiagnostics}
+            testID="download-diagnostics"
+            onPress={downloadDiagnostics}
+          >
+            <Card style={styles.actionCard}>
+              <View style={[styles.optionIcon, { backgroundColor: c.accent }]}><Feather name="download" size={17} color={c.primary} /></View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={[styles.optionTitle, { color: c.foreground }]}>دانلود گزارش فنی</Text>
+                <Text style={[styles.optionHint, { color: c.mutedForeground }]}>برای بررسی اتصال؛ اطلاعات ورود و نشانی سرورها حذف می‌شوند.</Text>
+              </View>
+              {savingDiagnostics ? <ActivityIndicator size="small" color={c.primary} /> : <Feather name="chevron-left" size={17} color={c.mutedForeground} />}
+            </Card>
+          </Pressable>
+        ) : null}
         <Pressable accessibilityRole="button" onPress={contactSupport}>
           <Card style={styles.actionCard}>
             <View style={[styles.optionIcon, { backgroundColor: c.accent }]}><Feather name="message-circle" size={17} color={c.primary} /></View>

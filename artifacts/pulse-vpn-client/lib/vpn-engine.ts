@@ -83,6 +83,10 @@ export async function testTunnelConnectivity(): Promise<TunnelConnectivityReport
   throw new Error('Tunnel traffic tests are supported only in the custom Android build.');
 }
 
+export async function getDiagnosticLog(): Promise<string> {
+  throw new Error('Diagnostic log export is available only in the custom Android build.');
+}
+
 export async function setTunnelTestKeepScreenOn(_enabled: boolean): Promise<boolean> {
   return false;
 }

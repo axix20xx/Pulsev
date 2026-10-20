@@ -224,6 +224,10 @@ class PulseVpnEngineModule : Module() {
       true
     }
 
+    AsyncFunction("getDiagnosticLog") {
+      PulseDiagnostics.export(requireContext())
+    }
+
     AsyncFunction("connectWireGuard") { profileId: String, profileName: String, configText: String ->
       requireVpnPermission()
       if (configText.isBlank()) throw CodedException("ERR_WG_CONFIG_EMPTY", "WireGuard config is empty.", null)
@@ -330,6 +334,8 @@ class PulseVpnEngineModule : Module() {
 
     AsyncFunction("connectOpenVpn") { profileId: String, profileName: String, configText: String, username: String, password: String ->
       requireVpnPermission()
+      val context = requireContext()
+      PulseDiagnostics.log(context, "openvpn_connect_requested")
       if (configText.isBlank()) throw CodedException("ERR_OPENVPN_CONFIG_EMPTY", "OpenVPN config is empty.", null)
       if (username.isBlank() || password.isBlank()) {
         throw CodedException("ERR_OPENVPN_CREDENTIALS_MISSING", "OpenVPN username and password are required.", null)
@@ -339,13 +345,13 @@ class PulseVpnEngineModule : Module() {
       }
       stopAmneziaIfRunning()
       stopWireGuardIfRunning()
-      val context = requireContext()
       File(context.filesDir, OPENVPN_ENGINE_ERROR_FILE).delete()
       File(context.filesDir, OPENVPN_ENGINE_EVENT_FILE).delete()
       val prepared = prepareOpenVpnConfig(context, configText, username, password)
       try {
         validateOpenVpnConfig(prepared.configuration)
       } catch (error: Throwable) {
+        PulseDiagnostics.log(context, "openvpn_config_rejected", "${error.javaClass.simpleName}: ${error.localizedMessage.orEmpty()}")
         prepared.directory.deleteRecursively()
         throw error
       }
@@ -360,9 +366,11 @@ class PulseVpnEngineModule : Module() {
       openVpnSessionDir = prepared.directory
       try {
         OpenVPNService.startService(context, OpenVPNConfig(configuration = prepared.configuration))
+        PulseDiagnostics.log(context, "openvpn_service_started")
         bindOpenVpnService(context)
         openVpnStatus()
       } catch (error: Throwable) {
+        PulseDiagnostics.log(context, "openvpn_start_failed", "${error.javaClass.simpleName}: ${error.localizedMessage.orEmpty()}")
         openVpnState = "ERROR"
         openVpnError = error.localizedMessage ?: "OpenVPN could not start."
         prepared.directory.deleteRecursively()
@@ -729,14 +737,16 @@ class PulseVpnEngineModule : Module() {
   }
 
   private fun probeTunnelConnectivity(): Map<String, Any?> {
+    val context = requireContext()
     val connectivityManager =
-      requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+      context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     val vpnNetwork = connectivityManager.activeNetwork?.takeIf { network ->
       connectivityManager.getNetworkCapabilities(network)
         ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
     }
 
     if (vpnNetwork == null) {
+      PulseDiagnostics.log(context, "tunnel_probe_no_vpn")
       val endpoints = TUNNEL_TEST_URLS.map { endpoint ->
         mapOf(
           "endpoint" to endpoint,
@@ -762,6 +772,17 @@ class PulseVpnEngineModule : Module() {
     } finally {
       executor.shutdownNow()
     }
+
+    PulseDiagnostics.log(
+      context,
+      "tunnel_probe_completed",
+      "vpn_active=true;passed=${results.any { it["success"] == true }};" +
+        results.mapIndexed { index, result ->
+          "probe${index + 1}{ok=${result["success"]};code=${result["statusCode"] ?: "none"};" +
+            "bytes=${result["bytesReceived"] ?: 0};latency_ms=${result["latencyMs"] ?: "none"};" +
+            "error=${result["error"] ?: "none"}}"
+        }.joinToString(";")
+    )
 
     return mapOf(
       "vpnActive" to true,
@@ -955,6 +976,11 @@ class PulseVpnEngineModule : Module() {
     synchronized(this) {
       val previous = openVpnState
       openVpnState = status.name
+      if (previous != status.name) {
+        runCatching {
+          PulseDiagnostics.log(requireContext(), "openvpn_state", "$previous->${status.name}")
+        }
+      }
       when (status) {
         ConnectionState.CONNECTED -> {
           openVpnStartRequestedAt = null
