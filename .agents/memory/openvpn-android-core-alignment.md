@@ -15,11 +15,11 @@ For GitHub codeload sources, verify a normalized extracted source-tree hash rath
 
 **How to apply:** Keep content verification enabled before native compilation; do not remove checksum checks just to accommodate archive repacking.
 
-When building the OpenVPN shared library with the Android NDK, link ELF load segments for 16 KB pages and verify both ELF and APK ZIP alignment. A library can be present in the APK yet fail at `System.loadLibrary` on newer Android devices if it is only 4 KB aligned.
+When building the OpenVPN shared library with the Android NDK, include `openvpn/crypto/data_epoch.cpp` and reject unresolved symbols; also link ELF load segments for 16 KB pages and verify APK ZIP alignment.
 
-**Why:** A device-visible OpenVPN load failure persisted despite the JNI library and its dependencies being packaged; the custom core was linked with 4 KB segment alignment.
+**Why:** The native loader reported a missing `DataChannelEpoch::check_send_iterate()` method because the custom link omitted its implementation file. Separately, 16 KB alignment is required for compatibility with newer Android page sizes.
 
-**How to apply:** Add `-Wl,-z,max-page-size=16384` to the native link and validate the final APK with `zipalign -c -P 16 4` as well as checking the library's `PT_LOAD` alignment.
+**How to apply:** Compile the pinned core's required translation units, link with `-Wl,--no-undefined` and `-Wl,-z,max-page-size=16384`, then validate the final APK with `zipalign -c -P 16 4` and inspect `PT_LOAD` alignment.
 
 The user has accepted GPL-family distribution terms for this VPN client and selected an AGPL-3.0 adapter for iOS.
 

@@ -313,7 +313,6 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
         auto_route: true,
         strict_route: true,
         stack: 'mixed',
-        sniff: true,
       },
     ],
     outbounds: [outbound, { type: 'direct', tag: 'direct' }, { type: 'block', tag: 'block' }],

@@ -1752,3 +1752,17 @@ mtime_ms = 1792510555663
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e44f6c6b-8e12-4130-a999-23407c793089/cc17ffe4-e333-45cb-9623-512745d51fab"
 storage_version_token = "1792510606606287"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "jmtQogDEjb-ICDrDmZayR"
+uri = "file://generated-artifacts/PulseVPN-1.0.13-Android-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN Android 1.0.13"
+description = "Fixes OpenVPN's missing native DataChannelEpoch implementation and removes the deprecated sing-box TUN inbound sniff field. Arm64 APK."
+logical_id = "d8ceab28-a71c-4b9f-a8ac-c3256689811f"
+content_hash = "sha256:be1cd5e55d78195200d398219cc99a04ec26fea03e4c790f495ce32fa4d671e1"
+size = 70098085
+mtime_ms = 1792511791479
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/d8ceab28-a71c-4b9f-a8ac-c3256689811f/599e414f-4f79-4274-ba90-f775ec26e23e"
+storage_version_token = "1792511850014345"
+content_type = "application/octet-stream"

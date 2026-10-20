@@ -155,6 +155,9 @@ build_abi() {
     -c "$OPENVPN_SRC/client/ovpncli.cpp" \
     -o "$obj_core/ovpncli.o"
   "$cxx" "${common_flags[@]}" \
+    -c "$OPENVPN_SRC/openvpn/crypto/data_epoch.cpp" \
+    -o "$obj_core/data_epoch.o"
+  "$cxx" "${common_flags[@]}" \
     '-DSWIGEXPORT=__attribute__((visibility("default")))' \
     -c "$OUTPUT_DIR/ovpncli_wrap.cxx" \
     -o "$obj_core/ovpncli_wrap.o"
@@ -162,10 +165,11 @@ build_abi() {
     -c "$OPENVPN_SRC/javacli/android/cpu.cpp" \
     -o "$obj_core/cpu.o"
 
-  "$cxx" -shared -Wl,-soname,libovpn3.so \
+  "$cxx" -shared -Wl,-soname,libovpn3.so -Wl,--no-undefined \
     -Wl,-z,max-page-size=16384 \
     -o "$library_dir/libovpn3.so" \
     "$obj_core/ovpncli.o" \
+    "$obj_core/data_epoch.o" \
     "$obj_core/ovpncli_wrap.o" \
     "$obj_core/cpu.o" \
     "$mbed_archive" \
