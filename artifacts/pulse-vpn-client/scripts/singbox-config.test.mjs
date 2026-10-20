@@ -11,7 +11,7 @@ test('uses a direct bootstrap resolver for proxy hostnames and tunneled DNS for 
   const bootstrap = config.dns.servers.find((server) => server.tag === 'bootstrap-dns');
   const remote = config.dns.servers.find((server) => server.tag === 'remote-dns');
 
-  assert.equal(bootstrap?.detour, 'direct');
+  assert.equal(bootstrap?.detour, undefined);
   assert.equal(remote?.detour, 'proxy');
   assert.equal(config.route.default_domain_resolver, 'bootstrap-dns');
   assert.equal(config.outbounds[0].server, 'node.example');

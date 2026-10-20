@@ -297,7 +297,6 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
           tag: 'bootstrap-dns',
           server: '1.1.1.1',
           server_port: 53,
-          detour: 'direct',
         },
         {
           type: 'udp',

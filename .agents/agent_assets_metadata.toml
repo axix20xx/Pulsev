@@ -1808,3 +1808,17 @@ mtime_ms = 1792519579369
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5f75719d-058d-4788-ad96-749f5ba8f96d/b7d08403-10ef-462a-b398-7600790c221a"
 storage_version_token = "1792519602064194"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "S3LFzXj-cuS6YGJ9Z0hyd"
+uri = "file://generated-artifacts/PulseVPN-1.0.17-Android-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN Client 1.0.17 — Android ARM64 APK"
+description = "Fixes sing-box bootstrap DNS rejection by using the built-in direct dialer without an explicit detour."
+logical_id = "22e1564d-9fae-4062-b052-8c55ed4cf8a3"
+content_hash = "sha256:204b2f63f4c88b76a28654b15080134b881a0a6b04fef9d96f941ccd7fc9e4a6"
+size = 70102517
+mtime_ms = 1792520341069
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/22e1564d-9fae-4062-b052-8c55ed4cf8a3/fd3e183e-545c-42e0-8640-4ba95d8b90fb"
+storage_version_token = "1792520382532788"
+content_type = "application/octet-stream"
