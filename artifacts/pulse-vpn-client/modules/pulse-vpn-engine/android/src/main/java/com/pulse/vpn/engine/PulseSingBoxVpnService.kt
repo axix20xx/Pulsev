@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.content.ContextCompat
+import org.json.JSONObject
 import io.nekohasekai.libbox.BridgeOptions
 import io.nekohasekai.libbox.BridgeSession
 import io.nekohasekai.libbox.CommandServer
@@ -206,7 +207,9 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
   private fun startTunnel(startId: Int) {
     try {
       initializeLibbox(this)
-      val config = pendingConfig ?: error("The sing-box configuration was lost.")
+      val originalConfig = pendingConfig ?: error("The sing-box configuration was lost.")
+      val config = configureBootstrapDns(originalConfig)
+      pendingConfig = config
       Libbox.checkConfig(config)
       commandServer?.let {
         runCatching { it.closeService() }
@@ -434,15 +437,70 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
     listener: InterfaceUpdateListener,
     connectivity: ConnectivityManager,
   ) {
-    val network = connectivity.allNetworks.firstOrNull { candidate ->
-      val capabilities = connectivity.getNetworkCapabilities(candidate)
-      capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
-        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN).not()
-    }
+    val network = findUnderlyingNetwork(connectivity)
+    setUnderlyingNetworks(network?.let { arrayOf(it) })
     if (network == null) {
       listener.updateDefaultInterface("", 0, true, false)
     } else {
       updateInterface(listener, connectivity, network)
+    }
+  }
+
+  private fun findUnderlyingNetwork(connectivity: ConnectivityManager): Network? {
+    return connectivity.allNetworks
+      .mapNotNull { network ->
+        val capabilities = connectivity.getNetworkCapabilities(network) ?: return@mapNotNull null
+        if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
+          capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+        ) {
+          return@mapNotNull null
+        }
+        network to capabilities
+      }
+      .sortedWith(
+        compareByDescending<Pair<Network, NetworkCapabilities>> {
+          it.second.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }.thenByDescending {
+          it.second.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+        },
+      )
+      .firstOrNull()
+      ?.first
+  }
+
+  private fun configureBootstrapDns(config: String): String {
+    val connectivity = getSystemService(ConnectivityManager::class.java)
+    val network = findUnderlyingNetwork(connectivity)
+    val address = network
+      ?.let { connectivity.getLinkProperties(it)?.dnsServers }
+      ?.firstOrNull { !it.isAnyLocalAddress && !it.isLoopbackAddress && !it.isMulticastAddress }
+      ?.hostAddress
+      ?.substringBefore('%')
+      ?: "1.1.1.1"
+
+    return try {
+      val root = JSONObject(config)
+      val servers = root.optJSONObject("dns")?.optJSONArray("servers")
+        ?: return config
+      var updated = false
+      for (index in 0 until servers.length()) {
+        val server = servers.optJSONObject(index) ?: continue
+        if (server.optString("tag") == "bootstrap-dns") {
+          server.put("server", address)
+          updated = true
+          break
+        }
+      }
+      if (updated) {
+        Log.i(TAG, "Using the active network's DNS for proxy-server bootstrap.")
+        root.toString()
+      } else {
+        Log.w(TAG, "Sing-box config has no bootstrap-dns resolver; keeping the original config.")
+        config
+      }
+    } catch (error: Throwable) {
+      Log.e(TAG, "Could not select a bootstrap DNS resolver.", error)
+      config
     }
   }
 

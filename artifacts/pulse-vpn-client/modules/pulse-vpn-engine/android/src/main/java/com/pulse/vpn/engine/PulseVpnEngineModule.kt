@@ -558,9 +558,10 @@ class PulseVpnEngineModule : Module() {
       .removePrefix("\uFEFF")
       .replace("\r\n", "\n")
       .replace('\r', '\n')
+    prepared = normalizeOpenVpnCaBlocks(prepared)
     var proxyAuthFile: File? = null
     val sensitiveBlockNames = listOf(
-      "ca", "cert", "key", "tls-auth", "tls-crypt",
+      "cert", "key", "tls-auth", "tls-crypt",
       "extra-certs", "pkcs12", "secret", "dh", "crl-verify"
     )
     // Keep tls-crypt-v2 client keys inline. The OpenVPN 3 parser supports the
@@ -617,6 +618,26 @@ class PulseVpnEngineModule : Module() {
       directory.deleteRecursively()
       if (error is CodedException) throw error
       throw CodedException("ERR_OPENVPN_CONFIG_STORAGE", "Could not prepare private OpenVPN profile files.", error)
+    }
+  }
+
+  private fun normalizeOpenVpnCaBlocks(config: String): String {
+    val expression = Regex("(?is)<ca(?:\\s[^>]*)?>(.*?)</ca\\s*>")
+    return expression.replace(config) { match ->
+      val normalized = match.groupValues[1]
+        .replace("\\r\\n", "\n")
+        .replace("\\n", "\n")
+        .replace("\\r", "\n")
+        .replace(
+          Regex("-----BEGIN\\s+X509\\s+CERTIFICATE-----", RegexOption.IGNORE_CASE),
+          "-----BEGIN CERTIFICATE-----",
+        )
+        .replace(
+          Regex("-----END\\s+X509\\s+CERTIFICATE-----", RegexOption.IGNORE_CASE),
+          "-----END CERTIFICATE-----",
+        )
+        .trim()
+      "<ca>\n$normalized\n</ca>"
     }
   }
 

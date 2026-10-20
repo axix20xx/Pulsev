@@ -1794,3 +1794,17 @@ mtime_ms = 1792517915004
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6681d334-b3ef-4605-8d52-8ab164d1ea38/57e50961-1ab9-4ac1-9dde-69a905b8eaf6"
 storage_version_token = "1792517936416608"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "RHpExwT9qhYZjoj7BEbjP"
+uri = "file://generated-artifacts/PulseVPN-1.0.16-Android-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN Client 1.0.16 — Android ARM64 APK"
+description = "Installable Android build with V2Ray bootstrap DNS and OpenVPN CA-profile handling fixes."
+logical_id = "5f75719d-058d-4788-ad96-749f5ba8f96d"
+content_hash = "sha256:04484176488bdf1d6a283fb53b5961900aad98e01dc7e90e5c8eeb40259b20c6"
+size = 70102505
+mtime_ms = 1792519579369
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5f75719d-058d-4788-ad96-749f5ba8f96d/b7d08403-10ef-462a-b398-7600790c221a"
+storage_version_token = "1792519602064194"
+content_type = "application/octet-stream"

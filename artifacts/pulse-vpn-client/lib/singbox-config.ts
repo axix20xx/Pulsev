@@ -1,4 +1,4 @@
-import { decodeBase64Utf8, normalizeXrayShareLinks } from './xray-share-links';
+import { decodeBase64Utf8, normalizeXrayShareLinks } from './xray-share-links.ts';
 
 type JsonObject = Record<string, unknown>;
 
@@ -294,6 +294,13 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
       servers: [
         {
           type: 'udp',
+          tag: 'bootstrap-dns',
+          server: '1.1.1.1',
+          server_port: 53,
+          detour: 'direct',
+        },
+        {
+          type: 'udp',
           tag: 'remote-dns',
           server: '1.1.1.1',
           server_port: 53,
@@ -318,6 +325,7 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
     outbounds: [outbound, { type: 'direct', tag: 'direct' }, { type: 'block', tag: 'block' }],
     route: {
       auto_detect_interface: true,
+      default_domain_resolver: 'bootstrap-dns',
       final: 'proxy',
       rules: [{ action: 'hijack-dns' }, { action: 'sniff' }],
     },
