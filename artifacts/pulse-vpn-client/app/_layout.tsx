@@ -17,7 +17,31 @@ import { setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
 import { getMobileToken } from '@/lib/mobile-auth';
 import { AppearanceProvider } from '@/hooks/Appearance';
 
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+const DEFAULT_API_DOMAIN = 'vinte.peppernopepper.com';
+
+function getApiBaseUrl(configuredDomain: string | undefined): string {
+  const value = configuredDomain?.trim();
+  if (!value || /^(undefined|null)$/i.test(value)) {
+    return `https://${DEFAULT_API_DOMAIN}`;
+  }
+
+  try {
+    const parsed = new URL(
+      /^https?:\/\//i.test(value) ? value : `https://${value}`,
+    );
+    if (!parsed.hostname || /^(undefined|null)$/i.test(parsed.hostname)) {
+      return `https://${DEFAULT_API_DOMAIN}`;
+    }
+
+    // The API is served over HTTPS in production. Keep any configured port,
+    // but discard paths so generated /api/... requests always resolve at root.
+    return `https://${parsed.host}`;
+  } catch {
+    return `https://${DEFAULT_API_DOMAIN}`;
+  }
+}
+
+setBaseUrl(getApiBaseUrl(process.env.EXPO_PUBLIC_DOMAIN));
 setAuthTokenGetter(getMobileToken);
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.

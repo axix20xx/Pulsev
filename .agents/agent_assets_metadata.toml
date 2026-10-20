@@ -1724,3 +1724,17 @@ mtime_ms = 1792489694281
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/7f0d6011-446c-4f31-a508-913d7c6f83ca/d18f28b1-f4d3-4063-8740-789a5fdd54d1"
 storage_version_token = "1792489778412618"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "20In9H4OwlpaAalGIBfiS"
+uri = "file://generated-artifacts/PulseVPN-1.0.11-Android-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN Android 1.0.11"
+description = "Fixed Android APK: uses the Hostinger API domain when EXPO_PUBLIC_DOMAIN is missing or invalid. Arm64 build for testing."
+logical_id = "dbd2c875-3214-403c-8590-03f300969940"
+content_hash = "sha256:df5adbabe6bd95a8d021fbb25a7553794b96478e01ca8d4877fc22ebbe14fd6e"
+size = 70090677
+mtime_ms = 1792509296984
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/dbd2c875-3214-403c-8590-03f300969940/94f62bea-80db-488f-b0e1-01588bee45d9"
+storage_version_token = "1792509355655656"
+content_type = "application/octet-stream"
