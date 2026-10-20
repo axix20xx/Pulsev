@@ -694,6 +694,8 @@ export default function ConnectionScreen() {
           : 'اتصال قطع است';
   const statusDetail = connected
     ? 'موتور بومی دستگاه اتصال را تأیید کرده است.'
+    : connecting && protocol === 'openvpn' && openVpnStatus.diagnostic
+      ? `OpenVPN: ${openVpnStatus.diagnostic}`
     : slowAttempt
       ? 'اتصال بیشتر از حد معمول طول کشیده است. وضعیت را بررسی کنید یا تونل را قطع کنید.'
       : connecting
@@ -718,8 +720,12 @@ export default function ConnectionScreen() {
     const timer = setTimeout(() => {
       if (timedOutAttemptRef.current === attemptId) return;
       timedOutAttemptRef.current = attemptId;
+      const latestOpenVpnDiagnostic =
+        protocol === 'openvpn' && openVpnStatus.diagnostic
+          ? ` آخرین وضعیت موتور: ${openVpnStatus.diagnostic}`
+          : '';
       const timeoutMessage =
-        `مهلت اتصال ${protocolNames[protocol]} پس از ۷۵ ثانیه تمام شد. اتصال متوقف شد؛ دسترسی شبکه، مشخصات حساب و سرور انتخاب‌شده را بررسی کنید.`;
+        `مهلت اتصال ${protocolNames[protocol]} پس از ۷۵ ثانیه تمام شد. اتصال متوقف شد؛ دسترسی شبکه، مشخصات حساب و سرور انتخاب‌شده را بررسی کنید.${latestOpenVpnDiagnostic}`;
       setActionError(timeoutMessage);
       stopStabilityTest();
       setDisconnecting(true);
@@ -748,7 +754,7 @@ export default function ConnectionScreen() {
       })();
     }, remainingMs);
     return () => clearTimeout(timer);
-  }, [connecting, connected, phase, actionError, statusError, attemptStartedAt, protocol, token, stopStabilityTest]);
+  }, [connecting, connected, phase, actionError, statusError, attemptStartedAt, protocol, token, stopStabilityTest, openVpnStatus.diagnostic]);
 
   const disconnectActive = async () => {
     const target = activeProtocol ?? protocol;

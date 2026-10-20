@@ -7,8 +7,10 @@
  */
 package com.tim.openvpn;
 
+import android.content.Context;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.util.AtomicFile;
 
 import com.tim.basevpn.state.ConnectionState;
 import com.tim.openvpn.log.OpenVPNLogger;
@@ -34,29 +36,56 @@ import net.openvpn.ovpn3.DnsOptions_DomainsList;
 import net.openvpn.ovpn3.DnsOptions_ServersMap;
 import net.openvpn.ovpn3.DnsServer;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable, OpenVPNManagement {
     final static long EmulateExcludeRoutes = (1 << 16);
     public static final String VPNSERVICE_TUN = "vpnservice-tun";
-    private static volatile String lastEngineError;
+    private static final String ENGINE_ERROR_FILE = "openvpn-engine-error.txt";
+    private static final String ENGINE_EVENT_FILE = "openvpn-engine-event.txt";
 
-    public static void clearLastEngineError() {
-        lastEngineError = null;
-    }
-
-    public static String getLastEngineError() {
-        return lastEngineError;
-    }
-
-    private static void rememberEngineError(String message) {
+    private void rememberEngineError(String message) {
         if (message == null || message.trim().isEmpty()) return;
+        String safe = sanitizeDiagnostic(message);
+        writeSharedDiagnostic(ENGINE_ERROR_FILE, safe);
+    }
+
+    private void rememberEngineEvent(String message) {
+        if (message == null || message.trim().isEmpty()) return;
+        writeSharedDiagnostic(ENGINE_EVENT_FILE, sanitizeDiagnostic(message));
+    }
+
+    private String sanitizeDiagnostic(String message) {
         String safe = message
             .replaceAll("(?is)<(key|cert|ca|tls-crypt|tls-crypt-v2)>.*?</\\1>", "[redacted]")
-            .replaceAll("(?i)(password|passwd|token)\\s*[:=]\\s*[^\\s,;]+", "$1=[redacted]")
+            .replaceAll("(?i)(password|passwd|token|username|user)\\s*[:=]\\s*[^\\s,;]+", "$1=[redacted]")
             .replaceAll("\\s+", " ")
             .trim();
-        lastEngineError = safe.length() > 500 ? safe.substring(0, 500) : safe;
+        return safe.length() > 500 ? safe.substring(0, 500) : safe;
+    }
+
+    private void clearSharedDiagnostics() {
+        if (!(mService instanceof Context)) return;
+        File directory = ((Context) mService).getFilesDir();
+        new AtomicFile(new File(directory, ENGINE_ERROR_FILE)).delete();
+        new AtomicFile(new File(directory, ENGINE_EVENT_FILE)).delete();
+    }
+
+    private void writeSharedDiagnostic(String name, String message) {
+        if (!(mService instanceof Context)) return;
+        AtomicFile file = new AtomicFile(new File(((Context) mService).getFilesDir(), name));
+        FileOutputStream output = null;
+        try {
+            output = file.startWrite();
+            output.write(message.getBytes(StandardCharsets.UTF_8));
+            file.finishWrite(output);
+        } catch (IOException error) {
+            if (output != null) file.failWrite(output);
+        }
     }
 
     static {
@@ -80,7 +109,7 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
 
     @Override
     public void run() {
-        clearLastEngineError();
+        clearSharedDiagnostics();
         if (!setConfig(configuration)) {
             mService.openvpnStopped();
             return;
@@ -248,7 +277,9 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
             OpenVPNLogger.d("OpenVPNThreadv3", "OpenVPN 3 core requested external PKI");
         }
         if (result.getError()) {
-            OpenVPNLogger.e("OpenVPNThreadv3", "OpenVPN profile validation failed: " + result.getMessage());
+            String message = "OpenVPN profile validation failed: " + result.getMessage();
+            rememberEngineError(message);
+            OpenVPNLogger.e("OpenVPNThreadv3", message);
             return false;
         }
 
@@ -292,8 +323,20 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
     @Override
     public void log(ClientAPI_LogInfo info) {
         String message = info.getText();
+        if (message == null) return;
         while (message.endsWith("\n")) {
             message = message.substring(0, message.length() - 1);
+        }
+        String lower = message.toLowerCase(Locale.US);
+        if (lower.contains("error") || lower.contains("failed") || lower.contains("failure")
+                || lower.contains("unable") || lower.contains("auth_failed")
+                || lower.contains("tls_error") || lower.contains("connection refused")
+                || lower.contains("timed out")) {
+            rememberEngineError(message);
+        } else if (lower.contains("resolve") || lower.contains("connecting")
+                || lower.contains("reconnect") || lower.contains("waiting")
+                || lower.contains("tcp connection") || lower.contains("udp connection")) {
+            rememberEngineEvent(message);
         }
         OpenVPNLogger.d("OpenVPNThreadv3", message);
     }
@@ -304,6 +347,12 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
         String info = event.getInfo();
         if (event.getError() || ("DISCONNECTED".equals(name) && info != null && !info.trim().isEmpty())) {
             rememberEngineError(name + ": " + info);
+        }
+        if ("RESOLVE".equals(name) || "WAIT".equals(name) || "RECONNECTING".equals(name)
+                || "CONNECTING".equals(name) || "GET_CONFIG".equals(name)
+                || "ASSIGN_IP".equals(name) || "CONNECTED".equals(name)
+                || "DISCONNECTED".equals(name)) {
+            rememberEngineEvent(name + (info == null || info.trim().isEmpty() ? "" : ": " + info));
         }
         if ("INFO".equals(name)) {
             if (info.startsWith("OPEN_URL:") || info.startsWith("CR_TEXT:") || info.startsWith("WEB_AUTH:")) {

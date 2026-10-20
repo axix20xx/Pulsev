@@ -28,6 +28,7 @@ export type WireGuardVpnStatus = {
   uploadBytes?: number;
   downloadBytes?: number;
   error?: string;
+  diagnostic?: string;
 };
 
 export type TunnelConnectivityEndpoint = {

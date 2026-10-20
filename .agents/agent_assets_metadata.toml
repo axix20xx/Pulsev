@@ -1780,3 +1780,17 @@ mtime_ms = 1792514364537
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3bf06bef-66ab-485f-9bcf-ad46ce13d18a/cbc7fa8a-2062-4f2e-a486-e1250ef6ecd9"
 storage_version_token = "1792514379958869"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "C7Citt-5kj1gfi2vFY7bq"
+uri = "file://generated-artifacts/PulseVPN-1.0.15-Android-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN Android 1.0.15 (arm64)"
+description = "Signed Android APK. Includes VPN-bound HTTPS connectivity checks and cross-process OpenVPN diagnostics."
+logical_id = "6681d334-b3ef-4605-8d52-8ab164d1ea38"
+content_hash = "sha256:bba45debf06935069a79414cf728e6ec991d0f3a7188e52a2018c2edfefdec2e"
+size = 70100365
+mtime_ms = 1792517915004
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6681d334-b3ef-4605-8d52-8ab164d1ea38/57e50961-1ab9-4ac1-9dde-69a905b8eaf6"
+storage_version_token = "1792517936416608"
+content_type = "application/octet-stream"

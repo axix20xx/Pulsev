@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.IBinder
@@ -333,13 +334,14 @@ class PulseVpnEngineModule : Module() {
       if (username.isBlank() || password.isBlank()) {
         throw CodedException("ERR_OPENVPN_CREDENTIALS_MISSING", "OpenVPN username and password are required.", null)
       }
-      com.tim.openvpn.OpenVPNThreadv3.clearLastEngineError()
       if (openVpnState == "CONNECTED" || openVpnState == "CONNECTING") {
         throw CodedException("ERR_OPENVPN_ALREADY_ACTIVE", "Disconnect the current OpenVPN tunnel before changing servers.", null)
       }
       stopAmneziaIfRunning()
       stopWireGuardIfRunning()
       val context = requireContext()
+      File(context.filesDir, OPENVPN_ENGINE_ERROR_FILE).delete()
+      File(context.filesDir, OPENVPN_ENGINE_EVENT_FILE).delete()
       val prepared = prepareOpenVpnConfig(context, configText, username, password)
       try {
         validateOpenVpnConfig(prepared.configuration)
@@ -700,11 +702,12 @@ class PulseVpnEngineModule : Module() {
   private fun probeTunnelConnectivity(): Map<String, Any?> {
     val connectivityManager =
       requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    val vpnActive = connectivityManager.activeNetwork
-      ?.let(connectivityManager::getNetworkCapabilities)
-      ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+    val vpnNetwork = connectivityManager.activeNetwork?.takeIf { network ->
+      connectivityManager.getNetworkCapabilities(network)
+        ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+    }
 
-    if (!vpnActive) {
+    if (vpnNetwork == null) {
       val endpoints = TUNNEL_TEST_URLS.map { endpoint ->
         mapOf(
           "endpoint" to endpoint,
@@ -724,7 +727,7 @@ class PulseVpnEngineModule : Module() {
     val results = try {
       executor.invokeAll(
         TUNNEL_TEST_URLS.map { endpoint ->
-          Callable { probeHttpsEndpoint(endpoint) }
+          Callable { probeHttpsEndpoint(vpnNetwork, endpoint) }
         }
       ).map { it.get() }
     } finally {
@@ -739,11 +742,14 @@ class PulseVpnEngineModule : Module() {
     )
   }
 
-  private fun probeHttpsEndpoint(endpoint: String): Map<String, Any?> {
+  private fun probeHttpsEndpoint(vpnNetwork: Network, endpoint: String): Map<String, Any?> {
     val startedAt = SystemClock.elapsedRealtime()
     var connection: HttpsURLConnection? = null
     return try {
-      connection = URL(endpoint).openConnection() as HttpsURLConnection
+      // Bind the health check to the Android VPN network itself. An unbound
+      // URLConnection can follow the phone's default network instead and
+      // report a false failure while the VPN interface is active.
+      connection = vpnNetwork.openConnection(URL(endpoint)) as HttpsURLConnection
       connection.connectTimeout = TUNNEL_TEST_TIMEOUT_MS
       connection.readTimeout = TUNNEL_TEST_TIMEOUT_MS
       connection.requestMethod = "GET"
@@ -791,6 +797,7 @@ class PulseVpnEngineModule : Module() {
   }
 
   private fun openVpnStatus(): Map<String, Any?> {
+    val context = requireContext()
     val remote = openVpnRemote
     if (remote != null) {
       try {
@@ -837,9 +844,34 @@ class PulseVpnEngineModule : Module() {
       "connectedAt" to openVpnConnectedAt,
       "uploadBytes" to openVpnUploadBytes,
       "downloadBytes" to openVpnDownloadBytes,
-      "error" to openVpnError
+      "error" to openVpnError,
+      "diagnostic" to (
+        readOpenVpnEngineError(context) ?: readOpenVpnEngineDiagnostic(context)
+      )
     )
   }
+
+  private fun readOpenVpnEngineDiagnostic(context: Context): String? =
+    runCatching {
+      File(context.filesDir, OPENVPN_ENGINE_EVENT_FILE)
+        .takeIf { it.isFile }
+        ?.readText(Charsets.UTF_8)
+        ?.replace(Regex("\\s+"), " ")
+        ?.trim()
+        ?.take(240)
+        ?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
+  private fun readOpenVpnEngineError(context: Context): String? =
+    runCatching {
+      File(context.filesDir, OPENVPN_ENGINE_ERROR_FILE)
+        .takeIf { it.isFile }
+        ?.readText(Charsets.UTF_8)
+        ?.replace(Regex("\\s+"), " ")
+        ?.trim()
+        ?.take(320)
+        ?.takeIf { it.isNotBlank() }
+    }.getOrNull()
 
   private fun recordOpenVpnState(status: ConnectionState) {
     synchronized(this) {
@@ -859,11 +891,13 @@ class PulseVpnEngineModule : Module() {
         ConnectionState.DISCONNECTED, ConnectionState.IDLE -> {
           openVpnStartRequestedAt = null
           if (previous == "CONNECTING" || previous == "READYFORCONNECT") {
-            val engineDetail = runCatching {
-              com.tim.openvpn.OpenVPNThreadv3.getLastEngineError()
-            }.getOrNull()
+            val context = runCatching { requireContext() }.getOrNull()
+            val engineDetail = context?.let(::readOpenVpnEngineError)
+            val lastEvent = context?.let(::readOpenVpnEngineDiagnostic)
             openVpnError = if (!engineDetail.isNullOrBlank()) {
               sanitizeOpenVpnDiagnostic(engineDetail)
+            } else if (!lastEvent.isNullOrBlank()) {
+              sanitizeOpenVpnDiagnostic("OpenVPN stopped before connecting. Last engine event: $lastEvent")
             } else {
               "OpenVPN disconnected before the connection was established."
             }
@@ -979,6 +1013,8 @@ class PulseVpnEngineModule : Module() {
     private const val WIREGUARD_TUNNEL_NAME = "Pulse-WireGuard"
     private const val AMNEZIA_TUNNEL_NAME = "Pulse-AmneziaWG"
     private const val TUNNEL_TEST_TIMEOUT_MS = 4_500
+    private const val OPENVPN_ENGINE_ERROR_FILE = "openvpn-engine-error.txt"
+    private const val OPENVPN_ENGINE_EVENT_FILE = "openvpn-engine-event.txt"
     private val TUNNEL_TEST_URLS = listOf(
       "https://www.google.com/generate_204",
       "https://cp.cloudflare.com/generate_204"
