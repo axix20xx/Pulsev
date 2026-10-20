@@ -1836,3 +1836,17 @@ mtime_ms = 1792521501273
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/90042ddd-4100-4a16-9794-50f014797160/378badd2-e55c-495c-85f6-50d58a0231fb"
 storage_version_token = "1792521574407271"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "23TmmsqcCUAM2ska9F9Ei"
+uri = "file://generated-artifacts/PulseVPN-1.0.19-Android-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN 1.0.19 for Android (ARM64)"
+description = "APK with proxy-routed HTTPS DNS for sing-box/V2Ray and the inline OpenVPN private-key fix."
+logical_id = "e1e56bf1-b0a9-4890-a2aa-7dc33c08d69d"
+content_hash = "sha256:9d562428d2cb435c9e7ca0a83c2781bed3bd4bd28bcef5430418233ecc960706"
+size = 70102593
+mtime_ms = 1792522196678
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e1e56bf1-b0a9-4890-a2aa-7dc33c08d69d/58e6b37e-c2c8-415a-8eb9-04c00c49a911"
+storage_version_token = "1792522287338770"
+content_type = "application/octet-stream"

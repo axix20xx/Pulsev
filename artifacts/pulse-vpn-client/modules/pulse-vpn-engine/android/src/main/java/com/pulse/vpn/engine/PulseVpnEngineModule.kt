@@ -558,14 +558,16 @@ class PulseVpnEngineModule : Module() {
       .removePrefix("\uFEFF")
       .replace("\r\n", "\n")
       .replace('\r', '\n')
-    prepared = normalizeOpenVpnCertificateBlocks(prepared)
+    prepared = normalizeOpenVpnPemBlocks(prepared)
     var proxyAuthFile: File? = null
     val sensitiveBlockNames = listOf(
-      "key", "tls-auth", "tls-crypt",
+      "tls-auth", "tls-crypt",
       "extra-certs", "pkcs12", "secret", "dh", "crl-verify"
     )
-    // OpenVPN 3 accepts inline CA/client certificates. Keep them inline so the
-    // service process sees the same certificate payload that preflight parsed.
+    // OpenVPN 3 accepts inline CA, client-certificate, and private-key blocks.
+    // Keep PEM material inline so the service process receives the same bytes
+    // that preflight parsed, without a temporary-file handoff.
+    // Private keys stay in the transient in-memory config and are never logged.
     // Keep tls-crypt-v2 client keys inline. The OpenVPN 3 parser supports the
     // inline form, and rewriting this wrapped client key to a temporary file
     // has caused key-parse failures on otherwise valid downloaded profiles.
@@ -623,9 +625,9 @@ class PulseVpnEngineModule : Module() {
     }
   }
 
-  private fun normalizeOpenVpnCertificateBlocks(config: String): String {
+  private fun normalizeOpenVpnPemBlocks(config: String): String {
     var normalizedConfig = config
-    for (tag in listOf("ca", "cert")) {
+    for (tag in listOf("ca", "cert", "key")) {
       val expression = Regex("(?is)<${Regex.escape(tag)}(?:\\s[^>]*)?>(.*?)</${Regex.escape(tag)}\\s*>")
       normalizedConfig = expression.replace(normalizedConfig) { match ->
         val normalized = match.groupValues[1]
