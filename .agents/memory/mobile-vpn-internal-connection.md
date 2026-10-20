@@ -14,3 +14,9 @@ For sing-box on mobile, verify connectivity with a non-empty response body; chan
 **Why:** A zero-body HTTP 204 can succeed without confirming payload delivery, while a fixed MTU without path evidence can mask the actual routing or DNS defect.
 
 **How to apply:** Keep the core/network MTU unless logs or size-specific tests show fragmentation or path-MTU failure; require received bytes before marking traffic as verified.
+
+For sing-box, treat persisted status as a cache, not proof that its Android service is still alive; reconcile active states against the current process after process recreation.
+
+**Why:** SharedPreferences survive app-process death, but the foreground service and its TUN descriptor do not necessarily survive with them.
+
+**How to apply:** Record the service-owning process when publishing tunnel state and clear stale active states before displaying them; keep requiring a non-empty tunnel response for verified connectivity.

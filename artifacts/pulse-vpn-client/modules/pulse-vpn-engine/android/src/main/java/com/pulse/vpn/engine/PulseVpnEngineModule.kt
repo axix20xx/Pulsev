@@ -870,6 +870,25 @@ class PulseVpnEngineModule : Module() {
         }
       }
     }
+    val latestEngineEvent = readOpenVpnEngineDiagnostic(context)
+    val vpnNetworkActive = runCatching {
+      val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+      connectivity.activeNetwork?.let(connectivity::getNetworkCapabilities)
+        ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+    }.getOrDefault(false)
+    if (
+      openVpnRemote != null &&
+      openVpnState in setOf("CONNECTING", "READYFORCONNECT") &&
+      latestEngineEvent?.trim()?.let {
+        it.equals("CONNECTED", ignoreCase = true) || it.startsWith("CONNECTED:", ignoreCase = true)
+      } == true &&
+      vpnNetworkActive
+    ) {
+      // OpenVPN emits the CONNECTED engine event before every service callback
+      // consumer has observed the new state. Only reconcile when the app's
+      // OpenVPN service is bound and Android confirms an active VPN network.
+      recordOpenVpnState(ConnectionState.CONNECTED)
+    }
     val mappedState = when (openVpnState) {
       "CONNECTED" -> "CONNECTED"
       "CONNECTING", "READYFORCONNECT" -> "CONNECTING"

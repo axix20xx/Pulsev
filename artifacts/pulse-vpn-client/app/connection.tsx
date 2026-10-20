@@ -341,12 +341,27 @@ export default function ConnectionScreen() {
   }, []);
 
   const activeProtocol = useMemo<Protocol | null>(() => {
-    if (xrayStatus.state === 'connected' || xrayStatus.state === 'connecting' || xrayStatus.state === 'preparing' || xrayStatus.state === 'disconnecting') return 'v2ray';
-    if (nativeStateIsConnected(openVpnStatus) || nativeStateIsConnecting(openVpnStatus)) return 'openvpn';
-    if (nativeStateIsConnected(wireguardStatus) || nativeStateIsConnecting(wireguardStatus)) return 'wireguard';
-    if (nativeStateIsConnected(amneziaStatus) || nativeStateIsConnecting(amneziaStatus)) return 'amneziawg';
-    return null;
-  }, [xrayStatus.state, openVpnStatus, wireguardStatus, amneziaStatus]);
+    const isConnected = (candidate: Protocol) =>
+      candidate === 'v2ray'
+        ? xrayStatus.state === 'connected'
+        : candidate === 'openvpn'
+          ? nativeStateIsConnected(openVpnStatus)
+          : candidate === 'wireguard'
+            ? nativeStateIsConnected(wireguardStatus)
+            : nativeStateIsConnected(amneziaStatus);
+    const isConnecting = (candidate: Protocol) =>
+      candidate === 'v2ray'
+        ? ['connecting', 'preparing', 'disconnecting'].includes(xrayStatus.state)
+        : candidate === 'openvpn'
+          ? nativeStateIsConnecting(openVpnStatus)
+          : candidate === 'wireguard'
+            ? nativeStateIsConnecting(wireguardStatus)
+            : nativeStateIsConnecting(amneziaStatus);
+    const candidates: Protocol[] = protocol
+      ? [protocol, ...(['v2ray', 'openvpn', 'wireguard', 'amneziawg'] as Protocol[]).filter((value) => value !== protocol)]
+      : ['v2ray', 'openvpn', 'wireguard', 'amneziawg'];
+    return candidates.find(isConnected) ?? candidates.find(isConnecting) ?? null;
+  }, [protocol, xrayStatus.state, openVpnStatus, wireguardStatus, amneziaStatus]);
 
   const activeState = activeProtocol === 'v2ray' ? xrayStatus
     : activeProtocol === 'openvpn' ? openVpnStatus

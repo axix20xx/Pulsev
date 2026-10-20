@@ -1701,14 +1701,14 @@ content_type = "application/octet-stream"
 id = "lVfnTbSw1agNU5uWnf3sZ"
 uri = "file://artifacts/pulse-vpn-client/android/app/build/outputs/apk/release/app-release.apk"
 type = "unspecified"
-title = "Pulse VPN Client 1.0.21 — Android ARM64 APK"
-description = "Updated ARM64 Android APK (versionCode 22). Built successfully and verified for APK alignment and signature. Install on ARM64 Android devices."
+title = "Pulse VPN Client Android APK 1.0.22"
+description = "ARM64 Android release APK. Version code 23; APK signature and alignment verified."
 logical_id = "ff5332b5-61ef-47f5-86e6-f678c9240c44"
-content_hash = "sha256:cf1a63651653d559d8eab668375a55bfe5434713a47936f209763fd4e4d0c66c"
-size = 70105593
-mtime_ms = 1792528161248
-storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ff5332b5-61ef-47f5-86e6-f678c9240c44/af2834f4-dc8a-4a61-ac82-598092146b6b"
-storage_version_token = "1792528256655929"
+content_hash = "sha256:682638fd8c328b4b1dbef1b060ba09deb4d932e4afec1913d345ab2822dbbe79"
+size = 70106361
+mtime_ms = 1792530152014
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ff5332b5-61ef-47f5-86e6-f678c9240c44/ae743fa7-473a-48a0-b1d8-ef8a7aa871e6"
+storage_version_token = "1792530193314890"
 content_type = "application/octet-stream"
 
 [[outputs]]

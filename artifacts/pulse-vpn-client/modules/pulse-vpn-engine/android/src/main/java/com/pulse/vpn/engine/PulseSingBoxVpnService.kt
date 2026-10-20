@@ -59,6 +59,7 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
 
     private const val TAG = "PulseSingBox"
     private const val PREFS = "pulse_singbox_state"
+    private const val OWNER_PID = "ownerPid"
     private const val CHANNEL_ID = "pulse_vpn_tunnel"
     private const val NOTIFICATION_ID = 4701
     private val setupLock = Any()
@@ -72,6 +73,7 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
         .putString(EXTRA_PROFILE_NAME, profileName)
         .putLong("lastChangedAt", now)
         .putLong("connectedAt", 0L)
+        .putInt(OWNER_PID, android.os.Process.myPid())
         .remove(EXTRA_ERROR)
         .apply()
       context.sendBroadcast(
@@ -113,12 +115,24 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
 
     fun status(context: Context): Map<String, Any?> {
       val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+      val savedState = prefs.getString(EXTRA_STATE, "disconnected") ?: "disconnected"
+      val runningState = savedState in setOf("connecting", "connected", "disconnecting")
+      val ownerPid = prefs.getInt(OWNER_PID, -1)
+      val staleState = runningState && ownerPid != android.os.Process.myPid()
+      if (staleState) {
+        prefs.edit()
+          .putString(EXTRA_STATE, "disconnected")
+          .putLong("connectedAt", 0L)
+          .putLong("lastChangedAt", System.currentTimeMillis())
+          .remove(EXTRA_ERROR)
+          .apply()
+      }
       return mapOf(
-        "state" to (prefs.getString(EXTRA_STATE, "disconnected") ?: "disconnected"),
+        "state" to if (staleState) "disconnected" else savedState,
         "profileId" to prefs.getString(EXTRA_PROFILE_ID, null),
         "profileName" to prefs.getString(EXTRA_PROFILE_NAME, null),
         "lastChangedAt" to prefs.getLong("lastChangedAt", 0L),
-        "connectedAt" to prefs.getLong("connectedAt", 0L).takeIf { it > 0L },
+        "connectedAt" to if (staleState) null else prefs.getLong("connectedAt", 0L).takeIf { it > 0L },
         "error" to prefs.getString(EXTRA_ERROR, null),
       )
     }
@@ -278,6 +292,7 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
       .putString(EXTRA_PROFILE_NAME, profileName)
       .putLong("lastChangedAt", now)
       .putLong("connectedAt", if (state == "connected") now else 0L)
+      .putInt(OWNER_PID, android.os.Process.myPid())
       .putString(EXTRA_ERROR, error)
       .apply()
     sendBroadcast(
