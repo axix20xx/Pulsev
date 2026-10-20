@@ -1850,3 +1850,31 @@ mtime_ms = 1792522196678
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e1e56bf1-b0a9-4890-a2aa-7dc33c08d69d/58e6b37e-c2c8-415a-8eb9-04c00c49a911"
 storage_version_token = "1792522287338770"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "XwbMfyXbZE4ZQBHVR5ty0"
+uri = "file://artifacts/pulse-vpn-client/android/app/build/outputs/apk/release/PulseVPN-1.0.23-arm64.zip"
+type = "unspecified"
+title = "Pulse VPN Client 1.0.23 — Android ZIP"
+description = "ZIP containing the signed arm64 Android APK. Includes downloadable, privacy-sanitized diagnostics in Settings for troubleshooting VPN connections."
+logical_id = "497c20b8-686c-4a7f-adce-d5186172f255"
+content_hash = "sha256:295c6274ff87099c5022fae641ad00149e6b7fadad7f5c891b4a0326fdb5bdb9"
+size = 70134653
+mtime_ms = 1792532846602
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/497c20b8-686c-4a7f-adce-d5186172f255/1b0168d2-7b6f-4efb-a52a-fb204773b095"
+storage_version_token = "1792532891962936"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "cWBFw8_ZquunHjLvuOKC3"
+uri = "file://artifacts/pulse-vpn-client/android/app/build/outputs/apk/release/PulseVPN-1.0.23-source.zip"
+type = "unspecified"
+title = "Pulse VPN Client 1.0.23 — Source ZIP"
+description = "Source bundle for the Expo app, native Android VPN engine, API client workspace package, Android Gradle sources, and build instructions. Excludes APKs, generated build outputs, caches, environment files, and signing keystores."
+logical_id = "e0b6eff6-f9cf-450f-a3d3-72d92431f478"
+content_hash = "sha256:486b7f53794fdb8f2be2fcd3dcf95d5d9ef9f4324904e9ec38e3386f6453cfd0"
+size = 2428696
+mtime_ms = 1792533038872
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e0b6eff6-f9cf-450f-a3d3-72d92431f478/0289d165-3b11-4e54-99bf-efd84d192899"
+storage_version_token = "1792533053867583"
+content_type = "application/octet-stream"
