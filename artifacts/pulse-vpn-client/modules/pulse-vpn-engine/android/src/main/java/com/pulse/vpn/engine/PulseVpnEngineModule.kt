@@ -558,12 +558,14 @@ class PulseVpnEngineModule : Module() {
       .removePrefix("\uFEFF")
       .replace("\r\n", "\n")
       .replace('\r', '\n')
-    prepared = normalizeOpenVpnCaBlocks(prepared)
+    prepared = normalizeOpenVpnCertificateBlocks(prepared)
     var proxyAuthFile: File? = null
     val sensitiveBlockNames = listOf(
-      "cert", "key", "tls-auth", "tls-crypt",
+      "key", "tls-auth", "tls-crypt",
       "extra-certs", "pkcs12", "secret", "dh", "crl-verify"
     )
+    // OpenVPN 3 accepts inline CA/client certificates. Keep them inline so the
+    // service process sees the same certificate payload that preflight parsed.
     // Keep tls-crypt-v2 client keys inline. The OpenVPN 3 parser supports the
     // inline form, and rewriting this wrapped client key to a temporary file
     // has caused key-parse failures on otherwise valid downloaded profiles.
@@ -621,24 +623,28 @@ class PulseVpnEngineModule : Module() {
     }
   }
 
-  private fun normalizeOpenVpnCaBlocks(config: String): String {
-    val expression = Regex("(?is)<ca(?:\\s[^>]*)?>(.*?)</ca\\s*>")
-    return expression.replace(config) { match ->
-      val normalized = match.groupValues[1]
-        .replace("\\r\\n", "\n")
-        .replace("\\n", "\n")
-        .replace("\\r", "\n")
-        .replace(
-          Regex("-----BEGIN\\s+X509\\s+CERTIFICATE-----", RegexOption.IGNORE_CASE),
-          "-----BEGIN CERTIFICATE-----",
-        )
-        .replace(
-          Regex("-----END\\s+X509\\s+CERTIFICATE-----", RegexOption.IGNORE_CASE),
-          "-----END CERTIFICATE-----",
-        )
-        .trim()
-      "<ca>\n$normalized\n</ca>"
+  private fun normalizeOpenVpnCertificateBlocks(config: String): String {
+    var normalizedConfig = config
+    for (tag in listOf("ca", "cert")) {
+      val expression = Regex("(?is)<${Regex.escape(tag)}(?:\\s[^>]*)?>(.*?)</${Regex.escape(tag)}\\s*>")
+      normalizedConfig = expression.replace(normalizedConfig) { match ->
+        val normalized = match.groupValues[1]
+          .replace("\\r\\n", "\n")
+          .replace("\\n", "\n")
+          .replace("\\r", "\n")
+          .replace(
+            Regex("-----BEGIN\\s+X509\\s+CERTIFICATE-----", RegexOption.IGNORE_CASE),
+            "-----BEGIN CERTIFICATE-----",
+          )
+          .replace(
+            Regex("-----END\\s+X509\\s+CERTIFICATE-----", RegexOption.IGNORE_CASE),
+            "-----END CERTIFICATE-----",
+          )
+          .trim()
+        "<$tag>\n$normalized\n</$tag>"
+      }
     }
+    return normalizedConfig
   }
 
   private fun stopOpenVpn() {

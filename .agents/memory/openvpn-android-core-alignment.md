@@ -9,6 +9,12 @@ Keep the OpenVPN native core, generated SWIG JNI wrappers, and Android service a
 
 **How to apply:** Regenerate wrappers and compile the adapter whenever the core changes. Test parsing with a sanitized profile fixture and verify a real tunnel on a device separately. Never log full VPN profile contents.
 
+Keep inline OpenVPN `<ca>` and `<cert>` blocks inline across Android preflight and service startup. Normalize line endings and PEM labels, but do not convert the client certificate block into a temporary file path.
+
+**Why:** Valid CA, client-certificate, and matching key blocks parsed with the same Mbed TLS version and worked in OpenVPN Connect, while Pulse reported a runtime certificate parse error. Preserving inline blocks removes a cross-process file handoff as a source of divergence without weakening TLS verification.
+
+**How to apply:** When changing Android profile preparation, keep CA/client certificate blocks in the configuration string, externalize private keys and auth files as needed, and test both preflight and the service path.
+
 For GitHub codeload sources, verify a normalized extracted source-tree hash rather than relying only on compressed archive bytes; codeload can regenerate gzip metadata or the top-level directory while retaining identical files.
 
 **Why:** A release archive was repacked with a different byte hash even though its extracted file tree matched the pinned source.

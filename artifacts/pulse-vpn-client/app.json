@@ -2,7 +2,7 @@
   "expo": {
     "name": "Pulse VPN Client",
     "slug": "pulse-vpn-client",
-    "version": "1.0.17",
+    "version": "1.0.18",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pulse-vpn-client",
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.pulse.vpnclient",
-      "versionCode": 18
+      "versionCode": 19
     },
     "web": {
       "favicon": "./assets/images/icon.png"
