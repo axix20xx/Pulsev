@@ -24,6 +24,31 @@ test('uses direct bootstrap DNS and HTTPS DNS over the proxy for app traffic', (
   assert.equal(config.route.default_domain_resolver, 'bootstrap-dns');
   assert.equal(config.outbounds[0].server, 'node.example');
   assert.equal(config.inbounds[0].dns_mode, 'hijack');
-  assert.equal(config.inbounds[0].mtu, 1400);
+  assert.equal(config.inbounds[0].mtu, undefined);
   assert.equal(config.inbounds[0].strict_route, undefined);
+  assert.deepEqual(config.route.rules, [
+    { action: 'sniff' },
+    { protocol: 'dns', action: 'hijack-dns' },
+  ]);
+});
+
+test('creates a Reality client outbound from the public-key fields in a VLESS link', () => {
+  const config = JSON.parse(buildSingBoxConfig(
+    'vless://11111111-1111-4111-8111-111111111111@node.example:443?security=reality&type=tcp&sni=node.example&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=abcd',
+    'Reality test',
+  ));
+
+  assert.equal(config.outbounds[0].tls.reality.enabled, true);
+  assert.equal(config.outbounds[0].tls.reality.public_key, 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
+  assert.equal(config.outbounds[0].tls.reality.short_id, 'abcd');
+});
+
+test('rejects Reality links that omit the client public key before starting the native engine', () => {
+  assert.throws(
+    () => buildSingBoxConfig(
+      'vless://11111111-1111-4111-8111-111111111111@node.example:443?security=reality&type=tcp&sni=node.example',
+      'Incomplete Reality test',
+    ),
+    /no client public key/,
+  );
 });

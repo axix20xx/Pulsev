@@ -321,9 +321,6 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
         tag: 'pulse-tun',
         interface_name: 'tun0',
         address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
-        // A conservative mobile MTU avoids black-holing larger tunneled TCP packets
-        // on cellular and Wi-Fi paths with smaller effective MTUs.
-        mtu: 1400,
         dns_mode: 'hijack',
         auto_route: true,
         stack: 'mixed',
@@ -334,7 +331,10 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
       auto_detect_interface: true,
       default_domain_resolver: 'bootstrap-dns',
       final: 'proxy',
-      rules: [{ action: 'hijack-dns' }, { action: 'sniff' }],
+      rules: [
+        { action: 'sniff' },
+        { protocol: 'dns', action: 'hijack-dns' },
+      ],
     },
     experimental: { cache_file: { enabled: true } },
     _profile_name: displayName,

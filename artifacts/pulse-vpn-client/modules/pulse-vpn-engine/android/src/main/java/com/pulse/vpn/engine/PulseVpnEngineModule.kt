@@ -843,6 +843,20 @@ class PulseVpnEngineModule : Module() {
 
   private fun openVpnStatus(): Map<String, Any?> {
     val context = requireContext()
+    if (openVpnRemote == null && openVpnServiceConnection == null) {
+      try {
+        // The React Native module can be recreated while the foreground VPN
+        // service survives. Rebind on status reads so the UI can recover the
+        // authoritative native state after app/process recreation.
+        bindOpenVpnService(context)
+      } catch (error: Throwable) {
+        openVpnState = "ERROR"
+        openVpnConnectedAt = null
+        openVpnError = error.localizedMessage
+          ?: "Could not reconnect to the OpenVPN status service."
+        android.util.Log.w(TAG, "Could not bind to the OpenVPN status service", error)
+      }
+    }
     val remote = openVpnRemote
     if (remote != null) {
       try {

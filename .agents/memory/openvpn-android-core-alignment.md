@@ -15,6 +15,12 @@ When switching OpenVPN profiles, stop the existing tunnel and wait for native `D
 
 **How to apply:** Serialize reconnects in the Android wrapper with a bounded status poll, and let the UI prioritize the confirmed tunnel state over an earlier failed switch attempt.
 
+Do not trust module-local OpenVPN state after React Native module recreation. Rebind to the running Android service when status is queried, then synchronize from its authoritative state callback/API.
+
+**Why:** The Android foreground service can outlive the JavaScript/native module instance, so an unbound module reports `UNKNOWN` even while the tunnel is still active.
+
+**How to apply:** Status reads should establish a service binding when needed; preserve separate status/error fields and do not start or stop a tunnel as a side effect of rebinding.
+
 Keep inline OpenVPN `<ca>`, `<cert>`, and `<key>` blocks inline across Android preflight and service startup. Normalize line endings and PEM labels, but do not convert these PEM blocks into temporary file paths.
 
 **Why:** The supplied CA, client certificate, and matching private key were valid and worked in OpenVPN Connect, while Pulse reported Mbed TLS parse errors after rewriting PEM blocks as files. Keeping them inline removes that handoff as a source of divergence without weakening TLS verification.

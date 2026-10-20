@@ -60,3 +60,4 @@
 - [OpenVPN Android core alignment](openvpn-android-core-alignment.md) — update native OpenVPN, generated JNI wrappers, and the Android service adapter together; verify source-tree pins instead of unstable archive bytes.
 - [sing-box IPv6 interface prefixes](singbox-ipv6-interface-prefixes.md) — remove Android IPv6 zone IDs before serializing interface addresses as prefixes, or Go netip can abort the native process.
 - [sing-box hostname bootstrap DNS](singbox-hostname-bootstrap-dns.md) — resolve proxy-server hostnames over the physical network, not through the proxy that depends on them.
+- [Android release build resilience](android-release-build-resilience.md) — after interrupted Gradle/CMake builds, verify the APK version and signature; never hand out a stale artifact.
