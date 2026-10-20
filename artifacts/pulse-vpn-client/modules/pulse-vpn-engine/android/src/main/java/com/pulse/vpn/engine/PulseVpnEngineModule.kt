@@ -101,7 +101,7 @@ class PulseVpnEngineModule : Module() {
 
   private val openVpnStateListener = object : IConnectionStateListener.Stub() {
     override fun stateChanged(status: ConnectionState) {
-      recordOpenVpnState(status)
+      recordOpenVpnState(status, "service_callback")
     }
 
     override fun trafficUpdate(txRate: Long, rxRate: Long, txTotal: Long, rxTotal: Long) {
@@ -892,11 +892,7 @@ class PulseVpnEngineModule : Module() {
       }
     }
     val latestEngineEvent = readOpenVpnEngineDiagnostic(context)
-    val vpnNetworkActive = runCatching {
-      val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-      connectivity.activeNetwork?.let(connectivity::getNetworkCapabilities)
-        ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-    }.getOrDefault(false)
+    val vpnNetworkActive = isAndroidVpnNetworkActive(context)
     if (
       openVpnRemote != null &&
       openVpnState in setOf("CONNECTING", "READYFORCONNECT") &&
@@ -908,7 +904,7 @@ class PulseVpnEngineModule : Module() {
       // OpenVPN emits the CONNECTED engine event before every service callback
       // consumer has observed the new state. Only reconcile when the app's
       // OpenVPN service is bound and Android confirms an active VPN network.
-      recordOpenVpnState(ConnectionState.CONNECTED)
+      recordOpenVpnState(ConnectionState.CONNECTED, "engine_reconcile")
     }
     val mappedState = when (openVpnState) {
       "CONNECTED" -> "CONNECTED"
@@ -972,13 +968,44 @@ class PulseVpnEngineModule : Module() {
         ?.takeIf { it.isNotBlank() }
     }.getOrNull()
 
-  private fun recordOpenVpnState(status: ConnectionState) {
+  private fun isAndroidVpnNetworkActive(context: Context): Boolean = runCatching {
+    val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    connectivity.activeNetwork?.let(connectivity::getNetworkCapabilities)
+      ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+  }.getOrDefault(false)
+
+  private fun recordOpenVpnState(status: ConnectionState, source: String) {
     synchronized(this) {
       val previous = openVpnState
+      val isDisconnect = status == ConnectionState.DISCONNECTED || status == ConnectionState.IDLE
+      val context = runCatching { requireContext() }.getOrNull()
+      val latestEvent = context?.let(::readOpenVpnEngineDiagnostic)
+      val latestError = context?.let(::readOpenVpnEngineError)
+      val connectedAgeMs = openVpnConnectedAt?.let { System.currentTimeMillis() - it }
+      val engineStillReportsConnected = latestEvent?.trim()?.let {
+        it.equals("CONNECTED", ignoreCase = true) || it.startsWith("CONNECTED:", ignoreCase = true)
+      } == true
+      if (
+        isDisconnect &&
+        previous == "CONNECTED" &&
+        connectedAgeMs != null &&
+        connectedAgeMs in 0L..5_000L &&
+        engineStillReportsConnected &&
+        latestError.isNullOrBlank() &&
+        context != null &&
+        isAndroidVpnNetworkActive(context)
+      ) {
+        PulseDiagnostics.log(
+          context,
+          "openvpn_stale_disconnect_ignored",
+          "source=$source;state=${status.name};age_ms=$connectedAgeMs;vpn_active=true",
+        )
+        return
+      }
       openVpnState = status.name
       if (previous != status.name) {
         runCatching {
-          PulseDiagnostics.log(requireContext(), "openvpn_state", "$previous->${status.name}")
+          PulseDiagnostics.log(requireContext(), "openvpn_state", "$previous->${status.name};source=$source")
         }
       }
       when (status) {
@@ -995,15 +1022,20 @@ class PulseVpnEngineModule : Module() {
         ConnectionState.DISCONNECTED, ConnectionState.IDLE -> {
           openVpnStartRequestedAt = null
           if (previous == "CONNECTING" || previous == "READYFORCONNECT") {
-            val context = runCatching { requireContext() }.getOrNull()
-            val engineDetail = context?.let(::readOpenVpnEngineError)
-            val lastEvent = context?.let(::readOpenVpnEngineDiagnostic)
-            openVpnError = if (!engineDetail.isNullOrBlank()) {
-              sanitizeOpenVpnDiagnostic(engineDetail)
-            } else if (!lastEvent.isNullOrBlank()) {
-              sanitizeOpenVpnDiagnostic("OpenVPN stopped before connecting. Last engine event: $lastEvent")
+            openVpnError = if (!latestError.isNullOrBlank()) {
+              sanitizeOpenVpnDiagnostic(latestError)
+            } else if (!latestEvent.isNullOrBlank()) {
+              sanitizeOpenVpnDiagnostic("OpenVPN stopped before connecting. Last engine event: $latestEvent")
             } else {
               "OpenVPN disconnected before the connection was established."
+            }
+          } else if (previous == "CONNECTED") {
+            openVpnError = when {
+              !latestError.isNullOrBlank() -> sanitizeOpenVpnDiagnostic(latestError)
+              latestEvent?.startsWith("DISCONNECTED", ignoreCase = true) == true ->
+                sanitizeOpenVpnDiagnostic(latestEvent)
+              else ->
+                "OpenVPN disconnected after reporting an established tunnel; the engine supplied no reason."
             }
           }
           openVpnConnectedAt = null
@@ -1032,7 +1064,7 @@ class PulseVpnEngineModule : Module() {
         (openVpnState == "DISCONNECTING" &&
           (status == ConnectionState.CONNECTING || status == ConnectionState.READYFORCONNECT))
     }
-    if (!ignoreStaleState) recordOpenVpnState(status)
+    if (!ignoreStaleState) recordOpenVpnState(status, "service_status")
   }
 
   private fun wireGuardStatus(): Map<String, Any?> {

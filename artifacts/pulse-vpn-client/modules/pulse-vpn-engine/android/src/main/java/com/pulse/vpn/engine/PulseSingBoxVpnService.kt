@@ -39,6 +39,7 @@ import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
 import java.io.File
+import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface as JavaNetworkInterface
 import java.util.concurrent.ConcurrentHashMap
@@ -513,15 +514,27 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
       ?.first
   }
 
+  private fun usableDnsAddresses(addresses: List<InetAddress>): List<InetAddress> =
+    addresses
+      .filter {
+        !it.isAnyLocalAddress &&
+          !it.isLoopbackAddress &&
+          !it.isLinkLocalAddress &&
+          !it.isMulticastAddress
+      }
+      .distinctBy { it.hostAddress?.substringBefore('%') }
+      .sortedBy { if (it is Inet4Address) 0 else 1 }
+
   private fun configureBootstrapDns(config: String): String {
     val connectivity = getSystemService(ConnectivityManager::class.java)
     val network = findUnderlyingNetwork(connectivity)
-    val address = network
+    val selectedDns = network
       ?.let { connectivity.getLinkProperties(it)?.dnsServers }
-      ?.firstOrNull { !it.isAnyLocalAddress && !it.isLoopbackAddress && !it.isMulticastAddress }
-      ?.hostAddress
-      ?.substringBefore('%')
-      ?: "1.1.1.1"
+      ?.let(::usableDnsAddresses)
+      ?.firstOrNull()
+    val address = selectedDns?.hostAddress?.substringBefore('%') ?: "1.1.1.1"
+    val source = if (selectedDns == null) "public_fallback" else "physical"
+    val family = if (selectedDns is Inet4Address || selectedDns == null) "ipv4" else "ipv6"
 
     return try {
       val root = JSONObject(config)
@@ -538,6 +551,7 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
       }
       if (updated) {
         Log.i(TAG, "Using the active network's DNS for proxy-server bootstrap.")
+        PulseDiagnostics.log(this, "singbox_bootstrap_dns_selected", "source=$source;family=$family")
         root.toString()
       } else {
         Log.w(TAG, "Sing-box config has no bootstrap-dns resolver; keeping the original config.")
@@ -600,7 +614,9 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
         flags = 1
         metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
         this.addresses = BoxStringIterator(addresses)
-        dnsServer = BoxStringIterator(link.dnsServers.mapNotNull { it.hostAddress })
+        dnsServer = BoxStringIterator(
+          usableDnsAddresses(link.dnsServers).mapNotNull { it.hostAddress?.substringBefore('%') },
+        )
         gateway = BoxStringIterator(link.routes.mapNotNull { route ->
           route.gateway?.takeUnless { it.isAnyLocalAddress }?.hostAddress
         })
