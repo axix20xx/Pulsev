@@ -10,7 +10,7 @@ export type XrayShareServer = {
   port?: number;
 };
 
-function decodeBase64Utf8(value: string): string | null {
+export function decodeBase64Utf8(value: string): string | null {
   const compact = value.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
   if (compact.length < 8 || compact.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(compact)) {
     return null;

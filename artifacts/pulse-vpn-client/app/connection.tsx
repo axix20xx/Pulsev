@@ -25,6 +25,7 @@ import {
   connectOpenVpn,
   connectWireGuard,
   connectXray,
+  confirmXrayTraffic,
   disconnectAmneziaWg,
   disconnectOpenVpn,
   disconnectWireGuard,
@@ -56,7 +57,7 @@ const initialTunnelStatus: WireGuardVpnStatus = {
 };
 
 const protocolNames: Record<Protocol, string> = {
-  v2ray: 'V2Ray · Xray',
+  v2ray: 'V2Ray · sing-box',
   openvpn: 'OpenVPN',
   wireguard: 'WireGuard',
   amneziawg: 'AmneziaWG',
@@ -136,21 +137,25 @@ function connectivityFailureMessage(report: TunnelConnectivityReport) {
 
 async function waitForXrayTraffic(timeoutMs = 18_000): Promise<TunnelConnectivityReport> {
   const deadline = Date.now() + timeoutMs;
-  let state = await getXrayState();
-  while (state.state !== 'connected' && state.state !== 'error' && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    state = await getXrayState();
+  let latestReport: TunnelConnectivityReport | null = null;
+  while (Date.now() < deadline) {
+    const state = await getXrayState();
+    if (state.state === 'error') {
+      throw new Error(state.error ?? 'موتور sing-box نتوانست اتصال را برقرار کند.');
+    }
+    latestReport = await testTunnelConnectivity();
+    if (latestReport.passed) {
+      await confirmXrayTraffic();
+      return latestReport;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 900));
   }
+  const state = await getXrayState();
   if (state.state === 'error') {
-    throw new Error(state.error ?? 'موتور Xray نتوانست اتصال را برقرار کند.');
+    throw new Error(state.error ?? 'موتور sing-box نتوانست اتصال را برقرار کند.');
   }
-  if (state.state !== 'connected') {
-    throw new Error('موتور Xray در زمان مجاز به وضعیت متصل نرسید.');
-  }
-
-  const report = await testTunnelConnectivity();
-  if (!report.passed) throw new Error(connectivityFailureMessage(report));
-  return report;
+  if (latestReport) throw new Error(connectivityFailureMessage(latestReport));
+  throw new Error('موتور sing-box در زمان مجاز به وضعیت آماده نرسید.');
 }
 
 async function disconnectTunnel(protocol: Protocol) {
@@ -496,7 +501,7 @@ export default function ConnectionScreen() {
               const state = await connectXray(item.id, server.name, server.link);
               setXrayStatus(state);
               if (state.state === 'error') {
-                throw new Error(state.error ?? 'موتور Xray نتوانست به این سرور وصل شود.');
+                throw new Error(state.error ?? 'موتور sing-box نتوانست به این سرور وصل شود.');
               }
               const report = await waitForXrayTraffic();
               setTrafficReport(report);
@@ -639,7 +644,7 @@ export default function ConnectionScreen() {
       setAttemptStartedAt(Date.now());
       const state = await connectXray(item.id, server.name, server.link);
       if (state.state === 'error') {
-        throw new Error(state.error ?? 'موتور V2Ray نتوانست به این سرور وصل شود.');
+        throw new Error(state.error ?? 'موتور sing-box نتوانست به این سرور وصل شود.');
       }
       setXrayStatus(state);
       const report = await waitForXrayTraffic();

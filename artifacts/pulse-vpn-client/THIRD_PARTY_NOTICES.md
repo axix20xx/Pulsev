@@ -4,10 +4,11 @@
 
 The Android app links `io.github.tim06:openvpn:1.1.3`. Its Maven POM declares
 Apache-2.0, while bundled source files such as `ConfigParser.java` and
-`VpnProfile.java` carry OpenVPN for Android's GPL-2.0 notice with additional
-terms. The corresponding source archive and the upstream additional-terms
-notice are included in `third_party/`. The app is marked GPL-2.0-only for
-distribution, as accepted for this integration.
+`VpnProfile.java` carry OpenVPN for Android's GPL-2.0-or-later notice with
+additional terms. The corresponding source archive and upstream additional
+terms notice are included in `third_party/`. Because the combined client also
+links GPL-3.0-only sing-box, the client is distributed under GPL-3.0-only;
+the OpenVPN source permits the later GPL version.
 
 - Artifact: <https://repo.maven.apache.org/maven2/io/github/tim06/openvpn/1.1.3/>
 - Upstream license notice: <https://github.com/schwabe/ics-openvpn/blob/master/doc/LICENSE.txt>
@@ -19,12 +20,21 @@ Keep the `third_party/openvpn-1.1.3-sources.jar`,
 source must also be made available under the stated GPL terms when distributing
 the client.
 
+## sing-box
+
+The Android V2Ray-compatible tunnel uses the official `libbox` Android library
+from singbox-android, version 1.14.3. The library and the combined client are
+distributed under GPL-3.0-only terms. Keep the corresponding source code and
+license text available with every binary distribution.
+
+- Project and license: <https://github.com/singbox-android/libbox>
+- GPL-3.0 license text: <https://www.gnu.org/licenses/gpl-3.0.txt>
+
 ## Other native VPN engines
 
 - WireGuard Android tunnel library: Apache-2.0,
   <https://github.com/WireGuard/wireguard-android>
 - AmneziaWG Android library: Apache-2.0,
   <https://github.com/amnezia-vpn/amneziawg-android>
-- Xray Expo bridge: MIT, <https://github.com/chenjiahan/expo-xray-vpn>
 
 Keep each dependency's upstream notices when preparing a release bundle.

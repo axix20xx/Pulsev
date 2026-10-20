@@ -67,6 +67,10 @@ export async function connectXray(
   throw new Error('In-app VPN connections are supported only in the custom Android build.');
 }
 
+export async function confirmXrayTraffic(): Promise<XrayVpnState> {
+  return { state: 'disconnected' };
+}
+
 export async function pingXrayServers(
   servers: readonly XrayShareServer[],
 ): Promise<Record<string, number | null>> {

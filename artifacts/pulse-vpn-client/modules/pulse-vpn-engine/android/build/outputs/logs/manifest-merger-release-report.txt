@@ -1,7 +1,7 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:1:1-6:12
-INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:1:1-6:12
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:1:1-20:12
+INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:1:1-20:12
 	package
 		INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml
 	xmlns:android
@@ -22,6 +22,30 @@ uses-permission#android.permission.FOREGROUND_SERVICE_SPECIAL_USE
 ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:5:3-87
 	android:name
 		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:5:20-84
+application
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:6:3-19:17
+service#com.pulse.vpn.engine.PulseSingBoxVpnService
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:7:5-18:15
+	android:exported
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:9:7-30
+	android:permission
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:10:7-63
+	android:foregroundServiceType
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:11:7-49
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:8:7-65
+intent-filter#action:name:android.net.VpnService
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:12:7-14:23
+action#android.net.VpnService
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:13:9-57
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:13:17-54
+property#android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:15:7-17:31
+	android:value
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:17:9-28
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:16:9-68
 uses-sdk
 INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml

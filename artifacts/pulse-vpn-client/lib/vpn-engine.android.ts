@@ -1,13 +1,19 @@
 import { requireNativeModule } from 'expo-modules-core';
-import type { ExpoXrayVpnState } from 'expo-xray-vpn';
 import type { TunnelConnectivityReport, WireGuardVpnStatus, XrayVpnState } from './vpn-engine';
 import { normalizeXrayShareLinks, type XrayShareServer } from './xray-share-links';
-import { normalizeXrayRealityOutboundSettings } from './xray-config-normalization';
+import { buildSingBoxConfig } from './singbox-config';
 
-type XrayModule = typeof import('expo-xray-vpn').default;
 type PulseVpnNativeModule = {
   requestPermission(): Promise<{ granted: boolean }>;
   isSupported(): Promise<boolean>;
+  getSingBoxStatus(): Promise<XrayVpnState>;
+  confirmSingBoxTraffic(): Promise<XrayVpnState>;
+  connectSingBox(profileId: string, profileName: string, config: string): Promise<XrayVpnState>;
+  disconnectSingBox(): Promise<XrayVpnState>;
+  addListener(
+    eventName: 'onSingBoxStateChange',
+    listener: (state: XrayVpnState) => void,
+  ): { remove(): void };
   connectWireGuard(profileId: string, profileName: string, configText: string): Promise<WireGuardVpnStatus>;
   disconnectWireGuard(): Promise<WireGuardVpnStatus>;
   getWireGuardStatus(): Promise<WireGuardVpnStatus>;
@@ -25,57 +31,14 @@ type PulseVpnNativeModule = {
   setTunnelTestKeepScreenOn(enabled: boolean): Promise<boolean>;
 };
 
-let modulePromise: Promise<XrayModule> | undefined;
-
-function loadModule(): Promise<XrayModule> {
-  modulePromise ??= import('expo-xray-vpn').then((module) => module.default);
-  return modulePromise;
-}
-
 function loadPulseNativeModule(): PulseVpnNativeModule {
   return requireNativeModule<PulseVpnNativeModule>('PulseVpnEngine');
-}
-
-function toState(state: ExpoXrayVpnState): XrayVpnState {
-  return {
-    state: state.state,
-    profileId: state.profileId,
-    profileName: state.profileName,
-    connectedAt: state.connectedAt,
-    lastChangedAt: state.lastChangedAt,
-    error: state.error,
-    errorCode: state.errorCode,
-  };
-}
-
-function isIpLiteral(value: string): boolean {
-  const address = value.replace(/^\[|\]$/g, '');
-  const ipv4Parts = address.split('.');
-  if (
-    ipv4Parts.length === 4 &&
-    ipv4Parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) >= 0 && Number(part) <= 255)
-  ) return true;
-  return address.includes(':') && /^[0-9a-fA-F:.]+$/.test(address);
-}
-
-function removeInvalidSendThroughValues(value: unknown): void {
-  if (Array.isArray(value)) {
-    value.forEach(removeInvalidSendThroughValues);
-    return;
-  }
-  if (!value || typeof value !== 'object') return;
-
-  const record = value as Record<string, unknown>;
-  if (typeof record.sendThrough === 'string' && !isIpLiteral(record.sendThrough)) {
-    delete record.sendThrough;
-  }
-  Object.values(record).forEach(removeInvalidSendThroughValues);
 }
 
 async function assertNoOtherTunnel(protocol: 'xray' | 'wireguard' | 'amneziawg' | 'openvpn') {
   if (protocol !== 'xray') {
     try {
-      const state = await (await loadModule()).getState();
+      const state = await loadPulseNativeModule().getSingBoxStatus();
       if (['connected', 'connecting', 'preparing', 'disconnecting'].includes(state.state)) {
         throw new Error('ابتدا اتصال فعال V2Ray را قطع کنید.');
       }
@@ -117,28 +80,24 @@ async function assertNoOtherTunnel(protocol: 'xray' | 'wireguard' | 'amneziawg' 
 
 export async function isXrayEngineAvailable(): Promise<boolean> {
   try {
-    const module = await loadModule();
-    await module.getState();
-    return true;
+    return await loadPulseNativeModule().isSupported();
   } catch {
-    // Expo Go does not contain this native module. Keep the app usable there,
-    // but never report a tunnel as connected when the native engine is absent.
     return false;
   }
 }
 
 export async function getXrayState(): Promise<XrayVpnState> {
-  const module = await loadModule();
-  return toState(await module.getState());
+  return loadPulseNativeModule().getSingBoxStatus();
+}
+
+export async function confirmXrayTraffic(): Promise<XrayVpnState> {
+  return loadPulseNativeModule().confirmSingBoxTraffic();
 }
 
 export async function subscribeXrayState(
   listener: (state: XrayVpnState) => void,
 ): Promise<() => void> {
-  const module = await loadModule();
-  const subscription = module.addListener('onStateChange', (state) => {
-    listener(toState(state));
-  });
+  const subscription = loadPulseNativeModule().addListener('onSingBoxStateChange', listener);
   return () => subscription.remove();
 }
 
@@ -147,7 +106,7 @@ export async function connectXray(
   profileName: string,
   subscriptionText: string,
 ): Promise<XrayVpnState> {
-  const module = await loadModule();
+  const module = loadPulseNativeModule();
   await assertNoOtherTunnel('xray');
   const normalized = normalizeXrayShareLinks(subscriptionText);
   if (!normalized.text) throw new Error('The V2Ray subscription is empty.');
@@ -155,50 +114,29 @@ export async function connectXray(
     throw new Error('The V2Ray feed did not contain readable server links. Refresh the subscription and try again.');
   }
 
-  const convertedConfigJson = await module.convertShareLinksToXrayJson(normalized.text);
-  let parsedConfig: unknown;
-  try {
-    parsedConfig = JSON.parse(convertedConfigJson);
-  } catch {
-    throw new Error('The subscription could not be converted to an Xray configuration.');
-  }
-  if (!parsedConfig || typeof parsedConfig !== 'object') {
-    throw new Error('The subscription did not produce a valid Xray configuration.');
-  }
-  const outbounds = (parsedConfig as { outbounds?: unknown }).outbounds;
-  if (!Array.isArray(outbounds) || outbounds.length === 0) {
-    throw new Error('The V2Ray feed did not produce any usable connection profiles.');
-  }
-  normalizeXrayRealityOutboundSettings(parsedConfig, normalized.text);
-  removeInvalidSendThroughValues(parsedConfig);
-  const xrayConfigJson = JSON.stringify(parsedConfig);
+  const singBoxConfigJson = buildSingBoxConfig(normalized.text, profileName);
 
   const permission = await module.requestPermission();
   if (!permission.granted) throw new Error('Android VPN permission was not granted.');
 
-  const current = await module.getState();
+  const current = await module.getSingBoxStatus();
   if (current.state === 'connected' && current.profileId === profileId && current.profileName === profileName) {
-    return toState(current);
+    return current;
   }
   if (current.state !== 'disconnected') {
-    await module.disconnect();
+    await module.disconnectSingBox();
     const deadline = Date.now() + 8_000;
-    let state = await module.getState();
+    let state = await module.getSingBoxStatus();
     while (state.state !== 'disconnected' && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 150));
-      state = await module.getState();
+      state = await module.getSingBoxStatus();
     }
     if (state.state !== 'disconnected') {
       throw new Error('The previous V2Ray tunnel did not stop; the selected server was not started.');
     }
   }
 
-  await module.connect({
-    profileId,
-    profileName,
-    xrayConfigJson,
-  });
-  return toState(await module.getState());
+  return module.connectSingBox(profileId, profileName, singBoxConfigJson);
 }
 
 export async function pingXrayServers(
@@ -239,18 +177,18 @@ export async function setTunnelTestKeepScreenOn(enabled: boolean): Promise<boole
 }
 
 export async function disconnectXray(): Promise<void> {
-  const module = await loadModule();
-  const current = await module.getState();
+  const module = loadPulseNativeModule();
+  const current = await module.getSingBoxStatus();
   if (current.state === 'disconnected') return;
-  await module.disconnect();
+  await module.disconnectSingBox();
   const deadline = Date.now() + 8_000;
-  let state = await module.getState();
+  let state = await module.getSingBoxStatus();
   while (state.state !== 'disconnected' && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 150));
-    state = await module.getState();
+    state = await module.getSingBoxStatus();
   }
   if (state.state !== 'disconnected') {
-    throw new Error('The V2Ray tunnel did not stop within the expected time.');
+    throw new Error('The sing-box V2Ray tunnel did not stop within the expected time.');
   }
 }
 

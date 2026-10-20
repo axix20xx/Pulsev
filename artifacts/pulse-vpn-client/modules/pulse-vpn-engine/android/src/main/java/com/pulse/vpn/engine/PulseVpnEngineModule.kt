@@ -3,7 +3,9 @@ package com.pulse.vpn.engine
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
+import android.content.BroadcastReceiver
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -11,6 +13,7 @@ import android.net.VpnService
 import android.os.IBinder
 import android.os.SystemClock
 import android.view.WindowManager
+import androidx.core.content.ContextCompat
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
@@ -49,6 +52,23 @@ import org.amnezia.awg.config.Config as AmneziaConfig
 
 class PulseVpnEngineModule : Module() {
   private var pendingPermissionPromise: Promise? = null
+  private var singBoxReceiverRegistered = false
+  private val singBoxStatusReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+      if (intent?.action != PulseSingBoxVpnService.ACTION_STATUS) return
+      sendEvent(
+        "onSingBoxStateChange",
+        mapOf(
+          "state" to (intent.getStringExtra(PulseSingBoxVpnService.EXTRA_STATE) ?: "disconnected"),
+          "profileId" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_PROFILE_ID),
+          "profileName" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_PROFILE_NAME),
+          "lastChangedAt" to intent.getLongExtra("lastChangedAt", 0L),
+          "connectedAt" to intent.getLongExtra("connectedAt", 0L).takeIf { it > 0L },
+          "error" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_ERROR),
+        ),
+      )
+    }
+  }
 
   private var wireGuardBackend: WireGuardBackend? = null
   private var wireGuardTunnel: WireGuardTunnel? = null
@@ -91,6 +111,11 @@ class PulseVpnEngineModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("PulseVpnEngine")
+    Events("onSingBoxStateChange")
+
+    OnCreate {
+      registerSingBoxStatusReceiver()
+    }
 
     AsyncFunction("probeTcpServers") { servers: List<Map<String, Any?>>, timeoutMs: Int ->
       val executor = Executors.newFixedThreadPool(servers.size.coerceIn(1, 8))
@@ -107,6 +132,30 @@ class PulseVpnEngineModule : Module() {
 
     AsyncFunction("probeTunnelConnectivity") {
       probeTunnelConnectivity()
+    }
+
+    AsyncFunction("getSingBoxStatus") {
+      PulseSingBoxVpnService.status(requireContext())
+    }
+
+    AsyncFunction("confirmSingBoxTraffic") {
+      PulseSingBoxVpnService.confirmTraffic(requireContext())
+    }
+
+    AsyncFunction("connectSingBox") { profileId: String, profileName: String, config: String ->
+      if (config.isBlank()) {
+        throw CodedException("ERR_SINGBOX_CONFIG_EMPTY", "The sing-box configuration is empty.", null)
+      }
+      if (VpnService.prepare(requireContext()) != null) {
+        throw CodedException("ERR_VPN_PERMISSION_REQUIRED", "Android VPN permission has not been granted.", null)
+      }
+      PulseSingBoxVpnService.start(requireContext(), profileId, profileName, config)
+      PulseSingBoxVpnService.status(requireContext())
+    }
+
+    AsyncFunction("disconnectSingBox") {
+      PulseSingBoxVpnService.stop(requireContext())
+      PulseSingBoxVpnService.status(requireContext())
     }
 
     AsyncFunction("setTunnelTestKeepScreenOn") { enabled: Boolean ->
@@ -136,6 +185,10 @@ class PulseVpnEngineModule : Module() {
         null
       )
       pendingPermissionPromise = null
+      if (singBoxReceiverRegistered) {
+        runCatching { requireContext().unregisterReceiver(singBoxStatusReceiver) }
+        singBoxReceiverRegistered = false
+      }
       runCatching { openVpnRemote?.unregisterCallback(openVpnStateListener) }
       openVpnServiceConnection?.let { connection ->
         if (openVpnServiceBound) {
@@ -322,6 +375,22 @@ class PulseVpnEngineModule : Module() {
 
     AsyncFunction("getOpenVpnStatus") {
       openVpnStatus()
+    }
+  }
+
+  private fun registerSingBoxStatusReceiver() {
+    if (singBoxReceiverRegistered) return
+    val context = requireContext()
+    runCatching {
+      ContextCompat.registerReceiver(
+        context,
+        singBoxStatusReceiver,
+        IntentFilter(PulseSingBoxVpnService.ACTION_STATUS),
+        ContextCompat.RECEIVER_NOT_EXPORTED,
+      )
+      singBoxReceiverRegistered = true
+    }.onFailure {
+      android.util.Log.w("PulseVpnEngine", "Could not register sing-box state receiver", it)
     }
   }
 

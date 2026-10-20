@@ -17,4 +17,32 @@
 10-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:5:3-87
 10-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:5:20-84
 11
-12</manifest>
+12    <application>
+12-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:6:3-19:17
+13        <service
+13-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:7:5-18:15
+14            android:name="com.pulse.vpn.engine.PulseSingBoxVpnService"
+14-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:8:7-65
+15            android:exported="true"
+15-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:9:7-30
+16            android:foregroundServiceType="specialUse"
+16-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:11:7-49
+17            android:permission="android.permission.BIND_VPN_SERVICE" >
+17-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:10:7-63
+18            <intent-filter>
+18-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:12:7-14:23
+19                <action android:name="android.net.VpnService" />
+19-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:13:9-57
+19-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:13:17-54
+20            </intent-filter>
+21
+22            <property
+22-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:15:7-17:31
+23                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+23-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:16:9-68
+24                android:value="vpn" />
+24-->/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:17:9-28
+25        </service>
+26    </application>
+27
+28</manifest>
