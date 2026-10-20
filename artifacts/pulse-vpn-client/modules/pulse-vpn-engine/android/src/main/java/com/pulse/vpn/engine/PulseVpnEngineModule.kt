@@ -633,7 +633,7 @@ class PulseVpnEngineModule : Module() {
     } catch (error: UnsatisfiedLinkError) {
       throw CodedException(
         "ERR_OPENVPN_NATIVE_LIBRARY",
-        "The OpenVPN native engine could not be loaded. Reinstall the current Android build.",
+        "The OpenVPN native engine could not be loaded: ${error.message ?: error.javaClass.simpleName}. Reinstall the current Android build.",
         error
       )
     }

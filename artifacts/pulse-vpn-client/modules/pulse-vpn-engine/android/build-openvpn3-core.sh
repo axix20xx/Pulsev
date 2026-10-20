@@ -163,6 +163,7 @@ build_abi() {
     -o "$obj_core/cpu.o"
 
   "$cxx" -shared -Wl,-soname,libovpn3.so \
+    -Wl,-z,max-page-size=16384 \
     -o "$library_dir/libovpn3.so" \
     "$obj_core/ovpncli.o" \
     "$obj_core/ovpncli_wrap.o" \

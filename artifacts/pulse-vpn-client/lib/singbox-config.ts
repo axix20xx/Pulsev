@@ -300,7 +300,6 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
           detour: 'proxy',
         },
       ],
-      rules: [{ action: 'hijack-dns' }],
       final: 'remote-dns',
       strategy: 'prefer_ipv4',
     },
@@ -321,7 +320,7 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
     route: {
       auto_detect_interface: true,
       final: 'proxy',
-      rules: [{ action: 'sniff' }],
+      rules: [{ action: 'hijack-dns' }, { action: 'sniff' }],
     },
     experimental: { cache_file: { enabled: true } },
     _profile_name: displayName,

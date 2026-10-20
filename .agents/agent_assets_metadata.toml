@@ -1738,3 +1738,17 @@ mtime_ms = 1792509296984
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/dbd2c875-3214-403c-8590-03f300969940/94f62bea-80db-488f-b0e1-01588bee45d9"
 storage_version_token = "1792509355655656"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "CDOFbnN2IAY75jkcM6Uw2"
+uri = "file://generated-artifacts/PulseVPN-1.0.12-Android-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN Android 1.0.12"
+description = "Fixes sing-box DNS hijack rule placement and rebuilds OpenVPN native library with 16 KB Android page alignment. Arm64 test APK."
+logical_id = "e44f6c6b-8e12-4130-a999-23407c793089"
+content_hash = "sha256:e82a892d10074ad72c1ab603d6e2cc7d1a8482470f15bc59f349693f5ac2e386"
+size = 70090369
+mtime_ms = 1792510555663
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e44f6c6b-8e12-4130-a999-23407c793089/cc17ffe4-e333-45cb-9623-512745d51fab"
+storage_version_token = "1792510606606287"
+content_type = "application/octet-stream"

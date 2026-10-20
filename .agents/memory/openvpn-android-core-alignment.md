@@ -15,6 +15,12 @@ For GitHub codeload sources, verify a normalized extracted source-tree hash rath
 
 **How to apply:** Keep content verification enabled before native compilation; do not remove checksum checks just to accommodate archive repacking.
 
+When building the OpenVPN shared library with the Android NDK, link ELF load segments for 16 KB pages and verify both ELF and APK ZIP alignment. A library can be present in the APK yet fail at `System.loadLibrary` on newer Android devices if it is only 4 KB aligned.
+
+**Why:** A device-visible OpenVPN load failure persisted despite the JNI library and its dependencies being packaged; the custom core was linked with 4 KB segment alignment.
+
+**How to apply:** Add `-Wl,-z,max-page-size=16384` to the native link and validate the final APK with `zipalign -c -P 16 4` as well as checking the library's `PT_LOAD` alignment.
+
 The user has accepted GPL-family distribution terms for this VPN client and selected an AGPL-3.0 adapter for iOS.
 
 **Why:** License obligations affect what can be included in downloadable builds and how source must be provided.
