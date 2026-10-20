@@ -1,0 +1,182 @@
+Fix Expo VPN App: sing-box/V2Box Traffic Failure + OpenVPN Connection State Bug
+Role
+Act as a senior Android VPN engineer specializing in React Native, Expo development builds, Android VpnService, sing-box/libbox, OpenVPN 3, native Kotlin/Java modules, and VPN packet routing.
+Work directly in my existing project. Diagnose the actual implementation, identify root causes, implement fixes, and validate the results. Do not merely provide suggestions or rewrite the app from scratch.
+Existing symptoms
+Bug A — V2Box / sing-box
+The app starts the VPN connection.
+The UI may indicate Connected.
+No internet data transfers through the tunnel, or websites fail to load.
+Possible causes include TUN descriptor handoff, packet forwarding, route configuration, DNS, outbound connection handling, socket protection, IPv4/IPv6 routing, MTU, or service lifecycle.
+Bug B — OpenVPN
+The user initiates an OpenVPN connection.
+The native OpenVPN connection may start or succeed.
+The application interface continues to display Not Connected.
+Possible causes include missing native event listeners, incorrect connection-state mapping, asynchronous event races, React state updates, or lifecycle and reconnection handling.
+These are symptoms, not proven root causes. Establish the actual causes from the source code, logs, and reproducible tests.
+Phase 1 — Audit the Existing Project
+Before modifying code:
+Inspect the complete repository, including:
+
+
+package.json and Expo configuration.
+Android manifest and Gradle configuration.
+Kotlin/Java native modules and VPN services.
+React Native bridge and event emitters.
+sing-box/libbox integration and generated JSON configurations.
+OpenVPN native SDK integration.
+Connection screens, hooks, stores, and state management.
+Existing logging and connectivity probes.
+Search for the existing implementations and references to:
+
+
+PulseVpnEngineModule
+PulseSingBoxVpnService
+connectOpenVpn
+disconnectOpenVpn
+connectAmneziaWg
+probeTunnelConnectivity
+TUN descriptors, VpnService.Builder, file descriptor handoff, socket protection, routes, DNS, and native connection-state callbacks.
+Verify whether the names above exist in this repository. If they do not, locate their actual equivalents instead of inventing new modules.
+Trace the complete connection lifecycle from the Connect button through native service startup to successful internet traffic.
+Create a concise diagnosis report identifying the affected files, confirmed defects, evidence, and proposed changes.
+Do not assume the native libraries are missing simply because connections fail.
+Phase 2 — Fix Bug A: sing-box Connects but No Data Transfers
+Trace the complete packet path:
+Android applications → Android VPN/TUN → sing-box inbound → routing rules → selected outbound → remote proxy server → response path → TUN → application.
+Investigate and fix the following only where the code or logs demonstrate a problem.
+A. TUN creation and descriptor lifecycle
+Verify that Android VPN permission is granted.
+Verify VpnService.Builder.establish() succeeds and returns a valid descriptor.
+Confirm that the descriptor is transferred to sing-box using the integration method required by the installed sing-box version.
+Ensure the descriptor remains open for the required lifetime and is closed safely on disconnect.
+Check for duplicated descriptors, premature closure, blocking reads, and native engine startup races.
+Verify the TUN interface is actually receiving and returning packets.
+B. Routing and outbound selection
+Inspect the generated sing-box configuration against the schema for the exact bundled core version.
+Verify that routing rules select a valid outbound for ordinary internet traffic.
+Confirm the configured proxy outbound has the correct server, port, authentication, transport, TLS, and protocol settings.
+Detect invalid routing rules, unreachable endpoints, missing default routes, routing loops, and traffic incorrectly bypassing the proxy.
+Confirm the proxy’s own outbound sockets are protected from being routed back into the same VPN where required by the Android integration.
+Verify IPv4 and IPv6 handling. Do not advertise IPv6 support if the configuration cannot route IPv6 correctly.
+Preserve intended split-tunneling and exclusion behavior.
+C. DNS and MTU
+Verify DNS requests reach the intended resolver and their responses return to the application.
+Test whether direct numeric-IP connectivity works when domain resolution fails.
+Check for invalid DNS routing rules, DNS loops, and unavailable resolvers.
+Inspect MTU configuration for packet fragmentation or path-MTU problems.
+Change MTU only when supported by diagnostic evidence; do not blindly apply a fixed value.
+D. Service lifecycle
+Check foreground-service startup, notification handling, Android VPN service declarations, permissions, and process lifecycle.
+Ensure the native engine remains running after connection success.
+Prevent duplicate engines, stale TUN descriptors, and concurrent VPN sessions.
+Ensure disconnect and reconnect release resources correctly.
+Respect Android’s one-active-VPN limitation and handle competing VPN sessions clearly.
+E. Traffic-based connection status
+Do not report a healthy connection solely because the TUN interface exists or the native engine started.
+Implement a reliable connection state model with separate states for:
+Disconnected
+Requesting permission
+Connecting
+Tunnel established
+Checking connectivity
+Connected
+Connected but no traffic / degraded
+Reconnecting
+Disconnecting
+Error
+Use a bounded connectivity probe with a timeout. Distinguish tunnel establishment from successful internet connectivity.
+Avoid treating a single failed probe as definitive proof that the VPN is broken. Support retries and meaningful diagnostic errors.
+Phase 3 — Fix Bug B: OpenVPN UI Stuck on Not Connected
+Trace the actual OpenVPN native SDK lifecycle and React Native bridge.
+Identify the authoritative connection-state API for the exact OpenVPN library bundled in this project.
+Subscribe to the correct native state events before or during connection startup, as required by that SDK.
+Map native states accurately into the application’s connection-state model.
+Ensure the Connected state is set only after the SDK confirms that the tunnel is connected.
+Propagate state changes to the React Native UI through the correct event mechanism.
+Check whether native events are lost before JavaScript listeners subscribe.
+Prevent stale listeners, duplicate events, missing cleanup, and state updates from previous connection attempts.
+Handle authentication failures, TLS failures, timeouts, server rejection, explicit disconnects, unexpected disconnections, and reconnections.
+Ensure the UI recovers correctly when the app resumes from the background.
+Confirm that the native tunnel state and UI state converge after every connect/disconnect cycle.
+If the native tunnel is connected and traffic works while the UI says Not Connected, fix the event/state synchronization without unnecessarily changing the VPN configuration.
+If the tunnel is not actually connected, fix the native failure rather than masking it with a UI state change.
+Phase 4 — Shared Connection-State Architecture
+Implement or improve a single source of truth for connection status across supported protocols.
+Requirements:
+Separate each protocol’s native lifecycle from shared UI state.
+Tag connection attempts with unique IDs or equivalent lifecycle guards to reject stale events.
+Prevent callbacks from a previous protocol session from overriding the current session.
+Clean up native event subscriptions on unmount and disconnect.
+Make repeated Connect and Disconnect operations safe and idempotent.
+Handle app backgrounding, foregrounding, and unexpected service termination.
+Do not report Connected before the native engine confirms the tunnel is established.
+Do not report Internet Available unless the connectivity check succeeds.
+Keep protocol-specific errors available for troubleshooting.
+Do not force OpenVPN and sing-box to use the same native implementation. Share state semantics while respecting each engine’s APIs.
+Phase 5 — Diagnostic Logging
+Add structured, privacy-conscious logs at critical boundaries:
+Connection attempt ID and selected protocol.
+VPN permission result.
+Android service start/stop.
+TUN creation result and descriptor lifecycle, without exposing descriptor contents.
+sing-box engine startup and shutdown.
+Configuration validation errors.
+Routing and outbound failures when exposed by the native core.
+DNS and connectivity probe results.
+OpenVPN native state transitions.
+React Native event receipt and UI state transitions.
+Disconnect reason and reconnection attempts.
+Never log passwords, private keys, UUID credentials, authentication tokens, subscription URLs, or full sensitive configurations.
+Use a configurable diagnostic logging level and avoid logging packet payloads or sensitive user traffic.
+Phase 6 — Automated Tests and Validation
+Create or update tests appropriate to the existing architecture.
+sing-box tests
+Invalid configuration produces an actionable error.
+Valid configuration can start the engine.
+Failed TUN creation is reported correctly.
+Failed outbound connections do not produce a false Connected status.
+DNS failures are distinguishable from routing failures.
+Traffic checks time out without hanging the UI.
+Disconnect and reconnect do not leave stale descriptors or engines.
+Native engine startup alone does not count as verified internet connectivity.
+OpenVPN tests
+Connecting → Connected updates the UI.
+Authentication failure → Error.
+Connection timeout → Error.
+Unexpected disconnect → Disconnected or Reconnecting.
+Explicit disconnect cleans up listeners.
+Late events from a previous attempt are ignored.
+App background/foreground transitions preserve accurate status.
+End-to-end Android tests
+On a real Android device or supported emulator:
+Connect with sing-box and verify actual traffic.
+Resolve a DNS name and access an HTTPS endpoint.
+Confirm traffic passes through the intended proxy rather than leaking outside the VPN.
+Disconnect and verify traffic returns to the device’s normal network.
+Reconnect repeatedly.
+Repeat the tests with OpenVPN.
+Confirm UI state matches the native connection state.
+Test IPv4 and IPv6 behavior according to the app’s declared capabilities.
+Check logs for crashes, stuck services, and resource leaks.
+Do not claim tests passed unless they were actually executed. If the Replit environment cannot run Android instrumentation tests or access a physical device, run all available static and unit tests and provide exact commands for the remaining device tests.
+Phase 7 — Deliverables
+When finished, provide:
+The confirmed root cause of the sing-box traffic problem, or clearly state if runtime evidence is still needed.
+The confirmed root cause of the OpenVPN state problem, or clearly state if runtime evidence is still needed.
+The exact files changed and the reason for each change.
+A concise explanation of the fixes.
+Tests executed and their actual results.
+Any unresolved issues and why they remain unresolved.
+Exact build commands for the existing Expo Android development/release workflow.
+Instructions to install the new APK and verify both protocols on a device.
+Critical constraints
+Modify the existing application; do not replace it with a demo.
+Preserve the current UI, branding, authentication, subscription retrieval, and supported protocols.
+Do not fabricate native SDK APIs or sing-box configuration fields.
+Check the versions already installed before using documentation or examples.
+Avoid unrelated dependency upgrades and unnecessary rewrites.
+Never hardcode credentials or weaken TLS verification to make a connection appear successful.
+Never report success based only on the presence of native libraries or a successful build.
+Prioritize a proven root-cause fix over speculative changes.
+Start by auditing the existing repository and tracing both failures. Then implement the smallest correct changes and validate them.
