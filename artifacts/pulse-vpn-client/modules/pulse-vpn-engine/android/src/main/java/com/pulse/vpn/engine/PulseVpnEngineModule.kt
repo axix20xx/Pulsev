@@ -650,7 +650,6 @@ class PulseVpnEngineModule : Module() {
       config.setAllowLocalLanAccess(false)
       config.setRetryOnAuthFailed(false)
       config.setEnableLegacyAlgorithms(false)
-      config.setEnableRouteEmulation(false)
 
       result = client.eval_config(config)
       if (result.getError()) {

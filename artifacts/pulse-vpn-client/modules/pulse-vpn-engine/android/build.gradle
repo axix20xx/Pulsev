@@ -12,6 +12,40 @@ android {
     minSdkVersion 24
     versionName '1.0.0'
   }
+  sourceSets {
+    main {
+      java.srcDir("$buildDir/generated/openvpn3/java")
+      jniLibs.srcDir("$buildDir/generated/openvpn3/jniLibs")
+      assets.srcDir('licenses')
+    }
+  }
+}
+
+def openvpn3OutputDir = layout.buildDirectory.dir('generated/openvpn3')
+def openvpn3NdkDir = System.getenv('ANDROID_NDK_HOME')
+if (!openvpn3NdkDir) {
+  def sdkDir = System.getenv('ANDROID_SDK_ROOT') ?: System.getenv('ANDROID_HOME')
+  if (sdkDir) {
+    openvpn3NdkDir = new File(sdkDir, "ndk/${rootProject.ext.ndkVersion}").absolutePath
+  }
+}
+if (!openvpn3NdkDir || !file(openvpn3NdkDir).isDirectory()) {
+  throw new GradleException('OpenVPN 3 build requires ANDROID_NDK_HOME or an SDK with the configured NDK.')
+}
+
+def buildOpenVpn3Core = tasks.register('buildOpenVpn3Core', Exec) {
+  group = 'build'
+  description = 'Builds the pinned OpenVPN 3 core and Java JNI wrappers for Android.'
+  inputs.file(file('build-openvpn3-core.sh'))
+  outputs.dir(openvpn3OutputDir)
+  environment 'OPENVPN3_OUTPUT_DIR', openvpn3OutputDir.get().asFile.absolutePath
+  environment 'ANDROID_NDK_HOME', openvpn3NdkDir
+  workingDir projectDir
+  commandLine 'bash', file('build-openvpn3-core.sh').absolutePath
+}
+
+tasks.named('preBuild').configure {
+  dependsOn(buildOpenVpn3Core)
 }
 
 dependencies {
@@ -20,6 +54,13 @@ dependencies {
     exclude group: 'amneziawg-android', module: 'hevtunnel'
   }
   implementation 'com.zaneschepke:hevtunnel:1.0.1'
-  implementation 'io.github.tim06:openvpn:1.1.3'
+  implementation files('libs/openvpn-service-classes.jar')
+  implementation 'io.github.tim06:basevpnprotocols:1.1.0'
+  implementation 'io.github.tim06:vpnprotocolsnotification:1.1.0'
+  implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.24'
+  implementation 'org.jetbrains.kotlin:kotlin-parcelize-runtime:1.9.24'
+  implementation 'androidx.appcompat:appcompat:1.5.0'
+  implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.2'
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4'
   implementation 'com.github.singbox-android:libbox:1.14.3'
 }

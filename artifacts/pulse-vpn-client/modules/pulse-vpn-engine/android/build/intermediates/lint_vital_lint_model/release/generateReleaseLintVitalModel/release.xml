@@ -12,9 +12,9 @@
   <sourceProviders>
     <sourceProvider
         manifests="src/main/AndroidManifest.xml"
-        javaDirectories="src/main/java:src/release/java:src/main/kotlin:src/release/kotlin"
+        javaDirectories="src/main/java:build/generated/openvpn3/java:src/release/java:src/main/kotlin:src/release/kotlin"
         resDirectories="src/main/res:src/release/res"
-        assetsDirectories="src/main/assets:src/release/assets"/>
+        assetsDirectories="src/main/assets:licenses:src/release/assets"/>
   </sourceProviders>
   <testSourceProviders>
   </testSourceProviders>
