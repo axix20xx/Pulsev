@@ -1701,14 +1701,14 @@ content_type = "application/octet-stream"
 id = "lVfnTbSw1agNU5uWnf3sZ"
 uri = "file://artifacts/pulse-vpn-client/android/app/build/outputs/apk/release/app-release.apk"
 type = "unspecified"
-title = "Pulse VPN Client 1.0.8 — Android ARM64 APK"
-description = "Fixes the crash found in the uploaded bug report by aligning OkHttp core and JavaNetCookieJar to 5.3.0."
+title = "Pulse VPN 1.0.20 for Android (ARM64)"
+description = "Includes V2Ray payload verification with a mobile-safe TUN MTU, automatic OpenVPN disconnect-before-switch, and stale-error clearing."
 logical_id = "ff5332b5-61ef-47f5-86e6-f678c9240c44"
-content_hash = "sha256:f87a74e5bd39e288ac45518e02f6c1180400d41100bb601ac789b8c8fdf6c833"
-size = 60827503
-mtime_ms = 1792423998201
-storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ff5332b5-61ef-47f5-86e6-f678c9240c44/b34ad580-8b6f-41e8-9389-23333afe489e"
-storage_version_token = "1792424059471574"
+content_hash = "sha256:2b0dec57d26693295565c079f855e7fae465b319f3b02855e40764defe6b9395"
+size = 70105229
+mtime_ms = 1792523342633
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ff5332b5-61ef-47f5-86e6-f678c9240c44/833b5709-1e61-4734-850d-a08c99e3f969"
+storage_version_token = "1792523405759019"
 content_type = "application/octet-stream"
 
 [[outputs]]

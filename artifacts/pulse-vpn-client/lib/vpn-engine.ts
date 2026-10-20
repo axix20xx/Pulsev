@@ -35,6 +35,7 @@ export type TunnelConnectivityEndpoint = {
   endpoint: string;
   success: boolean;
   statusCode?: number;
+  bytesReceived?: number;
   latencyMs?: number;
   error?: string;
 };

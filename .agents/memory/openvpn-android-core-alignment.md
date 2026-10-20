@@ -9,6 +9,12 @@ Keep the OpenVPN native core, generated SWIG JNI wrappers, and Android service a
 
 **How to apply:** Regenerate wrappers and compile the adapter whenever the core changes. Test parsing with a sanitized profile fixture and verify a real tunnel on a device separately. Never log full VPN profile contents.
 
+When switching OpenVPN profiles, stop the existing tunnel and wait for native `DISCONNECTED`/`INACTIVE` status before starting the next profile. Clear a stale screen error when the native tunnel is still connected.
+
+**Why:** The native service allows only one active OpenVPN profile; a reconnect attempt during shutdown can be rejected while the old tunnel remains connected, leaving a misleading error visible.
+
+**How to apply:** Serialize reconnects in the Android wrapper with a bounded status poll, and let the UI prioritize the confirmed tunnel state over an earlier failed switch attempt.
+
 Keep inline OpenVPN `<ca>`, `<cert>`, and `<key>` blocks inline across Android preflight and service startup. Normalize line endings and PEM labels, but do not convert these PEM blocks into temporary file paths.
 
 **Why:** The supplied CA, client certificate, and matching private key were valid and worked in OpenVPN Connect, while Pulse reported Mbed TLS parse errors after rewriting PEM blocks as files. Keeping them inline removes that handoff as a source of divergence without weakening TLS verification.

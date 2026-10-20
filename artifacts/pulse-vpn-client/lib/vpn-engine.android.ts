@@ -258,6 +258,27 @@ export async function isOpenVpnEngineAvailable(): Promise<boolean> {
   }
 }
 
+const OPENVPN_DISCONNECT_TIMEOUT_MS = 10_000;
+const OPENVPN_POLL_INTERVAL_MS = 150;
+
+async function stopOpenVpnAndWait(module: ReturnType<typeof loadPulseNativeModule>): Promise<void> {
+  const initial = await module.getOpenVpnStatus();
+  if (initial.status === 'DISCONNECTED' || initial.tunnelState === 'INACTIVE') return;
+
+  await module.disconnectOpenVpn();
+  if (initial.status === 'UNKNOWN' && initial.tunnelState === 'UNKNOWN') return;
+
+  const deadline = Date.now() + OPENVPN_DISCONNECT_TIMEOUT_MS;
+  let status = await module.getOpenVpnStatus();
+  while (status.status !== 'DISCONNECTED' && status.tunnelState !== 'INACTIVE' && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, OPENVPN_POLL_INTERVAL_MS));
+    status = await module.getOpenVpnStatus();
+  }
+  if (status.status !== 'DISCONNECTED' && status.tunnelState !== 'INACTIVE') {
+    throw new Error('The previous OpenVPN tunnel did not stop; the new server was not started.');
+  }
+}
+
 export async function getOpenVpnStatus(): Promise<WireGuardVpnStatus> {
   return loadPulseNativeModule().getOpenVpnStatus();
 }
@@ -272,11 +293,18 @@ export async function connectOpenVpn(
   const module = loadPulseNativeModule();
   await assertNoOtherTunnel('openvpn');
   if (!(await module.isSupported())) throw new Error('این دستگاه از OpenVPN پشتیبانی نمی‌کند.');
+  const current = await module.getOpenVpnStatus();
+  if (
+    ['CONNECTED', 'CONNECTING', 'DISCONNECTING', 'ERROR'].includes(current.status) ||
+    ['ACTIVE', 'CONNECTING', 'DISCONNECTING'].includes(current.tunnelState)
+  ) {
+    await stopOpenVpnAndWait(module);
+  }
   const permission = await module.requestPermission();
   if (!permission.granted) throw new Error('دسترسی VPN داده نشد.');
   return module.connectOpenVpn(profileId, profileName, configText, username, password);
 }
 
 export async function disconnectOpenVpn(): Promise<void> {
-  await loadPulseNativeModule().disconnectOpenVpn();
+  await stopOpenVpnAndWait(loadPulseNativeModule());
 }

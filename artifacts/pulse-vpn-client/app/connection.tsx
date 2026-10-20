@@ -705,6 +705,12 @@ export default function ConnectionScreen() {
           : actionError || statusError || (phase === 'error' ? 'اتصال کامل نشد. جزئیات خطا را پایین‌تر ببینید.' : 'برای شروع، از دکمهٔ تلاش دوباره استفاده کنید.');
 
   useEffect(() => {
+    if (!connected) return;
+    if (actionError) setActionError(null);
+    if (phase === 'error') setPhase('monitoring');
+  }, [actionError, connected, phase]);
+
+  useEffect(() => {
     const pendingNativeAttempt = connecting || phase === 'connecting' || phase === 'monitoring';
     if (
       !pendingNativeAttempt ||
@@ -957,7 +963,7 @@ export default function ConnectionScreen() {
               </View>
             ) : null}
 
-            {(actionError || statusError || phase === 'error') ? (
+            {!connected && (actionError || statusError || phase === 'error') ? (
               <View style={[styles.errorCard, { backgroundColor: `${c.destructive}0A`, borderColor: `${c.destructive}55` }]}>
                 <View style={styles.errorHeading}>
                   <Feather name="alert-triangle" size={19} color={c.destructive} />
@@ -987,7 +993,7 @@ export default function ConnectionScreen() {
                   <Text style={[styles.actionText, { color: c.destructiveForeground }]}>{disconnecting ? 'در حال قطع اتصال…' : `قطع اتصال${activeProtocol ? ` ${protocolNames[activeProtocol]}` : ''}`}</Text>
                 </Pressable>
               ) : null}
-              {(!connected || actionError || statusError) && protocol ? (
+              {!connected && protocol ? (
                 <Pressable
                   accessibilityRole="button"
                   onPress={retryConnection}
@@ -1028,9 +1034,11 @@ export default function ConnectionScreen() {
                   <View key={endpoint.endpoint} style={[styles.trafficEndpoint, { borderBottomColor: c.border }]}>
                     <View style={[styles.endpointDot, { backgroundColor: endpoint.success ? c.success : c.destructive }]} />
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[styles.endpointTitle, { color: c.foreground }]}>{endpoint.endpoint.includes('google.com') ? 'Google HTTPS' : 'Cloudflare HTTPS'}</Text>
+                      <Text style={[styles.endpointTitle, { color: c.foreground }]}>{endpoint.endpoint.includes('google.com') ? 'Google payload' : 'Cloudflare payload'}</Text>
                       <Text style={[styles.endpointDetail, { color: endpoint.success ? c.success : c.mutedForeground }]}>
-                        {endpoint.success ? `HTTP ${endpoint.statusCode ?? '—'}` : endpoint.error ?? `HTTP ${endpoint.statusCode ?? '—'}`}
+                        {endpoint.success
+                          ? `HTTP ${endpoint.statusCode ?? '—'} · ${fa(endpoint.bytesReceived ?? 0)} بایت دریافت شد`
+                          : endpoint.error ?? `HTTP ${endpoint.statusCode ?? '—'} · ${fa(endpoint.bytesReceived ?? 0)} بایت`}
                       </Text>
                     </View>
                     <Text style={[styles.endpointLatency, { color: c.mutedForeground }]}>{endpoint.latencyMs == null ? '—' : `${fa(endpoint.latencyMs)} ms`}</Text>

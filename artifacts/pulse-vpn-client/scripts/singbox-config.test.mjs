@@ -24,4 +24,6 @@ test('uses direct bootstrap DNS and HTTPS DNS over the proxy for app traffic', (
   assert.equal(config.route.default_domain_resolver, 'bootstrap-dns');
   assert.equal(config.outbounds[0].server, 'node.example');
   assert.equal(config.inbounds[0].dns_mode, 'hijack');
+  assert.equal(config.inbounds[0].mtu, 1400);
+  assert.equal(config.inbounds[0].strict_route, undefined);
 });

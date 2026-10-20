@@ -321,10 +321,11 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
         tag: 'pulse-tun',
         interface_name: 'tun0',
         address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
-        mtu: 9000,
+        // A conservative mobile MTU avoids black-holing larger tunneled TCP packets
+        // on cellular and Wi-Fi paths with smaller effective MTUs.
+        mtu: 1400,
         dns_mode: 'hijack',
         auto_route: true,
-        strict_route: true,
         stack: 'mixed',
       },
     ],

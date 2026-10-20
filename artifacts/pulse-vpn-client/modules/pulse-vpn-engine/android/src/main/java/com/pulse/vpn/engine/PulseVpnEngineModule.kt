@@ -787,10 +787,25 @@ class PulseVpnEngineModule : Module() {
       connection.setRequestProperty("Cache-Control", "no-cache")
       connection.setRequestProperty("User-Agent", "PulseVPN-ConnectivityCheck")
       val statusCode = connection.responseCode
+      val bytesReceived = if (statusCode in 200..299) {
+        var total = 0
+        val buffer = ByteArray(1024)
+        connection.inputStream.use { stream ->
+          while (total < MAX_TUNNEL_TEST_BYTES) {
+            val count = stream.read(buffer, 0, minOf(buffer.size, MAX_TUNNEL_TEST_BYTES - total))
+            if (count <= 0) break
+            total += count
+          }
+        }
+        total
+      } else {
+        0
+      }
       mapOf(
         "endpoint" to endpoint,
-        "success" to (statusCode in 200..299),
+        "success" to (statusCode in 200..299 && bytesReceived > 0),
         "statusCode" to statusCode,
+        "bytesReceived" to bytesReceived,
         "latencyMs" to (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(1L)
       )
     } catch (error: Throwable) {
@@ -804,6 +819,7 @@ class PulseVpnEngineModule : Module() {
       mapOf(
         "endpoint" to endpoint,
         "success" to false,
+        "bytesReceived" to 0,
         "latencyMs" to (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(1L),
         "error" to safeError
       )
@@ -1044,9 +1060,10 @@ class PulseVpnEngineModule : Module() {
     private const val TUNNEL_TEST_TIMEOUT_MS = 4_500
     private const val OPENVPN_ENGINE_ERROR_FILE = "openvpn-engine-error.txt"
     private const val OPENVPN_ENGINE_EVENT_FILE = "openvpn-engine-event.txt"
+    private const val MAX_TUNNEL_TEST_BYTES = 4096
     private val TUNNEL_TEST_URLS = listOf(
-      "https://www.google.com/generate_204",
-      "https://cp.cloudflare.com/generate_204"
+      "https://www.google.com/robots.txt",
+      "https://www.cloudflare.com/cdn-cgi/trace"
     )
   }
 }
