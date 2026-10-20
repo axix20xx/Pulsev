@@ -333,6 +333,7 @@ class PulseVpnEngineModule : Module() {
       if (username.isBlank() || password.isBlank()) {
         throw CodedException("ERR_OPENVPN_CREDENTIALS_MISSING", "OpenVPN username and password are required.", null)
       }
+      com.tim.openvpn.OpenVPNThreadv3.clearLastEngineError()
       if (openVpnState == "CONNECTED" || openVpnState == "CONNECTING") {
         throw CodedException("ERR_OPENVPN_ALREADY_ACTIVE", "Disconnect the current OpenVPN tunnel before changing servers.", null)
       }
@@ -858,7 +859,14 @@ class PulseVpnEngineModule : Module() {
         ConnectionState.DISCONNECTED, ConnectionState.IDLE -> {
           openVpnStartRequestedAt = null
           if (previous == "CONNECTING" || previous == "READYFORCONNECT") {
-            openVpnError = "OpenVPN disconnected before the connection was established."
+            val engineDetail = runCatching {
+              com.tim.openvpn.OpenVPNThreadv3.getLastEngineError()
+            }.getOrNull()
+            openVpnError = if (!engineDetail.isNullOrBlank()) {
+              sanitizeOpenVpnDiagnostic(engineDetail)
+            } else {
+              "OpenVPN disconnected before the connection was established."
+            }
           }
           openVpnConnectedAt = null
           openVpnUploadBytes = 0L

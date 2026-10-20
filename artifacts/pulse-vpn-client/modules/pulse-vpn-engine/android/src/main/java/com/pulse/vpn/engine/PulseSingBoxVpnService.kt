@@ -476,7 +476,12 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
       val name = link.interfaceName ?: continue
       val javaInterface = runCatching { JavaNetworkInterface.getByName(name) }.getOrNull() ?: continue
       val addresses = javaInterface.interfaceAddresses.mapNotNull { address ->
-        address.address.hostAddress?.let { "$it/${address.networkPrefixLength}" }
+        // Go's netip.ParsePrefix rejects IPv6 zone IDs (for example, %wlan0)
+        // inside a prefix. Keep the interface name separately and pass a
+        // zone-free address/prefix to sing-box.
+        address.address.hostAddress
+          ?.substringBefore('%')
+          ?.let { "$it/${address.networkPrefixLength}" }
       }
       val boxType = when {
         caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Libbox.InterfaceTypeWIFI

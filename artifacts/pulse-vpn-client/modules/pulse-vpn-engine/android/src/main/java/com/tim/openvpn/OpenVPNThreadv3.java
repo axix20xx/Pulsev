@@ -39,6 +39,25 @@ import java.util.Locale;
 public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable, OpenVPNManagement {
     final static long EmulateExcludeRoutes = (1 << 16);
     public static final String VPNSERVICE_TUN = "vpnservice-tun";
+    private static volatile String lastEngineError;
+
+    public static void clearLastEngineError() {
+        lastEngineError = null;
+    }
+
+    public static String getLastEngineError() {
+        return lastEngineError;
+    }
+
+    private static void rememberEngineError(String message) {
+        if (message == null || message.trim().isEmpty()) return;
+        String safe = message
+            .replaceAll("(?is)<(key|cert|ca|tls-crypt|tls-crypt-v2)>.*?</\\1>", "[redacted]")
+            .replaceAll("(?i)(password|passwd|token)\\s*[:=]\\s*[^\\s,;]+", "$1=[redacted]")
+            .replaceAll("\\s+", " ")
+            .trim();
+        lastEngineError = safe.length() > 500 ? safe.substring(0, 500) : safe;
+    }
 
     static {
         System.loadLibrary("ovpn3");
@@ -61,6 +80,7 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
 
     @Override
     public void run() {
+        clearLastEngineError();
         if (!setConfig(configuration)) {
             mService.openvpnStopped();
             return;
@@ -72,6 +92,7 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
 
         ClientAPI_Status status = connect();
         if (status.getError()) {
+            rememberEngineError(status.getStatus() + ": " + status.getMessage());
             OpenVPNLogger.e(
                 "OpenVPNThreadv3",
                 String.format(Locale.US, "connect() error: %s: %s", status.getStatus(), status.getMessage())
@@ -281,6 +302,9 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
     public void event(ClientAPI_Event event) {
         String name = event.getName();
         String info = event.getInfo();
+        if (event.getError() || ("DISCONNECTED".equals(name) && info != null && !info.trim().isEmpty())) {
+            rememberEngineError(name + ": " + info);
+        }
         if ("INFO".equals(name)) {
             if (info.startsWith("OPEN_URL:") || info.startsWith("CR_TEXT:") || info.startsWith("WEB_AUTH:")) {
                 mService.trigger_sso(info);

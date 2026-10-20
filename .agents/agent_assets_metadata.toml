@@ -1766,3 +1766,17 @@ mtime_ms = 1792511791479
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/d8ceab28-a71c-4b9f-a8ac-c3256689811f/599e414f-4f79-4274-ba90-f775ec26e23e"
 storage_version_token = "1792511850014345"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "m8tcJsigyfR3OeGvJSvt-"
+uri = "file://generated-artifacts/PulseVPN-1.0.14-Android-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN Android APK 1.0.14"
+description = "ARM64 Android build. Fixes the sing-box IPv6 interface-prefix crash and shows sanitized OpenVPN engine errors."
+logical_id = "3bf06bef-66ab-485f-9bcf-ad46ce13d18a"
+content_hash = "sha256:a821ce15673cfdb95c456840cc60b5ed0e60de7c1ed9685eba4ec91f87d3bbc0"
+size = 70098897
+mtime_ms = 1792514364537
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3bf06bef-66ab-485f-9bcf-ad46ce13d18a/cbc7fa8a-2062-4f2e-a486-e1250ef6ecd9"
+storage_version_token = "1792514379958869"
+content_type = "application/octet-stream"
