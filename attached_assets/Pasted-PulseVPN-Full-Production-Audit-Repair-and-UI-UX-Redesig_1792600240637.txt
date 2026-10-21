@@ -1,0 +1,525 @@
+PulseVPN — Full Production Audit, Repair, and UI/UX Redesign
+ROLE
+Act as a senior Android VPN engineer, React Native/Expo architect, Kotlin engineer, network-security specialist, QA lead, and mobile product designer.
+You are working on the existing PulseVPN 1.0.28 codebase. Your task is to audit the complete application, repair confirmed defects, redesign the user experience, and validate the resulting Android release.
+This is an implementation task, not a proposal. Inspect the source files, modify the actual code, run tests, build the application when the environment permits, and report verifiable results.
+Do not replace the project with a mock application, a browser-only VPN interface, or a new prototype. Preserve the existing backend integration and native VPN engines unless a specific defect requires a carefully validated change.
+1. NON-NEGOTIABLE REQUIREMENTS
+Preserve the existing authentication API, subscription model, profile identifiers, API response contracts, and backend integration.
+Preserve functional V2Ray/sing-box, OpenVPN, WireGuard, and AmneziaWG support.
+Do not simulate VPN connections, traffic verification, server latency, subscription validity, or engine status.
+Do not report a connection as successful merely because a VPN service started or a TUN interface was established.
+Never disable TLS certificate validation, bypass Android VPN permissions, or weaken authentication to make tests pass.
+Never expose subscription tokens, access tokens, passwords, UUIDs, private keys, or complete VPN configurations in logs, diagnostic exports, UI messages, or analytics.
+Do not remove native modules, protocols, screens, or features simply to obtain a successful build.
+Keep the application mobile-first and native Android compatible. Preserve Expo Router and the current native module architecture.
+Use the existing repository’s package manager and lockfile. Do not migrate package managers.
+Inspect the code before modifying it. Avoid blindly overwriting existing functionality or performing a wholesale rewrite.
+If an issue depends on unavailable infrastructure, Android SDKs, credentials, or a physical device, document the limitation and provide a reproducible validation procedure.
+Do not claim a test, APK build, or device validation succeeded unless it actually ran and passed.
+2. PHASE ONE — COMPLETE SOURCE AUDIT
+Inspect all relevant source files, including:
+app/_layout.tsx
+app/index.tsx
+app/connection.tsx
+app/auth/otp.tsx
+app/(tabs)/_layout.tsx
+app/(tabs)/index.tsx
+app/(tabs)/protocols.tsx
+app/(tabs)/activity.tsx
+app/(tabs)/profiles.tsx
+app/(tabs)/settings.tsx
+app/profiles/[id].tsx
+app/servers/[protocol].tsx
+components/HomeRedesign.tsx
+components/ProtocolsRedesign.tsx
+components/ActivityRedesign.tsx
+components/Ui.tsx
+components/ErrorBoundary.tsx
+hooks/VpnPreferences.tsx
+hooks/Appearance.tsx
+hooks/useXrayLatencyScan.ts
+lib/vpn-engine.ts
+lib/vpn-engine.android.ts
+lib/mobile-auth.ts
+lib/subscription-token.ts
+lib/singbox-config.ts
+lib/xray-config-normalization.ts
+lib/xray-server-health.ts
+lib/xray-share-links.ts
+modules/pulse-vpn-engine/
+Android manifests, Gradle configuration, ProGuard rules, native Kotlin/Java sources, Expo configuration, build scripts, and package manifests.
+Inspect generated API client contracts and the backend integration where source is available. Do not assume that client-side checks enforce backend security.
+Create an issue inventory with:
+Unique issue ID.
+Severity: P0, P1, P2, or P3.
+Affected files and functions.
+Reproduction steps.
+Root cause supported by code or test evidence.
+Fix implemented.
+Regression test added.
+Verification result.
+Prioritize security, incorrect connections, stale state, crashes, and broken builds before cosmetic changes.
+3. PHASE TWO — FIX CONNECTION MANAGEMENT
+3.1 Fix server-selection identity
+Inspect app/connection.tsx.
+Ensure the identity of a connection attempt includes every relevant selection:
+Subscription/profile ID.
+Protocol.
+Selected server ID or canonical server identity.
+Relevant configuration version.
+Attempt generation.
+Fix the V2Ray case where an existing connection may be considered the requested connection even after a different server is selected.
+Do not compare only display names. Use stable IDs wherever possible.
+Selecting server B while server A is connected must initiate the correct transition and ultimately connect to B, or show an explicit failure.
+3.2 Prevent stale asynchronous callbacks
+Use a consistent attempt-generation or cancellation strategy for all protocols.
+Apply it to:
+Connection promises.
+Disconnection promises.
+Permission requests.
+Subscription/configuration fetches.
+Traffic verification.
+Timeout callbacks.
+Reconnection attempts.
+Delayed native events.
+An obsolete attempt must not overwrite the state, selected server, error, or success indicator of a newer attempt.
+Ensure unmounting or navigating away cannot cause unsafe state updates or leave unintended connection attempts running.
+3.3 Define a single connection state machine
+Use a single authoritative state model shared by the connection controller, home screen, server selection, and diagnostics.
+Represent at least:
+Disconnected.
+Requesting permission.
+Preparing configuration.
+Connecting.
+Establishing tunnel.
+Verifying traffic.
+Connected and traffic verified.
+Connected but traffic unverified.
+Reconnecting.
+Disconnecting.
+Failed.
+Permission revoked.
+Define valid transitions and handle duplicate or out-of-order events.
+Do not allow two protocol engines to remain active simultaneously unless explicitly supported by the architecture. Disconnect the old engine and verify that it has stopped before starting another. Use bounded timeouts and explicit recovery if it does not stop.
+On app startup, reconcile the native engine’s actual state with persisted preferences. Never restore a connected UI state from local storage alone.
+3.4 Improve disconnect and reconnect behavior
+Verify:
+Repeated Connect and Disconnect taps.
+Switching servers during connection.
+Switching protocols during connection.
+Connection timeout.
+Permission cancellation.
+Engine failure.
+Android VPN revocation.
+App backgrounding and foregrounding.
+App process recreation.
+Device sleep and wake.
+Wi-Fi to mobile data transitions.
+Mobile data to Wi-Fi transitions.
+No-network recovery.
+Rapid consecutive connection attempts.
+The app must always offer a reliable way to disconnect.
+3.5 Verify actual traffic
+Use the existing native traffic-verification functionality where possible.
+Distinguish:
+Native service running.
+Tunnel established.
+Routes and DNS configured.
+Traffic verification passed.
+Traffic verification failed or timed out.
+Provide a meaningful, bounded verification result. Do not equate an HTTPS test failure with proof that all VPN traffic is broken; explain the test limitation.
+Do not show fabricated upload/download speeds or latency.
+4. PHASE THREE — NATIVE AND PROTOCOL AUDIT
+4.1 sing-box / V2Ray
+Inspect:
+Share-link parsing.
+Subscription feed parsing.
+URI decoding.
+VLESS, VMess, Trojan, Shadowsocks, Hysteria 2, TUIC, and other currently supported formats.
+Reality parameters and TLS verification.
+WebSocket and supported transports.
+IPv4 and IPv6.
+DNS routing and bootstrap DNS.
+Endpoint resolution.
+Configuration validation.
+Native engine startup and shutdown.
+Actual traffic verification.
+Reject malformed or unsupported configurations with actionable errors. Never silently convert an unsupported transport into a different protocol.
+Fix endpoint recovery where appropriate:
+Bounded retries.
+Alternate resolved IP attempts when safe.
+Re-resolution following relevant network changes.
+Correct preservation of the original hostname for TLS SNI and certificate validation.
+Protected sockets to prevent VPN routing loops.
+No unbounded retry loops.
+No TLS verification bypass.
+No false connected state while the engine is recovering.
+Validate generated configurations using the native sing-box/Libbox validation mechanism already present.
+4.2 OpenVPN
+Inspect the native OpenVPN implementation, including event mapping and the Java/Kotlin bridge.
+Verify:
+Credential handling.
+Permission handling.
+TLS/authentication failures.
+DNS and routes.
+IPv4/IPv6 behavior.
+Connect/disconnect lifecycle.
+Service binding and recovery.
+Stale disconnect events.
+Error sanitization.
+Native resource cleanup.
+Run the existing JUnit tests where possible. Add regression tests for state transitions and delayed events.
+4.3 WireGuard and AmneziaWG
+Verify:
+Config parsing and validation.
+Private key protection.
+Native tunnel startup and shutdown.
+Android VPN permission flow.
+Route and DNS configuration.
+IPv4 and IPv6 behavior.
+Network changes and recovery.
+Engine-state reconciliation.
+Error propagation.
+Do not display connection success until the state model’s required verification criteria are met.
+Do not modify cryptographic settings or protocol parameters without a demonstrated reason.
+4.4 Cross-protocol safeguards
+Ensure only the intended engine is active.
+If an old engine cannot stop:
+Stop the new connection attempt.
+Report the problem.
+Preserve accurate native state.
+Provide a safe retry or recovery action.
+Do not blindly start a second tunnel over an unknown active state.
+5. PHASE FOUR — AUTHENTICATION AND SUBSCRIPTIONS
+Audit the OTP flow, session restoration, API token handling, subscription refresh, and profile management.
+Requirements:
+Normalize phone numbers consistently with the backend contract.
+Validate input without incorrectly rejecting valid numbers.
+Handle invalid OTP, expired OTP, expired challenge, network timeout, rate limiting, and server errors separately.
+Disable duplicate submissions while a request is in flight.
+Implement resend only if the backend supports it and its limits are respected.
+Support changing the phone number and restarting the flow.
+Store access tokens in secure storage.
+Do not persist credentials in AsyncStorage.
+Do not log authentication request bodies or secrets.
+Handle secure-storage failures explicitly.
+Restore sessions after app restart.
+Handle expired or revoked sessions without leaving stale private screens visible.
+Implement logout by clearing the local session and user-specific query/cache state.
+Verify whether backend session invalidation is supported; do not invent an endpoint.
+Correctly handle no subscriptions, expired subscriptions, unavailable protocols, empty server lists, deleted profiles, stale server selections, and failed refreshes.
+Ensure subscription tokens are never displayed in full or exposed through diagnostic exports.
+6. PHASE FIVE — PACKAGE AND BUILD REPAIR
+Inspect the root package.json, app package.json, workspace configuration, lockfile, Expo SDK version, React Native version, native modules, and generated Android project.
+Specifically:
+Move runtime dependencies into the correct dependency section.
+Resolve duplicate or conflicting Expo/React/React Native declarations.
+Align packages with the project’s Expo SDK compatibility requirements.
+Preserve the current package manager.
+Update the lockfile through the package manager.
+Verify all required local workspace packages are included.
+Verify native module autolinking and Expo prebuild behavior.
+Check Android manifest merging.
+Verify secure-store backup-rule resources exist in the generated release project.
+Review Android SDK, Java, Kotlin, NDK, CMake, Gradle, and native library compatibility.
+Inspect release signing configuration without exposing secrets.
+Verify supported ABIs and packaged native libraries.
+Review ProGuard/R8 behavior for native engines.
+Remove obsolete crash logs or generated artifacts from the deliverable if they are not required.
+Never embed production credentials or signing keys in source code.
+Run, as applicable:
+Clean dependency installation.
+TypeScript typecheck.
+All JavaScript tests.
+Java/Kotlin tests.
+Expo config validation.
+Expo prebuild.
+Android release APK build.
+APK installation and launch.
+Runtime tests for each protocol.
+If a command cannot run because the environment lacks an SDK, dependency, credential, or device, report the exact blocker. Do not conceal failures.
+7. PHASE SIX — COMPLETE UI/UX REDESIGN
+Redesign the existing application as a polished, premium, Persian-first VPN client.
+Keep the existing functional APIs and native connection implementation. Refactor UI components where needed rather than replacing real logic with mock data.
+Product design principles
+One obvious primary action: Connect or Disconnect.
+Accurate, understandable connection states.
+Clear selected subscription, protocol, and server.
+Minimal visual clutter.
+No fake metrics, fake progress, or decorative technical noise.
+Consistent typography, spacing, component sizes, and colors.
+Fast access to server selection.
+Useful error messages with an appropriate next action.
+Responsive layouts across small and large phones.
+Accessible touch targets and text contrast.
+7.1 Home screen
+Create a clear connection dashboard with this hierarchy:
+Compact app header and account/subscription access.
+Current connection status.
+Large central Connect/Disconnect button.
+Selected server and protocol card.
+Connection duration and real latency when available.
+Contextual connection details and recovery guidance.
+A compact diagnostics summary only when useful.
+Provide different visual treatments for disconnected, connecting, verifying, connected, reconnecting, and failed states.
+The connected state must depend on the real connection state model and traffic-verification policy.
+Do not add fake traffic graphs or fake speed counters.
+7.2 Server screen
+Create a dedicated server browser.
+Include:
+Search.
+Subscription selection.
+Protocol filter.
+Server name and location.
+Real latency with a clear unknown/loading state.
+Availability and failure indicators.
+Selected-server indicator.
+Refresh and retry states.
+Empty state and useful error handling.
+Make long server names and Persian text wrap gracefully.
+When the user selects a different server, update the actual connection selection and trigger the correct connection transition.
+7.3 Protocol screen
+Present the supported protocols as consistent, accessible choices.
+Each protocol item should show:
+Name.
+Short explanation in Persian.
+Availability for the selected subscription.
+Selected state.
+Unavailable state with an explanation.
+Do not advertise a protocol as available if the current subscription lacks the necessary configuration.
+Changing protocol must update preferences and invalidate an incompatible selected server.
+7.4 Activity screen
+Create two clearly separated areas:
+Connection history
+Timestamp.
+Protocol.
+Server.
+Success/failure outcome.
+Connection duration where known.
+Concise failure reason.
+Diagnostics
+Native engine status.
+Tunnel status.
+Traffic verification.
+DNS/connectivity test.
+Last test result.
+A retry or diagnostic action.
+Persist a bounded local history using an appropriate storage mechanism. Store only sanitized metadata. Never store credentials or raw configurations in history.
+Provide empty, loading, failure, and clear-history states. Do not represent live polling as historical records.
+7.5 Settings screen
+Organize settings into:
+Account and session.
+Subscription management.
+Appearance.
+Language and layout.
+Connection preferences.
+Diagnostics and support.
+Privacy.
+App version.
+Logout.
+Use clear descriptions and confirmations for destructive actions. Do not show controls that do not actually work.
+7.6 OTP and profile screens
+Improve the OTP flow with:
+Clear phone-number entry.
+Separate OTP verification state.
+Correct numeric input.
+Loading and disabled states.
+Expiry feedback.
+Backend-compatible resend behavior.
+Edit-number action.
+Specific error messages.
+Keyboard-safe layout.
+Make subscription/profile screens show status, available protocols, expiry information when supplied by the API, and refresh failures. Do not invent missing subscription information.
+7.7 Shared component system
+Create or refactor reusable components for:
+Buttons.
+Cards.
+Protocol selectors.
+Server rows.
+Status indicators.
+Empty states.
+Error panels.
+Loading skeletons.
+Confirmation dialogs.
+Settings rows.
+Form inputs.
+Bottom navigation.
+Toasts or nonblocking feedback.
+Avoid duplicating connection-state logic in individual screens.
+7.8 Visual style
+Use a premium, restrained visual system.
+Suggested dark palette:
+Background: #0B1220
+Surface: #111C2E
+Accent: #25D9C3
+Primary text: #F3F6FB
+Secondary text: a contrast-checked muted neutral
+Success: #168B76
+Error: #D94A59
+Suggested light palette:
+Background: #F3F6FB
+Surface: #FFFFFF
+Accent: #087F75
+Primary text: #111827
+Use Vazirmatn for Persian/Arabic-script UI text. Bundle and register valid font files and weights. Use a suitable Latin font for Latin text if appropriate.
+Do not simply assign Inter to all Persian labels. Verify actual Persian glyph coverage and rendering.
+Use a consistent spacing scale, approximately 16–20 px screen padding, coherent card radii, and clear text hierarchy.
+Keep motion subtle and respect reduced-motion/accessibility needs.
+7.9 RTL and localization
+Support Persian RTL correctly throughout the application.
+Test:
+Text alignment.
+Horizontal row order.
+Back and forward icons.
+Tab navigation.
+Form fields.
+Mixed Persian and Latin content.
+Phone numbers.
+IP addresses and hostnames.
+Ports, UUIDs, and technical values.
+Error messages.
+Dates and numbers.
+Use explicit LTR formatting for technical identifiers and values that must remain left-to-right.
+Do not globally reverse all rows without checking their intended semantic order.
+Ensure the UI behaves consistently regardless of the Android system language. Verify both Persian and English locale behavior if both are supported.
+7.10 Responsive layout and accessibility
+Test narrow devices, including widths near 320, 360, 375, 390, and 430 logical pixels.
+Fix:
+Fixed-width overflow.
+Two-column cards exceeding available width when gaps are included.
+Clipped Persian text.
+Overlapping buttons.
+Long server names.
+Keyboard covering form actions.
+Content hidden behind system bars or bottom tabs.
+Incorrect safe-area padding.
+Insufficient touch targets.
+Poor contrast.
+Dynamic font scaling issues.
+Use responsive sizing and content-aware layouts rather than arbitrary fixed widths.
+Verify Android gesture navigation and traditional navigation-bar insets.
+8. PHASE SEVEN — ERROR HANDLING AND SECURITY
+Review every boundary where data enters or leaves the app.
+Check:
+Subscription feed parsing.
+Deep links.
+Share links.
+Server metadata.
+API responses.
+Native bridge arguments.
+Diagnostics.
+Logging.
+File access.
+Authentication.
+Configuration storage.
+Release configuration.
+Requirements:
+Validate external configuration input before passing it to native engines.
+Redact credentials from URIs and exception messages.
+Never log private keys, access tokens, OTP values, passwords, or full configurations.
+Keep TLS verification enabled.
+Use explicit network timeouts.
+Bound retries.
+Avoid unhandled promise rejections.
+Handle missing native modules gracefully without pretending VPN support exists.
+Ensure errors reach the UI in a sanitized and actionable form.
+Review Android permissions and remove unnecessary permissions only after verifying plugin and native-engine requirements.
+Ensure secure data is excluded from backup where appropriate.
+Review static server path handling and production asset/manifest routing.
+Do not change backend authorization rules from the client.
+Add tests for redaction and malformed input where feasible.
+9. PHASE EIGHT — AUTOMATED TESTING
+Keep existing tests and add targeted regression tests.
+At minimum, cover:
+Connection controller
+Selecting server B while server A is connected.
+Switching protocols.
+Rapid repeated Connect taps.
+Rapid Disconnect and Connect.
+Old promise resolving after a newer attempt.
+Old failure callback arriving after a successful new connection.
+Permission cancellation.
+Connection timeout.
+Disconnect timeout.
+Stale native events.
+App startup with an already-active tunnel.
+Configuration
+Valid and invalid share links.
+Missing credentials.
+Unsupported transports.
+Invalid Reality parameters.
+IPv6 endpoints.
+Malformed subscription feeds.
+DNS failures.
+Sanitized errors.
+Authentication
+Invalid phone input.
+Duplicate OTP requests.
+Invalid code.
+Expired challenge.
+API timeout.
+Session restoration.
+Secure-storage failure.
+Logout and cache clearing.
+UI
+Correct selected protocol/server.
+State labels match the controller.
+Loading and error states.
+Empty subscriptions and empty server lists.
+Responsive layouts.
+RTL and LTR mixed content.
+Accessibility labels and touch targets.
+Native integration
+Engine starts and stops.
+Tunnel state is reconciled.
+Actual traffic verification.
+Network changes.
+Permission revocation.
+Native crash and recovery behavior.
+Separate unit tests from device-only integration tests. Never mark an unexecuted test as passed.
+10. PHASE NINE — BUILD AND FINAL VERIFICATION
+After changes:
+Install dependencies cleanly using the existing package manager.
+Run the TypeScript typecheck.
+Run every existing and newly added JavaScript test.
+Run native unit tests where the environment permits.
+Validate Expo configuration.
+Run Android prebuild where required.
+Run a clean release APK build.
+Install and launch the APK if a device/emulator is available.
+Test OTP and session restoration.
+Test every supported protocol using valid real configurations.
+Verify that traffic actually passes through the selected tunnel.
+Test disconnect, protocol switching, server switching, and network transitions.
+Inspect the release manifest and permissions.
+Inspect the final UI in both dark and light themes, with Persian RTL, on narrow and wide devices.
+Confirm that no secrets appear in logs or exported diagnostics.
+If an APK is produced, state the exact output path and verify that the file exists. If the build cannot be completed, explain the blocker and provide the exact remaining commands.
+11. IMPLEMENTATION RULES
+Work incrementally.
+Preserve working code and APIs.
+Fix root causes instead of hiding symptoms.
+Add regression tests before or alongside fixes.
+Keep connection orchestration separate from presentation components.
+Keep components typed and avoid unnecessary any.
+Do not introduce unnecessary dependencies.
+Do not perform unrelated refactors.
+Do not claim that UI polish fixes native networking problems.
+Do not claim that passing unit tests proves a real VPN connection works.
+Do not leave buttons, toggles, or settings as decorative placeholders.
+Do not silently swallow errors that affect connection correctness or authentication.
+Keep user-facing errors understandable and in Persian.
+12. FINAL DELIVERABLE
+When finished, provide:
+Executive summary of the completed work.
+Findings grouped by severity.
+List of modified files and the reason for each change.
+Description of the final navigation and UI/UX structure.
+Connection-state architecture and concurrency safeguards.
+Security and permission changes.
+Test commands executed and exact results.
+Build status and APK location if successfully produced.
+Remaining blockers and device-only tests.
+A concise manual QA checklist for the release.
+Start by inspecting the current repository and identifying confirmed defects. Then implement the highest-risk fixes, complete the UI redesign, run tests, and verify the build. Do not stop after producing an audit report.
