@@ -2074,3 +2074,31 @@ mtime_ms = 1792603066780
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/78bce5e4-5a7a-4bf1-804a-1b55aa5e8824/2bcaec59-a233-4ba3-847b-172e1e870dde"
 storage_version_token = "1792603100144973"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "jBvy8N1W-tIY3ocbAkHQb"
+uri = "file://generated-artifacts/PulseVPN-1.5.0-Android-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN 1.5.0 — Android APK (arm64)"
+description = "Installable, debug-signed Android build (versionCode 50), arm64-v8a only. This is for direct testing, not a Play Store-signed release."
+logical_id = "15f3540a-b646-4f99-b28b-e01e2edb5ea6"
+content_hash = "sha256:3f46ddd60b8faa2f3c5dea41822656fccf2f2032b1ddf4d316a9b8282bb4a04c"
+size = 70848601
+mtime_ms = 1792607972429
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/15f3540a-b646-4f99-b28b-e01e2edb5ea6/800e0137-1eb0-4333-a851-bae923aec780"
+storage_version_token = "1792608057759205"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "f42eBojChXQXF7sqc5qJo"
+uri = "file://generated-artifacts/PulseVPN-1.5.0-source.zip"
+type = "unspecified"
+title = "Pulse VPN 1.5.0 — Source ZIP"
+description = "Mobile app source plus its workspace API client and schema packages; excludes user VPN profiles, environment files, build caches, and compiled APKs."
+logical_id = "c3ea7292-9c80-47f7-9f53-c113c60800de"
+content_hash = "sha256:7eb7bdeac1f93bb6993fad4496485fc445cf8f8f976d23659e7893ac4f5369aa"
+size = 6249850
+mtime_ms = 1792607989477
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/c3ea7292-9c80-47f7-9f53-c113c60800de/4d1a4816-024f-44e4-a7d4-e5dbed4045af"
+storage_version_token = "1792608058372314"
+content_type = "application/octet-stream"
