@@ -41,9 +41,8 @@ export default function ServerSelectionScreen() {
   const dashboard = useGetMobileDashboard();
   const entries = subscriptions.data ?? dashboard.data?.subscriptions ?? [];
   const eligibleEntries = entries.filter((item) => item.status === 'active' && Number(item.remaining_gb) > 0);
-  const selected = eligibleEntries.find((item) => item.id === prefs.subscriptionId)
-    ?? (eligibleEntries.length === 1 ? eligibleEntries[0] : undefined);
-  const needsSubscriptionChoice = eligibleEntries.length > 1 && !selected;
+  const selected = eligibleEntries.find((item) => item.id === prefs.subscriptionId);
+  const needsSubscriptionChoice = eligibleEntries.length > 0 && !selected;
   const token = getSubscriptionToken(selected?.subscription_url ?? null);
   const openvpn = useGetOpenVpnAccount(token, { query: { enabled: !!token && protocol === 'openvpn' && !!selected?.openvpn_available, queryKey: ['/server-picker', token, 'openvpn'] } });
   const wireguard = useGetWireGuardAccount(token, { query: { enabled: !!token && protocol === 'wireguard' && !!selected?.wireguard_available, queryKey: ['/server-picker', token, 'wireguard'] } });
@@ -150,7 +149,7 @@ export default function ServerSelectionScreen() {
           <Text style={[styles.title, { color: c.foreground }]}>{names[protocol]}</Text>
           <Text style={[styles.detail, { color: c.mutedForeground }]}>{descriptions[protocol]} · {selected?.plan ?? 'اشتراک انتخاب نشده'}</Text>
         </View>
-        {eligibleEntries.length > 1 ? (
+        {eligibleEntries.length > 1 || needsSubscriptionChoice ? (
           <>
           {needsSubscriptionChoice ? (
             <Card style={{ gap: 7, borderColor: c.warning }}>
@@ -167,7 +166,7 @@ export default function ServerSelectionScreen() {
           </View>
           </>
         ) : null}
-        {servers.length ? (
+        {selected && servers.length ? (
           <>
             <Pressable accessibilityRole="button" testID="smart-connect" disabled={busy} onPress={smart} style={({ pressed }) => [styles.smart, { backgroundColor: c.primary, opacity: busy ? 0.55 : pressed ? 0.86 : 1 }]}>
               <Feather name="zap" size={17} color={c.primaryForeground} />
@@ -251,34 +250,34 @@ export default function ServerSelectionScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 15, paddingBottom: 42, gap: 14 },
-  back: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 42, paddingHorizontal: 3 },
+  content: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 44, gap: 13 },
+  back: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 40, paddingHorizontal: 3 },
   backText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
-  heading: { gap: 7, paddingTop: 6, paddingBottom: 3 },
-  eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1.4 },
-  title: { fontFamily: 'Inter_700Bold', fontSize: 25, textAlign: 'right' },
-  detail: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 19, textAlign: 'right' },
+  heading: { gap: 7, padding: 17, borderRadius: 22, backgroundColor: 'transparent' },
+  eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 0.2 },
+  title: { fontFamily: 'Inter_700Bold', fontSize: 26, textAlign: 'right' },
+  detail: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 19, textAlign: 'right' },
   subscriptionRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  subscriptionChip: { maxWidth: '48%', borderWidth: 1, borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8 },
+  subscriptionChip: { maxWidth: '48%', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9 },
   chipText: { fontFamily: 'Inter_500Medium', fontSize: 11 },
-  smart: { minHeight: 53, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 15 },
+  smart: { minHeight: 54, borderRadius: 17, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 15 },
   smartText: { fontFamily: 'Inter_700Bold', fontSize: 14 },
   smartHint: { marginLeft: 'auto', fontFamily: 'Inter_500Medium', fontSize: 10, opacity: 0.8 },
-  searchBox: { minHeight: 48, borderRadius: 15, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13 },
+  searchBox: { minHeight: 48, borderRadius: 16, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13 },
   search: { flex: 1, textAlign: 'right', fontFamily: 'Inter_400Regular', fontSize: 13, minHeight: 46 },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
   sectionActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  latencyRefresh: { minHeight: 33, borderWidth: 1, borderRadius: 11, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  latencyRefresh: { minHeight: 34, borderWidth: 1, borderRadius: 12, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 5 },
   latencyRefreshText: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
   sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 14 },
   count: { fontFamily: 'Inter_500Medium', fontSize: 11 },
-  serverCard: { padding: 15, gap: 13, borderRadius: 22 },
+  serverCard: { padding: 14, gap: 12, borderRadius: 20 },
   serverRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   serverIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   serverCopy: { flex: 1, gap: 4 },
   serverName: { fontFamily: 'Inter_600SemiBold', fontSize: 14, textAlign: 'right', flexShrink: 1 },
   serverMeta: { fontFamily: 'Inter_400Regular', fontSize: 10, textAlign: 'right' },
-  connect: { minHeight: 42, paddingHorizontal: 13, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  connect: { minHeight: 43, paddingHorizontal: 13, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   connectText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
   state: { gap: 10 },
   skeleton: { height: 68, borderRadius: 17, opacity: 0.7 },

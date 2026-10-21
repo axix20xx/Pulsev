@@ -86,7 +86,7 @@ export default function ActivityRedesign() {
   };
 
   return (
-    <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
+    <Screen style={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.page}>
         <View style={styles.header}>
           <Text style={[styles.kicker, { color: c.primary }]}>گزارش زندهٔ اتصال</Text>
@@ -103,7 +103,7 @@ export default function ActivityRedesign() {
           <Text style={[styles.heroState, { color: c.onDeep }]}>{activeProtocol ? 'تونل بومی فعال است' : 'تونل فعالی نیست'}</Text>
           <Text style={[styles.heroDetail, { color: `${c.onDeep}B8` }]}>{activeProtocol ? labels[activeProtocol] : 'برای بررسی شبکه، ابتدا به یک سرور وصل شوید.'}</Text>
           <View style={styles.heroFoot}>
-            <View style={[styles.dot, { backgroundColor: activeProtocol ? '#8CF0C9' : '#9EABBC' }]} />
+            <View style={[styles.dot, { backgroundColor: activeProtocol ? c.success : c.mutedForeground }]} />
             <Text style={[styles.heroFootText, { color: `${c.onDeep}D8` }]}>{activeProtocol ? 'وضعیت موتور: متصل' : 'وضعیت موتور: آفلاین'}</Text>
           </View>
         </View>

@@ -56,10 +56,13 @@ export function VpnPreferencesProvider({ children }: { children: React.ReactNode
     persist({ ...current.current, protocol: value, serverId: null, serverName: null });
   };
   const chooseSubscription = (value: string) => {
+    const changed = current.current.subscriptionId !== value;
+    const nextProtocol = changed ? null : current.current.protocol;
     setSubscriptionId(value);
+    if (changed) setProtocol(null);
     setServerId(null);
     setServerName(null);
-    persist({ ...current.current, subscriptionId: value, serverId: null, serverName: null });
+    persist({ ...current.current, subscriptionId: value, protocol: nextProtocol, serverId: null, serverName: null });
   };
   const chooseServer = (id: string, name: string) => {
     setServerId(id);

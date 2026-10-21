@@ -19,7 +19,7 @@ export default function Profiles() {
   if (session.data?.authenticated === false) return <Screen><InlineState title="از حساب خارج شده‌اید" detail="برای دیدن اشتراک‌ها دوباره وارد حساب شوید." retry={() => router.replace('/auth/otp')} icon="log-in" /></Screen>;
   if (query.isError) return <Screen><InlineState title="اشتراک‌ها بارگذاری نشدند" detail="اتصال را بررسی کنید و دوباره تلاش کنید." retry={() => query.refetch()} /></Screen>;
   return (
-    <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
+      <Screen style={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }}>
       <FlatList
         data={query.data ?? []}
         keyExtractor={(item) => item.id}

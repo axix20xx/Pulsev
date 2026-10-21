@@ -17,6 +17,8 @@ import { setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
 import { getMobileToken } from '@/lib/mobile-auth';
 import { AppearanceProvider } from '@/hooks/Appearance';
 import { VpnPreferencesProvider } from '@/hooks/VpnPreferences';
+import { useColors } from '@/hooks/useColors';
+import * as SystemUI from 'expo-system-ui';
 
 const DEFAULT_API_DOMAIN = 'vinte.peppernopepper.com';
 
@@ -63,6 +65,20 @@ function RootLayoutNav() {
   );
 }
 
+function AppSurface() {
+  const colors = useColors();
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(colors.background);
+  }, [colors.background]);
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+      <KeyboardProvider>
+        <RootLayoutNav />
+      </KeyboardProvider>
+    </GestureHandlerRootView>
+  );
+}
+
 export default function RootLayout() {
   // Keep existing typography token names stable while loading a font with full
   // Persian glyph coverage instead of relying on device-specific fallback.
@@ -87,11 +103,7 @@ export default function RootLayout() {
         <VpnPreferencesProvider>
           <ErrorBoundary>
             <QueryClientProvider client={queryClient}>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProvider>
-                  <RootLayoutNav />
-                </KeyboardProvider>
-              </GestureHandlerRootView>
+              <AppSurface />
             </QueryClientProvider>
           </ErrorBoundary>
         </VpnPreferencesProvider>

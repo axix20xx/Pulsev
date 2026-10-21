@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useGetMobileDashboard } from '@workspace/api-client-react';
-import { Card, Screen } from '@/components/Ui';
+import { Card, InlineState, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { useVpnPreferences, type VpnProtocol } from '@/hooks/VpnPreferences';
 import { stopTunnelForProtocolSwitch } from '@/lib/vpn-engine';
 
 const items: { id: VpnProtocol; name: string; description: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { id: 'v2ray', name: 'V2Box', description: 'VLESS · VMess · Trojan · SS · Hysteria 2', icon: 'radio' },
+  { id: 'v2ray', name: 'V2Box', description: 'VLESS · VMess · Trojan · Shadowsocks · Hysteria 2', icon: 'radio' },
   { id: 'wireguard', name: 'WireGuard', description: 'تونل سبک با کلیدهای اختصاصی', icon: 'activity' },
-  { id: 'openvpn', name: 'OpenVPN', description: 'اتصال سازگار با سرویس‌های رایج', icon: 'shield' },
-  { id: 'amneziawg', name: 'AmneziaWG', description: 'پیکربندی اختصاصی Amnezia', icon: 'wind' },
+  { id: 'openvpn', name: 'OpenVPN', description: 'اتصال استاندارد و سازگار', icon: 'shield' },
+  { id: 'amneziawg', name: 'AmneziaWG', description: 'پروفایل اختصاصی Amnezia', icon: 'wind' },
 ];
+const supported = (s: { subscription_url?: string | null; openvpn_available?: boolean; wireguard_available?: boolean; awg_url?: string | null }, p: VpnProtocol) =>
+  p === 'v2ray' ? !!s.subscription_url : p === 'openvpn' ? !!s.openvpn_available : p === 'wireguard' ? !!s.wireguard_available : !!s.awg_url;
 
 export default function ProtocolsRedesign() {
   const c = useColors();
@@ -21,131 +23,142 @@ export default function ProtocolsRedesign() {
   const prefs = useVpnPreferences();
   const dashboard = useGetMobileDashboard();
   const [switchingProtocol, setSwitchingProtocol] = useState<VpnProtocol | null>(null);
-  const [switchError, setSwitchError] = useState('');
-  const active = (dashboard.data?.subscriptions ?? []).filter((item) => item.status === 'active' && Number(item.remaining_gb) > 0);
-  const available: Record<VpnProtocol, boolean> = {
-    v2ray: active.some((item) => !!item.subscription_url),
-    wireguard: active.some((item) => item.wireguard_available),
-    openvpn: active.some((item) => item.openvpn_available),
-    amneziawg: active.some((item) => !!item.awg_url),
+  const eligible = (dashboard.data?.subscriptions ?? []).filter((s) => s.status === 'active' && Number(s.remaining_gb) > 0);
+  const selected = eligible.find((s) => s.id === prefs.subscriptionId);
+  const available = selected ? items.filter((item) => supported(selected, item.id)) : [];
+
+  const chooseSubscription = (id: string) => {
+    const subscription = eligible.find((entry) => entry.id === id);
+    if (subscription) prefs.chooseSubscription(subscription.id);
+  };
+  const openProtocol = async (protocol: VpnProtocol) => {
+    if (!selected || !supported(selected, protocol) || switchingProtocol) return;
+    setSwitchingProtocol(protocol);
+    try {
+      await stopTunnelForProtocolSwitch(protocol);
+      prefs.chooseSubscription(selected.id);
+      prefs.chooseProtocol(protocol);
+      router.push(`/servers/${protocol}`);
+    } catch (error) {
+      Alert.alert('تغییر مسیر انجام نشد', error instanceof Error ? error.message : 'اتصال قبلی قطع نشد؛ تونل جدید شروع نشد.', [{ text: 'متوجه شدم' }]);
+    } finally { setSwitchingProtocol(null); }
   };
 
+  if (dashboard.isError) return <Screen><InlineState title="اطلاعات اشتراک دریافت نشد" detail="اتصال را بررسی کنید و دوباره تلاش کنید." retry={() => void dashboard.refetch()} /></Screen>;
+
   return (
-    <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
+    <Screen style={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.page}>
         <View style={styles.header}>
           <View style={[styles.headerIcon, { backgroundColor: c.accent }]}><Feather name="radio" size={19} color={c.primary} /></View>
           <View style={{ flex: 1, gap: 5 }}>
-            <Text style={[styles.kicker, { color: c.primary }]}>مسیرهای سرویس شما</Text>
-            <Text style={[styles.title, { color: c.foreground }]}>مسیر اتصال</Text>
-            <Text style={[styles.subtitle, { color: c.mutedForeground }]}>پروتکل موجود را انتخاب کنید. هیچ سرویسی بدون انتخاب شما آغاز نمی‌شود.</Text>
+            <Text style={[styles.kicker, { color: c.primary }]}>پیکربندی اشتراک</Text>
+            <Text style={[styles.title, { color: c.foreground }]}>پروتکل‌ها</Text>
+            <Text style={[styles.subtitle, { color: c.mutedForeground }]}>هر مسیر از تنظیمات واقعی اشتراک انتخابی شما می‌آید.</Text>
           </View>
         </View>
-        <View style={[styles.summary, { backgroundColor: c.surfaceDeep }]}>
-          <Feather name="lock" size={16} color="#FFFFFF" />
-          <Text style={[styles.summaryText, { color: c.onDeep }]}>{dashboard.isLoading ? 'در حال بررسی دسترسی حساب…' : `${active.length} اشتراک فعال · موتورهای آماده بر اساس پروفایل واقعی شما`}</Text>
+        <View style={[styles.stepHead, { borderBottomColor: c.border }]}>
+          <View style={styles.stepLabel}><Text style={[styles.stepNum, { color: c.primary }]}>۰۱</Text><Text style={[styles.sectionTitle, { color: c.foreground }]}>اشتراک مورد استفاده</Text></View>
+          <Pressable accessibilityRole="button" testID="protocols-manage-subscriptions" onPress={() => router.push('/(tabs)/profiles')}><Text style={[styles.link, { color: c.primary }]}>مدیریت</Text></Pressable>
         </View>
-        <View style={styles.grid}>
-          {items.map((item, index) => {
-            const chosen = prefs.protocol === item.id;
-            const enabled = available[item.id];
-            const accent = item.id === 'wireguard' ? c.success
-              : item.id === 'openvpn' ? c.warning
-                : item.id === 'amneziawg' ? c.secondaryForeground : c.primary;
-            return (
-              <Pressable
-                key={item.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: chosen, disabled: !enabled }}
-                testID={`protocol-${item.id}`}
-                disabled={!enabled || switchingProtocol !== null}
-                onPress={() => {
-                  setSwitchError('');
-                  setSwitchingProtocol(item.id);
-                  void (async () => {
-                    try {
-                      await stopTunnelForProtocolSwitch(item.id);
-                      prefs.chooseProtocol(item.id);
-                      router.push(`/servers/${item.id}`);
-                    } catch (error) {
-                      setSwitchError(error instanceof Error ? error.message : 'اتصال قبلی قطع نشد؛ پروتکل جدید شروع نشد.');
-                    } finally {
-                      setSwitchingProtocol(null);
-                    }
-                  })();
-                }}
-                style={({ pressed }) => [
-                  styles.tile,
-                  {
-                    backgroundColor: c.card,
-                    borderColor: chosen ? accent : c.border,
-                    opacity: !enabled ? 0.55 : switchingProtocol && switchingProtocol !== item.id ? 0.55 : pressed ? 0.8 : 1,
-                    transform: [{ scale: pressed ? 0.985 : 1 }],
-                  },
-                ]}
-              >
-                <View style={styles.tileTop}>
-                  <View style={[styles.index, { backgroundColor: `${accent}16` }]}>
-                    <Text style={[styles.indexText, { color: accent }]}>0{index + 1}</Text>
-                  </View>
-                  <View style={[styles.icon, { backgroundColor: `${accent}14` }]}>
-                    <Feather name={item.icon} size={20} color={accent} />
-                  </View>
-                </View>
-                <Text style={[styles.name, { color: c.foreground }]}>{item.name}</Text>
-                <Text style={[styles.description, { color: c.mutedForeground }]}>{item.description}</Text>
-                <View style={[styles.tileFoot, { borderTopColor: c.border }]}>
-                  <View style={[styles.availabilityDot, { backgroundColor: enabled ? c.success : c.mutedForeground }]} />
-                  <Text style={[styles.availability, { color: enabled ? c.success : c.mutedForeground }]}>
-                    {switchingProtocol === item.id ? 'در حال قطع اتصال قبلی…' : dashboard.isLoading ? 'در حال بررسی' : enabled ? 'سرور در دسترس است' : 'برای اشتراک موجود نیست'}
-                  </Text>
-                  <Feather name={chosen ? 'check-circle' : 'arrow-up-left'} size={16} color={chosen ? accent : c.mutedForeground} />
-                </View>
-              </Pressable>
-            );
+        {dashboard.isLoading ? <Card style={styles.loadingCard}><ActivityIndicator color={c.primary} /><Text style={[styles.subtitle, { color: c.mutedForeground }]}>در حال دریافت اشتراک‌ها</Text></Card> : null}
+        {!dashboard.isLoading && eligible.length > 1 ? <View style={styles.subscriptionList}>
+          {eligible.map((subscription) => {
+            const chosen = selected?.id === subscription.id;
+            return <Pressable key={subscription.id} accessibilityRole="radio" accessibilityState={{ selected: chosen }} testID={`protocol-subscription-${subscription.id}`} onPress={() => chooseSubscription(subscription.id)}>
+              <Card style={[styles.subscriptionCard, chosen && { backgroundColor: c.accent, borderColor: c.primary }]}>
+                <View style={[styles.subscriptionIcon, { backgroundColor: chosen ? c.primary : c.secondary }]}><Feather name={chosen ? 'check' : 'layers'} size={16} color={chosen ? c.primaryForeground : c.mutedForeground} /></View>
+                <View style={styles.subscriptionCopy}><Text style={[styles.subscriptionName, { color: c.foreground }]} numberOfLines={1}>{subscription.plan}</Text><Text style={[styles.subscriptionMeta, { color: c.mutedForeground }]} numberOfLines={1}>{subscription.provider_name}</Text></View>
+                <Text style={[styles.remaining, { color: c.foreground }]}>{subscription.remaining_gb} GB</Text>
+                <Feather name={chosen ? 'check-circle' : 'circle'} size={18} color={chosen ? c.primary : c.border} />
+              </Card>
+            </Pressable>;
           })}
-        </View>
-        {switchError ? (
-          <Card style={styles.loading}>
-            <Feather name="alert-triangle" size={18} color={c.destructive} />
-            <Text accessibilityRole="alert" style={[styles.subtitle, { color: c.destructive }]}>{switchError}</Text>
+        </View> : null}
+        {!dashboard.isLoading && eligible.length === 1 ? <Pressable accessibilityRole="radio" accessibilityState={{ selected: selected?.id === eligible[0].id }} testID={`protocol-subscription-${eligible[0].id}`} onPress={() => chooseSubscription(eligible[0].id)}>
+          <Card style={[styles.subscriptionCard, selected && { backgroundColor: c.accent, borderColor: c.primary }]}>
+            <View style={[styles.subscriptionIcon, { backgroundColor: selected ? c.primary : c.secondary }]}><Feather name={selected ? 'check' : 'layers'} size={16} color={selected ? c.primaryForeground : c.primary} /></View>
+            <View style={styles.subscriptionCopy}><Text style={[styles.subscriptionName, { color: c.foreground }]}>{eligible[0].plan}</Text><Text style={[styles.subscriptionMeta, { color: c.mutedForeground }]}>{eligible[0].provider_name} · فعال</Text></View>
+            <Text style={[styles.remaining, { color: c.foreground }]}>{eligible[0].remaining_gb} GB</Text>
+            {selected ? <Feather name="check-circle" size={18} color={c.primary} /> : <Text style={[styles.link, { color: c.primary }]}>انتخاب</Text>}
           </Card>
-        ) : null}
-        {dashboard.isLoading ? <Card style={styles.loading}><ActivityIndicator color={c.primary} /><Text style={[styles.subtitle, { color: c.mutedForeground }]}>در حال بارگذاری حساب</Text></Card> : null}
-        {dashboard.isError ? (
-          <Card style={styles.loading}>
-            <Feather name="wifi-off" size={19} color={c.warning} />
-            <Text style={[styles.subtitle, { color: c.foreground }]}>دسترسی اشتراک دریافت نشد. اینترنت را بررسی و دوباره تلاش کنید.</Text>
-            <Pressable accessibilityRole="button" testID="retry-protocols" onPress={() => void dashboard.refetch()}><Text style={[styles.retry, { color: c.primary }]}>تلاش دوباره</Text></Pressable>
-          </Card>
-        ) : null}
-        <Text style={[styles.footnote, { color: c.mutedForeground }]}>وضعیت «تونل فعال» و نتیجهٔ آزمون اینترنت در برنامه جداگانه نمایش داده می‌شوند.</Text>
+        </Pressable> : null}
+        {!dashboard.isLoading && eligible.length === 0 ? <Card style={styles.empty}>
+          <Feather name="layers" size={22} color={c.primary} />
+          <Text style={[styles.sectionTitle, { color: c.foreground }]}>اشتراک فعالی نیست</Text>
+          <Text style={[styles.subtitle, { color: c.mutedForeground }]}>ابتدا یک اشتراک فعال و دارای حجم به حساب اضافه کنید.</Text>
+          <Pressable accessibilityRole="button" testID="protocols-open-profiles" onPress={() => router.push('/(tabs)/profiles')}><Text style={[styles.link, { color: c.primary }]}>دیدن اشتراک‌ها</Text></Pressable>
+        </Card> : null}
+
+        {selected ? <>
+          <View style={styles.stepHead}>
+            <View style={styles.stepLabel}><Text style={[styles.stepNum, { color: c.primary }]}>۰۲</Text><Text style={[styles.sectionTitle, { color: c.foreground }]}>مسیرهای این اشتراک</Text></View>
+            <Text style={[styles.context, { color: c.mutedForeground }]} numberOfLines={1}>{selected.plan}</Text>
+          </View>
+          {available.length ? <View style={styles.protocolList}>
+            {available.map((item, index) => {
+              const chosen = prefs.protocol === item.id;
+              return <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: chosen, busy: switchingProtocol === item.id }} testID={`protocol-${item.id}`} disabled={!!switchingProtocol}
+                onPress={() => void openProtocol(item.id)} style={({ pressed }) => [{ opacity: pressed ? 0.78 : 1 }]}>
+                <Card style={[styles.protocolCard, chosen && { borderColor: c.primary }]}>
+                  <View style={styles.protocolTop}>
+                    <View style={[styles.index, { backgroundColor: c.secondary }]}><Text style={[styles.indexText, { color: c.primary }]}>۰{index + 1}</Text></View>
+                    <View style={[styles.protocolIcon, { backgroundColor: chosen ? c.primary : c.accent }]}>{switchingProtocol === item.id ? <ActivityIndicator color={c.primaryForeground} size="small" /> : <Feather name={item.icon} size={20} color={chosen ? c.primaryForeground : c.primary} />}</View>
+                  </View>
+                  <Text style={[styles.protocolName, { color: c.foreground }]}>{item.name}</Text>
+                  <Text style={[styles.protocolDescription, { color: c.mutedForeground }]}>{item.description}</Text>
+                  <View style={[styles.protocolFoot, { borderTopColor: c.border }]}>
+                    <Text style={[styles.availability, { color: c.success }]}>{switchingProtocol === item.id ? 'در حال توقف تونل قبلی…' : chosen ? 'آخرین مسیر انتخاب‌شده' : 'آمادهٔ انتخاب'}</Text>
+                    <Feather name={chosen ? 'check-circle' : 'arrow-up-left'} size={16} color={chosen ? c.primary : c.mutedForeground} />
+                  </View>
+                </Card>
+              </Pressable>;
+            })}
+          </View> : <Card style={styles.empty}><Feather name="radio" size={22} color={c.mutedForeground} /><Text style={[styles.sectionTitle, { color: c.foreground }]}>پروتکلی برای این اشتراک ارائه نشده</Text><Text style={[styles.subtitle, { color: c.mutedForeground }]}>اشتراک دیگری انتخاب کنید یا جزئیات سرویس را بررسی کنید.</Text></Card>}
+        </> : eligible.length > 1 ? <Card style={styles.prompt}>
+          <View style={[styles.promptIcon, { backgroundColor: c.secondary }]}><Feather name="arrow-up" size={17} color={c.primary} /></View>
+          <View style={styles.promptCopy}><Text style={[styles.sectionTitle, { color: c.foreground }]}>ابتدا اشتراک را انتخاب کنید</Text><Text style={[styles.subtitle, { color: c.mutedForeground }]}>تا انتخاب اشتراک، هیچ پروتکلی نمایش داده نمی‌شود.</Text></View>
+        </Card> : null}
+        <Text style={[styles.footnote, { color: c.mutedForeground }]}>انتخاب پروتکل، سرورهای واقعی همان اشتراک را باز می‌کند. تونل فقط پس از انتخاب سرور آغاز می‌شود.</Text>
       </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 48, gap: 19 },
+  page: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 34, gap: 15 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 13 },
-  headerIcon: { width: 50, height: 50, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  kicker: { fontFamily: 'Inter_600SemiBold', fontSize: 8, letterSpacing: 1.1, textAlign: 'right' },
-  title: { fontFamily: 'Inter_700Bold', fontSize: 26, textAlign: 'right' },
-  subtitle: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 18, textAlign: 'right' },
-  summary: { minHeight: 52, paddingHorizontal: 15, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  summaryText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 10, textAlign: 'right', lineHeight: 17 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
-  tile: { width: '48.4%', minHeight: 205, borderRadius: 25, borderWidth: 1, padding: 15, gap: 10 },
-  tileTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  index: { minWidth: 32, height: 25, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7 },
+  headerIcon: { width: 48, height: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  kicker: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+  title: { fontFamily: 'Inter_700Bold', fontSize: 25, textAlign: 'right' },
+  subtitle: { fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 17, textAlign: 'right' },
+  stepHead: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth },
+  stepLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stepNum: { fontFamily: 'Inter_700Bold', fontSize: 10 },
+  sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 13 },
+  link: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+  subscriptionList: { gap: 8 },
+  subscriptionCard: { minHeight: 61, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 18 },
+  subscriptionIcon: { width: 35, height: 35, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  subscriptionCopy: { flex: 1, gap: 3, alignItems: 'flex-end' },
+  subscriptionName: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
+  subscriptionMeta: { fontFamily: 'Inter_400Regular', fontSize: 9 },
+  remaining: { fontFamily: 'Inter_600SemiBold', fontSize: 10, writingDirection: 'ltr' },
+  loadingCard: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  empty: { alignItems: 'center', gap: 10, paddingVertical: 20 },
+  prompt: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  promptIcon: { width: 37, height: 37, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  promptCopy: { flex: 1, alignItems: 'flex-end', gap: 4 },
+  context: { maxWidth: '42%', fontFamily: 'Inter_500Medium', fontSize: 9, textAlign: 'right' },
+  protocolList: { gap: 11 },
+  protocolCard: { minHeight: 154, borderRadius: 21, padding: 14, gap: 8 },
+  protocolTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  index: { minWidth: 30, height: 24, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7 },
   indexText: { fontFamily: 'Inter_700Bold', fontSize: 9 },
-  icon: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  name: { fontFamily: 'Inter_700Bold', fontSize: 15, textAlign: 'right', marginTop: 2 },
-  description: { fontFamily: 'Inter_400Regular', fontSize: 10, textAlign: 'right', lineHeight: 16, minHeight: 31 },
-  tileFoot: { marginTop: 'auto', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  availabilityDot: { width: 6, height: 6, borderRadius: 3 },
-  availability: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 9, textAlign: 'right' },
-  loading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  retry: { fontFamily: 'Inter_700Bold', fontSize: 11 },
-  footnote: { fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 18, textAlign: 'center', marginTop: 2 },
+  protocolIcon: { width: 39, height: 39, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  protocolName: { fontFamily: 'Inter_700Bold', fontSize: 14, textAlign: 'right' },
+  protocolDescription: { fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 16, textAlign: 'right' },
+  protocolFoot: { marginTop: 'auto', paddingTop: 9, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  availability: { fontFamily: 'Inter_500Medium', fontSize: 9 },
+  footnote: { fontFamily: 'Inter_400Regular', fontSize: 9, lineHeight: 16, textAlign: 'center', marginTop: 2 },
 });

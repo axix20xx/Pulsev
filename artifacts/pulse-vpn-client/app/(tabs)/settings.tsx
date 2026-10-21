@@ -113,7 +113,7 @@ export default function Settings() {
   }
 
   return (
-    <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
+    <Screen style={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }}>
       <ScrollView contentContainerStyle={styles.content}>
         <LinearGradient colors={[c.surfaceDeep, c.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <View style={[styles.heroGlyph, { backgroundColor: `${c.onDeep}1E` }]}><Feather name="sliders" size={20} color={c.onDeep} /></View>

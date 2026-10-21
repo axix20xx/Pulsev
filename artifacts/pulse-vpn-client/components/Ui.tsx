@@ -15,7 +15,9 @@ export function Screen({ children, style }: { children: React.ReactNode; style?:
   return <View style={[styles.screen, custom, {
     backgroundColor: c.background,
     paddingTop: Math.max(insets.top + contentTop, webTop, contentTop),
-    paddingBottom: Math.max(insets.bottom + contentBottom, webBottom, contentBottom),
+    paddingBottom: custom.paddingBottom === 0
+      ? 0
+      : Math.max(insets.bottom + contentBottom, webBottom, contentBottom),
   }]}>{children}</View>;
 }
 
@@ -32,7 +34,7 @@ export function Heading({ eyebrow, title, detail }: { eyebrow?: string; title: s
 
 export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   const c = useColors();
-  return <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }, style]}>{children}</View>;
+  return <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border, shadowColor: c.foreground }, style]}>{children}</View>;
 }
 
 export function ActionButton({ title, onPress, icon, quiet, loading, disabled }: {
@@ -81,7 +83,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1, textAlign: 'right' },
   title: { fontFamily: 'Inter_700Bold', fontSize: 27, lineHeight: 37, textAlign: 'right' },
   detail: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 23, textAlign: 'right' },
-  card: { borderWidth: 1, borderRadius: 24, padding: 17, gap: 12, shadowColor: '#24433B', shadowOpacity: 0.035, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 1 },
+  card: { borderWidth: 1, borderRadius: 20, padding: 17, gap: 12, shadowOpacity: 0.035, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 1 },
   button: { minHeight: 54, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 18 },
   buttonText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
   stateCard: { alignItems: 'center', paddingVertical: 25 },

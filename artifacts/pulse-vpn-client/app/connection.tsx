@@ -1083,7 +1083,7 @@ export default function ConnectionScreen() {
             <Feather name="arrow-right" size={19} color={c.foreground} />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.topEyebrow, { color: c.mutedForeground }]}>PULSE SECURE · ANDROID</Text>
+            <Text style={[styles.topEyebrow, { color: c.mutedForeground }]} numberOfLines={1}>{item ? `${item.customer_name} · ${item.plan}` : 'PULSE · اتصال امن'}</Text>
             <Text style={[styles.topTitle, { color: c.foreground }]}>وضعیت اتصال</Text>
           </View>
           <View style={[styles.liveMark, { backgroundColor: c.accent }]}>
@@ -1422,14 +1422,18 @@ export default function ConnectionScreen() {
           </>
         )}
       </ScrollView>
-      <View style={[styles.bottomNav, { backgroundColor: c.card, borderColor: c.border, paddingBottom: safeBottom, marginBottom: -safeBottom }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="خانه" onPress={() => router.replace('/')} style={styles.bottomNavItem}>
+      <View style={[styles.bottomNav, { backgroundColor: c.background, borderColor: c.border, paddingBottom: safeBottom, marginBottom: -safeBottom }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="خانه" onPress={() => router.replace('/(tabs)')} style={styles.bottomNavItem}>
           <Feather name="grid" size={20} color={c.mutedForeground} />
           <Text style={[styles.bottomNavLabel, { color: c.mutedForeground }]}>خانه</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="اشتراک‌ها" accessibilityState={{ selected: true }} onPress={() => router.replace('/(tabs)/profiles')} style={[styles.bottomNavItem, { backgroundColor: `${c.primary}12` }]}>
-          <Feather name="layers" size={20} color={c.primary} />
-          <Text style={[styles.bottomNavLabel, { color: c.primary }]}>اشتراک‌ها</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="پروتکل‌ها" onPress={() => router.replace('/(tabs)/protocols')} style={styles.bottomNavItem}>
+          <Feather name="radio" size={20} color={c.mutedForeground} />
+          <Text style={[styles.bottomNavLabel, { color: c.mutedForeground }]}>مسیرها</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="وضعیت" accessibilityState={{ selected: true }} onPress={() => router.replace('/(tabs)/activity')} style={[styles.bottomNavItem, { backgroundColor: `${c.primary}12` }]}>
+          <Feather name="activity" size={20} color={c.primary} />
+          <Text style={[styles.bottomNavLabel, { color: c.primary }]}>وضعیت</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="تنظیمات" onPress={() => router.replace('/(tabs)/settings')} style={styles.bottomNavItem}>
           <Feather name="sliders" size={20} color={c.mutedForeground} />
@@ -1476,7 +1480,7 @@ function TransferMetric({ label, value, icon, color }: {
 const styles = StyleSheet.create({
   screen: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
   content: { paddingHorizontal: 19, paddingTop: 13, paddingBottom: 42, gap: 15 },
-  bottomNav: { minHeight: 58, paddingTop: 5, paddingHorizontal: 10, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', elevation: 12, shadowColor: '#101828', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: -5 } },
+  bottomNav: { minHeight: 61, paddingTop: 5, paddingHorizontal: 8, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
   bottomNavItem: { flex: 1, minHeight: 49, alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 14 },
   bottomNavLabel: { fontFamily: 'Inter_500Medium', fontSize: 10 },
   topBar: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 2 },

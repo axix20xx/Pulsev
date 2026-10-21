@@ -2,8 +2,9 @@ import React from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useGetMobileDashboard, useListMobileSubscriptions } from '@workspace/api-client-react';
-import { Card, Heading, InlineState, Ltr, Screen } from '@/components/Ui';
+import { Card, InlineState, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { useVpnPreferences, type VpnProtocol } from '@/hooks/VpnPreferences';
 import { stopTunnelForProtocolSwitch } from '@/lib/vpn-engine';
@@ -60,29 +61,39 @@ export default function ProfileDetail() {
       }
     })();
   };
-  const statusColor = item.status === 'active' ? c.success : item.status === 'expired' ? c.warning : c.mutedForeground;
   const usedPercent = Math.max(0, Math.min(100, item.usage_percent));
   return (
     <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={subscriptions.isRefetching} onRefresh={() => void subscriptions.refetch()} tintColor={c.primary} />}>
         <Pressable accessibilityRole="button" testID="subscription-back" onPress={() => router.back()} style={styles.back}><Feather name="arrow-right" size={18} color={c.primary} /><Text style={[styles.backText, { color: c.primary }]}>بازگشت</Text></Pressable>
-        <Heading eyebrow="جزئیات سرویس" title={item.plan} detail={item.provider_name} />
-        <Card style={styles.summary}>
+        <LinearGradient colors={[c.surfaceDeep, c.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.summaryHero}>
           <View style={styles.statusLine}>
-            <View style={[styles.statusPill, { backgroundColor: item.status === 'active' ? c.accent : c.secondary }]}>
-              <View style={[styles.dot, { backgroundColor: statusColor }]} />
-              <Text style={[styles.statusText, { color: statusColor }]}>{labels[item.status]}</Text>
+            <View style={[styles.statusPill, { backgroundColor: `${c.onDeep}20` }]}>
+              <View style={[styles.dot, { backgroundColor: item.status === 'active' ? c.success : c.warning }]} />
+              <Text style={[styles.statusText, { color: c.onDeep }]}>{labels[item.status]}</Text>
             </View>
-            <Feather name="shield" size={19} color={c.primary} />
+            <Text style={[styles.heroKicker, { color: `${c.onDeep}A6` }]}>اشتراک Pulse</Text>
           </View>
-          <View style={styles.usageLabelRow}><Text style={[styles.muted, { color: c.mutedForeground }]}>مصرف‌شده از طرح</Text><Ltr style={[styles.usageValue, { color: c.foreground }]}>{fa(item.used_gb)} / {fa(item.total_gb)} GB</Ltr></View>
-          <View style={[styles.progress, { backgroundColor: c.muted }]}><View style={[styles.progressFill, { width: `${usedPercent}%`, backgroundColor: c.primary }]} /></View>
+          <View style={styles.planHeading}>
+            <Text style={[styles.planTitle, { color: c.onDeep }]}>{item.plan}</Text>
+            <Text style={[styles.planProvider, { color: `${c.onDeep}C7` }]}>{item.provider_name}</Text>
+          </View>
+          <View style={styles.usageLabelRow}><Text style={[styles.muted, { color: `${c.onDeep}B8` }]}>مصرف‌شده از طرح</Text><Ltr style={[styles.usageValue, { color: c.onDeep }]}>{fa(item.used_gb)} / {fa(item.total_gb)} GB</Ltr></View>
+          <View style={[styles.progress, { backgroundColor: `${c.onDeep}32` }]}><View style={[styles.progressFill, { width: `${usedPercent}%`, backgroundColor: c.onDeep }]} /></View>
           <View style={styles.metricGrid}>
-            <View style={styles.metric}><Text style={[styles.muted, { color: c.mutedForeground }]}>باقی‌مانده</Text><Ltr style={[styles.metricValue, { color: c.foreground }]}>{fa(item.remaining_gb)} GB</Ltr></View>
-            <View style={[styles.metricRule, { backgroundColor: c.border }]} />
-            <View style={styles.metric}><Text style={[styles.muted, { color: c.mutedForeground }]}>روز باقی‌مانده</Text><Text style={[styles.metricValue, { color: c.foreground }]}>{item.remaining_days == null ? '—' : fa(item.remaining_days)}</Text></View>
+            <View style={styles.metric}><Text style={[styles.muted, { color: `${c.onDeep}B8` }]}>باقی‌ماندهٔ حجم</Text><Ltr style={[styles.metricValue, { color: c.onDeep }]}>{fa(item.remaining_gb)} GB</Ltr></View>
+            <View style={[styles.metricRule, { backgroundColor: `${c.onDeep}44` }]} />
+            <View style={styles.metric}><Text style={[styles.muted, { color: `${c.onDeep}B8` }]}>روز باقی‌مانده</Text><Text style={[styles.metricValue, { color: c.onDeep }]}>{item.remaining_days == null ? '—' : fa(item.remaining_days)}</Text></View>
           </View>
-          <View style={[styles.divider, { backgroundColor: c.border }]} />
+        </LinearGradient>
+        <Card style={styles.serviceInfo}>
+          <View style={styles.infoHeading}>
+            <View style={[styles.infoGlyph, { backgroundColor: c.secondary }]}><Feather name="hash" size={16} color={c.primary} /></View>
+            <View style={{ flex: 1, alignItems: 'flex-end', gap: 3 }}>
+              <Text style={[styles.infoTitle, { color: c.foreground }]}>شناسهٔ سرویس</Text>
+              <Text style={[styles.muted, { color: c.mutedForeground }]}>مشخصات این اشتراک</Text>
+            </View>
+          </View>
           <View style={styles.infoRow}><Text style={[styles.muted, { color: c.mutedForeground }]}>کد سرویس</Text><Ltr style={[styles.infoValue, { color: c.foreground }]}>{item.service_code}</Ltr></View>
           <View style={styles.infoRow}><Text style={[styles.muted, { color: c.mutedForeground }]}>پایان اشتراک</Text><Text style={[styles.infoValue, { color: c.foreground }]}>{item.expires_at ? new Date(item.expires_at).toLocaleDateString('fa-IR') : 'ثبت نشده'}</Text></View>
         </Card>
@@ -115,30 +126,37 @@ export default function ProfileDetail() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 15, paddingBottom: 40, gap: 14 },
+  content: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 42, gap: 13 },
   back: { alignSelf: 'flex-start', minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6 },
   backText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
-  summary: { gap: 16, borderRadius: 26 },
+  summaryHero: { gap: 14, borderRadius: 25, padding: 18, overflow: 'hidden' },
   statusLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  statusPill: { minHeight: 29, paddingHorizontal: 10, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  statusPill: { minHeight: 27, paddingHorizontal: 10, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 7 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
+  heroKicker: { fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1 },
+  planHeading: { alignItems: 'flex-end', gap: 4, paddingVertical: 2 },
+  planTitle: { fontFamily: 'Inter_700Bold', fontSize: 22, textAlign: 'right' },
+  planProvider: { fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'right' },
   usageLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   muted: { fontFamily: 'Inter_400Regular', fontSize: 11 },
   usageValue: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   progress: { height: 6, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
-  metricGrid: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingVertical: 3 },
+  metricGrid: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingTop: 2 },
   metric: { flex: 1, gap: 7, alignItems: 'center' },
   metricRule: { width: 1, height: 34 },
   metricValue: { fontFamily: 'Inter_700Bold', fontSize: 17 },
-  divider: { height: StyleSheet.hairlineWidth },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   infoValue: { fontFamily: 'Inter_500Medium', fontSize: 11, textAlign: 'right' },
+  serviceInfo: { gap: 13, borderRadius: 21 },
+  infoHeading: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 1 },
+  infoGlyph: { width: 36, height: 36, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  infoTitle: { fontFamily: 'Inter_700Bold', fontSize: 12 },
   sectionTitle: { gap: 4, alignItems: 'flex-end', marginTop: 6 },
   headTitle: { fontFamily: 'Inter_700Bold', fontSize: 16 },
-  protocolRow: { minHeight: 76, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 21 },
-  protocolIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  protocolRow: { minHeight: 70, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 18 },
+  protocolIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   protocolCopy: { flex: 1, gap: 5, alignItems: 'flex-end' },
   protocolTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   protocolDetail: { fontFamily: 'Inter_400Regular', fontSize: 10, textAlign: 'right' },
