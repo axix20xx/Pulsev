@@ -1,0 +1,315 @@
+FIX PULSEVPN V2BOX / SING-BOX NO-INTERNET BUG — SOURCE-BASED REPAIR
+
+You are a senior Android VPN and sing-box engineer. Work directly in my existing PulseVPN 1.0.24 repository.
+
+The confirmed symptom is: V2Box starts or reports a connection, but internet traffic does not transfer correctly.
+
+The project uses:
+
+* Expo / React Native.
+* Native Android VpnService.
+* com.github.singbox-android:libbox:1.14.3.
+* Kotlin native service: modules/pulse-vpn-engine/android/src/main/java/com/pulse/vpn/engine/PulseSingBoxVpnService.kt.
+* Native module: modules/pulse-vpn-engine/android/src/main/java/com/pulse/vpn/engine/PulseVpnEngineModule.kt.
+* Configuration builder: lib/singbox-config.ts.
+* Share-link parser: lib/xray-share-links.ts.
+* Connection UI and monitoring: app/connection.tsx.
+* TypeScript Android engine wrapper: lib/vpn-engine.android.ts.
+
+OBJECTIVE
+
+Identify the actual root cause of the V2Box no-data problem, implement the appropriate fixes, run the available tests, and build the Android release APK if the environment permits.
+
+Do not rewrite the application. Do not remove existing protocols, change the UI unnecessarily, or claim a successful connection without real evidence.
+
+1. FIRST: TRACE THE ENTIRE CONNECTION
+
+Follow this exact sequence through the actual code:
+
+1. Subscription is fetched.
+2. Selected server link is parsed.
+3. sing-box configuration is generated.
+4. Android VPN permission is confirmed.
+5. Native service starts.
+6. Libbox.checkConfig() validates the generated configuration.
+7. CommandServer.startOrReloadService() starts the core.
+8. openTun() establishes the Android TUN interface.
+9. IPv4/IPv6 routes and DNS servers are installed.
+10. Upstream sockets are protected from VPN routing loops.
+11. Bootstrap DNS resolves the proxy endpoint, if it is a hostname.
+12. The proxy outbound connects to the real server.
+13. Application traffic is processed and forwarded.
+14. A real HTTPS request through the VPN succeeds.
+15. The app publishes the correct connection state.
+
+For every stage, identify the exact method and its success/failure condition.
+
+Do not assume the first failure is the root cause. Preserve evidence from the first failed stage.
+
+2. FIX BOOTSTRAP DNS FALLBACK
+
+Inspect configureBootstrapDns() in PulseSingBoxVpnService.kt.
+
+The current implementation replaces the configured bootstrap-dns server address with the first usable DNS server from the underlying Android network. The original fallback to 1.1.1.1 is therefore not retained when a physical DNS server is selected.
+
+Implement a reliable bootstrap-resolution strategy compatible with the actual bundled libbox 1.14.3 schema.
+
+Requirements:
+
+* Retain a working fallback when the selected physical DNS server fails.
+* Do not assume the first advertised DNS server is reachable.
+* Do not perform blocking DNS resolution on the main thread.
+* Do not create a circular dependency in which DNS requires the proxy while the proxy requires DNS.
+* Resolve hostname-based proxy endpoints before trying to connect to them.
+* Support IPv4 and IPv6 DNS addresses.
+* Use bounded timeouts and meaningful errors.
+* Respect the underlying Android network.
+* Do not expose credentials or complete server links in logs.
+* Do not blindly modify a valid numeric-IP proxy endpoint.
+* Validate the resulting configuration with Libbox.checkConfig().
+
+Use the DNS server configuration and fallback mechanisms actually supported by libbox 1.14.3. Do not copy a DNS configuration from a different sing-box version without verifying compatibility.
+
+Add unit tests for:
+
+* Physical DNS available and working.
+* Physical DNS unavailable.
+* Physical DNS advertised but unreachable.
+* Fallback DNS working.
+* Both resolvers failing.
+* Hostname-based proxy endpoint.
+* Numeric-IP proxy endpoint.
+* Wi-Fi to cellular network change.
+
+A resolver must not be marked healthy merely because its address exists in Android LinkProperties.
+
+3. AUDIT AND REPAIR TUN ROUTING
+
+Inspect openTun() and the generated TUN configuration in lib/singbox-config.ts.
+
+The generated inbound currently includes:
+
+* type: tun
+* IPv4 address 172.19.0.1/30
+* IPv6 address fdfe:dcba:9876::1/126
+* dns_mode: hijack
+* auto_route: true
+* stack: mixed
+
+Verify these settings against libbox 1.14.3.
+
+Inspect the exact route iterators returned by libbox on Android 13+ and on older supported Android versions.
+
+Requirements:
+
+* Confirm that the TUN interface is established successfully.
+* Confirm that IPv4 routes cover the intended traffic.
+* Confirm that IPv6 routes cover the intended traffic when IPv6 is enabled.
+* Detect missing or unexpected default routes.
+* Preserve split-route and excluded-route semantics.
+* Ensure the configured interface addresses do not conflict with an existing network.
+* Check the installed MTU and test a conservative MTU if packet loss suggests fragmentation.
+* Log route counts, address-family availability, and TUN establishment outcome.
+* Handle Builder.establish() returning null.
+* Ensure the file descriptor remains valid for the full lifetime of the core.
+* Do not close a descriptor while the core is still using it.
+
+Do not unconditionally add 0.0.0.0/0 and ::/0. First determine which routes the core requested and whether the current Android routing logic loses any required routes.
+
+Create tests for:
+
+* IPv4-only profiles.
+* Dual-stack profiles.
+* Missing IPv4 route.
+* Missing IPv6 route.
+* Full-tunnel routing.
+* Split routes.
+* Route exclusions.
+* Android API levels below 33 and 33 or later.
+
+4. VERIFY UPSTREAM SOCKET PROTECTION
+
+Inspect:
+
+* usePlatformAutoDetectInterfaceControl().
+* autoDetectInterfaceControl(fd).
+* protect(fd).
+* startDefaultInterfaceMonitor().
+* findUnderlyingNetwork().
+* notifyUnderlyingInterface().
+* setUnderlyingNetworks().
+
+The current service throws if protect(fd) returns false. Preserve this safety behavior and improve the diagnostics.
+
+Requirements:
+
+* Confirm the callback is invoked for the relevant upstream sockets by the bundled libbox version.
+* Confirm protection occurs before a socket can loop into the VPN.
+* Check the actual underlying Android network.
+* Ensure the VPN network itself is not mistakenly selected as the upstream network.
+* Handle loss of the underlying network and Wi-Fi/cellular switching.
+* Confirm outbound connections recover when the physical network changes.
+* Do not silently ignore protection failures.
+
+Check the official sing-box Android routing semantics before modifying route.auto_detect_interface.
+
+Do not blindly add route.override_android_vpn: true. That option has specific semantics for routing a sing-box TUN through an Android VPN upstream. Determine whether it applies to this app’s architecture before changing the configuration.
+
+5. VERIFY DNS TRAFFIC INSIDE THE TUN
+
+Inspect the generated DNS configuration:
+
+* bootstrap-dns
+* remote-dns
+* HTTPS DNS server cloudflare-dns.com
+* domain_resolver
+* detour: proxy
+* route.default_domain_resolver
+* dns_mode: hijack
+* DNS hijacking route rules
+
+Verify that the configuration is valid for libbox 1.14.3 and that it does not create a bootstrap cycle.
+
+Test separately:
+
+* DNS resolution for the proxy server itself.
+* DNS-over-HTTPS connectivity.
+* Normal application DNS requests.
+* UDP DNS.
+* DNS timeouts.
+* IPv4 and IPv6 resolution.
+* DNS after reconnect.
+* DNS after network changes.
+
+If the proxy server uses a numeric IP, test that configuration separately to isolate DNS from other outbound failures.
+
+Do not disable TLS certificate verification to make DNS work. Do not send all DNS traffic directly if that breaks the intended privacy and routing policy.
+
+6. VERIFY EACH OUTBOUND CONVERTER
+
+Inspect buildSingBoxConfig() and every branch in makeOutbound().
+
+Test real supported formats:
+
+* VLESS TCP/TLS.
+* VLESS REALITY.
+* VLESS WebSocket.
+* VLESS gRPC.
+* VMess TCP/TLS.
+* VMess WebSocket.
+* Trojan.
+* Shadowsocks.
+* Hysteria 2.
+* TUIC.
+* HTTP.
+* SOCKS.
+
+Check:
+
+* Host and port parsing.
+* URI decoding.
+* Username, UUID, and password extraction.
+* SNI and TLS.
+* REALITY public key and short ID.
+* WebSocket Host headers and path.
+* gRPC service name.
+* VMess network, TLS, and security fields.
+* UDP requirements.
+* Unsupported transport options.
+* URL fragments and Base64 subscription formats.
+
+Specifically inspect the VMess conversion: it creates a query containing sni and path, but does not preserve the source host field as the WebSocket Host header. Correct this if the profile requires it.
+
+Verify that the selected server link, not an unintended first subscription entry, is used to generate the outbound.
+
+The parser recognizes ssr://, but the outbound converter does not implement SSR. Reject unsupported SSR links before starting the tunnel and show an explicit compatibility error.
+
+Never silently discard required transport settings.
+
+7. MAKE DIAGNOSTICS SHOW THE FIRST REAL FAILURE
+
+Improve the existing PulseDiagnostics.kt and native sing-box error reporting.
+
+Capture sanitized events for:
+
+* singbox_config_valid
+* singbox_core_started
+* singbox_tun_established
+* singbox_tun_routes_configured
+* singbox_bootstrap_dns_selected
+* Bootstrap DNS success or failure.
+* Proxy endpoint resolution.
+* Outbound connection failures.
+* Socket protection failures.
+* Core fatal errors.
+* HTTPS traffic-test results.
+* Network changes.
+* Disconnect and cleanup.
+
+Include timestamps, attempt IDs, error categories, route counts, and elapsed times where available.
+
+Do not log private keys, passwords, UUIDs, complete subscription URLs, or complete configuration JSON.
+
+Do not swallow the underlying exception without recording a safe, useful error category.
+
+If a connection fails, retain the original error long enough for the UI and diagnostic export to display it. Do not overwrite a meaningful error with a generic disconnected state.
+
+8. FIX CONNECTION VERIFICATION
+
+Inspect waitForXrayTraffic() in app/connection.tsx and probeTunnelConnectivity() in PulseVpnEngineModule.kt.
+
+Preserve the principle that the VPN is not fully verified until actual traffic succeeds.
+
+Requirements:
+
+* Confirm the HTTPS probe is bound to the Android VPN network.
+* Use bounded connection and read timeouts.
+* Distinguish no VPN route, DNS failure, connection timeout, TLS failure, HTTP error, and successful traffic.
+* Keep retry behavior bounded.
+* Ensure cancelled or outdated connection attempts cannot confirm a newer connection.
+* Ensure a successful probe is associated with the current profile and connection attempt.
+* Do not set connected after only TUN establishment.
+* Do not rely solely on an external IP lookup.
+
+Add tests for both a working tunnel and a TUN that exists but cannot transfer traffic.
+
+9. RUN ACTUAL VALIDATION
+
+First run the existing test suite and TypeScript checks. Then implement the changes and rerun them.
+
+Add tests for configuration parsing, DNS fallback selection, connection state, routing decisions, and failure handling.
+
+If Android build tools are available:
+
+* Build the Android debug variant.
+* Build the Android release APK.
+* Check native library ABI compatibility.
+* Inspect the final manifest and native dependencies.
+
+If a real device and working server are available, test:
+
+1. Connect using a numeric-IP server.
+2. Verify HTTPS traffic.
+3. Connect using a hostname-based server.
+4. Verify DNS and HTTPS traffic.
+5. Switch Wi-Fi to cellular.
+6. Reconnect after network loss.
+7. Disconnect and confirm the tunnel is removed.
+
+If you cannot run a real device test, state that explicitly. Never label the VPN as fixed and tested based only on compilation.
+
+10. DELIVER THE FIX, NOT JUST A REPORT
+
+Modify the existing repository directly.
+
+At completion, report:
+
+* Exact root cause found.
+* Exact files changed.
+* Code changes made.
+* Tests actually executed and their results.
+* Android build result.
+* Whether real VPN traffic was verified.
+* Remaining device/server tests.
+
+Start by inspecting the existing code and reproducing the most likely failure. Then implement and test the appropriate fix. Do not stop after producing recommendations.

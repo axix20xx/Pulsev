@@ -1,0 +1,169 @@
+Act as a senior Android VPN engineer. Work directly on my existing PulseVPN 1.0.24 source code. I need you to diagnose and repair the real native VPN connection problems, not redesign the app.
+
+MAIN OBJECTIVE
+
+Fix these reported issues:
+
+1. V2Box/sing-box connects but internet traffic does not pass through the VPN.
+2. OpenVPN connects or starts, but the application reports disconnected or not connected.
+3. Audit WireGuard and AmneziaWG for the same routing, state, DNS, lifecycle, and reconnection problems.
+
+Keep the existing UI, server subscriptions, authentication, backend, and application features unchanged unless a specific code defect requires a change.
+
+RULE 1 — INSPECT BEFORE EDITING
+
+Start by examining the actual repository and identifying the implementations of:
+
+* The React Native connection screen and connection manager.
+* lib/vpn-engine.android.ts
+* lib/singbox-config.ts
+* lib/xray-share-links.ts
+* PulseVpnEngineModule.kt
+* PulseSingBoxVpnService.kt
+* OpenVPNThreadv3.java
+* The OpenVPN service, Binder, and state callbacks.
+* The actual WireGuard and AmneziaWG native integrations.
+* Android manifests, Gradle configuration, Expo module configuration, and native library dependencies.
+
+File names may differ. Locate the real implementations rather than assuming every path exists.
+
+Run the existing tests and TypeScript checks before changing anything. Record the results. Do not stop after writing an audit report; continue to repair confirmed defects.
+
+RULE 2 — FIX OPENVPN STATE REPORTING
+
+Inspect OpenVPNThreadv3.java, especially its event() method.
+
+Investigate the defect where unrecognized OpenVPN events default to IDLE and are passed to the service.
+
+Implement these requirements:
+
+* Unknown informational events must not change connection state.
+* A real OpenVPN CONNECTED event must remain connected unless a legitimate subsequent state transition occurs.
+* Authentication failures, TLS errors, fatal errors, reconnecting, and disconnection must be mapped explicitly.
+* Native callbacks must be the primary source of connection state.
+* Do not use the last line of a mutable log file as the authoritative state.
+* Fix service binding and recovery timeouts so a failed bind cannot leave the application permanently stuck.
+* Do not report connected merely because the service start method returned.
+* Preserve valid OpenVPN profile directives and cryptographic behavior.
+
+Add a regression test proving that an unknown informational event cannot reset a connected session.
+
+RULE 3 — FIX V2BOX / SING-BOX TRAFFIC
+
+Trace the full path from configuration parsing through the native service, libbox, Android TUN, routing, DNS, outbound proxy, and internet traffic verification.
+
+Investigate:
+
+* Whether libbox initializes successfully.
+* Whether the selected configuration is valid for the actual bundled sing-box version.
+* Whether the TUN descriptor is established and passed correctly.
+* Whether IPv4 and IPv6 routes are installed correctly.
+* Whether default routing works on the supported Android versions.
+* Whether upstream sockets are protected from VPN routing loops.
+* Whether DNS bootstrap resolution succeeds.
+* Whether hostname-based server endpoints can be resolved.
+* Whether the outbound connection succeeds after TUN establishment.
+* Whether stale service state or concurrent connection attempts break routing.
+* Whether unsupported subscription entries are incorrectly presented as connectable.
+
+Do not treat a successful service start or TUN establishment as proof that internet access works.
+
+Use a staged connection lifecycle:
+
+1. Permission granted.
+2. Native service started.
+3. Core initialized.
+4. TUN established.
+5. Routes and DNS configured.
+6. Outbound connection established.
+7. HTTPS traffic verified through the intended VPN.
+
+Use bounded timeouts, cancellation, useful error messages, and privacy-safe logs.
+
+If a stage fails, report the failed stage and its actual error. Never return a fake CONNECTED status.
+
+Inspect all implemented sing-box configuration converters, including VLESS, VMess, Trojan, Shadowsocks, Hysteria 2, TUIC, HTTP, and SOCKS. Check TLS, REALITY, WebSocket, gRPC, DNS, IPv6, and unsupported transport combinations.
+
+The parser recognizes SSR links but the converter may not implement SSR. Either implement genuine compatibility with the bundled engine or clearly reject unsupported SSR configurations before connecting.
+
+Do not silently alter protocols or ignore required configuration parameters.
+
+RULE 4 — AUDIT WIREGUARD AND AMNEZIAWG
+
+Inspect the real native implementations, not just the TypeScript wrappers.
+
+For WireGuard, verify configuration parsing, keys, endpoints, allowed IPs, default routes, DNS, MTU, IPv6, UDP behavior, handshake state, traffic counters, reconnection, and resource cleanup.
+
+For AmneziaWG, additionally verify that the actual native implementation supports the required AmneziaWG parameters. Check Jc, Jmin, Jmax, S1, S2, H1–H4, and any other parameters required by the bundled implementation.
+
+Do not assume ordinary WireGuard support means AmneziaWG is supported.
+
+Do not mark a connection successful merely because a native interface object exists. Distinguish interface active, handshake observed, and internet traffic verified.
+
+Never log private keys or credentials.
+
+RULE 5 — PREVENT CONCURRENT VPN CONNECTIONS
+
+Implement safe coordination across sing-box, OpenVPN, WireGuard, and AmneziaWG.
+
+* Serialize native connection and disconnection operations.
+* Prevent simultaneous attempts from competing for the Android VPN slot.
+* Stop the previous engine before starting another.
+* Confirm that the previous VPN has stopped.
+* Cancel stale connection attempts.
+* Ignore callbacks belonging to previous attempts.
+* Handle rapid retries, repeated button presses, process recreation, permission denial, and network changes.
+* Clear stale connection states after service death or disconnection.
+
+A JavaScript-only check is not sufficient. Use native synchronization where appropriate.
+
+RULE 6 — VERIFY REAL TRAFFIC
+
+Create automated tests for configuration parsing, state transitions, failure handling, concurrent requests, and reconnection.
+
+Where a real Android device and test server are available, verify each engine independently:
+
+* Connect.
+* Confirm native tunnel establishment.
+* Confirm routes and DNS.
+* Make a real HTTPS request through the VPN.
+* Verify traffic counters where available.
+* Disconnect.
+* Confirm traffic returns to the normal network.
+* Reconnect.
+* Switch to another protocol and confirm the previous tunnel is stopped.
+
+Do not rely solely on an external IP lookup. Use a controlled test endpoint where possible and distinguish DNS, TLS, authentication, routing, and server failures.
+
+If the environment cannot run real-device tests, clearly report that limitation and do not claim the protocol is fully verified.
+
+RULE 7 — BUILD THE ANDROID APP
+
+Check all Android resources, manifest declarations, native dependencies, and ABI requirements.
+
+Investigate the backup XML resources referenced by the manifests and ensure they are generated or present before Gradle resource linking.
+
+Run all available tests and checks. Attempt a clean Android release build using the existing supported SDK, NDK, and JDK configuration.
+
+Do not disable tests, suppress genuine compiler errors, remove required permissions, or replace the VPN implementation with a mock.
+
+RULE 8 — DELIVER THE ACTUAL FIXES
+
+Modify the existing project files directly.
+
+At the end, provide:
+
+1. Confirmed bugs and their root causes.
+2. Exact files modified.
+3. Fixes implemented for all four engines.
+4. Tests executed and actual pass/fail results.
+5. Android build result.
+6. Unsupported configurations.
+7. Device/server tests still required.
+8. Exact commands to reproduce the checks.
+
+Use accurate statuses: FIXED AND TESTED, FIXED BUT DEVICE TEST REQUIRED, NOT FIXED, NOT REPRODUCED, UNSUPPORTED, or BLOCKED.
+
+Start with repository inspection and baseline tests. Then implement the fixes, rerun the relevant tests, and build the Android release APK if the environment permits.
+
+Do not stop at a plan, report, or suggested code. Make and verify the actual changes.
