@@ -370,35 +370,23 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
             rememberEngineEvent(name + (info == null || info.trim().isEmpty() ? "" : ": " + info));
         }
         if ("INFO".equals(name)) {
-            if (info.startsWith("OPEN_URL:") || info.startsWith("CR_TEXT:") || info.startsWith("WEB_AUTH:")) {
-                mService.trigger_sso(info);
+            String safeInfo = info == null ? "" : info;
+            if (safeInfo.startsWith("OPEN_URL:") || safeInfo.startsWith("CR_TEXT:") || safeInfo.startsWith("WEB_AUTH:")) {
+                mService.trigger_sso(safeInfo);
             } else {
-                OpenVPNLogger.d("OpenVPNThreadv3", info);
+                OpenVPNLogger.d("OpenVPNThreadv3", sanitizeDiagnostic(safeInfo));
             }
         } else if ("COMPRESSION_ENABLED".equals(name) || "WARN".equals(name)) {
-            OpenVPNLogger.d("OpenVPNThreadv3", String.format(Locale.US, "%s: %s", name, info));
+            OpenVPNLogger.d("OpenVPNThreadv3", String.format(Locale.US, "%s: %s", name, sanitizeDiagnostic(info)));
         } else {
-            ConnectionState state = ConnectionState.IDLE;
-            switch (name) {
-                case "RESOLVE":
-                case "WAIT":
-                case "RECONNECTING":
-                case "CONNECTING":
-                case "GET_CONFIG":
-                case "ASSIGN_IP":
-                    state = ConnectionState.CONNECTING;
-                    break;
-                case "DISCONNECTED":
-                    state = ConnectionState.DISCONNECTED;
-                    break;
-                case "CONNECTED":
-                    state = ConnectionState.CONNECTED;
-                    break;
-                default:
-                    break;
+            String mappedState = OpenVpnEventStateMapper.stateForEvent(name);
+            if (mappedState != null) {
+                mService.updateStateThread(ConnectionState.valueOf(mappedState));
             }
-            mService.updateStateThread(state);
-            OpenVPNLogger.d("OpenVPNThreadv3", name + info);
+            OpenVPNLogger.d(
+                "OpenVPNThreadv3",
+                sanitizeDiagnostic((name == null ? "UNKNOWN" : name) + (info == null ? "" : ": " + info))
+            );
         }
 
         if (event.getError()) {

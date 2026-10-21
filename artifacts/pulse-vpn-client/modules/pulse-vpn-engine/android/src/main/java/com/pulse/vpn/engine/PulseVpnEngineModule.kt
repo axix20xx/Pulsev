@@ -52,6 +52,7 @@ import org.amnezia.awg.backend.Tunnel as AmneziaTunnel
 import org.amnezia.awg.config.Config as AmneziaConfig
 
 class PulseVpnEngineModule : Module() {
+  private val nativeConnectionLock = Any()
   private var pendingPermissionPromise: Promise? = null
   private var singBoxReceiverRegistered = false
   private val singBoxStatusReceiver = object : BroadcastReceiver() {
@@ -95,7 +96,7 @@ class PulseVpnEngineModule : Module() {
   @Volatile private var openVpnConnectedAt: Long? = null
   @Volatile private var openVpnUploadBytes = 0L
   @Volatile private var openVpnDownloadBytes = 0L
-  private var openVpnRemote: IVPNService? = null
+  @Volatile private var openVpnRemote: IVPNService? = null
   private var openVpnServiceConnection: ServiceConnection? = null
   private var openVpnServiceBound = false
 
@@ -140,23 +141,33 @@ class PulseVpnEngineModule : Module() {
     }
 
     AsyncFunction("confirmSingBoxTraffic") {
-      PulseSingBoxVpnService.confirmTraffic(requireContext())
+      val context = requireContext()
+      val report = probeTunnelConnectivity()
+      if (report["passed"] != true) {
+        PulseDiagnostics.log(context, "singbox_traffic_confirmation_failed")
+        PulseSingBoxVpnService.status(context)
+      } else {
+        PulseSingBoxVpnService.confirmTraffic(context)
+      }
     }
 
     AsyncFunction("connectSingBox") { profileId: String, profileName: String, config: String ->
-      if (config.isBlank()) {
-        throw CodedException("ERR_SINGBOX_CONFIG_EMPTY", "The sing-box configuration is empty.", null)
+      synchronized(nativeConnectionLock) {
+        if (config.isBlank()) {
+          throw CodedException("ERR_SINGBOX_CONFIG_EMPTY", "The sing-box configuration is empty.", null)
+        }
+        requireVpnPermission()
+        assertNoOtherNativeTunnel("V2Ray · sing-box")
+        PulseSingBoxVpnService.start(requireContext(), profileId, profileName, config)
+        PulseSingBoxVpnService.status(requireContext())
       }
-      if (VpnService.prepare(requireContext()) != null) {
-        throw CodedException("ERR_VPN_PERMISSION_REQUIRED", "Android VPN permission has not been granted.", null)
-      }
-      PulseSingBoxVpnService.start(requireContext(), profileId, profileName, config)
-      PulseSingBoxVpnService.status(requireContext())
     }
 
     AsyncFunction("disconnectSingBox") {
-      PulseSingBoxVpnService.stop(requireContext())
-      PulseSingBoxVpnService.status(requireContext())
+      synchronized(nativeConnectionLock) {
+        PulseSingBoxVpnService.stop(requireContext())
+        PulseSingBoxVpnService.status(requireContext())
+      }
     }
 
     AsyncFunction("setTunnelTestKeepScreenOn") { enabled: Boolean ->
@@ -229,8 +240,10 @@ class PulseVpnEngineModule : Module() {
     }
 
     AsyncFunction("connectWireGuard") { profileId: String, profileName: String, configText: String ->
+      synchronized(nativeConnectionLock) {
       requireVpnPermission()
       if (configText.isBlank()) throw CodedException("ERR_WG_CONFIG_EMPTY", "WireGuard config is empty.", null)
+      assertNoOtherNativeTunnel("WireGuard")
       stopAmneziaIfRunning()
       val context = requireContext()
       val parsed = try {
@@ -264,11 +277,14 @@ class PulseVpnEngineModule : Module() {
           error
         )
       }
+      }
     }
 
     AsyncFunction("disconnectWireGuard") {
-      stopWireGuardIfRunning()
-      wireGuardStatus()
+      synchronized(nativeConnectionLock) {
+        stopWireGuardIfRunning()
+        wireGuardStatus()
+      }
     }
 
     AsyncFunction("getWireGuardStatus") {
@@ -276,8 +292,10 @@ class PulseVpnEngineModule : Module() {
     }
 
     AsyncFunction("connectAmneziaWg") { profileId: String, profileName: String, configText: String ->
+      synchronized(nativeConnectionLock) {
       requireVpnPermission()
       if (configText.isBlank()) throw CodedException("ERR_AWG_CONFIG_EMPTY", "AmneziaWG config is empty.", null)
+      assertNoOtherNativeTunnel("AmneziaWG")
       val normalizedConfig = normalizeAmneziaWgConfig(configText)
       val context = requireContext()
       val parsed = try {
@@ -321,11 +339,14 @@ class PulseVpnEngineModule : Module() {
           error
         )
       }
+      }
     }
 
     AsyncFunction("disconnectAmneziaWg") {
-      stopAmneziaIfRunning()
-      amneziaStatus()
+      synchronized(nativeConnectionLock) {
+        stopAmneziaIfRunning()
+        amneziaStatus()
+      }
     }
 
     AsyncFunction("getAmneziaWgStatus") {

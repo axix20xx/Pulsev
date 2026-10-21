@@ -1,0 +1,522 @@
+PulseVPN — Complete Native VPN Engine Audit, Repair, and Validation
+
+You are a senior Android VPN engineer specializing in Android VpnService, sing-box/libbox, OpenVPN 3 Core, WireGuard, AmneziaWG, Expo Modules, React Native, and production-grade network diagnostics.
+
+PROJECT CONTEXT
+
+This is the existing PulseVPN 1.0.24 source project. Work directly in the existing codebase. Do not replace the application, remove existing features, or simulate VPN connections.
+
+The application imports server configurations or subscription links and establishes real device-wide VPN connections through native Android services.
+
+The four native engine integrations to audit are:
+
+1. V2Box/V2Ray-compatible configurations using sing-box/libbox.
+2. OpenVPN using OpenVPN 3 Core and its Android service adapter.
+3. WireGuard.
+4. AmneziaWG.
+
+The sing-box configuration converter also handles supported VLESS, VMess, Trojan, Shadowsocks, Hysteria 2, TUIC, HTTP, and SOCKS configurations. These are outbound protocols handled by sing-box, not separate Android VPN services.
+
+The reported failures include:
+
+* V2Box connects, but no internet data passes through the tunnel.
+* OpenVPN starts or connects, but the UI reports disconnected or not connected.
+* Potential failures with DNS, routing, reconnection, protocol switching, stale native state, and Android service lifecycle.
+
+NON-NEGOTIABLE RULES
+
+* Inspect the complete implementation before editing.
+* Trace each connection from UI → TypeScript engine → Expo native module → Android service → native core → Android TUN → upstream server.
+* Fix root causes, not just status labels.
+* Never return a fake CONNECTED status.
+* Never consider a TCP probe, an existing TUN interface, or a successful native service start sufficient proof of internet connectivity.
+* Preserve existing server import, subscriptions, OTP login, server selection, UI, and backend integrations.
+* Do not change backend APIs unless a demonstrated compatibility issue requires it.
+* Do not silently discard unsupported configurations or mark them connected.
+* Do not log credentials, private keys, complete subscription URLs, UUIDs, or authentication tokens.
+* Keep changes minimal, testable, and compatible with the versions already pinned in the project.
+* Do not upgrade major dependencies or replace native VPN engines merely to make the build pass.
+* Do not claim a native build, device test, or real VPN traffic test passed unless it was actually executed.
+* If a fix requires Android hardware, a VPN server, credentials, or a network unavailable in the environment, implement the test harness and clearly identify the remaining manual test.
+
+PHASE 1 — INVENTORY AND BASELINE
+
+Inspect and document these existing files and their dependencies:
+
+* app/connection.tsx
+* lib/vpn-engine.ts
+* lib/vpn-engine.android.ts
+* lib/singbox-config.ts
+* lib/xray-config-normalization.ts
+* lib/xray-share-links.ts
+* modules/pulse-vpn-engine/android/src/main/java/com/pulse/vpn/engine/PulseVpnEngineModule.kt
+* modules/pulse-vpn-engine/android/src/main/java/com/pulse/vpn/engine/PulseSingBoxVpnService.kt
+* modules/pulse-vpn-engine/android/src/main/java/com/pulse/vpn/engine/PulseDiagnostics.kt
+* modules/pulse-vpn-engine/android/src/main/java/com/tim/openvpn/OpenVPNThreadv3.java
+* modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml
+* android/app/src/main/AndroidManifest.xml
+* Gradle files, Expo module configuration, native library declarations, and existing tests.
+
+Also inspect the actual WireGuard and AmneziaWG implementation and dependencies. Do not assume that the existence of a TypeScript method proves that a native engine works.
+
+Before changing code:
+
+1. Run the existing unit tests.
+2. Run TypeScript checks.
+3. Inspect native build configuration and available SDK/NDK/JDK versions.
+4. Identify missing resources, unresolved native dependencies, and incompatible APIs.
+5. Record existing failures separately from failures introduced by modifications.
+
+Produce a concise baseline report and then proceed with repairs. Do not stop after generating the report.
+
+PHASE 2 — BUILD A SINGLE CONNECTION STATE MODEL
+
+Implement a consistent, authoritative connection lifecycle across all four engines.
+
+Use explicit states such as:
+
+* IDLE
+* PERMISSION_REQUIRED
+* CONNECTING
+* TUN_ESTABLISHED
+* CONNECTED
+* RECONNECTING
+* DISCONNECTING
+* DISCONNECTED
+* ERROR
+
+Use a shared TypeScript state model where appropriate, but preserve native authority for native engine states.
+
+Requirements:
+
+1. A connection request must have a unique attempt/session ID.
+2. Only events belonging to the current attempt may update its state.
+3. Unknown informational events must never reset an active connection to IDLE.
+4. Native callbacks and service broadcasts must not overwrite newer states with stale states.
+5. A timeout must produce a useful error, not a false success.
+6. Connection attempts must be serialized.
+7. Disconnect must cancel pending connection work and release native resources.
+8. Switching protocols must stop the previous engine and confirm that its VPN has stopped before starting another.
+9. Handle repeated taps, concurrent calls, app backgrounding, process recreation, and rapid disconnect/reconnect.
+10. Prevent a previous engine from publishing CONNECTED after a new engine has started.
+11. Keep UI status and native status consistent.
+12. Distinguish tunnel establishment from verified internet connectivity.
+
+Implement a native-level coordinator or synchronized locking mechanism. JavaScript-only checks such as assertNoOtherTunnel() are insufficient as the only concurrency protection.
+
+Use deterministic transition rules and unit tests for valid and invalid state transitions.
+
+PHASE 3 — V2BOX / SING-BOX AUDIT AND REPAIR
+
+Inspect the full lifecycle of PulseSingBoxVpnService.kt, singbox-config.ts, and the TypeScript connection monitor.
+
+A. Native core lifecycle
+
+Verify:
+
+* The correct libbox native library loads on every supported ABI.
+* The core starts successfully and reports initialization failures.
+* Configuration validation happens before the TUN is reported ready.
+* The correct configuration is used for the current connection attempt.
+* Repeated starts cannot create conflicting command servers or workers.
+* Native callbacks are registered and released correctly.
+* Stop operations cancel workers and close the TUN descriptor safely.
+* Service destruction does not leave stale SharedPreferences connection state.
+* Service restarts cannot accidentally reuse an obsolete profile.
+* A core crash transitions to ERROR or DISCONNECTED and releases resources.
+
+B. TUN and packet routing
+
+Audit:
+
+* VpnService.Builder.establish().
+* TUN descriptor ownership and lifetime.
+* The libbox TUN file descriptor handoff.
+* IPv4 and IPv6 interface addresses.
+* IPv4 and IPv6 route ranges.
+* Default-route installation.
+* Split routes and excluded routes.
+* DNS server installation.
+* MTU handling.
+* Socket protection using VpnService.protect().
+* Underlying network changes.
+* Android version-specific route handling.
+
+Verify that the upstream proxy sockets are protected from being routed back into the VPN. Treat a failed protect() call as a real connection error.
+
+Do not add routes blindly. Compare the actual libbox-provided routes with the routes installed by Android and preserve intended split-tunneling semantics.
+
+Verify that packets enter the TUN and that the core processes and forwards them.
+
+C. DNS and upstream connectivity
+
+Audit the complete DNS bootstrap chain:
+
+* Physical-network DNS discovery.
+* Numeric-IP endpoints versus hostname endpoints.
+* Bootstrap resolver reachability.
+* Proxy outbound DNS.
+* HTTPS DNS behavior.
+* DNS hijacking rules.
+* IPv4 and IPv6 DNS.
+* Network changes between Wi-Fi and cellular.
+* DNS timeouts and fallback behavior.
+
+Do not rely on a single hard-coded DNS fallback. Use bounded, configurable fallback logic and useful error reporting.
+
+Distinguish DNS failure, endpoint resolution failure, TLS failure, authentication failure, transport failure, and server unavailability.
+
+D. Configuration compatibility
+
+Audit every supported converter branch for:
+
+* VLESS, including REALITY and TLS.
+* VMess, including supported security and transport combinations.
+* Trojan.
+* Shadowsocks.
+* Hysteria 2.
+* TUIC.
+* HTTP and SOCKS.
+* Subscription normalization and multi-link selection.
+
+Inspect URI decoding, Base64 variants, URL fragments, IPv6 endpoints, query parameter handling, SNI, ALPN, fingerprints, flow, TLS settings, WebSocket paths and headers, gRPC options, and transport-specific settings.
+
+Do not claim unsupported transports work. Validate generated JSON against the actual bundled sing-box version.
+
+Specifically investigate:
+
+* ssr:// is recognized by the share-link parser, but the sing-box converter does not provide an SSR outbound.
+* Unsupported Shadowsocks plugins.
+* Unsupported V2Ray transport combinations.
+* Invalid or incomplete REALITY/TLS configuration.
+* Invalid subscription entries that should be excluded without breaking other valid entries.
+
+Either implement real support when compatible with the existing engine or reject unsupported entries with a precise error before attempting connection.
+
+Never silently convert an unsupported configuration to a different protocol.
+
+E. V2Box connection verification
+
+Replace any overly optimistic connection checks with a staged process:
+
+1. Permission granted.
+2. Native service started.
+3. Core initialized.
+4. TUN established.
+5. Routes and DNS installed.
+6. Outbound connection established.
+7. Real traffic probe succeeds.
+
+Use bounded timeouts and cancellation.
+
+Probe using an HTTPS request with explicit connection and overall timeouts. Where appropriate, test multiple endpoints and distinguish DNS failures from TCP/TLS failures. Ensure the verification traffic actually traverses the VPN, using a controlled test endpoint or reliable routing-aware verification.
+
+Do not make an external IP lookup the sole proof of connectivity.
+
+Report TUN-established but internet-unverified separately from CONNECTED.
+
+PHASE 4 — OPENVPN 3 AUDIT AND REPAIR
+
+Inspect OpenVPNThreadv3.java, PulseVpnEngineModule.kt, the OpenVPN service adapter, bundled OpenVPN 3 Core, and all TypeScript status handling.
+
+A. Event mapping — critical
+
+Inspect the event() method in OpenVPNThreadv3.java.
+
+Fix the case where an unrecognized event defaults to ConnectionState.IDLE and is sent to the service.
+
+Requirements:
+
+* Only recognized state-transition events may modify connection state.
+* Informational events must not reset a valid connection.
+* CONNECTED must be mapped only when the OpenVPN core reports a successful connection.
+* DISCONNECTED, reconnecting, authentication failures, TLS failures, and fatal errors must be handled explicitly.
+* Preserve the original event name and a sanitized message for diagnostics.
+* Do not rely on matching only a narrow list of strings if the bundled API provides structured state information.
+
+Add regression tests proving that an unknown informational event cannot change CONNECTED to IDLE or DISCONNECTED.
+
+B. Service binding and state reconciliation
+
+Audit:
+
+* OpenVPNService.startService().
+* Service binding and unbinding.
+* Binder readiness.
+* Connection state callbacks.
+* Diagnostic event files.
+* Error files.
+* Polling and recovery logic.
+* Service process restarts.
+* Timeouts during connection startup.
+* Stale callbacks from previous attempts.
+
+Do not use the last line of a mutable diagnostic file as the primary source of truth for connection state.
+
+Make native callbacks authoritative and use polling as a fallback. Add a bounded bind timeout and safely clear failed binding state so that a subsequent attempt can rebind.
+
+A failed bind must not leave the app permanently stuck in CONNECTING.
+
+C. OpenVPN profile processing
+
+Validate profiles before starting the service:
+
+* Inline certificates and keys.
+* Referenced certificate files.
+* auth-user-pass.
+* Username/password requirements.
+* TLS authentication and cryptographic settings.
+* Compression directives.
+* Cipher compatibility.
+* IPv4 and IPv6 configuration.
+* Redirected default gateways.
+* Split routes.
+* DNS and pushed DNS.
+* HTTP/HTTPS proxy directives.
+* Unsupported directives.
+* Server-pushed configuration.
+
+Do not remove or rewrite cryptographic directives without verifying their semantics against the bundled OpenVPN 3 Core.
+
+Inspect the current HTTP and HTTPS proxy callbacks, which return false. If the existing engine cannot support a required proxy callback, reject the profile clearly before connection or implement correct support.
+
+Never claim a profile is compatible solely because it parses.
+
+D. OpenVPN routes and TUN
+
+Verify:
+
+* TUN establishment.
+* File descriptor lifecycle.
+* Route installation.
+* IPv4 and IPv6 handling.
+* Default gateway behavior.
+* Excluded routes.
+* DNS configuration.
+* Socket protection.
+* MTU behavior.
+* Reconnection after network changes.
+* Native byte counters.
+* Cleanup on disconnect.
+
+Preserve special OpenVPN route semantics unless testing demonstrates a defect. Compare the adapter’s behavior against the upstream OpenVPN Android implementation and bundled API.
+
+E. OpenVPN UI behavior
+
+The UI must not switch to monitoring or connected merely because the native start request returned successfully.
+
+Wait for the authoritative connection event, while continuing to show progress.
+
+If the core never connects, surface the correct error and allow retry. If the core connects but internet traffic fails, report the tunnel as active with internet verification failed rather than reporting a successful internet connection.
+
+PHASE 5 — WIREGUARD AUDIT
+
+Inspect the real native WireGuard implementation and its library versions.
+
+Verify:
+
+* Correct parsing of [Interface] and [Peer].
+* Private key, public key, preshared key, endpoint, allowed IPs, DNS, and MTU.
+* IPv4 and IPv6 allowed routes.
+* 0.0.0.0/0 and ::/0.
+* Endpoint hostname resolution.
+* UDP socket behavior and routing.
+* Handshake establishment.
+* Latest handshake and transfer counters, where exposed.
+* Persistent keepalive.
+* Network switching.
+* Key and configuration cleanup.
+* Native service state and UI synchronization.
+* Reconnect and stop/start races.
+
+Do not mark WireGuard CONNECTED solely because its backend tunnel object exists. Distinguish interface active, handshake observed, and internet traffic verified.
+
+A lack of a recent handshake must be reported accurately without falsely claiming the tunnel is connected to a working server.
+
+Do not log private keys or complete WireGuard configurations.
+
+PHASE 6 — AMNEZIAWG AUDIT
+
+Inspect the actual AmneziaWG native implementation, not only the configuration normalizer.
+
+Verify:
+
+* The bundled implementation truly supports the expected AmneziaWG version.
+* Required Amnezia-specific parameters are parsed, retained, and passed to the correct native engine.
+* Parameters such as Jc, Jmin, Jmax, S1, S2, H1–H4, and any version-specific fields are validated according to the implementation.
+* Unsupported parameters are not silently ignored.
+* Ordinary WireGuard configurations are not incorrectly treated as AmneziaWG profiles.
+* Endpoint, allowed IPs, DNS, MTU, UDP, IPv6, handshake, and byte counters behave correctly.
+* Profile updates and reconnections do not reuse stale configuration.
+* Stop operations release all native resources.
+* Native status and UI status remain consistent.
+
+Test an ordinary WireGuard profile and an AmneziaWG profile independently. Do not assume compatibility between them.
+
+If the bundled native library does not support a required AmneziaWG feature, report it as unsupported rather than faking success.
+
+PHASE 7 — CROSS-ENGINE COORDINATION
+
+Implement and test a consistent single-active-VPN policy.
+
+For each new connection:
+
+1. Acquire a native connection lock.
+2. Cancel or reject overlapping connection attempts.
+3. Stop the currently active engine if switching is permitted.
+4. Wait for confirmation that its TUN/service is stopped.
+5. Clear stale state from the old attempt.
+6. Request VPN permission if required.
+7. Start the new engine.
+8. Observe native state transitions.
+9. Verify internet traffic.
+10. Publish the final state for the correct attempt.
+11. Release the lock safely.
+
+Do not allow sing-box, OpenVPN, WireGuard, and AmneziaWG to compete for the Android VPN slot.
+
+Handle process death, Android service recreation, denied permission, revoked permission, airplane mode, Wi-Fi-to-cellular transitions, server switching, and manual disconnect.
+
+Never leave a stale CONNECTED state after the Android VPN service has stopped.
+
+PHASE 8 — DIAGNOSTICS
+
+Implement structured, privacy-safe diagnostic events with:
+
+* Timestamp.
+* Engine.
+* Attempt ID.
+* Event name.
+* Connection phase.
+* Duration.
+* Error category.
+* Android API level.
+* Network transport type where available.
+* IPv4/IPv6 route counts.
+* DNS setup outcome.
+* TUN establishment outcome.
+* Traffic verification outcome.
+
+For sing-box, capture core initialization, route setup, DNS bootstrap, outbound connection, and traffic probe failures.
+
+For OpenVPN, capture native events, service binding, connection state changes, and sanitized fatal errors.
+
+For WireGuard and AmneziaWG, capture interface state, handshake availability, counters, and setup errors.
+
+Redact secrets before writing diagnostics. Do not expose full configuration links, private keys, passwords, UUIDs, or tokens.
+
+Provide a clear way to retrieve diagnostic logs for debugging without exposing secrets to ordinary application logs.
+
+PHASE 9 — AUTOMATED TESTS
+
+Create or extend tests for all of the following.
+
+Configuration tests
+
+* Valid and invalid VLESS.
+* VLESS REALITY and TLS.
+* VMess.
+* Trojan.
+* Shadowsocks with and without supported options.
+* Hysteria 2.
+* TUIC.
+* HTTP and SOCKS.
+* SSR rejection or actual support.
+* Unsupported transport rejection.
+* IPv4 and IPv6 endpoints.
+* Malformed links.
+* URL encoding and Base64 variants.
+* Missing credentials.
+* Invalid certificates.
+* Invalid OpenVPN directives.
+* WireGuard and AmneziaWG configuration parsing.
+
+Lifecycle tests
+
+* Permission granted.
+* Permission denied.
+* Native start failure.
+* TUN establishment failure.
+* Core initialization failure.
+* DNS bootstrap failure.
+* Server unreachable.
+* Authentication failure.
+* Tunnel active but internet unavailable.
+* Unknown OpenVPN informational event.
+* OpenVPN CONNECTED followed by an unrelated event.
+* Service bind timeout.
+* Disconnect while connecting.
+* Rapid repeated connect.
+* Rapid disconnect/reconnect.
+* Switching between all four engines.
+* Stale callback after switching.
+* App restart with stale stored state.
+* Network change during a connection.
+
+Traffic tests
+
+Use a controlled test environment where available.
+
+For every engine, verify:
+
+* A successful HTTPS request through the tunnel.
+* DNS resolution through the intended path.
+* IPv4 traffic.
+* IPv6 behavior where configured.
+* Traffic counters change when data is transferred.
+* Disconnect restores normal routing.
+* No traffic is sent through the wrong engine after a protocol switch.
+
+Use mocked native adapters for unit tests and real native/device tests for integration verification. Clearly label mocked tests so they cannot be mistaken for real VPN tests.
+
+PHASE 10 — BUILD AND VALIDATE
+
+Run all available checks:
+
+1. Existing unit tests.
+2. New unit tests.
+3. TypeScript checks.
+4. Linting where configured.
+5. Expo module validation.
+6. Android Gradle debug build.
+7. Android Gradle release build.
+8. Native library and ABI checks.
+9. APK inspection for required services, permissions, and native libraries.
+
+Check all manifest-referenced resources, including backup-rule XML resources, and determine whether the Expo build pipeline generates them. Fix missing resources without weakening backup or security settings.
+
+Build the intended Android ABIs supported by the project. Do not claim that a device architecture works if its native libraries are missing.
+
+Do not hide build errors, disable tests, or suppress compiler warnings merely to obtain a successful build.
+
+If the environment cannot build Android because the SDK, NDK, JDK, or network access is unavailable, state exactly which checks were not executable.
+
+PHASE 11 — DELIVERABLES
+
+Make the fixes directly in the existing repository.
+
+At completion, provide:
+
+1. A summary of every confirmed bug found.
+2. The exact files modified.
+3. The root cause of each fixed issue.
+4. A summary of changes made to all four native engines.
+5. New tests and their actual results.
+6. TypeScript and Android build results.
+7. Any unsupported protocols or configuration options.
+8. Any unresolved issues requiring a real Android device or working VPN server.
+9. Exact commands to reproduce the tests and build the APK.
+10. A final compatibility matrix with columns for sing-box/V2Box, OpenVPN, WireGuard, and AmneziaWG.
+
+Use these statuses only:
+
+* FIXED AND TESTED
+* FIXED, DEVICE TEST REQUIRED
+* CONFIRMED, NOT FIXED
+* NOT REPRODUCED
+* UNSUPPORTED
+* BLOCKED BY ENVIRONMENT
+
+Do not label an engine production-ready until its native tunnel has passed a real traffic test.
+
+Start by inspecting the repository and running the baseline tests. Then implement the fixes in priority order and rerun all relevant tests. Do not stop at recommendations or a generated report.
