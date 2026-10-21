@@ -8,13 +8,11 @@ import {
   type TunnelConnectivityReport, type WireGuardVpnStatus, type XrayVpnState,
 } from '@/lib/vpn-engine';
 import type { VpnProtocol } from '@/hooks/VpnPreferences';
+import { findActiveTunnelProtocol, isTunnelConnected } from '@/lib/tunnel-state';
 
 const empty: WireGuardVpnStatus = { status: 'UNKNOWN', tunnelState: 'UNKNOWN', isConnected: false };
 const labels: Record<VpnProtocol, string> = { v2ray: 'V2Box', openvpn: 'OpenVPN', wireguard: 'WireGuard', amneziawg: 'AmneziaWG' };
 const order: VpnProtocol[] = ['v2ray', 'wireguard', 'openvpn', 'amneziawg'];
-const connected = (protocol: VpnProtocol, xray: XrayVpnState, native: WireGuardVpnStatus) =>
-  protocol === 'v2ray' ? xray.state === 'connected'
-    : native.isConnected || native.status === 'CONNECTED' || native.tunnelState === 'ACTIVE';
 const fa = (value: string | number) => String(value).replace(/\d/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
 
 export default function ActivityRedesign() {
@@ -26,7 +24,7 @@ export default function ActivityRedesign() {
   const [report, setReport] = useState<TunnelConnectivityReport | null>(null);
   const [checking, setChecking] = useState(false);
   const states: Record<VpnProtocol, WireGuardVpnStatus> = { v2ray: empty, openvpn, wireguard, amneziawg: amnezia };
-  const activeProtocol = order.find((protocol) => connected(protocol, xray, states[protocol])) ?? null;
+  const activeProtocol = findActiveTunnelProtocol(order, xray, states);
 
   useEffect(() => {
     let disposed = false;
@@ -95,7 +93,7 @@ export default function ActivityRedesign() {
         <Text style={[styles.sectionTitle, { color: c.foreground }]}>موتورهای بومی</Text>
         <View style={styles.engineList}>
           {order.map((protocol, index) => {
-            const up = connected(protocol, xray, states[protocol]);
+            const up = isTunnelConnected(protocol, xray, states[protocol]);
             const status = protocol === 'v2ray' ? xray.state : states[protocol].status;
             const stateLabel = up ? 'متصل' : String(status).toLowerCase() === 'connecting' || xray.state === 'connecting' && protocol === 'v2ray' ? 'در حال اتصال' : 'آفلاین';
             return (

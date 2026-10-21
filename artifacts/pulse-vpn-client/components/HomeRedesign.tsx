@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +11,8 @@ import {
   getAmneziaWgStatus, getOpenVpnStatus, getWireGuardStatus, getXrayState,
   subscribeXrayState, type WireGuardVpnStatus, type XrayVpnState,
 } from '@/lib/vpn-engine';
+import { stopTunnelForProtocolSwitch } from '@/lib/vpn-engine';
+import { findActiveTunnelProtocol, isTunnelConnected, isTunnelConnecting } from '@/lib/tunnel-state';
 
 const protocols: { id: VpnProtocol; title: string; icon: keyof typeof Feather.glyphMap }[] = [
   { id: 'v2ray', title: 'V2Box', icon: 'radio' },
@@ -19,14 +21,6 @@ const protocols: { id: VpnProtocol; title: string; icon: keyof typeof Feather.gl
   { id: 'amneziawg', title: 'AmneziaWG', icon: 'wind' },
 ];
 const emptyTunnel: WireGuardVpnStatus = { status: 'UNKNOWN', tunnelState: 'UNKNOWN', isConnected: false };
-const isTunnelUp = (protocol: VpnProtocol, xray: XrayVpnState, status: WireGuardVpnStatus) =>
-  protocol === 'v2ray'
-    ? xray.state === 'connected'
-    : status.isConnected || status.status === 'CONNECTED' || status.tunnelState === 'ACTIVE';
-const isTunnelBusy = (protocol: VpnProtocol, xray: XrayVpnState, status: WireGuardVpnStatus) =>
-  protocol === 'v2ray'
-    ? ['preparing', 'connecting', 'disconnecting'].includes(xray.state)
-    : ['CONNECTING', 'DISCONNECTING'].includes(status.status) || ['CONNECTING', 'DISCONNECTING'].includes(status.tunnelState);
 const protocolTitle = (protocol: VpnProtocol) => protocols.find((item) => item.id === protocol)?.title ?? 'VPN';
 const fa = (value: number | string) => String(value).replace(/\d/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
 
@@ -44,6 +38,7 @@ export default function HomeRedesign() {
   const [wireguard, setWireguard] = useState(emptyTunnel);
   const [amnezia, setAmnezia] = useState(emptyTunnel);
   const [clock, setClock] = useState(Date.now());
+  const [switchingProtocol, setSwitchingProtocol] = useState<VpnProtocol | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -72,11 +67,10 @@ export default function HomeRedesign() {
   const states: Record<VpnProtocol, WireGuardVpnStatus> = {
     v2ray: emptyTunnel, openvpn, wireguard, amneziawg: amnezia,
   };
-  const activeProtocol = protocols.map((item) => item.id).find((id) =>
-    isTunnelUp(id, xray, states[id]) || isTunnelBusy(id, xray, states[id]),
-  ) ?? null;
-  const active = activeProtocol ? isTunnelUp(activeProtocol, xray, states[activeProtocol]) : false;
-  const busy = activeProtocol ? isTunnelBusy(activeProtocol, xray, states[activeProtocol]) : false;
+  const orderedProtocols = protocols.map((item) => item.id);
+  const activeProtocol = findActiveTunnelProtocol(orderedProtocols, xray, states);
+  const active = activeProtocol ? isTunnelConnected(activeProtocol, xray, states[activeProtocol]) : false;
+  const busy = activeProtocol ? isTunnelConnecting(activeProtocol, xray, states[activeProtocol]) : false;
   const activeName = activeProtocol ? protocolTitle(activeProtocol) : null;
   const activeState = activeProtocol === 'v2ray' ? xray : activeProtocol ? states[activeProtocol] : null;
   const profileId = activeState && 'profileId' in activeState ? activeState.profileId : undefined;
@@ -96,9 +90,23 @@ export default function HomeRedesign() {
     : protocols.find((item) => availability[item.id])?.id ?? 'v2ray';
 
   const chooseProtocol = (protocol: VpnProtocol, smart = false) => {
-    if (busy || !availability[protocol]) return;
-    prefs.chooseProtocol(protocol);
-    router.push({ pathname: '/servers/[protocol]', params: { protocol, ...(smart ? { smart: '1' } : {}) } });
+    if (busy || switchingProtocol || !availability[protocol]) return;
+    setSwitchingProtocol(protocol);
+    void (async () => {
+      try {
+        await stopTunnelForProtocolSwitch(protocol);
+        prefs.chooseProtocol(protocol);
+        router.push({ pathname: '/servers/[protocol]', params: { protocol, ...(smart ? { smart: '1' } : {}) } });
+      } catch (error) {
+        Alert.alert(
+          'تغییر پروتکل انجام نشد',
+          error instanceof Error ? error.message : 'اتصال قبلی قطع نشد؛ تونل جدید شروع نشد.',
+          [{ text: 'متوجه شدم' }],
+        );
+      } finally {
+        setSwitchingProtocol(null);
+      }
+    })();
   };
   const manageActive = () => {
     if (!activeProtocol) return;

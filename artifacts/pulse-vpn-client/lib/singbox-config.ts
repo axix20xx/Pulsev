@@ -335,6 +335,10 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
         interface_name: 'tun0',
         address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
         auto_route: true,
+        // Newer sing-box cores no longer infer a default route from auto_route
+        // on Android. Pass explicit included routes so the native TUN builder
+        // installs packet routes instead of creating an idle VPN interface.
+        route_address: ['0.0.0.0/0', '::/0'],
         stack: 'mixed',
       },
     ],

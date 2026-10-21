@@ -20,6 +20,7 @@ import { Card, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { getSubscriptionToken } from '@/lib/subscription-token';
 import { friendlyServerName } from '@/lib/friendly-server-name';
+import { isNativeTunnelConnected, isNativeTunnelConnecting } from '@/lib/tunnel-state';
 import { normalizeXrayShareLinks, parseXrayShareLinks, type XrayShareServer } from '@/lib/xray-share-links';
 import {
   connectAmneziaWg,
@@ -93,10 +94,6 @@ function getErrorMessage(error: unknown, token: string | null) {
   return safe.trim() || 'اتصال برقرار نشد. وضعیت موتور را بررسی و دوباره تلاش کنید.';
 }
 
-function isBusyStatus(status: string) {
-  return ['CONNECTING', 'DISCONNECTING'].includes(status);
-}
-
 function formatDuration(connectedAt?: number, now = Date.now()) {
   if (!connectedAt || connectedAt <= 0) return null;
   const seconds = Math.max(0, Math.floor((now - connectedAt) / 1000));
@@ -118,11 +115,11 @@ function fa(value: number | string) {
 }
 
 function nativeStateIsConnected(status: WireGuardVpnStatus) {
-  return status.isConnected || status.status === 'CONNECTED' || status.tunnelState === 'ACTIVE';
+  return isNativeTunnelConnected(status);
 }
 
 function nativeStateIsConnecting(status: WireGuardVpnStatus) {
-  return isBusyStatus(status.status) || isBusyStatus(status.tunnelState);
+  return isNativeTunnelConnecting(status);
 }
 
 function connectivityFailureMessage(report: TunnelConnectivityReport) {
@@ -182,6 +179,15 @@ async function disconnectTunnel(protocol: Protocol) {
   else if (protocol === 'openvpn') await disconnectOpenVpn();
   else if (protocol === 'wireguard') await disconnectWireGuard();
   else await disconnectAmneziaWg();
+
+  if (protocol === 'v2ray' || protocol === 'openvpn') return;
+  const getStatus = protocol === 'wireguard' ? getWireGuardStatus : getAmneziaWgStatus;
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (!nativeStateIsConnected(await getStatus())) return;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`The ${protocolNames[protocol]} tunnel did not stop; another protocol was not started.`);
 }
 
 export default function ConnectionScreen() {
@@ -484,8 +490,55 @@ export default function ConnectionScreen() {
         setAttemptStartedAt(null);
       } else {
         attemptKeyRef.current = key;
-        setPhase('error');
-        setActionError(`ابتدا اتصال فعال ${protocolNames[activeProtocol]} را قطع کنید.`);
+        const operationId = ++connectionAttemptGenerationRef.current;
+        const isCurrentAttempt = () =>
+          connectionAttemptGenerationRef.current === operationId && attemptKeyRef.current === key;
+        setActionError(null);
+        setPhase('disconnecting');
+        setDisconnecting(true);
+        void (async () => {
+          try {
+            await disconnectTunnel(activeProtocol);
+            const deadline = Date.now() + 10_000;
+            let tunnelStopped = false;
+            while (Date.now() < deadline) {
+              const [xray, openvpn, wg, awg] = await Promise.all([
+                getXrayState(), getOpenVpnStatus(), getWireGuardStatus(), getAmneziaWgStatus(),
+              ]);
+              if (!isCurrentAttempt()) return;
+              setXrayStatus(xray);
+              setOpenVpnStatus(openvpn);
+              setWireguardStatus(wg);
+              setAmneziaStatus(awg);
+              const stillActive = activeProtocol === 'v2ray'
+                ? ['connected', 'connecting', 'disconnecting'].includes(xray.state)
+                : activeProtocol === 'openvpn'
+                  ? nativeStateIsConnected(openvpn) || nativeStateIsConnecting(openvpn)
+                  : activeProtocol === 'wireguard'
+                    ? nativeStateIsConnected(wg) || nativeStateIsConnecting(wg)
+                    : nativeStateIsConnected(awg) || nativeStateIsConnecting(awg);
+              if (!stillActive) {
+                tunnelStopped = true;
+                break;
+              }
+              await new Promise((resolve) => setTimeout(resolve, 180));
+            }
+            if (!isCurrentAttempt()) return;
+            if (!tunnelStopped) {
+              throw new Error(`اتصال ${protocolNames[activeProtocol]} قطع نشد؛ پروتکل جدید شروع نشد.`);
+            }
+            attemptKeyRef.current = null;
+            setAttemptStartedAt(null);
+            setPhase('loading');
+            setRetry((current) => current + 1);
+          } catch (error) {
+            if (!isCurrentAttempt()) return;
+            setActionError(getErrorMessage(error, token));
+            setPhase('error');
+          } finally {
+            if (isCurrentAttempt()) setDisconnecting(false);
+          }
+        })();
       }
       return;
     }
@@ -932,7 +985,9 @@ export default function ConnectionScreen() {
           </View>
           <View style={[styles.liveMark, { backgroundColor: c.accent }]}>
             <View style={[styles.liveDot, { backgroundColor: connected ? c.success : visualConnecting ? c.warning : trafficVerificationFailed ? c.destructive : c.mutedForeground }]} />
-            <Text style={[styles.liveText, { color: c.accentForeground }]}>زنده</Text>
+            <Text style={[styles.liveText, { color: c.accentForeground }]}>
+              {connected ? 'متصل' : visualConnecting || phase === 'preparing' ? 'در حال اتصال' : 'قطع'}
+            </Text>
           </View>
         </View>
 

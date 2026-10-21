@@ -172,6 +172,7 @@ class PulseVpnEngineModule : Module() {
           throw CodedException("ERR_SINGBOX_CONFIG_EMPTY", "The sing-box configuration is empty.", null)
         }
         requireVpnPermission()
+        prepareTunnelHandoff("V2Ray · sing-box")
         assertNoOtherNativeTunnel("V2Ray · sing-box")
         val attemptId = UUID.randomUUID().toString().replace("-", "").take(10)
         PulseSingBoxVpnService.start(requireContext(), profileId, profileName, config, attemptId)
@@ -261,6 +262,7 @@ class PulseVpnEngineModule : Module() {
       synchronized(nativeConnectionLock) {
       requireVpnPermission()
       if (configText.isBlank()) throw CodedException("ERR_WG_CONFIG_EMPTY", "WireGuard config is empty.", null)
+      prepareTunnelHandoff("WireGuard")
       assertNoOtherNativeTunnel("WireGuard")
       stopAmneziaIfRunning()
       val context = requireContext()
@@ -313,6 +315,7 @@ class PulseVpnEngineModule : Module() {
       synchronized(nativeConnectionLock) {
       requireVpnPermission()
       if (configText.isBlank()) throw CodedException("ERR_AWG_CONFIG_EMPTY", "AmneziaWG config is empty.", null)
+      prepareTunnelHandoff("AmneziaWG")
       assertNoOtherNativeTunnel("AmneziaWG")
       val normalizedConfig = normalizeAmneziaWgConfig(configText)
       val context = requireContext()
@@ -380,6 +383,7 @@ class PulseVpnEngineModule : Module() {
       if (username.isBlank() || password.isBlank()) {
         throw CodedException("ERR_OPENVPN_CREDENTIALS_MISSING", "OpenVPN username and password are required.", null)
       }
+      prepareTunnelHandoff("OpenVPN")
       assertNoOtherNativeTunnel("OpenVPN")
       if (openVpnState in setOf("CONNECTED", "CONNECTING", "DISCONNECTING")) {
         throw CodedException("ERR_OPENVPN_ALREADY_ACTIVE", "Disconnect the current OpenVPN tunnel before changing servers.", null)
@@ -525,6 +529,69 @@ class PulseVpnEngineModule : Module() {
         null
       )
     }
+  }
+
+  /**
+   * Android exposes one VPN slot for the whole device. Make protocol selection
+   * an actual handoff: stop every Pulse engine, wait for native state and the
+   * TUN network to be released, and only then create the next engine.
+   *
+   * This native guard remains authoritative if the React screen has stale
+   * state or two connection requests race each other.
+   */
+  private fun prepareTunnelHandoff(requestedEngine: String) {
+    val context = requireContext()
+    val singBox = PulseSingBoxVpnService.status(context)
+    if (singBox["state"] in setOf("connecting", "connected", "disconnecting")) {
+      PulseDiagnostics.log(context, "vpn_handoff_stop", "engine=sing-box;requested=$requestedEngine")
+      PulseSingBoxVpnService.stop(context, singBox["attemptId"] as? String)
+    }
+
+    stopWireGuardIfRunning()
+    stopAmneziaIfRunning()
+    if (
+      openVpnState in setOf("CONNECTED", "CONNECTING", "DISCONNECTING", "READYFORCONNECT") ||
+      openVpnServiceConnection != null
+    ) {
+      PulseDiagnostics.log(context, "vpn_handoff_stop", "engine=openvpn;requested=$requestedEngine")
+      stopOpenVpn()
+    }
+
+    val deadline = SystemClock.elapsedRealtime() + TUNNEL_HANDOFF_TIMEOUT_MS
+    while (true) {
+      val singBoxState = PulseSingBoxVpnService.status(context)["state"] as? String
+      val wireGuardState = wireGuardStatus()["status"] as? String
+      val amneziaState = amneziaStatus()["status"] as? String
+      val openVpnCurrent = openVpnStatus()["status"] as? String
+      val pulseEngineActive =
+        singBoxState in setOf("connecting", "connected", "disconnecting") ||
+          wireGuardState in setOf("CONNECTED", "CONNECTING", "DISCONNECTING") ||
+          amneziaState in setOf("CONNECTED", "CONNECTING", "DISCONNECTING") ||
+          openVpnCurrent in setOf("CONNECTED", "CONNECTING", "DISCONNECTING")
+      val vpnNetworkActive = isAndroidVpnNetworkActive(context)
+
+      if (!pulseEngineActive && !vpnNetworkActive) break
+      if (SystemClock.elapsedRealtime() >= deadline) {
+        val reason = if (pulseEngineActive) {
+          "The previous Pulse VPN tunnel did not stop; $requestedEngine was not started."
+        } else {
+          "Android still reports a VPN network after the previous tunnel stopped. Disconnect the other VPN and try again."
+        }
+        PulseDiagnostics.log(
+          context,
+          "vpn_handoff_timeout",
+          "requested=$requestedEngine;pulse_active=$pulseEngineActive;vpn_active=$vpnNetworkActive",
+        )
+        throw CodedException("ERR_VPN_HANDOFF_TIMEOUT", reason, null)
+      }
+      try {
+        Thread.sleep(TUNNEL_HANDOFF_POLL_MS)
+      } catch (_: InterruptedException) {
+        Thread.currentThread().interrupt()
+        throw CodedException("ERR_VPN_HANDOFF_INTERRUPTED", "Switching VPN protocols was interrupted.", null)
+      }
+    }
+    PulseDiagnostics.log(context, "vpn_handoff_ready", "requested=$requestedEngine")
   }
 
   private fun awaitOpenVpnServiceReady(timeoutMs: Long = 8_000L) {
@@ -1130,16 +1197,16 @@ class PulseVpnEngineModule : Module() {
       val context = runCatching { requireContext() }.getOrNull()
       val latestEvent = context?.let(::readOpenVpnEngineDiagnostic)
       val latestError = context?.let(::readOpenVpnEngineError)
-      val connectedAgeMs = openVpnConnectedAt?.let { System.currentTimeMillis() - it }
       val engineStillReportsConnected = latestEvent?.trim()?.let {
         it.equals("CONNECTED", ignoreCase = true) || it.startsWith("CONNECTED:", ignoreCase = true)
+      } == true
+      val serviceStillReportsConnected = openVpnRemote?.let { remote ->
+        runCatching { remote.state == ConnectionState.CONNECTED }.getOrDefault(false)
       } == true
       if (
         isDisconnect &&
         previous == "CONNECTED" &&
-        connectedAgeMs != null &&
-        connectedAgeMs in 0L..5_000L &&
-        engineStillReportsConnected &&
+        (serviceStillReportsConnected || engineStillReportsConnected) &&
         latestError.isNullOrBlank() &&
         context != null &&
         isAndroidVpnNetworkActive(context)
@@ -1147,7 +1214,7 @@ class PulseVpnEngineModule : Module() {
         PulseDiagnostics.log(
           context,
           "openvpn_stale_disconnect_ignored",
-          "source=$source;state=${status.name};age_ms=$connectedAgeMs;vpn_active=true",
+          "source=$source;state=${status.name};service_connected=$serviceStillReportsConnected;engine_connected=$engineStillReportsConnected;vpn_active=true",
         )
         return
       }
@@ -1295,6 +1362,8 @@ class PulseVpnEngineModule : Module() {
 
   companion object {
     private const val VPN_PERMISSION_REQUEST_CODE = 42082
+    private const val TUNNEL_HANDOFF_TIMEOUT_MS = 12_000L
+    private const val TUNNEL_HANDOFF_POLL_MS = 100L
     private const val WIREGUARD_TUNNEL_NAME = "Pulse-WireGuard"
     private const val AMNEZIA_TUNNEL_NAME = "Pulse-AmneziaWG"
     private const val TUNNEL_TEST_TIMEOUT_MS = 4_500

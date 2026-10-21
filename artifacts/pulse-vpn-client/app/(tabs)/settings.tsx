@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useQueryClient } from '@tanstack/react-query';
 import { useGetMobileDashboard, useLogoutMobile } from '@workspace/api-client-react';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -77,7 +78,12 @@ export default function Settings() {
   return (
     <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Heading eyebrow="حریم خصوصی حساب" title="حساب" detail="اطلاعات واقعی حساب و تنظیمات برنامهٔ PulseVPN." />
+        <LinearGradient colors={[c.surfaceDeep, c.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+          <View style={[styles.heroGlyph, { backgroundColor: `${c.onDeep}1E` }]}><Feather name="sliders" size={20} color={c.onDeep} /></View>
+          <Text style={[styles.heroEyebrow, { color: `${c.onDeep}A8` }]}>PULSE · ACCOUNT</Text>
+          <Text style={[styles.heroTitle, { color: c.onDeep }]}>حساب و تنظیمات</Text>
+          <Text style={[styles.heroDetail, { color: `${c.onDeep}C8` }]}>مدیریت سرویس‌ها، ظاهر برنامه و حریم خصوصی</Text>
+        </LinearGradient>
         {dashboard.data ? (
           <Card style={styles.accountSummary}>
             <View style={[styles.optionIcon, { backgroundColor: c.accent }]}><Feather name="user" size={18} color={c.primary} /></View>
@@ -180,7 +186,7 @@ export default function Settings() {
           <Feather name="chevron-left" size={17} color={c.mutedForeground} />
         </Card>
         </Pressable>
-        <Pressable accessibilityRole="button" testID="about-pulse" onPress={() => Alert.alert('دربارهٔ PulseVPN', 'نسخهٔ ۱.۰.۲۶\nاتصال تنها با موتور بومی و وضعیت واقعی سرور گزارش می‌شود.', [{ text: 'بستن' }])}>
+        <Pressable accessibilityRole="button" testID="about-pulse" onPress={() => Alert.alert('دربارهٔ PulseVPN', 'نسخهٔ ۱.۰.۲۸\nاتصال تنها با موتور بومی و وضعیت واقعی سرور گزارش می‌شود.', [{ text: 'بستن' }])}>
           <Card style={styles.actionCard}>
             <View style={[styles.optionIcon, { backgroundColor: c.accent }]}><Feather name="info" size={17} color={c.primary} /></View>
             <View style={{ flex: 1, gap: 4 }}>
@@ -199,7 +205,12 @@ export default function Settings() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 22, paddingTop: 22, paddingBottom: 40, gap: 13 },
+  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 40, gap: 13 },
+  hero: { minHeight: 160, borderRadius: 26, padding: 20, justifyContent: 'flex-end', gap: 7, marginBottom: 3 },
+  heroGlyph: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
+  heroEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1.2, textAlign: 'right' },
+  heroTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, textAlign: 'right' },
+  heroDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'right' },
   sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, textAlign: 'right', marginTop: 5 },
   optionCard: { paddingVertical: 4, gap: 0 },
   accountSummary: { flexDirection: 'row', alignItems: 'center', minHeight: 76 },

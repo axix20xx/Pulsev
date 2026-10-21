@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -6,6 +6,7 @@ import { useGetMobileDashboard } from '@workspace/api-client-react';
 import { Card, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { useVpnPreferences, type VpnProtocol } from '@/hooks/VpnPreferences';
+import { stopTunnelForProtocolSwitch } from '@/lib/vpn-engine';
 
 const items: { id: VpnProtocol; name: string; description: string; icon: keyof typeof Feather.glyphMap }[] = [
   { id: 'v2ray', name: 'V2Box', description: 'VLESS · VMess · Trojan · SS · Hysteria 2', icon: 'radio' },
@@ -19,6 +20,8 @@ export default function ProtocolsRedesign() {
   const router = useRouter();
   const prefs = useVpnPreferences();
   const dashboard = useGetMobileDashboard();
+  const [switchingProtocol, setSwitchingProtocol] = useState<VpnProtocol | null>(null);
+  const [switchError, setSwitchError] = useState('');
   const active = (dashboard.data?.subscriptions ?? []).filter((item) => item.status === 'active' && Number(item.remaining_gb) > 0);
   const available: Record<VpnProtocol, boolean> = {
     v2ray: active.some((item) => !!item.subscription_url),
@@ -55,17 +58,28 @@ export default function ProtocolsRedesign() {
                 accessibilityRole="button"
                 accessibilityState={{ selected: chosen, disabled: !enabled }}
                 testID={`protocol-${item.id}`}
-                disabled={!enabled}
+                disabled={!enabled || switchingProtocol !== null}
                 onPress={() => {
-                  prefs.chooseProtocol(item.id);
-                  router.push(`/servers/${item.id}`);
+                  setSwitchError('');
+                  setSwitchingProtocol(item.id);
+                  void (async () => {
+                    try {
+                      await stopTunnelForProtocolSwitch(item.id);
+                      prefs.chooseProtocol(item.id);
+                      router.push(`/servers/${item.id}`);
+                    } catch (error) {
+                      setSwitchError(error instanceof Error ? error.message : 'اتصال قبلی قطع نشد؛ پروتکل جدید شروع نشد.');
+                    } finally {
+                      setSwitchingProtocol(null);
+                    }
+                  })();
                 }}
                 style={({ pressed }) => [
                   styles.tile,
                   {
                     backgroundColor: c.card,
                     borderColor: chosen ? accent : c.border,
-                    opacity: !enabled ? 0.55 : pressed ? 0.8 : 1,
+                    opacity: !enabled ? 0.55 : switchingProtocol && switchingProtocol !== item.id ? 0.55 : pressed ? 0.8 : 1,
                     transform: [{ scale: pressed ? 0.985 : 1 }],
                   },
                 ]}
@@ -83,7 +97,7 @@ export default function ProtocolsRedesign() {
                 <View style={[styles.tileFoot, { borderTopColor: c.border }]}>
                   <View style={[styles.availabilityDot, { backgroundColor: enabled ? c.success : c.mutedForeground }]} />
                   <Text style={[styles.availability, { color: enabled ? c.success : c.mutedForeground }]}>
-                    {dashboard.isLoading ? 'در حال بررسی' : enabled ? 'سرور در دسترس است' : 'برای اشتراک موجود نیست'}
+                    {switchingProtocol === item.id ? 'در حال قطع اتصال قبلی…' : dashboard.isLoading ? 'در حال بررسی' : enabled ? 'سرور در دسترس است' : 'برای اشتراک موجود نیست'}
                   </Text>
                   <Feather name={chosen ? 'check-circle' : 'arrow-up-left'} size={16} color={chosen ? accent : c.mutedForeground} />
                 </View>
@@ -91,6 +105,12 @@ export default function ProtocolsRedesign() {
             );
           })}
         </View>
+        {switchError ? (
+          <Card style={styles.loading}>
+            <Feather name="alert-triangle" size={18} color={c.destructive} />
+            <Text accessibilityRole="alert" style={[styles.subtitle, { color: c.destructive }]}>{switchError}</Text>
+          </Card>
+        ) : null}
         {dashboard.isLoading ? <Card style={styles.loading}><ActivityIndicator color={c.primary} /><Text style={[styles.subtitle, { color: c.mutedForeground }]}>در حال بارگذاری حساب</Text></Card> : null}
         {dashboard.isError ? (
           <Card style={styles.loading}>

@@ -1,11 +1,12 @@
 import React from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useGetMobileDashboard, useListMobileSubscriptions } from '@workspace/api-client-react';
 import { Card, Heading, InlineState, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { useVpnPreferences, type VpnProtocol } from '@/hooks/VpnPreferences';
+import { stopTunnelForProtocolSwitch } from '@/lib/vpn-engine';
 
 const fa = (value: number | string) => String(value).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
 const labels = { active: 'فعال', expired: 'پایان‌یافته', cancelled: 'لغوشده', pending: 'در انتظار' };
@@ -42,9 +43,22 @@ export default function ProfileDetail() {
   };
   const openServers = (protocol: VpnProtocol) => {
     if (!availability[protocol]) return;
-    prefs.chooseSubscription(item.id);
-    prefs.chooseProtocol(protocol);
-    router.push(`/servers/${protocol}`);
+    void (async () => {
+      try {
+        await stopTunnelForProtocolSwitch(protocol);
+        prefs.chooseSubscription(item.id);
+        prefs.chooseProtocol(protocol);
+        router.push(`/servers/${protocol}`);
+      } catch (error) {
+        // A failed handoff leaves the current VPN active and does not navigate
+        // into a screen that would misleadingly imply the new protocol started.
+        Alert.alert(
+          'تغییر پروتکل انجام نشد',
+          error instanceof Error ? error.message : 'اتصال قبلی قطع نشد؛ تونل جدید شروع نشد.',
+          [{ text: 'متوجه شدم' }],
+        );
+      }
+    })();
   };
   const statusColor = item.status === 'active' ? c.success : item.status === 'expired' ? c.warning : c.mutedForeground;
   const usedPercent = Math.max(0, Math.min(100, item.usage_percent));

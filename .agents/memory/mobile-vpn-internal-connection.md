@@ -26,3 +26,9 @@ Show native engine/tunnel state separately from Internet reachability. A running
 **Why:** Platform VPN icons and engine lifecycle events do not prove user traffic can reach the Internet; conversely, a DNS/HTTPS probe failure can be independent from an established tunnel and must not misreport its lifecycle.
 
 **How to apply:** Keep engine state authoritative for tunnel lifecycle, run reachability tests as a separate status, and preserve probe errors. For sing-box automatic server selection, try a small set of fast candidates using real traffic checks; if all fail, report the failed test rather than claiming Internet access.
+
+When a user switches protocols, stop all Pulse-owned tunnels and wait for Android's VPN slot to be released before starting the selected engine. Never stop a VPN owned by another app.
+
+**Why:** The user explicitly expects a protocol change to stop the previous tunnel first, and Android only permits one active VPN service per device.
+
+**How to apply:** Enforce handoff in both protocol-selection UI and the native connection lock; verify engine states and VPN-network release, then fail clearly if another app still owns the slot.

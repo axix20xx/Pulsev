@@ -32,6 +32,12 @@ export type WireGuardVpnStatus = {
   diagnostic?: string;
 };
 
+export type VpnTunnelProtocol = 'v2ray' | 'wireguard' | 'amneziawg' | 'openvpn';
+
+export async function stopTunnelForProtocolSwitch(_nextProtocol: VpnTunnelProtocol): Promise<void> {
+  return;
+}
+
 export type TunnelConnectivityEndpoint = {
   endpoint: string;
   success: boolean;

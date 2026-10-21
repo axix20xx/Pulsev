@@ -1701,14 +1701,14 @@ content_type = "application/octet-stream"
 id = "lVfnTbSw1agNU5uWnf3sZ"
 uri = "file://artifacts/pulse-vpn-client/android/app/build/outputs/apk/release/app-release.apk"
 type = "unspecified"
-title = "Pulse VPN Client Android APK 1.0.22"
-description = "ARM64 Android release APK. Version code 23; APK signature and alignment verified."
+title = "Pulse VPN Client 1.0.28 APK (ARM64)"
+description = "Install on 64-bit Android devices. Version and APK signature verified."
 logical_id = "ff5332b5-61ef-47f5-86e6-f678c9240c44"
-content_hash = "sha256:682638fd8c328b4b1dbef1b060ba09deb4d932e4afec1913d345ab2822dbbe79"
-size = 70106361
-mtime_ms = 1792530152014
-storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ff5332b5-61ef-47f5-86e6-f678c9240c44/ae743fa7-473a-48a0-b1d8-ef8a7aa871e6"
-storage_version_token = "1792530193314890"
+content_hash = "sha256:cce826d9f07b3c25d1811ec89405f2b3016371e93111f1541d7eec5a0da69d7e"
+size = 70188769
+mtime_ms = 1792593162819
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ff5332b5-61ef-47f5-86e6-f678c9240c44/e5478e8a-baaa-4163-bff7-c7c4227522bf"
+storage_version_token = "1792593448692756"
 content_type = "application/octet-stream"
 
 [[outputs]]
@@ -2003,4 +2003,18 @@ size = 68114051
 mtime_ms = 1792588524773
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/26e57273-4751-4c3b-b101-4c2804ad887d/8685d4fb-f6c0-452f-869e-c0222b0b5b5b"
 storage_version_token = "1792588543035138"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "WUIk-XBffvq24qVIh5_iw"
+uri = "file://generated-artifacts/pulse-vpn-client-1.0.28-source.zip"
+type = "unspecified"
+title = "Pulse VPN Client 1.0.28 source ZIP"
+description = "Source project for the Android client and its VPN engine modules."
+logical_id = "b6b476e6-d4ff-4192-acdb-1b016b900415"
+content_hash = "sha256:72122ceba8ecf152fde46e299cd4de854302b014bd1ca2f16f0906d6f58a6ce0"
+size = 6218582
+mtime_ms = 1792592239904
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b6b476e6-d4ff-4192-acdb-1b016b900415/a85c04dc-b46a-4399-a4be-2e25f28db047"
+storage_version_token = "1792593449327844"
 content_type = "application/octet-stream"

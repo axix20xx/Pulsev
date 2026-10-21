@@ -26,6 +26,7 @@ test('uses Android platform DNS for bootstrap and encrypted DNS over the proxy f
   assert.equal(config.dns.rules, undefined);
   assert.equal(config.inbounds[0].dns_mode, undefined);
   assert.equal(config.inbounds[0].auto_route, true);
+  assert.deepEqual(config.inbounds[0].route_address, ['0.0.0.0/0', '::/0']);
   assert.equal(config.inbounds[0].mtu, undefined);
   assert.equal(config.inbounds[0].strict_route, undefined);
   assert.deepEqual(config.route.rules, [

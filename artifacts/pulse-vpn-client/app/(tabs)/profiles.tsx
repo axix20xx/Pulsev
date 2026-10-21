@@ -2,6 +2,7 @@ import React from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useGetMobileSession, useListMobileSubscriptions } from '@workspace/api-client-react';
 import { Card, Heading, InlineState, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
@@ -24,7 +25,20 @@ export default function Profiles() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => query.refetch()} tintColor={c.primary} />}
-        ListHeaderComponent={<Heading eyebrow="مدیریت خصوصی" title="اشتراک‌های من" detail="اطلاعات و پروفایل‌های هر سرویس را جداگانه ببینید." />}
+         ListHeaderComponent={
+           <View style={{ gap: 16, marginBottom: 2 }}>
+             <LinearGradient colors={[c.surfaceDeep, c.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+               <View style={[styles.heroIcon, { backgroundColor: `${c.onDeep}1D` }]}><Feather name="layers" size={20} color={c.onDeep} /></View>
+               <Text style={[styles.heroEyebrow, { color: `${c.onDeep}A8` }]}>YOUR PULSE SERVICES</Text>
+               <Text style={[styles.heroTitle, { color: c.onDeep }]}>اشتراک‌های من</Text>
+               <Text style={[styles.heroDetail, { color: `${c.onDeep}C8` }]}>جزئیات مصرف، اعتبار و پروفایل هر سرویس</Text>
+             </LinearGradient>
+             <View style={styles.listHeading}>
+               <Text style={[styles.sectionTitle, { color: c.foreground }]}>سرویس‌های شما</Text>
+               <Text style={[styles.count, { color: c.mutedForeground }]}>{fa(query.data?.length ?? 0)} سرویس</Text>
+             </View>
+           </View>
+         }
         ListEmptyComponent={
           <Card style={styles.empty}>
             <Feather name="layers" size={25} color={c.primary} />
@@ -41,7 +55,7 @@ export default function Profiles() {
                 </View>
                 <Feather name="chevron-left" size={19} color={c.mutedForeground} />
               </View>
-              <Text style={[styles.title, { color: c.foreground }]}>{item.plan}</Text>
+               <Text style={[styles.title, { color: c.foreground }]}>{item.plan}</Text>
               <Text style={[styles.description, { color: c.mutedForeground }]}>{item.provider_name}</Text>
               <View style={[styles.separator, { backgroundColor: c.border }]} />
               <View style={styles.metrics}>
@@ -64,8 +78,16 @@ export default function Profiles() {
 }
 
 const styles = StyleSheet.create({
-  list: { paddingHorizontal: 22, paddingTop: 22, paddingBottom: 40, gap: 14 },
-  item: { gap: 9 },
+  list: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 40, gap: 13 },
+  hero: { minHeight: 160, borderRadius: 26, padding: 20, justifyContent: 'flex-end', gap: 6 },
+  heroIcon: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
+  heroEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1.2, textAlign: 'right' },
+  heroTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, textAlign: 'right' },
+  heroDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'right' },
+  listHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 2 },
+  sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, textAlign: 'right' },
+  count: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+  item: { gap: 10, borderRadius: 23, padding: 17 },
   topline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 30 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
