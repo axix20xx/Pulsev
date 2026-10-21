@@ -19,6 +19,7 @@ import type { WireGuardLocation } from '@workspace/api-client-react';
 import { Card, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { getSubscriptionToken } from '@/lib/subscription-token';
+import { friendlyServerName } from '@/lib/friendly-server-name';
 import { normalizeXrayShareLinks, parseXrayShareLinks, type XrayShareServer } from '@/lib/xray-share-links';
 import {
   connectAmneziaWg,
@@ -135,22 +136,38 @@ function connectivityFailureMessage(report: TunnelConnectivityReport) {
     : 'اتصال اینترنت از مسیر VPN تأیید نشد.';
 }
 
-async function waitForXrayTraffic(timeoutMs = 18_000): Promise<TunnelConnectivityReport> {
+async function waitForXrayTraffic(
+  expectedAttemptId: string,
+  isCurrentAttempt: () => boolean = () => true,
+  timeoutMs = 18_000,
+): Promise<TunnelConnectivityReport> {
   const deadline = Date.now() + timeoutMs;
   let latestReport: TunnelConnectivityReport | null = null;
   while (Date.now() < deadline) {
+    if (!isCurrentAttempt()) throw new Error('This connection attempt was superseded.');
     const state = await getXrayState();
+    if (state.attemptId !== expectedAttemptId) {
+      throw new Error('The V2Ray tunnel changed while its traffic test was running.');
+    }
     if (state.state === 'error') {
       throw new Error(state.error ?? 'موتور sing-box نتوانست اتصال را برقرار کند.');
     }
     latestReport = await testTunnelConnectivity();
+    if (!isCurrentAttempt()) throw new Error('This connection attempt was superseded.');
     if (latestReport.passed) {
-      await confirmXrayTraffic();
+      const confirmed = await confirmXrayTraffic(expectedAttemptId);
+      if (confirmed.attemptId !== expectedAttemptId || confirmed.state !== 'connected') {
+        throw new Error('HTTPS traffic passed, but Android did not confirm this V2Ray attempt as connected.');
+      }
       return latestReport;
     }
     await new Promise((resolve) => setTimeout(resolve, 900));
   }
+  if (!isCurrentAttempt()) throw new Error('This connection attempt was superseded.');
   const state = await getXrayState();
+  if (state.attemptId !== expectedAttemptId) {
+    throw new Error('The V2Ray tunnel changed while its traffic test was running.');
+  }
   if (state.state === 'error') {
     throw new Error(state.error ?? 'موتور sing-box نتوانست اتصال را برقرار کند.');
   }
@@ -170,11 +187,12 @@ export default function ConnectionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const safeBottom = Platform.OS === 'web' ? 0 : insets.bottom;
-  const params = useLocalSearchParams<{ id?: string | string[]; protocol?: string | string[]; location?: string | string[] }>();
+  const params = useLocalSearchParams<{ id?: string | string[]; protocol?: string | string[]; location?: string | string[]; serverId?: string | string[] }>();
   const id = first(params.id);
   const rawProtocol = first(params.protocol);
   const protocol = (['v2ray', 'openvpn', 'wireguard', 'amneziawg'] as const).find((value) => value === rawProtocol);
   const locationName = first(params.location) ?? '';
+  const requestedServerId = first(params.serverId) ?? '';
 
   const subscriptions = useListMobileSubscriptions();
   const dashboard = useGetMobileDashboard();
@@ -210,6 +228,7 @@ export default function ConnectionScreen() {
   const [xrayPingResults, setXrayPingResults] = useState<Record<string, number | null>>({});
   const [isPingingXray, setIsPingingXray] = useState(false);
   const attemptKeyRef = useRef<string | null>(null);
+  const connectionAttemptGenerationRef = useRef(0);
   const timedOutAttemptRef = useRef<number | null>(null);
   const [trafficReport, setTrafficReport] = useState<TunnelConnectivityReport | null>(null);
   const [trafficTestError, setTrafficTestError] = useState<string | null>(null);
@@ -367,16 +386,22 @@ export default function ConnectionScreen() {
     : activeProtocol === 'openvpn' ? openVpnStatus
       : activeProtocol === 'wireguard' ? wireguardStatus
         : activeProtocol === 'amneziawg' ? amneziaStatus : null;
-  const connected = activeProtocol === 'v2ray'
+  const nativeTunnelActive = activeProtocol === 'v2ray'
     ? xrayStatus.state === 'connected'
     : activeProtocol
       ? nativeStateIsConnected(activeState as WireGuardVpnStatus)
       : false;
+  const connected = nativeTunnelActive && trafficReport?.passed === true;
   const connecting = activeProtocol === 'v2ray'
     ? xrayStatus.state === 'connecting' || xrayStatus.state === 'preparing' || xrayStatus.state === 'disconnecting'
     : activeProtocol
       ? nativeStateIsConnecting(activeState as WireGuardVpnStatus)
       : false;
+  const trafficVerificationPending = nativeTunnelActive && !connected
+    && (!trafficReport || trafficTesting) && !trafficTestError;
+  const trafficVerificationFailed = nativeTunnelActive && !trafficTesting
+    && (!!trafficTestError || (!!trafficReport && !trafficReport.passed));
+  const visualConnecting = connecting || trafficVerificationPending || (nativeTunnelActive && trafficTesting);
   const isRequestedProtocolActive = !!protocol && activeProtocol === protocol;
   const activeProfileId = activeProtocol === 'v2ray' ? xrayStatus.profileId : (activeState as WireGuardVpnStatus | null)?.profileId;
   const activeProfileName = activeProtocol === 'v2ray' ? xrayStatus.profileName : (activeState as WireGuardVpnStatus | null)?.profileName;
@@ -385,7 +410,7 @@ export default function ConnectionScreen() {
 
   const autoProbeSessionRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!connected || !activeProtocol) {
+    if (!nativeTunnelActive || !activeProtocol) {
       autoProbeSessionRef.current = null;
       if (stabilityEndAtRef.current !== null) stopStabilityTest();
       return;
@@ -400,20 +425,13 @@ export default function ConnectionScreen() {
     autoProbeSessionRef.current = sessionKey;
     let cancelled = false;
     const timer = setTimeout(() => {
-      void testTunnelConnectivity().then((report) => {
-        if (!cancelled) {
-          setTrafficReport(report);
-          setTrafficTestError(null);
-        }
-      }).catch((error) => {
-        if (!cancelled) setTrafficTestError(getErrorMessage(error, token));
-      });
+      void runTunnelConnectivityTest();
     }, 1_000);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [activeProfileId, activeProfileName, activeProtocol, connected, stopStabilityTest, token, trafficReport?.passed]);
+  }, [activeProfileId, activeProfileName, activeProtocol, nativeTunnelActive, runTunnelConnectivityTest, stopStabilityTest, trafficReport?.passed]);
 
   const profileLoading = protocol === 'v2ray' ? feed.isLoading
     : protocol === 'openvpn' ? openVpn.isLoading
@@ -468,6 +486,9 @@ export default function ConnectionScreen() {
     }
 
     attemptKeyRef.current = key;
+    const operationId = ++connectionAttemptGenerationRef.current;
+    const isCurrentAttempt = () =>
+      connectionAttemptGenerationRef.current === operationId && attemptKeyRef.current === key;
     setActionError(null);
     setTrafficReport(null);
     setTrafficTestError(null);
@@ -504,31 +525,50 @@ export default function ConnectionScreen() {
           });
           // Reality/share-link conversion can reject a node even when its TCP
           // port responds; try more of the ranked feed before giving up.
-          const candidates = rankedServers.slice(0, Math.min(8, rankedServers.length));
+          const selectedServer = requestedServerId ? rankedServers.find((server) => server.id === requestedServerId) : undefined;
+          if (requestedServerId && !selectedServer) {
+            throw new Error('سرور انتخاب‌شده دیگر در فید موجود نیست. فهرست سرورها را تازه کنید.');
+          }
+          const candidates = selectedServer
+            ? [selectedServer]
+            : rankedServers.slice(0, Math.min(8, rankedServers.length));
           setPhase('connecting');
           setAttemptStartedAt(Date.now());
           setTrafficReport(null);
           const failures: string[] = [];
           for (const [index, server] of candidates.entries()) {
+            if (!isCurrentAttempt()) return;
             setSelectedXrayServerId(server.id);
             if (index > 0) setPhase('connecting');
+            let activeAttemptId: string | null = null;
             try {
               const state = await connectXray(item.id, server.name, server.link);
+              if (!isCurrentAttempt()) return;
+              activeAttemptId = state.attemptId ?? null;
+              if (!activeAttemptId) throw new Error('Android did not return an ID for this V2Ray connection attempt.');
               setXrayStatus(state);
               if (state.state === 'error') {
                 throw new Error(state.error ?? 'موتور sing-box نتوانست به این سرور وصل شود.');
               }
-              const report = await waitForXrayTraffic();
+              const report = await waitForXrayTraffic(activeAttemptId, isCurrentAttempt);
+              if (!isCurrentAttempt()) return;
               setTrafficReport(report);
               setAttemptStartedAt(null);
               setPhase('monitoring');
               return;
             } catch (error) {
+              if (!isCurrentAttempt()) return;
               failures.push(`${server.name}: ${getErrorMessage(error, token)}`);
-              await disconnectXray().catch(() => undefined);
-              setXrayStatus({ state: 'disconnected' });
+              if (activeAttemptId) {
+                const current = await getXrayState().catch(() => null);
+                if (isCurrentAttempt() && current?.attemptId === activeAttemptId) {
+                  await disconnectXray().catch(() => undefined);
+                  setXrayStatus({ state: 'disconnected' });
+                }
+              }
             }
           }
+          if (!isCurrentAttempt()) return;
           throw new Error(`اتصال واقعی از هیچ‌یک از ${fa(candidates.length)} سرور سریع آزمایش‌شده تأیید نشد. ${failures.slice(-2).join(' · ')}`);
         }
 
@@ -536,7 +576,9 @@ export default function ConnectionScreen() {
           const fresh = await openVpn.refetch();
           const account = fresh.data;
           if (fresh.isError || !account) throw fresh.error ?? new Error('پروفایل OpenVPN در دسترس نیست.');
-          const location = account.locations.find((entry) => entry.name === locationName) ?? account.locations[0];
+          const location = locationName
+            ? account.locations.find((entry) => entry.name === locationName)
+            : account.locations[0];
           if (!location) throw new Error('برای OpenVPN سروری در پروفایل پیدا نشد.');
           const { provider, host } = routeParts(location.config_url, 'openvpn');
           const config = await downloadOpenVpnProfile(token, provider, host);
@@ -555,8 +597,9 @@ export default function ConnectionScreen() {
           const fresh = await wireguard.refetch();
           const account = fresh.data;
           if (fresh.isError || !account) throw fresh.error ?? new Error('پروفایل WireGuard در دسترس نیست.');
-          const location: WireGuardLocation | undefined =
-            account.locations.find((entry) => entry.name === locationName) ?? account.locations[0];
+          const location: WireGuardLocation | undefined = locationName
+            ? account.locations.find((entry) => entry.name === locationName)
+            : account.locations[0];
           if (!location) throw new Error('برای WireGuard سروری در پروفایل پیدا نشد.');
           const { provider, host } = routeParts(location.config_url, 'wireguard');
           const config = await downloadWireGuardConfig(token, provider, host);
@@ -585,6 +628,7 @@ export default function ConnectionScreen() {
             setPhase('error');
           });
       } catch (error) {
+        if (!isCurrentAttempt()) return;
         setActionError(getErrorMessage(error, token));
         setPhase('error');
       }
@@ -597,6 +641,7 @@ export default function ConnectionScreen() {
     item?.remaining_gb,
     token,
     locationName,
+    requestedServerId,
     nativeReady,
     profileLoading,
     profileError,
@@ -646,29 +691,46 @@ export default function ConnectionScreen() {
       (xrayStatus.state === 'connected' || xrayStatus.state === 'connecting')
     ) return;
 
-    attemptKeyRef.current = `${item.id}:v2ray:${locationName}:${retry}`;
+    const operationId = ++connectionAttemptGenerationRef.current;
+    const attemptKey = `${item.id}:v2ray:${locationName}:${retry}:${server.id}`;
+    attemptKeyRef.current = attemptKey;
+    const isCurrentAttempt = () =>
+      connectionAttemptGenerationRef.current === operationId && attemptKeyRef.current === attemptKey;
     setSelectedXrayServerId(server.id);
     setActionError(null);
     setTrafficTestError(null);
     setTrafficReport(null);
     setAttemptStartedAt(null);
     setPhase('preparing');
+    let activeAttemptId: string | null = null;
     try {
       if (xrayStatus.state !== 'disconnected') await disconnectXray();
+      if (!isCurrentAttempt()) return;
       setPhase('connecting');
       setAttemptStartedAt(Date.now());
       const state = await connectXray(item.id, server.name, server.link);
+      if (!isCurrentAttempt()) return;
+      activeAttemptId = state.attemptId ?? null;
+      if (!activeAttemptId) throw new Error('Android did not return an ID for this V2Ray connection attempt.');
       if (state.state === 'error') {
         throw new Error(state.error ?? 'موتور sing-box نتوانست به این سرور وصل شود.');
       }
       setXrayStatus(state);
-      const report = await waitForXrayTraffic();
+      const report = await waitForXrayTraffic(activeAttemptId, isCurrentAttempt);
+      if (!isCurrentAttempt()) return;
       setTrafficReport(report);
       setAttemptStartedAt(null);
       setPhase('monitoring');
     } catch (error) {
-      await disconnectXray().catch(() => undefined);
-      setXrayStatus({ state: 'disconnected' });
+      if (!isCurrentAttempt()) return;
+      if (activeAttemptId) {
+        const current = await getXrayState().catch(() => null);
+        if (isCurrentAttempt() && current?.attemptId === activeAttemptId) {
+          await disconnectXray().catch(() => undefined);
+          setXrayStatus({ state: 'disconnected' });
+        }
+      }
+      if (!isCurrentAttempt()) return;
       setActionError(getErrorMessage(error, token));
       setPhase('error');
     }
@@ -690,10 +752,10 @@ export default function ConnectionScreen() {
     : protocol === 'openvpn' ? openVpnStatus.status === 'ERROR' || !!openVpnStatus.error
       : protocol === 'wireguard' ? wireguardStatus.status === 'ERROR' || !!wireguardStatus.error
         : protocol === 'amneziawg' ? amneziaStatus.status === 'ERROR' || !!amneziaStatus.error : false;
-  const statusError = !connected && selectedError ? nativeError ?? 'موتور بومی خطا گزارش کرد.' : null;
+  const statusError = !nativeTunnelActive && selectedError ? nativeError ?? 'موتور بومی خطا گزارش کرد.' : null;
   const connectedAt = activeProtocol === 'v2ray' ? xrayStatus.connectedAt
     : (activeState as WireGuardVpnStatus | null)?.connectedAt;
-  const duration = connected && connectedAt ? formatDuration(connectedAt, clock) : null;
+  const duration = nativeTunnelActive && connectedAt ? formatDuration(connectedAt, clock) : null;
   const attemptElapsed = attemptStartedAt ? clock - attemptStartedAt : 0;
   const slowAttempt = connecting && attemptElapsed >= 45_000;
   const hasTransferCounters = activeProtocol === 'openvpn'
@@ -701,14 +763,22 @@ export default function ConnectionScreen() {
       || (activeState as WireGuardVpnStatus | null)?.uploadBytes != null);
   const transferIn = hasTransferCounters ? formatBytes((activeState as WireGuardVpnStatus | null)?.downloadBytes) : '—';
   const transferOut = hasTransferCounters ? formatBytes((activeState as WireGuardVpnStatus | null)?.uploadBytes) : '—';
-  const statusColor = connected ? c.success : actionError || statusError || phase === 'error' ? c.destructive : connecting || phase === 'preparing' ? c.warning : c.mutedForeground;
+  const statusColor = connected ? c.success
+    : actionError || statusError || trafficVerificationFailed || phase === 'error' ? c.destructive
+      : visualConnecting || phase === 'preparing' ? c.warning : c.mutedForeground;
   const statusTitle = connected ? 'اتصال امن برقرار است'
     : connecting ? 'در حال برقراری اتصال'
-      : phase === 'preparing' ? 'در حال آماده‌سازی پروفایل'
-        : actionError || statusError || phase === 'error' ? 'اتصال برقرار نشد'
-          : 'اتصال قطع است';
+      : nativeTunnelActive && (trafficTesting || trafficVerificationPending) ? 'در حال تأیید دسترسی اینترنت'
+        : trafficVerificationFailed ? 'تونل فعال است؛ اینترنت تأیید نشد'
+          : phase === 'preparing' ? 'در حال آماده‌سازی پروفایل'
+            : actionError || statusError || phase === 'error' ? 'اتصال برقرار نشد'
+              : 'اتصال قطع است';
   const statusDetail = connected
-    ? 'موتور بومی دستگاه اتصال را تأیید کرده است.'
+    ? 'تونل بومی فعال است و درخواست HTTPS از مسیر VPN پاسخ داده است.'
+    : nativeTunnelActive && (trafficTesting || trafficVerificationPending)
+      ? 'موتور تونل فعال است؛ درخواست واقعی HTTPS برای تأیید عبور داده در حال بررسی است.'
+      : trafficVerificationFailed
+        ? 'موتور تونل فعال است، اما اینترنت از مسیر VPN تأیید نشد. جزئیات آزمون را بررسی کنید.'
     : connecting && protocol === 'openvpn' && openVpnStatus.diagnostic
       ? `OpenVPN: ${openVpnStatus.diagnostic}`
     : slowAttempt
@@ -780,6 +850,8 @@ export default function ConnectionScreen() {
   const disconnectActive = async () => {
     const target = activeProtocol ?? protocol;
     if (!target) return;
+    connectionAttemptGenerationRef.current += 1;
+    attemptKeyRef.current = null;
     stopStabilityTest();
     setAttemptStartedAt(null);
     timedOutAttemptRef.current = null;
@@ -808,6 +880,7 @@ export default function ConnectionScreen() {
   };
 
   const retryConnection = () => {
+    connectionAttemptGenerationRef.current += 1;
     setTrafficReport(null);
     setTrafficTestError(null);
     attemptKeyRef.current = null;
@@ -838,7 +911,7 @@ export default function ConnectionScreen() {
             <Text style={[styles.topTitle, { color: c.foreground }]}>وضعیت اتصال</Text>
           </View>
           <View style={[styles.liveMark, { backgroundColor: c.accent }]}>
-            <View style={[styles.liveDot, { backgroundColor: connected ? c.success : connecting ? c.warning : c.mutedForeground }]} />
+            <View style={[styles.liveDot, { backgroundColor: connected ? c.success : visualConnecting ? c.warning : trafficVerificationFailed ? c.destructive : c.mutedForeground }]} />
             <Text style={[styles.liveText, { color: c.accentForeground }]}>زنده</Text>
           </View>
         </View>
@@ -857,9 +930,9 @@ export default function ConnectionScreen() {
               style={[styles.hero, { borderColor: c.border }]}
             >
               <View style={styles.heroTopline}>
-                <View style={[styles.statusPill, { backgroundColor: connected ? `${c.success}18` : connecting ? `${c.warning}20` : `${c.mutedForeground}14` }]}>
+                <View style={[styles.statusPill, { backgroundColor: connected ? `${c.success}18` : visualConnecting ? `${c.warning}20` : trafficVerificationFailed ? `${c.destructive}14` : `${c.mutedForeground}14` }]}>
                   <View style={[styles.liveDot, { backgroundColor: statusColor }]} />
-                  <Text style={[styles.statusPillText, { color: statusColor }]}>{connected ? 'متصل' : connecting ? 'در حال اتصال' : phase === 'preparing' ? 'آماده‌سازی' : 'آفلاین'}</Text>
+                  <Text style={[styles.statusPillText, { color: statusColor }]}>{connected ? 'متصل و تأییدشده' : connecting ? 'در حال اتصال' : visualConnecting ? 'تأیید اینترنت' : trafficVerificationFailed ? 'اینترنت ناموفق' : phase === 'preparing' ? 'آماده‌سازی' : 'آفلاین'}</Text>
                 </View>
                 <Text style={[styles.heroKicker, { color: c.mutedForeground }]}>NATIVE TUNNEL</Text>
               </View>
@@ -867,7 +940,7 @@ export default function ConnectionScreen() {
               <View style={styles.heroCenter}>
                 <View style={[styles.orbitOuter, { borderColor: `${statusColor}38` }]}>
                   <View style={[styles.orbitInner, { backgroundColor: connected ? `${c.success}16` : c.accent }]}>
-                    {connecting ? <ActivityIndicator color={statusColor} size="large" /> : <Feather name={connected ? 'shield' : protocol ? protocolIcons[protocol] : 'shield'} size={34} color={statusColor} />}
+                    {visualConnecting ? <ActivityIndicator color={statusColor} size="large" /> : <Feather name={connected ? 'shield' : protocol ? protocolIcons[protocol] : 'shield'} size={34} color={statusColor} />}
                   </View>
                 </View>
                 <Text style={[styles.statusTitle, { color: c.foreground }]}>{statusTitle}</Text>
@@ -922,10 +995,7 @@ export default function ConnectionScreen() {
                     const selected = selectedXrayServerId === server.id || (!selectedXrayServerId && activeXrayServerId === server.id);
                     const pingKnown = Object.prototype.hasOwnProperty.call(xrayPingResults, server.id);
                     const latency = xrayPingResults[server.id];
-                    const serverTitle = server.name
-                      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
-                      .replace(/\uFE0F/g, '')
-                      .trim() || `سرور ${fa(index + 1)}`;
+                    const serverTitle = friendlyServerName(server.name, index);
                     const protocolLabel = server.protocol === 'vmess' ? 'VMess' : server.protocol.toUpperCase();
 
                     return (
@@ -1008,7 +1078,7 @@ export default function ConnectionScreen() {
                   <Text style={[styles.actionText, { color: c.destructiveForeground }]}>{disconnecting ? 'در حال قطع اتصال…' : `قطع اتصال${activeProtocol ? ` ${protocolNames[activeProtocol]}` : ''}`}</Text>
                 </Pressable>
               ) : null}
-              {!connected && protocol ? (
+              {!nativeTunnelActive && !connecting && protocol ? (
                 <Pressable
                   accessibilityRole="button"
                   onPress={retryConnection}
@@ -1021,7 +1091,7 @@ export default function ConnectionScreen() {
               ) : null}
             </View>
 
-            {connected && activeProtocol ? (
+            {nativeTunnelActive && activeProtocol ? (
               <Card style={styles.trafficCard}>
                 <View style={styles.sectionHeader}>
                   <View style={[styles.sectionIcon, { backgroundColor: trafficReport?.passed ? `${c.success}18` : c.secondary }]}>

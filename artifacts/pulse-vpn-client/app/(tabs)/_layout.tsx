@@ -14,13 +14,13 @@ export default function TabsLayout() {
       headerShown: false,
       tabBarActiveTintColor: c.primary,
       tabBarInactiveTintColor: c.mutedForeground,
-      tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11, marginTop: 2 },
+      tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 10, marginTop: 2 },
       tabBarStyle: {
         backgroundColor: c.card,
         borderTopColor: c.border,
         borderTopWidth: 1,
-        height: Platform.OS === 'web' ? 84 : 56 + bottomInset,
-        paddingTop: 7,
+        height: Platform.OS === 'web' ? 84 : 62 + bottomInset,
+        paddingTop: 9,
         paddingBottom: bottomInset,
         elevation: Platform.OS === 'android' ? 12 : 0,
         shadowColor: c.foreground,
@@ -30,8 +30,10 @@ export default function TabsLayout() {
       },
     }}>
       <Tabs.Screen name="index" options={{ title: 'خانه', tabBarIcon: ({ color }) => <Feather name="grid" size={21} color={color} /> }} />
-      <Tabs.Screen name="profiles" options={{ title: 'اشتراک‌ها', tabBarIcon: ({ color }) => <Feather name="layers" size={21} color={color} /> }} />
-      <Tabs.Screen name="settings" options={{ title: 'تنظیمات', tabBarIcon: ({ color }) => <Feather name="sliders" size={21} color={color} /> }} />
+      <Tabs.Screen name="protocols" options={{ title: 'پروتکل', tabBarIcon: ({ color }) => <Feather name="radio" size={21} color={color} /> }} />
+      <Tabs.Screen name="activity" options={{ title: 'فعالیت', tabBarIcon: ({ color }) => <Feather name="activity" size={21} color={color} /> }} />
+      <Tabs.Screen name="settings" options={{ title: 'حساب', tabBarIcon: ({ color }) => <Feather name="user" size={21} color={color} /> }} />
+      <Tabs.Screen name="profiles" options={{ href: null }} />
     </Tabs>
   );
 }

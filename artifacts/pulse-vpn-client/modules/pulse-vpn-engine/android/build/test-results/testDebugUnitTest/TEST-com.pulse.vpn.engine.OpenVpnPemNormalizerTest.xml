@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.pulse.vpn.engine.OpenVpnPemNormalizerTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-21T11:00:28.742Z" hostname="repl" time="0.021">
+  <properties/>
+  <testcase name="normalizesCertificateLineEndingsAndLegacyX509Marker" classname="com.pulse.vpn.engine.OpenVpnPemNormalizerTest" time="0.01"/>
+  <testcase name="preservesTlsCryptV2KeyTagsAndContentsWhileNormalizingNewlines" classname="com.pulse.vpn.engine.OpenVpnPemNormalizerTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

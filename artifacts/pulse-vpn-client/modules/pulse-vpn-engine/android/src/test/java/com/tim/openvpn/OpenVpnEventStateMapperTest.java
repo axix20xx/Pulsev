@@ -1,26 +1,37 @@
 package com.tim.openvpn;
 
-/** Dependency-free regression test; run with javac and java. */
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
+import org.junit.Test;
+
 public final class OpenVpnEventStateMapperTest {
-    private static void expect(String event, String expected) {
-        String actual = OpenVpnEventStateMapper.stateForEvent(event);
-        if (expected == null ? actual != null : !expected.equals(actual)) {
-            throw new AssertionError(
-                "Expected " + event + " to map to " + expected + ", got " + actual
-            );
-        }
+    @Test
+    public void mapsOnlyExplicitConnectionTransitions() {
+        assertEquals("CONNECTED", OpenVpnEventStateMapper.stateForEvent("CONNECTED"));
+        assertEquals("DISCONNECTED", OpenVpnEventStateMapper.stateForEvent("DISCONNECTED"));
+        assertEquals("CONNECTING", OpenVpnEventStateMapper.stateForEvent("RESOLVE"));
+        assertEquals("CONNECTING", OpenVpnEventStateMapper.stateForEvent("RECONNECTING"));
+        assertEquals("CONNECTING", OpenVpnEventStateMapper.stateForEvent("WAIT"));
+        assertNull(OpenVpnEventStateMapper.stateForEvent("INFO"));
+        assertNull(OpenVpnEventStateMapper.stateForEvent("WARN"));
+        assertNull(OpenVpnEventStateMapper.stateForEvent("BYTECOUNT"));
+        assertNull(OpenVpnEventStateMapper.stateForEvent("UNKNOWN_EVENT"));
+        assertNull(OpenVpnEventStateMapper.stateForEvent(null));
     }
 
-    public static void main(String[] args) {
-        expect("CONNECTED", "CONNECTED");
-        expect("DISCONNECTED", "DISCONNECTED");
-        expect("RESOLVE", "CONNECTING");
-        expect("RECONNECTING", "CONNECTING");
-        expect("INFO", null);
-        expect("WARN", null);
-        expect("BYTECOUNT", null);
-        expect("UNKNOWN_EVENT", null);
-        expect(null, null);
-        System.out.println("OpenVPN event-state regression tests passed.");
+    @Test
+    public void connectedSurvivesInformationalEventsUntilARealTransition() {
+        String state = OpenVpnEventStateMapper.stateAfterEvent(null, "CONNECTED");
+        assertEquals("CONNECTED", state);
+
+        for (String informationalEvent : new String[] { "INFO", "WARN", "BYTECOUNT", "UNKNOWN_EVENT", null }) {
+            state = OpenVpnEventStateMapper.stateAfterEvent(state, informationalEvent);
+            assertEquals("CONNECTED", state);
+        }
+
+        assertEquals("CONNECTING", OpenVpnEventStateMapper.stateAfterEvent(state, "RECONNECTING"));
+        assertEquals("CONNECTED", OpenVpnEventStateMapper.stateAfterEvent("CONNECTING", "CONNECTED"));
+        assertEquals("DISCONNECTED", OpenVpnEventStateMapper.stateAfterEvent("CONNECTED", "DISCONNECTED"));
     }
 }

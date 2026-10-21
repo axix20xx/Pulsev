@@ -7,7 +7,7 @@ type PulseVpnNativeModule = {
   requestPermission(): Promise<{ granted: boolean }>;
   isSupported(): Promise<boolean>;
   getSingBoxStatus(): Promise<XrayVpnState>;
-  confirmSingBoxTraffic(): Promise<XrayVpnState>;
+  confirmSingBoxTraffic(attemptId: string): Promise<XrayVpnState>;
   connectSingBox(profileId: string, profileName: string, config: string): Promise<XrayVpnState>;
   disconnectSingBox(): Promise<XrayVpnState>;
   addListener(
@@ -76,8 +76,8 @@ export async function getXrayState(): Promise<XrayVpnState> {
   return loadPulseNativeModule().getSingBoxStatus();
 }
 
-export async function confirmXrayTraffic(): Promise<XrayVpnState> {
-  return loadPulseNativeModule().confirmSingBoxTraffic();
+export async function confirmXrayTraffic(attemptId: string): Promise<XrayVpnState> {
+  return loadPulseNativeModule().confirmSingBoxTraffic(attemptId);
 }
 
 export async function subscribeXrayState(

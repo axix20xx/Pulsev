@@ -8,7 +8,7 @@ From the repository root:
 
 ```sh
 pnpm --filter @workspace/pulse-vpn-client run android:prebuild
-pnpm --filter @workspace/pulse-vpn-client run android:apk
+pnpm --filter @workspace/pulse-vpn-client run android:apk:arm64
 ```
 
 The test APK is written to
@@ -21,6 +21,9 @@ generated Gradle project. The generated Expo project signs this test build with
 its debug key; it is installable for testing but is not a production/Play Store
 signing identity. Production distribution requires the owner's own signing
 configuration.
+The build scripts default Java's temporary files to `.cache/pulse-tmp` in the
+workspace to avoid restricted system-temp storage; set `PULSE_BUILD_TMPDIR` only
+if a different writable location is needed.
 
 OpenVPN integration licensing and corresponding source references are in
 `THIRD_PARTY_NOTICES.md` and `third_party/`.

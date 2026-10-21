@@ -1,0 +1,124 @@
+Pulse VPN diagnostic report
+app_version=1.0.23
+android_api=35
+device_abi=arm64-v8a
+exported_at_utc=2026-10-20T22:04:03.745Z
+privacy=No VPN profile, credentials, subscription URL, server address, or traffic destination is included.
+--- recent app diagnostics ---
+2026-10-20T22:00:20.350Z openvpn_state UNKNOWN->DISCONNECTED
+2026-10-20T22:00:28.562Z singbox_start_requested
+2026-10-20T22:00:28.567Z singbox_state state=connecting;error=
+2026-10-20T22:00:28.591Z tunnel_probe_no_vpn
+2026-10-20T22:00:28.747Z singbox_config_valid
+2026-10-20T22:00:28.844Z singbox_tun_create_requested auto_route=true;mtu=9000
+2026-10-20T22:00:28.847Z singbox_tun_routes_configured dns=2;routes_ipv4=1;routes_ipv6=1;ipv4_address=true;ipv6_address=true
+2026-10-20T22:00:28.890Z singbox_tun_established fd_valid=true
+2026-10-20T22:00:28.898Z singbox_core_started
+2026-10-20T22:00:28.898Z singbox_state state=connecting;error=
+2026-10-20T22:00:41.568Z tunnel_probe_completed vpn_active=true;passed=false;probe1{ok=false;code=none;bytes=0;latency_ms=12026;error=DNS resolution failed.};probe2{ok=false;code=none;bytes=0;latency_ms=12026;error=DNS resolution failed.}
+2026-10-20T22:00:42.485Z tunnel_probe_completed vpn_active=true;passed=false;probe1{ok=false;code=none;bytes=0;latency_ms=3;error=DNS resolution failed.};probe2{ok=false;code=none;bytes=0;latency_ms=1;error=DNS resolution failed.}
+2026-10-20T22:00:49.061Z singbox_stop_requested
+2026-10-20T22:00:49.061Z singbox_state state=disconnecting;error=
+2026-10-20T22:00:49.141Z singbox_state state=disconnected;error=
+2026-10-20T22:00:49.279Z singbox_start_requested
+2026-10-20T22:00:49.282Z singbox_state state=connecting;error=
+2026-10-20T22:00:49.369Z tunnel_probe_no_vpn
+2026-10-20T22:00:49.391Z singbox_config_valid
+2026-10-20T22:00:49.491Z singbox_tun_create_requested auto_route=true;mtu=9000
+2026-10-20T22:00:49.492Z singbox_tun_routes_configured dns=2;routes_ipv4=1;routes_ipv6=1;ipv4_address=true;ipv6_address=true
+2026-10-20T22:00:49.520Z singbox_tun_established fd_valid=true
+2026-10-20T22:00:49.529Z singbox_core_started
+2026-10-20T22:00:49.529Z singbox_state state=connecting;error=
+2026-10-20T22:01:02.307Z tunnel_probe_completed vpn_active=true;passed=false;probe1{ok=false;code=none;bytes=0;latency_ms=12019;error=DNS resolution failed.};probe2{ok=false;code=none;bytes=0;latency_ms=12019;error=DNS resolution failed.}
+2026-10-20T22:01:28.581Z singbox_stop_requested
+2026-10-20T22:01:28.582Z singbox_state state=disconnecting;error=
+2026-10-20T22:01:28.630Z singbox_state state=disconnected;error=
+2026-10-20T22:01:28.818Z singbox_start_requested
+2026-10-20T22:01:28.823Z singbox_state state=connecting;error=
+2026-10-20T22:01:28.870Z tunnel_probe_no_vpn
+2026-10-20T22:01:28.913Z singbox_config_valid
+2026-10-20T22:01:29.009Z singbox_tun_create_requested auto_route=true;mtu=9000
+2026-10-20T22:01:29.010Z singbox_tun_routes_configured dns=2;routes_ipv4=1;routes_ipv6=1;ipv4_address=true;ipv6_address=true
+2026-10-20T22:01:29.050Z singbox_tun_established fd_valid=true
+2026-10-20T22:01:29.059Z singbox_core_started
+2026-10-20T22:01:29.060Z singbox_state state=connecting;error=
+2026-10-20T22:01:41.838Z tunnel_probe_completed vpn_active=true;passed=false;probe1{ok=false;code=none;bytes=0;latency_ms=12022;error=DNS resolution failed.};probe2{ok=false;code=none;bytes=0;latency_ms=12020;error=DNS resolution failed.}
+2026-10-20T22:01:41.916Z singbox_stop_requested
+2026-10-20T22:01:41.917Z singbox_state state=disconnecting;error=
+2026-10-20T22:01:41.961Z singbox_state state=disconnected;error=
+2026-10-20T22:01:44.664Z tunnel_probe_no_vpn
+2026-10-20T22:01:45.601Z tunnel_probe_no_vpn
+2026-10-20T22:01:46.512Z tunnel_probe_no_vpn
+2026-10-20T22:01:47.482Z singbox_start_requested
+2026-10-20T22:01:47.486Z singbox_state state=connecting;error=
+2026-10-20T22:01:47.509Z tunnel_probe_no_vpn
+2026-10-20T22:01:47.579Z singbox_config_valid
+2026-10-20T22:01:47.693Z singbox_tun_create_requested auto_route=true;mtu=9000
+2026-10-20T22:01:47.694Z singbox_tun_routes_configured dns=2;routes_ipv4=1;routes_ipv6=1;ipv4_address=true;ipv6_address=true
+2026-10-20T22:01:47.717Z singbox_tun_established fd_valid=true
+2026-10-20T22:01:47.734Z singbox_core_started
+2026-10-20T22:01:47.735Z singbox_state state=connecting;error=
+2026-10-20T22:02:00.471Z tunnel_probe_completed vpn_active=true;passed=false;probe1{ok=false;code=none;bytes=0;latency_ms=12021;error=DNS resolution failed.};probe2{ok=false;code=none;bytes=0;latency_ms=12021;error=DNS resolution failed.}
+2026-10-20T22:02:01.400Z tunnel_probe_completed vpn_active=true;passed=false;probe1{ok=false;code=none;bytes=0;latency_ms=1;error=DNS resolution failed.};probe2{ok=false;code=none;bytes=0;latency_ms=1;error=DNS resolution failed.}
+2026-10-20T22:02:07.311Z singbox_stop_requested
+2026-10-20T22:02:07.311Z singbox_state state=disconnecting;error=
+2026-10-20T22:02:07.369Z singbox_state state=disconnected;error=
+2026-10-20T22:02:07.515Z singbox_start_requested
+2026-10-20T22:02:07.516Z tunnel_probe_no_vpn
+2026-10-20T22:02:07.520Z singbox_state state=connecting;error=
+2026-10-20T22:02:07.604Z singbox_config_valid
+2026-10-20T22:02:07.693Z singbox_tun_create_requested auto_route=true;mtu=9000
+2026-10-20T22:02:07.693Z singbox_tun_routes_configured dns=2;routes_ipv4=1;routes_ipv6=1;ipv4_address=true;ipv6_address=true
+2026-10-20T22:02:07.716Z singbox_tun_established fd_valid=true
+2026-10-20T22:02:07.736Z singbox_core_started
+2026-10-20T22:02:07.737Z singbox_state state=connecting;error=
+2026-10-20T22:02:20.450Z tunnel_probe_completed vpn_active=true;passed=false;probe1{ok=false;code=none;bytes=0;latency_ms=12023;error=DNS resolution failed.};probe2{ok=false;code=none;bytes=0;latency_ms=12023;error=DNS resolution failed.}
+2026-10-20T22:02:20.486Z singbox_stop_requested
+2026-10-20T22:02:20.487Z singbox_state state=disconnecting;error=
+2026-10-20T22:02:20.554Z singbox_state state=disconnected;error=
+2026-10-20T22:02:34.184Z singbox_start_requested
+2026-10-20T22:02:34.188Z singbox_state state=connecting;error=
+2026-10-20T22:02:34.227Z tunnel_probe_no_vpn
+2026-10-20T22:02:34.287Z singbox_config_valid
+2026-10-20T22:02:34.385Z singbox_tun_create_requested auto_route=true;mtu=9000
+2026-10-20T22:02:34.386Z singbox_tun_routes_configured dns=2;routes_ipv4=1;routes_ipv6=1;ipv4_address=true;ipv6_address=true
+2026-10-20T22:02:34.413Z singbox_tun_established fd_valid=true
+2026-10-20T22:02:34.449Z singbox_core_started
+2026-10-20T22:02:34.449Z singbox_state state=connecting;error=
+2026-10-20T22:02:47.206Z tunnel_probe_completed vpn_active=true;passed=false;probe1{ok=false;code=none;bytes=0;latency_ms=12021;error=DNS resolution failed.};probe2{ok=false;code=none;bytes=0;latency_ms=12028;error=DNS resolution failed.}
+2026-10-20T22:02:47.248Z singbox_stop_requested
+2026-10-20T22:02:47.248Z singbox_state state=disconnecting;error=
+2026-10-20T22:02:47.302Z singbox_state state=disconnected;error=
+2026-10-20T22:02:48.126Z tunnel_probe_no_vpn
+2026-10-20T22:02:49.042Z tunnel_probe_no_vpn
+2026-10-20T22:02:49.959Z tunnel_probe_no_vpn
+2026-10-20T22:02:50.875Z tunnel_probe_no_vpn
+2026-10-20T22:02:51.789Z tunnel_probe_no_vpn
+2026-10-20T22:02:52.724Z singbox_start_requested
+2026-10-20T22:02:52.734Z singbox_state state=connecting;error=
+2026-10-20T22:02:52.843Z singbox_config_valid
+2026-10-20T22:02:52.854Z tunnel_probe_no_vpn
+2026-10-20T22:02:52.939Z singbox_tun_create_requested auto_route=true;mtu=9000
+2026-10-20T22:02:52.939Z singbox_tun_routes_configured dns=2;routes_ipv4=1;routes_ipv6=1;ipv4_address=true;ipv6_address=true
+2026-10-20T22:02:52.967Z singbox_tun_established fd_valid=true
+2026-10-20T22:02:52.979Z singbox_core_started
+2026-10-20T22:02:52.979Z singbox_state state=connecting;error=
+2026-10-20T22:03:05.799Z tunnel_probe_completed vpn_active=true;passed=false;probe1{ok=false;code=none;bytes=0;latency_ms=12020;error=DNS resolution failed.};probe2{ok=false;code=none;bytes=0;latency_ms=12025;error=DNS resolution failed.}
+2026-10-20T22:03:05.874Z singbox_stop_requested
+2026-10-20T22:03:05.874Z singbox_state state=disconnecting;error=
+2026-10-20T22:03:05.909Z singbox_state state=disconnected;error=
+2026-10-20T22:03:06.714Z tunnel_probe_no_vpn
+2026-10-20T22:03:07.632Z tunnel_probe_no_vpn
+2026-10-20T22:03:08.546Z tunnel_probe_no_vpn
+2026-10-20T22:03:09.464Z tunnel_probe_no_vpn
+2026-10-20T22:03:09.830Z openvpn_connect_requested
+2026-10-20T22:03:09.868Z openvpn_service_started
+2026-10-20T22:03:09.990Z openvpn_engine_event RESOLVE
+2026-10-20T22:03:10.144Z openvpn_engine_event WAIT
+2026-10-20T22:03:10.156Z openvpn_engine_event Connecting to [[host]]:1821 ([ip]) via UDP
+2026-10-20T22:03:10.292Z openvpn_engine_event CONNECTING
+2026-10-20T22:03:10.379Z tunnel_probe_no_vpn
+2026-10-20T22:03:11.281Z openvpn_engine_event GET_CONFIG
+2026-10-20T22:03:11.401Z openvpn_engine_event ASSIGN_IP
+2026-10-20T22:03:11.470Z openvpn_engine_event CONNECTED: [app-path] ([ip]) via /UDP on tun/[ip]/[ip] gw=[[ip]/[ip]] mtu=(default)
+2026-10-20T22:03:12.928Z openvpn_state CONNECTING->CONNECTED

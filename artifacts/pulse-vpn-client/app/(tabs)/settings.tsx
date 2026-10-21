@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, Share, Style
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLogoutMobile } from '@workspace/api-client-react';
+import { useGetMobileDashboard, useLogoutMobile } from '@workspace/api-client-react';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ActionButton, Card, Heading, InlineState, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
@@ -23,6 +23,8 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const { themeMode, setThemeMode } = useAppearance();
   const logout = useLogoutMobile();
+  const dashboard = useGetMobileDashboard();
+  const currentSubscription = dashboard.data?.subscriptions.find((entry) => entry.status === 'active') ?? dashboard.data?.subscriptions[0];
   const [logoutError, setLogoutError] = useState('');
   const [savingDiagnostics, setSavingDiagnostics] = useState(false);
 
@@ -75,7 +77,39 @@ export default function Settings() {
   return (
     <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Heading eyebrow="حساب کاربری" title="تنظیمات" detail="ترجیحات و دسترسی حساب خود را مدیریت کنید." />
+        <Heading eyebrow="حریم خصوصی حساب" title="حساب" detail="اطلاعات واقعی حساب و تنظیمات برنامهٔ PulseVPN." />
+        {dashboard.data ? (
+          <Card style={styles.accountSummary}>
+            <View style={[styles.optionIcon, { backgroundColor: c.accent }]}><Feather name="user" size={18} color={c.primary} /></View>
+            <View style={styles.accountCopy}>
+              <Text style={[styles.accountName, { color: c.foreground }]}>{dashboard.data.customer.name}</Text>
+              <Text style={[styles.accountPhone, { color: c.mutedForeground }]}>{dashboard.data.customer.phone}</Text>
+            </View>
+            <Feather name="lock" size={15} color={c.mutedForeground} />
+          </Card>
+        ) : dashboard.isLoading ? <View style={[styles.accountSkeleton, { backgroundColor: c.muted }]} /> : null}
+        {currentSubscription ? (
+          <Pressable accessibilityRole="button" testID="account-subscription-detail" onPress={() => router.push(`/profiles/${currentSubscription.id}`)}>
+            <Card style={styles.actionCard}>
+              <View style={[styles.optionIcon, { backgroundColor: c.accent }]}><Feather name="layers" size={17} color={c.primary} /></View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={[styles.optionTitle, { color: c.foreground }]}>{currentSubscription.plan}</Text>
+                <Text style={[styles.optionHint, { color: c.mutedForeground }]}>{currentSubscription.provider_name} · {currentSubscription.status === 'active' ? 'فعال' : 'وضعیت سرویس'}</Text>
+              </View>
+              <Feather name="chevron-left" size={17} color={c.mutedForeground} />
+            </Card>
+          </Pressable>
+        ) : null}
+        <Pressable accessibilityRole="button" testID="account-all-subscriptions" onPress={() => router.push('/(tabs)/profiles')}>
+          <Card style={styles.actionCard}>
+            <View style={[styles.optionIcon, { backgroundColor: c.secondary }]}><Feather name="list" size={17} color={c.secondaryForeground} /></View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.optionTitle, { color: c.foreground }]}>مدیریت اشتراک‌ها</Text>
+              <Text style={[styles.optionHint, { color: c.mutedForeground }]}>مشاهدهٔ طرح‌ها، میزان مصرف و وضعیت سرویس</Text>
+            </View>
+            <Feather name="chevron-left" size={17} color={c.mutedForeground} />
+          </Card>
+        </Pressable>
 
         <Text style={[styles.sectionTitle, { color: c.foreground }]}>نمایش</Text>
         <Card style={styles.optionCard}>
@@ -136,13 +170,26 @@ export default function Settings() {
             <Feather name="arrow-up-left" size={17} color={c.mutedForeground} />
           </Card>
         </Pressable>
+        <Pressable accessibilityRole="button" testID="privacy-details" onPress={() => Alert.alert('حریم خصوصی', 'PulseVPN نشانی پیکربندی و اعتبارنامه‌ها را در صفحه‌های معمولی نمایش نمی‌دهد. گزارش فنی فقط از خروجی موتور بومی دریافت می‌شود.', [{ text: 'متوجه شدم' }])}>
         <Card style={styles.actionCard}>
           <View style={[styles.optionIcon, { backgroundColor: c.secondary }]}><Feather name="lock" size={17} color={c.mutedForeground} /></View>
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={[styles.optionTitle, { color: c.foreground }]}>حریم خصوصی</Text>
             <Text style={[styles.optionHint, { color: c.mutedForeground }]}>اطلاعات اشتراک فقط برای حساب واردشده نمایش داده می‌شود.</Text>
           </View>
+          <Feather name="chevron-left" size={17} color={c.mutedForeground} />
         </Card>
+        </Pressable>
+        <Pressable accessibilityRole="button" testID="about-pulse" onPress={() => Alert.alert('دربارهٔ PulseVPN', 'نسخهٔ ۱.۰.۲۶\nاتصال تنها با موتور بومی و وضعیت واقعی سرور گزارش می‌شود.', [{ text: 'بستن' }])}>
+          <Card style={styles.actionCard}>
+            <View style={[styles.optionIcon, { backgroundColor: c.accent }]}><Feather name="info" size={17} color={c.primary} /></View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.optionTitle, { color: c.foreground }]}>دربارهٔ PulseVPN</Text>
+              <Text style={[styles.optionHint, { color: c.mutedForeground }]}>نسخه و اطلاعات برنامه</Text>
+            </View>
+            <Feather name="chevron-left" size={17} color={c.mutedForeground} />
+          </Card>
+        </Pressable>
         {logoutError ? <InlineState title="خروج انجام نشد" detail={logoutError} retry={signOut} /> : null}
         <ActionButton title="خروج از حساب" icon="log-out" quiet onPress={signOut} loading={logout.isPending} />
         <Text style={[styles.version, { color: c.mutedForeground }]}>Pulse VPN Client · مشتریان Pulse</Text>
@@ -155,6 +202,11 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 22, paddingTop: 22, paddingBottom: 40, gap: 13 },
   sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, textAlign: 'right', marginTop: 5 },
   optionCard: { paddingVertical: 4, gap: 0 },
+  accountSummary: { flexDirection: 'row', alignItems: 'center', minHeight: 76 },
+  accountCopy: { flex: 1, gap: 5, alignItems: 'flex-end' },
+  accountName: { fontFamily: 'Inter_700Bold', fontSize: 15, textAlign: 'right' },
+  accountPhone: { fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'right' },
+  accountSkeleton: { height: 76, borderRadius: 20, opacity: 0.7 },
   option: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11 },
   optionIcon: { width: 37, height: 37, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   optionTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13, textAlign: 'right' },

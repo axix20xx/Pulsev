@@ -1,0 +1,609 @@
+PulseVPN 1.0.26 — Complete UI/UX Rebuild + All VPN Engine Fixes
+
+Act as a principal mobile UI/UX designer, senior React Native/Expo developer, and Android VPN networking engineer.
+
+Work directly in the existing PulseVPN Android 1.0.25 source repository. Inspect the real implementation, modify the existing code, run tests, and build the Android release APK if the environment permits.
+
+This is an implementation task, not a proposal. Do not stop after an audit or design plan.
+
+OBJECTIVE
+
+Deliver a production-quality PulseVPN application with:
+
+1. A completely redesigned, premium mobile UI.
+2. A dedicated protocol-selection screen.
+3. A dedicated server-selection screen for each supported protocol.
+4. Smart Connect and Manual Connect.
+5. Working integration with all four real VPN engines.
+6. Reliable connection status, routing, DNS, and traffic verification.
+7. Secure handling of subscription links and configuration details.
+8. A successful Android release build, or a precise report of any blocking error.
+
+Supported engines:
+
+* V2Box / sing-box.
+* OpenVPN 3.
+* WireGuard.
+* AmneziaWG.
+
+Preserve existing authentication, OTP, subscriptions, backend API contracts, server import, and native engine integrations.
+
+Do not replace real networking with mocked connections.
+
+PART 1 — COMPLETE UI/UX REDESIGN
+
+1. Inspect the current application
+
+Inspect the actual navigation and screen structure, including:
+
+* app/(tabs)/index.tsx
+* app/(tabs)/profiles.tsx
+* app/(tabs)/settings.tsx
+* app/(tabs)/_layout.tsx
+* app/profiles/[id].tsx
+* app/connection.tsx, if present.
+* All shared UI components, navigation, state management, and connection hooks.
+
+Identify which existing screens remain unchanged from version 1.0.24 and replace the outdated experience with the complete design below.
+
+Do not modify only the home screen. Rebuild the full user-facing application.
+
+2. Visual identity
+
+Create an original premium VPN design.
+
+Visual system:
+
+* Deep midnight navy and near-black surfaces.
+* Electric cyan and ice-blue accents.
+* Restrained violet highlights.
+* High-contrast typography.
+* Fine borders and layered surfaces.
+* Elegant, original protocol illustrations.
+* Subtle active-connection glow.
+* Carefully controlled animation.
+* Generous spacing and accessible touch targets.
+
+Avoid generic dashboard templates, excessive cards, excessive gradients, fake statistics, and clutter.
+
+Use the existing compatible Expo, React Native, navigation, icon, and animation dependencies wherever possible. Do not upgrade major dependencies without a demonstrated need.
+
+Design for mobile phones first, including safe areas and different display sizes.
+
+3. Navigation
+
+Create four primary destinations:
+
+* Home.
+* Protocols.
+* Activity.
+* Account.
+
+Use a premium, cohesive bottom navigation system.
+
+Integrate the existing authentication flow. Preserve OTP login and existing backend behavior.
+
+Every visible button must have a real action. Do not leave placeholder screens or decorative controls that do nothing.
+
+4. Home screen
+
+Build a new VPN control center.
+
+Include:
+
+* PulseVPN brand identity.
+* A large, original connection orb or circular connection control.
+* Current connection status.
+* Selected protocol.
+* Selected server.
+* Connection duration when genuinely connected.
+* Smart Connect button.
+* Manual Connect / Choose Server button.
+* Compact shortcuts for changing protocol and server.
+* A small recent-activity section if real history is available.
+
+Connection states must include:
+
+* Disconnected.
+* Permission required.
+* Connecting.
+* Tunnel established.
+* Connected and internet verified.
+* Reconnecting.
+* Disconnecting.
+* Error.
+* Tunnel active but internet verification failed.
+
+Do not display connected until the correct native engine reports the connection and the traffic verification policy succeeds.
+
+Smart Connect
+
+Implement a real Smart Connect action.
+
+Rules:
+
+1. Respect the user’s explicitly selected protocol.
+2. If no protocol is selected, choose a sensible supported default using actual configuration availability.
+3. Use real compatible server inventory.
+4. Prefer measured latency and known availability when those data exist.
+5. If latency is unavailable, use an eligible server without inventing a ping value.
+6. Avoid repeatedly choosing a known-failing server when a better eligible server exists.
+7. Never silently change the selected protocol.
+8. If no compatible server exists, explain why.
+9. Prevent concurrent connection attempts.
+10. Show the actual selected server after selection.
+
+Manual Connect
+
+Open the server-selection page for the currently selected protocol.
+
+Allow the user to choose an exact server and connect using the corresponding native engine.
+
+5. Protocol-selection screen
+
+Create a dedicated Protocols screen with four visually distinct selections.
+
+V2Box
+
+Description: Flexible connectivity through supported sing-box transports.
+
+OpenVPN
+
+Description: Established VPN connectivity with broad compatibility.
+
+WireGuard
+
+Description: Lightweight, modern VPN connectivity.
+
+AmneziaWG
+
+Description: WireGuard-based connectivity with additional obfuscation features where supported.
+
+Use original illustrations and different visual motifs for each protocol.
+
+Show:
+
+* Protocol name.
+* Concise description.
+* Actual availability.
+* Selected state.
+* Connection status if relevant.
+
+Tapping a protocol must update the real connection manager and open that protocol’s dedicated server-selection page.
+
+Do not treat unsupported configurations as available servers.
+
+6. Dedicated server-selection pages
+
+Create dedicated pages for:
+
+* V2Box Servers.
+* OpenVPN Servers.
+* WireGuard Servers.
+* AmneziaWG Servers.
+
+Use a shared reusable screen component with protocol-specific styling.
+
+Each page must include:
+
+* Protocol header.
+* Back navigation.
+* Smart Connect.
+* Search.
+* Actual compatible server list.
+* Server name.
+* Location and flag when actual metadata exists.
+* Measured latency only when actually available.
+* Selection state.
+* Connect action.
+* Empty, loading, and error states.
+* Refresh subscription action where supported.
+
+Never fabricate server locations, health, availability, or latency.
+
+Do not expose raw configuration URLs, JSON, credentials, UUIDs, private keys, or cryptographic settings.
+
+Protocol compatibility
+
+Filter servers according to the actual parser and native engine capabilities.
+
+Do not pass VLESS profiles to OpenVPN, or treat ordinary WireGuard profiles as AmneziaWG unless the native implementation explicitly supports the configuration.
+
+If a profile is unsupported, show a clear explanation instead of attempting a connection that cannot work.
+
+Protocol switching
+
+When switching from one engine to another:
+
+1. Cancel pending connection attempts.
+2. Stop the active engine.
+3. Wait for confirmation that its VPN has stopped.
+4. Clear obsolete state.
+5. Start the newly selected engine.
+6. Wait for its authoritative native state.
+7. Verify actual traffic.
+8. Update the UI for the current attempt only.
+
+Never run multiple Android VPN engines simultaneously.
+
+7. Activity, Account, and Settings
+
+Activity
+
+Display real connection history, including protocol, server, time, duration, and outcome when available.
+
+If implementing local history, use existing storage infrastructure and never store secrets or full configurations.
+
+Account
+
+Integrate actual authentication and subscription data:
+
+* Account information.
+* Subscription status.
+* Expiration and usage information when provided.
+* Existing subscription-management actions.
+* Sign out.
+
+Do not fabricate account or billing features.
+
+Settings
+
+Provide working controls for supported features such as:
+
+* Default protocol.
+* Auto-connect.
+* Appearance.
+* Notifications.
+* Diagnostics export.
+* Privacy.
+* About PulseVPN.
+
+Do not add nonfunctional toggles.
+
+8. Privacy
+
+Remove raw subscription URLs, complete server links, and sensitive configuration values from ordinary user-facing screens.
+
+Audit app/profiles/[id].tsx and all sharing actions. Normal users should see friendly server names, not secret configuration fields.
+
+Preserve legitimate import and subscription-management capabilities internally.
+
+Never log private keys, passwords, UUIDs, authentication tokens, or complete subscription URLs.
+
+PART 2 — V2BOX / SING-BOX REPAIR
+
+9. Audit the current implementation
+
+Inspect:
+
+* PulseSingBoxVpnService.kt
+* PulseVpnEngineModule.kt
+* PulseDiagnostics.kt
+* lib/singbox-config.ts
+* lib/xray-share-links.ts
+* lib/vpn-engine.android.ts
+* The connection screen and traffic verification code.
+
+Preserve compatibility with the actual bundled com.github.singbox-android:libbox:1.14.3 API unless a deliberate, tested dependency change is required.
+
+Do not copy configuration examples from incompatible sing-box versions.
+
+10. Trace the complete connection lifecycle
+
+Diagnose the actual transition through:
+
+1. Configuration parsing.
+2. Configuration generation.
+3. Native configuration validation.
+4. Android VPN permission.
+5. Native service startup.
+6. sing-box core initialization.
+7. TUN establishment.
+8. IPv4/IPv6 route installation.
+9. DNS setup.
+10. Underlying network detection.
+11. Upstream socket protection.
+12. Proxy endpoint resolution.
+13. Outbound connection.
+14. Actual HTTPS traffic.
+15. Final connection status.
+
+Capture the first real failure and its sanitized error.
+
+Do not assume that a TUN interface means internet connectivity works.
+
+11. Bootstrap DNS and hostname resolution
+
+Inspect configureBootstrapDns() and resolveProxyEndpoint().
+
+Fix the following risks:
+
+* Replacing the configured bootstrap resolver with an unreachable physical DNS server.
+* Losing fallback behavior.
+* Pinning a hostname to a stale resolved IP after a network change.
+* DNS bootstrap loops.
+* Hostname endpoints failing even when numeric-IP endpoints work.
+* IPv4/IPv6 resolution problems.
+* Incorrect handling of Wi-Fi-to-cellular transitions.
+
+Use bounded timeouts, compatible libbox DNS configuration, and safe fallback behavior.
+
+Retain the original hostname and TLS server name separately from a resolved IP where required.
+
+Re-resolve through the current underlying network when reconnecting or recovering from network changes.
+
+Do not disable TLS certificate validation.
+
+Test numeric-IP and hostname-based server configurations independently.
+
+12. TUN and routing
+
+Inspect openTun(), the route iterators, VpnService.Builder, the TUN descriptor, and generated configuration.
+
+Verify:
+
+* TUN establishment.
+* Descriptor ownership and lifetime.
+* IPv4 routes.
+* IPv6 routes.
+* Default routes.
+* Split routes and excluded routes.
+* DNS installation.
+* MTU.
+* Socket protection.
+* Underlying network selection.
+* Recovery after network changes.
+
+Do not blindly add default routes or enable route overrides without confirming that the behavior is appropriate for the current Android VPN architecture.
+
+A failed protect(fd) must not be ignored.
+
+Log sanitized route counts and setup results.
+
+13. Configuration compatibility
+
+Validate the existing converters for:
+
+* VLESS TLS and REALITY.
+* VMess.
+* Trojan.
+* Shadowsocks.
+* Hysteria 2.
+* TUIC.
+* HTTP and SOCKS.
+* WebSocket and gRPC where supported.
+
+Preserve required SNI, REALITY parameters, WebSocket Host headers, paths, credentials, and supported transport options.
+
+The previous release corrected VMess WebSocket Host handling. Preserve that fix.
+
+The previous release also rejected unsupported SSR and Shadowsocks plugin configurations. Preserve explicit rejection instead of silently converting unsupported links.
+
+14. Real traffic verification
+
+Require the correct native connection attempt to pass the verification stage.
+
+Distinguish:
+
+* Configuration failure.
+* Core initialization failure.
+* TUN failure.
+* Route failure.
+* DNS failure.
+* Endpoint resolution failure.
+* Socket protection failure.
+* Outbound connection failure.
+* TLS failure.
+* Successful tunnel with no internet traffic.
+* Fully verified connection.
+
+Use an HTTPS request with bounded timeouts. Ensure the probe traverses the intended VPN network.
+
+Do not use only a TCP probe or external IP lookup.
+
+15. Diagnostics
+
+Improve privacy-safe structured diagnostics.
+
+Capture:
+
+* Attempt ID.
+* Protocol.
+* Event timestamp.
+* Configuration validation result.
+* Core startup result.
+* TUN result.
+* Route setup result.
+* DNS result.
+* Endpoint resolution result.
+* Outbound connection errors.
+* HTTPS verification result.
+* Network change events.
+* Disconnect cleanup.
+
+Never log complete configuration links, passwords, private keys, UUIDs, or tokens.
+
+PART 3 — OPENVPN REPAIR
+
+16. Preserve and test the OpenVPN event-mapping fix
+
+Inspect OpenVPNThreadv3.java and OpenVpnEventStateMapper.java.
+
+The previous release introduced a mapper to prevent unknown informational events from automatically resetting state to IDLE.
+
+Preserve this behavior.
+
+Requirements:
+
+* Unknown informational events do not change state.
+* CONNECTED remains connected until a legitimate state transition occurs.
+* Authentication, TLS, fatal errors, reconnecting, and disconnection are handled explicitly.
+* Stale callbacks cannot overwrite a newer attempt.
+* Service binding has a timeout and safe recovery.
+* Diagnostic files are not the authoritative source of state.
+* The UI does not report connected merely because the service started.
+
+Integrate OpenVpnEventStateMapperTest.java into the standard Android Gradle unit-test workflow rather than relying only on a manually executed main method.
+
+Test the CONNECTED → informational event → CONNECTED sequence.
+
+17. OpenVPN profiles and routing
+
+Validate the actual OpenVPN 3 Core integration, profile parsing, TUN, IPv4/IPv6 routes, DNS, MTU, socket handling, service lifecycle, and reconnection.
+
+Preserve valid cryptographic settings.
+
+Check unsupported HTTP/HTTPS proxy callbacks and report incompatible profiles clearly.
+
+Do not silently remove directives to force a connection.
+
+PART 4 — WIREGUARD AND AMNEZIAWG
+
+18. WireGuard
+
+Audit the actual native implementation for:
+
+* Configuration parsing.
+* Keys and endpoints.
+* Allowed IPs.
+* IPv4/IPv6 routing.
+* DNS.
+* MTU.
+* UDP behavior.
+* Handshake state.
+* Traffic counters.
+* Reconnection.
+* Native cleanup.
+
+Distinguish interface active, handshake observed, and internet traffic verified.
+
+Never expose private keys in diagnostics.
+
+19. AmneziaWG
+
+Verify that the actual native library supports the AmneziaWG profile format and required parameters.
+
+Check Jc, Jmin, Jmax, S1, S2, H1–H4, and version-specific settings as applicable.
+
+Do not silently discard required parameters or treat ordinary WireGuard as equivalent to AmneziaWG.
+
+Test both profile types independently.
+
+PART 5 — SHARED LIFECYCLE AND SECURITY
+
+20. Single-active-VPN coordinator
+
+Implement native-safe serialization for all four engines.
+
+Requirements:
+
+* Only one active Android VPN engine.
+* Unique connection-attempt IDs.
+* Cancellation of stale attempts.
+* Safe start/stop ordering.
+* Correct handling of permission denial.
+* Safe disconnect while connecting.
+* Recovery from service death.
+* Correct behavior during network changes.
+* No stale CONNECTED status.
+* No concurrent engine startup.
+* Safe rapid retries and protocol switching.
+
+Do not rely solely on a JavaScript mutex.
+
+21. Connection status
+
+Use authoritative native engine state and real traffic verification.
+
+The UI must accurately distinguish:
+
+* Disconnected.
+* Connecting.
+* Tunnel established.
+* Connected and internet verified.
+* Reconnecting.
+* Disconnecting.
+* Error.
+* Tunnel active but internet unverified.
+
+Do not fake successful connections to improve the visual experience.
+
+PART 6 — TESTING AND RELEASE
+
+22. Run baseline checks
+
+Before changes:
+
+* Inspect repository structure.
+* Run existing tests.
+* Run TypeScript checks.
+* Identify missing dependencies and environment limitations.
+* Inspect Android build scripts and resources.
+
+Record baseline results.
+
+23. Implement and test
+
+After changes:
+
+* Run TypeScript checks.
+* Run existing and new unit tests.
+* Test navigation and screen state.
+* Test protocol selection.
+* Test Smart Connect and Manual Connect.
+* Test server compatibility filtering.
+* Test connection retries and switching.
+* Test OpenVPN state regression.
+* Test sing-box configuration and DNS.
+* Test unsupported configuration handling.
+* Test WireGuard and AmneziaWG profile validation.
+* Run Android Gradle debug and release builds where possible.
+
+If the Android SDK/NDK or other required dependencies are unavailable, report the precise blocker.
+
+24. Real device validation
+
+When a test device and server configurations are available, verify every engine separately:
+
+1. Connect.
+2. Confirm native tunnel establishment.
+3. Verify routes and DNS.
+4. Make an actual HTTPS request through the VPN.
+5. Check available handshake and traffic counters.
+6. Disconnect.
+7. Confirm the tunnel is removed.
+8. Reconnect.
+9. Switch protocols.
+10. Confirm no previous tunnel remains active.
+
+Do not claim real VPN connectivity based on mocked tests.
+
+25. Final deliverables
+
+Modify the actual project files.
+
+Deliver:
+
+* Complete redesigned UI.
+* Dedicated protocol-selection screen.
+* Dedicated server-selection screens for all four engines.
+* Functional Smart Connect and Manual Connect.
+* Secure, configuration-free normal user interface.
+* Actual native engine integration.
+* Fixed confirmed connection bugs.
+* Updated tests.
+* Android release APK if the build succeeds.
+* List of changed files.
+* Actual test and build results.
+* Outstanding device/server requirements.
+
+Use truthful result labels:
+
+* FIXED AND TESTED.
+* FIXED, DEVICE TEST REQUIRED.
+* NOT FIXED.
+* NOT REPRODUCED.
+* UNSUPPORTED.
+* BLOCKED BY ENVIRONMENT.
+
+Start by inspecting version 1.0.25, then implement the UI redesign and native repairs. Do not stop after producing a plan. Keep the project buildable after each logical set of changes, rerun tests, and report genuine failures instead of hiding them.

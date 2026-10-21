@@ -16,6 +16,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
 import { getMobileToken } from '@/lib/mobile-auth';
 import { AppearanceProvider } from '@/hooks/Appearance';
+import { VpnPreferencesProvider } from '@/hooks/VpnPreferences';
 
 const DEFAULT_API_DOMAIN = 'vinte.peppernopepper.com';
 
@@ -56,13 +57,14 @@ function RootLayoutNav() {
       <Stack.Screen name="auth/otp" />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="profiles/[id]" />
+      <Stack.Screen name="servers/[protocol]" options={{ headerShown: false, presentation: 'card' }} />
       <Stack.Screen name="connection" options={{ headerShown: false, presentation: 'card' }} />
     </Stack>
   );
 }
 
 export default function RootLayout() {
-  useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
@@ -70,21 +72,27 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    void SplashScreen.hideAsync();
-  }, []);
+    if (fontsLoaded || fontError) {
+      void SplashScreen.hideAsync();
+    }
+  }, [fontError, fontsLoaded]);
+
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>
       <AppearanceProvider>
-        <ErrorBoundary>
-          <QueryClientProvider client={queryClient}>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </QueryClientProvider>
-        </ErrorBoundary>
+        <VpnPreferencesProvider>
+          <ErrorBoundary>
+            <QueryClientProvider client={queryClient}>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </QueryClientProvider>
+          </ErrorBoundary>
+        </VpnPreferencesProvider>
       </AppearanceProvider>
     </SafeAreaProvider>
   );

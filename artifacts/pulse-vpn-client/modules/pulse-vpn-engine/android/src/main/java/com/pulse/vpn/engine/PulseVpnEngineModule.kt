@@ -64,6 +64,7 @@ class PulseVpnEngineModule : Module() {
           "state" to (intent.getStringExtra(PulseSingBoxVpnService.EXTRA_STATE) ?: "disconnected"),
           "profileId" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_PROFILE_ID),
           "profileName" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_PROFILE_NAME),
+          "attemptId" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_ATTEMPT_ID),
           "lastChangedAt" to intent.getLongExtra("lastChangedAt", 0L),
           "connectedAt" to intent.getLongExtra("connectedAt", 0L).takeIf { it > 0L },
           "error" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_ERROR),
@@ -140,15 +141,29 @@ class PulseVpnEngineModule : Module() {
       PulseSingBoxVpnService.status(requireContext())
     }
 
-    AsyncFunction("confirmSingBoxTraffic") {
+    AsyncFunction("confirmSingBoxTraffic") { expectedAttemptId: String ->
       val context = requireContext()
-      val report = probeTunnelConnectivity()
-      if (report["passed"] != true) {
-        PulseDiagnostics.log(context, "singbox_traffic_confirmation_failed")
-        PulseSingBoxVpnService.status(context)
-      } else {
-        PulseSingBoxVpnService.confirmTraffic(context)
+      val before = PulseSingBoxVpnService.status(context)
+      if (before["state"] != "connecting" || before["attemptId"] != expectedAttemptId) {
+        return@AsyncFunction before
       }
+      val report = probeTunnelConnectivity()
+      val after = PulseSingBoxVpnService.status(context)
+      if (
+        report["passed"] != true ||
+        after["state"] != "connecting" ||
+        after["attemptId"] != expectedAttemptId
+      ) {
+        PulseDiagnostics.log(
+          context,
+          "singbox_traffic_confirmation_failed",
+          "passed=${report["passed"] == true};attempt_still_current=${after["attemptId"] == expectedAttemptId}",
+          expectedAttemptId,
+        )
+        return@AsyncFunction after
+      }
+      PulseDiagnostics.log(context, "singbox_traffic_verified", "vpn_active=true;https_probe_passed=true", expectedAttemptId)
+      PulseSingBoxVpnService.confirmTraffic(context, expectedAttemptId)
     }
 
     AsyncFunction("connectSingBox") { profileId: String, profileName: String, config: String ->
@@ -158,14 +173,17 @@ class PulseVpnEngineModule : Module() {
         }
         requireVpnPermission()
         assertNoOtherNativeTunnel("V2Ray · sing-box")
-        PulseSingBoxVpnService.start(requireContext(), profileId, profileName, config)
+        val attemptId = UUID.randomUUID().toString().replace("-", "").take(10)
+        PulseSingBoxVpnService.start(requireContext(), profileId, profileName, config, attemptId)
         PulseSingBoxVpnService.status(requireContext())
       }
     }
 
     AsyncFunction("disconnectSingBox") {
       synchronized(nativeConnectionLock) {
-        PulseSingBoxVpnService.stop(requireContext())
+        val context = requireContext()
+        val current = PulseSingBoxVpnService.status(context)
+        PulseSingBoxVpnService.stop(context, current["attemptId"] as? String)
         PulseSingBoxVpnService.status(requireContext())
       }
     }
@@ -487,13 +505,19 @@ class PulseVpnEngineModule : Module() {
       )
     }
 
-    val hasVpnNetwork = runCatching {
+    val hasVpnNetwork = try {
       val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
       connectivity.allNetworks.any { network ->
         connectivity.getNetworkCapabilities(network)
           ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
       }
-    }.getOrDefault(false)
+    } catch (error: Throwable) {
+      throw CodedException(
+        "ERR_VPN_SLOT_UNKNOWN",
+        "Pulse could not verify whether Android's single VPN slot is available. Try again after reopening the app.",
+        error,
+      )
+    }
     if (hasVpnNetwork) {
       throw CodedException(
         "ERR_VPN_SLOT_OCCUPIED",
@@ -760,27 +784,7 @@ class PulseVpnEngineModule : Module() {
   }
 
   private fun normalizeOpenVpnPemBlocks(config: String): String {
-    var normalizedConfig = config
-    for (tag in listOf("ca", "cert", "key")) {
-      val expression = Regex("(?is)<${Regex.escape(tag)}(?:\\s[^>]*)?>(.*?)</${Regex.escape(tag)}\\s*>")
-      normalizedConfig = expression.replace(normalizedConfig) { match ->
-        val normalized = match.groupValues[1]
-          .replace("\\r\\n", "\n")
-          .replace("\\n", "\n")
-          .replace("\\r", "\n")
-          .replace(
-            Regex("-----BEGIN\\s+X509\\s+CERTIFICATE-----", RegexOption.IGNORE_CASE),
-            "-----BEGIN CERTIFICATE-----",
-          )
-          .replace(
-            Regex("-----END\\s+X509\\s+CERTIFICATE-----", RegexOption.IGNORE_CASE),
-            "-----END CERTIFICATE-----",
-          )
-          .trim()
-        "<$tag>\n$normalized\n</$tag>"
-      }
-    }
-    return normalizedConfig
+    return OpenVpnPemNormalizer.normalize(config)
   }
 
   private fun stopOpenVpn() {
@@ -945,7 +949,7 @@ class PulseVpnEngineModule : Module() {
       connection.setRequestProperty("Cache-Control", "no-cache")
       connection.setRequestProperty("User-Agent", "PulseVPN-ConnectivityCheck")
       val statusCode = connection.responseCode
-      val bytesReceived = if (statusCode in 200..299) {
+      val bytesReceived = if (statusCode in 200..299 && statusCode != 204) {
         var total = 0
         val buffer = ByteArray(1024)
         connection.inputStream.use { stream ->
@@ -961,7 +965,9 @@ class PulseVpnEngineModule : Module() {
       }
       mapOf(
         "endpoint" to endpoint,
-        "success" to (statusCode in 200..299 && bytesReceived > 0),
+        // HTTP 204 is a successful connectivity response by design and has no
+        // response body. Requiring bytes here incorrectly marked it offline.
+        "success" to (statusCode in 200..299),
         "statusCode" to statusCode,
         "bytesReceived" to bytesReceived,
         "latencyMs" to (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(1L)
@@ -1060,6 +1066,12 @@ class PulseVpnEngineModule : Module() {
     if (mappedState == "CONNECTED" && openVpnConnectedAt == null) {
       openVpnConnectedAt = System.currentTimeMillis()
     }
+    val safeError = openVpnError?.let(::sanitizeOpenVpnDiagnostic)
+    val visibleDiagnostic = if (mappedState == "ERROR" || mappedState == "DISCONNECTED") {
+      safeError ?: readOpenVpnEngineError(context)?.let(::sanitizeOpenVpnDiagnostic)
+    } else {
+      null
+    }
     return mapOf(
       "status" to mappedState,
       "tunnelState" to when (mappedState) {
@@ -1076,10 +1088,10 @@ class PulseVpnEngineModule : Module() {
       "connectedAt" to openVpnConnectedAt,
       "uploadBytes" to openVpnUploadBytes,
       "downloadBytes" to openVpnDownloadBytes,
-      "error" to openVpnError,
-      "diagnostic" to (
-        readOpenVpnEngineError(context) ?: readOpenVpnEngineDiagnostic(context)
-      )
+      "error" to safeError,
+      // Engine progress events such as "CONNECTED: <profile path>" are not
+      // errors and can contain endpoint details. Only expose sanitized errors.
+      "diagnostic" to visibleDiagnostic
     )
   }
 
@@ -1291,7 +1303,9 @@ class PulseVpnEngineModule : Module() {
     private const val MAX_TUNNEL_TEST_BYTES = 4096
     private val TUNNEL_TEST_URLS = listOf(
       "https://www.google.com/robots.txt",
-      "https://www.cloudflare.com/cdn-cgi/trace"
+      "https://www.cloudflare.com/cdn-cgi/trace",
+      "https://connectivitycheck.gstatic.com/generate_204",
+      "https://example.com/robots.txt"
     )
   }
 }

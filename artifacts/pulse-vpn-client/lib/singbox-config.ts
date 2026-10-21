@@ -20,6 +20,11 @@ function optionalString(value: string | null): string | undefined {
   return cleaned ? cleaned : undefined;
 }
 
+function normalizeHost(value: string): string {
+  const host = decode(value).trim();
+  return host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+}
+
 function tlsSettings(query: URLSearchParams, host: string, security: string): JsonObject | undefined {
   if (security !== 'tls' && security !== 'reality') return undefined;
 
@@ -91,6 +96,10 @@ function makeOutbound(link: string, name: string): JsonObject {
   const protocol = link.slice(0, schemeAt).toLowerCase();
   const body = link.slice(schemeAt + 3);
 
+  if (protocol === 'ssr') {
+    throw new Error('SSR protocol is not supported by the in-app sing-box engine.');
+  }
+
   if (protocol === 'vmess') {
     const encoded = body.split('#', 1)[0].split('?', 1)[0];
     const decoded = decodeBase64Utf8(encoded);
@@ -101,17 +110,23 @@ function makeOutbound(link: string, name: string): JsonObject {
     } catch {
       throw new Error('This VMess link does not contain valid server settings.');
     }
-    const host = typeof source.add === 'string' ? source.add.trim() : '';
+    const host = typeof source.add === 'string' ? normalizeHost(source.add) : '';
+    const websocketHost = typeof source.host === 'string' ? source.host.trim() : '';
     const port = Number(source.port);
     const uuid = typeof source.id === 'string' ? source.id.trim() : '';
     if (!host || !Number.isInteger(port) || port < 1 || port > 65535 || !uuid) {
       throw new Error('This VMess link is missing its server, port, or client ID.');
     }
     const network = typeof source.net === 'string' ? source.net.toLowerCase() : 'tcp';
-    const query = new URLSearchParams({
-      sni: typeof source.sni === 'string' ? source.sni : (typeof source.host === 'string' ? source.host : host),
-      path: typeof source.path === 'string' ? source.path : '/',
-    });
+    const query = new URLSearchParams();
+    query.set(
+      'sni',
+      typeof source.sni === 'string' && source.sni.trim()
+        ? source.sni.trim()
+        : (websocketHost || host),
+    );
+    query.set('path', typeof source.path === 'string' ? source.path : '/');
+    if (websocketHost) query.set('host', websocketHost);
     const security = typeof source.tls === 'string' && source.tls !== '' && source.tls !== 'none' ? 'tls' : '';
     const tls = security ? tlsSettings(query, host, security) : undefined;
     const transport = transportSettings(query, network);
@@ -146,7 +161,7 @@ function makeOutbound(link: string, name: string): JsonObject {
   } catch {
     throw new Error(`The selected ${protocol.toUpperCase()} link could not be parsed.`);
   }
-  const host = decode(parsed.hostname);
+  const host = normalizeHost(parsed.hostname);
   const port = Number(parsed.port);
   if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('The selected server link is missing a valid host or port.');
@@ -291,20 +306,18 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
   const config = {
     log: { level: 'warn', timestamp: true },
     dns: {
+      timeout: '5s',
       servers: [
         {
-          type: 'udp',
+          type: 'local',
           tag: 'bootstrap-dns',
-          server: '1.1.1.1',
-          server_port: 53,
         },
         {
           type: 'https',
           tag: 'remote-dns',
-          server: 'cloudflare-dns.com',
+          server: '1.1.1.1',
           server_port: 443,
           path: '/dns-query',
-          domain_resolver: 'bootstrap-dns',
           tls: {
             enabled: true,
             server_name: 'cloudflare-dns.com',
@@ -321,7 +334,6 @@ export function buildSingBoxConfig(subscriptionText: string, profileName: string
         tag: 'pulse-tun',
         interface_name: 'tun0',
         address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
-        dns_mode: 'hijack',
         auto_route: true,
         stack: 'mixed',
       },

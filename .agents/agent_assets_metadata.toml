@@ -1906,3 +1906,59 @@ mtime_ms = 1792536053209
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/7244bbf4-42da-4fcc-8980-f11f7ecb50e1/fd201f19-9211-44bd-adef-f8c02baf584f"
 storage_version_token = "1792536102311647"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "COIHRwi4mP70JsJGjirff"
+uri = "file://generated-artifacts/PulseVPN-Android-1.0.25-source.zip"
+type = "unspecified"
+title = "Pulse VPN Android source — 1.0.25"
+description = "Android client source package. Build/cache files, signing keys, and imported VPN profiles are excluded."
+logical_id = "9676ff5b-5b97-429f-bf10-fda7fa667959"
+content_hash = "sha256:ff0f3701a16e98c0b28c2618b7e560d6aa920972265e302081e25043dac64bbb"
+size = 3453242
+mtime_ms = 1792576342265
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/9676ff5b-5b97-429f-bf10-fda7fa667959/be21fa82-836d-449d-8db6-ce9c34f98f85"
+storage_version_token = "1792577446550249"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "lSuG2PYqd1i4qj3zegADW"
+uri = "file://generated-artifacts/PulseVPN-Android-1.0.26-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN Android 1.0.26 — APK"
+description = "Arm64 Android installer. Version 1.0.26 (code 27), APK signature verified. Signed with the workspace debug key for testing, not for Play Store distribution."
+logical_id = "3208594d-2ddd-4161-bc4c-c8af8eedc0ce"
+content_hash = "sha256:2c3bfa166ce27e26b1fb557d332a24815cab77384a6ff3990541f215f2c9d370"
+size = 70173173
+mtime_ms = 1792583446093
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/3208594d-2ddd-4161-bc4c-c8af8eedc0ce/d49a5523-0eb1-4273-8750-6d92babb6bec"
+storage_version_token = "1792583655842389"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "9sNE3FbjFGULjiJKafetr"
+uri = "file://generated-artifacts/PulseVPN-Android-1.0.26-source.zip"
+type = "unspecified"
+title = "Pulse VPN Android 1.0.26 — Source ZIP"
+description = "Android app source and build instructions. ZIP integrity verified."
+logical_id = "9345c94e-1d0f-4b75-875c-16d8139ade1a"
+content_hash = "sha256:a77c8631ef33999fe4ef2d82cd15f550bd38ab1a7616c4333a0f73f3a4b8668e"
+size = 2454211
+mtime_ms = 1792581887649
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/9345c94e-1d0f-4b75-875c-16d8139ade1a/d1dfd67e-9264-4526-b6fa-4f9875854ea6"
+storage_version_token = "1792583656576101"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "qXp5EAI-CNuva5HaDJwnn"
+uri = "file://generated-artifacts/PulseVPN-Android-1.0.26-release.zip"
+type = "unspecified"
+title = "Pulse VPN Android 1.0.26 — Release ZIP"
+description = "Combined release bundle containing the APK, source ZIP and build/test notes."
+logical_id = "bf68b25b-ad51-4a51-9be8-dc589c1868e6"
+content_hash = "sha256:7948075366ee941962f9ca627598c771a724a6d9c63a64a7edef8e3afcefaea8"
+size = 68115092
+mtime_ms = 1792583552717
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/bf68b25b-ad51-4a51-9be8-dc589c1868e6/badaec3f-7435-4fef-b150-8d700675b700"
+storage_version_token = "1792583657835952"
+content_type = "application/octet-stream"

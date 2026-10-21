@@ -25,4 +25,13 @@ public final class OpenVpnEventStateMapper {
                 return null;
         }
     }
+
+    /**
+     * Applies a state-bearing event without allowing informational or unknown
+     * events to erase the last authoritative connection state.
+     */
+    public static String stateAfterEvent(String currentState, String name) {
+        String mappedState = stateForEvent(name);
+        return mappedState == null ? currentState : mappedState;
+    }
 }

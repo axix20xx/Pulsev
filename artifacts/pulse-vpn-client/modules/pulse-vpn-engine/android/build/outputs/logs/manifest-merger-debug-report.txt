@@ -1,0 +1,76 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:1:1-37:12
+INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:1:1-37:12
+	package
+		INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:1:11-69
+uses-permission#android.permission.INTERNET
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:2:3-65
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:2:20-62
+uses-permission#android.permission.ACCESS_NETWORK_STATE
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:3:3-77
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:3:20-74
+uses-permission#android.permission.FOREGROUND_SERVICE
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:4:3-75
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:4:20-72
+uses-permission#android.permission.FOREGROUND_SERVICE_SPECIAL_USE
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:5:3-87
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:5:20-84
+application
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:6:3-36:17
+service#com.pulse.vpn.engine.PulseSingBoxVpnService
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:7:5-18:15
+	android:exported
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:9:7-30
+	android:permission
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:10:7-63
+	android:foregroundServiceType
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:11:7-49
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:8:7-65
+intent-filter#action:name:android.net.VpnService
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:12:7-14:23
+action#android.net.VpnService
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:13:9-57
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:13:17-54
+property#android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:15:7-17:31
+	android:value
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:17:9-28
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:16:9-68
+service#com.tim.openvpn.service.OpenVPNService
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:19:5-35:15
+	android:process
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:25:7-33
+	android:enabled
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:21:7-29
+	android:exported
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:22:7-30
+	android:permission
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:24:7-63
+	android:foregroundServiceType
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:23:7-49
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:20:7-60
+meta-data#android.net.VpnService.SUPPORTS_ALWAYS_ON
+ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:29:7-31:33
+	android:value
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:31:9-30
+	android:name
+		ADDED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml:30:9-65
+uses-sdk
+INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml
+INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/src/main/AndroidManifest.xml

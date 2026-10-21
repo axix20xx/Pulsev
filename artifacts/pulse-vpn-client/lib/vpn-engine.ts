@@ -12,6 +12,7 @@ export type XrayVpnState = {
   state: XrayConnectionState;
   profileId?: string;
   profileName?: string;
+  attemptId?: string;
   connectedAt?: number;
   lastChangedAt?: number;
   error?: string;
@@ -69,7 +70,7 @@ export async function connectXray(
   throw new Error('In-app VPN connections are supported only in the custom Android build.');
 }
 
-export async function confirmXrayTraffic(): Promise<XrayVpnState> {
+export async function confirmXrayTraffic(_attemptId: string): Promise<XrayVpnState> {
   return { state: 'disconnected' };
 }
 

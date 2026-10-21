@@ -32,9 +32,15 @@ object PulseDiagnostics {
   private val privatePathPattern = Regex("""/data/(?:user|app|data)/[^\s,;]+""")
 
   @JvmStatic
-  fun log(context: Context, event: String, detail: String = "") {
+  fun log(context: Context, event: String, detail: String = "", attemptId: String? = null) {
     val safeEvent = event.filter { it.isLetterOrDigit() || it == '_' }.take(48).ifBlank { "event" }
-    val safeDetail = sanitize(detail).take(300)
+    val attemptDetail = attemptId
+      ?.filter { it.isLetterOrDigit() || it == '_' || it == '-' }
+      ?.take(16)
+      ?.takeIf { it.isNotBlank() }
+      ?.let { "attempt_id=$it" }
+      .orEmpty()
+    val safeDetail = sanitize(listOf(attemptDetail, detail).filter { it.isNotBlank() }.joinToString(";")).take(300)
     val line = synchronized(dateFormat) { dateFormat.format(Date()) } +
       " $safeEvent" + if (safeDetail.isBlank()) "" else " $safeDetail"
 

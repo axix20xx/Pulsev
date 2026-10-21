@@ -43,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable, OpenVPNManagement {
+    private String lastMappedState;
     final static long EmulateExcludeRoutes = (1 << 16);
     public static final String VPNSERVICE_TUN = "vpnservice-tun";
     private static final String ENGINE_ERROR_FILE = "openvpn-engine-error.txt";
@@ -56,7 +57,8 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
             com.pulse.vpn.engine.PulseDiagnostics.log(
                 (android.content.Context) mService,
                 "openvpn_engine_error",
-                safe
+                safe,
+                null
             );
         }
     }
@@ -69,7 +71,8 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
             com.pulse.vpn.engine.PulseDiagnostics.log(
                 (android.content.Context) mService,
                 "openvpn_engine_event",
-                safe
+                safe,
+                null
             );
         }
     }
@@ -379,8 +382,9 @@ public class OpenVPNThreadv3 extends ClientAPI_OpenVPNClient implements Runnable
         } else if ("COMPRESSION_ENABLED".equals(name) || "WARN".equals(name)) {
             OpenVPNLogger.d("OpenVPNThreadv3", String.format(Locale.US, "%s: %s", name, sanitizeDiagnostic(info)));
         } else {
-            String mappedState = OpenVpnEventStateMapper.stateForEvent(name);
-            if (mappedState != null) {
+            String mappedState = OpenVpnEventStateMapper.stateAfterEvent(lastMappedState, name);
+            if (mappedState != null && !mappedState.equals(lastMappedState)) {
+                lastMappedState = mappedState;
                 mService.updateStateThread(ConnectionState.valueOf(mappedState));
             }
             OpenVPNLogger.d(
