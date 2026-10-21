@@ -49,8 +49,8 @@ export default function OtpSignIn() {
     <Screen>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={[styles.mark, { backgroundColor: c.accent }]}>
-            <Feather name="activity" size={27} color={c.primary} />
+          <View style={[styles.mark, { backgroundColor: c.primary }]}>
+            <Feather name="activity" size={27} color={c.primaryForeground} />
           </View>
           <Heading eyebrow="PULSE  /  دسترسی امن" title="ورود به حساب" detail="اشتراک‌های خود را در فضایی خصوصی و مطمئن مدیریت کنید." />
           <Card style={{ marginTop: 7 }}>
@@ -102,10 +102,10 @@ export default function OtpSignIn() {
 }
 
 const styles = StyleSheet.create({
-  content: { flexGrow: 1, justifyContent: 'center', paddingVertical: 28 },
-  mark: { height: 58, width: 58, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginBottom: 25, alignSelf: 'flex-end' },
+  content: { flexGrow: 1, justifyContent: 'center', paddingVertical: 28, paddingHorizontal: 3 },
+  mark: { height: 62, width: 62, borderRadius: 21, alignItems: 'center', justifyContent: 'center', marginBottom: 25, alignSelf: 'flex-end' },
   label: { fontFamily: 'Inter_600SemiBold', fontSize: 14, textAlign: 'right' },
-  input: { minHeight: 54, borderWidth: 1, borderRadius: 15, paddingHorizontal: 15, fontSize: 16, fontFamily: 'Inter_500Medium' },
+  input: { minHeight: 56, borderWidth: 1, borderRadius: 17, paddingHorizontal: 15, fontSize: 16, fontFamily: 'Inter_500Medium' },
   otp: { textAlign: 'center', writingDirection: 'ltr', letterSpacing: 13, fontSize: 22, fontFamily: 'Inter_700Bold' },
   help: { fontSize: 13, lineHeight: 22, textAlign: 'right' },
   meta: { fontSize: 11, textAlign: 'right' },

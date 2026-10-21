@@ -40,7 +40,6 @@ import {
   isOpenVpnEngineAvailable,
   isWireGuardEngineAvailable,
   isXrayEngineAvailable,
-  pingXrayServers,
   setTunnelTestKeepScreenOn,
   subscribeXrayState,
   testTunnelConnectivity,
@@ -48,6 +47,13 @@ import {
   type WireGuardVpnStatus,
   type XrayVpnState,
 } from '@/lib/vpn-engine';
+import {
+  getXrayServerHealth,
+  hasFreshXrayTcpResults,
+  rankXrayServers,
+  recordXrayTrafficValidation,
+} from '@/lib/xray-server-health';
+import { MAX_XRAY_LATENCY_PROBES, refreshXrayServerLatencies } from '@/lib/xray-latency';
 
 type Protocol = 'v2ray' | 'openvpn' | 'wireguard' | 'amneziawg';
 type Phase = 'loading' | 'preparing' | 'connecting' | 'monitoring' | 'disconnecting' | 'error';
@@ -195,12 +201,13 @@ export default function ConnectionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const safeBottom = Platform.OS === 'web' ? 0 : insets.bottom;
-  const params = useLocalSearchParams<{ id?: string | string[]; protocol?: string | string[]; location?: string | string[]; serverId?: string | string[] }>();
+  const params = useLocalSearchParams<{ id?: string | string[]; protocol?: string | string[]; location?: string | string[]; serverId?: string | string[]; smart?: string | string[] }>();
   const id = first(params.id);
   const rawProtocol = first(params.protocol);
   const protocol = (['v2ray', 'openvpn', 'wireguard', 'amneziawg'] as const).find((value) => value === rawProtocol);
   const locationName = first(params.location) ?? '';
-  const requestedServerId = first(params.serverId) ?? '';
+  const smartRequested = first(params.smart) === '1';
+  const requestedServerId = smartRequested ? '' : first(params.serverId) ?? '';
 
   const subscriptions = useListMobileSubscriptions();
   const dashboard = useGetMobileDashboard();
@@ -268,6 +275,9 @@ export default function ConnectionScreen() {
     try {
       const report = await testTunnelConnectivity();
       setTrafficReport(report);
+      if (protocol === 'v2ray' && id && selectedXrayServerId) {
+        recordXrayTrafficValidation(id, selectedXrayServerId, report.passed);
+      }
       if (stabilityEndAtRef.current !== null) {
         setStabilityTest((current) => ({
           ...current,
@@ -565,24 +575,28 @@ export default function ConnectionScreen() {
             throw new Error('فید V2Ray هیچ سرور قابل‌استفاده‌ای ندارد.');
           }
 
-          let pingResults: Record<string, number | null> = {};
-          setIsPingingXray(true);
-          try {
-            pingResults = await pingXrayServers(servers);
-            setXrayPingResults(pingResults);
-          } catch {
-            // TCP probing can be blocked on some networks. Still try a real profile.
-          } finally {
-            setIsPingingXray(false);
+          let health = getXrayServerHealth(item.id);
+          if (!hasFreshXrayTcpResults(
+            item.id,
+            servers.slice(0, MAX_XRAY_LATENCY_PROBES).map((server) => server.id),
+          )) {
+            setIsPingingXray(true);
+            try {
+              health = await refreshXrayServerLatencies(item.id, servers);
+            } catch {
+              // A TCP probe is only a hint; still attempt a real profile.
+            } finally {
+              setIsPingingXray(false);
+            }
           }
+          const pingResults = Object.fromEntries(
+            servers.map((server) => [server.id, health[server.id]?.latencyMs ?? null]),
+          );
+          setXrayPingResults(pingResults);
 
-          const rankedServers = [...servers].sort((left, right) => {
-            const leftLatency = pingResults[left.id] ?? Number.POSITIVE_INFINITY;
-            const rightLatency = pingResults[right.id] ?? Number.POSITIVE_INFINITY;
-            return leftLatency - rightLatency;
-          });
-          // Reality/share-link conversion can reject a node even when its TCP
-          // port responds; try more of the ranked feed before giving up.
+          // Previous HTTPS-through-tunnel successes rank first, then recent
+          // TCP latency; every candidate still needs live tunnel validation.
+          const rankedServers = rankXrayServers(item.id, servers);
           const selectedServer = requestedServerId ? rankedServers.find((server) => server.id === requestedServerId) : undefined;
           if (requestedServerId && !selectedServer) {
             throw new Error('سرور انتخاب‌شده دیگر در فید موجود نیست. فهرست سرورها را تازه کنید.');
@@ -613,6 +627,7 @@ export default function ConnectionScreen() {
               }
               const report = await waitForXrayTraffic(activeAttemptId, isCurrentAttempt);
               if (!isCurrentAttempt()) return;
+              recordXrayTrafficValidation(item.id, server.id, report.passed);
               setTrafficReport(report);
               setAttemptStartedAt(null);
               setPhase('monitoring');
@@ -626,6 +641,7 @@ export default function ConnectionScreen() {
               return;
             } catch (error) {
               if (!isCurrentAttempt()) return;
+              recordXrayTrafficValidation(item.id, server.id, false);
               failures.push(`${server.name}: ${getErrorMessage(error, token)}`);
               if (activeAttemptId) {
                 const current = await getXrayState().catch(() => null);
@@ -734,11 +750,14 @@ export default function ConnectionScreen() {
   const activeXrayServerId = xrayServers.find((server) => server.name === xrayStatus.profileName)?.id ?? null;
 
   const pingAllXrayServers = async () => {
-    if (!xrayServers.length || isPingingXray || activeProtocol) return;
+    if (!id || !xrayServers.length || isPingingXray || activeProtocol) return;
     setIsPingingXray(true);
     setActionError(null);
     try {
-      const results = await pingXrayServers(xrayServers);
+      const health = await refreshXrayServerLatencies(id, xrayServers, true);
+      const results = Object.fromEntries(
+        xrayServers.map((server) => [server.id, health[server.id]?.latencyMs ?? null]),
+      );
       setXrayPingResults(results);
     } catch (error) {
       setActionError(getErrorMessage(error, token));
@@ -1363,7 +1382,7 @@ function TransferMetric({ label, value, icon, color }: {
 
 const styles = StyleSheet.create({
   screen: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
-  content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 34, gap: 15 },
+  content: { paddingHorizontal: 19, paddingTop: 13, paddingBottom: 42, gap: 15 },
   bottomNav: { minHeight: 58, paddingTop: 5, paddingHorizontal: 10, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', elevation: 12, shadowColor: '#101828', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: -5 } },
   bottomNavItem: { flex: 1, minHeight: 49, alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 14 },
   bottomNavLabel: { fontFamily: 'Inter_500Medium', fontSize: 10 },
@@ -1374,7 +1393,7 @@ const styles = StyleSheet.create({
   liveMark: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 7 },
   liveDot: { width: 8, height: 8, borderRadius: 4 },
   liveText: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
-  hero: { borderWidth: 1, borderRadius: 28, padding: 19, overflow: 'hidden' },
+  hero: { borderWidth: 1, borderRadius: 31, padding: 20, overflow: 'hidden' },
   heroTopline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20 },
   statusPillText: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
@@ -1383,7 +1402,7 @@ const styles = StyleSheet.create({
   orbitOuter: { width: 104, height: 104, borderRadius: 52, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   orbitInner: { width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center' },
   statusTitle: { fontFamily: 'Inter_700Bold', fontSize: 21, textAlign: 'center', marginTop: 2 },
-  statusDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 20, textAlign: 'center', maxWidth: 300 },
+  statusDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 21, textAlign: 'center', maxWidth: 300 },
   heroFooter: { borderTopWidth: 1, paddingTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
   heroMeta: { flex: 1, alignItems: 'center', gap: 5 },
   metaLabel: { fontFamily: 'Inter_400Regular', fontSize: 10 },
@@ -1394,7 +1413,7 @@ const styles = StyleSheet.create({
   errorCard: { borderWidth: 1, borderRadius: 19, padding: 15, gap: 9 },
   errorHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   errorTitle: { fontFamily: 'Inter_700Bold', fontSize: 14 },
-  errorText: { fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 20, textAlign: 'right' },
+  errorText: { fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 21, textAlign: 'right', flexShrink: 1 },
   errorCode: { fontFamily: 'Inter_500Medium', fontSize: 9, letterSpacing: 0.5, textAlign: 'left' },
   primaryActions: { gap: 9 },
   trafficCard: { padding: 15, gap: 10 },

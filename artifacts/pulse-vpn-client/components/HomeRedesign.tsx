@@ -132,7 +132,7 @@ export default function HomeRedesign() {
             <View style={[styles.brandMark, { backgroundColor: c.primary }]}><Feather name="activity" size={19} color={c.primaryForeground} /></View>
             <View style={{ gap: 2 }}>
               <Text style={[styles.brandName, { color: c.foreground }]}>PULSE <Text style={{ color: c.primary }}>VPN</Text></Text>
-              <Text style={[styles.brandTag, { color: c.mutedForeground }]}>CONNECTION CONTROL</Text>
+              <Text style={[styles.brandTag, { color: c.mutedForeground }]}>همراه اتصال امن</Text>
             </View>
           </View>
           <Pressable accessibilityRole="button" testID="home-account" onPress={() => router.push('/(tabs)/settings')} style={[styles.avatar, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -156,7 +156,7 @@ export default function HomeRedesign() {
               <View style={[styles.statusDot, { backgroundColor: active ? c.success : busy ? c.warning : c.onDeep }]} />
               <Text style={[styles.secureText, { color: c.onDeep }]}>{active ? 'تونل فعال' : busy ? 'در حال اتصال' : 'آمادهٔ اتصال'}</Text>
             </View>
-            <Text style={[styles.heroKicker, { color: `${c.onDeep}A6` }]}>NATIVE VPN</Text>
+            <Text style={[styles.heroKicker, { color: `${c.onDeep}A6` }]}>وضعیت اتصال</Text>
           </View>
           <View style={styles.heroMain}>
             <View style={styles.heroCopy}>
@@ -264,17 +264,17 @@ export default function HomeRedesign() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 21, paddingTop: 16, paddingBottom: 34, gap: 18 },
+  content: { paddingHorizontal: 20, paddingTop: 19, paddingBottom: 48, gap: 19 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandMark: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  brandMark: { width: 44, height: 44, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   brandName: { fontFamily: 'Inter_700Bold', fontSize: 14, letterSpacing: 1.1 },
   brandTag: { fontFamily: 'Inter_600SemiBold', fontSize: 8, letterSpacing: 1.25 },
   avatar: { width: 42, height: 42, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   pageTitle: { alignItems: 'flex-end', gap: 6, paddingTop: 2 },
   overline: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
-  title: { fontFamily: 'Inter_700Bold', fontSize: 29, lineHeight: 40, textAlign: 'right' },
-  hero: { minHeight: 245, borderRadius: 27, padding: 19, justifyContent: 'space-between', overflow: 'hidden' },
+  title: { fontFamily: 'Inter_700Bold', fontSize: 31, lineHeight: 43, textAlign: 'right' },
+  hero: { minHeight: 245, borderRadius: 31, padding: 20, justifyContent: 'space-between', overflow: 'hidden' },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   secureLabel: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, backgroundColor: 'transparent' },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 15 },
   sectionLink: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
   protocolGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  protocolTile: { width: '48.5%', minHeight: 111, borderWidth: 1, borderRadius: 19, padding: 13, gap: 7, alignItems: 'flex-end' },
+  protocolTile: { width: '48.5%', minHeight: 118, borderWidth: 1, borderRadius: 23, padding: 14, gap: 7, alignItems: 'flex-end' },
   protocolIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   protocolName: { fontFamily: 'Inter_700Bold', fontSize: 12 },
   protocolAvailability: { fontFamily: 'Inter_400Regular', fontSize: 9 },

@@ -11,6 +11,7 @@ import { useColors } from '@/hooks/useColors';
 import { ThemeMode, useAppearance } from '@/hooks/Appearance';
 import { clearMobileToken } from '@/lib/mobile-auth';
 import { getDiagnosticLog } from '@/lib/vpn-engine';
+import { clearXrayServerHealth } from '@/lib/xray-server-health';
 
 const themeOptions: { id: ThemeMode; title: string; icon: 'smartphone' | 'sun' | 'moon'; hint: string }[] = [
   { id: 'light', title: 'روشن', icon: 'sun', hint: 'پیشنهادشده' },
@@ -36,6 +37,7 @@ export default function Settings() {
         setLogoutError('');
         logout.mutate(undefined, {
           onSuccess: async () => {
+            clearXrayServerHealth();
             await clearMobileToken();
             queryClient.clear();
             router.replace('/auth/otp');
@@ -80,7 +82,7 @@ export default function Settings() {
       <ScrollView contentContainerStyle={styles.content}>
         <LinearGradient colors={[c.surfaceDeep, c.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <View style={[styles.heroGlyph, { backgroundColor: `${c.onDeep}1E` }]}><Feather name="sliders" size={20} color={c.onDeep} /></View>
-          <Text style={[styles.heroEyebrow, { color: `${c.onDeep}A8` }]}>PULSE · ACCOUNT</Text>
+          <Text style={[styles.heroEyebrow, { color: `${c.onDeep}A8` }]}>حساب Pulse</Text>
           <Text style={[styles.heroTitle, { color: c.onDeep }]}>حساب و تنظیمات</Text>
           <Text style={[styles.heroDetail, { color: `${c.onDeep}C8` }]}>مدیریت سرویس‌ها، ظاهر برنامه و حریم خصوصی</Text>
         </LinearGradient>
@@ -205,8 +207,8 @@ export default function Settings() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 40, gap: 13 },
-  hero: { minHeight: 160, borderRadius: 26, padding: 20, justifyContent: 'flex-end', gap: 7, marginBottom: 3 },
+  content: { paddingHorizontal: 20, paddingTop: 19, paddingBottom: 48, gap: 14 },
+  hero: { minHeight: 166, borderRadius: 30, padding: 21, justifyContent: 'flex-end', gap: 7, marginBottom: 3 },
   heroGlyph: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
   heroEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1.2, textAlign: 'right' },
   heroTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, textAlign: 'right' },
@@ -226,6 +228,6 @@ const styles = StyleSheet.create({
   radio: { width: 17, height: 17, borderWidth: 1.5, borderRadius: 9 },
   languageCard: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   languageHint: { fontFamily: 'Inter_400Regular', fontSize: 11 },
-  actionCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  actionCard: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 70, borderRadius: 22 },
   version: { fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'center', paddingVertical: 7 },
 });

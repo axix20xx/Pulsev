@@ -36,7 +36,7 @@ export default function ProtocolsRedesign() {
         <View style={styles.header}>
           <View style={[styles.headerIcon, { backgroundColor: c.accent }]}><Feather name="radio" size={19} color={c.primary} /></View>
           <View style={{ flex: 1, gap: 5 }}>
-            <Text style={[styles.kicker, { color: c.primary }]}>TUNNEL ENGINES · SELECT YOUR ROUTE</Text>
+            <Text style={[styles.kicker, { color: c.primary }]}>مسیرهای سرویس شما</Text>
             <Text style={[styles.title, { color: c.foreground }]}>مسیر اتصال</Text>
             <Text style={[styles.subtitle, { color: c.mutedForeground }]}>پروتکل موجود را انتخاب کنید. هیچ سرویسی بدون انتخاب شما آغاز نمی‌شود.</Text>
           </View>
@@ -126,16 +126,16 @@ export default function ProtocolsRedesign() {
 }
 
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 38, gap: 19 },
+  page: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 48, gap: 19 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 13 },
-  headerIcon: { width: 48, height: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  headerIcon: { width: 50, height: 50, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   kicker: { fontFamily: 'Inter_600SemiBold', fontSize: 8, letterSpacing: 1.1, textAlign: 'right' },
   title: { fontFamily: 'Inter_700Bold', fontSize: 26, textAlign: 'right' },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 18, textAlign: 'right' },
-  summary: { minHeight: 48, paddingHorizontal: 13, borderRadius: 15, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  summary: { minHeight: 52, paddingHorizontal: 15, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 9 },
   summaryText: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 10, textAlign: 'right', lineHeight: 17 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
-  tile: { width: '48.4%', minHeight: 198, borderRadius: 22, borderWidth: 1, padding: 14, gap: 9 },
+  tile: { width: '48.4%', minHeight: 205, borderRadius: 25, borderWidth: 1, padding: 15, gap: 10 },
   tileTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   index: { minWidth: 32, height: 25, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7 },
   indexText: { fontFamily: 'Inter_700Bold', fontSize: 9 },

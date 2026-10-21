@@ -29,7 +29,7 @@ export default function Profiles() {
            <View style={{ gap: 16, marginBottom: 2 }}>
              <LinearGradient colors={[c.surfaceDeep, c.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
                <View style={[styles.heroIcon, { backgroundColor: `${c.onDeep}1D` }]}><Feather name="layers" size={20} color={c.onDeep} /></View>
-               <Text style={[styles.heroEyebrow, { color: `${c.onDeep}A8` }]}>YOUR PULSE SERVICES</Text>
+                <Text style={[styles.heroEyebrow, { color: `${c.onDeep}A8` }]}>سرویس‌های Pulse</Text>
                <Text style={[styles.heroTitle, { color: c.onDeep }]}>اشتراک‌های من</Text>
                <Text style={[styles.heroDetail, { color: `${c.onDeep}C8` }]}>جزئیات مصرف، اعتبار و پروفایل هر سرویس</Text>
              </LinearGradient>
@@ -78,8 +78,8 @@ export default function Profiles() {
 }
 
 const styles = StyleSheet.create({
-  list: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 40, gap: 13 },
-  hero: { minHeight: 160, borderRadius: 26, padding: 20, justifyContent: 'flex-end', gap: 6 },
+  list: { paddingHorizontal: 20, paddingTop: 19, paddingBottom: 48, gap: 14 },
+  hero: { minHeight: 166, borderRadius: 30, padding: 21, justifyContent: 'flex-end', gap: 7 },
   heroIcon: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
   heroEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1.2, textAlign: 'right' },
   heroTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, textAlign: 'right' },
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   listHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 2 },
   sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, textAlign: 'right' },
   count: { fontFamily: 'Inter_500Medium', fontSize: 11 },
-  item: { gap: 10, borderRadius: 23, padding: 17 },
+  item: { gap: 11, borderRadius: 25, padding: 18 },
   topline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 30 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },

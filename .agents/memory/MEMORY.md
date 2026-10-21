@@ -56,6 +56,7 @@
 - [Replit Android build environment](replit-android-build-environment.md) — keep large Android SDKs on the workspace volume and use the available Temurin JDK for stable Gradle builds.
 - [OpenVPN Android state and retry limits](openvpn-native-state-and-retries.md) — sync the separate-process service state after binding and override infinite profile retries with bounded client retries.
 - [Xray Reality and live traffic validation](xray-live-traffic-validation.md) — normalize client SNI/public keys from the selected link and verify real in-tunnel HTTPS before trusting “connected.”
+- [Xray server health cache](xray-server-health-cache.md) — keep endpoint latency hints in memory and validate candidate configs with live HTTPS; TCP probes cannot assess UDP-only routes.
 - [Android OkHttp alignment](android-okhttp-alignment.md) — keep React Native’s cookie jar aligned with OkHttp core after adding native VPN-engine libraries.
 - [OpenVPN Android core alignment](openvpn-android-core-alignment.md) — update native OpenVPN, generated JNI wrappers, and the Android service adapter together; verify source-tree pins instead of unstable archive bytes.
 - [sing-box IPv6 interface prefixes](singbox-ipv6-interface-prefixes.md) — remove Android IPv6 zone IDs before serializing interface addresses as prefixes, or Go netip can abort the native process.

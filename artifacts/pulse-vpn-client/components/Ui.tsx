@@ -76,13 +76,13 @@ export const sharedStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 28 },
-  heading: { gap: 7, marginBottom: 20 },
+  screen: { flex: 1, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 24 },
+  heading: { gap: 8, marginBottom: 18 },
   eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1, textAlign: 'right' },
   title: { fontFamily: 'Inter_700Bold', fontSize: 27, lineHeight: 37, textAlign: 'right' },
   detail: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 23, textAlign: 'right' },
-  card: { borderWidth: 1, borderRadius: 22, padding: 18, gap: 12 },
-  button: { minHeight: 50, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 18 },
+  card: { borderWidth: 1, borderRadius: 24, padding: 17, gap: 12, shadowColor: '#24433B', shadowOpacity: 0.035, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 1 },
+  button: { minHeight: 54, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 18 },
   buttonText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
   stateCard: { alignItems: 'center', paddingVertical: 25 },
   stateTitle: { fontFamily: 'Inter_700Bold', fontSize: 16, textAlign: 'center' },

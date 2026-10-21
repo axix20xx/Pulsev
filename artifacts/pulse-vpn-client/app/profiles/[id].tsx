@@ -115,10 +115,10 @@ export default function ProfileDetail() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 22, paddingTop: 14, paddingBottom: 35, gap: 13 },
+  content: { paddingHorizontal: 20, paddingTop: 15, paddingBottom: 40, gap: 14 },
   back: { alignSelf: 'flex-start', minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6 },
   backText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
-  summary: { gap: 15 },
+  summary: { gap: 16, borderRadius: 26 },
   statusLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   statusPill: { minHeight: 29, paddingHorizontal: 10, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 7 },
   dot: { width: 6, height: 6, borderRadius: 3 },
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   infoValue: { fontFamily: 'Inter_500Medium', fontSize: 11, textAlign: 'right' },
   sectionTitle: { gap: 4, alignItems: 'flex-end', marginTop: 6 },
   headTitle: { fontFamily: 'Inter_700Bold', fontSize: 16 },
-  protocolRow: { minHeight: 72, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11 },
+  protocolRow: { minHeight: 76, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 21 },
   protocolIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   protocolCopy: { flex: 1, gap: 5, alignItems: 'flex-end' },
   protocolTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },

@@ -8,24 +8,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function TabsLayout() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const bottomInset = Platform.OS === 'web' ? 28 : Math.max(insets.bottom, 10);
+  const bottomInset = Platform.OS === 'web' ? 28 : Math.max(insets.bottom, 12);
   return (
     <Tabs screenOptions={{
       headerShown: false,
       tabBarActiveTintColor: c.primary,
       tabBarInactiveTintColor: c.mutedForeground,
-      tabBarLabelStyle: { fontFamily: 'Inter_600SemiBold', fontSize: 9, marginTop: 1 },
+       tabBarLabelStyle: { fontFamily: 'Inter_600SemiBold', fontSize: 10, marginTop: 2 },
       tabBarStyle: {
         backgroundColor: c.card,
         borderTopColor: `${c.border}B8`,
         borderTopWidth: 1,
-        height: Platform.OS === 'web' ? 84 : 62 + bottomInset,
-        paddingTop: 5,
+         height: Platform.OS === 'web' ? 84 : 66 + bottomInset,
+         paddingTop: 7,
         paddingBottom: bottomInset,
-        marginHorizontal: Platform.OS === 'web' ? 0 : 10,
-        marginBottom: Platform.OS === 'web' ? 0 : 4,
-        borderRadius: 21,
-        elevation: Platform.OS === 'android' ? 16 : 0,
+         marginHorizontal: Platform.OS === 'web' ? 0 : 12,
+         marginBottom: Platform.OS === 'web' ? 0 : 6,
+         borderRadius: 24,
+         elevation: Platform.OS === 'android' ? 9 : 0,
         shadowColor: c.foreground,
         shadowOpacity: Platform.OS === 'android' ? 0.1 : 0.08,
         shadowRadius: 20,

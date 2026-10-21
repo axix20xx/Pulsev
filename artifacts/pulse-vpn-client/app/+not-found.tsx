@@ -7,15 +7,15 @@ export default function NotFoundScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Oops!' }} />
+      <Stack.Screen options={{ title: 'صفحه پیدا نشد' }} />
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>
-          This screen doesn&apos;t exist.
+          این مسیر در Pulse وجود ندارد.
         </Text>
 
-        <Link href="/" style={styles.link}>
-          <Text style={[styles.linkText, { color: colors.primary }]}>
-            Go to home screen!
+        <Link href="/" style={[styles.link, { backgroundColor: colors.primary }]}>
+          <Text style={[styles.linkText, { color: colors.primaryForeground }]}>
+            بازگشت به شروع
           </Text>
         </Link>
       </View>
@@ -37,8 +37,13 @@ const styles = StyleSheet.create({
   link: {
     marginTop: 15,
     paddingVertical: 15,
+    borderRadius: 16,
   },
   linkText: {
     fontSize: 14,
+    color: '#F7FFFA',
+    fontWeight: '700',
+    paddingHorizontal: 20,
+    paddingVertical: 13,
   },
 });

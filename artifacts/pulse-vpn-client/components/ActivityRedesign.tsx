@@ -55,7 +55,7 @@ export default function ActivityRedesign() {
     <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.page}>
         <View style={styles.header}>
-          <Text style={[styles.kicker, { color: c.primary }]}>LIVE DIAGNOSTICS</Text>
+          <Text style={[styles.kicker, { color: c.primary }]}>گزارش زندهٔ اتصال</Text>
           <Text style={[styles.title, { color: c.foreground }]}>وضعیت زنده</Text>
           <Text style={[styles.subtitle, { color: c.mutedForeground }]}>وضعیت موتور با آزمون عبور اینترنت یکی نیست؛ هر دو را جدا می‌بینید.</Text>
         </View>
@@ -64,7 +64,7 @@ export default function ActivityRedesign() {
           <View style={[styles.heroIcon, { backgroundColor: activeProtocol ? c.success : `${c.onDeep}1B` }]}>
               <Feather name={activeProtocol ? 'shield' : 'activity'} size={20} color={c.onDeep} />
             </View>
-            <Text style={styles.heroCaption}>VPN ENGINE</Text>
+            <Text style={styles.heroCaption}>موتور بومی</Text>
           </View>
           <Text style={[styles.heroState, { color: c.onDeep }]}>{activeProtocol ? 'تونل بومی فعال است' : 'تونل فعالی نیست'}</Text>
           <Text style={[styles.heroDetail, { color: `${c.onDeep}B8` }]}>{activeProtocol ? labels[activeProtocol] : 'برای بررسی شبکه، ابتدا به یک سرور وصل شوید.'}</Text>
@@ -126,12 +126,12 @@ export default function ActivityRedesign() {
 }
 
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: 20, paddingTop: 23, paddingBottom: 40, gap: 17 },
+  page: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 48, gap: 18 },
   header: { gap: 6, alignItems: 'flex-end' },
   kicker: { fontFamily: 'Inter_600SemiBold', fontSize: 8, letterSpacing: 1.5 },
   title: { fontFamily: 'Inter_700Bold', fontSize: 26, textAlign: 'right' },
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 18, textAlign: 'right' },
-  hero: { minHeight: 176, borderRadius: 23, padding: 18, gap: 8 },
+  hero: { minHeight: 182, borderRadius: 27, padding: 19, gap: 9 },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   heroIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   heroCaption: { fontFamily: 'Inter_600SemiBold', fontSize: 8, letterSpacing: 1.4 },
@@ -158,5 +158,5 @@ const styles = StyleSheet.create({
   stateText: { fontFamily: 'Inter_600SemiBold', fontSize: 9 },
   hidden: { display: 'none' },
   report: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
-  reportText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 17, textAlign: 'right' },
+  reportText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 19, textAlign: 'right', flexShrink: 1 },
 });
