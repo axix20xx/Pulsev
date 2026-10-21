@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Card, Ltr, Screen } from '@/components/Ui';
@@ -8,7 +8,7 @@ import {
   type TunnelConnectivityReport, type WireGuardVpnStatus, type XrayVpnState,
 } from '@/lib/vpn-engine';
 import type { VpnProtocol } from '@/hooks/VpnPreferences';
-import { findActiveTunnelProtocol, isTunnelConnected } from '@/lib/tunnel-state';
+import { findActiveTunnelProtocol, isTunnelConnected, isTunnelConnecting } from '@/lib/tunnel-state';
 
 const empty: WireGuardVpnStatus = { status: 'UNKNOWN', tunnelState: 'UNKNOWN', isConnected: false };
 const labels: Record<VpnProtocol, string> = { v2ray: 'V2Box', openvpn: 'OpenVPN', wireguard: 'WireGuard', amneziawg: 'AmneziaWG' };
@@ -22,32 +22,66 @@ export default function ActivityRedesign() {
   const [wireguard, setWireguard] = useState(empty);
   const [amnezia, setAmnezia] = useState(empty);
   const [report, setReport] = useState<TunnelConnectivityReport | null>(null);
+  const [reportIdentity, setReportIdentity] = useState<string | null>(null);
+  const [reportError, setReportError] = useState('');
   const [checking, setChecking] = useState(false);
   const states: Record<VpnProtocol, WireGuardVpnStatus> = { v2ray: empty, openvpn, wireguard, amneziawg: amnezia };
   const activeProtocol = findActiveTunnelProtocol(order, xray, states);
+  const activeStatus = activeProtocol === 'v2ray' ? xray : activeProtocol ? states[activeProtocol] : null;
+  const activeIdentity = activeProtocol && activeStatus
+    ? JSON.stringify([activeProtocol, activeStatus.profileId ?? null, activeStatus.profileName ?? null])
+    : null;
+  const activeIdentityRef = useRef(activeIdentity);
+  const pollInFlightRef = useRef(false);
+  activeIdentityRef.current = activeIdentity;
+  const activeReport = reportIdentity === activeIdentity ? report : null;
 
   useEffect(() => {
     let disposed = false;
     const refresh = async () => {
-      const [x, o, w, a] = await Promise.all([
-        getXrayState().catch(() => ({ state: 'disconnected' as const })),
-        getOpenVpnStatus().catch(() => empty),
-        getWireGuardStatus().catch(() => empty),
-        getAmneziaWgStatus().catch(() => empty),
-      ]);
-      if (disposed) return;
-      setXray(x); setOpenvpn(o); setWireguard(w); setAmnezia(a);
+      if (disposed || pollInFlightRef.current) return;
+      pollInFlightRef.current = true;
+      try {
+        const [x, o, w, a] = await Promise.all([
+          getXrayState().catch(() => ({ state: 'disconnected' as const })),
+          getOpenVpnStatus().catch(() => empty),
+          getWireGuardStatus().catch(() => empty),
+          getAmneziaWgStatus().catch(() => empty),
+        ]);
+        if (disposed) return;
+        setXray(x); setOpenvpn(o); setWireguard(w); setAmnezia(a);
+      } finally {
+        pollInFlightRef.current = false;
+      }
     };
     void refresh();
     const timer = setInterval(() => void refresh(), 2200);
     return () => { disposed = true; clearInterval(timer); };
   }, []);
 
+  useEffect(() => {
+    setReport(null);
+    setReportIdentity(null);
+    setReportError('');
+  }, [activeIdentity]);
+
   const checkInternet = async () => {
-    if (checking) return;
+    if (checking || !activeProtocol) return;
+    const identityAtStart = activeIdentityRef.current;
     setChecking(true);
-    try { setReport(await testTunnelConnectivity()); }
-    catch { setReport(null); }
+    setReportError('');
+    try {
+      const result = await testTunnelConnectivity();
+      if (identityAtStart === activeIdentityRef.current) {
+        setReport(result);
+        setReportIdentity(identityAtStart);
+      }
+    } catch (error) {
+      if (identityAtStart === activeIdentityRef.current) {
+        setReport(null);
+        setReportError(error instanceof Error ? error.message : 'آزمون اتصال ناموفق بود.');
+      }
+    }
     finally { setChecking(false); }
   };
 
@@ -79,9 +113,9 @@ export default function ActivityRedesign() {
           <View style={styles.checkCopy}>
             <Text style={[styles.checkTitle, { color: c.foreground }]}>آزمون دسترسی اینترنت</Text>
             <Text style={[styles.checkDetail, { color: c.mutedForeground }]}>
-              {report
-                ? report.passed ? `پاسخ HTTPS دریافت شد · ${fa(new Date(report.testedAt).toLocaleTimeString())}` : 'تونل فعال است، اما درخواست‌های آزمایشی پاسخ نگرفتند.'
-                : 'این آزمون جدا از وضعیت اتصال موتور اجرا می‌شود.'}
+              {reportError || (activeReport
+                ? activeReport.passed ? `پاسخ HTTPS دریافت شد · ${fa(new Date(activeReport.testedAt).toLocaleTimeString())}` : 'تونل فعال است، اما درخواست‌های آزمایشی پاسخ نگرفتند.'
+                : 'این آزمون جدا از وضعیت اتصال موتور اجرا می‌شود.')}
             </Text>
           </View>
           <Pressable accessibilityRole="button" testID="run-tunnel-check" disabled={!activeProtocol || checking} onPress={() => void checkInternet()} style={[styles.checkButton, { backgroundColor: c.primary, opacity: !activeProtocol || checking ? 0.5 : 1 }]}>
@@ -94,8 +128,8 @@ export default function ActivityRedesign() {
         <View style={styles.engineList}>
           {order.map((protocol, index) => {
             const up = isTunnelConnected(protocol, xray, states[protocol]);
-            const status = protocol === 'v2ray' ? xray.state : states[protocol].status;
-            const stateLabel = up ? 'متصل' : String(status).toLowerCase() === 'connecting' || xray.state === 'connecting' && protocol === 'v2ray' ? 'در حال اتصال' : 'آفلاین';
+            const connecting = isTunnelConnecting(protocol, xray, states[protocol]);
+            const stateLabel = up ? 'متصل' : connecting ? 'در حال اتصال' : 'آفلاین';
             return (
               <Card key={protocol} style={styles.engineRow}>
                 <View style={[styles.engineIcon, { backgroundColor: up ? `${c.success}18` : c.secondary }]}>
@@ -114,10 +148,10 @@ export default function ActivityRedesign() {
             );
           })}
         </View>
-        {report && !report.passed ? (
+        {activeReport && !activeReport.passed ? (
           <Card style={styles.report}>
             <Feather name="alert-triangle" size={17} color={c.warning} />
-            <Text style={[styles.reportText, { color: c.foreground }]}>{report.endpoints.find((endpoint) => !endpoint.success)?.error ?? 'آزمون اینترنت ناموفق بود؛ اتصال موتور همچنان جداگانه نمایش داده می‌شود.'}</Text>
+            <Text style={[styles.reportText, { color: c.foreground }]}>{activeReport.endpoints.find((endpoint) => !endpoint.success)?.error ?? 'آزمون اینترنت ناموفق بود؛ اتصال موتور همچنان جداگانه نمایش داده می‌شود.'}</Text>
           </Card>
         ) : null}
       </ScrollView>

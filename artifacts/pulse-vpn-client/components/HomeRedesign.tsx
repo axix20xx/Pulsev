@@ -58,15 +58,24 @@ export default function HomeRedesign() {
 
   useEffect(() => {
     let disposed = false;
+    let stateRevision = 0;
+    let refreshInFlight = false;
     const refresh = async () => {
-      const [x, o, w, a] = await Promise.all([
-        getXrayState().catch(() => ({ state: 'disconnected' as const })),
-        getOpenVpnStatus().catch(() => emptyTunnel),
-        getWireGuardStatus().catch(() => emptyTunnel),
-        getAmneziaWgStatus().catch(() => emptyTunnel),
-      ]);
-      if (disposed) return;
-      setXray(x); setOpenvpn(o); setWireguard(w); setAmnezia(a);
+      if (disposed || refreshInFlight) return;
+      refreshInFlight = true;
+      const revisionAtStart = stateRevision;
+      try {
+        const [x, o, w, a] = await Promise.all([
+          getXrayState().catch(() => ({ state: 'disconnected' as const })),
+          getOpenVpnStatus().catch(() => emptyTunnel),
+          getWireGuardStatus().catch(() => emptyTunnel),
+          getAmneziaWgStatus().catch(() => emptyTunnel),
+        ]);
+        if (disposed || revisionAtStart !== stateRevision) return;
+        setXray(x); setOpenvpn(o); setWireguard(w); setAmnezia(a);
+      } finally {
+        refreshInFlight = false;
+      }
     };
     void refresh();
     const timer = setInterval(() => {
@@ -74,7 +83,12 @@ export default function HomeRedesign() {
       void refresh();
     }, 1800);
     let remove: () => void = () => undefined;
-    void subscribeXrayState((state) => { if (!disposed) setXray(state); }).then((unsubscribe) => {
+    void subscribeXrayState((state) => {
+      if (!disposed) {
+        stateRevision += 1;
+        setXray(state);
+      }
+    }).then((unsubscribe) => {
       if (disposed) unsubscribe(); else remove = unsubscribe;
     }).catch(() => undefined);
     return () => { disposed = true; clearInterval(timer); remove(); };

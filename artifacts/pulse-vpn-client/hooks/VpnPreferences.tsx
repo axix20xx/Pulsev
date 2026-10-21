@@ -11,6 +11,7 @@ type VpnPreferencesValue = {
   chooseProtocol: (protocol: VpnProtocol) => void;
   chooseSubscription: (id: string) => void;
   chooseServer: (id: string, name: string) => void;
+  clear: () => void;
 };
 const PreferencesContext = createContext<VpnPreferencesValue | null>(null);
 const STORE_KEY = 'pulse.vpn.preferences.v1';
@@ -65,7 +66,16 @@ export function VpnPreferencesProvider({ children }: { children: React.ReactNode
     setServerName(name);
     persist({ ...current.current, serverId: id, serverName: name });
   };
-  const value = useMemo(() => ({ protocol, subscriptionId, serverId, serverName, ready, chooseProtocol, chooseSubscription, chooseServer }), [protocol, subscriptionId, serverId, serverName, ready]);
+  const clear = () => {
+    const empty = { protocol: null, subscriptionId: null, serverId: null, serverName: null };
+    setProtocol(null);
+    setSubscriptionId(null);
+    setServerId(null);
+    setServerName(null);
+    current.current = empty;
+    void AsyncStorage.removeItem(STORE_KEY).catch(() => undefined);
+  };
+  const value = useMemo(() => ({ protocol, subscriptionId, serverId, serverName, ready, chooseProtocol, chooseSubscription, chooseServer, clear }), [protocol, subscriptionId, serverId, serverName, ready]);
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
 }
 

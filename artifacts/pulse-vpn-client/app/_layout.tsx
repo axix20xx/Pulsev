@@ -5,12 +5,12 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
+  Vazirmatn_400Regular as Inter_400Regular,
+  Vazirmatn_500Medium as Inter_500Medium,
+  Vazirmatn_600SemiBold as Inter_600SemiBold,
+  Vazirmatn_700Bold as Inter_700Bold,
   useFonts,
-} from '@expo-google-fonts/inter';
+} from '@expo-google-fonts/vazirmatn';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { setAuthTokenGetter, setBaseUrl } from '@workspace/api-client-react';
@@ -64,6 +64,8 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  // Keep existing typography token names stable while loading a font with full
+  // Persian glyph coverage instead of relying on device-specific fallback.
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,

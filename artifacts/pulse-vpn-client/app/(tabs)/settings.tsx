@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQueryClient } from '@tanstack/react-query';
 import { useGetMobileDashboard, useLogoutMobile } from '@workspace/api-client-react';
@@ -9,8 +10,9 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { ActionButton, Card, Heading, InlineState, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { ThemeMode, useAppearance } from '@/hooks/Appearance';
+import { useVpnPreferences } from '@/hooks/VpnPreferences';
 import { clearMobileToken } from '@/lib/mobile-auth';
-import { getDiagnosticLog } from '@/lib/vpn-engine';
+import { disconnectAllPulseTunnels, getDiagnosticLog } from '@/lib/vpn-engine';
 import { clearXrayServerHealth } from '@/lib/xray-server-health';
 
 const themeOptions: { id: ThemeMode; title: string; icon: 'smartphone' | 'sun' | 'moon'; hint: string }[] = [
@@ -24,26 +26,59 @@ export default function Settings() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { themeMode, setThemeMode } = useAppearance();
+  const preferences = useVpnPreferences();
   const logout = useLogoutMobile();
   const dashboard = useGetMobileDashboard();
-  const currentSubscription = dashboard.data?.subscriptions.find((entry) => entry.status === 'active') ?? dashboard.data?.subscriptions[0];
+  const activeSubscriptions = dashboard.data?.subscriptions.filter((entry) => entry.status === 'active') ?? [];
+  const currentSubscription = activeSubscriptions.find((entry) => entry.id === preferences.subscriptionId)
+    ?? (activeSubscriptions.length === 1 ? activeSubscriptions[0] : undefined);
   const [logoutError, setLogoutError] = useState('');
+  const [preparingLogout, setPreparingLogout] = useState(false);
   const [savingDiagnostics, setSavingDiagnostics] = useState(false);
+  const appVersion = Constants.expoConfig?.version ?? '—';
+
+  async function finishLocalSignOut(serverLogoutFailed: boolean, tunnelStopFailed: boolean) {
+    try {
+      await clearMobileToken();
+    } catch (error) {
+      setLogoutError(error instanceof Error ? error.message : 'نشست امن از دستگاه پاک نشد.');
+      setPreparingLogout(false);
+      return;
+    }
+    preferences.clear();
+    clearXrayServerHealth();
+    queryClient.clear();
+    router.replace('/auth/otp');
+    setPreparingLogout(false);
+    if (serverLogoutFailed || tunnelStopFailed) {
+      Alert.alert(
+        'خروج محلی انجام شد',
+        [
+          serverLogoutFailed ? 'سرور خروج را تأیید نکرد؛ نشست ورود از این دستگاه پاک شد.' : '',
+          tunnelStopFailed ? 'وضعیت توقف یک موتور VPN تأیید نشد. اگر نشانگر VPN دستگاه هنوز روشن است، برنامه را دوباره باز کنید و اتصال را قطع کنید.' : '',
+        ].filter(Boolean).join('\n'),
+      );
+    }
+  }
 
   function signOut() {
     Alert.alert('خروج از حساب', 'از حساب Pulse خارج می‌شوید؟', [
       { text: 'انصراف', style: 'cancel' },
       { text: 'خروج', style: 'destructive', onPress: () => {
         setLogoutError('');
-        logout.mutate(undefined, {
-          onSuccess: async () => {
-            clearXrayServerHealth();
-            await clearMobileToken();
-            queryClient.clear();
-            router.replace('/auth/otp');
-          },
-          onError: (error) => setLogoutError(error.message || 'خروج انجام نشد. دوباره تلاش کنید.'),
-        });
+        setPreparingLogout(true);
+        void (async () => {
+          let tunnelStopFailed = false;
+          try {
+            await disconnectAllPulseTunnels();
+          } catch {
+            tunnelStopFailed = true;
+          }
+          logout.mutate(undefined, {
+            onSuccess: () => { void finishLocalSignOut(false, tunnelStopFailed); },
+            onError: () => { void finishLocalSignOut(true, tunnelStopFailed); },
+          });
+        })();
       } },
     ]);
   }
@@ -188,7 +223,7 @@ export default function Settings() {
           <Feather name="chevron-left" size={17} color={c.mutedForeground} />
         </Card>
         </Pressable>
-        <Pressable accessibilityRole="button" testID="about-pulse" onPress={() => Alert.alert('دربارهٔ PulseVPN', 'نسخهٔ ۱.۰.۲۸\nاتصال تنها با موتور بومی و وضعیت واقعی سرور گزارش می‌شود.', [{ text: 'بستن' }])}>
+        <Pressable accessibilityRole="button" testID="about-pulse" onPress={() => Alert.alert('دربارهٔ PulseVPN', `نسخهٔ ${appVersion}\nاتصال تنها با موتور بومی و وضعیت واقعی سرور گزارش می‌شود.`, [{ text: 'بستن' }])}>
           <Card style={styles.actionCard}>
             <View style={[styles.optionIcon, { backgroundColor: c.accent }]}><Feather name="info" size={17} color={c.primary} /></View>
             <View style={{ flex: 1, gap: 4 }}>
@@ -199,7 +234,7 @@ export default function Settings() {
           </Card>
         </Pressable>
         {logoutError ? <InlineState title="خروج انجام نشد" detail={logoutError} retry={signOut} /> : null}
-        <ActionButton title="خروج از حساب" icon="log-out" quiet onPress={signOut} loading={logout.isPending} />
+        <ActionButton title="خروج از حساب" icon="log-out" quiet onPress={signOut} loading={logout.isPending || preparingLogout} />
         <Text style={[styles.version, { color: c.mutedForeground }]}>Pulse VPN Client · مشتریان Pulse</Text>
       </ScrollView>
     </Screen>

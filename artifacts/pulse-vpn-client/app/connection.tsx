@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
@@ -18,6 +18,8 @@ import {
 import type { WireGuardLocation } from '@workspace/api-client-react';
 import { Card, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
+import { useAppearance } from '@/hooks/Appearance';
+import { connectionAttemptKey, matchesConnectionTarget, type ConnectionIdentity } from '@/lib/connection-identity';
 import { getSubscriptionToken } from '@/lib/subscription-token';
 import { friendlyServerName } from '@/lib/friendly-server-name';
 import { isNativeTunnelConnected, isNativeTunnelConnecting } from '@/lib/tunnel-state';
@@ -180,6 +182,11 @@ async function waitForXrayTraffic(
 
 export default function ConnectionScreen() {
   const c = useColors();
+  const { themeMode } = useAppearance();
+  const systemColorScheme = useColorScheme();
+  const statusBarStyle = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark')
+    ? 'light'
+    : 'dark';
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const safeBottom = Platform.OS === 'web' ? 0 : insets.bottom;
@@ -189,7 +196,13 @@ export default function ConnectionScreen() {
   const protocol = (['v2ray', 'openvpn', 'wireguard', 'amneziawg'] as const).find((value) => value === rawProtocol);
   const locationName = first(params.location) ?? '';
   const smartRequested = first(params.smart) === '1';
-  const requestedServerId = smartRequested ? '' : first(params.serverId) ?? '';
+  const routeRequestedServerId = smartRequested ? '' : first(params.serverId) ?? '';
+  const manualSelectionScope = JSON.stringify([id ?? null, protocol ?? null, routeRequestedServerId]);
+  const [manualXraySelection, setManualXraySelection] = useState<{ scope: string; id: string } | null>(null);
+  const manualXrayServerId = manualXraySelection?.scope === manualSelectionScope
+    ? manualXraySelection.id
+    : null;
+  const requestedServerId = manualXrayServerId ?? routeRequestedServerId;
 
   const subscriptions = useListMobileSubscriptions();
   const dashboard = useGetMobileDashboard();
@@ -222,11 +235,15 @@ export default function ConnectionScreen() {
   const [retry, setRetry] = useState(0);
   const [clock, setClock] = useState(Date.now());
   const [selectedXrayServerId, setSelectedXrayServerId] = useState<string | null>(null);
+  const activeXrayServerId = xrayServers.find((server) => server.name === xrayStatus.profileName)?.id ?? null;
   const [xrayPingResults, setXrayPingResults] = useState<Record<string, number | null>>({});
   const [isPingingXray, setIsPingingXray] = useState(false);
   const attemptKeyRef = useRef<string | null>(null);
   const suppressedConnectionKeyRef = useRef<string | null>(null);
   const connectionAttemptGenerationRef = useRef(0);
+  const connectionIdentityRef = useRef<string | null>(null);
+  const statusRefreshInFlightRef = useRef(false);
+  const cancelAttemptOnUnmountRef = useRef(false);
   const timedOutAttemptRef = useRef<number | null>(null);
   const [trafficReport, setTrafficReport] = useState<TunnelConnectivityReport | null>(null);
   const [trafficTestError, setTrafficTestError] = useState<string | null>(null);
@@ -252,14 +269,23 @@ export default function ConnectionScreen() {
 
   const runTunnelConnectivityTest = useCallback(async () => {
     if (probeInFlightRef.current) return null;
+    const generationAtStart = connectionAttemptGenerationRef.current;
+    const identityAtStart = connectionIdentityRef.current;
+    const protocolAtStart = protocol;
+    const subscriptionIdAtStart = id;
+    const serverIdAtStart = selectedXrayServerId;
+    const isCurrentTest = () =>
+      connectionAttemptGenerationRef.current === generationAtStart
+      && connectionIdentityRef.current === identityAtStart;
     probeInFlightRef.current = true;
     setTrafficTesting(true);
     setTrafficTestError(null);
     try {
       const report = await testTunnelConnectivity();
+      if (!isCurrentTest()) return null;
       setTrafficReport(report);
-      if (protocol === 'v2ray' && id && selectedXrayServerId) {
-        recordXrayTrafficValidation(id, selectedXrayServerId, report.passed);
+      if (protocolAtStart === 'v2ray' && subscriptionIdAtStart && serverIdAtStart) {
+        recordXrayTrafficValidation(subscriptionIdAtStart, serverIdAtStart, report.passed);
       }
       if (stabilityEndAtRef.current !== null) {
         setStabilityTest((current) => ({
@@ -274,6 +300,7 @@ export default function ConnectionScreen() {
       }
       return report;
     } catch (error) {
+      if (!isCurrentTest()) return null;
       const message = getErrorMessage(error, token);
       setTrafficTestError(message);
       if (stabilityEndAtRef.current !== null) {
@@ -288,7 +315,7 @@ export default function ConnectionScreen() {
       probeInFlightRef.current = false;
       setTrafficTesting(false);
     }
-  }, [stopStabilityTest, token]);
+  }, [id, protocol, selectedXrayServerId, stopStabilityTest, token]);
 
   const startStabilityTest = useCallback(async () => {
     if (stabilityTimerRef.current) clearInterval(stabilityTimerRef.current);
@@ -315,42 +342,51 @@ export default function ConnectionScreen() {
 
   useEffect(() => {
     let disposed = false;
+    let statusRevision = 0;
     let removeXrayListener: () => void = () => undefined;
-    const loadStatus = async () => {
-      const [xray, openvpn, wg, awg, xrayAvailable, openvpnAvailable, wgAvailable, awgAvailable] = await Promise.all([
+    const loadStatus = async (checkAvailability = false) => {
+      if (statusRefreshInFlightRef.current) return;
+      statusRefreshInFlightRef.current = true;
+      const revisionAtStart = statusRevision;
+      try {
+        const [xray, openvpn, wg, awg] = await Promise.all([
         getXrayState().catch(() => ({ state: 'disconnected' as const })),
         getOpenVpnStatus().catch(() => initialTunnelStatus),
         getWireGuardStatus().catch(() => initialTunnelStatus),
         getAmneziaWgStatus().catch(() => initialTunnelStatus),
-        isXrayEngineAvailable().catch(() => false),
-        isOpenVpnEngineAvailable().catch(() => false),
-        isWireGuardEngineAvailable().catch(() => false),
-        isAmneziaWgEngineAvailable().catch(() => false),
       ]);
-      if (disposed) return;
-      setXrayStatus(xray);
-      setOpenVpnStatus(openvpn);
-      setWireguardStatus(wg);
-      setAmneziaStatus(awg);
-      setEngineAvailability({ v2ray: xrayAvailable, openvpn: openvpnAvailable, wireguard: wgAvailable, amneziawg: awgAvailable });
-      setNativeReady(true);
+        if (disposed || revisionAtStart !== statusRevision) return;
+        setXrayStatus(xray);
+        setOpenVpnStatus(openvpn);
+        setWireguardStatus(wg);
+        setAmneziaStatus(awg);
+        if (checkAvailability) {
+          const [xrayAvailable, openvpnAvailable, wgAvailable, awgAvailable] = await Promise.all([
+            isXrayEngineAvailable().catch(() => false),
+            isOpenVpnEngineAvailable().catch(() => false),
+            isWireGuardEngineAvailable().catch(() => false),
+            isAmneziaWgEngineAvailable().catch(() => false),
+          ]);
+          if (disposed || revisionAtStart !== statusRevision) return;
+          setEngineAvailability({ v2ray: xrayAvailable, openvpn: openvpnAvailable, wireguard: wgAvailable, amneziawg: awgAvailable });
+          setNativeReady(true);
+        }
+      } finally {
+        statusRefreshInFlightRef.current = false;
+      }
     };
 
-    void loadStatus();
+    void loadStatus(true);
     void subscribeXrayState((state) => {
-      if (!disposed) setXrayStatus(state);
+      if (!disposed) {
+        statusRevision += 1;
+        setXrayStatus(state);
+      }
     }).then((remove) => {
       if (disposed) remove();
       else removeXrayListener = remove;
     }).catch(() => undefined);
-    const timer = setInterval(() => {
-      void Promise.all([
-        getXrayState().then((state) => { if (!disposed) setXrayStatus(state); }).catch(() => undefined),
-        getOpenVpnStatus().then((status) => { if (!disposed) setOpenVpnStatus(status); }).catch(() => undefined),
-        getWireGuardStatus().then((status) => { if (!disposed) setWireguardStatus(status); }).catch(() => undefined),
-        getAmneziaWgStatus().then((status) => { if (!disposed) setAmneziaStatus(status); }).catch(() => undefined),
-      ]);
-    }, 1500);
+    const timer = setInterval(() => { void loadStatus(); }, 1500);
     const clockTimer = setInterval(() => setClock(Date.now()), 1000);
     return () => {
       disposed = true;
@@ -409,8 +445,37 @@ export default function ConnectionScreen() {
   const isRequestedProtocolActive = !!protocol && activeProtocol === protocol;
   const activeProfileId = activeProtocol === 'v2ray' ? xrayStatus.profileId : (activeState as WireGuardVpnStatus | null)?.profileId;
   const activeProfileName = activeProtocol === 'v2ray' ? xrayStatus.profileName : (activeState as WireGuardVpnStatus | null)?.profileName;
-  const sameRequestedProfile = !!item && isRequestedProtocolActive && activeProfileId === item.id
-    && (!locationName || activeProfileName === locationName);
+  const activeConnectionIdentity: ConnectionIdentity | null = activeProtocol && activeProfileId
+    ? {
+        subscriptionId: activeProfileId,
+        protocol: activeProtocol,
+        serverId: activeProtocol === 'v2ray' ? activeXrayServerId : activeProfileName,
+      }
+    : null;
+  const requestedConnectionIdentity: ConnectionIdentity | null = item && protocol
+    ? {
+        subscriptionId: item.id,
+        protocol,
+        serverId: protocol === 'v2ray' ? requestedServerId || null : locationName || null,
+      }
+    : null;
+  connectionIdentityRef.current = activeConnectionIdentity
+    ? connectionAttemptKey(activeConnectionIdentity, 0)
+    : null;
+  const sameRequestedProfile = !!requestedConnectionIdentity
+    && isRequestedProtocolActive
+    && matchesConnectionTarget(activeConnectionIdentity, requestedConnectionIdentity);
+
+  useEffect(() => {
+    if (nativeTunnelActive) cancelAttemptOnUnmountRef.current = false;
+  }, [nativeTunnelActive]);
+
+  useEffect(() => () => {
+    connectionAttemptGenerationRef.current += 1;
+    if (cancelAttemptOnUnmountRef.current) {
+      void disconnectAllPulseTunnels().catch(() => undefined);
+    }
+  }, []);
 
   const autoProbeSessionRef = useRef<string | null>(null);
   useEffect(() => {
@@ -457,7 +522,11 @@ export default function ConnectionScreen() {
 
   useEffect(() => {
     if (!protocol || !item || !token || !nativeReady || profileLoading) return;
-    const key = `${item.id}:${protocol}:${locationName}:${retry}`;
+    const key = connectionAttemptKey({
+      subscriptionId: item.id,
+      protocol,
+      serverId: protocol === 'v2ray' ? requestedServerId || null : locationName || null,
+    }, retry);
     if (suppressedConnectionKeyRef.current === key) return;
     if (attemptKeyRef.current === key) return;
 
@@ -493,6 +562,7 @@ export default function ConnectionScreen() {
         setAttemptStartedAt(null);
       } else {
         attemptKeyRef.current = key;
+        cancelAttemptOnUnmountRef.current = true;
         const operationId = ++connectionAttemptGenerationRef.current;
         const isCurrentAttempt = () =>
           connectionAttemptGenerationRef.current === operationId && attemptKeyRef.current === key;
@@ -529,6 +599,7 @@ export default function ConnectionScreen() {
 
     attemptKeyRef.current = key;
     const operationId = ++connectionAttemptGenerationRef.current;
+    cancelAttemptOnUnmountRef.current = true;
     const isCurrentAttempt = () =>
       connectionAttemptGenerationRef.current === operationId && attemptKeyRef.current === key;
     setActionError(null);
@@ -540,6 +611,7 @@ export default function ConnectionScreen() {
       try {
         if (protocol === 'v2ray') {
           const fresh = await feed.refetch();
+          if (!isCurrentAttempt()) return;
           const source = fresh.data;
           if (fresh.isError || typeof source !== 'string' || !source.trim()) {
             throw fresh.error ?? new Error('فید V2Ray خالی است یا دریافت نشد.');
@@ -560,9 +632,10 @@ export default function ConnectionScreen() {
             } catch {
               // A TCP probe is only a hint; still attempt a real profile.
             } finally {
-              setIsPingingXray(false);
+              if (isCurrentAttempt()) setIsPingingXray(false);
             }
           }
+          if (!isCurrentAttempt()) return;
           const pingResults = Object.fromEntries(
             servers.map((server) => [server.id, health[server.id]?.latencyMs ?? null]),
           );
@@ -632,6 +705,7 @@ export default function ConnectionScreen() {
 
         if (protocol === 'openvpn') {
           const fresh = await openVpn.refetch();
+          if (!isCurrentAttempt()) return;
           const account = fresh.data;
           if (fresh.isError || !account) throw fresh.error ?? new Error('پروفایل OpenVPN در دسترس نیست.');
           const location = locationName
@@ -640,19 +714,19 @@ export default function ConnectionScreen() {
           if (!location) throw new Error('برای OpenVPN سروری در پروفایل پیدا نشد.');
           const { provider, host } = routeParts(location.config_url, 'openvpn');
           const config = await downloadOpenVpnProfile(token, provider, host);
+          if (!isCurrentAttempt()) return;
           setPhase('connecting');
           setAttemptStartedAt(Date.now());
-          void connectOpenVpn(item.id, location.name, config, account.username, account.password)
-            .then(() => setPhase('monitoring'))
-            .catch((error) => {
-              setActionError(getErrorMessage(error, token));
-              setPhase('error');
-            });
+          const status = await connectOpenVpn(item.id, location.name, config, account.username, account.password);
+          if (!isCurrentAttempt()) return;
+          setOpenVpnStatus(status);
+          setPhase('monitoring');
           return;
         }
 
         if (protocol === 'wireguard') {
           const fresh = await wireguard.refetch();
+          if (!isCurrentAttempt()) return;
           const account = fresh.data;
           if (fresh.isError || !account) throw fresh.error ?? new Error('پروفایل WireGuard در دسترس نیست.');
           const location: WireGuardLocation | undefined = locationName
@@ -661,30 +735,28 @@ export default function ConnectionScreen() {
           if (!location) throw new Error('برای WireGuard سروری در پروفایل پیدا نشد.');
           const { provider, host } = routeParts(location.config_url, 'wireguard');
           const config = await downloadWireGuardConfig(token, provider, host);
+          if (!isCurrentAttempt()) return;
           setPhase('connecting');
           setAttemptStartedAt(Date.now());
-          void connectWireGuard(item.id, location.name, config)
-            .then(() => setPhase('monitoring'))
-            .catch((error) => {
-              setActionError(getErrorMessage(error, token));
-              setPhase('error');
-            });
+          const status = await connectWireGuard(item.id, location.name, config);
+          if (!isCurrentAttempt()) return;
+          setWireguardStatus(status);
+          setPhase('monitoring');
           return;
         }
 
         const fresh = await amnezia.refetch();
+        if (!isCurrentAttempt()) return;
         const config = fresh.data;
         if (fresh.isError || typeof config !== 'string' || !config.trim()) {
           throw fresh.error ?? new Error('پروفایل AmneziaWG خالی است یا دریافت نشد.');
         }
         setPhase('connecting');
         setAttemptStartedAt(Date.now());
-        void connectAmneziaWg(item.id, item.plan, config)
-          .then(() => setPhase('monitoring'))
-          .catch((error) => {
-            setActionError(getErrorMessage(error, token));
-            setPhase('error');
-          });
+        const status = await connectAmneziaWg(item.id, item.plan, config);
+        if (!isCurrentAttempt()) return;
+        setAmneziaStatus(status);
+        setPhase('monitoring');
       } catch (error) {
         if (!isCurrentAttempt()) return;
         setActionError(getErrorMessage(error, token));
@@ -721,8 +793,6 @@ export default function ConnectionScreen() {
     }
     return fastestId;
   }, [xrayServers, xrayPingResults]);
-  const activeXrayServerId = xrayServers.find((server) => server.name === xrayStatus.profileName)?.id ?? null;
-
   const pingAllXrayServers = async () => {
     if (!id || !xrayServers.length || isPingingXray || activeProtocol) return;
     setIsPingingXray(true);
@@ -741,7 +811,7 @@ export default function ConnectionScreen() {
   };
 
   const connectToXrayServer = async (server: XrayShareServer) => {
-    if (!item || !token || protocol !== 'v2ray' || isPingingXray) return;
+    if (!item || !token || protocol !== 'v2ray' || isPingingXray || disconnecting) return;
     if (activeProtocol && activeProtocol !== 'v2ray') {
       setActionError(`ابتدا اتصال فعال ${protocolNames[activeProtocol]} را قطع کنید.`);
       setPhase('error');
@@ -753,8 +823,14 @@ export default function ConnectionScreen() {
     ) return;
 
     const operationId = ++connectionAttemptGenerationRef.current;
-    const attemptKey = `${item.id}:v2ray:${locationName}:${retry}:${server.id}`;
+    const attemptKey = connectionAttemptKey({
+      subscriptionId: item.id,
+      protocol: 'v2ray',
+      serverId: server.id,
+    }, retry);
     attemptKeyRef.current = attemptKey;
+    cancelAttemptOnUnmountRef.current = true;
+    setManualXraySelection({ scope: manualSelectionScope, id: server.id });
     const isCurrentAttempt = () =>
       connectionAttemptGenerationRef.current === operationId && attemptKeyRef.current === attemptKey;
     setSelectedXrayServerId(server.id);
@@ -874,7 +950,14 @@ export default function ConnectionScreen() {
     const attemptId = attemptStartedAt;
     if (timedOutAttemptRef.current === attemptId) return;
     const remainingMs = Math.max(0, 45_000 - (Date.now() - attemptId));
+    const generationAtStart = connectionAttemptGenerationRef.current;
+    const keyAtStart = attemptKeyRef.current;
+    if (!keyAtStart) return;
     const timer = setTimeout(() => {
+      if (
+        connectionAttemptGenerationRef.current !== generationAtStart ||
+        attemptKeyRef.current !== keyAtStart
+      ) return;
       if (timedOutAttemptRef.current === attemptId) return;
       timedOutAttemptRef.current = attemptId;
       const latestOpenVpnDiagnostic =
@@ -894,12 +977,20 @@ export default function ConnectionScreen() {
         } catch (error) {
           finalMessage += `\n${getErrorMessage(error, token)}`;
         }
+        if (
+          connectionAttemptGenerationRef.current !== generationAtStart ||
+          attemptKeyRef.current !== keyAtStart
+        ) return;
         const [xray, openvpn, wg, awg] = await Promise.all([
           getXrayState().catch(() => ({ state: 'disconnected' as const })),
           getOpenVpnStatus().catch(() => initialTunnelStatus),
           getWireGuardStatus().catch(() => initialTunnelStatus),
           getAmneziaWgStatus().catch(() => initialTunnelStatus),
         ]);
+        if (
+          connectionAttemptGenerationRef.current !== generationAtStart ||
+          attemptKeyRef.current !== keyAtStart
+        ) return;
         setXrayStatus(xray);
         setOpenVpnStatus(openvpn);
         setWireguardStatus(wg);
@@ -915,9 +1006,17 @@ export default function ConnectionScreen() {
 
   const disconnectActive = async () => {
     if (disconnecting) return;
-    const currentKey = item && protocol ? `${item.id}:${protocol}:${locationName}:${retry}` : null;
+    const currentKey = item && protocol
+      ? connectionAttemptKey({
+          subscriptionId: item.id,
+          protocol,
+          serverId: protocol === 'v2ray' ? requestedServerId || null : locationName || null,
+        }, retry)
+      : null;
     if (currentKey) suppressedConnectionKeyRef.current = currentKey;
-    connectionAttemptGenerationRef.current += 1;
+    const operationId = ++connectionAttemptGenerationRef.current;
+    const isCurrentDisconnect = () => connectionAttemptGenerationRef.current === operationId;
+    cancelAttemptOnUnmountRef.current = false;
     attemptKeyRef.current = null;
     stopStabilityTest();
     setAttemptStartedAt(null);
@@ -927,26 +1026,31 @@ export default function ConnectionScreen() {
     setPhase('disconnecting');
     try {
       await disconnectAllPulseTunnels();
-      setPhase('monitoring');
+      if (isCurrentDisconnect()) setPhase('monitoring');
     } catch (error) {
-      setActionError(getErrorMessage(error, token));
-      setPhase('error');
+      if (isCurrentDisconnect()) {
+        setActionError(getErrorMessage(error, token));
+        setPhase('error');
+      }
     } finally {
-      setDisconnecting(false);
       const [xray, openvpn, wg, awg] = await Promise.all([
         getXrayState().catch(() => ({ state: 'disconnected' as const })),
         getOpenVpnStatus().catch(() => initialTunnelStatus),
         getWireGuardStatus().catch(() => initialTunnelStatus),
         getAmneziaWgStatus().catch(() => initialTunnelStatus),
       ]);
-      setXrayStatus(xray);
-      setOpenVpnStatus(openvpn);
-      setWireguardStatus(wg);
-      setAmneziaStatus(awg);
+      if (isCurrentDisconnect()) {
+        setXrayStatus(xray);
+        setOpenVpnStatus(openvpn);
+        setWireguardStatus(wg);
+        setAmneziaStatus(awg);
+        setDisconnecting(false);
+      }
     }
   };
 
   const retryConnection = () => {
+    if (disconnecting) return;
     connectionAttemptGenerationRef.current += 1;
     suppressedConnectionKeyRef.current = null;
     setTrafficReport(null);
@@ -972,7 +1076,7 @@ export default function ConnectionScreen() {
 
   return (
     <Screen style={styles.screen}>
-      <StatusBar style="dark" />
+      <StatusBar style={statusBarStyle} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.topBar}>
           <Pressable accessibilityRole="button" accessibilityLabel="بازگشت" onPress={() => router.back()} style={[styles.backButton, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -990,10 +1094,19 @@ export default function ConnectionScreen() {
           </View>
         </View>
 
-        {!item || subscriptions.isLoading && dashboard.isLoading ? (
+        {!item && id && (subscriptions.isLoading || dashboard.isLoading) ? (
           <Card style={styles.loadingCard}>
             <ActivityIndicator size="large" color={c.primary} />
             <Text style={[styles.bodyText, { color: c.mutedForeground }]}>در حال دریافت جزئیات اشتراک…</Text>
+          </Card>
+        ) : !item ? (
+          <Card style={styles.loadingCard}>
+            <Feather name="alert-circle" size={25} color={c.warning} />
+            <Text style={[styles.engineTitle, { color: c.foreground }]}>اشتراک انتخاب نشد</Text>
+            <Text style={[styles.bodyText, { color: c.mutedForeground }]}>برای اتصال، یک اشتراک فعال را انتخاب کنید. هیچ اشتراک دیگری به‌صورت خودکار جایگزین نمی‌شود.</Text>
+            <Pressable accessibilityRole="button" testID="choose-connection-subscription" onPress={() => router.replace('/(tabs)/profiles')} style={[styles.retryButton, { backgroundColor: c.primary }]}>
+              <Text style={[styles.actionText, { color: c.primaryForeground }]}>انتخاب اشتراک</Text>
+            </Pressable>
           </Card>
         ) : (
           <>
@@ -1168,8 +1281,8 @@ export default function ConnectionScreen() {
                 <Pressable
                   accessibilityRole="button"
                   onPress={retryConnection}
-                  disabled={!protocolAvailable || profileLoading || !nativeReady || !!activeProtocol}
-                  style={({ pressed }) => [styles.retryButton, { backgroundColor: c.primary, opacity: pressed ? 0.88 : (!protocolAvailable || profileLoading || !nativeReady || !!activeProtocol) ? 0.55 : 1 }]}
+                  disabled={!protocolAvailable || profileLoading || !nativeReady || !!activeProtocol || disconnecting}
+                  style={({ pressed }) => [styles.retryButton, { backgroundColor: c.primary, opacity: pressed ? 0.88 : (!protocolAvailable || profileLoading || !nativeReady || !!activeProtocol || disconnecting) ? 0.55 : 1 }]}
                 >
                   {profileLoading || phase === 'preparing' ? <ActivityIndicator color={c.primaryForeground} /> : <Feather name="rotate-ccw" size={17} color={c.primaryForeground} />}
                   <Text style={[styles.actionText, { color: c.primaryForeground }]}>تلاش دوباره برای اتصال</Text>

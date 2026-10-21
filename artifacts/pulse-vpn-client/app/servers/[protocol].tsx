@@ -42,7 +42,8 @@ export default function ServerSelectionScreen() {
   const entries = subscriptions.data ?? dashboard.data?.subscriptions ?? [];
   const eligibleEntries = entries.filter((item) => item.status === 'active' && Number(item.remaining_gb) > 0);
   const selected = eligibleEntries.find((item) => item.id === prefs.subscriptionId)
-    ?? eligibleEntries[0];
+    ?? (eligibleEntries.length === 1 ? eligibleEntries[0] : undefined);
+  const needsSubscriptionChoice = eligibleEntries.length > 1 && !selected;
   const token = getSubscriptionToken(selected?.subscription_url ?? null);
   const openvpn = useGetOpenVpnAccount(token, { query: { enabled: !!token && protocol === 'openvpn' && !!selected?.openvpn_available, queryKey: ['/server-picker', token, 'openvpn'] } });
   const wireguard = useGetWireGuardAccount(token, { query: { enabled: !!token && protocol === 'wireguard' && !!selected?.wireguard_available, queryKey: ['/server-picker', token, 'wireguard'] } });
@@ -150,6 +151,13 @@ export default function ServerSelectionScreen() {
           <Text style={[styles.detail, { color: c.mutedForeground }]}>{descriptions[protocol]} · {selected?.plan ?? 'اشتراک انتخاب نشده'}</Text>
         </View>
         {eligibleEntries.length > 1 ? (
+          <>
+          {needsSubscriptionChoice ? (
+            <Card style={{ gap: 7, borderColor: c.warning }}>
+              <Text style={[styles.sectionTitle, { color: c.foreground }]}>ابتدا اشتراک را انتخاب کنید</Text>
+              <Text style={[styles.detail, { color: c.mutedForeground }]}>برای جلوگیری از اتصال به حساب اشتباه، هیچ اشتراکی به‌صورت خودکار انتخاب نمی‌شود.</Text>
+            </Card>
+          ) : null}
           <View style={styles.subscriptionRow}>
             {eligibleEntries.map((entry) => (
               <Pressable key={entry.id} accessibilityRole="button" testID={`server-subscription-${entry.id}`} onPress={() => prefs.chooseSubscription(entry.id)} style={[styles.subscriptionChip, { backgroundColor: entry.id === selected?.id ? c.accent : c.card, borderColor: entry.id === selected?.id ? c.primary : c.border }]}>
@@ -157,6 +165,7 @@ export default function ServerSelectionScreen() {
               </Pressable>
             ))}
           </View>
+          </>
         ) : null}
         {servers.length ? (
           <>
@@ -226,7 +235,7 @@ export default function ServerSelectionScreen() {
         ) : null}
         {loading ? <View style={styles.state}><View style={[styles.skeleton, { backgroundColor: c.muted, width: '62%' }]} /><View style={[styles.skeleton, { backgroundColor: c.muted }]} /><View style={[styles.skeleton, { backgroundColor: c.muted }]} /></View> : null}
         {!loading && fetchError ? <InlineState title="سرورها دریافت نشدند" detail="اتصال را بررسی کنید و فهرست را دوباره تازه‌سازی کنید." retry={refresh} /> : null}
-        {!loading && !fetchError && !servers.length ? (
+        {!loading && !fetchError && !servers.length && !needsSubscriptionChoice ? (
           <Card style={styles.empty}>
             <Feather name="server" size={21} color={c.primary} />
             <Text style={[styles.emptyTitle, { color: c.foreground }]}>{selected ? 'برای این پروتکل سروری موجود نیست' : 'اشتراک فعالی پیدا نشد'}</Text>
