@@ -354,6 +354,7 @@ class PulseVpnEngineModule : Module() {
     }
 
     AsyncFunction("connectOpenVpn") { profileId: String, profileName: String, configText: String, username: String, password: String ->
+      synchronized(nativeConnectionLock) {
       requireVpnPermission()
       val context = requireContext()
       PulseDiagnostics.log(context, "openvpn_connect_requested")
@@ -361,7 +362,8 @@ class PulseVpnEngineModule : Module() {
       if (username.isBlank() || password.isBlank()) {
         throw CodedException("ERR_OPENVPN_CREDENTIALS_MISSING", "OpenVPN username and password are required.", null)
       }
-      if (openVpnState == "CONNECTED" || openVpnState == "CONNECTING") {
+      assertNoOtherNativeTunnel("OpenVPN")
+      if (openVpnState in setOf("CONNECTED", "CONNECTING", "DISCONNECTING")) {
         throw CodedException("ERR_OPENVPN_ALREADY_ACTIVE", "Disconnect the current OpenVPN tunnel before changing servers.", null)
       }
       stopAmneziaIfRunning()
@@ -389,20 +391,25 @@ class PulseVpnEngineModule : Module() {
         OpenVPNService.startService(context, OpenVPNConfig(configuration = prepared.configuration))
         PulseDiagnostics.log(context, "openvpn_service_started")
         bindOpenVpnService(context)
+        awaitOpenVpnServiceReady()
         openVpnStatus()
       } catch (error: Throwable) {
         PulseDiagnostics.log(context, "openvpn_start_failed", "${error.javaClass.simpleName}: ${error.localizedMessage.orEmpty()}")
         openVpnState = "ERROR"
+        openVpnStartRequestedAt = null
         openVpnError = error.localizedMessage ?: "OpenVPN could not start."
         prepared.directory.deleteRecursively()
         openVpnSessionDir = null
         throw CodedException("ERR_OPENVPN_START_FAILED", openVpnError ?: "OpenVPN could not start.", error)
       }
+      }
     }
 
     AsyncFunction("disconnectOpenVpn") {
-      stopOpenVpn()
-      openVpnStatus()
+      synchronized(nativeConnectionLock) {
+        stopOpenVpn()
+        openVpnStatus()
+      }
     }
 
     AsyncFunction("getOpenVpnStatus") {
@@ -438,6 +445,104 @@ class PulseVpnEngineModule : Module() {
         null
       )
     }
+  }
+
+  /**
+   * The Android VPN slot is process-global. This check runs under
+   * nativeConnectionLock so two engine start requests cannot both pass it.
+   * The JavaScript check is only a convenience; this native check is the
+   * authoritative guard for direct, repeated, and racing calls.
+   */
+  private fun assertNoOtherNativeTunnel(requestedEngine: String) {
+    val context = requireContext()
+    val activeEngines = mutableListOf<String>()
+
+    val singBoxState = PulseSingBoxVpnService.status(context)["state"] as? String
+    if (singBoxState in setOf("connecting", "connected", "disconnecting")) {
+      activeEngines += "V2Ray · sing-box"
+    }
+    if (wireGuardStatus()["status"] in setOf("CONNECTED", "CONNECTING", "DISCONNECTING")) {
+      activeEngines += "WireGuard"
+    }
+    if (amneziaStatus()["status"] in setOf("CONNECTED", "CONNECTING", "DISCONNECTING")) {
+      activeEngines += "AmneziaWG"
+    }
+    if (openVpnState in setOf("CONNECTED", "CONNECTING", "DISCONNECTING")) {
+      activeEngines += "OpenVPN"
+    }
+
+    val otherEngine = activeEngines.firstOrNull { it != requestedEngine }
+    if (otherEngine != null) {
+      throw CodedException(
+        "ERR_VPN_ENGINE_BUSY",
+        "$otherEngine is still active. Disconnect it before starting $requestedEngine.",
+        null
+      )
+    }
+    if (activeEngines.isNotEmpty()) {
+      throw CodedException(
+        "ERR_VPN_ENGINE_ALREADY_ACTIVE",
+        "$requestedEngine is already active. Disconnect it before starting another connection.",
+        null
+      )
+    }
+
+    val hasVpnNetwork = runCatching {
+      val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+      connectivity.allNetworks.any { network ->
+        connectivity.getNetworkCapabilities(network)
+          ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+      }
+    }.getOrDefault(false)
+    if (hasVpnNetwork) {
+      throw CodedException(
+        "ERR_VPN_SLOT_OCCUPIED",
+        "Android reports an active VPN whose engine is not available to Pulse. Disconnect it before starting a Pulse tunnel.",
+        null
+      )
+    }
+  }
+
+  private fun awaitOpenVpnServiceReady(timeoutMs: Long = 8_000L) {
+    val deadline = SystemClock.elapsedRealtime() + timeoutMs
+    while (
+      openVpnRemote == null &&
+      openVpnState != "ERROR" &&
+      SystemClock.elapsedRealtime() < deadline
+    ) {
+      try {
+        Thread.sleep(50L)
+      } catch (_: InterruptedException) {
+        Thread.currentThread().interrupt()
+        break
+      }
+    }
+
+    val remote = openVpnRemote
+    if (remote != null) {
+      syncOpenVpnStateFromService(remote)
+      return
+    }
+
+    val context = requireContext()
+    openVpnStartRequestedAt = null
+    openVpnConnectedAt = null
+    openVpnState = "ERROR"
+    openVpnError = if (SystemClock.elapsedRealtime() >= deadline) {
+      "Timed out waiting for the OpenVPN service to bind."
+    } else {
+      openVpnError ?: "The OpenVPN service failed before its status interface became ready."
+    }
+    PulseDiagnostics.log(context, "openvpn_bind_timeout")
+    val connection = openVpnServiceConnection
+    if (connection != null && openVpnServiceBound) {
+      runCatching { context.unbindService(connection) }
+    }
+    openVpnServiceBound = false
+    openVpnServiceConnection = null
+    openVpnRemote = null
+    runCatching { OpenVPNService.stopService(context) }
+    throw CodedException("ERR_OPENVPN_BIND_TIMEOUT", openVpnError!!, null)
   }
 
   private fun normalizeAmneziaWgConfig(configText: String): String {
@@ -686,6 +791,17 @@ class PulseVpnEngineModule : Module() {
   }
 
   private fun validateOpenVpnConfig(configuration: String) {
+    val unsupportedProxyDirective = Regex(
+      "(?im)^\\s*(?:http|https)-proxy(?:\\s|$)"
+    ).find(configuration)?.value?.trim()
+    if (unsupportedProxyDirective != null) {
+      throw CodedException(
+        "ERR_OPENVPN_PROXY_UNSUPPORTED",
+        "This OpenVPN adapter cannot establish profiles that require an HTTP/HTTPS proxy. Import a direct-connection profile or use an engine that supports the configured proxy.",
+        null
+      )
+    }
+
     try {
       // The profile preflight touches generated SWIG classes before the
       // OpenVPN service/thread is created. Load the JNI library first or the

@@ -37,44 +37,29 @@ function loadPulseNativeModule(): PulseVpnNativeModule {
 }
 
 async function assertNoOtherTunnel(protocol: 'xray' | 'wireguard' | 'amneziawg' | 'openvpn') {
+  const module = loadPulseNativeModule();
   if (protocol !== 'xray') {
-    try {
-      const state = await loadPulseNativeModule().getSingBoxStatus();
-      if (['connected', 'connecting', 'preparing', 'disconnecting'].includes(state.state)) {
-        throw new Error('ابتدا اتصال فعال V2Ray را قطع کنید.');
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('اتصال فعال V2Ray')) throw error;
+    const state = await module.getSingBoxStatus();
+    if (['connected', 'connecting', 'preparing', 'disconnecting'].includes(state.state)) {
+      throw new Error('ابتدا اتصال فعال V2Ray را قطع کنید.');
     }
   }
   if (protocol !== 'wireguard') {
-    try {
-      const status = await loadPulseNativeModule().getWireGuardStatus();
-      if (status.isConnected || ['CONNECTING', 'DISCONNECTING'].includes(status.status)) {
-        throw new Error('ابتدا اتصال فعال WireGuard را قطع کنید.');
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('اتصال فعال WireGuard')) throw error;
+    const status = await module.getWireGuardStatus();
+    if (status.isConnected || ['CONNECTING', 'DISCONNECTING'].includes(status.status)) {
+      throw new Error('ابتدا اتصال فعال WireGuard را قطع کنید.');
     }
   }
   if (protocol !== 'amneziawg') {
-    try {
-      const status = await loadPulseNativeModule().getAmneziaWgStatus();
-      if (status.isConnected || ['CONNECTING', 'DISCONNECTING'].includes(status.status)) {
-        throw new Error('ابتدا اتصال فعال AmneziaWG را قطع کنید.');
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('اتصال فعال AmneziaWG')) throw error;
+    const status = await module.getAmneziaWgStatus();
+    if (status.isConnected || ['CONNECTING', 'DISCONNECTING'].includes(status.status)) {
+      throw new Error('ابتدا اتصال فعال AmneziaWG را قطع کنید.');
     }
   }
   if (protocol !== 'openvpn') {
-    try {
-      const status = await loadPulseNativeModule().getOpenVpnStatus();
-      if (status.isConnected || ['CONNECTING', 'DISCONNECTING'].includes(status.status)) {
-        throw new Error('ابتدا اتصال فعال OpenVPN را قطع کنید.');
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('اتصال فعال OpenVPN')) throw error;
+    const status = await module.getOpenVpnStatus();
+    if (status.isConnected || ['CONNECTING', 'DISCONNECTING'].includes(status.status)) {
+      throw new Error('ابتدا اتصال فعال OpenVPN را قطع کنید.');
     }
   }
 }

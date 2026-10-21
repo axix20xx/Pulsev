@@ -1,0 +1,518 @@
+PULSEVPN — COMPLETE APP UI/UX REDESIGN AND VPN EXPERIENCE REBUILD
+
+Act as a principal mobile product designer, senior React Native/Expo engineer, and Android VPN integration specialist.
+
+Redesign and rebuild the complete PulseVPN application in the existing repository. This is a full product UI/UX overhaul, not a landing-page redesign.
+
+The result must feel like a premium, original, production-quality VPN application with a distinctive visual identity, fluid navigation, polished motion, excellent usability, and fully working native VPN connections.
+
+Do not create a new unrelated project. Work directly in the existing PulseVPN 1.0.24 codebase.
+
+1. PRODUCT VISION
+
+PulseVPN is a multi-protocol VPN client supporting:
+
+* V2Box / sing-box configurations.
+* OpenVPN.
+* WireGuard.
+* AmneziaWG.
+
+Users should select a protocol visually, open its dedicated server page, choose automatic or manual connection, and connect with one clear action.
+
+Users must not be exposed to raw VPN configurations, JSON, server URLs, private keys, UUIDs, cryptographic parameters, native engine logs, or technical setup screens during normal usage.
+
+The interface must make complex VPN technology feel simple.
+
+The app must retain its existing backend, login, subscription fetching, native engines, protocol parsers, VPN permission handling, and working connection infrastructure. Rebuild the experience around these capabilities without replacing real connection functionality with mock data.
+
+2. VISUAL DESIGN DIRECTION
+
+Create an original premium dark interface.
+
+Design characteristics:
+
+* Deep midnight navy background.
+* Near-black surfaces with subtle blue undertones.
+* Electric cyan and ice-blue accents.
+* Restrained violet gradients for secondary visual highlights.
+* Crisp white typography and muted slate secondary text.
+* Fine borders and layered surfaces.
+* Subtle glow around active connection elements.
+* Custom protocol illustrations and elegant server-status indicators.
+* Large, readable typography and generous spacing.
+* Smooth, purposeful transitions.
+* Premium, precise, modern mobile design.
+
+Avoid generic dashboard templates, excessive cards, excessive gradients, oversized empty areas, cluttered statistics, and repetitive rectangular components.
+
+Use the existing project’s supported font and design libraries where possible. Choose an appropriate font if one is already bundled. Use consistent spacing, radii, typography, icon sizes, and color tokens.
+
+Design for a real mobile phone first. Support small screens, modern iPhones, Android devices, safe areas, and different display sizes.
+
+Do not add visual effects that make the app slow or difficult to use.
+
+3. REBUILD THE APP NAVIGATION
+
+Create a coherent application shell with these primary destinations:
+
+1. Home.
+2. Protocols.
+3. Activity.
+4. Account.
+
+Use a custom floating or integrated bottom navigation bar that matches the visual design.
+
+Keep the main VPN connection status visible where appropriate. Navigation must be smooth and predictable.
+
+Do not create unnecessary screens or duplicate the same information in multiple locations.
+
+Preserve existing login and OTP authentication flows. If authentication is required before accessing a feature, integrate the existing flow into the new visual system.
+
+4. HOME SCREEN — PREMIUM SMART CONNECTION EXPERIENCE
+
+Make the Home screen the main VPN control center.
+
+Header
+
+Include:
+
+* PulseVPN brand mark.
+* A compact connection status.
+* A profile/account shortcut.
+* A subtle indication of the selected protocol.
+
+Do not fill the header with technical information.
+
+Main connection component
+
+Create a distinctive central VPN connection control.
+
+It should include:
+
+* An original abstract pulse, orbital, or network-inspired visual.
+* A large circular or sculptural connection button.
+* A clear state label.
+* The selected protocol.
+* The selected server or automatic server label.
+* A small location indicator where available.
+
+States:
+
+* Disconnected.
+* Preparing connection.
+* Requesting VPN permission.
+* Connecting.
+* Connected.
+* Reconnecting.
+* Disconnecting.
+* Connection failed.
+* Connected but internet verification failed.
+
+The main button must have real behavior:
+
+* If disconnected, start the selected connection.
+* If connecting, prevent duplicate requests.
+* If connected, disconnect safely.
+* If reconnecting, show progress and prevent conflicting actions.
+* If the attempt fails, display an actionable error and retry option.
+
+Use actual native engine status. Never simulate a successful connection.
+
+Smart Connect
+
+Provide one prominent action labeled “Smart Connect”.
+
+It must:
+
+* Use the currently selected protocol, if the user has explicitly selected one.
+* Otherwise use a sensible supported default based on the actual server inventory and existing app behavior.
+* Select an eligible server using available real data, such as health, reachability, or measured latency.
+* Respect protocol compatibility.
+* Avoid repeatedly selecting a known-failing server when better eligible servers are available.
+* Connect through the real native engine.
+* Display the selected server after the selection has been made.
+
+Do not invent server latency or health values. If latency is unavailable, select a suitable eligible server using actual available information and label it appropriately.
+
+Never silently change the user’s explicitly selected protocol.
+
+Manual Connect
+
+Provide a separate, visually clear “Choose Server” or “Manual Connect” action.
+
+This opens the server-selection screen for the selected protocol.
+
+Users must be able to choose a specific server and initiate a real connection.
+
+Home screen secondary content
+
+Include a compact, elegant section for:
+
+* Current protocol.
+* Selected server.
+* Connection duration when connected.
+* A shortcut to change protocol.
+* A shortcut to choose another server.
+* Recent connection activity, if real history exists.
+
+Do not display fake bandwidth charts, fake security scores, fake ping values, or meaningless statistics.
+
+5. PROTOCOL SELECTION SCREEN
+
+Create a dedicated Protocols screen that presents the four supported engines as four visually distinct, premium selections.
+
+Use custom visual treatments rather than four identical generic cards.
+
+V2Box / sing-box
+
+Display name: V2Box
+
+Short description: Flexible connections with advanced transport support.
+
+Visual identity: layered orbital lines or a flowing data-path illustration.
+
+OpenVPN
+
+Display name: OpenVPN
+
+Short description: A widely used VPN protocol with broad compatibility.
+
+Visual identity: a refined geometric shield or connected-node motif.
+
+WireGuard
+
+Display name: WireGuard
+
+Short description: Lightweight, modern VPN connectivity.
+
+Visual identity: clean angular lines and a fast, minimal visual treatment.
+
+AmneziaWG
+
+Display name: AmneziaWG
+
+Short description: A WireGuard-based protocol with additional obfuscation capabilities where supported.
+
+Visual identity: a distinctive layered waveform or adaptive network motif.
+
+Do not use official trademarks as if PulseVPN were affiliated with the protocol vendors. Use clear text labels and original visual assets.
+
+Each protocol selection must display:
+
+* Protocol name.
+* Short user-friendly description.
+* Availability based on actual application support.
+* Selected state.
+* Connection status when relevant.
+* A clear selection action.
+
+Tapping a protocol opens its dedicated server-selection screen.
+
+Selecting a protocol must update the actual connection manager, not merely change a decorative label.
+
+If a protocol is unavailable due to missing configuration or native support, show a clear explanation and do not pretend it is ready.
+
+6. DEDICATED SERVER PAGE FOR EACH PROTOCOL
+
+Create a unified, reusable server-selection experience with protocol-specific visual styling.
+
+Each protocol must open its own page, such as:
+
+* V2Box Servers.
+* OpenVPN Servers.
+* WireGuard Servers.
+* AmneziaWG Servers.
+
+The pages should share navigation and interaction patterns while retaining a distinctive identity for the selected protocol.
+
+Page header
+
+Include:
+
+* Back navigation.
+* Protocol name and original illustration.
+* Short description.
+* Current connection status.
+* Smart Connect shortcut.
+
+Server list
+
+Use actual servers and configurations from the existing subscription/backend implementation.
+
+Each server row should include, when real data is available:
+
+* Server name.
+* Country or city.
+* Country flag or location indicator.
+* Availability status.
+* Latency, if actually measured.
+* A clear selection indicator.
+* A connect action.
+
+Do not display raw configuration links or technical protocol fields.
+
+Use elegant server rows, carefully designed spacing, subtle selection transitions, and clear touch targets.
+
+Search and filtering
+
+Implement:
+
+* Search by server name or location.
+* Sort by measured latency when available.
+* Available/unavailable filtering where status data exists.
+* Recent servers when actual connection history exists.
+* Favorites, persisted locally if the project has a suitable existing storage mechanism.
+
+Do not invent country names, server health, latency, or server availability.
+
+If the current subscription format does not contain location metadata, display a sensible server label instead of guessing its location.
+
+Server actions
+
+Tapping a server selects it.
+
+A separate Connect button initiates the actual native connection.
+
+If a user taps a server while another engine is connected, use a safe transition:
+
+1. Confirm or initiate disconnect from the previous engine.
+2. Wait for native confirmation that it has stopped.
+3. Start the selected protocol with the chosen server.
+4. Observe the actual native state.
+5. Verify internet traffic.
+6. Show the result.
+
+Do not start two VPN engines simultaneously.
+
+Protocol compatibility
+
+The server list must be filtered using actual protocol compatibility.
+
+Do not send a VLESS configuration to OpenVPN or treat an ordinary WireGuard profile as a valid AmneziaWG profile unless the existing native implementation confirms compatibility.
+
+If a configuration is unsupported, show a clear explanation and exclude it from automatic selection.
+
+7. CONNECTION EXPERIENCE AND ANIMATIONS
+
+Implement an elegant connection-state presentation.
+
+Connecting
+
+Show:
+
+* A subtle animated pulse.
+* A connection-progress indicator.
+* The chosen server.
+* A short, understandable status message.
+
+Avoid fake percentage progress if the engine does not provide measurable progress.
+
+Connected
+
+Show:
+
+* A distinct active-state treatment.
+* A restrained animated connection visual.
+* Selected protocol.
+* Server location or name.
+* Real connection duration.
+* A disconnect control.
+
+Failure
+
+Show:
+
+* A concise error message.
+* A retry action.
+* An option to choose another server.
+* A diagnostics shortcut when useful.
+
+Never expose sensitive native logs in the normal error message.
+
+Motion
+
+Use the existing animation library where possible, such as Reanimated or the project’s current supported animation solution.
+
+Implement:
+
+* Protocol selection transitions.
+* Server selection transitions.
+* Connection-state animation.
+* Screen transitions.
+* Subtle button feedback.
+* Reduced-motion support.
+
+Animations must not block connection actions or interfere with accessibility.
+
+8. SERVER IMPORT AND CONFIGURATION PRIVACY
+
+Normal users should not see configuration details.
+
+Keep configuration management internal to the application.
+
+Retain existing subscription retrieval and parsing.
+
+If users need to import a subscription, provide a simple interface with:
+
+* Add subscription.
+* Refresh subscription.
+* Import supported profile.
+* Import success or failure.
+* Clear error explanations.
+
+Keep raw links, keys, UUIDs, and configuration data out of the visible server list.
+
+Do not delete existing import functionality merely because the new UI does not expose configuration details on the main screens.
+
+If advanced diagnostics or profile management already exists, place it in an appropriate advanced section instead of the main connection experience.
+
+9. ACCOUNT AND SUBSCRIPTION SCREEN
+
+Redesign the account page using the existing authentication and subscription data.
+
+Include only information the backend actually supplies, such as:
+
+* Account information.
+* Subscription status.
+* Expiration date.
+* Available usage information.
+* Manage subscription action, if supported.
+* Application settings.
+* Privacy information.
+* Support/contact action, if configured.
+* Sign out.
+
+Do not fabricate subscription plans, account data, traffic limits, or payment integrations.
+
+Preserve OTP login and the current backend API contracts.
+
+10. ACTIVITY SCREEN
+
+Create a useful connection-history page.
+
+If real connection history exists, show:
+
+* Protocol.
+* Server.
+* Start time.
+* Duration.
+* Connection outcome.
+
+If no persistent history exists, implement a minimal privacy-safe local history using the project’s supported storage layer.
+
+Never save secrets, full configuration links, passwords, private keys, or complete diagnostic payloads in the history.
+
+Handle empty states elegantly.
+
+11. SETTINGS
+
+Provide a clean settings page for:
+
+* Auto-connect behavior, if supported.
+* Default protocol.
+* Connection verification.
+* Notifications, if implemented.
+* Appearance.
+* Diagnostics export.
+* Privacy.
+* About PulseVPN.
+
+Every setting must have real behavior. Do not add toggles that do nothing.
+
+Respect the actual capabilities of the installed Android VPN engine and Expo configuration.
+
+12. REAL CONNECTION INTEGRATION
+
+Before implementing the new UI, map every existing connection method to the actual native engine.
+
+Reuse and repair existing methods instead of replacing them with fake implementations.
+
+Requirements:
+
+* Smart Connect uses real server inventory.
+* Manual Connect uses the exact selected profile.
+* Native VPN permission is requested only when needed.
+* Connection status comes from native callbacks and verified traffic.
+* Disconnect stops the correct native engine.
+* Protocol switching stops the previous engine first.
+* Failed attempts expose useful errors.
+* Rapid taps cannot start multiple concurrent sessions.
+* Stale callbacks cannot overwrite the current connection state.
+* A service start or TUN establishment alone never means internet connectivity is verified.
+* Existing subscription fetching and authentication continue to work.
+
+Do not remove the existing HTTPS tunnel-connectivity verification. Improve its reliability if necessary.
+
+If a native engine is broken, identify and repair the native issue rather than hiding it behind a redesigned interface.
+
+13. IMPLEMENTATION REQUIREMENTS
+
+Inspect the actual project structure, dependencies, navigation, state management, and supported Expo SDK before selecting implementation details.
+
+Use the project’s existing compatible technology stack.
+
+Prefer reusable components:
+
+* ProtocolTile
+* ProtocolIllustration
+* ServerRow
+* ServerList
+* ConnectionOrb
+* ConnectionStatus
+* SmartConnectButton
+* ManualConnectButton
+* BottomNavigation
+* EmptyState
+* ErrorState
+
+Use a consistent design-token system.
+
+Avoid unnecessary dependencies. Do not upgrade major dependencies without a demonstrated need.
+
+Keep native Android modules and VPN service integration intact.
+
+Use TypeScript types for protocols, server profiles, connection states, and connection results.
+
+Ensure all screens handle loading, empty, error, offline, disconnected, connecting, connected, and reconnecting states.
+
+14. TESTS AND FINAL VALIDATION
+
+After implementing the redesign:
+
+1. Run TypeScript checks.
+2. Run existing unit tests.
+3. Add UI and state-management tests.
+4. Test protocol selection.
+5. Test Smart Connect.
+6. Test manual server selection.
+7. Test switching protocols.
+8. Test disconnect and reconnect.
+9. Test server-list loading and subscription refresh.
+10. Test empty and unsupported server lists.
+11. Test permission denial.
+12. Test native connection failures.
+13. Test stale callbacks.
+14. Build the Android release APK if possible.
+
+Verify that the final app has no broken buttons, placeholder screens, mock connection states, fake server data, or unimplemented settings.
+
+Do not claim a native VPN connection works just because the UI changes correctly.
+
+15. DELIVERABLE
+
+Make all changes directly in the existing repository.
+
+Deliver:
+
+* The fully redesigned application.
+* All new reusable UI components.
+* The updated navigation.
+* Real protocol selection and server-selection flows.
+* Working Smart Connect and Manual Connect.
+* Integration with the actual native VPN engines.
+* Updated tests.
+* Android build results.
+* A list of files modified.
+* Any remaining issues that require a real device or working VPN server.
+
+Start by inspecting the existing repository and connection architecture. Then implement the full UI/UX redesign and connect every screen to the real application state. Do not stop at a design proposal or static mockup.
