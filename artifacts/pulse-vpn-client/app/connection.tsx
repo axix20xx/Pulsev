@@ -139,7 +139,7 @@ function connectivityFailureMessage(report: TunnelConnectivityReport) {
 async function waitForXrayTraffic(
   expectedAttemptId: string,
   isCurrentAttempt: () => boolean = () => true,
-  timeoutMs = 18_000,
+  timeoutMs = 8_000,
 ): Promise<TunnelConnectivityReport> {
   const deadline = Date.now() + timeoutMs;
   let latestReport: TunnelConnectivityReport | null = null;
@@ -171,7 +171,9 @@ async function waitForXrayTraffic(
   if (state.state === 'error') {
     throw new Error(state.error ?? 'موتور sing-box نتوانست اتصال را برقرار کند.');
   }
-  if (latestReport) throw new Error(connectivityFailureMessage(latestReport));
+  // A DNS/HTTPS health probe is independent from the native engine lifecycle.
+  // Keep an established tunnel running and surface the failed probe separately.
+  if (latestReport) return latestReport;
   throw new Error('موتور sing-box در زمان مجاز به وضعیت آماده نرسید.');
 }
 
@@ -391,17 +393,20 @@ export default function ConnectionScreen() {
     : activeProtocol
       ? nativeStateIsConnected(activeState as WireGuardVpnStatus)
       : false;
-  const connected = nativeTunnelActive && trafficReport?.passed === true;
+  // Native tunnel state and Internet reachability are separate facts. A failed
+  // DNS/HTTPS health probe must not make an established OpenVPN/WireGuard/
+  // sing-box tunnel appear disconnected.
+  const connected = nativeTunnelActive;
   const connecting = activeProtocol === 'v2ray'
     ? xrayStatus.state === 'connecting' || xrayStatus.state === 'preparing' || xrayStatus.state === 'disconnecting'
     : activeProtocol
       ? nativeStateIsConnecting(activeState as WireGuardVpnStatus)
       : false;
-  const trafficVerificationPending = nativeTunnelActive && !connected
+  const trafficVerificationPending = nativeTunnelActive
     && (!trafficReport || trafficTesting) && !trafficTestError;
   const trafficVerificationFailed = nativeTunnelActive && !trafficTesting
     && (!!trafficTestError || (!!trafficReport && !trafficReport.passed));
-  const visualConnecting = connecting || trafficVerificationPending || (nativeTunnelActive && trafficTesting);
+  const visualConnecting = connecting;
   const isRequestedProtocolActive = !!protocol && activeProtocol === protocol;
   const activeProfileId = activeProtocol === 'v2ray' ? xrayStatus.profileId : (activeState as WireGuardVpnStatus | null)?.profileId;
   const activeProfileName = activeProtocol === 'v2ray' ? xrayStatus.profileName : (activeState as WireGuardVpnStatus | null)?.profileName;
@@ -531,7 +536,7 @@ export default function ConnectionScreen() {
           }
           const candidates = selectedServer
             ? [selectedServer]
-            : rankedServers.slice(0, Math.min(8, rankedServers.length));
+            : rankedServers.slice(0, Math.min(3, rankedServers.length));
           setPhase('connecting');
           setAttemptStartedAt(Date.now());
           setTrafficReport(null);
@@ -539,7 +544,10 @@ export default function ConnectionScreen() {
           for (const [index, server] of candidates.entries()) {
             if (!isCurrentAttempt()) return;
             setSelectedXrayServerId(server.id);
+            setAttemptStartedAt(Date.now());
             if (index > 0) setPhase('connecting');
+            setTrafficReport(null);
+            setTrafficTestError(null);
             let activeAttemptId: string | null = null;
             try {
               const state = await connectXray(item.id, server.name, server.link);
@@ -555,6 +563,13 @@ export default function ConnectionScreen() {
               setTrafficReport(report);
               setAttemptStartedAt(null);
               setPhase('monitoring');
+              if (!report.passed && index < candidates.length - 1) {
+                failures.push(`${server.name}: ${connectivityFailureMessage(report)}`);
+                await disconnectXray().catch(() => undefined);
+                if (!isCurrentAttempt()) return;
+                setXrayStatus({ state: 'disconnected' });
+                continue;
+              }
               return;
             } catch (error) {
               if (!isCurrentAttempt()) return;
@@ -766,15 +781,20 @@ export default function ConnectionScreen() {
   const statusColor = connected ? c.success
     : actionError || statusError || trafficVerificationFailed || phase === 'error' ? c.destructive
       : visualConnecting || phase === 'preparing' ? c.warning : c.mutedForeground;
-  const statusTitle = connected ? 'اتصال امن برقرار است'
+  const statusTitle = connected && trafficReport?.passed ? 'اتصال امن برقرار است'
+    : connected ? 'تونل VPN متصل است'
     : connecting ? 'در حال برقراری اتصال'
-      : nativeTunnelActive && (trafficTesting || trafficVerificationPending) ? 'در حال تأیید دسترسی اینترنت'
-        : trafficVerificationFailed ? 'تونل فعال است؛ اینترنت تأیید نشد'
+      : nativeTunnelActive && (trafficTesting || trafficVerificationPending) ? 'در حال بررسی اینترنت'
+        : trafficVerificationFailed ? 'اینترنت تأیید نشد'
           : phase === 'preparing' ? 'در حال آماده‌سازی پروفایل'
             : actionError || statusError || phase === 'error' ? 'اتصال برقرار نشد'
               : 'اتصال قطع است';
-  const statusDetail = connected
-    ? 'تونل بومی فعال است و درخواست HTTPS از مسیر VPN پاسخ داده است.'
+  const statusDetail = connected && trafficReport?.passed
+    ? 'تونل بومی فعال است و آزمون HTTPS از مسیر VPN پاسخ گرفته است.'
+    : connected && trafficVerificationFailed
+      ? 'خود تونل فعال است؛ اما آزمون اینترنت پاسخ نگرفت. این نتیجه به معنی قطع بودن موتور VPN نیست.'
+      : connected
+        ? 'تونل بومی فعال است؛ آزمون جداگانهٔ اینترنت در حال اجراست.'
     : nativeTunnelActive && (trafficTesting || trafficVerificationPending)
       ? 'موتور تونل فعال است؛ درخواست واقعی HTTPS برای تأیید عبور داده در حال بررسی است.'
       : trafficVerificationFailed
@@ -924,38 +944,38 @@ export default function ConnectionScreen() {
         ) : (
           <>
             <LinearGradient
-              colors={[c.card, c.secondary]}
+              colors={connected ? [c.surfaceDeep, c.success] : [c.surfaceDeep, c.primary]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.hero, { borderColor: c.border }]}
+              style={[styles.hero, { borderColor: `${c.onDeep}22` }]}
             >
               <View style={styles.heroTopline}>
-                <View style={[styles.statusPill, { backgroundColor: connected ? `${c.success}18` : visualConnecting ? `${c.warning}20` : trafficVerificationFailed ? `${c.destructive}14` : `${c.mutedForeground}14` }]}>
-                  <View style={[styles.liveDot, { backgroundColor: statusColor }]} />
-                  <Text style={[styles.statusPillText, { color: statusColor }]}>{connected ? 'متصل و تأییدشده' : connecting ? 'در حال اتصال' : visualConnecting ? 'تأیید اینترنت' : trafficVerificationFailed ? 'اینترنت ناموفق' : phase === 'preparing' ? 'آماده‌سازی' : 'آفلاین'}</Text>
+                <View style={[styles.statusPill, { backgroundColor: `${c.onDeep}20` }]}>
+                  <View style={[styles.liveDot, { backgroundColor: connected ? c.success : visualConnecting ? c.warning : trafficVerificationFailed ? c.warning : c.onDeep }]} />
+                  <Text style={[styles.statusPillText, { color: c.onDeep }]}>{connected ? trafficReport?.passed ? 'تونل و اینترنت فعال' : 'تونل فعال' : connecting ? 'در حال اتصال' : visualConnecting ? 'در حال اتصال' : trafficVerificationFailed ? 'بررسی اینترنت ناموفق' : phase === 'preparing' ? 'آماده‌سازی' : 'آفلاین'}</Text>
                 </View>
-                <Text style={[styles.heroKicker, { color: c.mutedForeground }]}>NATIVE TUNNEL</Text>
+                <Text style={[styles.heroKicker, { color: `${c.onDeep}A6` }]}>NATIVE TUNNEL</Text>
               </View>
 
               <View style={styles.heroCenter}>
-                <View style={[styles.orbitOuter, { borderColor: `${statusColor}38` }]}>
-                  <View style={[styles.orbitInner, { backgroundColor: connected ? `${c.success}16` : c.accent }]}>
-                    {visualConnecting ? <ActivityIndicator color={statusColor} size="large" /> : <Feather name={connected ? 'shield' : protocol ? protocolIcons[protocol] : 'shield'} size={34} color={statusColor} />}
+                <View style={[styles.orbitOuter, { borderColor: `${c.onDeep}44` }]}>
+                  <View style={[styles.orbitInner, { backgroundColor: `${c.onDeep}20` }]}>
+                    {visualConnecting ? <ActivityIndicator color={c.onDeep} size="large" /> : <Feather name={connected ? 'shield' : protocol ? protocolIcons[protocol] : 'shield'} size={34} color={c.onDeep} />}
                   </View>
                 </View>
-                <Text style={[styles.statusTitle, { color: c.foreground }]}>{statusTitle}</Text>
-                <Text style={[styles.statusDetail, { color: c.mutedForeground }]}>{statusDetail}</Text>
+                <Text style={[styles.statusTitle, { color: c.onDeep }]}>{statusTitle}</Text>
+                <Text style={[styles.statusDetail, { color: `${c.onDeep}C7` }]}>{statusDetail}</Text>
               </View>
 
-              <View style={[styles.heroFooter, { borderTopColor: c.border }]}>
+              <View style={[styles.heroFooter, { borderTopColor: `${c.onDeep}35` }]}>
                 <View style={styles.heroMeta}>
-                  <Text style={[styles.metaLabel, { color: c.mutedForeground }]}>پروتکل</Text>
-                  <Text style={[styles.metaValue, { color: c.foreground }]}>{activeProtocol ? protocolNames[activeProtocol] : protocol ? protocolNames[protocol] : '—'}</Text>
+                  <Text style={[styles.metaLabel, { color: `${c.onDeep}9C` }]}>پروتکل</Text>
+                  <Text style={[styles.metaValue, { color: c.onDeep }]}>{activeProtocol ? protocolNames[activeProtocol] : protocol ? protocolNames[protocol] : '—'}</Text>
                 </View>
-                <View style={[styles.metaDivider, { backgroundColor: c.border }]} />
+                <View style={[styles.metaDivider, { backgroundColor: `${c.onDeep}48` }]} />
                 <View style={styles.heroMeta}>
-                  <Text style={[styles.metaLabel, { color: c.mutedForeground }]}>مدت اتصال</Text>
-                  <Ltr style={[styles.metaValue, { color: c.foreground }]}>{duration ?? (connecting ? '…' : '—')}</Ltr>
+                  <Text style={[styles.metaLabel, { color: `${c.onDeep}9C` }]}>مدت اتصال</Text>
+                  <Ltr style={[styles.metaValue, { color: c.onDeep }]}>{duration ?? (connecting ? '…' : '—')}</Ltr>
                 </View>
               </View>
             </LinearGradient>
@@ -1044,7 +1064,7 @@ export default function ConnectionScreen() {
             {slowAttempt ? (
               <View style={[styles.notice, { backgroundColor: `${c.warning}14`, borderColor: `${c.warning}55` }]}>
                 <Feather name="clock" size={18} color={c.warning} />
-                <Text style={[styles.noticeText, { color: c.foreground }]}>هنوز پاسخ نهایی موتور دریافت نشده. می‌توانید اتصال را همین‌جا قطع کنید؛ وضعیت «متصل» فقط پس از تأیید واقعی نمایش داده می‌شود.</Text>
+                <Text style={[styles.noticeText, { color: c.foreground }]}>هنوز پاسخ نهایی موتور دریافت نشده است. وضعیت خود تونل و نتیجهٔ آزمون اینترنت جداگانه نمایش داده می‌شوند؛ در صورت نیاز اتصال را قطع کنید.</Text>
               </View>
             ) : null}
 
@@ -1062,6 +1082,18 @@ export default function ConnectionScreen() {
                 ) : protocol && selectedStatus !== 'UNKNOWN' ? (
                   <Text style={[styles.errorCode, { color: c.mutedForeground }]}>ENGINE STATUS · {selectedStatus}</Text>
                 ) : null}
+              </View>
+            ) : null}
+
+            {connected && trafficVerificationFailed ? (
+              <View style={[styles.notice, { backgroundColor: `${c.warning}12`, borderColor: `${c.warning}55` }]}>
+                <Feather name="alert-circle" size={18} color={c.warning} />
+                <View style={{ flex: 1, gap: 5 }}>
+                  <Text style={[styles.errorTitle, { color: c.warning }]}>تونل فعال است؛ اینترنت تأیید نشد</Text>
+                  <Text selectable style={[styles.noticeText, { color: c.foreground }]}>
+                    {trafficTestError ?? (trafficReport ? connectivityFailureMessage(trafficReport) : 'آزمون HTTPS پاسخی نگرفت. وضعیت تونل از موتور بومی جداگانه گزارش می‌شود.')}
+                  </Text>
+                </View>
               </View>
             ) : null}
 

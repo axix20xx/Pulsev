@@ -165,6 +165,7 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
     fun confirmTraffic(context: Context, expectedAttemptId: String): Map<String, Any?> {
       return synchronized(lifecycleStateLock) {
         val current = status(context)
+        if (current["state"] == "connected" && current["attemptId"] == expectedAttemptId) return current
         if (current["state"] != "connecting" || current["attemptId"] != expectedAttemptId) return current
         val now = System.currentTimeMillis()
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
@@ -305,7 +306,9 @@ class PulseSingBoxVpnService : VpnService(), PlatformInterface, CommandServerHan
       if (!tunnelReady || tunDescriptor == null) {
         error("sing-box started without establishing the Android VPN interface.")
       }
-      publishState("connecting", null, startAttemptId)
+      // The engine and Android TUN are now running. Report this as a live
+      // tunnel; Internet reachability is tested independently by the client.
+      publishState("connected", null, startAttemptId)
       Log.i(TAG, "sing-box tunnel established for profile ${startProfileId ?: "unknown"}")
     } catch (error: Throwable) {
       if (!isCurrentAttempt(generation, startAttemptId)) {

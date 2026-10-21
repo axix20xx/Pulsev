@@ -1962,3 +1962,45 @@ mtime_ms = 1792583552717
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/bf68b25b-ad51-4a51-9be8-dc589c1868e6/badaec3f-7435-4fef-b150-8d700675b700"
 storage_version_token = "1792583657835952"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "pBxLq3oPTfNP-PzGT7Unl"
+uri = "file://generated-artifacts/PulseVPN-Android-1.0.27-arm64.apk"
+type = "unspecified"
+title = "Pulse VPN Android 1.0.27 APK (ARM64)"
+description = "Direct-install Android test build; signed with the same workspace certificate as 1.0.26."
+logical_id = "2bf3297c-9200-4143-97de-a530fde0495e"
+content_hash = "sha256:3758fe4eb93e9fe9cb1f407b9cd0c5d253b3e02d5c5757e1ea950abf800309ba"
+size = 70181993
+mtime_ms = 1792588387185
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2bf3297c-9200-4143-97de-a530fde0495e/45777ea3-a0b3-4d0e-98f3-09b9f2f7ce7c"
+storage_version_token = "1792588540976412"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "IQjUC3qT-uvHDoVF1wOMI"
+uri = "file://generated-artifacts/PulseVPN-Android-1.0.27-source.zip"
+type = "unspecified"
+title = "Pulse VPN 1.0.27 Source ZIP"
+description = "App and native Android VPN-engine sources with build instructions and third-party notices. Local credentials and generated build outputs are excluded."
+logical_id = "98275f8d-aa0d-48a4-961c-5346d2d89cea"
+content_hash = "sha256:5b0c1d7f3ac1112bfa84bcebd44a5c4db39130f8053f9fb7d0cccf16269c6206"
+size = 2450982
+mtime_ms = 1792588115653
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/98275f8d-aa0d-48a4-961c-5346d2d89cea/4cbc8e19-da42-482b-bfc7-007cae54bcbd"
+storage_version_token = "1792588541827122"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "DhBdMwC31zrm_zHZZpvi4"
+uri = "file://generated-artifacts/PulseVPN-Android-1.0.27-release.zip"
+type = "unspecified"
+title = "Pulse VPN 1.0.27 Release ZIP"
+description = "Contains the Android APK, source ZIP, and installation/build notes."
+logical_id = "26e57273-4751-4c3b-b101-4c2804ad887d"
+content_hash = "sha256:f9d5ce90cc16ab0a8b58e8ebec6c1581a606dc6b3fbc5b5df2deabdb657e59b0"
+size = 68114051
+mtime_ms = 1792588524773
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/26e57273-4751-4c3b-b101-4c2804ad887d/8685d4fb-f6c0-452f-869e-c0222b0b5b5b"
+storage_version_token = "1792588543035138"
+content_type = "application/octet-stream"

@@ -144,14 +144,14 @@ class PulseVpnEngineModule : Module() {
     AsyncFunction("confirmSingBoxTraffic") { expectedAttemptId: String ->
       val context = requireContext()
       val before = PulseSingBoxVpnService.status(context)
-      if (before["state"] != "connecting" || before["attemptId"] != expectedAttemptId) {
+      if (before["state"] !in setOf("connecting", "connected") || before["attemptId"] != expectedAttemptId) {
         return@AsyncFunction before
       }
       val report = probeTunnelConnectivity()
       val after = PulseSingBoxVpnService.status(context)
       if (
         report["passed"] != true ||
-        after["state"] != "connecting" ||
+        after["state"] !in setOf("connecting", "connected") ||
         after["attemptId"] != expectedAttemptId
       ) {
         PulseDiagnostics.log(

@@ -20,3 +20,9 @@ For sing-box, treat persisted status as a cache, not proof that its Android serv
 **Why:** SharedPreferences survive app-process death, but the foreground service and its TUN descriptor do not necessarily survive with them.
 
 **How to apply:** Record the service-owning process when publishing tunnel state and clear stale active states before displaying them; keep requiring a non-empty tunnel response for verified connectivity.
+
+Show native engine/tunnel state separately from Internet reachability. A running engine and established TUN may be labeled “tunnel active,” but only a successful payload-bearing HTTPS probe may be labeled “Internet verified.” A failed probe must remain visible and must not silently turn a real OpenVPN/WireGuard tunnel into “disconnected.”
+
+**Why:** Platform VPN icons and engine lifecycle events do not prove user traffic can reach the Internet; conversely, a DNS/HTTPS probe failure can be independent from an established tunnel and must not misreport its lifecycle.
+
+**How to apply:** Keep engine state authoritative for tunnel lifecycle, run reachability tests as a separate status, and preserve probe errors. For sing-box automatic server selection, try a small set of fast candidates using real traffic checks; if all fail, report the failed test rather than claiming Internet access.

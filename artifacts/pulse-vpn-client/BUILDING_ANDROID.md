@@ -24,6 +24,8 @@ configuration.
 The build scripts default Java's temporary files to `.cache/pulse-tmp` in the
 workspace to avoid restricted system-temp storage; set `PULSE_BUILD_TMPDIR` only
 if a different writable location is needed.
+The Gradle worker count is intentionally limited; keep the Gradle heap at 3 GiB
+for DEX merging, which can exceed the default 1 GiB heap in this app.
 
 OpenVPN integration licensing and corresponding source references are in
 `THIRD_PARTY_NOTICES.md` and `third_party/`.
