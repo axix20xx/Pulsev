@@ -28,9 +28,7 @@ import {
   connectWireGuard,
   connectXray,
   confirmXrayTraffic,
-  disconnectAmneziaWg,
-  disconnectOpenVpn,
-  disconnectWireGuard,
+  disconnectAllPulseTunnels,
   disconnectXray,
   getAmneziaWgStatus,
   getOpenVpnStatus,
@@ -180,22 +178,6 @@ async function waitForXrayTraffic(
   throw new Error('موتور sing-box در زمان مجاز به وضعیت آماده نرسید.');
 }
 
-async function disconnectTunnel(protocol: Protocol) {
-  if (protocol === 'v2ray') await disconnectXray();
-  else if (protocol === 'openvpn') await disconnectOpenVpn();
-  else if (protocol === 'wireguard') await disconnectWireGuard();
-  else await disconnectAmneziaWg();
-
-  if (protocol === 'v2ray' || protocol === 'openvpn') return;
-  const getStatus = protocol === 'wireguard' ? getWireGuardStatus : getAmneziaWgStatus;
-  const deadline = Date.now() + 10_000;
-  while (Date.now() < deadline) {
-    if (!nativeStateIsConnected(await getStatus())) return;
-    await new Promise((resolve) => setTimeout(resolve, 150));
-  }
-  throw new Error(`The ${protocolNames[protocol]} tunnel did not stop; another protocol was not started.`);
-}
-
 export default function ConnectionScreen() {
   const c = useColors();
   const router = useRouter();
@@ -243,6 +225,7 @@ export default function ConnectionScreen() {
   const [xrayPingResults, setXrayPingResults] = useState<Record<string, number | null>>({});
   const [isPingingXray, setIsPingingXray] = useState(false);
   const attemptKeyRef = useRef<string | null>(null);
+  const suppressedConnectionKeyRef = useRef<string | null>(null);
   const connectionAttemptGenerationRef = useRef(0);
   const timedOutAttemptRef = useRef<number | null>(null);
   const [trafficReport, setTrafficReport] = useState<TunnelConnectivityReport | null>(null);
@@ -464,8 +447,18 @@ export default function ConnectionScreen() {
         : protocol === 'amneziawg' ? amnezia.error : undefined;
 
   useEffect(() => {
+    if (!protocol || !item || !profileLoading) return;
+    const timer = setTimeout(() => {
+      setActionError('دریافت تنظیمات سرور بیش از ۳۰ ثانیه طول کشید. اتصال اینترنت را بررسی و دوباره تلاش کنید.');
+      setPhase('error');
+    }, 30_000);
+    return () => clearTimeout(timer);
+  }, [item?.id, profileLoading, protocol, retry]);
+
+  useEffect(() => {
     if (!protocol || !item || !token || !nativeReady || profileLoading) return;
     const key = `${item.id}:${protocol}:${locationName}:${retry}`;
+    if (suppressedConnectionKeyRef.current === key) return;
     if (attemptKeyRef.current === key) return;
 
     if (profileError) {
@@ -508,35 +501,16 @@ export default function ConnectionScreen() {
         setDisconnecting(true);
         void (async () => {
           try {
-            await disconnectTunnel(activeProtocol);
-            const deadline = Date.now() + 10_000;
-            let tunnelStopped = false;
-            while (Date.now() < deadline) {
-              const [xray, openvpn, wg, awg] = await Promise.all([
-                getXrayState(), getOpenVpnStatus(), getWireGuardStatus(), getAmneziaWgStatus(),
-              ]);
-              if (!isCurrentAttempt()) return;
-              setXrayStatus(xray);
-              setOpenVpnStatus(openvpn);
-              setWireguardStatus(wg);
-              setAmneziaStatus(awg);
-              const stillActive = activeProtocol === 'v2ray'
-                ? ['connected', 'connecting', 'disconnecting'].includes(xray.state)
-                : activeProtocol === 'openvpn'
-                  ? nativeStateIsConnected(openvpn) || nativeStateIsConnecting(openvpn)
-                  : activeProtocol === 'wireguard'
-                    ? nativeStateIsConnected(wg) || nativeStateIsConnecting(wg)
-                    : nativeStateIsConnected(awg) || nativeStateIsConnecting(awg);
-              if (!stillActive) {
-                tunnelStopped = true;
-                break;
-              }
-              await new Promise((resolve) => setTimeout(resolve, 180));
-            }
+            await disconnectAllPulseTunnels();
             if (!isCurrentAttempt()) return;
-            if (!tunnelStopped) {
-              throw new Error(`اتصال ${protocolNames[activeProtocol]} قطع نشد؛ پروتکل جدید شروع نشد.`);
-            }
+            const [xray, openvpn, wg, awg] = await Promise.all([
+              getXrayState(), getOpenVpnStatus(), getWireGuardStatus(), getAmneziaWgStatus(),
+            ]);
+            if (!isCurrentAttempt()) return;
+            setXrayStatus(xray);
+            setOpenVpnStatus(openvpn);
+            setWireguardStatus(wg);
+            setAmneziaStatus(awg);
             attemptKeyRef.current = null;
             setAttemptStartedAt(null);
             setPhase('loading');
@@ -899,7 +873,7 @@ export default function ConnectionScreen() {
     ) return;
     const attemptId = attemptStartedAt;
     if (timedOutAttemptRef.current === attemptId) return;
-    const remainingMs = Math.max(0, 75_000 - (Date.now() - attemptId));
+    const remainingMs = Math.max(0, 45_000 - (Date.now() - attemptId));
     const timer = setTimeout(() => {
       if (timedOutAttemptRef.current === attemptId) return;
       timedOutAttemptRef.current = attemptId;
@@ -908,7 +882,7 @@ export default function ConnectionScreen() {
           ? ` آخرین وضعیت موتور: ${openVpnStatus.diagnostic}`
           : '';
       const timeoutMessage =
-        `مهلت اتصال ${protocolNames[protocol]} پس از ۷۵ ثانیه تمام شد. اتصال متوقف شد؛ دسترسی شبکه، مشخصات حساب و سرور انتخاب‌شده را بررسی کنید.${latestOpenVpnDiagnostic}`;
+        `مهلت اتصال ${protocolNames[protocol]} پس از ۴۵ ثانیه تمام شد. اتصال متوقف شد؛ دسترسی شبکه، مشخصات حساب و سرور انتخاب‌شده را بررسی کنید.${latestOpenVpnDiagnostic}`;
       setActionError(timeoutMessage);
       stopStabilityTest();
       setDisconnecting(true);
@@ -916,7 +890,7 @@ export default function ConnectionScreen() {
       void (async () => {
         let finalMessage = timeoutMessage;
         try {
-          await disconnectTunnel(protocol);
+          await disconnectAllPulseTunnels();
         } catch (error) {
           finalMessage += `\n${getErrorMessage(error, token)}`;
         }
@@ -940,8 +914,9 @@ export default function ConnectionScreen() {
   }, [connecting, connected, phase, actionError, statusError, attemptStartedAt, protocol, token, stopStabilityTest, openVpnStatus.diagnostic]);
 
   const disconnectActive = async () => {
-    const target = activeProtocol ?? protocol;
-    if (!target) return;
+    if (disconnecting) return;
+    const currentKey = item && protocol ? `${item.id}:${protocol}:${locationName}:${retry}` : null;
+    if (currentKey) suppressedConnectionKeyRef.current = currentKey;
     connectionAttemptGenerationRef.current += 1;
     attemptKeyRef.current = null;
     stopStabilityTest();
@@ -951,7 +926,7 @@ export default function ConnectionScreen() {
     setActionError(null);
     setPhase('disconnecting');
     try {
-      await disconnectTunnel(target);
+      await disconnectAllPulseTunnels();
       setPhase('monitoring');
     } catch (error) {
       setActionError(getErrorMessage(error, token));
@@ -973,6 +948,7 @@ export default function ConnectionScreen() {
 
   const retryConnection = () => {
     connectionAttemptGenerationRef.current += 1;
+    suppressedConnectionKeyRef.current = null;
     setTrafficReport(null);
     setTrafficTestError(null);
     attemptKeyRef.current = null;
@@ -981,6 +957,10 @@ export default function ConnectionScreen() {
     setAttemptStartedAt(null);
     setPhase('loading');
     setRetry((value) => value + 1);
+    if (protocol === 'v2ray') void feed.refetch();
+    else if (protocol === 'openvpn') void openVpn.refetch();
+    else if (protocol === 'wireguard') void wireguard.refetch();
+    else if (protocol === 'amneziawg') void amnezia.refetch();
   };
 
   const protocolAvailable = protocol && item

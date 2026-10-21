@@ -27,8 +27,8 @@ Show native engine/tunnel state separately from Internet reachability. A running
 
 **How to apply:** Keep engine state authoritative for tunnel lifecycle, run reachability tests as a separate status, and preserve probe errors. For sing-box automatic server selection, try a small set of fast candidates using real traffic checks; if all fail, report the failed test rather than claiming Internet access.
 
-When a user switches protocols, stop all Pulse-owned tunnels and wait for Android's VPN slot to be released before starting the selected engine. Never stop a VPN owned by another app.
+When a user switches protocols or explicitly disconnects, stop every Pulse-owned tunnel and wait until all engine states report stopped. Never stop a VPN owned by another app.
 
-**Why:** The user explicitly expects a protocol change to stop the previous tunnel first, and Android only permits one active VPN service per device.
+**Why:** The user expects both disconnect and protocol changes to stop active Pulse tunnels. Native status fields can arrive out of sync, and Android only permits one active VPN service per device.
 
-**How to apply:** Enforce handoff in both protocol-selection UI and the native connection lock; verify engine states and VPN-network release, then fail clearly if another app still owns the slot.
+**How to apply:** Invalidate pending attempts and suppress automatic reconnect after a user cancellation. Enforce handoff in protocol-selection UI and the native connection lock; issue stop requests only to Pulse engines, verify every engine state with a deadline, then fail clearly if another app still owns the slot.

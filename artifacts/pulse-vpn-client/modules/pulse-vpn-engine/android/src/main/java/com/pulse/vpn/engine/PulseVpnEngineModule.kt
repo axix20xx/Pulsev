@@ -687,18 +687,20 @@ class PulseVpnEngineModule : Module() {
   private fun stopWireGuardIfRunning() {
     val backend = wireGuardBackend ?: return
     val tunnel = wireGuardTunnel ?: return
-    val config = wireGuardConfig ?: return
-    if (backend.getState(tunnel) == WireGuardTunnel.State.UP) {
-      backend.setState(tunnel, WireGuardTunnel.State.DOWN, config)
+    if (backend.getState(tunnel) != WireGuardTunnel.State.DOWN) {
+      backend.setState(tunnel, WireGuardTunnel.State.DOWN, wireGuardConfig)
+      wireGuardLastState = WireGuardTunnel.State.DOWN
+      wireGuardConnectedAt = null
     }
   }
 
   private fun stopAmneziaIfRunning() {
     val backend = amneziaBackend ?: return
     val tunnel = amneziaTunnel ?: return
-    val config = amneziaConfig ?: return
-    if (backend.getState(tunnel) == AmneziaTunnel.State.UP) {
-      backend.setState(tunnel, AmneziaTunnel.State.DOWN, config)
+    if (backend.getState(tunnel) != AmneziaTunnel.State.DOWN) {
+      backend.setState(tunnel, AmneziaTunnel.State.DOWN, amneziaConfig)
+      amneziaLastState = AmneziaTunnel.State.DOWN
+      amneziaConnectedAt = null
     }
   }
 

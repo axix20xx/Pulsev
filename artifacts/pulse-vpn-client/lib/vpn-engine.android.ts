@@ -38,24 +38,52 @@ function loadPulseNativeModule(): PulseVpnNativeModule {
 
 export type VpnTunnelProtocol = 'v2ray' | 'wireguard' | 'amneziawg' | 'openvpn';
 
-const isWireGuardRunning = (status: WireGuardVpnStatus) =>
-  (status.status === 'CONNECTED' && status.tunnelState === 'ACTIVE') ||
-  ['CONNECTED', 'CONNECTING', 'DISCONNECTING'].includes(status.status) ||
-  ['CONNECTING', 'DISCONNECTING'].includes(status.tunnelState);
+const DISCONNECT_TIMEOUT_MS = 12_000;
+const STATUS_CALL_TIMEOUT_MS = 2_500;
+const DISCONNECT_POLL_INTERVAL_MS = 150;
 
-async function readTunnelStates(module: PulseVpnNativeModule) {
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${operation} timed out.`)), timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+function withinDeadline<T>(promise: Promise<T>, deadline: number, operation: string): Promise<T> {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) return Promise.reject(new Error(`${operation} timed out.`));
+  return withTimeout(promise, Math.min(remaining, STATUS_CALL_TIMEOUT_MS), operation);
+}
+
+const isWireGuardRunning = (status: WireGuardVpnStatus) =>
+  status.isConnected ||
+  ['CONNECTED', 'CONNECTING', 'DISCONNECTING'].includes(status.status) ||
+  ['ACTIVE', 'CONNECTING', 'DISCONNECTING'].includes(status.tunnelState);
+
+const nativeTunnelNeedsStop = (status: WireGuardVpnStatus) =>
+  isWireGuardRunning(status) || status.status === 'ERROR' || status.tunnelState === 'ERROR';
+
+const isXrayRunning = (state: XrayVpnState) =>
+  ['connected', 'connecting', 'preparing', 'disconnecting'].includes(state.state);
+
+async function readTunnelStates(module: PulseVpnNativeModule, deadline = Date.now() + DISCONNECT_TIMEOUT_MS) {
   const [xray, openvpn, wireguard, amneziawg] = await Promise.all([
-    module.getSingBoxStatus(),
-    module.getOpenVpnStatus(),
-    module.getWireGuardStatus(),
-    module.getAmneziaWgStatus(),
+    withinDeadline(module.getSingBoxStatus(), deadline, 'V2Ray status check'),
+    withinDeadline(module.getOpenVpnStatus(), deadline, 'OpenVPN status check'),
+    withinDeadline(module.getWireGuardStatus(), deadline, 'WireGuard status check'),
+    withinDeadline(module.getAmneziaWgStatus(), deadline, 'AmneziaWG status check'),
   ]);
   return { xray, openvpn, wireguard, amneziawg };
 }
 
 function tunnelIsRunning(protocol: VpnTunnelProtocol, states: Awaited<ReturnType<typeof readTunnelStates>>) {
   if (protocol === 'v2ray') {
-    return ['connected', 'connecting', 'preparing', 'disconnecting'].includes(states.xray.state);
+    return isXrayRunning(states.xray);
   }
   const state = protocol === 'openvpn' ? states.openvpn
     : protocol === 'wireguard' ? states.wireguard
@@ -63,38 +91,46 @@ function tunnelIsRunning(protocol: VpnTunnelProtocol, states: Awaited<ReturnType
   return isWireGuardRunning(state);
 }
 
-async function disconnectProtocol(module: PulseVpnNativeModule, protocol: VpnTunnelProtocol) {
+function tunnelNeedsStop(protocol: VpnTunnelProtocol, states: Awaited<ReturnType<typeof readTunnelStates>>) {
+  if (protocol === 'v2ray') return states.xray.state !== 'disconnected';
+  const state = protocol === 'openvpn' ? states.openvpn
+    : protocol === 'wireguard' ? states.wireguard
+      : states.amneziawg;
+  return nativeTunnelNeedsStop(state);
+}
+
+async function disconnectProtocol(
+  module: PulseVpnNativeModule,
+  protocol: VpnTunnelProtocol,
+  deadline = Date.now() + DISCONNECT_TIMEOUT_MS,
+) {
   if (protocol === 'v2ray') {
-    const state = await module.getSingBoxStatus();
-    if (state.state !== 'disconnected') {
-      await module.disconnectSingBox();
-      const deadline = Date.now() + 10_000;
-      while (Date.now() < deadline) {
-        if ((await module.getSingBoxStatus()).state === 'disconnected') return;
-        await new Promise((resolve) => setTimeout(resolve, 150));
-      }
-      throw new Error('The previous V2Ray tunnel did not stop; the new protocol was not started.');
+    const initial = await withinDeadline(module.getSingBoxStatus(), deadline, 'V2Ray status check');
+    if (initial.state === 'disconnected') return;
+    await withinDeadline(module.disconnectSingBox(), deadline, 'V2Ray disconnect');
+    while (Date.now() < deadline) {
+      if (!isXrayRunning(await withinDeadline(module.getSingBoxStatus(), deadline, 'V2Ray status check'))) return;
+      await new Promise((resolve) => setTimeout(resolve, DISCONNECT_POLL_INTERVAL_MS));
     }
-    return;
+    throw new Error('The V2Ray tunnel did not stop within the allowed time.');
   }
   if (protocol === 'openvpn') {
-    await stopOpenVpnAndWait(module);
+    await stopOpenVpnAndWait(module, deadline);
     return;
   }
+  const getStatus = protocol === 'wireguard' ? module.getWireGuardStatus : module.getAmneziaWgStatus;
+  if (!nativeTunnelNeedsStop(await withinDeadline(getStatus(), deadline, `${protocol} status check`))) return;
   if (protocol === 'wireguard') {
-    await module.disconnectWireGuard();
+    await withinDeadline(module.disconnectWireGuard(), deadline, 'WireGuard disconnect');
   } else {
-    await module.disconnectAmneziaWg();
+    await withinDeadline(module.disconnectAmneziaWg(), deadline, 'AmneziaWG disconnect');
   }
-  const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
-    const state = protocol === 'wireguard'
-      ? await module.getWireGuardStatus()
-      : await module.getAmneziaWgStatus();
+    const state = await withinDeadline(getStatus(), deadline, `${protocol} status check`);
     if (!isWireGuardRunning(state)) return;
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, DISCONNECT_POLL_INTERVAL_MS));
   }
-  throw new Error(`The previous ${protocol === 'wireguard' ? 'WireGuard' : 'AmneziaWG'} tunnel did not stop; the new protocol was not started.`);
+  throw new Error(`${protocol === 'wireguard' ? 'WireGuard' : 'AmneziaWG'} did not confirm that its tunnel stopped.`);
 }
 
 /**
@@ -104,16 +140,42 @@ async function disconnectProtocol(module: PulseVpnNativeModule, protocol: VpnTun
  */
 export async function stopTunnelForProtocolSwitch(nextProtocol: VpnTunnelProtocol): Promise<void> {
   const module = loadPulseNativeModule();
-  const states = await readTunnelStates(module);
+  const deadline = Date.now() + DISCONNECT_TIMEOUT_MS;
+  const states = await readTunnelStates(module, deadline);
   const protocols: VpnTunnelProtocol[] = ['v2ray', 'wireguard', 'openvpn', 'amneziawg'];
   for (const protocol of protocols) {
-    if (protocol !== nextProtocol && tunnelIsRunning(protocol, states)) {
-      await disconnectProtocol(module, protocol);
+    if (protocol !== nextProtocol && tunnelNeedsStop(protocol, states)) {
+      await disconnectProtocol(module, protocol, deadline);
     }
   }
-  const latest = await readTunnelStates(module);
+  const latest = await readTunnelStates(module, deadline);
   const stillRunning = protocols.find((protocol) => protocol !== nextProtocol && tunnelIsRunning(protocol, latest));
   if (stillRunning) throw new Error(`The previous ${stillRunning} tunnel is still active; the new protocol was not started.`);
+}
+
+/**
+ * User-initiated disconnect is an app-wide action: stop every Pulse-owned
+ * engine that reports an active/transitioning tunnel, then verify all states.
+ * Other VPN apps are never addressed by these engine-specific commands.
+ */
+export async function disconnectAllPulseTunnels(): Promise<void> {
+  const module = loadPulseNativeModule();
+  const deadline = Date.now() + DISCONNECT_TIMEOUT_MS;
+  const protocols: VpnTunnelProtocol[] = ['v2ray', 'openvpn', 'wireguard', 'amneziawg'];
+  const before = await readTunnelStates(module, deadline);
+  const active = protocols.filter((protocol) => tunnelNeedsStop(protocol, before));
+  if (active.length === 0) return;
+
+  const results = await Promise.allSettled(
+    active.map((protocol) => disconnectProtocol(module, protocol, deadline)),
+  );
+  const after = await readTunnelStates(module, deadline);
+  const remaining = protocols.filter((protocol) => tunnelIsRunning(protocol, after));
+  if (remaining.length > 0) {
+    throw new Error(`Pulse could not confirm that these tunnels stopped: ${remaining.join(', ')}.`);
+  }
+  const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+  if (failure) throw failure.reason instanceof Error ? failure.reason : new Error(String(failure.reason));
 }
 
 export async function isXrayEngineAvailable(): Promise<boolean> {
@@ -125,7 +187,7 @@ export async function isXrayEngineAvailable(): Promise<boolean> {
 }
 
 export async function getXrayState(): Promise<XrayVpnState> {
-  return loadPulseNativeModule().getSingBoxStatus();
+  return withTimeout(loadPulseNativeModule().getSingBoxStatus(), STATUS_CALL_TIMEOUT_MS, 'V2Ray status check');
 }
 
 export async function confirmXrayTraffic(attemptId: string): Promise<XrayVpnState> {
@@ -219,19 +281,7 @@ export async function setTunnelTestKeepScreenOn(enabled: boolean): Promise<boole
 }
 
 export async function disconnectXray(): Promise<void> {
-  const module = loadPulseNativeModule();
-  const current = await module.getSingBoxStatus();
-  if (current.state === 'disconnected') return;
-  await module.disconnectSingBox();
-  const deadline = Date.now() + 8_000;
-  let state = await module.getSingBoxStatus();
-  while (state.state !== 'disconnected' && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    state = await module.getSingBoxStatus();
-  }
-  if (state.state !== 'disconnected') {
-    throw new Error('The sing-box V2Ray tunnel did not stop within the expected time.');
-  }
+  await disconnectProtocol(loadPulseNativeModule(), 'v2ray');
 }
 
 export async function isWireGuardEngineAvailable(): Promise<boolean> {
@@ -243,7 +293,7 @@ export async function isWireGuardEngineAvailable(): Promise<boolean> {
 }
 
 export async function getWireGuardStatus(): Promise<WireGuardVpnStatus> {
-  return loadPulseNativeModule().getWireGuardStatus();
+  return withTimeout(loadPulseNativeModule().getWireGuardStatus(), STATUS_CALL_TIMEOUT_MS, 'WireGuard status check');
 }
 
 export async function connectWireGuard(
@@ -260,7 +310,7 @@ export async function connectWireGuard(
 }
 
 export async function disconnectWireGuard(): Promise<void> {
-  await loadPulseNativeModule().disconnectWireGuard();
+  await disconnectProtocol(loadPulseNativeModule(), 'wireguard');
 }
 
 export async function isAmneziaWgEngineAvailable(): Promise<boolean> {
@@ -272,7 +322,7 @@ export async function isAmneziaWgEngineAvailable(): Promise<boolean> {
 }
 
 export async function getAmneziaWgStatus(): Promise<WireGuardVpnStatus> {
-  return loadPulseNativeModule().getAmneziaWgStatus();
+  return withTimeout(loadPulseNativeModule().getAmneziaWgStatus(), STATUS_CALL_TIMEOUT_MS, 'AmneziaWG status check');
 }
 
 export async function connectAmneziaWg(
@@ -289,7 +339,7 @@ export async function connectAmneziaWg(
 }
 
 export async function disconnectAmneziaWg(): Promise<void> {
-  await loadPulseNativeModule().disconnectAmneziaWg();
+  await disconnectProtocol(loadPulseNativeModule(), 'amneziawg');
 }
 
 export async function isOpenVpnEngineAvailable(): Promise<boolean> {
@@ -300,29 +350,26 @@ export async function isOpenVpnEngineAvailable(): Promise<boolean> {
   }
 }
 
-const OPENVPN_DISCONNECT_TIMEOUT_MS = 10_000;
-const OPENVPN_POLL_INTERVAL_MS = 150;
+async function stopOpenVpnAndWait(
+  module: ReturnType<typeof loadPulseNativeModule>,
+  deadline = Date.now() + DISCONNECT_TIMEOUT_MS,
+): Promise<void> {
+  const initial = await withinDeadline(module.getOpenVpnStatus(), deadline, 'OpenVPN status check');
+  if (!nativeTunnelNeedsStop(initial)) return;
 
-async function stopOpenVpnAndWait(module: ReturnType<typeof loadPulseNativeModule>): Promise<void> {
-  const initial = await module.getOpenVpnStatus();
-  if (initial.status === 'DISCONNECTED' || initial.tunnelState === 'INACTIVE') return;
-
-  await module.disconnectOpenVpn();
-  if (initial.status === 'UNKNOWN' && initial.tunnelState === 'UNKNOWN') return;
-
-  const deadline = Date.now() + OPENVPN_DISCONNECT_TIMEOUT_MS;
-  let status = await module.getOpenVpnStatus();
-  while (status.status !== 'DISCONNECTED' && status.tunnelState !== 'INACTIVE' && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, OPENVPN_POLL_INTERVAL_MS));
-    status = await module.getOpenVpnStatus();
+  await withinDeadline(module.disconnectOpenVpn(), deadline, 'OpenVPN disconnect');
+  let status = await withinDeadline(module.getOpenVpnStatus(), deadline, 'OpenVPN status check');
+  while (isWireGuardRunning(status) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, DISCONNECT_POLL_INTERVAL_MS));
+    status = await withinDeadline(module.getOpenVpnStatus(), deadline, 'OpenVPN status check');
   }
-  if (status.status !== 'DISCONNECTED' && status.tunnelState !== 'INACTIVE') {
+  if (isWireGuardRunning(status)) {
     throw new Error('The previous OpenVPN tunnel did not stop; the new server was not started.');
   }
 }
 
 export async function getOpenVpnStatus(): Promise<WireGuardVpnStatus> {
-  return loadPulseNativeModule().getOpenVpnStatus();
+  return withTimeout(loadPulseNativeModule().getOpenVpnStatus(), STATUS_CALL_TIMEOUT_MS, 'OpenVPN status check');
 }
 
 export async function connectOpenVpn(
@@ -348,5 +395,5 @@ export async function connectOpenVpn(
 }
 
 export async function disconnectOpenVpn(): Promise<void> {
-  await stopOpenVpnAndWait(loadPulseNativeModule());
+  await disconnectProtocol(loadPulseNativeModule(), 'openvpn');
 }

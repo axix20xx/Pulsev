@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,6 +7,7 @@ import { useGetMobileDashboard, useGetMobileSession } from '@workspace/api-clien
 import { Card, InlineState, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { useVpnPreferences, type VpnProtocol } from '@/hooks/VpnPreferences';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   getAmneziaWgStatus, getOpenVpnStatus, getWireGuardStatus, getXrayState,
   subscribeXrayState, type WireGuardVpnStatus, type XrayVpnState,
@@ -23,22 +24,37 @@ const protocols: { id: VpnProtocol; title: string; icon: keyof typeof Feather.gl
 const emptyTunnel: WireGuardVpnStatus = { status: 'UNKNOWN', tunnelState: 'UNKNOWN', isConnected: false };
 const protocolTitle = (protocol: VpnProtocol) => protocols.find((item) => item.id === protocol)?.title ?? 'VPN';
 const fa = (value: number | string) => String(value).replace(/\d/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
+const subscriptionSupports = (subscription: {
+  subscription_url?: string | null;
+  openvpn_available?: boolean;
+  wireguard_available?: boolean;
+  awg_url?: string | null;
+}, protocol: VpnProtocol) => protocol === 'v2ray'
+  ? !!subscription.subscription_url
+  : protocol === 'openvpn'
+    ? !!subscription.openvpn_available
+    : protocol === 'wireguard'
+      ? !!subscription.wireguard_available
+      : !!subscription.awg_url;
 
 export default function HomeRedesign() {
   const c = useColors();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const prefs = useVpnPreferences();
   const dashboard = useGetMobileDashboard();
   const session = useGetMobileSession();
   const subscriptions = dashboard.data?.subscriptions ?? [];
   const eligible = subscriptions.filter((item) => item.status === 'active' && Number(item.remaining_gb) > 0);
-  const selected = eligible.find((item) => item.id === prefs.subscriptionId) ?? eligible[0];
+  const selected = eligible.find((item) => item.id === prefs.subscriptionId)
+    ?? (eligible.length === 1 ? eligible[0] : undefined);
   const [xray, setXray] = useState<XrayVpnState>({ state: 'disconnected' });
   const [openvpn, setOpenvpn] = useState(emptyTunnel);
   const [wireguard, setWireguard] = useState(emptyTunnel);
   const [amnezia, setAmnezia] = useState(emptyTunnel);
   const [clock, setClock] = useState(Date.now());
   const [switchingProtocol, setSwitchingProtocol] = useState<VpnProtocol | null>(null);
+  const [subscriptionChoice, setSubscriptionChoice] = useState<{ protocol: VpnProtocol | null; smart: boolean } | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -89,12 +105,13 @@ export default function HomeRedesign() {
     ? prefs.protocol
     : protocols.find((item) => availability[item.id])?.id ?? 'v2ray';
 
-  const chooseProtocol = (protocol: VpnProtocol, smart = false) => {
+  const startProtocol = (protocol: VpnProtocol, smart: boolean, subscriptionId: string) => {
     if (busy || switchingProtocol || !availability[protocol]) return;
     setSwitchingProtocol(protocol);
     void (async () => {
       try {
         await stopTunnelForProtocolSwitch(protocol);
+        prefs.chooseSubscription(subscriptionId);
         prefs.chooseProtocol(protocol);
         router.push({ pathname: '/servers/[protocol]', params: { protocol, ...(smart ? { smart: '1' } : {}) } });
       } catch (error) {
@@ -107,6 +124,24 @@ export default function HomeRedesign() {
         setSwitchingProtocol(null);
       }
     })();
+  };
+  const chooseProtocol = (protocol: VpnProtocol, smart = false) => {
+    if (busy || switchingProtocol || !availability[protocol]) return;
+    if (eligible.length > 1) {
+      setSubscriptionChoice({ protocol, smart });
+      return;
+    }
+    const onlyEligible = eligible[0];
+    if (onlyEligible) startProtocol(protocol, smart, onlyEligible.id);
+  };
+  const chooseSubscription = (subscriptionId: string) => {
+    const subscription = eligible.find((item) => item.id === subscriptionId);
+    if (!subscription) return;
+    if (subscriptionChoice?.protocol && !subscriptionSupports(subscription, subscriptionChoice.protocol)) return;
+    const pending = subscriptionChoice;
+    prefs.chooseSubscription(subscription.id);
+    setSubscriptionChoice(null);
+    if (pending?.protocol) startProtocol(pending.protocol, pending.smart, subscription.id);
   };
   const manageActive = () => {
     if (!activeProtocol) return;
@@ -238,7 +273,13 @@ export default function HomeRedesign() {
           </Pressable>
         </View>
         {selected ? (
-          <Pressable accessibilityRole="button" testID="home-selected-subscription" onPress={() => router.push(`/profiles/${selected.id}`)}>
+          <Pressable
+            accessibilityRole="button"
+            testID="home-selected-subscription"
+            onPress={() => eligible.length > 1
+              ? setSubscriptionChoice({ protocol: null, smart: false })
+              : router.push(`/profiles/${selected.id}`)}
+          >
             <Card style={styles.subscriptionCard}>
               <View style={[styles.subscriptionGlyph, { backgroundColor: c.accent }]}><Feather name="layers" size={19} color={c.primary} /></View>
               <View style={styles.subscriptionCopy}>
@@ -252,6 +293,14 @@ export default function HomeRedesign() {
               <Feather name="chevron-left" size={16} color={c.mutedForeground} />
             </Card>
           </Pressable>
+        ) : eligible.length > 1 ? (
+          <Pressable accessibilityRole="button" testID="home-choose-subscription" onPress={() => setSubscriptionChoice({ protocol: null, smart: false })}>
+            <Card style={styles.emptyCard}>
+              <Feather name="layers" size={20} color={c.primary} />
+              <Text style={[styles.emptyText, { color: c.foreground }]}>برای اتصال، اشتراک موردنظرتان را انتخاب کنید.</Text>
+              <Feather name="chevron-left" size={16} color={c.mutedForeground} />
+            </Card>
+          </Pressable>
         ) : dashboard.isLoading ? (
           <Card style={styles.emptyCard}><ActivityIndicator color={c.primary} /><Text style={[styles.emptyText, { color: c.mutedForeground }]}>در حال دریافت اطلاعات اشتراک…</Text></Card>
         ) : (
@@ -259,6 +308,73 @@ export default function HomeRedesign() {
         )}
         {dashboard.isError ? <InlineState title="اطلاعات دریافت نشد" detail="اتصال اینترنت و نشست حساب را بررسی کنید." retry={() => void dashboard.refetch()} /> : null}
       </ScrollView>
+      <Modal
+        visible={subscriptionChoice !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSubscriptionChoice(null)}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="بستن انتخاب اشتراک"
+            testID="subscription-choice-backdrop"
+            onPress={() => setSubscriptionChoice(null)}
+            style={styles.modalScrim}
+          />
+          <View style={[styles.subscriptionSheet, { backgroundColor: c.card, borderColor: c.border, paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
+            <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
+            <Text style={[styles.sheetTitle, { color: c.foreground }]}>انتخاب اشتراک</Text>
+            <Text style={[styles.sheetDescription, { color: c.mutedForeground }]}>
+              {subscriptionChoice?.protocol
+                ? `اشتراک مورد استفاده برای ${protocolTitle(subscriptionChoice.protocol)} را انتخاب کنید.`
+                : 'اشتراکی را برای نمایش و استفاده در صفحهٔ اصلی انتخاب کنید.'}
+            </Text>
+            <ScrollView style={styles.subscriptionOptions} showsVerticalScrollIndicator={false}>
+              {eligible.map((subscription) => {
+                const supports = !subscriptionChoice?.protocol
+                  || subscriptionSupports(subscription, subscriptionChoice.protocol);
+                const isSelected = subscription.id === prefs.subscriptionId;
+                return (
+                  <Pressable
+                    key={subscription.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected, disabled: !supports }}
+                    testID={`subscription-option-${subscription.id}`}
+                    disabled={!supports}
+                    onPress={() => chooseSubscription(subscription.id)}
+                    style={({ pressed }) => [
+                      styles.subscriptionOption,
+                      {
+                        backgroundColor: isSelected ? c.secondary : c.background,
+                        borderColor: isSelected ? c.primary : c.border,
+                        opacity: !supports ? 0.45 : pressed ? 0.75 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.optionGlyph, { backgroundColor: c.accent }]}>
+                      <Feather name="layers" size={17} color={c.primary} />
+                    </View>
+                    <View style={styles.optionCopy}>
+                      <Text style={[styles.optionPlan, { color: c.foreground }]} numberOfLines={1}>{subscription.plan}</Text>
+                      <Text style={[styles.optionProvider, { color: c.mutedForeground }]} numberOfLines={1}>
+                        {subscription.provider_name} · {fa(subscription.remaining_gb)} GB
+                      </Text>
+                      {!supports && subscriptionChoice?.protocol ? (
+                        <Text style={[styles.optionUnavailable, { color: c.mutedForeground }]}>برای این پروتکل پیکربندی ندارد</Text>
+                      ) : null}
+                    </View>
+                    <Feather name={isSelected ? 'check-circle' : 'circle'} size={19} color={isSelected ? c.primary : c.mutedForeground} />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Pressable accessibilityRole="button" testID="subscription-choice-cancel" onPress={() => setSubscriptionChoice(null)} style={[styles.sheetCancel, { borderColor: c.border }]}>
+              <Text style={[styles.sheetCancelText, { color: c.foreground }]}>فعلاً نه</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -310,4 +426,19 @@ const styles = StyleSheet.create({
   usageLabel: { fontFamily: 'Inter_400Regular', fontSize: 9 },
   emptyCard: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
   emptyText: { fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'center' },
+  modalRoot: { flex: 1, justifyContent: 'flex-end' },
+  modalScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(9, 14, 34, 0.45)' },
+  subscriptionSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 1, paddingHorizontal: 20, paddingTop: 12, gap: 11, maxHeight: '82%' },
+  sheetHandle: { width: 38, height: 4, borderRadius: 3, alignSelf: 'center', marginBottom: 5 },
+  sheetTitle: { fontFamily: 'Inter_700Bold', fontSize: 19, textAlign: 'right' },
+  sheetDescription: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 18, textAlign: 'right' },
+  subscriptionOptions: { marginTop: 3, flexGrow: 0 },
+  subscriptionOption: { minHeight: 70, borderWidth: 1, borderRadius: 18, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  optionGlyph: { width: 36, height: 36, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  optionCopy: { flex: 1, alignItems: 'flex-end', gap: 4 },
+  optionPlan: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  optionProvider: { fontFamily: 'Inter_400Regular', fontSize: 10 },
+  optionUnavailable: { fontFamily: 'Inter_400Regular', fontSize: 9 },
+  sheetCancel: { minHeight: 45, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  sheetCancelText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
 });

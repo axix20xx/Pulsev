@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.tim.openvpn.OpenVpnEventStateMapperTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-21T11:00:28.772Z" hostname="repl" time="0.004">
+<testsuite name="com.tim.openvpn.OpenVpnEventStateMapperTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-21T15:54:51.455Z" hostname="repl" time="0.002">
   <properties/>
-  <testcase name="connectedSurvivesInformationalEventsUntilARealTransition" classname="com.tim.openvpn.OpenVpnEventStateMapperTest" time="0.004"/>
+  <testcase name="connectedSurvivesInformationalEventsUntilARealTransition" classname="com.tim.openvpn.OpenVpnEventStateMapperTest" time="0.001"/>
   <testcase name="mapsOnlyExplicitConnectionTransitions" classname="com.tim.openvpn.OpenVpnEventStateMapperTest" time="0.0"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>

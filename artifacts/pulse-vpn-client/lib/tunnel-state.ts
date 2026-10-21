@@ -2,7 +2,10 @@ import type { VpnProtocol } from '@/hooks/VpnPreferences';
 import type { WireGuardVpnStatus, XrayVpnState } from './vpn-engine';
 
 export function isNativeTunnelConnected(status: WireGuardVpnStatus): boolean {
-  return status.status === 'CONNECTED' && status.tunnelState === 'ACTIVE';
+  // Native engines can briefly publish the engine state and Android's TUN
+  // state in separate callbacks. Any positive native signal means the tunnel
+  // must be shown as active until both have been explicitly stopped.
+  return status.isConnected || status.status === 'CONNECTED' || status.tunnelState === 'ACTIVE';
 }
 
 export function isNativeTunnelConnecting(status: WireGuardVpnStatus): boolean {

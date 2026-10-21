@@ -38,6 +38,10 @@ export async function stopTunnelForProtocolSwitch(_nextProtocol: VpnTunnelProtoc
   return;
 }
 
+export async function disconnectAllPulseTunnels(): Promise<void> {
+  throw new Error('In-app VPN disconnection is supported only in the custom Android build.');
+}
+
 export type TunnelConnectivityEndpoint = {
   endpoint: string;
   success: boolean;

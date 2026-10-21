@@ -52,6 +52,7 @@
 - [AzadPanel V2Ray provisioning](azadpanel-v2ray.md) — use separate credentials and persist a V2Ray-only username after cross-reseller 403s for all account operations.
 - [PostgreSQL BIGINT boundaries](postgres-bigint-boundaries.md) — pg returns IDs as strings; normalize before identity guards and verify durable mappings before completing backfills.
 - [In-app VPN connection requirement](mobile-vpn-internal-connection.md) — establish tunnels in the app's native engines; never hand off to another VPN app or fake connected state.
+- [Home subscription choice](home-multi-subscription-selection.md) — ask users to pick an eligible subscription before connecting when they have multiple.
 - [Expo Android module publishing](expo-local-android-publishing.md) — Expo’s local-module plugin owns the release variant; set `versionName` and avoid duplicate `singleVariant` publishing DSL.
 - [Replit Android build environment](replit-android-build-environment.md) — keep large Android SDKs on the workspace volume and use the available Temurin JDK for stable Gradle builds.
 - [OpenVPN Android state and retry limits](openvpn-native-state-and-retries.md) — sync the separate-process service state after binding and override infinite profile retries with bounded client retries.
