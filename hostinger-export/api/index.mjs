@@ -77997,24 +77997,6 @@ async function downloadWireGuardProfiles(username, providerKey, hostIds, ownerId
     ...await downloadWireGuardEndpointConfig(panel, username, providerKey, hostId, endpoint)
   })));
 }
-async function downloadWireGuardBundle(username, providerKey, ownerId, role) {
-  const panel = await findWireGuardProvider(providerKey, ownerId, role);
-  const response = await panelRequest(
-    panel,
-    "GET",
-    `/api/wg/user/${encodeURIComponent(username)}/bundle`
-  );
-  if (response.status < 200 || response.status >= 300 || !response.text.trim()) {
-    throw new RainApiError(
-      `AzadPanel ${providerKey} could not download the WireGuard bundle: ${safeError(response)}`
-    );
-  }
-  return {
-    body: response.text,
-    contentType: "text/plain; charset=utf-8",
-    contentDisposition: response.contentDisposition
-  };
-}
 function createServiceUsername(customerId2) {
   return `u${customerId2}_${randomBytes4(8).toString("hex")}`;
 }
@@ -81593,7 +81575,7 @@ function publicWireGuardDeliveryLinks(token, providerKey, locations) {
 }
 
 // src/lib/public-download.ts
-var knownConfigExtensions = /\.(?:conf|txt|cfg|config|mobileconfig)$/i;
+var knownConfigExtensions = /\.(?:conf|txt|cfg|config|ovpn|zip|mobileconfig)$/i;
 function safeDownloadFilename(contentDisposition, fallback, extension) {
   const encoded = contentDisposition?.match(/filename\*=UTF-8''"?([^;"\r\n]+)"?/i)?.[1];
   const plain = contentDisposition?.match(/filename="?([^";\r\n]+)"?/i)?.[1];
@@ -81621,7 +81603,95 @@ function attachmentDisposition(filename) {
 function publicConfigContentType(extension) {
   if (extension === ".mobileconfig") return "application/x-apple-aspen-config";
   if (extension === ".conf") return "application/octet-stream";
+  if (extension === ".ovpn") return "application/x-openvpn-profile";
+  if (extension === ".zip") return "application/zip";
   return "text/plain; charset=utf-8";
+}
+
+// src/lib/zip-archive.ts
+import { deflateRawSync } from "node:zlib";
+var crc32 = (input) => {
+  let crc = 4294967295;
+  for (const byte of input) {
+    crc ^= byte;
+    for (let bit2 = 0; bit2 < 8; bit2 += 1) {
+      crc = crc >>> 1 ^ (crc & 1 ? 3988292384 : 0);
+    }
+  }
+  return (crc ^ 4294967295) >>> 0;
+};
+var safeEntryName = (value) => {
+  const name = value.replace(/\\/g, "/").split("/").pop().replace(/[\u0000-\u001f\u007f]/g, "_").trim().slice(0, 180);
+  if (!name || name === "." || name === "..") {
+    throw new Error("ZIP entry needs a safe filename.");
+  }
+  return name;
+};
+function createZipArchive(entries) {
+  if (entries.length === 0 || entries.length > 65535) {
+    throw new Error("ZIP archive must contain between 1 and 65,535 files.");
+  }
+  const localParts = [];
+  const centralParts = [];
+  const seenNames = /* @__PURE__ */ new Set();
+  let localOffset = 0;
+  for (const entry of entries) {
+    const name = safeEntryName(entry.name);
+    if (seenNames.has(name)) throw new Error("ZIP archive contains duplicate filenames.");
+    seenNames.add(name);
+    const filename = Buffer.from(name, "utf8");
+    const content = Buffer.isBuffer(entry.content) ? entry.content : Buffer.from(entry.content);
+    const compressed = deflateRawSync(content);
+    const checksum = crc32(content);
+    if (filename.length > 65535 || compressed.length > 4294967295 || content.length > 4294967295) {
+      throw new Error("ZIP entry exceeds the supported ZIP32 size.");
+    }
+    const localHeader = Buffer.alloc(30);
+    localHeader.writeUInt32LE(67324752, 0);
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt16LE(2048, 6);
+    localHeader.writeUInt16LE(8, 8);
+    localHeader.writeUInt16LE(0, 10);
+    localHeader.writeUInt16LE(33, 12);
+    localHeader.writeUInt32LE(checksum, 14);
+    localHeader.writeUInt32LE(compressed.length, 18);
+    localHeader.writeUInt32LE(content.length, 22);
+    localHeader.writeUInt16LE(filename.length, 26);
+    localHeader.writeUInt16LE(0, 28);
+    const localRecord = Buffer.concat([localHeader, filename, compressed]);
+    localParts.push(localRecord);
+    const centralHeader = Buffer.alloc(46);
+    centralHeader.writeUInt32LE(33639248, 0);
+    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE(20, 6);
+    centralHeader.writeUInt16LE(2048, 8);
+    centralHeader.writeUInt16LE(8, 10);
+    centralHeader.writeUInt16LE(0, 12);
+    centralHeader.writeUInt16LE(33, 14);
+    centralHeader.writeUInt32LE(checksum, 16);
+    centralHeader.writeUInt32LE(compressed.length, 20);
+    centralHeader.writeUInt32LE(content.length, 24);
+    centralHeader.writeUInt16LE(filename.length, 28);
+    centralHeader.writeUInt16LE(0, 30);
+    centralHeader.writeUInt16LE(0, 32);
+    centralHeader.writeUInt16LE(0, 34);
+    centralHeader.writeUInt16LE(0, 36);
+    centralHeader.writeUInt32LE(0, 38);
+    centralHeader.writeUInt32LE(localOffset, 42);
+    centralParts.push(Buffer.concat([centralHeader, filename]));
+    localOffset += localRecord.length;
+  }
+  const centralDirectory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(101010256, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(localOffset, 16);
+  end.writeUInt16LE(0, 20);
+  return Buffer.concat([...localParts, centralDirectory, end]);
 }
 
 // src/lib/awg-usage-poll.ts
@@ -84410,7 +84480,7 @@ async function resolvePublicWireGuardProfile(token, providerKey, hostId) {
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     return { status: 404, error: "Invalid subscription token" };
   }
-  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey) || hostId && !/^[A-Za-z0-9._-]{1,80}$/.test(hostId)) {
+  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey) || !/^[A-Za-z0-9._-]{1,80}$/.test(hostId)) {
     return { status: 400, error: "Invalid WireGuard profile request" };
   }
   const service = await loadPublicOpenVpnService(token);
@@ -84422,21 +84492,46 @@ async function resolvePublicWireGuardProfile(token, providerKey, hostId) {
     if (!delivery || delivery.provider_key !== providerKey) {
       return { status: 404, error: "WireGuard account not found" };
     }
-    const location = hostId ? delivery.locations.find((candidate) => candidate.id === hostId) : null;
-    if (hostId && !location) return { status: 404, error: "WireGuard location not found" };
-    const profile = hostId ? await downloadWireGuardProfile(
+    const location = delivery.locations.find((candidate) => candidate.id === hostId);
+    if (!location) return { status: 404, error: "WireGuard location not found" };
+    const profile = await downloadWireGuardProfile(
       delivery.username,
       providerKey,
       hostId,
       Number(service.reseller_tg_id),
       "reseller"
-    ) : await downloadWireGuardBundle(
+    );
+    return { serviceId: Number(service.id), locationName: location.name, profile };
+  } catch (error40) {
+    const message = error40 instanceof Error ? error40.message : "WireGuard profile download failed.";
+    return { status: message.includes("not available for this account") ? 404 : 502, error: message };
+  }
+}
+async function resolvePublicWireGuardProfiles(token, providerKey) {
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    return { status: 404, error: "Invalid subscription token" };
+  }
+  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey)) {
+    return { status: 400, error: "Invalid WireGuard provider" };
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) return { status: 404, error: "Subscription not found" };
+  if (!service.wireguard_enabled) return { status: 404, error: "WireGuard is not enabled for this reseller" };
+  if (publicOpenVpnServiceFinished(service)) return { status: 410, error: "Subscription has expired" };
+  try {
+    const delivery = await loadSavedWireGuardDelivery(Number(service.id));
+    if (!delivery || delivery.provider_key !== providerKey) {
+      return { status: 404, error: "WireGuard account not found" };
+    }
+    const profiles = await downloadWireGuardProfiles(
       delivery.username,
       providerKey,
+      delivery.locations.map((location) => location.id),
       Number(service.reseller_tg_id),
       "reseller"
     );
-    return { serviceId: Number(service.id), locationName: location?.name ?? "WireGuard", profile };
+    if (!profiles.length) return { status: 404, error: "No WireGuard server configs are available." };
+    return { serviceId: Number(service.id), profiles, locations: delivery.locations };
   } catch (error40) {
     const message = error40 instanceof Error ? error40.message : "WireGuard profile download failed.";
     return { status: message.includes("not available for this account") ? 404 : 502, error: message };
@@ -84564,22 +84659,32 @@ router2.get("/public/subscription/:token/wireguard/config/:provider/:host", asyn
   res.send(result.profile.body);
 });
 router2.get("/public/subscription/:token/wireguard/bundle/:provider", async (req, res) => {
+  await managementReady;
   const token = String(req.params.token ?? "").trim();
-  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
   res.setHeader("x-content-type-options", "nosniff");
-  const result = await resolvePublicWireGuardProfile(token, String(req.params.provider ?? ""));
+  const result = await resolvePublicWireGuardProfiles(token, String(req.params.provider ?? ""));
   if ("status" in result) {
     res.status(result.status).type("text/plain").send(result.error);
     return;
   }
+  const locationById = new Map(result.locations.map((location) => [location.id, location]));
+  const archive = createZipArchive(result.profiles.map((profile) => {
+    const location = locationById.get(profile.hostId);
+    const base = `Pulse-${result.serviceId}-WireGuard-${profile.hostId}-${location?.name ?? "server"}`;
+    return {
+      name: safeDownloadFilename(null, base, ".conf"),
+      content: profile.body
+    };
+  }));
   const filename = safeDownloadFilename(
-    result.profile.contentDisposition,
-    `Pulse-${String(result.serviceId)}-wireguard-all`,
-    ".txt"
+    null,
+    `Pulse-${String(result.serviceId)}-wireguard-servers`,
+    ".zip"
   );
-  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-type", publicConfigContentType(".zip"));
   res.setHeader("content-disposition", attachmentDisposition(filename));
-  res.send(result.profile.body);
+  res.send(archive);
 });
 async function resolvePublicOpenVpnProfile(token, providerKey, hostId) {
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
@@ -84618,8 +84723,13 @@ router2.get("/public/subscription/:token/openvpn/config/:provider/:host", async 
     res.status(result.status).send(result.error);
     return;
   }
-  res.setHeader("content-type", result.profile.contentType);
-  res.setHeader("content-disposition", `attachment; filename="Pulse-${result.serviceId}-${String(req.params.host)}.ovpn"`);
+  const filename = safeDownloadFilename(
+    null,
+    `Pulse-${result.serviceId}-${String(req.params.host)}`,
+    ".ovpn"
+  );
+  res.setHeader("content-type", publicConfigContentType(".ovpn"));
+  res.setHeader("content-disposition", attachmentDisposition(filename));
   res.send(result.profile.body);
 });
 router2.get("/public/subscription/:token/openvpn/bundle/:provider", async (req, res) => {
@@ -84630,8 +84740,13 @@ router2.get("/public/subscription/:token/openvpn/bundle/:provider", async (req, 
     res.status(result.status).send(result.error);
     return;
   }
-  res.setHeader("content-type", result.profile.contentType);
-  res.setHeader("content-disposition", `attachment; filename="Pulse-${result.serviceId}-all.ovpn"`);
+  const filename = safeDownloadFilename(
+    null,
+    `Pulse-${result.serviceId}-all`,
+    ".ovpn"
+  );
+  res.setHeader("content-type", publicConfigContentType(".ovpn"));
+  res.setHeader("content-disposition", attachmentDisposition(filename));
   res.send(result.profile.body);
 });
 router2.get("/public/subscription/:token/openvpn/import/:provider/:host", async (req, res) => {

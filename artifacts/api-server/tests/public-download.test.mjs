@@ -36,9 +36,13 @@ test("download filenames discard paths and control characters", async () => {
 });
 
 test("content disposition includes a safe ASCII name and encoded UTF-8 name", async () => {
-  const { attachmentDisposition, publicConfigContentType } = await loadDownloadHelpers();
+  const { attachmentDisposition, publicConfigContentType, safeDownloadFilename } = await loadDownloadHelpers();
   const header = attachmentDisposition("Pulse-اشتراک.mobileconfig");
   assert.match(header, /^attachment; filename="Pulse-.*\.mobileconfig"; filename\*=UTF-8''/);
   assert.equal(publicConfigContentType(".conf"), "application/octet-stream");
+  assert.equal(publicConfigContentType(".ovpn"), "application/x-openvpn-profile");
+  assert.equal(publicConfigContentType(".zip"), "application/zip");
   assert.equal(publicConfigContentType(".mobileconfig"), "application/x-apple-aspen-config");
+  assert.equal(safeDownloadFilename('attachment; filename="bundle.txt"', "Pulse-wg", ".zip"), "bundle.zip");
+  assert.equal(safeDownloadFilename('attachment; filename="profile.txt"', "Pulse-vpn", ".ovpn"), "profile.ovpn");
 });

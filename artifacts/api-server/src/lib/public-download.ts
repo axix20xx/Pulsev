@@ -1,6 +1,6 @@
-export type PublicDownloadExtension = ".conf" | ".txt" | ".mobileconfig";
+export type PublicDownloadExtension = ".conf" | ".txt" | ".ovpn" | ".zip" | ".mobileconfig";
 
-const knownConfigExtensions = /\.(?:conf|txt|cfg|config|mobileconfig)$/i;
+const knownConfigExtensions = /\.(?:conf|txt|cfg|config|ovpn|zip|mobileconfig)$/i;
 
 export function safeDownloadFilename(
   contentDisposition: string | null,
@@ -47,5 +47,7 @@ export function attachmentDisposition(filename: string): string {
 export function publicConfigContentType(extension: PublicDownloadExtension): string {
   if (extension === ".mobileconfig") return "application/x-apple-aspen-config";
   if (extension === ".conf") return "application/octet-stream";
+  if (extension === ".ovpn") return "application/x-openvpn-profile";
+  if (extension === ".zip") return "application/zip";
   return "text/plain; charset=utf-8";
 }

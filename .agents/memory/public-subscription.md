@@ -39,8 +39,8 @@ Previously distributed `/sub/<token>` page links must keep resolving alongside `
 
 **How to apply:** Parse both path-token and query-token forms on the public page, preserve `/sub?t=...` for generated share/QR URLs, and never substitute the page URL for a VPN feed link.
 
-Public WireGuard and AmneziaWG downloads must force client-compatible suffixes and response types: Android tunnel files are `.conf` attachments, while Apple install profiles are `.mobileconfig`.
+Public VPN downloads must keep app-specific file types: individual WireGuard and AmneziaWG configs are `.conf`, multi-server WireGuard downloads are ZIPs containing one `.conf` per server, OpenVPN profiles are `.ovpn`, and Apple install profiles are `.mobileconfig`.
 
-**Why:** Mobile browsers can infer `.txt` from generic `text/plain` responses or retain an upstream provider's `.txt` filename, leaving otherwise valid configs difficult to import.
+**Why:** Mobile browsers can infer `.txt` from generic text responses or extensionless URLs, and a concatenation of multiple WireGuard interfaces is not one valid importable `.conf` file.
 
-**How to apply:** Sanitize upstream filenames, override conflicting extensions, serve `.conf` as `application/octet-stream`, and serve `.mobileconfig` as `application/x-apple-aspen-config` from the shared token routes used by both `/sub` and `/mobile`.
+**How to apply:** Enforce filenames in both response headers and same-origin download links; use `.conf` and `.ovpn` MIME types for individual downloads, ZIP per-server WireGuard configs, and serve Apple profiles as `application/x-apple-aspen-config` from routes shared by `/sub` and `/mobile`.

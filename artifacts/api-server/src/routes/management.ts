@@ -70,7 +70,6 @@ import {
   brandSubscriptionBody,
   createServiceUsername,
   createSubscriptionToken,
-  downloadWireGuardBundle,
   downloadWireGuardProfile,
   downloadWireGuardProfiles,
   downloadOpenVpnProfile,
@@ -132,6 +131,7 @@ import {
   publicConfigContentType,
   safeDownloadFilename,
 } from "../lib/public-download";
+import { createZipArchive } from "../lib/zip-archive";
 import { getAwgUsageWorkerLog, recordAwgUsagePollEvent } from "../lib/awg-usage-poll";
 import {
   ensureStorefrontSchema,
@@ -2255,7 +2255,7 @@ router.get("/public/subscription/:token/ipsec/mobileconfig", async (req, res): P
 async function resolvePublicWireGuardProfile(
   token: string,
   providerKey: string,
-  hostId?: string,
+  hostId: string,
 ): Promise<{
   serviceId: number;
   locationName: string;
@@ -2264,7 +2264,7 @@ async function resolvePublicWireGuardProfile(
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     return { status: 404, error: "Invalid subscription token" };
   }
-  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey) || (hostId && !/^[A-Za-z0-9._-]{1,80}$/.test(hostId))) {
+  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey) || !/^[A-Za-z0-9._-]{1,80}$/.test(hostId)) {
     return { status: 400, error: "Invalid WireGuard profile request" };
   }
   const service = await loadPublicOpenVpnService(token);
@@ -2276,23 +2276,55 @@ async function resolvePublicWireGuardProfile(
     if (!delivery || delivery.provider_key !== providerKey) {
       return { status: 404, error: "WireGuard account not found" };
     }
-    const location = hostId ? delivery.locations.find((candidate) => candidate.id === hostId) : null;
-    if (hostId && !location) return { status: 404, error: "WireGuard location not found" };
-    const profile = hostId
-      ? await downloadWireGuardProfile(
-          delivery.username,
-          providerKey,
-          hostId,
-          Number(service.reseller_tg_id),
-          "reseller",
-        )
-      : await downloadWireGuardBundle(
-          delivery.username,
-          providerKey,
-          Number(service.reseller_tg_id),
-          "reseller",
-        );
-    return { serviceId: Number(service.id), locationName: location?.name ?? "WireGuard", profile };
+    const location = delivery.locations.find((candidate) => candidate.id === hostId);
+    if (!location) return { status: 404, error: "WireGuard location not found" };
+    const profile = await downloadWireGuardProfile(
+      delivery.username,
+      providerKey,
+      hostId,
+      Number(service.reseller_tg_id),
+      "reseller",
+    );
+    return { serviceId: Number(service.id), locationName: location.name, profile };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "WireGuard profile download failed.";
+    return { status: message.includes("not available for this account") ? 404 : 502, error: message };
+  }
+}
+
+async function resolvePublicWireGuardProfiles(
+  token: string,
+  providerKey: string,
+): Promise<{
+  serviceId: number;
+  profiles: Awaited<ReturnType<typeof downloadWireGuardProfiles>>;
+  locations: WireGuardDelivery["locations"];
+} | { status: number; error: string }> {
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    return { status: 404, error: "Invalid subscription token" };
+  }
+  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey)) {
+    return { status: 400, error: "Invalid WireGuard provider" };
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) return { status: 404, error: "Subscription not found" };
+  if (!service.wireguard_enabled) return { status: 404, error: "WireGuard is not enabled for this reseller" };
+  if (publicOpenVpnServiceFinished(service)) return { status: 410, error: "Subscription has expired" };
+
+  try {
+    const delivery = await loadSavedWireGuardDelivery(Number(service.id));
+    if (!delivery || delivery.provider_key !== providerKey) {
+      return { status: 404, error: "WireGuard account not found" };
+    }
+    const profiles = await downloadWireGuardProfiles(
+      delivery.username,
+      providerKey,
+      delivery.locations.map((location) => location.id),
+      Number(service.reseller_tg_id),
+      "reseller",
+    );
+    if (!profiles.length) return { status: 404, error: "No WireGuard server configs are available." };
+    return { serviceId: Number(service.id), profiles, locations: delivery.locations };
   } catch (error) {
     const message = error instanceof Error ? error.message : "WireGuard profile download failed.";
     return { status: message.includes("not available for this account") ? 404 : 502, error: message };
@@ -2424,22 +2456,32 @@ router.get("/public/subscription/:token/wireguard/config/:provider/:host", async
 });
 
 router.get("/public/subscription/:token/wireguard/bundle/:provider", async (req, res): Promise<void> => {
+  await managementReady;
   const token = String(req.params.token ?? "").trim();
-  res.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
   res.setHeader("x-content-type-options", "nosniff");
-  const result = await resolvePublicWireGuardProfile(token, String(req.params.provider ?? ""));
+  const result = await resolvePublicWireGuardProfiles(token, String(req.params.provider ?? ""));
   if ("status" in result) {
     res.status(result.status).type("text/plain").send(result.error);
     return;
   }
+  const locationById = new Map(result.locations.map((location) => [location.id, location]));
+  const archive = createZipArchive(result.profiles.map((profile) => {
+    const location = locationById.get(profile.hostId);
+    const base = `Pulse-${result.serviceId}-WireGuard-${profile.hostId}-${location?.name ?? "server"}`;
+    return {
+      name: safeDownloadFilename(null, base, ".conf"),
+      content: profile.body,
+    };
+  }));
   const filename = safeDownloadFilename(
-    result.profile.contentDisposition,
-    `Pulse-${String(result.serviceId)}-wireguard-all`,
-    ".txt",
+    null,
+    `Pulse-${String(result.serviceId)}-wireguard-servers`,
+    ".zip",
   );
-  res.setHeader("content-type", result.profile.contentType);
+  res.setHeader("content-type", publicConfigContentType(".zip"));
   res.setHeader("content-disposition", attachmentDisposition(filename));
-  res.send(result.profile.body);
+  res.send(archive);
 });
 
 async function resolvePublicOpenVpnProfile(
@@ -2484,8 +2526,13 @@ router.get("/public/subscription/:token/openvpn/config/:provider/:host", async (
     res.status(result.status).send(result.error);
     return;
   }
-  res.setHeader("content-type", result.profile.contentType);
-  res.setHeader("content-disposition", `attachment; filename="Pulse-${result.serviceId}-${String(req.params.host)}.ovpn"`);
+  const filename = safeDownloadFilename(
+    null,
+    `Pulse-${result.serviceId}-${String(req.params.host)}`,
+    ".ovpn",
+  );
+  res.setHeader("content-type", publicConfigContentType(".ovpn"));
+  res.setHeader("content-disposition", attachmentDisposition(filename));
   res.send(result.profile.body);
 });
 
@@ -2497,8 +2544,13 @@ router.get("/public/subscription/:token/openvpn/bundle/:provider", async (req, r
     res.status(result.status).send(result.error);
     return;
   }
-  res.setHeader("content-type", result.profile.contentType);
-  res.setHeader("content-disposition", `attachment; filename="Pulse-${result.serviceId}-all.ovpn"`);
+  const filename = safeDownloadFilename(
+    null,
+    `Pulse-${result.serviceId}-all`,
+    ".ovpn",
+  );
+  res.setHeader("content-type", publicConfigContentType(".ovpn"));
+  res.setHeader("content-disposition", attachmentDisposition(filename));
   res.send(result.profile.body);
 });
 
