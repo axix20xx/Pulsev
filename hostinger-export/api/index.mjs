@@ -505,6 +505,121 @@ var require_browser = __commonJS({
   }
 });
 
+// ../../node_modules/.pnpm/has-flag@4.0.0/node_modules/has-flag/index.js
+var require_has_flag = __commonJS({
+  "../../node_modules/.pnpm/has-flag@4.0.0/node_modules/has-flag/index.js"(exports, module) {
+    "use strict";
+    module.exports = (flag, argv = process.argv) => {
+      const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
+      const position = argv.indexOf(prefix + flag);
+      const terminatorPosition = argv.indexOf("--");
+      return position !== -1 && (terminatorPosition === -1 || position < terminatorPosition);
+    };
+  }
+});
+
+// ../../node_modules/.pnpm/supports-color@7.2.0/node_modules/supports-color/index.js
+var require_supports_color = __commonJS({
+  "../../node_modules/.pnpm/supports-color@7.2.0/node_modules/supports-color/index.js"(exports, module) {
+    "use strict";
+    var os = __require("os");
+    var tty = __require("tty");
+    var hasFlag = require_has_flag();
+    var { env } = process;
+    var forceColor;
+    if (hasFlag("no-color") || hasFlag("no-colors") || hasFlag("color=false") || hasFlag("color=never")) {
+      forceColor = 0;
+    } else if (hasFlag("color") || hasFlag("colors") || hasFlag("color=true") || hasFlag("color=always")) {
+      forceColor = 1;
+    }
+    if ("FORCE_COLOR" in env) {
+      if (env.FORCE_COLOR === "true") {
+        forceColor = 1;
+      } else if (env.FORCE_COLOR === "false") {
+        forceColor = 0;
+      } else {
+        forceColor = env.FORCE_COLOR.length === 0 ? 1 : Math.min(parseInt(env.FORCE_COLOR, 10), 3);
+      }
+    }
+    function translateLevel(level) {
+      if (level === 0) {
+        return false;
+      }
+      return {
+        level,
+        hasBasic: true,
+        has256: level >= 2,
+        has16m: level >= 3
+      };
+    }
+    function supportsColor(haveStream, streamIsTTY) {
+      if (forceColor === 0) {
+        return 0;
+      }
+      if (hasFlag("color=16m") || hasFlag("color=full") || hasFlag("color=truecolor")) {
+        return 3;
+      }
+      if (hasFlag("color=256")) {
+        return 2;
+      }
+      if (haveStream && !streamIsTTY && forceColor === void 0) {
+        return 0;
+      }
+      const min = forceColor || 0;
+      if (env.TERM === "dumb") {
+        return min;
+      }
+      if (process.platform === "win32") {
+        const osRelease = os.release().split(".");
+        if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
+          return Number(osRelease[2]) >= 14931 ? 3 : 2;
+        }
+        return 1;
+      }
+      if ("CI" in env) {
+        if (["TRAVIS", "CIRCLECI", "APPVEYOR", "GITLAB_CI", "GITHUB_ACTIONS", "BUILDKITE"].some((sign) => sign in env) || env.CI_NAME === "codeship") {
+          return 1;
+        }
+        return min;
+      }
+      if ("TEAMCITY_VERSION" in env) {
+        return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env.TEAMCITY_VERSION) ? 1 : 0;
+      }
+      if (env.COLORTERM === "truecolor") {
+        return 3;
+      }
+      if ("TERM_PROGRAM" in env) {
+        const version4 = parseInt((env.TERM_PROGRAM_VERSION || "").split(".")[0], 10);
+        switch (env.TERM_PROGRAM) {
+          case "iTerm.app":
+            return version4 >= 3 ? 3 : 2;
+          case "Apple_Terminal":
+            return 2;
+        }
+      }
+      if (/-256(color)?$/i.test(env.TERM)) {
+        return 2;
+      }
+      if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM)) {
+        return 1;
+      }
+      if ("COLORTERM" in env) {
+        return 1;
+      }
+      return min;
+    }
+    function getSupportLevel(stream) {
+      const level = supportsColor(stream, stream && stream.isTTY);
+      return translateLevel(level);
+    }
+    module.exports = {
+      supportsColor: getSupportLevel,
+      stdout: translateLevel(supportsColor(true, tty.isatty(1))),
+      stderr: translateLevel(supportsColor(true, tty.isatty(2)))
+    };
+  }
+});
+
 // ../../node_modules/.pnpm/debug@4.4.3/node_modules/debug/src/node.js
 var require_node = __commonJS({
   "../../node_modules/.pnpm/debug@4.4.3/node_modules/debug/src/node.js"(exports, module) {
@@ -523,7 +638,7 @@ var require_node = __commonJS({
     );
     exports.colors = [6, 2, 3, 4, 5, 1];
     try {
-      const supportsColor = __require("supports-color");
+      const supportsColor = require_supports_color();
       if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
         exports.colors = [
           20,
@@ -55338,6 +55453,110 @@ var GetAuthSessionResponse = objectType({
   "title": stringType().nullish(),
   "customer_price_per_gb": numberType().nullish()
 });
+var requestMobileOtpBodyPhoneMin = 8;
+var requestMobileOtpBodyPhoneMax = 20;
+var RequestMobileOtpBody = objectType({
+  "phone": stringType().min(requestMobileOtpBodyPhoneMin).max(requestMobileOtpBodyPhoneMax)
+});
+var requestMobileOtpResponseChallengeIdRegExp = new RegExp("^[A-Fa-f0-9]{48}$");
+var RequestMobileOtpResponse = objectType({
+  "challenge_id": stringType().regex(requestMobileOtpResponseChallengeIdRegExp),
+  "expires_at": coerce.date()
+});
+var VerifyMobileOtpHeader = objectType({
+  "X-Pulse-Mobile-Client": enumType(["native"]).optional()
+});
+var verifyMobileOtpBodyPhoneMin = 8;
+var verifyMobileOtpBodyPhoneMax = 20;
+var verifyMobileOtpBodyChallengeIdRegExp = new RegExp("^[A-Fa-f0-9]{48}$");
+var verifyMobileOtpBodyOtpRegExp = new RegExp("^[0-9\u06F0-\u06F9\u0660-\u0669]{4}$");
+var VerifyMobileOtpBody = objectType({
+  "phone": stringType().min(verifyMobileOtpBodyPhoneMin).max(verifyMobileOtpBodyPhoneMax),
+  "challenge_id": stringType().regex(verifyMobileOtpBodyChallengeIdRegExp),
+  "otp": stringType().regex(verifyMobileOtpBodyOtpRegExp)
+});
+var verifyMobileOtpResponseAccessTokenRegExp = new RegExp("^[A-Fa-f0-9]{64}$");
+var VerifyMobileOtpResponse = objectType({
+  "authenticated": booleanType(),
+  "customer": objectType({
+    "id": stringType(),
+    "name": stringType(),
+    "phone": stringType()
+  }),
+  "access_token": stringType().regex(verifyMobileOtpResponseAccessTokenRegExp).optional(),
+  "expires_at": coerce.date().optional()
+});
+var GetMobileSessionResponse = objectType({
+  "authenticated": booleanType(),
+  "customer": objectType({
+    "id": stringType(),
+    "name": stringType(),
+    "phone": stringType()
+  }).optional()
+});
+var LogoutMobileResponse = voidType();
+var GetMobileDashboardResponse = objectType({
+  "customer": objectType({
+    "id": stringType(),
+    "name": stringType(),
+    "phone": stringType()
+  }),
+  "subscriptions": arrayType(objectType({
+    "id": stringType(),
+    "plan": stringType(),
+    "status": enumType(["active", "expired", "cancelled", "pending"]),
+    "started_at": coerce.date().nullable(),
+    "expires_at": coerce.date().nullable(),
+    "remaining_days": numberType().nullable(),
+    "total_gb": numberType(),
+    "used_gb": numberType(),
+    "remaining_gb": numberType(),
+    "usage_percent": numberType(),
+    "customer_name": stringType(),
+    "server": stringType(),
+    "provider_name": stringType(),
+    "username": stringType().nullable(),
+    "subscription_url": stringType().nullable(),
+    "provider_url": stringType().nullable(),
+    "v2box_url": stringType().nullable(),
+    "public_url": stringType().nullable(),
+    "awg_mobileconfig_url": stringType().nullable(),
+    "openvpn_available": booleanType(),
+    "wireguard_available": booleanType(),
+    "ipsec_available": booleanType(),
+    "awg_url": stringType().nullable(),
+    "service_code": stringType()
+  })),
+  "notifications": arrayType(recordType(stringType(), unknownType())),
+  "unread_count": numberType()
+});
+var ListMobileSubscriptionsResponseItem = objectType({
+  "id": stringType(),
+  "plan": stringType(),
+  "status": enumType(["active", "expired", "cancelled", "pending"]),
+  "started_at": coerce.date().nullable(),
+  "expires_at": coerce.date().nullable(),
+  "remaining_days": numberType().nullable(),
+  "total_gb": numberType(),
+  "used_gb": numberType(),
+  "remaining_gb": numberType(),
+  "usage_percent": numberType(),
+  "customer_name": stringType(),
+  "server": stringType(),
+  "provider_name": stringType(),
+  "username": stringType().nullable(),
+  "subscription_url": stringType().nullable(),
+  "provider_url": stringType().nullable(),
+  "v2box_url": stringType().nullable(),
+  "public_url": stringType().nullable(),
+  "awg_mobileconfig_url": stringType().nullable(),
+  "openvpn_available": booleanType(),
+  "wireguard_available": booleanType(),
+  "ipsec_available": booleanType(),
+  "awg_url": stringType().nullable(),
+  "service_code": stringType()
+});
+var ListMobileSubscriptionsResponse = arrayType(ListMobileSubscriptionsResponseItem);
 var LoginWithTelegramBody = objectType({
   "id": numberType(),
   "first_name": stringType().optional(),
@@ -56352,6 +56571,16 @@ var CreateOpenVpnAccountResponse = objectType({
     "import_url": stringType()
   }))
 });
+var getPublicSubscriptionFeedPathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
+var GetPublicSubscriptionFeedParams = objectType({
+  "token": coerce.string().regex(getPublicSubscriptionFeedPathTokenRegExp)
+});
+var GetPublicSubscriptionFeedResponse = stringType();
+var downloadAmneziaWgConfigPathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
+var DownloadAmneziaWgConfigParams = objectType({
+  "token": coerce.string().regex(downloadAmneziaWgConfigPathTokenRegExp)
+});
+var DownloadAmneziaWgConfigResponse = stringType();
 var downloadOpenVpnProfilePathTokenRegExp = new RegExp("^[A-Za-z0-9_-]{12,256}$");
 var downloadOpenVpnProfilePathProviderRegExp = new RegExp("^[a-z0-9_-]{2,64}$");
 var downloadOpenVpnProfilePathHostMax = 80;
@@ -79474,8 +79703,9 @@ var findCustomerByPhone = async (candidates) => {
 var clearMobileCookie = (res) => {
   res.clearCookie(mobileSessionCookie, { httpOnly: true, sameSite: "lax", path: "/" });
 };
-var createMobileSession = async (res, customerId2, customerName, phone, serviceId) => {
+var createMobileSession = async (res, customerId2, customerName, phone, serviceId, nativeClient) => {
   const raw = randomBytes5(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3).toISOString();
   await pool.query(
     `INSERT INTO mobile_sessions (id, customer_id, source_service_id, expires_at)
      VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
@@ -79487,10 +79717,18 @@ var createMobileSession = async (res, customerId2, customerName, phone, serviceI
     [customerId2]
   );
   setMobileCookie(res, raw);
-  res.json({ authenticated: true, customer: { id: String(customerId2), name: customerName, phone } });
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
+  res.json({
+    authenticated: true,
+    customer: { id: String(customerId2), name: customerName, phone },
+    ...nativeClient ? { access_token: raw, expires_at: expiresAt } : {}
+  });
 };
 var attachMobileAuth = async (req, _res, next) => {
-  const raw = req.cookies?.[mobileSessionCookie];
+  const authorization = req.get("authorization") ?? "";
+  const token = authorization.match(/^Bearer\s+([A-Fa-f0-9]{64})$/i)?.[1];
+  const raw = token ?? req.cookies?.[mobileSessionCookie];
   if (typeof raw !== "string" || !raw) {
     next();
     return;
@@ -80074,13 +80312,24 @@ router.post("/mobile/auth/otp/verify", async (req, res) => {
     res.status(401).json({ error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u06CC\u0627 \u06A9\u062F \u0648\u0631\u0648\u062F \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A \u06CC\u0627 \u0645\u0646\u0642\u0636\u06CC \u0634\u062F\u0647 \u0627\u0633\u062A." });
     return;
   }
-  await createMobileSession(res, row.customer_id, row.customer_name, row.phone, row.service_id ?? null);
+  await createMobileSession(
+    res,
+    row.customer_id,
+    row.customer_name,
+    row.phone,
+    row.service_id ?? null,
+    req.get("x-pulse-mobile-client") === "native"
+  );
 });
 router.get("/mobile/auth/session", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
   res.json(req.mobileAuth ? { authenticated: true, customer: { id: String(req.mobileAuth.customerId), name: req.mobileAuth.customerName, phone: req.mobileAuth.phone } } : { authenticated: false });
 });
 router.post("/mobile/auth/logout", async (req, res) => {
-  const raw = req.cookies?.[mobileSessionCookie];
+  const authorization = req.get("authorization") ?? "";
+  const token = authorization.match(/^Bearer\s+([A-Fa-f0-9]{64})$/i)?.[1];
+  const raw = token ?? req.cookies?.[mobileSessionCookie];
   if (typeof raw === "string" && raw) await pool.query("DELETE FROM mobile_sessions WHERE id = $1", [sessionHash2(raw)]);
   clearMobileCookie(res);
   res.sendStatus(204);
@@ -81341,6 +81590,38 @@ function publicWireGuardDeliveryLinks(token, providerKey, locations) {
       mobileconfig_url: `${providerPath}/mobileconfig/${encodedProvider}/${encodeURIComponent(location.id)}`
     }))
   };
+}
+
+// src/lib/public-download.ts
+var knownConfigExtensions = /\.(?:conf|txt|cfg|config|mobileconfig)$/i;
+function safeDownloadFilename(contentDisposition, fallback, extension) {
+  const encoded = contentDisposition?.match(/filename\*=UTF-8''"?([^;"\r\n]+)"?/i)?.[1];
+  const plain = contentDisposition?.match(/filename="?([^";\r\n]+)"?/i)?.[1];
+  let filename = fallback;
+  try {
+    if (encoded) filename = decodeURIComponent(encoded);
+    else if (plain) filename = plain;
+  } catch {
+    filename = fallback;
+  }
+  filename = filename.replace(/\\/g, "/").split("/").pop().replace(/[:\u0000-\u001f\u007f"]/g, "_").replace(/[^\p{L}\p{N} ._()-]/gu, "_").trim().slice(0, 120);
+  if (!filename) filename = fallback;
+  filename = filename.replace(knownConfigExtensions, "").trim();
+  if (!filename) filename = "Pulse-config";
+  return `${filename}${extension}`;
+}
+function attachmentDisposition(filename) {
+  const asciiFallback = filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\;]/g, "_");
+  const encoded = encodeURIComponent(filename).replace(
+    /[!'()*]/g,
+    (char2) => `%${char2.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
+}
+function publicConfigContentType(extension) {
+  if (extension === ".mobileconfig") return "application/x-apple-aspen-config";
+  if (extension === ".conf") return "application/octet-stream";
+  return "text/plain; charset=utf-8";
 }
 
 // src/lib/awg-usage-poll.ts
@@ -84116,8 +84397,8 @@ router2.get("/public/subscription/:token/ipsec/mobileconfig", async (req, res) =
       "reseller"
     );
     const filename = `Pulse-IPsec-${String(service.id).padStart(6, "0")}.mobileconfig`;
-    res.setHeader("content-type", "application/x-apple-aspen-config");
-    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
+    res.setHeader("content-disposition", attachmentDisposition(filename));
     res.send(profile.body);
   } catch (error40) {
     res.status(422).type("text/plain").send(
@@ -84125,21 +84406,6 @@ router2.get("/public/subscription/:token/ipsec/mobileconfig", async (req, res) =
     );
   }
 });
-function safeDownloadFilename(contentDisposition, fallback, extension) {
-  const encoded = contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  const plain = contentDisposition?.match(/filename="?([^";]+)"?/i)?.[1];
-  let filename = fallback;
-  try {
-    if (encoded) filename = decodeURIComponent(encoded);
-    else if (plain) filename = plain;
-  } catch {
-    filename = fallback;
-  }
-  filename = filename.replace(/[\\/\r\n"]/g, "_").replace(/[^\p{L}\p{N} ._()-]/gu, "_").trim().slice(0, 120);
-  if (!filename) filename = fallback;
-  if (!filename.toLowerCase().endsWith(extension)) filename += extension;
-  return filename;
-}
 async function resolvePublicWireGuardProfile(token, providerKey, hostId) {
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     return { status: 404, error: "Invalid subscription token" };
@@ -84231,8 +84497,8 @@ router2.get("/public/subscription/:token/wireguard/mobileconfig/:provider", asyn
       `Pulse-${String(service.id)}-wireguard-all-servers`,
       ".mobileconfig"
     );
-    res.setHeader("content-type", "application/x-apple-aspen-config");
-    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
+    res.setHeader("content-disposition", attachmentDisposition(filename));
     res.send(profile);
   } catch (error40) {
     const message = error40 instanceof Error ? error40.message : "Could not prepare the iOS WireGuard profile.";
@@ -84266,8 +84532,8 @@ router2.get("/public/subscription/:token/wireguard/mobileconfig/:provider/:host"
       `Pulse-${result.serviceId}-${hostId}`,
       ".mobileconfig"
     );
-    res.setHeader("content-type", "application/x-apple-aspen-config");
-    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
+    res.setHeader("content-disposition", attachmentDisposition(filename));
     res.send(content);
   } catch (error40) {
     res.status(422).type("text/plain").send(
@@ -84293,8 +84559,8 @@ router2.get("/public/subscription/:token/wireguard/config/:provider/:host", asyn
     `Pulse-${String(result.serviceId)}-${String(req.params.host)}`,
     ".conf"
   );
-  res.setHeader("content-type", result.profile.contentType);
-  res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  res.setHeader("content-type", publicConfigContentType(".conf"));
+  res.setHeader("content-disposition", attachmentDisposition(filename));
   res.send(result.profile.body);
 });
 router2.get("/public/subscription/:token/wireguard/bundle/:provider", async (req, res) => {
@@ -84312,7 +84578,7 @@ router2.get("/public/subscription/:token/wireguard/bundle/:provider", async (req
     ".txt"
   );
   res.setHeader("content-type", result.profile.contentType);
-  res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  res.setHeader("content-disposition", attachmentDisposition(filename));
   res.send(result.profile.body);
 });
 async function resolvePublicOpenVpnProfile(token, providerKey, hostId) {
@@ -84615,8 +84881,13 @@ router2.get("/public/subscription/:token/awg", async (req, res) => {
     res.status(result.status).json({ error: result.error });
     return;
   }
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="${result.username}-amneziawg.conf"`);
+  const filename = safeDownloadFilename(
+    null,
+    `Pulse-${result.serviceId}-amneziawg`,
+    ".conf"
+  );
+  res.setHeader("Content-Type", publicConfigContentType(".conf"));
+  res.setHeader("Content-Disposition", attachmentDisposition(filename));
   res.send(result.config);
 });
 router2.get("/public/subscription/:token/awg/mobileconfig", async (req, res) => {
@@ -84639,8 +84910,8 @@ router2.get("/public/subscription/:token/awg/mobileconfig", async (req, res) => 
       `Pulse-${result.serviceId}-amneziawg`,
       ".mobileconfig"
     );
-    res.setHeader("content-type", "application/x-apple-aspen-config");
-    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
+    res.setHeader("content-disposition", attachmentDisposition(filename));
     res.send(profile);
   } catch (error40) {
     res.status(422).type("text/plain").send(
@@ -89443,7 +89714,11 @@ app.use((req, res, next) => {
           req.get("host"),
           req.get("x-forwarded-host")?.split(",")[0]?.trim()
         ].filter((host) => Boolean(host)).map((host) => host.toLowerCase());
-        if (requestHosts.includes(originHost) || allowedCorsOrigins.includes(requestOrigin)) {
+        const replitExpoSibling = requestHosts.some((host) => {
+          const match = host.match(/^([^.]+)\.([^.]+\.replit\.dev)$/);
+          return Boolean(match && originHost === `${match[1]}.expo.${match[2]}`);
+        });
+        if (requestHosts.includes(originHost) || replitExpoSibling || allowedCorsOrigins.includes(requestOrigin)) {
           callback(null, requestOrigin);
           return;
         }

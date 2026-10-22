@@ -127,6 +127,11 @@ import {
   type MobileConfigEntry,
 } from "../lib/multi-protocol-mobileconfig";
 import { publicWireGuardDeliveryLinks } from "../lib/wireguard-delivery-links";
+import {
+  attachmentDisposition,
+  publicConfigContentType,
+  safeDownloadFilename,
+} from "../lib/public-download";
 import { getAwgUsageWorkerLog, recordAwgUsagePollEvent } from "../lib/awg-usage-poll";
 import {
   ensureStorefrontSchema,
@@ -2237,8 +2242,8 @@ router.get("/public/subscription/:token/ipsec/mobileconfig", async (req, res): P
       "reseller",
     );
     const filename = `Pulse-IPsec-${String(service.id).padStart(6, "0")}.mobileconfig`;
-    res.setHeader("content-type", "application/x-apple-aspen-config");
-    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
+    res.setHeader("content-disposition", attachmentDisposition(filename));
     res.send(profile.body);
   } catch (error) {
     res.status(422).type("text/plain").send(
@@ -2246,26 +2251,6 @@ router.get("/public/subscription/:token/ipsec/mobileconfig", async (req, res): P
     );
   }
 });
-
-function safeDownloadFilename(
-  contentDisposition: string | null,
-  fallback: string,
-  extension: ".conf" | ".txt" | ".mobileconfig",
-): string {
-  const encoded = contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  const plain = contentDisposition?.match(/filename="?([^";]+)"?/i)?.[1];
-  let filename = fallback;
-  try {
-    if (encoded) filename = decodeURIComponent(encoded);
-    else if (plain) filename = plain;
-  } catch {
-    filename = fallback;
-  }
-  filename = filename.replace(/[\\/\r\n"]/g, "_").replace(/[^\p{L}\p{N} ._()-]/gu, "_").trim().slice(0, 120);
-  if (!filename) filename = fallback;
-  if (!filename.toLowerCase().endsWith(extension)) filename += extension;
-  return filename;
-}
 
 async function resolvePublicWireGuardProfile(
   token: string,
@@ -2369,8 +2354,8 @@ router.get("/public/subscription/:token/wireguard/mobileconfig/:provider", async
       `Pulse-${String(service.id)}-wireguard-all-servers`,
       ".mobileconfig",
     );
-    res.setHeader("content-type", "application/x-apple-aspen-config");
-    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
+    res.setHeader("content-disposition", attachmentDisposition(filename));
     res.send(profile);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not prepare the iOS WireGuard profile.";
@@ -2405,8 +2390,8 @@ router.get("/public/subscription/:token/wireguard/mobileconfig/:provider/:host",
       `Pulse-${result.serviceId}-${hostId}`,
       ".mobileconfig",
     );
-    res.setHeader("content-type", "application/x-apple-aspen-config");
-    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
+    res.setHeader("content-disposition", attachmentDisposition(filename));
     res.send(content);
   } catch (error) {
     res.status(422).type("text/plain").send(
@@ -2433,8 +2418,8 @@ router.get("/public/subscription/:token/wireguard/config/:provider/:host", async
     `Pulse-${String(result.serviceId)}-${String(req.params.host)}`,
     ".conf",
   );
-  res.setHeader("content-type", result.profile.contentType);
-  res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  res.setHeader("content-type", publicConfigContentType(".conf"));
+  res.setHeader("content-disposition", attachmentDisposition(filename));
   res.send(result.profile.body);
 });
 
@@ -2453,7 +2438,7 @@ router.get("/public/subscription/:token/wireguard/bundle/:provider", async (req,
     ".txt",
   );
   res.setHeader("content-type", result.profile.contentType);
-  res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  res.setHeader("content-disposition", attachmentDisposition(filename));
   res.send(result.profile.body);
 });
 
@@ -2806,8 +2791,13 @@ router.get("/public/subscription/:token/awg", async (req, res): Promise<void> =>
     res.status(result.status).json({ error: result.error });
     return;
   }
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="${result.username}-amneziawg.conf"`);
+  const filename = safeDownloadFilename(
+    null,
+    `Pulse-${result.serviceId}-amneziawg`,
+    ".conf",
+  );
+  res.setHeader("Content-Type", publicConfigContentType(".conf"));
+  res.setHeader("Content-Disposition", attachmentDisposition(filename));
   res.send(result.config);
 });
 
@@ -2831,8 +2821,8 @@ router.get("/public/subscription/:token/awg/mobileconfig", async (req, res): Pro
       `Pulse-${result.serviceId}-amneziawg`,
       ".mobileconfig",
     );
-    res.setHeader("content-type", "application/x-apple-aspen-config");
-    res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
+    res.setHeader("content-disposition", attachmentDisposition(filename));
     res.send(profile);
   } catch (error) {
     res.status(422).type("text/plain").send(

@@ -2102,3 +2102,17 @@ mtime_ms = 1792607989477
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/c3ea7292-9c80-47f7-9f53-c113c60800de/4d1a4816-024f-44e4-a7d4-e5dbed4045af"
 storage_version_token = "1792608058372314"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "8mu2xiuGrefn7tOGzL1R6"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-22T13-52-42-374Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration update ZIP"
+description = "Updated Hostinger package with the fixed /sub and /mobile config downloads, app-first mobile config selection, and the existing automatic first-run database migration. Includes the legacy SQL snapshot; keep this ZIP private."
+logical_id = "8abad3dc-0cbc-475e-a24a-b7d7bb3edf15"
+content_hash = "sha256:8a6f8c81063dd3d0030c2eb4d6d18186d1db0891b77272b7bb1e11eb301efd93"
+size = 29063079
+mtime_ms = 1792677281323
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8abad3dc-0cbc-475e-a24a-b7d7bb3edf15/a868cc95-3061-4623-9e56-0b84392a9fa3"
+storage_version_token = "1792677346043377"
+content_type = "application/octet-stream"

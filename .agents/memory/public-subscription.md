@@ -38,3 +38,9 @@ Previously distributed `/sub/<token>` page links must keep resolving alongside `
 **Why:** Changing a saved direct link can make an existing client subscription open an invalid page even when its token is still valid.
 
 **How to apply:** Parse both path-token and query-token forms on the public page, preserve `/sub?t=...` for generated share/QR URLs, and never substitute the page URL for a VPN feed link.
+
+Public WireGuard and AmneziaWG downloads must force client-compatible suffixes and response types: Android tunnel files are `.conf` attachments, while Apple install profiles are `.mobileconfig`.
+
+**Why:** Mobile browsers can infer `.txt` from generic `text/plain` responses or retain an upstream provider's `.txt` filename, leaving otherwise valid configs difficult to import.
+
+**How to apply:** Sanitize upstream filenames, override conflicting extensions, serve `.conf` as `application/octet-stream`, and serve `.mobileconfig` as `application/x-apple-aspen-config` from the shared token routes used by both `/sub` and `/mobile`.
