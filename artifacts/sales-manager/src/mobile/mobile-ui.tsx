@@ -178,6 +178,7 @@ const mobileClientCatalog = (url: string, name: string): MobileClient[] => {
 export function AccessActions({ item }: { item: MobileSubscription }) {
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState('');
+  const [selectedProtocol, setSelectedProtocol] = useState<string | null>(null);
   const [selectedConfigApp, setSelectedConfigApp] = useState<string | null>(null);
   const [openVpnData, setOpenVpnData] = useState<MobileOpenVpnDelivery | null>(null);
   const [openVpnBusy, setOpenVpnBusy] = useState(false);
@@ -191,9 +192,20 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
   const [ipsecBusy, setIpsecBusy] = useState(false);
   const [ipsecLoading, setIpsecLoading] = useState(false);
   const [ipsecError, setIpsecError] = useState('');
-  const isIOSDevice = typeof navigator !== 'undefined'
-    && (/iPhone|iPad|iPod/i.test(navigator.userAgent)
-      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  const devicePlatform = (() => {
+    if (typeof navigator === 'undefined') return 'unknown';
+    const userAgent = navigator.userAgent || '';
+    if (/Android/i.test(userAgent)) return 'android';
+    if (/iPhone|iPad|iPod/i.test(userAgent)
+      || (/Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1)) return 'ios';
+    return 'unknown';
+  })();
+  const isIOSDevice = devicePlatform === 'ios';
+  const deviceLabel = devicePlatform === 'android'
+    ? 'Android'
+    : devicePlatform === 'ios'
+      ? 'iPhone / iPad'
+      : 'سیستم‌عامل تشخیص داده نشد';
   const providerUrl = item.provider_url || item.subscription_url || item.public_url;
   const openVpnToken = (() => {
     if (!item.public_url) return '';
@@ -288,6 +300,7 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
     return () => { active = false; };
   }, [openVpnToken, item.status, item.ipsec_available]);
   useEffect(() => {
+    setSelectedProtocol(null);
     setSelectedConfigApp(null);
   }, [item.id]);
   const copyValue = async (value: string, label: string) => { await navigator.clipboard?.writeText(value); setCopied(label); };
@@ -361,30 +374,86 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
     }
   };
   const clients = providerUrl ? mobileClientCatalog(providerUrl, item.plan) : [];
+  const supportsDevice = (platform: string) => {
+    const supportsIos = /iOS|iPhone|iPad|iPod/i.test(platform);
+    const supportsAndroid = /Android/i.test(platform);
+    if (devicePlatform === 'ios') return supportsIos;
+    if (devicePlatform === 'android') return supportsAndroid;
+    return supportsIos || supportsAndroid;
+  };
+  const mobileClients = clients.filter((client) => supportsDevice(client.platform));
+  const protocolDefinitions = [
+    {
+      id: 'v2ray',
+      name: 'V2Ray · sing-box',
+      description: 'اشتراک سرورها در برنامه‌های سازگار',
+      icon: Wifi,
+      apps: mobileClients.map((client) => ({
+        id: `client:${client.id}`,
+        name: client.name,
+        platform: devicePlatform === 'unknown' ? client.platform : deviceLabel,
+        description: client.description,
+        icon: Wifi,
+      })),
+    },
+    {
+      id: 'openvpn',
+      name: 'OpenVPN',
+      description: 'پروفایل اختصاصی هر سرور',
+      icon: ShieldCheck,
+      apps: openVpnToken && item.status === 'active' ? [{
+        id: 'openvpn',
+        name: 'OpenVPN Connect',
+        platform: devicePlatform === 'unknown' ? 'iOS / Android' : deviceLabel,
+        description: 'برنامهٔ رسمی برای واردکردن پروفایل',
+        icon: ShieldCheck,
+      }] : [],
+    },
+    {
+      id: 'wireguard',
+      name: 'WireGuard',
+      description: 'فایل کانفیگ یا پروفایل نصب',
+      icon: Wifi,
+      apps: item.wireguard_available && item.status === 'active' ? [{
+        id: 'wireguard',
+        name: 'WireGuard',
+        platform: devicePlatform === 'unknown' ? 'iOS / Android' : deviceLabel,
+        description: 'برنامهٔ رسمی برای اتصال به سرورها',
+        icon: Wifi,
+      }] : [],
+    },
+    {
+      id: 'amneziawg',
+      name: 'AmneziaWG',
+      description: 'کانفیگ Amnezia برای هر سرور',
+      icon: Wifi,
+      apps: item.awg_url && item.status === 'active' ? [{
+        id: 'amneziawg',
+        name: 'AmneziaWG',
+        platform: devicePlatform === 'unknown' ? 'iOS / Android' : deviceLabel,
+        description: 'برنامهٔ رسمی AmneziaWG',
+        icon: Wifi,
+      }] : [],
+    },
+    {
+      id: 'ipsec',
+      name: 'IKEv2 / IPsec',
+      description: 'اتصال داخلی iPhone و iPad',
+      icon: ShieldCheck,
+      apps: item.ipsec_available && item.status === 'active' && devicePlatform !== 'android' ? [{
+        id: 'ipsec',
+        name: 'VPN در تنظیمات iOS',
+        platform: 'iPhone / iPad',
+        description: 'بدون نصب برنامهٔ جداگانه',
+        icon: ShieldCheck,
+      }] : [],
+    },
+  ].filter((protocol) => protocol.apps.length > 0);
+  const selectedProtocolDefinition = protocolDefinitions.find((protocol) => protocol.id === selectedProtocol);
+  const configApps = selectedProtocolDefinition?.apps || [];
   const selectedClient = selectedConfigApp?.startsWith('client:')
     ? clients.find((client) => client.id === selectedConfigApp.slice('client:'.length))
     : undefined;
-  const configApps = [
-    ...clients.map((client) => ({
-      id: `client:${client.id}`,
-      name: client.name,
-      platform: client.platform,
-      description: client.description,
-      icon: Wifi,
-    })),
-    ...(openVpnToken && item.status === 'active' ? [{
-      id: 'openvpn', name: 'OpenVPN Connect', platform: 'iOS / Android', description: 'پروفایل اختصاصی همین اشتراک', icon: ShieldCheck,
-    }] : []),
-    ...(item.wireguard_available && item.status === 'active' ? [{
-      id: 'wireguard', name: 'WireGuard', platform: 'iOS / Android', description: 'فایل .conf یا پروفایل نصب iOS', icon: Wifi,
-    }] : []),
-    ...(item.awg_url && item.status === 'active' ? [{
-      id: 'amneziawg', name: 'AmneziaWG', platform: 'iOS / Android', description: 'کانفیگ Amnezia و پروفایل iOS', icon: Wifi,
-    }] : []),
-    ...(item.ipsec_available && item.status === 'active' ? [{
-      id: 'ipsec', name: 'IKEv2 / IPsec', platform: 'iPhone / iPad', description: 'حساب و پروفایل نصب iOS', icon: ShieldCheck,
-    }] : []),
-  ];
   const openVpnBundleImportHref = openVpnData
     ? openVpnConnectImportUrl(openVpnData.bundle_import_url, window.location.origin)
     : null;
@@ -395,32 +464,48 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
     { id: 'desktop', label: 'راهنمای macOS و Linux', detail: 'کلاینت‌های جایگزین مستند', href: 'https://docs.amnezia.org/documentation/alternative-clients' },
   ];
   return <div className="mobile-connection-stack" data-testid={`panel-mobile-access-${item.id}`}>
-    {configApps.length ? <section className="mobile-app-picker" data-testid={`panel-mobile-app-picker-${item.id}`}>
-      <div className="mobile-connection-card-head"><span className="mobile-connection-icon"><Smartphone size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ اول</span><h3>برنامهٔ اتصال را انتخاب کنید</h3><p>بعد از انتخاب برنامه، فقط فایل‌ها و روش‌های سازگار نمایش داده می‌شوند.</p></div></div>
+    <section className="mobile-protocol-picker" data-testid={`panel-mobile-protocol-picker-${item.id}`}>
+      <div className="mobile-connection-card-head"><span className="mobile-connection-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ اول</span><h3>پروتکل را انتخاب کنید</h3><p>پروتکل‌ها مرتب شده‌اند؛ سپس برنامه‌های مناسب دستگاه شما نمایش داده می‌شوند.</p></div></div>
+      <div className="mobile-protocol-list">{protocolDefinitions.map((protocol) => {
+        const Icon = protocol.icon;
+        return <button type="button" className={`mobile-protocol-choice ${selectedProtocol === protocol.id ? 'is-selected' : ''}`} key={protocol.id} onClick={() => {
+          setSelectedProtocol(protocol.id);
+          setSelectedConfigApp(null);
+        }} aria-pressed={selectedProtocol === protocol.id} data-testid={`button-mobile-select-protocol-${protocol.id}`}>
+          <span className="mobile-protocol-choice-icon"><Icon size={18} /></span>
+          <span className="mobile-protocol-choice-copy"><strong>{protocol.name}</strong><small>{protocol.description}</small></span>
+          <span className="mobile-protocol-choice-count">{faNumber(protocol.apps.length)} برنامه</span>
+          <ChevronLeft size={17} className="mobile-protocol-choice-arrow" />
+        </button>;
+      })}</div>
+      {!protocolDefinitions.length ? <p className="mobile-protocol-empty">برای این اشتراک، پروتکل قابل استفاده‌ای در دسترس نیست.</p> : null}
+    </section>
+    {selectedProtocolDefinition ? <section className="mobile-app-picker" data-testid={`panel-mobile-app-picker-${item.id}`}>
+      <div className="mobile-connection-card-head"><span className="mobile-connection-icon"><Smartphone size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ دوم · {selectedProtocolDefinition.name}</span><h3>برنامهٔ دستگاه را انتخاب کنید</h3><p>{devicePlatform === 'unknown' ? 'سیستم‌عامل دستگاه به‌طور قطعی تشخیص داده نشد؛ برنامه‌های iOS و Android نمایش داده می‌شوند.' : `دستگاه شناسایی‌شده: ${deviceLabel}؛ برنامه‌های سازگار فیلتر شده‌اند.`}</p></div></div>
       <div className="mobile-app-choice-grid">{configApps.map((app) => {
         const Icon = app.icon;
         return <button type="button" className={`mobile-app-choice ${selectedConfigApp === app.id ? 'is-selected' : ''}`} key={app.id} onClick={() => setSelectedConfigApp(app.id)} aria-pressed={selectedConfigApp === app.id} data-testid={`button-mobile-select-app-${app.id.replace(':', '-')}`}>
-          <span><Icon size={18} /></span><strong>{app.name}</strong><small>{app.platform}</small>
+          <span><Icon size={18} /></span><strong>{app.name}</strong><small>{app.platform}</small><small>{app.description}</small>
         </button>;
       })}</div>
     </section> : null}
     {selectedConfigApp && <button type="button" className="mobile-change-app" onClick={() => setSelectedConfigApp(null)} data-testid="button-mobile-change-app"><ChevronLeft size={15} /> تغییر برنامه</button>}
     {selectedClient && providerUrl ? <section className="mobile-provider-card" data-testid={`panel-mobile-client-${selectedClient.id}-${item.id}`}>
-      <div className="mobile-connection-card-head"><span className="mobile-connection-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ دوم · فایل اشتراک</span><h3>{selectedClient.name}</h3><p>{item.provider_name || item.server || 'اشتراک شما'} · {selectedClient.description}</p></div></div>
+      <div className="mobile-connection-card-head"><span className="mobile-connection-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ سوم · سرورها و فایل اشتراک</span><h3>{selectedClient.name}</h3><p>{item.provider_name || item.server || 'اشتراک شما'} · {selectedClient.description}</p></div></div>
       {selectedClient.quickUrl ? <a className="mobile-v2box-button" href={selectedClient.quickUrl} data-testid={`link-mobile-client-quick-${selectedClient.id}`}><ExternalLink size={17} /> باز کردن در برنامه</a> : null}
       <div className="mobile-connection-actions"><button onClick={() => void copyValue(selectedClient.configUrl, `لینک ${selectedClient.name}`)} data-testid={`button-mobile-client-copy-${selectedClient.id}`}><Copy size={15} /> کپی لینک اشتراک</button><button onClick={() => void shareValue(selectedClient.configUrl)} data-testid={`button-mobile-share-client-${selectedClient.id}`}><Share2 size={15} /> اشتراک‌گذاری</button><button onClick={() => void showQr(selectedClient.configUrl)} data-testid={`button-mobile-qr-client-${selectedClient.id}`}><QrCode size={15} /> QR</button></div>
       <a href={selectedClient.downloadUrl} target="_blank" rel="noreferrer" className="mobile-openvpn-primary" data-testid={`link-mobile-client-download-${selectedClient.id}`}><Download size={14} /> نصب {selectedClient.name}</a>
       <p className="mobile-client-footnote">اگر برنامه باز نشد، لینک اشتراک را کپی کنید و از داخل همان برنامه وارد کنید.</p>
     </section> : null}
     {selectedConfigApp === 'amneziawg' && item.awg_url ? <section className="mobile-awg-card" data-testid={`panel-mobile-awg-${item.id}`}>
-      <div className="mobile-connection-card-head"><span className="mobile-awg-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">اتصال اختصاصی</span><h3>AmneziaWG</h3><p>کانفیگ جداگانه برای اتصال پایدارتر</p></div></div>
+        <div className="mobile-connection-card-head"><span className="mobile-awg-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ سوم · سرورهای AmneziaWG</span><h3>AmneziaWG</h3><p>کانفیگ جداگانه برای اتصال پایدارتر</p></div></div>
        <div className="mobile-awg-actions"><a href={item.awg_url} download data-testid={`link-mobile-download-awg-${item.id}`}><Download size={16} /> دانلود کانفیگ</a>{isIOSDevice && item.awg_mobileconfig_url ? <a href={item.awg_mobileconfig_url} data-testid={`link-mobile-awg-ios-profile-${item.id}`}><Download size={16} /> نصب پروفایل iOS</a> : null}<button onClick={() => void copyAwg()} data-testid={`button-mobile-copy-awg-${item.id}`}><Copy size={15} /> کپی متن کانفیگ</button></div>
        {isIOSDevice && item.awg_mobileconfig_url ? <p className="mobile-openvpn-hint">بعد از تمدید، همین گزینه را دوباره بزنید تا پروفایل با کانفیگ جدید به‌روزرسانی شود؛ نصب جایگزین را در Settings → Profile Downloaded تأیید کنید و سپس AmneziaWG را باز کنید. فایل .conf هم برای واردکردن دستی موجود است.</p> : null}
        <div className="mobile-awg-download-heading"><span>دانلود اپ رسمی</span><a href="https://amnezia.org/downloads" target="_blank" rel="noreferrer"><ExternalLink size={13} /> همهٔ دانلودها</a></div>
        <div className="mobile-awg-download-grid">{awgDownloads.map((download) => <a href={download.href} target="_blank" rel="noreferrer" key={download.id} data-testid={`link-mobile-awg-download-${download.id}`}><strong>{download.label}</strong><small>{download.detail}</small><ExternalLink size={13} /></a>)}</div>
     </section> : null}
       {selectedConfigApp === 'openvpn' && openVpnToken && item.status === 'active' ? <section className="mobile-openvpn-card" data-testid={`panel-mobile-openvpn-${item.id}`}>
-       <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">اتصال جداگانه</span><h3>OpenVPN</h3><p>بازیابی حساب موجود؛ ساخت حساب فقط با انتخاب شما</p></div></div>
+        <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ سوم · سرورهای OpenVPN</span><h3>OpenVPN</h3><p>بازیابی حساب موجود؛ ساخت حساب فقط با انتخاب شما</p></div></div>
         {openVpnLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی حساب ذخیره‌شدهٔ OpenVPN...</div> : !openVpnData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareOpenVpn()} disabled={openVpnBusy} data-testid={`button-mobile-openvpn-prepare-${item.id}`}>{openVpnBusy ? 'در حال دریافت...' : 'بازیابی یا ساخت حساب OpenVPN'}</button> : <>
          <div className="mobile-openvpn-details">
            <div><span>آدرس سرور</span><strong dir="ltr">{openVpnData.server}</strong></div>
@@ -443,7 +528,7 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
        {openVpnError ? <p className="mobile-openvpn-error" role="alert">{openVpnError}</p> : null}
      </section> : null}
        {selectedConfigApp === 'wireguard' && item.wireguard_available && item.status === 'active' ? <section className="mobile-openvpn-card mobile-wireguard-card" data-testid={`panel-mobile-wireguard-${item.id}`}>
-        <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">اتصال مستقل</span><h3>WireGuard</h3><p>ساخت کانفیگ فقط با انتخاب شما انجام می‌شود.</p></div></div>
+         <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ سوم · سرورهای WireGuard</span><h3>WireGuard</h3><p>ساخت کانفیگ فقط با انتخاب شما انجام می‌شود.</p></div></div>
         {wireguardLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی کانفیگ ذخیره‌شدهٔ WireGuard...</div> : !wireguardData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareWireGuard()} disabled={wireguardBusy} data-testid={`button-mobile-wireguard-create-${item.id}`}>{wireguardBusy ? 'در حال آماده‌سازی...' : 'ساخت یا دریافت کانفیگ WireGuard'}</button> : <>
           <a className="mobile-openvpn-download primary" href={wireguardData.bundle_url} download data-testid={`link-mobile-wireguard-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ کانفیگ‌ها</a>
           {isIOSDevice ? <a className="mobile-openvpn-primary" href={wireguardData.bundle_mobileconfig_url} data-testid={`link-mobile-wireguard-ios-all-profile-${item.id}`}><Download size={15} /> نصب همهٔ سرورها در یک پروفایل iOS</a> : null}
@@ -454,7 +539,7 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
         {wireguardError ? <p className="mobile-openvpn-error" role="alert">{wireguardError}</p> : null}
       </section> : null}
       {selectedConfigApp === 'ipsec' && item.ipsec_available && item.status === 'active' ? <section className="mobile-openvpn-card mobile-wireguard-card" data-testid={`panel-mobile-ipsec-${item.id}`}>
-        <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">اتصال مستقل · IKEv2</span><h3>IPsec</h3><p>حساب IPsec و پروفایل iOS مخصوص همین سرویس.</p></div></div>
+         <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ سوم · سرورهای IKEv2</span><h3>IPsec</h3><p>حساب IPsec و پروفایل iOS مخصوص همین سرویس.</p></div></div>
         {ipsecLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی حساب ذخیره‌شدهٔ IPsec...</div> : !ipsecData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareIpsec()} disabled={ipsecBusy} data-testid={`button-mobile-ipsec-create-${item.id}`}>{ipsecBusy ? 'در حال آماده‌سازی...' : 'ساخت یا دریافت حساب IPsec'}</button> : <>
           <div className="mobile-openvpn-credentials">
             <div><span>نام کاربری</span><strong dir="ltr">{ipsecData.login}</strong><button type="button" onClick={() => void copyValue(ipsecData.login, 'نام کاربری IPsec')} aria-label="کپی نام کاربری IPsec"><Copy size={14} /></button></div>
