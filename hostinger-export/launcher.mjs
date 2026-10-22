@@ -857,7 +857,11 @@ function isManagementPage(req) {
       req.url || "/",
       `http://${req.headers.host || "localhost"}`,
     ).pathname;
-    return pathname === "/panel" || pathname.startsWith("/panel/");
+    if (pathname === "/panel" || pathname.startsWith("/panel/")) return true;
+    const publicRoots = ["/mobile", "/showcase", "/sub", "/panel-sub-assets"];
+    return !publicRoots.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    );
   } catch {
     return false;
   }

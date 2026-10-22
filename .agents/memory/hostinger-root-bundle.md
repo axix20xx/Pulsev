@@ -3,8 +3,8 @@ name: Hostinger root bundle
 description: Hostinger serves separate admin and customer frontend bundles at /panel and /mobile.
 ---
 
-Hostinger production exports must build each routed frontend for its actual public base: `/panel` for admin/reseller and `/mobile` for the customer PWA. The launcher must route those paths to separate bundle roots.
+Hostinger exports serve the management frontend at both `/` and `/panel`, and the customer PWA at `/mobile`; build each entrypoint for its own public base. The root-level management routes must receive the same startup gate as `/panel`.
 
-**Why:** Reusing one `/panel` build for `/mobile` makes Wouter, assets, manifest, and service-worker scopes point at the admin app. Old service workers can then keep serving the panel login even after the server route is corrected.
+**Why:** The root login can load before the API finishes schema setup, so its first session request may query an incomplete database schema. Reusing a `/panel` build for `/mobile` also misroutes assets and service-worker scope.
 
-**How to apply:** Build/copy the frontend twice with `PORT` plus `BASE_PATH=/panel/` and `BASE_PATH=/mobile/`; route `/panel` and `/mobile` to their matching roots, serve the mobile manifest/SW inside the mobile scope, and migrate stale registrations outside `/mobile/` before reload.
+**How to apply:** Build/copy the management frontend separately for `/` and `/panel/`, and the customer frontend for `/mobile/`. Gate root and panel HTML until API readiness, and await management schema readiness before attaching session auth. Serve the mobile manifest/SW within its scope and migrate stale registrations outside `/mobile/` before reload.

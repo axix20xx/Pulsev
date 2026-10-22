@@ -2130,3 +2130,17 @@ mtime_ms = 1792679899383
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1c2cd9f2-3c96-478a-9775-cab72e4d19c0/890f44f5-e246-4d3f-a5b5-ffe5d1d819e9"
 storage_version_token = "1792679950899923"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "oAtMSru_HYg_v0cL375nn"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-22T15-07-30-757Z.zip"
+type = "unspecified"
+title = "Hostinger update — root login 500 fix"
+description = "Replaces the prior Hostinger package. Root and /panel admin pages now wait for API readiness; session authentication waits for management schema setup. Includes the existing legacy SQL snapshot—keep this package private."
+logical_id = "a52c89e9-fadb-42d1-ada3-059451cc83a5"
+content_hash = "sha256:dc75930433fbef401eb43de94d826143ec0188a94fcc7c9937c7ace64c1878aa"
+size = 29072912
+mtime_ms = 1792681769629
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/a52c89e9-fadb-42d1-ada3-059451cc83a5/7313220a-3673-47d2-972a-a24676ba6261"
+storage_version_token = "1792681837667604"
+content_type = "application/octet-stream"

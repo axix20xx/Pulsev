@@ -82537,8 +82537,11 @@ storefrontRouter.patch("/storefront/leads/:id", requireAuth, async (req, res, ne
 var MASTER_ADMIN_COST_PER_GB = 2500;
 var resellerCostPerGbSql = (alias = "r") => `CASE WHEN ${alias}.tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${alias}.per_gig_price, 0) END`;
 var saleAmountToAdminSql = (saleAlias = "s", resellerAlias = "r") => `CASE WHEN ${saleAlias}.reseller_tg_id = ${MASTER_ADMIN_TELEGRAM_ID} THEN ${MASTER_ADMIN_COST_PER_GB} ELSE COALESCE(${resellerAlias}.per_gig_price, 0) END`;
+var managementReady = Promise.resolve();
 var router2 = (0, import_express3.Router)();
-router2.use(attachAuth);
+router2.use((req, res, next) => {
+  void managementReady.then(() => attachAuth(req, res, next)).catch(next);
+});
 var campaignTargets = /* @__PURE__ */ new Set(["all", "recipient", "expiring_3d", "expiring_7d", "expired", "low_traffic", "no_push", "unpaid"]);
 var notificationHref = (value) => {
   const input = typeof value === "string" ? value.trim() : "";
@@ -83033,7 +83036,7 @@ router2.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, asyn
   });
   res.json({ retried: true, campaignId, ...result });
 });
-var managementReady = pool.query(`
+managementReady = pool.query(`
     CREATE TABLE IF NOT EXISTS panel_configs (
       key TEXT PRIMARY KEY,
       kind TEXT NOT NULL,
