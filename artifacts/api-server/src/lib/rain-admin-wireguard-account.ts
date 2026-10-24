@@ -6,6 +6,7 @@ export type RainAdminBackfillResponse = {
 export type RainAdminBackfillProvider = {
   key: string;
   lookup: () => Promise<RainAdminBackfillResponse>;
+  listGroupIds: () => Promise<RainAdminBackfillResponse & { groupIds?: number[] }>;
   create: (body: Record<string, unknown>) => Promise<RainAdminBackfillResponse>;
 };
 
@@ -75,6 +76,22 @@ export async function ensureRainAdminBackfillAccount(
   }
 
   const provider = missing[0];
+  const groups = await provider.listGroupIds();
+  if (groups.status < 200 || groups.status >= 300) {
+    throw new RainAdminBackfillError(
+      `Rain Admin ${provider.key} could not list user groups: ${groups.error || `HTTP ${groups.status}`}`,
+      retryableStatus(groups.status),
+    );
+  }
+  const groupIds = [...new Set((groups.groupIds ?? [])
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0))];
+  if (!groupIds.length) {
+    throw new RainAdminBackfillError(
+      `Rain Admin ${provider.key} returned no valid groups; the WireGuard account was not created.`,
+      false,
+    );
+  }
   const created = await provider.create({
     username: input.username.trim(),
     status: "active",
@@ -83,7 +100,7 @@ export async function ensureRainAdminBackfillAccount(
       ? 0
       : Math.max(1, Math.ceil(input.remainingBytes)),
     data_limit_reset_strategy: "no_reset",
-    group_ids: [1],
+    group_ids: groupIds,
     note: "Pulse WireGuard backfill",
   });
   if (created.status >= 200 && created.status < 300) {
