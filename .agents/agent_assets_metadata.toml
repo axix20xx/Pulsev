@@ -2284,3 +2284,17 @@ mtime_ms = 1792881704975
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1c08919a-38dc-4505-bfed-a1ecf79db5a2/6a6b7b95-d0f3-44f5-ad73-cd45cc2f4c2b"
 storage_version_token = "1792881740668488"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "tUy218yi4IegORT_04DG4"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T22-55-50-962Z.zip"
+type = "unspecified"
+title = "Updated Pulse Hostinger package"
+description = "Full Hostinger migration ZIP with the Rain Admin WireGuard subscription and mobile delivery fix."
+logical_id = "2619f7e8-2c58-4fcb-9a2a-f6fcc79b4901"
+content_hash = "sha256:2a9990ccec541243bb812b7b794d30a8a92fb5913a2df4f4cf394be9fa953cea"
+size = 29108324
+mtime_ms = 1792882664262
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2619f7e8-2c58-4fcb-9a2a-f6fcc79b4901/96637e43-9dbe-4f2f-be88-fb0825a2c651"
+storage_version_token = "1792882706382395"
+content_type = "application/octet-stream"

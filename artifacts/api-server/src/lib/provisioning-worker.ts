@@ -16,6 +16,7 @@ import { logger } from "./logger";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { normalizeProvisioningJobIds } from "./provisioning-job-ids";
+import { MASTER_ADMIN_TELEGRAM_ID } from "./auth";
 
 type ProvisionJob = {
   id: number;
@@ -341,7 +342,10 @@ async function processRainAdminWireGuardBackfill(job: ProvisionJob): Promise<voi
     await completeJob(job.id, "سرویس پیش از آماده‌سازی WireGuard حذف شد یا نام کاربری ندارد.");
     return;
   }
-  if (Number(service.wireguard_enabled) === 0) {
+  if (
+    Number(service.owner_tg_id) !== MASTER_ADMIN_TELEGRAM_ID
+    && Number(service.wireguard_enabled) === 0
+  ) {
     await completeJob(job.id, "دسترسی WireGuard فروشنده پیش از اجرای صف غیرفعال شد.");
     return;
   }

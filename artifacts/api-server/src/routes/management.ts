@@ -86,6 +86,7 @@ import {
   prepareIpsecAccount,
   renewIpsecAccount,
   prepareOpenVpnAccount,
+  ensureRainAdminWireGuardDelivery,
   prepareWireGuardAccount,
   renewWireGuardAccount,
   provisionUser,
@@ -1183,12 +1184,15 @@ async function queueRainAdminWireGuardBackfill(
            ) > 0
          )
          AND svc.rain_username IS NOT NULL
-         AND EXISTS (
-           SELECT 1
-           FROM resellers reseller
-           WHERE reseller.tg_id = svc.reseller_tg_id
-             AND COALESCE(reseller.wireguard_enabled, 0) <> 0
-         )
+          AND (
+            svc.reseller_tg_id = ${MASTER_ADMIN_TELEGRAM_ID}
+            OR EXISTS (
+              SELECT 1
+              FROM resellers reseller
+              WHERE reseller.tg_id = svc.reseller_tg_id
+                AND COALESCE(reseller.wireguard_enabled, 0) <> 0
+            )
+          )
          AND NOT EXISTS (
            SELECT 1
            FROM reseller_service_wireguard_accounts account
@@ -2119,13 +2123,54 @@ router.get("/public/subscription/:token/wireguard", async (req, res): Promise<vo
     return;
   }
   try {
-    const delivery = await loadSavedWireGuardDelivery(Number(service.id));
+    let delivery = await loadSavedWireGuardDelivery(Number(service.id));
     if (!delivery) {
-      res.status(404).json({ error: "حساب WireGuard ذخیره‌شده‌ای پیدا نشد", code: "WIREGUARD_NOT_CREATED" });
-      return;
+      if (service.status !== "active") {
+        res.status(410).json({ error: "وضعیت سرویس برای آماده‌سازی WireGuard فعال نیست." });
+        return;
+      }
+      const totalBytes = Number(service.last_total_bytes) > 0
+        ? Number(service.last_total_bytes)
+        : Math.round(Number(service.limit_gb ?? 0) * 1024 ** 3);
+      const usedBytes = serviceUsageBytes({
+        lastUsedBytes: service.last_used_bytes,
+        panelUsageBytes: service.panel_usage_bytes,
+        awgTotalBytes: service.awg_total_bytes,
+        awgOffsetBytes: service.awg_offset_bytes,
+      });
+      const remainingBytes = totalBytes > 0 ? Math.max(0, totalBytes - usedBytes) : null;
+      const expiresAtMs = service.expires_at ? new Date(service.expires_at).getTime() : Number.NaN;
+      const expiresAtUnix = Number.isFinite(expiresAtMs) && expiresAtMs > 0
+        ? Math.floor(expiresAtMs / 1000)
+        : null;
+      delivery = await ensureRainAdminWireGuardDelivery(
+        String(service.username ?? ""),
+        remainingBytes,
+        expiresAtUnix,
+        Number(service.reseller_tg_id),
+        "reseller",
+      );
+      if (!delivery) {
+        res.status(404).json({ error: "حساب WireGuard ذخیره‌شده‌ای پیدا نشد", code: "WIREGUARD_NOT_CREATED" });
+        return;
+      }
+      await pool.query(
+        `INSERT INTO reseller_service_wireguard_accounts (service_id, delivery_secret)
+         VALUES ($1, $2)
+         ON CONFLICT (service_id) DO NOTHING`,
+        [Number(service.id), encryptPanelCredential(JSON.stringify(delivery))],
+      );
+      delivery = await loadSavedWireGuardDelivery(Number(service.id));
+      if (!delivery) throw new Error("Rain Admin WireGuard delivery could not be persisted.");
     }
     res.json(publicWireGuardDelivery(token, delivery));
-  } catch {
+  } catch (error) {
+    if (error instanceof RainApiError) {
+      res.status(502).json({
+        error: "Rain Admin WireGuard is not ready. Check the extension credentials, enabled groups, and provider account.",
+      });
+      return;
+    }
     res.status(500).json({ error: "اطلاعات ذخیره‌شده WireGuard قابل خواندن نیست." });
   }
 });

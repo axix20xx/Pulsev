@@ -1225,6 +1225,50 @@ export async function prepareRainAdminWireGuardDelivery(
   };
 }
 
+export async function ensureRainAdminWireGuardDelivery(
+  username: string,
+  remainingBytes: number | null,
+  expiresAtUnix: number | null,
+  ownerId?: number,
+  role?: string,
+): Promise<WireGuardDelivery | null> {
+  const providers = (await panels(ownerId, role)).filter(isRainAdminWireGuardPanel);
+  if (!providers.length) return null;
+
+  let panel: Panel | undefined;
+  if (providers.length === 1) {
+    panel = providers[0];
+  } else {
+    const keys = providers.map(panelKey);
+    const mapped = await pool.query<{ panel_key: string }>(
+      `SELECT DISTINCT panel_key
+       FROM user_panel_usages
+       WHERE username = $1 AND panel_key = ANY($2::text[])`,
+      [username, keys],
+    );
+    const mappedKeys = [...new Set(mapped.rows.map((row) => row.panel_key))];
+    if (mappedKeys.length === 1) {
+      panel = providers.find((candidate) => panelKey(candidate) === mappedKeys[0]);
+    }
+  }
+
+  if (!panel) {
+    throw new RainApiError(
+      "More than one Rain Admin WireGuard provider is enabled and this service has no unique provider mapping.",
+      [],
+      false,
+    );
+  }
+
+  await ensureRainAdminWireGuardBackfillUser(
+    username,
+    remainingBytes,
+    expiresAtUnix,
+    panelKey(panel),
+  );
+  return prepareRainAdminWireGuardDelivery(username, panelKey(panel), ownerId, role);
+}
+
 function isWireGuardDeliveryPanel(panel: Panel): boolean {
   const kind = panel.kind?.trim().toLowerCase();
   return kind === "rain_admin_wireguard" || kind === "azadpanel_wireguard";

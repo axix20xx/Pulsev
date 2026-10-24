@@ -11,7 +11,7 @@ For a user-specific WireGuard download, resolve the already-provisioned PasarGua
 
 **How to apply:** For an account backfill, lookup first and create only after a confirmed not-found response using remaining quota and existing expiry. For new services and renewals, route normal account operations through this provider when no matching primary row exists. Compare normalized scheme, host, and API path before sharing provider identity or IDs.
 
-The one-time backfill is authorized only for eligible existing services; it must not modify accounts that already exist.
+The one-time backfill is authorized only for eligible existing services; it must not modify accounts that already exist. If public `/sub` or mobile requests a missing delivery record, first look up the extension account and create it only after a confirmed not-found response, for an active eligible service.
 
 Recheck each service's lifecycle, expiry, remaining quota, and WireGuard entitlement when the backfill job runs. Existing accounts must remain untouched, and create requests must not run after lookup errors, permission failures, or panel mismatch.
 
@@ -19,4 +19,8 @@ Rain Admin WireGuard usage belongs in the combined service quota and per-provide
 
 **Why:** The user explicitly requires the standalone Rain Admin WireGuard API to count toward total usage and provide the same config downloads in subscription and mobile flows.
 
-**How to apply:** Include `rain_admin_wireguard` in saved-usage reads and totals, use its saved provider identity when available, and keep public downloads keyed to the saved provider key rather than mixing it into the V2Ray feed.
+**How to apply:** Include `rain_admin_wireguard` in saved-usage reads and totals, persist delivery metadata when a profile is first prepared, use its saved provider identity for downloads, and keep it separate from the V2Ray feed.
+
+**Why:** A provider account can exist without a local encrypted delivery row; in that case both public clients hide the profiles even though the provider can serve them.
+
+**How to apply:** For an active entitled service with no saved delivery, resolve the unique configured Rain Admin WireGuard provider, safely ensure the missing account if lookup confirms it is absent, then save the returned profile locations before responding. Never create after a transient lookup error or when provider identity is ambiguous.
