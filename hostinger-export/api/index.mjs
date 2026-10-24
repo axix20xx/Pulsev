@@ -75406,6 +75406,14 @@ function storedPanelUsageSql(serviceAlias = "svc") {
   ), 0)::float8`;
 }
 
+// src/lib/protocol-access.ts
+function hasWireGuardAccess(resellerTelegramId, wireguardEnabled, masterAdminTelegramId) {
+  if (resellerTelegramId !== null && resellerTelegramId !== void 0 && String(resellerTelegramId).trim() === String(masterAdminTelegramId)) {
+    return true;
+  }
+  return wireguardEnabled === true || wireguardEnabled === 1 || wireguardEnabled === "1";
+}
+
 // src/lib/auth.ts
 import {
   createHash as createHash2,
@@ -80435,6 +80443,11 @@ var mapService = (req, row) => {
   const daysRemaining = expiresAt ? Math.ceil((expiresAt - Date.now()) / 864e5) : null;
   const status = row.status === "disabled" ? "cancelled" : expiresAt > 0 && expiresAt <= Date.now() ? "expired" : row.status === "pending" ? "pending" : "active";
   const token = row.subscription_token;
+  const wireguardAvailable = hasWireGuardAccess(
+    row.reseller_tg_id,
+    row.wireguard_enabled,
+    MASTER_ADMIN_TELEGRAM_ID
+  );
   const subscriptionUrl2 = token ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/feed`) : null;
   return {
     id: String(row.id),
@@ -80457,7 +80470,7 @@ var mapService = (req, row) => {
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
     awg_mobileconfig_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg/mobileconfig`) : null,
     openvpn_available: Boolean(token) && status === "active",
-    wireguard_available: Boolean(row.wireguard_enabled) && Boolean(token) && status === "active" && remainingBytes > 0 && !(expiresAt > 0 && expiresAt <= Date.now()),
+    wireguard_available: wireguardAvailable && Boolean(token) && status === "active" && remainingBytes > 0 && !(expiresAt > 0 && expiresAt <= Date.now()),
     ipsec_available: Boolean(row.ipsec_enabled) && Boolean(token) && status === "active" && remainingBytes > 0 && !(expiresAt > 0 && expiresAt <= Date.now()),
     awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
     service_code: `PULSE-${String(row.id).padStart(6, "0")}`
@@ -80465,7 +80478,7 @@ var mapService = (req, row) => {
 };
 var listServices = async (req, customerId2) => {
   const result = await pool.query(
-    `SELECT svc.id, svc.customer_id, c.full_name AS customer_name, c.phone,
+    `SELECT svc.id, svc.customer_id, svc.reseller_tg_id, c.full_name AS customer_name, c.phone,
             svc.label AS plan, svc.status, svc.created_at, svc.expire_at AS expires_at,
             svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
             svc.last_remaining_bytes, rst.token AS subscription_token,
@@ -80473,7 +80486,7 @@ var listServices = async (req, customerId2) => {
             COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
             COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
             ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
-            COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled,
+            COALESCE(reseller.wireguard_enabled, 0) AS wireguard_enabled,
             COALESCE(reseller.ipsec_enabled, 0) = 1 AS ipsec_enabled,
             COALESCE(svc.falco_system_name, 'V2Box') AS panel
      FROM reseller_services svc
@@ -84662,7 +84675,7 @@ async function loadPublicOpenVpnService(token) {
             ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
             COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
             COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
-            COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled,
+            COALESCE(reseller.wireguard_enabled, 0) AS wireguard_enabled,
             (COALESCE(reseller.ipsec_enabled, 0) = 1 OR reseller.tg_id = ${MASTER_ADMIN_TELEGRAM_ID}) AS ipsec_enabled
      FROM reseller_sub_tokens rst
      JOIN reseller_services svc ON svc.id = rst.service_id
@@ -84671,7 +84684,16 @@ async function loadPublicOpenVpnService(token) {
      LIMIT 1`,
     [token]
   );
-  return result.rows[0] ?? null;
+  const service = result.rows[0];
+  if (!service) return null;
+  return {
+    ...service,
+    wireguard_enabled: hasWireGuardAccess(
+      service.reseller_tg_id,
+      service.wireguard_enabled,
+      MASTER_ADMIN_TELEGRAM_ID
+    )
+  };
 }
 function publicOpenVpnServiceFinished(service) {
   const expiresAt = service.expires_at ? new Date(service.expires_at).getTime() : 0;
@@ -84692,12 +84714,12 @@ router2.get("/public/subscription/:token", async (req, res) => {
     return;
   }
   const result = await pool.query(
-    `SELECT svc.id, svc.rain_username AS username, svc.label AS plan, svc.status, svc.expire_at AS expires_at,
+    `SELECT svc.id, svc.reseller_tg_id, svc.rain_username AS username, svc.label AS plan, svc.status, svc.expire_at AS expires_at,
             svc.gb::float8 AS limit_gb, svc.last_used_bytes, svc.last_total_bytes, svc.last_remaining_bytes,
             svc.awg_client_id, COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
             COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
             ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
-             COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled,
+             COALESCE(reseller.wireguard_enabled, 0) AS wireguard_enabled,
              (COALESCE(reseller.ipsec_enabled, 0) = 1 OR reseller.tg_id = ${MASTER_ADMIN_TELEGRAM_ID}) AS ipsec_enabled,
             COALESCE(c.full_name, '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name, rst.token
      FROM reseller_sub_tokens rst
@@ -84722,6 +84744,11 @@ router2.get("/public/subscription/:token", async (req, res) => {
   const totalBytes = Number(row.last_total_bytes) > 0 ? Number(row.last_total_bytes) : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
   const remainingBytes = Math.max(0, totalBytes - usedBytes);
   const usedGb = usedBytes / 1024 ** 3;
+  const wireguardEnabled = hasWireGuardAccess(
+    row.reseller_tg_id,
+    row.wireguard_enabled,
+    MASTER_ADMIN_TELEGRAM_ID
+  );
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const quotaFinished = totalBytes > 0 && usedBytes >= totalBytes;
   const dateFinished = Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now();
@@ -84761,7 +84788,7 @@ router2.get("/public/subscription/:token", async (req, res) => {
     awg_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg` : null,
     awg_mobileconfig_url: !finished && row.awg_client_id ? `/api/public/subscription/${encodeURIComponent(token)}/awg/mobileconfig` : null,
     openvpn_available: !finished && Boolean(token),
-    wireguard_available: !finished && Boolean(row.wireguard_enabled),
+    wireguard_available: !finished && wireguardEnabled,
     ipsec_available: !finished && Boolean(row.ipsec_enabled),
     provider_label: "V2Box",
     announcement: { ...announcement, service_code: serviceCode }

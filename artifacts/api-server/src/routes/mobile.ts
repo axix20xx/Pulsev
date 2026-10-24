@@ -2,9 +2,11 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { createHash, randomBytes } from "node:crypto";
 import webpush from "web-push";
 import { pool } from "@workspace/db";
+import { MASTER_ADMIN_TELEGRAM_ID } from "../lib/auth";
 import { serviceUsageBytes, storedPanelUsageSql } from "../lib/service-usage-snapshot";
 import { allowMobileAuthAttempt, consumeMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
 import { isAllowedPushEndpoint } from "../lib/mobile-push-url";
+import { hasWireGuardAccess } from "../lib/protocol-access";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -28,6 +30,7 @@ declare global {
 type MobileServiceRow = {
   id: number;
   customer_id: number;
+  reseller_tg_id: number | string;
   customer_name: string;
   phone: string;
   plan: string;
@@ -45,7 +48,7 @@ type MobileServiceRow = {
   subscription_token: string | null;
   awg_client_id: string | null;
   panel: string | null;
-  wireguard_enabled: boolean;
+  wireguard_enabled: boolean | number | string | null;
   ipsec_enabled: boolean;
 };
 
@@ -376,6 +379,11 @@ const mapService = (req: Request, row: MobileServiceRow) => {
         ? "pending"
         : "active";
   const token = row.subscription_token;
+  const wireguardAvailable = hasWireGuardAccess(
+    row.reseller_tg_id,
+    row.wireguard_enabled,
+    MASTER_ADMIN_TELEGRAM_ID,
+  );
   const subscriptionUrl = token ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/feed`) : null;
   return {
     id: String(row.id),
@@ -400,7 +408,7 @@ const mapService = (req: Request, row: MobileServiceRow) => {
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
     awg_mobileconfig_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg/mobileconfig`) : null,
     openvpn_available: Boolean(token) && status === "active",
-    wireguard_available: Boolean(row.wireguard_enabled)
+    wireguard_available: wireguardAvailable
       && Boolean(token)
       && status === "active"
       && remainingBytes > 0
@@ -417,7 +425,7 @@ const mapService = (req: Request, row: MobileServiceRow) => {
 
 const listServices = async (req: Request, customerId: number) => {
   const result = await pool.query<MobileServiceRow>(
-    `SELECT svc.id, svc.customer_id, c.full_name AS customer_name, c.phone,
+    `SELECT svc.id, svc.customer_id, svc.reseller_tg_id, c.full_name AS customer_name, c.phone,
             svc.label AS plan, svc.status, svc.created_at, svc.expire_at AS expires_at,
             svc.gb::float8 AS limit_gb, svc.rain_username AS username, svc.last_used_bytes, svc.last_total_bytes,
             svc.last_remaining_bytes, rst.token AS subscription_token,
@@ -425,7 +433,7 @@ const listServices = async (req: Request, customerId: number) => {
             COALESCE(svc.awg_total, 0)::float8 AS awg_total_bytes,
             COALESCE(svc.awg_offset_bytes, 0)::float8 AS awg_offset_bytes,
             ${storedPanelUsageSql("svc")} AS panel_usage_bytes,
-            COALESCE(reseller.wireguard_enabled, 0) = 1 AS wireguard_enabled,
+            COALESCE(reseller.wireguard_enabled, 0) AS wireguard_enabled,
             COALESCE(reseller.ipsec_enabled, 0) = 1 AS ipsec_enabled,
             COALESCE(svc.falco_system_name, 'V2Box') AS panel
      FROM reseller_services svc
