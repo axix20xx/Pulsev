@@ -19,7 +19,7 @@ Rain Admin WireGuard usage belongs in the combined service quota and per-provide
 
 **Why:** The user explicitly requires the standalone Rain Admin WireGuard API to count toward total usage and provide the same config downloads in subscription and mobile flows.
 
-**How to apply:** Include `rain_admin_wireguard` in saved-usage reads and totals, persist delivery metadata when a profile is first prepared, use its saved provider identity for downloads, and keep it separate from the V2Ray feed.
+**How to apply:** Include `rain_admin_wireguard` in saved-usage reads and totals, persist delivery metadata when a profile is first prepared, use its saved provider identity for downloads, and keep it separate from the V2Ray feed. On mobile, treat a zero quota limit as unlimited, not as an exhausted service.
 
 **Why:** A provider account can exist without a local encrypted delivery row; in that case both public clients hide the profiles even though the provider can serve them.
 

@@ -6,7 +6,7 @@ import { MASTER_ADMIN_TELEGRAM_ID } from "../lib/auth";
 import { serviceUsageBytes, storedPanelUsageSql } from "../lib/service-usage-snapshot";
 import { allowMobileAuthAttempt, consumeMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
 import { isAllowedPushEndpoint } from "../lib/mobile-push-url";
-import { hasWireGuardAccess } from "../lib/protocol-access";
+import { hasWireGuardAccess, isWireGuardServiceAvailable } from "../lib/protocol-access";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -408,11 +408,13 @@ const mapService = (req: Request, row: MobileServiceRow) => {
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
     awg_mobileconfig_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg/mobileconfig`) : null,
     openvpn_available: Boolean(token) && status === "active",
-    wireguard_available: wireguardAvailable
-      && Boolean(token)
-      && status === "active"
-      && remainingBytes > 0
-      && !(expiresAt > 0 && expiresAt <= Date.now()),
+    wireguard_available: Boolean(token) && isWireGuardServiceAvailable({
+      enabled: wireguardAvailable,
+      status,
+      totalBytes,
+      remainingBytes,
+      expiresAtMs: expiresAt,
+    }),
     ipsec_available: Boolean(row.ipsec_enabled)
       && Boolean(token)
       && status === "active"

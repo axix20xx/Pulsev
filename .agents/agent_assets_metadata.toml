@@ -2298,3 +2298,17 @@ mtime_ms = 1792882664262
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2619f7e8-2c58-4fcb-9a2a-f6fcc79b4901/96637e43-9dbe-4f2f-be88-fb0825a2c651"
 storage_version_token = "1792882706382395"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "eVNw0T7VGcAnS-NnIgHst"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T23-03-53-397Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger package — mobile WireGuard visibility fix"
+description = "Updated Hostinger migration ZIP. Fixes the mobile API hiding WireGuard on active unlimited (0 GB limit) subscriptions, plus the Rain Admin WireGuard delivery recovery from the previous build."
+logical_id = "f946193c-1b5d-48f8-a577-17377c4a827a"
+content_hash = "sha256:74d1c06ede7aba7d1c0fc9c317b30b5194a9c5562e96d8e0f1129f1ad4310457"
+size = 29108678
+mtime_ms = 1792883145941
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f946193c-1b5d-48f8-a577-17377c4a827a/4c96a47c-6f8d-404e-a0af-413612f472bb"
+storage_version_token = "1792883180755097"
+content_type = "application/octet-stream"

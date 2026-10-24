@@ -75413,6 +75413,12 @@ function hasWireGuardAccess(resellerTelegramId, wireguardEnabled, masterAdminTel
   }
   return wireguardEnabled === true || wireguardEnabled === 1 || wireguardEnabled === "1";
 }
+function isWireGuardServiceAvailable(input) {
+  const nowMs = input.nowMs ?? Date.now();
+  const unlimited = Number.isFinite(input.totalBytes) && input.totalBytes <= 0;
+  const expired = Number.isFinite(input.expiresAtMs) && Number(input.expiresAtMs) > 0 && Number(input.expiresAtMs) <= nowMs;
+  return input.enabled && input.status === "active" && (unlimited || input.remainingBytes > 0) && !expired;
+}
 
 // src/lib/auth.ts
 import {
@@ -80504,7 +80510,13 @@ var mapService = (req, row) => {
     public_url: token ? originPath(req, `/sub?t=${encodeURIComponent(token)}`) : null,
     awg_mobileconfig_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg/mobileconfig`) : null,
     openvpn_available: Boolean(token) && status === "active",
-    wireguard_available: wireguardAvailable && Boolean(token) && status === "active" && remainingBytes > 0 && !(expiresAt > 0 && expiresAt <= Date.now()),
+    wireguard_available: Boolean(token) && isWireGuardServiceAvailable({
+      enabled: wireguardAvailable,
+      status,
+      totalBytes,
+      remainingBytes,
+      expiresAtMs: expiresAt
+    }),
     ipsec_available: Boolean(row.ipsec_enabled) && Boolean(token) && status === "active" && remainingBytes > 0 && !(expiresAt > 0 && expiresAt <= Date.now()),
     awg_url: token && row.awg_client_id ? originPath(req, `/api/public/subscription/${encodeURIComponent(token)}/awg`) : null,
     service_code: `PULSE-${String(row.id).padStart(6, "0")}`
