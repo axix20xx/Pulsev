@@ -36,3 +36,9 @@ Both public WireGuard retrieval and the create/retry action must use the same Ra
 **Why:** The subscription page calls GET automatically and POST when the user retries; a POST path that only reads profiles can fail forever when the extension account is missing.
 
 **How to apply:** Route both actions through the provider-aware backfill/delivery helper, then persist the same delivery record. Return only sanitized provider error detail so missing groups or profiles can be diagnosed without exposing credentials.
+
+When an active Rain Admin WireGuard extension is configured, a cached delivery from another WireGuard provider must not hide it.
+
+**Why:** The service has one saved delivery pointer, so returning an older provider first prevents the new Rain Admin profiles from ever reaching `/sub` or mobile.
+
+**How to apply:** Reuse a saved delivery when it already belongs to the configured Rain Admin extension; otherwise ensure and fetch the extension delivery, then replace the saved pointer without deleting the previous provider account.

@@ -2340,3 +2340,17 @@ mtime_ms = 1792884641925
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e56d5bb2-e9d4-4ff6-a2d8-9aa17e5f047f/444c5cfd-fc95-49bf-a6db-06711727abaf"
 storage_version_token = "1792884709574126"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "-y_C334xYmVM-uLnWXdck"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T23-44-19-620Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger ZIP — show Rain Admin WireGuard in subscriptions"
+description = "Full Hostinger migration package. Public subscription and mobile WireGuard now prefer an enabled Rain Admin WireGuard extension over an older saved provider, then update the saved delivery pointer. The previous provider account is not deleted."
+logical_id = "964ccf96-2ffb-4b42-82ac-291ec36354a1"
+content_hash = "sha256:6bfb000623e90c65ec4af525529a214266c356fdda582a29f8ac7489e9889ce4"
+size = 29110970
+mtime_ms = 1792885576077
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/964ccf96-2ffb-4b42-82ac-291ec36354a1/9f28e680-16ba-4ef9-ab1d-7e4ed0b3aea4"
+storage_version_token = "1792885605607883"
+content_type = "application/octet-stream"

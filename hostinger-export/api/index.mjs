@@ -75420,6 +75420,19 @@ function isWireGuardServiceAvailable(input) {
   return input.enabled && input.status === "active" && (unlimited || input.remainingBytes > 0) && !expired;
 }
 
+// src/lib/wireguard-delivery-selection.ts
+async function resolveWireGuardDelivery(options) {
+  if (options.savedDelivery && options.savedDeliveryIsConfiguredRainAdmin) {
+    return options.savedDelivery;
+  }
+  if (options.canEnsureRainAdmin) {
+    const rainAdminDelivery = await options.ensureRainAdmin();
+    if (rainAdminDelivery) return rainAdminDelivery;
+  }
+  if (options.savedDelivery) return options.savedDelivery;
+  return options.prepareFallback();
+}
+
 // src/lib/auth.ts
 import {
   createHash as createHash2,
@@ -76983,6 +76996,13 @@ async function loadRainAdminWireGuardConfigs(panel, username) {
 }
 function isRainAdminWireGuardPanel(panel) {
   return panel.kind?.trim().toLowerCase() === "rain_admin_wireguard";
+}
+async function isConfiguredRainAdminWireGuardProvider(providerKey, ownerId, role) {
+  const normalizedKey = providerKey.trim();
+  if (!normalizedKey) return false;
+  return (await panels(ownerId, role)).some(
+    (panel) => isRainAdminWireGuardPanel(panel) && panelKey(panel) === normalizedKey
+  );
 }
 async function matchingRainAdminPanels(panel) {
   return (await panels()).filter(
@@ -84929,6 +84949,15 @@ async function loadSavedWireGuardDelivery(serviceId) {
   if (!isWireGuardDelivery(parsed)) throw new Error("Saved WireGuard account data is invalid.");
   return parsed;
 }
+async function saveWireGuardDelivery(serviceId, delivery) {
+  await pool.query(
+    `INSERT INTO reseller_service_wireguard_accounts (service_id, delivery_secret)
+     VALUES ($1, $2)
+     ON CONFLICT (service_id) DO UPDATE
+     SET delivery_secret = EXCLUDED.delivery_secret`,
+    [serviceId, encryptPanelCredential(JSON.stringify(delivery))]
+  );
+}
 function publicWireGuardDelivery(token, delivery) {
   return {
     ...delivery,
@@ -85094,32 +85123,39 @@ router2.get("/public/subscription/:token/wireguard", async (req, res) => {
     return;
   }
   try {
-    let delivery = await loadSavedWireGuardDelivery(Number(service.id));
+    const serviceId = Number(service.id);
+    const savedDelivery = await loadSavedWireGuardDelivery(serviceId);
+    const savedDeliveryIsConfiguredRainAdmin = savedDelivery ? await isConfiguredRainAdminWireGuardProvider(
+      savedDelivery.provider_key,
+      Number(service.reseller_tg_id),
+      "reseller"
+    ) : false;
+    const delivery = await resolveWireGuardDelivery({
+      savedDelivery,
+      savedDeliveryIsConfiguredRainAdmin,
+      canEnsureRainAdmin: service.status === "active",
+      ensureRainAdmin: () => {
+        const { remainingBytes, expiresAtUnix } = publicWireGuardProvisioningLimits(service);
+        return ensureRainAdminWireGuardDelivery(
+          String(service.username ?? ""),
+          remainingBytes,
+          expiresAtUnix,
+          Number(service.reseller_tg_id),
+          "reseller"
+        );
+      },
+      prepareFallback: async () => null
+    });
+    if (delivery && delivery !== savedDelivery) {
+      await saveWireGuardDelivery(serviceId, delivery);
+    }
     if (!delivery) {
       if (service.status !== "active") {
         res.status(410).json({ error: "\u0648\u0636\u0639\u06CC\u062A \u0633\u0631\u0648\u06CC\u0633 \u0628\u0631\u0627\u06CC \u0622\u0645\u0627\u062F\u0647\u200C\u0633\u0627\u0632\u06CC WireGuard \u0641\u0639\u0627\u0644 \u0646\u06CC\u0633\u062A." });
         return;
       }
-      const { remainingBytes, expiresAtUnix } = publicWireGuardProvisioningLimits(service);
-      delivery = await ensureRainAdminWireGuardDelivery(
-        String(service.username ?? ""),
-        remainingBytes,
-        expiresAtUnix,
-        Number(service.reseller_tg_id),
-        "reseller"
-      );
-      if (!delivery) {
-        res.status(404).json({ error: "\u062D\u0633\u0627\u0628 WireGuard \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647\u200C\u0627\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F", code: "WIREGUARD_NOT_CREATED" });
-        return;
-      }
-      await pool.query(
-        `INSERT INTO reseller_service_wireguard_accounts (service_id, delivery_secret)
-         VALUES ($1, $2)
-         ON CONFLICT (service_id) DO NOTHING`,
-        [Number(service.id), encryptPanelCredential(JSON.stringify(delivery))]
-      );
-      delivery = await loadSavedWireGuardDelivery(Number(service.id));
-      if (!delivery) throw new Error("Rain Admin WireGuard delivery could not be persisted.");
+      res.status(404).json({ error: "\u062D\u0633\u0627\u0628 WireGuard \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647\u200C\u0627\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F", code: "WIREGUARD_NOT_CREATED" });
+      return;
     }
     res.json(publicWireGuardDelivery(token, delivery));
   } catch (error40) {
@@ -85171,32 +85207,36 @@ router2.post("/public/subscription/:token/wireguard", async (req, res) => {
       return;
     }
     const savedDelivery = await loadSavedWireGuardDelivery(serviceId);
-    if (savedDelivery) {
-      res.json(publicWireGuardDelivery(token, savedDelivery));
-      return;
-    }
-    const { remainingBytes, expiresAtUnix } = publicWireGuardProvisioningLimits(service);
-    const rainAdminDelivery = await ensureRainAdminWireGuardDelivery(
-      String(service.username ?? ""),
-      remainingBytes,
-      expiresAtUnix,
+    const savedDeliveryIsConfiguredRainAdmin = savedDelivery ? await isConfiguredRainAdminWireGuardProvider(
+      savedDelivery.provider_key,
       Number(service.reseller_tg_id),
       "reseller"
-    );
-    const delivery = rainAdminDelivery ?? await prepareWireGuardAccount(
-      String(service.username ?? ""),
-      Number(service.limit_gb ?? 0),
-      service.expires_at ? new Date(service.expires_at) : new Date(Date.now() + 3650 * 864e5),
-      serviceId,
-      Number(service.reseller_tg_id),
-      "reseller"
-    );
-    await pool.query(
-      `INSERT INTO reseller_service_wireguard_accounts (service_id, delivery_secret)
-       VALUES ($1, $2)
-       ON CONFLICT (service_id) DO NOTHING`,
-      [serviceId, encryptPanelCredential(JSON.stringify(delivery))]
-    );
+    ) : false;
+    const delivery = await resolveWireGuardDelivery({
+      savedDelivery,
+      savedDeliveryIsConfiguredRainAdmin,
+      canEnsureRainAdmin: service.status === "active",
+      ensureRainAdmin: () => {
+        const { remainingBytes, expiresAtUnix } = publicWireGuardProvisioningLimits(service);
+        return ensureRainAdminWireGuardDelivery(
+          String(service.username ?? ""),
+          remainingBytes,
+          expiresAtUnix,
+          Number(service.reseller_tg_id),
+          "reseller"
+        );
+      },
+      prepareFallback: () => prepareWireGuardAccount(
+        String(service.username ?? ""),
+        Number(service.limit_gb ?? 0),
+        service.expires_at ? new Date(service.expires_at) : new Date(Date.now() + 3650 * 864e5),
+        serviceId,
+        Number(service.reseller_tg_id),
+        "reseller"
+      )
+    });
+    if (!delivery) throw new Error("WireGuard account could not be prepared.");
+    await saveWireGuardDelivery(serviceId, delivery);
     const persistedDelivery = await loadSavedWireGuardDelivery(serviceId);
     if (!persistedDelivery) throw new Error("WireGuard account details were not persisted.");
     res.json(publicWireGuardDelivery(token, persistedDelivery));

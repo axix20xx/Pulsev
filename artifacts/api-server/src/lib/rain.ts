@@ -1130,6 +1130,18 @@ function isRainAdminWireGuardPanel(panel: Panel): boolean {
   return panel.kind?.trim().toLowerCase() === "rain_admin_wireguard";
 }
 
+export async function isConfiguredRainAdminWireGuardProvider(
+  providerKey: string,
+  ownerId?: number,
+  role?: string,
+): Promise<boolean> {
+  const normalizedKey = providerKey.trim();
+  if (!normalizedKey) return false;
+  return (await panels(ownerId, role)).some(
+    (panel) => isRainAdminWireGuardPanel(panel) && panelKey(panel) === normalizedKey,
+  );
+}
+
 async function matchingRainAdminPanels(panel: Panel): Promise<Panel[]> {
   return (await panels()).filter((candidate) =>
     candidate.kind?.trim().toLowerCase() === "rain_admin"
