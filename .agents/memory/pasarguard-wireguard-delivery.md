@@ -11,14 +11,10 @@ When a read-only `rain_admin_wireguard` login cannot resolve the username, try t
 
 **How to apply:** Compare normalized scheme, host, and API path before sharing a lookup. Keep account resolution read-only, then fetch `/api/user/{user_id}/subscription/wireguard` through the configured extension.
 
-Expose Rain Admin WireGuard as a read-only provider extension. It may resolve an existing account and fetch its configs, but must not create, renew, disable, or account for users. Reuse the existing WireGuard delivery contract so `/sub` and `/mobile` continue to own profile selection and `.conf`/ZIP/iOS bundle downloads.
+Keep `rain_admin_wireguard` itself read-only: it fetches user-specific configs but never creates, renews, or disables accounts. A separately approved, one-time legacy backfill may create a missing account through a matching primary `rain_admin` provider, only when both point to the exact same PasarGuard instance. Never modify an account that already exists.
 
-**Why:** PasarGuard serves WireGuard independently from the normal user subscription and provisioning flows; treating it as a normal provider can cause duplicate writes and duplicate usage accounting.
+**Why:** The user approved creating matching accounts for eligible services originally provisioned elsewhere, while avoiding changes to existing provider accounts and preventing IDs from being reused across panels.
 
-**How to apply:** When adding or changing this integration, keep account writes on the primary provider, retrieve only user-specific WireGuard archives, and make archive handling size-bounded and safe before returning files to clients.
+**How to apply:** Queue a paced backfill only for active, unexpired services with quota remaining and reseller WireGuard access. Verify the exact panel instance, look up first, create only on a confirmed not-found response using remaining quota and existing expiry, then fetch the archive through the WireGuard extension. Keep `/sub` and `/mobile` delivery behavior unchanged.
 
-On an explicit Rain Admin WireGuard credential save, a one-time paced backfill may prepare and encrypt delivery metadata for active, unexpired services with quota remaining that do not already have saved WireGuard delivery. This is a read-only profile fetch: it must never create or modify provider users.
-
-**Why:** The user requested automatic setup for eligible existing subscriptions, while retaining the read-only provider boundary that avoids duplicate account writes.
-
-**How to apply:** Queue only missing service deliveries for resellers with WireGuard access, space requests, recheck service eligibility when each job runs, and surface non-retryable missing-user or missing-config errors in the job monitor.
+Recheck each service's lifecycle, expiry, remaining quota, and WireGuard entitlement when the backfill job runs. Existing accounts must remain untouched, and create requests must not run after lookup errors, permission failures, or panel mismatch.

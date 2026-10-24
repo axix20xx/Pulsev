@@ -1,7 +1,7 @@
 const bytesPerGb = 1024 ** 3;
 
 export type RainAdminWireGuardBackfillPlan =
-  | { eligible: true; expiresAtUnix: number | null }
+  | { eligible: true; expiresAtUnix: number | null; remainingBytes: number | null }
   | { eligible: false; reason: "inactive" | "expired" | "quota_exhausted" | "invalid" };
 
 export function rainAdminWireGuardBackfillPlan(input: {
@@ -23,7 +23,8 @@ export function rainAdminWireGuardBackfillPlan(input: {
   }
 
   const gb = Number(input.gb);
-  if (!Number.isFinite(gb)) return { eligible: false, reason: "invalid" };
+  if (!Number.isFinite(gb) || gb < 0) return { eligible: false, reason: "invalid" };
+  let remainingBytes: number | null = null;
   if (gb > 0) {
     const lastRemaining = input.lastRemainingBytes === null || input.lastRemainingBytes === undefined
       ? Number.NaN
@@ -31,11 +32,13 @@ export function rainAdminWireGuardBackfillPlan(input: {
     const lastUsed = Number.isFinite(Number(input.lastUsedBytes))
       ? Number(input.lastUsedBytes)
       : 0;
-    const remainingBytes = Number.isFinite(lastRemaining)
+    remainingBytes = Number.isFinite(lastRemaining)
       ? lastRemaining
       : gb * bytesPerGb - lastUsed;
+    if (!Number.isFinite(remainingBytes)) return { eligible: false, reason: "invalid" };
+    remainingBytes = Math.floor(remainingBytes);
     if (remainingBytes <= 0) return { eligible: false, reason: "quota_exhausted" };
   }
 
-  return { eligible: true, expiresAtUnix };
+  return { eligible: true, expiresAtUnix, remainingBytes };
 }

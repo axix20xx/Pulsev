@@ -25,7 +25,7 @@ test("Rain Admin WireGuard backfill accepts active unlimited services without ex
       expiresAtUnix: null,
       nowUnix: 100,
     }),
-    { eligible: true, expiresAtUnix: null },
+    { eligible: true, expiresAtUnix: null, remainingBytes: null },
   );
 });
 
@@ -39,7 +39,21 @@ test("Rain Admin WireGuard backfill keeps an existing future expiry", () => {
       expiresAtUnix: 200,
       nowUnix: 100,
     }),
-    { eligible: true, expiresAtUnix: 200 },
+    { eligible: true, expiresAtUnix: 200, remainingBytes: 2 * 1024 ** 3 },
+  );
+});
+
+test("Rain Admin WireGuard backfill derives remaining quota when no snapshot exists", () => {
+  assert.deepEqual(
+    rainAdminWireGuardBackfillPlan({
+      status: "active",
+      gb: 5,
+      lastRemainingBytes: null,
+      lastUsedBytes: 3 * 1024 ** 3,
+      expiresAtUnix: 200,
+      nowUnix: 100,
+    }),
+    { eligible: true, expiresAtUnix: 200, remainingBytes: 2 * 1024 ** 3 },
   );
 });
 
@@ -65,6 +79,10 @@ test("Rain Admin WireGuard backfill excludes inactive, expired, exhausted, and i
     reason: "quota_exhausted",
   });
   assert.deepEqual(rainAdminWireGuardBackfillPlan({ ...base, gb: "invalid" }), {
+    eligible: false,
+    reason: "invalid",
+  });
+  assert.deepEqual(rainAdminWireGuardBackfillPlan({ ...base, gb: -1 }), {
     eligible: false,
     reason: "invalid",
   });

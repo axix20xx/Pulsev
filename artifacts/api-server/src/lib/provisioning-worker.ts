@@ -1,6 +1,7 @@
 import { pool } from "@workspace/db";
 import {
   provisionUser,
+  ensureRainAdminWireGuardBackfillUser,
   prepareRainAdminWireGuardDelivery,
   RainApiError,
 } from "./rain";
@@ -371,6 +372,12 @@ async function processRainAdminWireGuardBackfill(job: ProvisionJob): Promise<voi
     return;
   }
 
+  const account = await ensureRainAdminWireGuardBackfillUser(
+    service.username,
+    plan.remainingBytes,
+    plan.expiresAtUnix,
+    providerKey,
+  );
   const delivery = await prepareRainAdminWireGuardDelivery(
     service.username,
     providerKey,
@@ -395,7 +402,13 @@ async function processRainAdminWireGuardBackfill(job: ProvisionJob): Promise<voi
   }
   await completeJob(job.id);
   logger.info(
-    { jobId: job.id, serviceId: job.service_id, providerKey },
+    {
+      jobId: job.id,
+      serviceId: job.service_id,
+      providerKey,
+      mainProviderKey: account.mainProviderKey,
+      accountCreated: account.created,
+    },
     "Rain Admin WireGuard profile backfill completed",
   );
 }

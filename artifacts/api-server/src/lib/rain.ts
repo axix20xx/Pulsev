@@ -3,6 +3,7 @@ import { pool } from "@workspace/db";
 import { decryptPanelCredential } from "./panel-credentials";
 import { parsePasarGuardWireGuardArchive } from "./pasarguard-wireguard-archive";
 import { samePasarGuardInstance } from "./pasarguard-instance";
+import { ensureRainAdminBackfillAccount } from "./rain-admin-wireguard-account";
 import { renewAzadPanelAccount } from "./azadpanel-renewal";
 import { isRetryableAzadPanelStatus } from "./azadpanel-retry-policy";
 import { azadPanelV2RayCollisionUsername } from "./azadpanel-v2ray-username";
@@ -1025,20 +1026,12 @@ async function loadRainAdminWireGuardConfigs(
   configs: ReturnType<typeof parsePasarGuardWireGuardArchive>;
   contentDisposition: string | null;
 }> {
-  const encodedUsername = encodeURIComponent(username);
-  const configuredPanels = await panels();
-  const matchingMainPanels = configuredPanels.filter((candidate) =>
-    candidate.kind?.trim().toLowerCase() === "rain_admin"
-    && samePasarGuardInstance(candidate.api_base, panel.api_base),
-  );
+  const matchingMainPanels = await matchingRainAdminPanels(panel);
   const lookupPanels = [...matchingMainPanels, panel];
   const lookupResponses: Array<{ source: "rain_admin" | "wireguard"; response: Awaited<ReturnType<typeof panelRequest>> }> = [];
   let userResponse: Awaited<ReturnType<typeof panelRequest>> | null = null;
   for (const lookupPanel of lookupPanels) {
-    let response = await panelRequest(lookupPanel, "GET", `/api/user/${encodedUsername}`);
-    if ([404, 405].includes(response.status)) {
-      response = await panelRequest(lookupPanel, "GET", `/api/user/by-username/${encodedUsername}`);
-    }
+    const response = await lookupPasarGuardUser(lookupPanel, username);
     lookupResponses.push({
       source: lookupPanel === panel ? "wireguard" : "rain_admin",
       response,
@@ -1130,6 +1123,63 @@ async function loadRainAdminWireGuardConfigs(
 
 function isRainAdminWireGuardPanel(panel: Panel): boolean {
   return panel.kind?.trim().toLowerCase() === "rain_admin_wireguard";
+}
+
+async function matchingRainAdminPanels(panel: Panel): Promise<Panel[]> {
+  return (await panels()).filter((candidate) =>
+    candidate.kind?.trim().toLowerCase() === "rain_admin"
+    && samePasarGuardInstance(candidate.api_base, panel.api_base),
+  );
+}
+
+async function lookupPasarGuardUser(panel: Panel, username: string) {
+  const encodedUsername = encodeURIComponent(username);
+  let response = await panelRequest(panel, "GET", `/api/user/${encodedUsername}`);
+  if ([404, 405].includes(response.status)) {
+    response = await panelRequest(panel, "GET", `/api/user/by-username/${encodedUsername}`);
+  }
+  return response;
+}
+
+export async function ensureRainAdminWireGuardBackfillUser(
+  username: string,
+  remainingBytes: number | null,
+  expiresAtUnix: number | null,
+  providerKey: string,
+): Promise<{ created: boolean; mainProviderKey: string }> {
+  const wireGuardPanel = (await panels()).find(
+    (candidate) => isRainAdminWireGuardPanel(candidate) && panelKey(candidate) === providerKey,
+  );
+  if (!wireGuardPanel) {
+    throw new RainApiError(
+      "The selected Rain Admin WireGuard provider is disabled or missing credentials.",
+      [],
+      false,
+    );
+  }
+  const mainPanels = await matchingRainAdminPanels(wireGuardPanel);
+  if (!mainPanels.length) {
+    throw new RainApiError(
+      "No enabled main Rain Admin provider points to the same PasarGuard API instance; no account was created.",
+      [],
+      false,
+    );
+  }
+  const outcome = await ensureRainAdminBackfillAccount(
+    { username, remainingBytes, expiresAtUnix },
+    mainPanels.map((mainPanel) => ({
+      key: panelKey(mainPanel),
+      lookup: async () => {
+        const response = await lookupPasarGuardUser(mainPanel, username);
+        return { status: response.status, error: safeError(response) };
+      },
+      create: async (body) => {
+        const response = await panelRequest(mainPanel, "POST", "/api/user", body);
+        return { status: response.status, error: safeError(response) };
+      },
+    })),
+  );
+  return { created: outcome.created, mainProviderKey: outcome.providerKey };
 }
 
 export async function prepareRainAdminWireGuardDelivery(
