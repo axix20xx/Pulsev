@@ -1323,6 +1323,10 @@
 .admin-console .console-error-card h1 { margin: 0; color: hsl(var(--console-ink)); font-size: clamp(21px, 4vw, 28px); font-weight: 850; }
 .admin-console .console-error-card p { margin: 0 0 5px; color: hsl(var(--console-muted)); font-size: 12px; line-height: 1.9; }
 .admin-console .console-error-detail { width: 100%; overflow: auto; border: 1px solid hsl(var(--console-line)); border-radius: 9px; background: hsl(192 31% 91% / .72); padding: 10px; color: hsl(var(--console-ink)); font: 10px/1.6 var(--app-font-mono); text-align: left; }
+.admin-console .console-error-diagnostics { width: 100%; border: 1px solid hsl(var(--console-line)); border-radius: 12px; padding: 11px; color: hsl(var(--console-ink)); }
+.admin-console .console-error-diagnostics summary { cursor: pointer; font-size: 12px; font-weight: 800; }
+.admin-console .console-error-diagnostics .console-error-warning { margin-top: 8px; color: hsl(4 57% 43%); }
+.admin-console .console-error-card > .console-action { min-height: 42px; }
 
 @media (max-width: 720px) {
   .admin-console :is(.report-filter, .connection-filter-card, .notification-readiness-board,

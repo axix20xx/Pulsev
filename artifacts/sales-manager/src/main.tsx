@@ -7,9 +7,25 @@ import './index.css';
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch((error) => {
-      console.warn('Service worker registration failed', error);
-    });
+    const hadController = Boolean(navigator.serviceWorker.controller);
+    void navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}sw.js`, {
+        scope: import.meta.env.BASE_URL,
+        updateViaCache: 'none',
+      })
+      .then((registration) => {
+        registration.addEventListener('updatefound', () => {
+          const installing = registration.installing;
+          installing?.addEventListener('statechange', () => {
+            if (hadController && installing.state === 'activated') {
+              window.location.reload();
+            }
+          });
+        });
+      })
+      .catch((error) => {
+        console.warn('Service worker registration failed', error);
+      });
   });
 }
 
