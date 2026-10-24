@@ -1231,6 +1231,7 @@ export async function prepareRainAdminWireGuardDelivery(
   const { configs } = await loadRainAdminWireGuardConfigs(panel, username);
   return {
     provider_key: panelKey(panel),
+    provider_label: "Rain Admin · WireGuard",
     username,
     core: "wireguard",
     locations: configs.map(({ id, name }) => ({ id, name })),
@@ -2924,6 +2925,7 @@ export type WireGuardLocation = {
 
 export type WireGuardDelivery = {
   provider_key: string;
+  provider_label?: string;
   username: string;
   core: "wireguard";
   locations: WireGuardLocation[];
@@ -2980,28 +2982,13 @@ async function listWireGuardEndpoints(panel: Panel, username: string): Promise<a
   return azadPanelWireGuardEndpoints(response.json);
 }
 
-export async function prepareWireGuardAccount(
+async function prepareAzadPanelWireGuardAccount(
+  panel: Panel,
   username: string,
   gb: number,
   expiresAt: Date,
   serviceId: number,
-  ownerId?: number,
-  role?: string,
 ): Promise<WireGuardDelivery> {
-  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
-    throw new RainApiError("Invalid service ID for WireGuard account.");
-  }
-  const rainAdminWireGuardPanel = (await panels(ownerId, role)).find(isRainAdminWireGuardPanel);
-  if (rainAdminWireGuardPanel) {
-    const { configs } = await loadRainAdminWireGuardConfigs(rainAdminWireGuardPanel, username);
-    return {
-      provider_key: panelKey(rainAdminWireGuardPanel),
-      username,
-      core: "wireguard",
-      locations: configs.map(({ id, name }) => ({ id, name })),
-    };
-  }
-  const panel = await findAzadPanelCore("wireguard", ownerId, role);
   let providerUsername = username;
   let encoded = encodeURIComponent(providerUsername);
   let existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
@@ -3059,10 +3046,126 @@ export async function prepareWireGuardAccount(
   }
   return {
     provider_key: panelKey(panel),
+    provider_label: "AzadPanel · WireGuard",
     username: providerUsername,
     core: "wireguard",
     locations,
   };
+}
+
+export async function prepareWireGuardAccount(
+  username: string,
+  gb: number,
+  expiresAt: Date,
+  serviceId: number,
+  ownerId?: number,
+  role?: string,
+  requestedProviderKey?: string,
+): Promise<WireGuardDelivery> {
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
+    throw new RainApiError("Invalid service ID for WireGuard account.");
+  }
+  const configuredPanels = await panels(ownerId, role);
+  const rainAdminWireGuardPanel = configuredPanels.find((panel) =>
+    isRainAdminWireGuardPanel(panel)
+    && (!requestedProviderKey || panelKey(panel) === requestedProviderKey),
+  );
+  if (rainAdminWireGuardPanel) {
+    const { configs } = await loadRainAdminWireGuardConfigs(rainAdminWireGuardPanel, username);
+    return {
+      provider_key: panelKey(rainAdminWireGuardPanel),
+      provider_label: "Rain Admin · WireGuard",
+      username,
+      core: "wireguard",
+      locations: configs.map(({ id, name }) => ({ id, name })),
+    };
+  }
+  const panel = await findAzadPanelCore("wireguard", ownerId, role, requestedProviderKey);
+  return prepareAzadPanelWireGuardAccount(panel, username, gb, expiresAt, serviceId);
+}
+
+export type WireGuardProviderFailure = {
+  provider_key: string;
+  provider_label: string;
+  error: string;
+};
+
+export async function prepareConfiguredWireGuardDeliveries(
+  username: string,
+  gb: number,
+  expiresAt: Date,
+  serviceId: number,
+  remainingBytes: number | null,
+  expiresAtUnix: number | null,
+  ownerId: number,
+  role: string,
+  savedDeliveries: WireGuardDelivery[],
+): Promise<{ deliveries: WireGuardDelivery[]; errors: WireGuardProviderFailure[] }> {
+  const configuredPanels = await panels(ownerId, role);
+  const savedByProvider = new Map(savedDeliveries.map((delivery) => [delivery.provider_key, delivery]));
+  const candidates: Panel[] = [];
+  const errors: WireGuardProviderFailure[] = [];
+
+  for (const panel of configuredPanels) {
+    if (isRainAdminWireGuardPanel(panel)) {
+      candidates.push(panel);
+      continue;
+    }
+    if (!isAzadPanelCoreCandidate(panel.kind, "wireguard")) continue;
+    try {
+      if (await azadPanelCore(panel) === "wireguard") candidates.push(panel);
+    } catch (error) {
+      candidates.push(panel);
+      if (!savedByProvider.has(panelKey(panel))) {
+        errors.push({
+          provider_key: panelKey(panel),
+          provider_label: "AzadPanel · WireGuard",
+          error: error instanceof Error ? error.message : "Could not verify the AzadPanel WireGuard core.",
+        });
+      }
+    }
+  }
+
+  const deliveries: WireGuardDelivery[] = [];
+  for (const panel of candidates) {
+    const providerKey = panelKey(panel);
+    const saved = savedByProvider.get(providerKey);
+    if (saved) {
+      deliveries.push(saved);
+      continue;
+    }
+    try {
+      let delivery: WireGuardDelivery;
+      if (isRainAdminWireGuardPanel(panel)) {
+        await ensureRainAdminWireGuardBackfillUser(
+          username,
+          remainingBytes,
+          expiresAtUnix,
+          providerKey,
+        );
+        delivery = await prepareRainAdminWireGuardDelivery(username, providerKey, ownerId, role);
+      } else {
+        delivery = await prepareWireGuardAccount(
+          username,
+          gb,
+          expiresAt,
+          serviceId,
+          ownerId,
+          role,
+          providerKey,
+        );
+      }
+      deliveries.push(delivery);
+    } catch (error) {
+      errors.push({
+        provider_key: providerKey,
+        provider_label: isRainAdminWireGuardPanel(panel) ? "Rain Admin · WireGuard" : "AzadPanel · WireGuard",
+        error: error instanceof Error ? error.message : "Could not prepare this WireGuard provider.",
+      });
+    }
+  }
+
+  return { deliveries, errors };
 }
 
 export type IpsecLocation = {
