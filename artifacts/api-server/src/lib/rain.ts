@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { decryptPanelCredential } from "./panel-credentials";
 import { parsePasarGuardWireGuardArchive } from "./pasarguard-wireguard-archive";
+import { samePasarGuardInstance } from "./pasarguard-instance";
 import { renewAzadPanelAccount } from "./azadpanel-renewal";
 import { isRetryableAzadPanelStatus } from "./azadpanel-retry-policy";
 import { azadPanelV2RayCollisionUsername } from "./azadpanel-v2ray-username";
@@ -1019,23 +1020,53 @@ async function loadRainAdminWireGuardConfigs(
   contentDisposition: string | null;
 }> {
   const encodedUsername = encodeURIComponent(username);
-  let userResponse = await panelRequest(panel, "GET", `/api/user/${encodedUsername}`);
-  if ([404, 405].includes(userResponse.status)) {
-    userResponse = await panelRequest(panel, "GET", `/api/user/by-username/${encodedUsername}`);
+  const configuredPanels = await panels();
+  const matchingMainPanels = configuredPanels.filter((candidate) =>
+    candidate.kind?.trim().toLowerCase() === "rain_admin"
+    && samePasarGuardInstance(candidate.api_base, panel.api_base),
+  );
+  const lookupPanels = [...matchingMainPanels, panel];
+  const lookupResponses: Array<{ source: "rain_admin" | "wireguard"; response: Awaited<ReturnType<typeof panelRequest>> }> = [];
+  let userResponse: Awaited<ReturnType<typeof panelRequest>> | null = null;
+  for (const lookupPanel of lookupPanels) {
+    let response = await panelRequest(lookupPanel, "GET", `/api/user/${encodedUsername}`);
+    if ([404, 405].includes(response.status)) {
+      response = await panelRequest(lookupPanel, "GET", `/api/user/by-username/${encodedUsername}`);
+    }
+    lookupResponses.push({
+      source: lookupPanel === panel ? "wireguard" : "rain_admin",
+      response,
+    });
+    if (response.status === 200) {
+      userResponse = response;
+      break;
+    }
   }
-  if (userResponse.status !== 200) {
-    const detail = userResponse.status === 404
-      ? "PasarGuard user was not found. Create the service with the main Rain Admin provider before requesting WireGuard."
-      : `PasarGuard could not read the WireGuard user: ${safeError(userResponse)}`;
-    const retryable = userResponse.status === 408 || userResponse.status === 429 || userResponse.status >= 500;
-    const retryAfterSeconds = Number(userResponse.retryAfter);
-    const retryAfterDate = userResponse.retryAfter ? Date.parse(userResponse.retryAfter) : Number.NaN;
+  if (!userResponse) {
+    const lastResponse = lookupResponses.at(-1)?.response;
+    const userLookupResponse = lookupResponses.find(({ response }) =>
+      ![404, 405].includes(response.status),
+    )?.response ?? lastResponse;
+    if (!userLookupResponse) {
+      throw new RainApiError("PasarGuard did not return a user lookup response.", [], true);
+    }
+    const allLookupsNotFound = lookupResponses.every(({ response }) =>
+      [404, 405].includes(response.status),
+    );
+    const detail = allLookupsNotFound
+      ? matchingMainPanels.length
+        ? "PasarGuard user was not found by either the main Rain Admin login or the WireGuard extension. Confirm this service exists on that same panel."
+        : "PasarGuard user was not found. Create the service with the main Rain Admin provider, and make sure the WireGuard extension uses the same PasarGuard panel."
+      : `PasarGuard could not read the WireGuard user: ${safeError(userLookupResponse)}`;
+    const retryable = userLookupResponse.status === 408 || userLookupResponse.status === 429 || userLookupResponse.status >= 500;
+    const retryAfterSeconds = Number(userLookupResponse.retryAfter);
+    const retryAfterDate = userLookupResponse.retryAfter ? Date.parse(userLookupResponse.retryAfter) : Number.NaN;
     throw new RainApiError(
       detail,
       [{
         key: panelKey(panel),
         kind: "rain_admin_wireguard",
-        status: userResponse.status,
+        status: userLookupResponse.status,
         error: detail,
         retryable,
         retryAfterMs: Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
