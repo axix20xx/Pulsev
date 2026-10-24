@@ -2172,3 +2172,17 @@ mtime_ms = 1792872782235
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b245d541-6807-4b42-81cf-1bc79a1e20d6/bd4c447f-1946-4dfa-9670-305eb453c81c"
 storage_version_token = "1792872839356349"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "L1T2sAGEQGgDlFMb4f5B9"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T20-32-51-181Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger — frontend error and cache fix"
+description = "Hostinger migration ZIP with a versioned client cache, safer service-worker behavior, and copyable browser error diagnostics. Release ID: 2026-10-24T20-32-51-181Z. SHA-256: 3007a1625cab0af8dbccbd4f630e20c0dcca260a19ad33ee0fc4c7beb34541bd."
+logical_id = "60b20aab-ac46-4492-a4b8-17dd7149abb7"
+content_hash = "sha256:3007a1625cab0af8dbccbd4f630e20c0dcca260a19ad33ee0fc4c7beb34541bd"
+size = 29098815
+mtime_ms = 1792874088115
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/60b20aab-ac46-4492-a4b8-17dd7149abb7/ca7ce247-79a2-4426-bc36-2f2e72a92afc"
+storage_version_token = "1792874195531865"
+content_type = "application/octet-stream"
