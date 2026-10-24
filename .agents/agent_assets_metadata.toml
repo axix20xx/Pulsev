@@ -2326,3 +2326,17 @@ mtime_ms = 1792883718830
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f41bdfbe-81af-45e3-a17e-59462cf04c5b/7545e0ba-e343-4b76-b2ef-453314ffb3b8"
 storage_version_token = "1792883759544343"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "lYz0X4SVQXFIX4cpSRILr"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T23-28-43-126Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger package — Rain Admin WireGuard retry fix"
+description = "Full Hostinger migration package. The public WireGuard retry now uses the Rain Admin account-ensure and profile-fetch flow, and automatic profile checks return a sanitized PasarGuard error instead of a generic message."
+logical_id = "e56d5bb2-e9d4-4ff6-a2d8-9aa17e5f047f"
+content_hash = "sha256:96030ff72650c149a2c275cf33b7f3d1e4851bd31a531d255d5790b6fe9a2f91"
+size = 29110122
+mtime_ms = 1792884641925
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e56d5bb2-e9d4-4ff6-a2d8-9aa17e5f047f/444c5cfd-fc95-49bf-a6db-06711727abaf"
+storage_version_token = "1792884709574126"
+content_type = "application/octet-stream"

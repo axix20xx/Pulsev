@@ -84755,6 +84755,19 @@ function publicOpenVpnServiceFinished(service) {
   });
   return service.status === "disabled" || service.status === "expired" || totalBytes > 0 && usedBytes >= totalBytes || Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now();
 }
+function publicWireGuardProvisioningLimits(service) {
+  const totalBytes = Number(service.last_total_bytes) > 0 ? Number(service.last_total_bytes) : Math.round(Number(service.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = serviceUsageBytes({
+    lastUsedBytes: service.last_used_bytes,
+    panelUsageBytes: service.panel_usage_bytes,
+    awgTotalBytes: service.awg_total_bytes,
+    awgOffsetBytes: service.awg_offset_bytes
+  });
+  const remainingBytes = totalBytes > 0 ? Math.max(0, totalBytes - usedBytes) : null;
+  const expiresAtMs = service.expires_at ? new Date(service.expires_at).getTime() : Number.NaN;
+  const expiresAtUnix = Number.isFinite(expiresAtMs) && expiresAtMs > 0 ? Math.floor(expiresAtMs / 1e3) : null;
+  return { remainingBytes, expiresAtUnix };
+}
 router2.get("/public/subscription/:token", async (req, res) => {
   await managementReady;
   const token = String(req.params.token ?? "").trim();
@@ -85087,16 +85100,7 @@ router2.get("/public/subscription/:token/wireguard", async (req, res) => {
         res.status(410).json({ error: "\u0648\u0636\u0639\u06CC\u062A \u0633\u0631\u0648\u06CC\u0633 \u0628\u0631\u0627\u06CC \u0622\u0645\u0627\u062F\u0647\u200C\u0633\u0627\u0632\u06CC WireGuard \u0641\u0639\u0627\u0644 \u0646\u06CC\u0633\u062A." });
         return;
       }
-      const totalBytes = Number(service.last_total_bytes) > 0 ? Number(service.last_total_bytes) : Math.round(Number(service.limit_gb ?? 0) * 1024 ** 3);
-      const usedBytes = serviceUsageBytes({
-        lastUsedBytes: service.last_used_bytes,
-        panelUsageBytes: service.panel_usage_bytes,
-        awgTotalBytes: service.awg_total_bytes,
-        awgOffsetBytes: service.awg_offset_bytes
-      });
-      const remainingBytes = totalBytes > 0 ? Math.max(0, totalBytes - usedBytes) : null;
-      const expiresAtMs = service.expires_at ? new Date(service.expires_at).getTime() : Number.NaN;
-      const expiresAtUnix = Number.isFinite(expiresAtMs) && expiresAtMs > 0 ? Math.floor(expiresAtMs / 1e3) : null;
+      const { remainingBytes, expiresAtUnix } = publicWireGuardProvisioningLimits(service);
       delivery = await ensureRainAdminWireGuardDelivery(
         String(service.username ?? ""),
         remainingBytes,
@@ -85121,7 +85125,7 @@ router2.get("/public/subscription/:token/wireguard", async (req, res) => {
   } catch (error40) {
     if (error40 instanceof RainApiError) {
       res.status(502).json({
-        error: "Rain Admin WireGuard is not ready. Check the extension credentials, enabled groups, and provider account."
+        error: error40.message
       });
       return;
     }
@@ -85171,8 +85175,16 @@ router2.post("/public/subscription/:token/wireguard", async (req, res) => {
       res.json(publicWireGuardDelivery(token, savedDelivery));
       return;
     }
-    const delivery = await prepareWireGuardAccount(
-      String(service.username),
+    const { remainingBytes, expiresAtUnix } = publicWireGuardProvisioningLimits(service);
+    const rainAdminDelivery = await ensureRainAdminWireGuardDelivery(
+      String(service.username ?? ""),
+      remainingBytes,
+      expiresAtUnix,
+      Number(service.reseller_tg_id),
+      "reseller"
+    );
+    const delivery = rainAdminDelivery ?? await prepareWireGuardAccount(
+      String(service.username ?? ""),
       Number(service.limit_gb ?? 0),
       service.expires_at ? new Date(service.expires_at) : new Date(Date.now() + 3650 * 864e5),
       serviceId,

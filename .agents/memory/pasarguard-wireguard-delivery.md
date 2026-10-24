@@ -30,3 +30,9 @@ The public subscription page must treat a missing expiry date as no expiry, not 
 **Why:** Services without a fixed expiry are valid, and the backend already reports them as unfinished.
 
 **How to apply:** Keep client-side expiration checks conditional on a real, parseable expiry date, and preserve quota exhaustion as a separate limit check.
+
+Both public WireGuard retrieval and the create/retry action must use the same Rain Admin ensure-account flow before requesting profiles.
+
+**Why:** The subscription page calls GET automatically and POST when the user retries; a POST path that only reads profiles can fail forever when the extension account is missing.
+
+**How to apply:** Route both actions through the provider-aware backfill/delivery helper, then persist the same delivery record. Return only sanitized provider error detail so missing groups or profiles can be diagnosed without exposing credentials.

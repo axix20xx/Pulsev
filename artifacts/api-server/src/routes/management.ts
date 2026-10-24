@@ -1749,6 +1749,27 @@ function publicOpenVpnServiceFinished(service: any): boolean {
     || (Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now());
 }
 
+function publicWireGuardProvisioningLimits(service: any): {
+  remainingBytes: number | null;
+  expiresAtUnix: number | null;
+} {
+  const totalBytes = Number(service.last_total_bytes) > 0
+    ? Number(service.last_total_bytes)
+    : Math.round(Number(service.limit_gb ?? 0) * 1024 ** 3);
+  const usedBytes = serviceUsageBytes({
+    lastUsedBytes: service.last_used_bytes,
+    panelUsageBytes: service.panel_usage_bytes,
+    awgTotalBytes: service.awg_total_bytes,
+    awgOffsetBytes: service.awg_offset_bytes,
+  });
+  const remainingBytes = totalBytes > 0 ? Math.max(0, totalBytes - usedBytes) : null;
+  const expiresAtMs = service.expires_at ? new Date(service.expires_at).getTime() : Number.NaN;
+  const expiresAtUnix = Number.isFinite(expiresAtMs) && expiresAtMs > 0
+    ? Math.floor(expiresAtMs / 1000)
+    : null;
+  return { remainingBytes, expiresAtUnix };
+}
+
 router.get("/public/subscription/:token", async (req, res): Promise<void> => {
   await managementReady;
   const token = String(req.params.token ?? "").trim();
@@ -2129,20 +2150,7 @@ router.get("/public/subscription/:token/wireguard", async (req, res): Promise<vo
         res.status(410).json({ error: "وضعیت سرویس برای آماده‌سازی WireGuard فعال نیست." });
         return;
       }
-      const totalBytes = Number(service.last_total_bytes) > 0
-        ? Number(service.last_total_bytes)
-        : Math.round(Number(service.limit_gb ?? 0) * 1024 ** 3);
-      const usedBytes = serviceUsageBytes({
-        lastUsedBytes: service.last_used_bytes,
-        panelUsageBytes: service.panel_usage_bytes,
-        awgTotalBytes: service.awg_total_bytes,
-        awgOffsetBytes: service.awg_offset_bytes,
-      });
-      const remainingBytes = totalBytes > 0 ? Math.max(0, totalBytes - usedBytes) : null;
-      const expiresAtMs = service.expires_at ? new Date(service.expires_at).getTime() : Number.NaN;
-      const expiresAtUnix = Number.isFinite(expiresAtMs) && expiresAtMs > 0
-        ? Math.floor(expiresAtMs / 1000)
-        : null;
+      const { remainingBytes, expiresAtUnix } = publicWireGuardProvisioningLimits(service);
       delivery = await ensureRainAdminWireGuardDelivery(
         String(service.username ?? ""),
         remainingBytes,
@@ -2167,7 +2175,7 @@ router.get("/public/subscription/:token/wireguard", async (req, res): Promise<vo
   } catch (error) {
     if (error instanceof RainApiError) {
       res.status(502).json({
-        error: "Rain Admin WireGuard is not ready. Check the extension credentials, enabled groups, and provider account.",
+        error: error.message,
       });
       return;
     }
@@ -2220,8 +2228,16 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
       return;
     }
 
-    const delivery = await prepareWireGuardAccount(
-      String(service.username),
+    const { remainingBytes, expiresAtUnix } = publicWireGuardProvisioningLimits(service);
+    const rainAdminDelivery = await ensureRainAdminWireGuardDelivery(
+      String(service.username ?? ""),
+      remainingBytes,
+      expiresAtUnix,
+      Number(service.reseller_tg_id),
+      "reseller",
+    );
+    const delivery = rainAdminDelivery ?? await prepareWireGuardAccount(
+      String(service.username ?? ""),
       Number(service.limit_gb ?? 0),
       service.expires_at ? new Date(service.expires_at) : new Date(Date.now() + 3650 * 86_400_000),
       serviceId,
