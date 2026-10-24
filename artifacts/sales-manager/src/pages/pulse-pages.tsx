@@ -3777,7 +3777,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
     if (wireguardBackfill) {
       const queued = Number(wireguardBackfill.queued || 0);
       if (queued > 0) {
-        return `${numberFa(queued)} سرویس واجد شرایط برای آماده‌سازی مرحله‌ای WireGuard صف شد؛ حساب‌های مفقود فقط از طریق Rain Admin اصلی و با سهمیهٔ باقی‌مانده ساخته می‌شوند و حساب‌های موجود تغییر نمی‌کنند.`;
+        return `${numberFa(queued)} سرویس واجد شرایط برای آماده‌سازی مرحله‌ای WireGuard صف شد؛ حساب‌های مفقود از طریق همین Provider و با سهمیهٔ باقی‌مانده ساخته می‌شوند و حساب‌های موجود تغییر نمی‌کنند.`;
       }
       return 'سرویس واجد شرایط جدیدی در صف WireGuard قرار نگرفت؛ وضعیت سرویس‌ها و خطاهای قبلی را در مانیتورینگ بررسی کنید.';
     }
@@ -3868,7 +3868,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
       <form className="ax-provider-create-form" onSubmit={create}>
         <div className="ax-provider-create-heading">
           <div><p className="ax-eyebrow">Provider جدید</p><strong>افزودن منبع اتصال</strong></div>
-          <span className="text-xs text-muted-foreground">Providerهای WireGuard فقط برای خواندن فایل‌های .conf هستند و در ساخت یا تمدید سرویس دخالت نمی‌کنند.</span>
+          <span className="text-xs text-muted-foreground">Rain Admin · WireGuard یک Provider مستقل است و می‌تواند حساب بسازد و تمدید کند؛ AzadPanel · WireGuard فقط برای حساب پروتکل WireGuard استفاده می‌شود.</span>
         </div>
         {newPanel.kind === 'azadpanel_v2ray' && <div className="ax-alert mt-3" role="note">پس از ذخیرهٔ Provider فعال، سرویس‌های موجودِ فعال، منقضی‌نشده و دارای حجم باقی‌مانده فقط یک‌بار و با فاصلهٔ امن در صف قرار می‌گیرند؛ حساب‌هایی که از قبل وجود دارند تغییر نمی‌کنند.</div>}
         <div className="ax-provider-fields">
@@ -3887,7 +3887,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
             {newPanel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">نام کاربری و رمز نمایندگی مخصوص هستهٔ Xray/V2Ray را وارد کنید؛ حساب جداگانه به‌صورت خودکار هنگام ساخت یا تمدید سرویس ایجاد می‌شود.</small>}
             {newPanel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">نام کاربری و رمز مخصوص هستهٔ WireGuard را وارد کنید؛ این اعتبارنامه از OpenVPN جداست.</small>}
             {newPanel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">credential مدیر AzadPanel مخصوص هستهٔ IPsec را وارد کنید؛ حساب و رمز اتصال کاربران جداگانه از API دریافت می‌شود.</small>}
-            {newPanel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">آدرس API باید همان آدرس Rain Admin اصلی باشد. نام کاربری و رمز برای ورود پنل هستند. پس از ذخیره، برای سرویس‌های فعالِ واجدشرایط که کاربرشان در Rain Admin نیست، حساب متناظر با سهمیهٔ باقی‌مانده ساخته و سپس config WireGuard دریافت می‌شود؛ خود این Extension در ساخت یا تمدید سرویس دخالت ندارد.</small>}
+            {newPanel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این Provider می‌تواند مستقل از Rain Admin دیگری کار کند؛ با همین نام کاربری و رمز حساب‌های Rain Admin را می‌سازد و تمدید می‌کند و فایل‌های WireGuard را می‌خواند. پس از ذخیره، حساب‌های مفقودِ سرویس‌های فعالِ واجدشرایط با سهمیهٔ باقی‌مانده ساخته می‌شوند؛ حساب‌های موجود تغییر نمی‌کنند.</small>}
           </label>
           <Field label="آدرس API" value={newPanel.api_base} placeholder="https://panel.example.com" inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, api_base: value })} />
           <Field label="نام کاربری ورود به پنل (اختیاری)" value={newPanel.username} inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, username: value })} />
@@ -3926,7 +3926,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
                 {panel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف از credential مستقل نمایندگی Xray استفاده می‌کند؛ با ذخیره، سرویس‌های فعالِ واجد شرایطی که نگاشت V2Ray ندارند به‌صورت مرحله‌ای صف می‌شوند. حساب‌های موجود تغییر نمی‌کنند.</small>}
                 {panel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از اعتبارنامهٔ مستقل هستهٔ WireGuard استفاده کند.</small>}
                 {panel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از credential مستقل هستهٔ IPsec استفاده کند.</small>}
-                {panel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">آدرس API باید با Rain Admin اصلی یکی باشد؛ نام کاربری و رمز برای ورود پنل هستند. ذخیرهٔ این تنظیمات، برای سرویس‌های فعالِ واجدشرایط که در Rain Admin حساب ندارند، صف ایجاد حساب با سهمیهٔ باقی‌مانده و دریافت config را اجرا می‌کند. حساب‌های موجود تغییر نمی‌کنند.</small>}
+                {panel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این Provider می‌تواند مستقل باشد و برای ساخت و تمدید حساب‌ها و دریافت فایل WireGuard از همین credential استفاده می‌کند. ذخیرهٔ تنظیمات سرویس‌های فعالِ واجدشرایطی را که حساب ندارند، با سهمیهٔ باقی‌مانده به صف ایجاد حساب می‌فرستد؛ حساب‌های موجود تغییر نمی‌کنند.</small>}
               </label>
               <Field label="آدرس API" value={panel.api_base} inputDir="ltr" onChange={(value) => edit(panel.key, 'api_base', value)} />
               <Field label="نام کاربری پنل (خالی = حفظ مقدار قبلی)" value={panel.username || ''} placeholder="username پنل" inputDir="ltr" onChange={(value) => edit(panel.key, 'username', value)} />

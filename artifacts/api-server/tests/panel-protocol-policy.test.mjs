@@ -35,24 +35,30 @@ test("OpenVPN core selection excludes WireGuard- and IPsec-specific panels", () 
 test("generic service provisioning excludes protocol-only provider rows", () => {
   assert.equal(isStandardServiceProvisioningPanel("azadpanel_openvpn"), true);
   assert.equal(isStandardServiceProvisioningPanel("azadpanel_v2ray"), true);
-  assert.equal(isStandardServiceProvisioningPanel("rain_admin_wireguard"), false);
+  assert.equal(isStandardServiceProvisioningPanel("rain_admin_wireguard"), true);
   assert.equal(isStandardServiceProvisioningPanel("azadpanel_wireguard"), false);
   assert.equal(isStandardServiceProvisioningPanel("azadpanel_ipsec"), false);
-  assert.equal(isStandardServiceProvisioningPanel("azadpanel_openvpn"), true);
-  assert.equal(isStandardServiceProvisioningPanel("azadpanel_v2ray"), true);
   assert.equal(isStandardServiceProvisioningPanel("marzban"), true);
 });
 
-test("service creation provider choices never include Rain Admin WireGuard", () => {
+test("standalone Rain Admin WireGuard can provision users and duplicate same-panel entries are deduplicated", () => {
   const configured = [
-    { key: "rain-main", kind: "rain_admin" },
-    { key: "rain-wg", kind: "rain_admin_wireguard" },
+    { key: "rain-main", kind: "rain_admin", api_base: "https://panel.example.com/" },
+    { key: "rain-wg", kind: "rain_admin_wireguard", api_base: "https://panel.example.com" },
     { key: "azad-openvpn", kind: "azadpanel_openvpn" },
     { key: "azad-wg", kind: "azadpanel_wireguard" },
   ];
   assert.deepEqual(
     standardServiceProvisioningPanels(configured).map(({ key }) => key),
     ["rain-main", "azad-openvpn"],
+  );
+
+  assert.deepEqual(
+    standardServiceProvisioningPanels([
+      { key: "rain-wg", kind: "rain_admin_wireguard", api_base: "https://panel.example.com" },
+      { key: "azad-openvpn", kind: "azadpanel_openvpn" },
+    ]).map(({ key }) => key),
+    ["rain-wg", "azad-openvpn"],
   );
 });
 

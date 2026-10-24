@@ -48,7 +48,7 @@ export async function ensureRainAdminBackfillAccount(
   }
   if (!providers.length) {
     throw new RainAdminBackfillError(
-      "No matching main Rain Admin provider is configured for this WireGuard panel.",
+      "No credentialed Rain Admin provider is configured for this WireGuard panel.",
       false,
     );
   }

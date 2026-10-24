@@ -1,3 +1,5 @@
+import { samePasarGuardInstance } from "./pasarguard-instance";
+
 const normalizeKind = (kind: unknown) =>
   typeof kind === "string" ? kind.trim().toLowerCase() : "";
 
@@ -25,15 +27,33 @@ export function isAzadPanelCoreCandidate(kind: unknown, core: AzadPanelCore): bo
 
 export function isStandardServiceProvisioningPanel(kind: unknown): boolean {
   const normalized = normalizeKind(kind);
-  return normalized !== "rain_admin_wireguard"
-    && normalized !== "azadpanel_wireguard"
+  return normalized !== "azadpanel_wireguard"
     && normalized !== "azadpanel_ipsec";
 }
 
-export function standardServiceProvisioningPanels<T extends { kind?: unknown }>(
+export function uniqueRainAdminPanelEntries<
+  T extends { kind?: unknown; api_base?: unknown },
+>(
   panels: readonly T[],
 ): T[] {
-  return panels.filter((panel) => isStandardServiceProvisioningPanel(panel.kind));
+  const primaryPanels = panels.filter((panel) => normalizeKind(panel.kind) === "rain_admin");
+  return panels.filter((panel) => {
+    if (normalizeKind(panel.kind) !== "rain_admin_wireguard") return true;
+    return !primaryPanels.some((primary) =>
+      typeof panel.api_base === "string"
+      && typeof primary.api_base === "string"
+      && samePasarGuardInstance(panel.api_base, primary.api_base),
+    );
+  });
+}
+
+export function standardServiceProvisioningPanels<
+  T extends { kind?: unknown; api_base?: unknown },
+>(
+  panels: readonly T[],
+): T[] {
+  return uniqueRainAdminPanelEntries(panels)
+    .filter((panel) => isStandardServiceProvisioningPanel(panel.kind));
 }
 
 export function azadPanelXraySubscriptionPath(username: string): string {

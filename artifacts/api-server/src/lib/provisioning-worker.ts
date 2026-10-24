@@ -406,7 +406,7 @@ async function processRainAdminWireGuardBackfill(job: ProvisionJob): Promise<voi
       jobId: job.id,
       serviceId: job.service_id,
       providerKey,
-      mainProviderKey: account.mainProviderKey,
+      accountProviderKey: account.accountProviderKey,
       accountCreated: account.created,
     },
     "Rain Admin WireGuard profile backfill completed",

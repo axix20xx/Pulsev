@@ -58,6 +58,23 @@ test("backfill creates a missing user with only remaining quota and existing exp
   });
 });
 
+test("the standalone Rain Admin WireGuard provider can create a missing user", async () => {
+  let submittedBody;
+  const result = await ensureRainAdminBackfillAccount(
+    { username: "svc-user", remainingBytes: 4096, expiresAtUnix: 300 },
+    [{
+      key: "panelpasargad",
+      lookup: async () => ({ status: 404 }),
+      create: async (body) => {
+        submittedBody = body;
+        return { status: 201 };
+      },
+    }],
+  );
+  assert.deepEqual(result, { created: true, providerKey: "panelpasargad" });
+  assert.equal(submittedBody.username, "svc-user");
+});
+
 test("backfill keeps unlimited service data unlimited", async () => {
   let body;
   await ensureRainAdminBackfillAccount(

@@ -75800,7 +75800,7 @@ async function ensureRainAdminBackfillAccount(input, providers) {
   }
   if (!providers.length) {
     throw new RainAdminBackfillError(
-      "No matching main Rain Admin provider is configured for this WireGuard panel.",
+      "No credentialed Rain Admin provider is configured for this WireGuard panel.",
       false
     );
   }
@@ -75979,10 +75979,19 @@ function isAzadPanelCoreCandidate(kind, core) {
 }
 function isStandardServiceProvisioningPanel(kind) {
   const normalized = normalizeKind(kind);
-  return normalized !== "rain_admin_wireguard" && normalized !== "azadpanel_wireguard" && normalized !== "azadpanel_ipsec";
+  return normalized !== "azadpanel_wireguard" && normalized !== "azadpanel_ipsec";
+}
+function uniqueRainAdminPanelEntries(panels2) {
+  const primaryPanels = panels2.filter((panel) => normalizeKind(panel.kind) === "rain_admin");
+  return panels2.filter((panel) => {
+    if (normalizeKind(panel.kind) !== "rain_admin_wireguard") return true;
+    return !primaryPanels.some(
+      (primary) => typeof panel.api_base === "string" && typeof primary.api_base === "string" && samePasarGuardInstance(panel.api_base, primary.api_base)
+    );
+  });
 }
 function standardServiceProvisioningPanels(panels2) {
-  return panels2.filter((panel) => isStandardServiceProvisioningPanel(panel.kind));
+  return uniqueRainAdminPanelEntries(panels2).filter((panel) => isStandardServiceProvisioningPanel(panel.kind));
 }
 function azadPanelXraySubscriptionPath(username) {
   return `/api/xray/user/${encodeURIComponent(username)}/link`;
@@ -76882,7 +76891,7 @@ async function loadRainAdminWireGuardConfigs(panel, username) {
     const allLookupsNotFound = lookupResponses.every(
       ({ response: response2 }) => [404, 405].includes(response2.status)
     );
-    const detail = allLookupsNotFound ? matchingMainPanels.length ? "PasarGuard user was not found by either the main Rain Admin login or the WireGuard extension. Confirm this service exists on that same panel." : "PasarGuard user was not found. Create the service with the main Rain Admin provider, and make sure the WireGuard extension uses the same PasarGuard panel." : `PasarGuard could not read the WireGuard user: ${safeError(userLookupResponse)}`;
+    const detail = allLookupsNotFound ? matchingMainPanels.length ? "PasarGuard user was not found by either the main Rain Admin login or the WireGuard extension. Confirm this service exists on that same panel." : "PasarGuard user was not found. Create the service through the configured Rain Admin WireGuard provider, or retry the eligible-service setup from Provider settings." : `PasarGuard could not read the WireGuard user: ${safeError(userLookupResponse)}`;
     const retryable = userLookupResponse.status === 408 || userLookupResponse.status === 429 || userLookupResponse.status >= 500;
     const retryAfterSeconds = Number(userLookupResponse.retryAfter);
     const retryAfterDate = userLookupResponse.retryAfter ? Date.parse(userLookupResponse.retryAfter) : Number.NaN;
@@ -76958,25 +76967,19 @@ async function ensureRainAdminWireGuardBackfillUser(username, remainingBytes, ex
     );
   }
   const mainPanels = await matchingRainAdminPanels(wireGuardPanel);
-  if (!mainPanels.length) {
-    throw new RainApiError(
-      "No enabled main Rain Admin provider points to the same PasarGuard API instance; no account was created.",
-      [],
-      false
-    );
-  }
+  const accountPanels = [...mainPanels, wireGuardPanel];
   let outcome;
   try {
     outcome = await ensureRainAdminBackfillAccount(
       { username, remainingBytes, expiresAtUnix },
-      mainPanels.map((mainPanel) => ({
-        key: panelKey(mainPanel),
+      accountPanels.map((accountPanel) => ({
+        key: panelKey(accountPanel),
         lookup: async () => {
-          const response = await lookupPasarGuardUser(mainPanel, username);
+          const response = await lookupPasarGuardUser(accountPanel, username);
           return { status: response.status, error: safeError(response) };
         },
         create: async (body) => {
-          const response = await panelRequest(mainPanel, "POST", "/api/user", body);
+          const response = await panelRequest(accountPanel, "POST", "/api/user", body);
           return { status: response.status, error: safeError(response) };
         }
       }))
@@ -76987,7 +76990,7 @@ async function ensureRainAdminWireGuardBackfillUser(username, remainingBytes, ex
     }
     throw error40;
   }
-  return { created: outcome.created, mainProviderKey: outcome.providerKey };
+  return { created: outcome.created, accountProviderKey: outcome.providerKey };
 }
 async function prepareRainAdminWireGuardDelivery(username, providerKey, ownerId, role) {
   const panel = (await panels(ownerId, role)).find(
@@ -77240,8 +77243,7 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
       return null;
     }
   };
-  for (const panel of configuredPanels) {
-    if (isRainAdminWireGuardPanel(panel)) continue;
+  for (const panel of uniqueRainAdminPanelEntries(configuredPanels)) {
     const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
     const ipsecPanel = panel.kind?.trim().toLowerCase() === "azadpanel_ipsec";
     const v2rayPanel = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
@@ -77521,8 +77523,7 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
       (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_v2ray"
     ).length;
   }
-  for (const panel of configuredPanels) {
-    if (isRainAdminWireGuardPanel(panel)) continue;
+  for (const panel of uniqueRainAdminPanelEntries(configuredPanels)) {
     const kind = panelKind(panel);
     let providerUsername = username;
     if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {
@@ -78441,7 +78442,7 @@ async function renewWireGuardAccount(providerKey, username, serviceUsername, gb,
   const panel = await findWireGuardProvider(providerKey, ownerId, role);
   if (isRainAdminWireGuardPanel(panel)) {
     if (username !== serviceUsername) {
-      throw new RainApiError("The read-only Rain Admin WireGuard identity does not match the service username.");
+      throw new RainApiError("The Rain Admin WireGuard identity does not match the service username.");
     }
     return;
   }
@@ -90985,7 +90986,7 @@ async function processRainAdminWireGuardBackfill(job) {
       jobId: job.id,
       serviceId: job.service_id,
       providerKey,
-      mainProviderKey: account.mainProviderKey,
+      accountProviderKey: account.accountProviderKey,
       accountCreated: account.created
     },
     "Rain Admin WireGuard profile backfill completed"

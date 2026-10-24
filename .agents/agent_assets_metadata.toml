@@ -2228,3 +2228,17 @@ mtime_ms = 1792876807775
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/a7426d25-351a-4b54-ad1b-572ff5ab7901/04e28032-f580-4665-bfe1-9d113d6f81a7"
 storage_version_token = "1792876849172207"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "1S78a1d6luAcDecbiUhEd"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T21-34-23-456Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger migration ZIP"
+description = "Updated Hostinger package: rain_admin_wireguard can operate as the standalone Rain Admin provider, with account provisioning, renewal, usage, and eligible-service WireGuard backfill."
+logical_id = "c565c5b2-34a1-4fbd-8b2a-38d136cff2d9"
+content_hash = "sha256:0ad1d0a7168593b5ffa5f95160c5c7a2291e34e81621b9b6789722671343c581"
+size = 29103897
+mtime_ms = 1792877778167
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/c565c5b2-34a1-4fbd-8b2a-38d136cff2d9/38c37e3e-79de-4c04-8273-2d216f155da5"
+storage_version_token = "1792877830134636"
+content_type = "application/octet-stream"
