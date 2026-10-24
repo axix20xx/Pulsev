@@ -2186,3 +2186,17 @@ mtime_ms = 1792874088115
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/60b20aab-ac46-4492-a4b8-17dd7149abb7/ca7ce247-79a2-4426-bc36-2f2e72a92afc"
 storage_version_token = "1792874195531865"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "BdYZZdrLfKYxiQH-q4RGY"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T20-45-00-506Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger — React Query context fix"
+description = "Updated Hostinger migration ZIP. Fixes the duplicate React Query context that caused the login page to display 'No QueryClient set', includes the safer v2 web cache and copyable frontend diagnostics. SHA-256: a954c18d2d44b72c251512cf2ad7c68067eeefb0f8efe4669fe84eca30e23da4."
+logical_id = "e8a2002f-f538-4dd0-8888-a737c070139a"
+content_hash = "sha256:a954c18d2d44b72c251512cf2ad7c68067eeefb0f8efe4669fe84eca30e23da4"
+size = 29098355
+mtime_ms = 1792874818567
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e8a2002f-f538-4dd0-8888-a737c070139a/18f225ad-0902-4012-beb5-646aff4a90eb"
+storage_version_token = "1792874866440238"
+content_type = "application/octet-stream"
