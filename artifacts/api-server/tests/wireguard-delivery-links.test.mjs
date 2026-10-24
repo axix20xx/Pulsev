@@ -15,18 +15,23 @@ async function loadLinks() {
   return import(`data:text/javascript;base64,${code}`);
 }
 
-test("public WireGuard delivery includes a working all-servers iOS profile URL", async () => {
+test("Rain Admin WireGuard delivery exposes per-server, full ZIP, and iOS bundle URLs", async () => {
   const { publicWireGuardDeliveryLinks } = await loadLinks();
-  const links = publicWireGuardDeliveryLinks("subscription-token", "panel_one", [
+  const links = publicWireGuardDeliveryLinks("subscription-token", "panelpasargad", [
     { id: "server-1", name: "One" },
     { id: "server-2", name: "Two" },
   ]);
 
   assert.equal(
     links.bundle_mobileconfig_url,
-    "/api/public/subscription/subscription-token/wireguard/mobileconfig/panel_one",
+    "/api/public/subscription/subscription-token/wireguard/mobileconfig/panelpasargad",
+  );
+  assert.equal(
+    links.bundle_url,
+    "/api/public/subscription/subscription-token/wireguard/bundle/panelpasargad",
   );
   assert.equal(links.locations.length, 2);
-  assert.match(links.locations[0].mobileconfig_url, /mobileconfig\/panel_one\/server-1$/);
-  assert.match(links.locations[1].config_url, /config\/panel_one\/server-2$/);
+  assert.match(links.locations[0].config_url, /config\/panelpasargad\/server-1$/);
+  assert.match(links.locations[0].mobileconfig_url, /mobileconfig\/panelpasargad\/server-1$/);
+  assert.match(links.locations[1].config_url, /config\/panelpasargad\/server-2$/);
 });

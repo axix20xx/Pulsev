@@ -1505,7 +1505,10 @@ export async function readPanelUsages(
     }
   };
   for (const panel of uniqueRainAdminPanelEntries(configuredPanels)) {
-    const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
+    const panelType = panel.kind?.trim().toLowerCase();
+    const azadPanelWireGuard = panelType === "azadpanel_wireguard";
+    const rainAdminWireGuard = isRainAdminWireGuardPanel(panel);
+    const wireGuardPanel = azadPanelWireGuard || rainAdminWireGuard;
     const ipsecPanel = panel.kind?.trim().toLowerCase() === "azadpanel_ipsec";
     const v2rayPanel = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
     const openVpnPanel = isAzadPanelCoreCandidate(panel.kind, "openvpn");
@@ -1539,7 +1542,7 @@ export async function readPanelUsages(
       }
       requestUsername = v2rayAccounts.get(serviceId)?.get(panelKey(panel)) ?? username;
     }
-    if (wireGuardPanel) {
+    if (azadPanelWireGuard) {
       if (!wireGuardLookupFailed && !wireGuardAccounts.has(serviceId)) continue;
       const savedAccount = wireGuardAccounts.get(serviceId);
       if (wireGuardLookupFailed || !savedAccount?.providerKey) {
@@ -1566,6 +1569,34 @@ export async function readPanelUsages(
         continue;
       }
       requestUsername = savedAccount.username;
+    }
+    if (rainAdminWireGuard) {
+      const savedAccount = wireGuardAccounts.get(serviceId);
+      if (wireGuardLookupFailed || (savedAccount && !savedAccount.providerKey)) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: "",
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true,
+        });
+        continue;
+      }
+      if (savedAccount?.providerKey === panelKey(panel)) {
+        if (!savedAccount.username) {
+          result.push({
+            panelKey: panelKey(panel),
+            username: "",
+            usedBytes: 0,
+            totalBytes: null,
+            expiresAt: null,
+            stale: true,
+          });
+          continue;
+        }
+        requestUsername = savedAccount.username;
+      }
     }
     if (ipsecPanel) {
       if (!ipsecLookupFailed && !ipsecAccounts.has(serviceId)) continue;

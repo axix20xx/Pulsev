@@ -5147,8 +5147,15 @@ async function loadServicePanelUsageMap(
        SELECT saved.upload, saved.download, saved.offset_bytes, saved.last_updated
        FROM user_panel_usages saved
        WHERE saved.panel_key = panel.key
-         AND saved.username = CASE
-           WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN requested.wireguard_username
+          AND saved.username = CASE
+            WHEN LOWER(panel.kind) = 'rain_admin_wireguard'
+              THEN CASE
+                WHEN requested.wireguard_account_present
+                  AND requested.wireguard_provider_key = panel.key
+                  THEN requested.wireguard_username
+                ELSE requested.username
+              END
+            WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN requested.wireguard_username
             WHEN LOWER(panel.kind) = 'azadpanel_ipsec' THEN ipsec_account.provider_username
             WHEN LOWER(panel.kind) = 'azadpanel_v2ray' THEN COALESCE(v2ray_account.provider_username, requested.username)
           WHEN LOWER(panel.kind) IN ('azadpanel', 'azadpanel_openvpn')
@@ -5158,8 +5165,8 @@ async function loadServicePanelUsageMap(
        ORDER BY saved.id DESC
        LIMIT 1
      ) usage ON TRUE
-     WHERE panel.is_enabled = 1
-         AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
+      WHERE panel.is_enabled = 1
+          AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
        AND (
          LOWER(panel.kind) <> 'azadpanel_wireguard'
          OR (

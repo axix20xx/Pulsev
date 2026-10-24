@@ -75402,7 +75402,7 @@ function storedPanelUsageSql(serviceAlias = "svc") {
       LIMIT 1
     ) latest_usage ON TRUE
     WHERE panel.is_enabled = 1
-      AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
+      AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
   ), 0)::float8`;
 }
 
@@ -77283,7 +77283,10 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
     }
   };
   for (const panel of uniqueRainAdminPanelEntries(configuredPanels)) {
-    const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
+    const panelType = panel.kind?.trim().toLowerCase();
+    const azadPanelWireGuard = panelType === "azadpanel_wireguard";
+    const rainAdminWireGuard = isRainAdminWireGuardPanel(panel);
+    const wireGuardPanel = azadPanelWireGuard || rainAdminWireGuard;
     const ipsecPanel = panel.kind?.trim().toLowerCase() === "azadpanel_ipsec";
     const v2rayPanel = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
     const openVpnPanel = isAzadPanelCoreCandidate(panel.kind, "openvpn");
@@ -77317,7 +77320,7 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
       }
       requestUsername = v2rayAccounts.get(serviceId)?.get(panelKey(panel)) ?? username;
     }
-    if (wireGuardPanel) {
+    if (azadPanelWireGuard) {
       if (!wireGuardLookupFailed && !wireGuardAccounts.has(serviceId)) continue;
       const savedAccount2 = wireGuardAccounts.get(serviceId);
       if (wireGuardLookupFailed || !savedAccount2?.providerKey) {
@@ -77344,6 +77347,34 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
         continue;
       }
       requestUsername = savedAccount2.username;
+    }
+    if (rainAdminWireGuard) {
+      const savedAccount2 = wireGuardAccounts.get(serviceId);
+      if (wireGuardLookupFailed || savedAccount2 && !savedAccount2.providerKey) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: "",
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true
+        });
+        continue;
+      }
+      if (savedAccount2?.providerKey === panelKey(panel)) {
+        if (!savedAccount2.username) {
+          result.push({
+            panelKey: panelKey(panel),
+            username: "",
+            usedBytes: 0,
+            totalBytes: null,
+            expiresAt: null,
+            stale: true
+          });
+          continue;
+        }
+        requestUsername = savedAccount2.username;
+      }
     }
     if (ipsecPanel) {
       if (!ipsecLookupFailed && !ipsecAccounts.has(serviceId)) continue;
@@ -87747,8 +87778,15 @@ async function loadServicePanelUsageMap(services) {
        SELECT saved.upload, saved.download, saved.offset_bytes, saved.last_updated
        FROM user_panel_usages saved
        WHERE saved.panel_key = panel.key
-         AND saved.username = CASE
-           WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN requested.wireguard_username
+          AND saved.username = CASE
+            WHEN LOWER(panel.kind) = 'rain_admin_wireguard'
+              THEN CASE
+                WHEN requested.wireguard_account_present
+                  AND requested.wireguard_provider_key = panel.key
+                  THEN requested.wireguard_username
+                ELSE requested.username
+              END
+            WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN requested.wireguard_username
             WHEN LOWER(panel.kind) = 'azadpanel_ipsec' THEN ipsec_account.provider_username
             WHEN LOWER(panel.kind) = 'azadpanel_v2ray' THEN COALESCE(v2ray_account.provider_username, requested.username)
           WHEN LOWER(panel.kind) IN ('azadpanel', 'azadpanel_openvpn')
@@ -87758,8 +87796,8 @@ async function loadServicePanelUsageMap(services) {
        ORDER BY saved.id DESC
        LIMIT 1
      ) usage ON TRUE
-     WHERE panel.is_enabled = 1
-         AND panel.kind IN ('rain_admin', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
+      WHERE panel.is_enabled = 1
+          AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
        AND (
          LOWER(panel.kind) <> 'azadpanel_wireguard'
          OR (

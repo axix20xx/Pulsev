@@ -81,5 +81,6 @@ test("panel snapshot SQL reads only the latest saved row per configured panel", 
   assert.match(sql, /reseller_service_openvpn_provider_accounts openvpn_account/);
   assert.match(sql, /panel\.kind IN \('azadpanel', 'azadpanel_openvpn'\)[\s\S]*COALESCE\(openvpn_account\.provider_username, svc\.rain_username\)/);
   assert.match(sql, /'azadpanel_ipsec'/);
+  assert.match(sql, /'rain_admin_wireguard'/);
   assert.throws(() => storedPanelUsageSql("svc; DROP TABLE reseller_services"), /Invalid SQL alias/);
 });

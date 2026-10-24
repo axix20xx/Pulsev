@@ -14,3 +14,9 @@ For a user-specific WireGuard download, resolve the already-provisioned PasarGua
 The one-time backfill is authorized only for eligible existing services; it must not modify accounts that already exist.
 
 Recheck each service's lifecycle, expiry, remaining quota, and WireGuard entitlement when the backfill job runs. Existing accounts must remain untouched, and create requests must not run after lookup errors, permission failures, or panel mismatch.
+
+Rain Admin WireGuard usage belongs in the combined service quota and per-provider usage details. Public `/sub` and mobile delivery must expose each `.conf`, the all-server `.zip`, and the iOS profile from the saved provider identity.
+
+**Why:** The user explicitly requires the standalone Rain Admin WireGuard API to count toward total usage and provide the same config downloads in subscription and mobile flows.
+
+**How to apply:** Include `rain_admin_wireguard` in saved-usage reads and totals, use its saved provider identity when available, and keep public downloads keyed to the saved provider key rather than mixing it into the V2Ray feed.
