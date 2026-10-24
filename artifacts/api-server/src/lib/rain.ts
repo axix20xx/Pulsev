@@ -3,7 +3,10 @@ import { pool } from "@workspace/db";
 import { decryptPanelCredential } from "./panel-credentials";
 import { parsePasarGuardWireGuardArchive } from "./pasarguard-wireguard-archive";
 import { samePasarGuardInstance } from "./pasarguard-instance";
-import { ensureRainAdminBackfillAccount } from "./rain-admin-wireguard-account";
+import {
+  ensureRainAdminBackfillAccount,
+  RainAdminBackfillError,
+} from "./rain-admin-wireguard-account";
 import { renewAzadPanelAccount } from "./azadpanel-renewal";
 import { isRetryableAzadPanelStatus } from "./azadpanel-retry-policy";
 import { azadPanelV2RayCollisionUsername } from "./azadpanel-v2ray-username";
@@ -1165,20 +1168,28 @@ export async function ensureRainAdminWireGuardBackfillUser(
       false,
     );
   }
-  const outcome = await ensureRainAdminBackfillAccount(
-    { username, remainingBytes, expiresAtUnix },
-    mainPanels.map((mainPanel) => ({
-      key: panelKey(mainPanel),
-      lookup: async () => {
-        const response = await lookupPasarGuardUser(mainPanel, username);
-        return { status: response.status, error: safeError(response) };
-      },
-      create: async (body) => {
-        const response = await panelRequest(mainPanel, "POST", "/api/user", body);
-        return { status: response.status, error: safeError(response) };
-      },
-    })),
-  );
+  let outcome: Awaited<ReturnType<typeof ensureRainAdminBackfillAccount>>;
+  try {
+    outcome = await ensureRainAdminBackfillAccount(
+      { username, remainingBytes, expiresAtUnix },
+      mainPanels.map((mainPanel) => ({
+        key: panelKey(mainPanel),
+        lookup: async () => {
+          const response = await lookupPasarGuardUser(mainPanel, username);
+          return { status: response.status, error: safeError(response) };
+        },
+        create: async (body) => {
+          const response = await panelRequest(mainPanel, "POST", "/api/user", body);
+          return { status: response.status, error: safeError(response) };
+        },
+      })),
+    );
+  } catch (error) {
+    if (error instanceof RainAdminBackfillError) {
+      throw new RainApiError(error.message, [], error.retryable);
+    }
+    throw error;
+  }
   return { created: outcome.created, mainProviderKey: outcome.providerKey };
 }
 

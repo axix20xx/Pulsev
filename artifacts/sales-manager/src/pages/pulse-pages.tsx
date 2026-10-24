@@ -3777,9 +3777,9 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
     if (wireguardBackfill) {
       const queued = Number(wireguardBackfill.queued || 0);
       if (queued > 0) {
-        return `${numberFa(queued)} سرویس واجد شرایط برای آماده‌سازی مرحله‌ای پروفایل WireGuard صف شد؛ حساب‌های Provider تغییر نمی‌کنند.`;
+        return `${numberFa(queued)} سرویس واجد شرایط برای آماده‌سازی مرحله‌ای WireGuard صف شد؛ حساب‌های مفقود فقط از طریق Rain Admin اصلی و با سهمیهٔ باقی‌مانده ساخته می‌شوند و حساب‌های موجود تغییر نمی‌کنند.`;
       }
-      return 'سرویس فعال، منقضی‌نشده و واجد شرایط جدیدی برای آماده‌سازی WireGuard پیدا نشد.';
+      return 'سرویس واجد شرایط جدیدی در صف WireGuard قرار نگرفت؛ وضعیت سرویس‌ها و خطاهای قبلی را در مانیتورینگ بررسی کنید.';
     }
     const backfill = payload?.backfill;
     if (!backfill) return '';

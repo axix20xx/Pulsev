@@ -9,6 +9,20 @@ export type RainAdminBackfillProvider = {
   create: (body: Record<string, unknown>) => Promise<RainAdminBackfillResponse>;
 };
 
+export class RainAdminBackfillError extends Error {
+  readonly retryable: boolean;
+
+  constructor(message: string, retryable: boolean) {
+    super(message);
+    this.name = "RainAdminBackfillError";
+    this.retryable = retryable;
+  }
+}
+
+function retryableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
 export async function ensureRainAdminBackfillAccount(
   input: {
     username: string;
@@ -17,25 +31,31 @@ export async function ensureRainAdminBackfillAccount(
   },
   providers: RainAdminBackfillProvider[],
 ): Promise<{ created: boolean; providerKey: string }> {
-  if (!input.username.trim()) throw new Error("A service username is required for Rain Admin backfill.");
+  if (!input.username.trim()) {
+    throw new RainAdminBackfillError("A service username is required for Rain Admin backfill.", false);
+  }
   if (
     input.remainingBytes !== null
     && (!Number.isFinite(input.remainingBytes) || input.remainingBytes < 0)
   ) {
-    throw new Error("Remaining quota is invalid for Rain Admin backfill.");
+    throw new RainAdminBackfillError("Remaining quota is invalid for Rain Admin backfill.", false);
   }
   if (
     input.expiresAtUnix !== null
     && (!Number.isSafeInteger(input.expiresAtUnix) || input.expiresAtUnix <= 0)
   ) {
-    throw new Error("Service expiry is invalid for Rain Admin backfill.");
+    throw new RainAdminBackfillError("Service expiry is invalid for Rain Admin backfill.", false);
   }
   if (!providers.length) {
-    throw new Error("No matching main Rain Admin provider is configured for this WireGuard panel.");
+    throw new RainAdminBackfillError(
+      "No matching main Rain Admin provider is configured for this WireGuard panel.",
+      false,
+    );
   }
 
   const missing: RainAdminBackfillProvider[] = [];
   const lookupErrors: string[] = [];
+  let hasRetryableLookupError = false;
   for (const provider of providers) {
     const lookup = await provider.lookup();
     if (lookup.status === 200) return { created: false, providerKey: provider.key };
@@ -44,11 +64,13 @@ export async function ensureRainAdminBackfillAccount(
       continue;
     }
     lookupErrors.push(`${provider.key}: ${lookup.error || `HTTP ${lookup.status}`}`);
+    hasRetryableLookupError ||= retryableStatus(lookup.status);
   }
 
   if (!missing.length) {
-    throw new Error(
+    throw new RainAdminBackfillError(
       `Rain Admin could not verify the user on the matching panel. ${lookupErrors.join("; ")}`.trim(),
+      hasRetryableLookupError,
     );
   }
 
@@ -77,7 +99,8 @@ export async function ensureRainAdminBackfillAccount(
     }
   }
 
-  throw new Error(
+  throw new RainAdminBackfillError(
     `Rain Admin ${provider.key} could not create the missing WireGuard account: ${created.error || `HTTP ${created.status}`}`,
+    retryableStatus(created.status),
   );
 }

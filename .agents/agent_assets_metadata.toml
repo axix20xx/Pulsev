@@ -2214,3 +2214,17 @@ mtime_ms = 1792875826859
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/eef82591-b3a0-4c69-9127-f205a6a59d0b/5dd0d8dc-04cd-4fdb-9d80-32a5a2c98216"
 storage_version_token = "1792875868341261"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "jo257FGJS0_8qGLdWx_xG"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T21-18-15-948Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger — Rain Admin WireGuard backfill"
+description = "Validated Hostinger migration ZIP. One-time paced backfill creates only missing matching Rain Admin users with remaining quota and expiry, leaves existing accounts unchanged, and fetches WireGuard profiles."
+logical_id = "a7426d25-351a-4b54-ad1b-572ff5ab7901"
+content_hash = "sha256:3c2ded9f70186d97aebf08db78f4ae6b7062359f4ea7134f8e4897b7b6380a2c"
+size = 29103707
+mtime_ms = 1792876807775
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/a7426d25-351a-4b54-ad1b-572ff5ab7901/04e28032-f580-4665-bfe1-9d113d6f81a7"
+storage_version_token = "1792876849172207"
+content_type = "application/octet-stream"

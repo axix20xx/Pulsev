@@ -13,7 +13,8 @@ const { outputFiles } = await build({
   write: false,
 });
 const code = Buffer.from(outputFiles[0].text).toString("base64");
-const { ensureRainAdminBackfillAccount } = await import(`data:text/javascript;base64,${code}`);
+const { ensureRainAdminBackfillAccount, RainAdminBackfillError } =
+  await import(`data:text/javascript;base64,${code}`);
 
 test("backfill leaves an existing Rain Admin account untouched", async () => {
   let createCalls = 0;
@@ -76,8 +77,9 @@ test("backfill keeps unlimited service data unlimited", async () => {
 
 test("backfill does not create an account when identity lookup is denied", async () => {
   let createCalls = 0;
-  await assert.rejects(
-    ensureRainAdminBackfillAccount(
+  let error;
+  try {
+    await ensureRainAdminBackfillAccount(
       { username: "svc-user", remainingBytes: 1024, expiresAtUnix: 200 },
       [{
         key: "main-rain",
@@ -87,9 +89,37 @@ test("backfill does not create an account when identity lookup is denied", async
           return { status: 201 };
         },
       }],
-    ),
-    /could not verify the user/,
-  );
+    );
+    assert.fail("Expected denied user lookup to fail.");
+  } catch (caught) {
+    error = caught;
+  }
+  assert.match(error.message, /could not verify the user/);
+  assert.equal(error.retryable, false);
+  assert.equal(createCalls, 0);
+});
+
+test("backfill retries transient lookup failures without attempting an account write", async () => {
+  let createCalls = 0;
+  let error;
+  try {
+    await ensureRainAdminBackfillAccount(
+      { username: "svc-user", remainingBytes: 1024, expiresAtUnix: 200 },
+      [{
+        key: "main-rain",
+        lookup: async () => ({ status: 503, error: "temporarily unavailable" }),
+        create: async () => {
+          createCalls += 1;
+          return { status: 201 };
+        },
+      }],
+    );
+    assert.fail("Expected transient lookup failure to be reported.");
+  } catch (caught) {
+    error = caught;
+  }
+  assert.match(error.message, /could not verify the user/);
+  assert.equal(error.retryable, true);
   assert.equal(createCalls, 0);
 });
 

@@ -75776,6 +75776,80 @@ function samePasarGuardInstance(left, right) {
   }
 }
 
+// src/lib/rain-admin-wireguard-account.ts
+var RainAdminBackfillError = class extends Error {
+  retryable;
+  constructor(message, retryable) {
+    super(message);
+    this.name = "RainAdminBackfillError";
+    this.retryable = retryable;
+  }
+};
+function retryableStatus(status) {
+  return status === 408 || status === 429 || status >= 500;
+}
+async function ensureRainAdminBackfillAccount(input, providers) {
+  if (!input.username.trim()) {
+    throw new RainAdminBackfillError("A service username is required for Rain Admin backfill.", false);
+  }
+  if (input.remainingBytes !== null && (!Number.isFinite(input.remainingBytes) || input.remainingBytes < 0)) {
+    throw new RainAdminBackfillError("Remaining quota is invalid for Rain Admin backfill.", false);
+  }
+  if (input.expiresAtUnix !== null && (!Number.isSafeInteger(input.expiresAtUnix) || input.expiresAtUnix <= 0)) {
+    throw new RainAdminBackfillError("Service expiry is invalid for Rain Admin backfill.", false);
+  }
+  if (!providers.length) {
+    throw new RainAdminBackfillError(
+      "No matching main Rain Admin provider is configured for this WireGuard panel.",
+      false
+    );
+  }
+  const missing = [];
+  const lookupErrors = [];
+  let hasRetryableLookupError = false;
+  for (const provider2 of providers) {
+    const lookup = await provider2.lookup();
+    if (lookup.status === 200) return { created: false, providerKey: provider2.key };
+    if ([404, 405].includes(lookup.status)) {
+      missing.push(provider2);
+      continue;
+    }
+    lookupErrors.push(`${provider2.key}: ${lookup.error || `HTTP ${lookup.status}`}`);
+    hasRetryableLookupError ||= retryableStatus(lookup.status);
+  }
+  if (!missing.length) {
+    throw new RainAdminBackfillError(
+      `Rain Admin could not verify the user on the matching panel. ${lookupErrors.join("; ")}`.trim(),
+      hasRetryableLookupError
+    );
+  }
+  const provider = missing[0];
+  const created = await provider.create({
+    username: input.username.trim(),
+    status: "active",
+    expire: input.expiresAtUnix,
+    data_limit: input.remainingBytes === null ? 0 : Math.max(1, Math.ceil(input.remainingBytes)),
+    data_limit_reset_strategy: "no_reset",
+    group_ids: [1],
+    note: "Pulse WireGuard backfill"
+  });
+  if (created.status >= 200 && created.status < 300) {
+    return { created: true, providerKey: provider.key };
+  }
+  if (created.status === 409) {
+    for (const candidate of providers) {
+      const confirmed = await candidate.lookup();
+      if (confirmed.status === 200) {
+        return { created: false, providerKey: candidate.key };
+      }
+    }
+  }
+  throw new RainAdminBackfillError(
+    `Rain Admin ${provider.key} could not create the missing WireGuard account: ${created.error || `HTTP ${created.status}`}`,
+    retryableStatus(created.status)
+  );
+}
+
 // src/lib/azadpanel-renewal.ts
 function responseDetail(response) {
   const detail = response.json?.detail ?? response.json?.message ?? response.json?.error ?? response.text;
@@ -76782,19 +76856,12 @@ async function panelRequestBinary(panel, path) {
   return response;
 }
 async function loadRainAdminWireGuardConfigs(panel, username) {
-  const encodedUsername = encodeURIComponent(username);
-  const configuredPanels = await panels();
-  const matchingMainPanels = configuredPanels.filter(
-    (candidate) => candidate.kind?.trim().toLowerCase() === "rain_admin" && samePasarGuardInstance(candidate.api_base, panel.api_base)
-  );
+  const matchingMainPanels = await matchingRainAdminPanels(panel);
   const lookupPanels = [...matchingMainPanels, panel];
   const lookupResponses = [];
   let userResponse = null;
   for (const lookupPanel of lookupPanels) {
-    let response2 = await panelRequest(lookupPanel, "GET", `/api/user/${encodedUsername}`);
-    if ([404, 405].includes(response2.status)) {
-      response2 = await panelRequest(lookupPanel, "GET", `/api/user/by-username/${encodedUsername}`);
-    }
+    const response2 = await lookupPasarGuardUser(lookupPanel, username);
     lookupResponses.push({
       source: lookupPanel === panel ? "wireguard" : "rain_admin",
       response: response2
@@ -76865,6 +76932,62 @@ async function loadRainAdminWireGuardConfigs(panel, username) {
 }
 function isRainAdminWireGuardPanel(panel) {
   return panel.kind?.trim().toLowerCase() === "rain_admin_wireguard";
+}
+async function matchingRainAdminPanels(panel) {
+  return (await panels()).filter(
+    (candidate) => candidate.kind?.trim().toLowerCase() === "rain_admin" && samePasarGuardInstance(candidate.api_base, panel.api_base)
+  );
+}
+async function lookupPasarGuardUser(panel, username) {
+  const encodedUsername = encodeURIComponent(username);
+  let response = await panelRequest(panel, "GET", `/api/user/${encodedUsername}`);
+  if ([404, 405].includes(response.status)) {
+    response = await panelRequest(panel, "GET", `/api/user/by-username/${encodedUsername}`);
+  }
+  return response;
+}
+async function ensureRainAdminWireGuardBackfillUser(username, remainingBytes, expiresAtUnix, providerKey) {
+  const wireGuardPanel = (await panels()).find(
+    (candidate) => isRainAdminWireGuardPanel(candidate) && panelKey(candidate) === providerKey
+  );
+  if (!wireGuardPanel) {
+    throw new RainApiError(
+      "The selected Rain Admin WireGuard provider is disabled or missing credentials.",
+      [],
+      false
+    );
+  }
+  const mainPanels = await matchingRainAdminPanels(wireGuardPanel);
+  if (!mainPanels.length) {
+    throw new RainApiError(
+      "No enabled main Rain Admin provider points to the same PasarGuard API instance; no account was created.",
+      [],
+      false
+    );
+  }
+  let outcome;
+  try {
+    outcome = await ensureRainAdminBackfillAccount(
+      { username, remainingBytes, expiresAtUnix },
+      mainPanels.map((mainPanel) => ({
+        key: panelKey(mainPanel),
+        lookup: async () => {
+          const response = await lookupPasarGuardUser(mainPanel, username);
+          return { status: response.status, error: safeError(response) };
+        },
+        create: async (body) => {
+          const response = await panelRequest(mainPanel, "POST", "/api/user", body);
+          return { status: response.status, error: safeError(response) };
+        }
+      }))
+    );
+  } catch (error40) {
+    if (error40 instanceof RainAdminBackfillError) {
+      throw new RainApiError(error40.message, [], error40.retryable);
+    }
+    throw error40;
+  }
+  return { created: outcome.created, mainProviderKey: outcome.providerKey };
 }
 async function prepareRainAdminWireGuardDelivery(username, providerKey, ownerId, role) {
   const panel = (await panels(ownerId, role)).find(
@@ -90505,14 +90628,17 @@ function rainAdminWireGuardBackfillPlan(input) {
     return { eligible: false, reason: "expired" };
   }
   const gb = Number(input.gb);
-  if (!Number.isFinite(gb)) return { eligible: false, reason: "invalid" };
+  if (!Number.isFinite(gb) || gb < 0) return { eligible: false, reason: "invalid" };
+  let remainingBytes = null;
   if (gb > 0) {
     const lastRemaining = input.lastRemainingBytes === null || input.lastRemainingBytes === void 0 ? Number.NaN : Number(input.lastRemainingBytes);
     const lastUsed = Number.isFinite(Number(input.lastUsedBytes)) ? Number(input.lastUsedBytes) : 0;
-    const remainingBytes = Number.isFinite(lastRemaining) ? lastRemaining : gb * bytesPerGb - lastUsed;
+    remainingBytes = Number.isFinite(lastRemaining) ? lastRemaining : gb * bytesPerGb - lastUsed;
+    if (!Number.isFinite(remainingBytes)) return { eligible: false, reason: "invalid" };
+    remainingBytes = Math.floor(remainingBytes);
     if (remainingBytes <= 0) return { eligible: false, reason: "quota_exhausted" };
   }
-  return { eligible: true, expiresAtUnix };
+  return { eligible: true, expiresAtUnix, remainingBytes };
 }
 
 // src/lib/provisioning-worker.ts
@@ -90825,6 +90951,12 @@ async function processRainAdminWireGuardBackfill(job) {
     await completeJob(job.id, "\u062C\u0632\u0626\u06CC\u0627\u062A WireGuard \u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u0642\u0628\u0644\u0627\u064B \u0630\u062E\u06CC\u0631\u0647 \u0634\u062F\u0647 \u0627\u0633\u062A.");
     return;
   }
+  const account = await ensureRainAdminWireGuardBackfillUser(
+    service.username,
+    plan.remainingBytes,
+    plan.expiresAtUnix,
+    providerKey
+  );
   const delivery = await prepareRainAdminWireGuardDelivery(
     service.username,
     providerKey,
@@ -90849,7 +90981,13 @@ async function processRainAdminWireGuardBackfill(job) {
   }
   await completeJob(job.id);
   logger.info(
-    { jobId: job.id, serviceId: job.service_id, providerKey },
+    {
+      jobId: job.id,
+      serviceId: job.service_id,
+      providerKey,
+      mainProviderKey: account.mainProviderKey,
+      accountCreated: account.created
+    },
     "Rain Admin WireGuard profile backfill completed"
   );
 }
