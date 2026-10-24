@@ -90,7 +90,7 @@ type Props = {
   finished: boolean;
   expiring: boolean;
   finishedReason: string;
-  remaining: number;
+  remaining: number | null;
   remainingGb: number;
   ratio: number;
   number: (value: number, maximumFractionDigits?: number) => string;
@@ -338,7 +338,7 @@ export function PublicSubscriptionWizard(props: Props) {
           <div className="public-sub-protocol-meter">
             <div className="public-sub-protocol-meter-label"><span>مصرف اشتراک</span><strong>{number(ratio, 0)}٪</strong></div>
             <div className="public-sub-protocol-meter-track"><span style={{ width: `${ratio}%` }} /></div>
-            <div className="public-sub-protocol-meter-foot"><span>{number(Number(data.used_gb ?? 0))} GB مصرف‌شده</span><span>{number(remaining, 0)} روز باقی‌مانده</span></div>
+            <div className="public-sub-protocol-meter-foot"><span>{number(Number(data.used_gb ?? 0))} GB مصرف‌شده</span><span>{remaining === null ? 'بدون تاریخ انقضا' : `${number(remaining, 0)} روز باقی‌مانده`}</span></div>
           </div>
         </motion.section>
 
@@ -351,7 +351,7 @@ export function PublicSubscriptionWizard(props: Props) {
             <span className="public-sub-status-icon">{finished ? '!' : <CheckCircle2 size={17} />}</span>
             <div className="public-sub-status-copy">
               <span className="public-sub-status-overline">{data?.announcement?.title ? 'اعلان سرویس' : 'وضعیت اشتراک'}</span>
-              <strong>{data?.announcement?.title || (finished ? finishedReason : `${number(remaining, 0)} روز تا پایان اعتبار`)}</strong>
+              <strong>{data?.announcement?.title || (finished ? finishedReason : remaining === null ? 'اشتراک فعال است و تاریخ انقضا ندارد' : `${number(remaining, 0)} روز تا پایان اعتبار`)}</strong>
               {data?.announcement?.detail && <small>{data.announcement.detail}</small>}
             </div>
             <span className="public-sub-status-arrow" dir="ltr">{data.service_code || ''}</span>

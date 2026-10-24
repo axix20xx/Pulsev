@@ -24,3 +24,9 @@ Rain Admin WireGuard usage belongs in the combined service quota and per-provide
 **Why:** A provider account can exist without a local encrypted delivery row; in that case both public clients hide the profiles even though the provider can serve them.
 
 **How to apply:** For an active entitled service with no saved delivery, resolve the unique configured Rain Admin WireGuard provider, safely ensure the missing account if lookup confirms it is absent, then save the returned profile locations before responding. Never create after a transient lookup error or when provider identity is ambiguous.
+
+The public subscription page must treat a missing expiry date as no expiry, not as zero days remaining; otherwise it marks a valid subscription finished and hides every protocol choice.
+
+**Why:** Services without a fixed expiry are valid, and the backend already reports them as unfinished.
+
+**How to apply:** Keep client-side expiration checks conditional on a real, parseable expiry date, and preserve quota exhaustion as a separate limit check.

@@ -10,6 +10,7 @@ import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSale
 import { Customer, Service, Sale, dateLabel, dateTimeLabel, daysUntil, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, jalaliToGregorian, money, todayLabel } from '@/lib/pulse-data';
 import { Avatar, MetricTile, PageHeader, SectionPanel, StatePanel, StatusPill } from '@/components/admin-console-primitives';
 import { copyTextToClipboard } from '@/lib/browser-utils';
+import { isPublicSubscriptionExpiring, isPublicSubscriptionFinished, remainingSubscriptionDays } from '@/lib/public-subscription-status';
 import { Badge, Btn, Callout, Card, DataTable, EmptyState as AxEmpty, ErrorAlert, Kpi, KpiGrid, Meter, Page, PageHead, RefreshBtn, RowLink, RowList, SearchInput, Segment, SelectField, SkeletonRows, Stat, StatRow, Toolbar, Workbench, faNumber } from '@/admin/ui';
 import './public-sub-lux.css';
 import { openVpnConnectImportUrl } from '@/lib/openvpn-connect-link';
@@ -2761,13 +2762,17 @@ function PublicSubscriptionContent() {
     url.searchParams.set('format', 'clash');
     return url.toString();
   })() : '';
-  const expires = data?.expires_at ? new Date(data.expires_at) : null;
-  const remaining = expires ? Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 86400000)) : 0;
+  const remaining = remainingSubscriptionDays(data?.expires_at);
   const ratio = data?.limit_gb ? Math.min(100, Math.round((Number(data.used_gb) / Number(data.limit_gb)) * 100)) : 0;
   const remainingGb = Math.max(0, Number(data?.remaining_gb ?? Number(data?.limit_gb ?? 0) - Number(data?.used_gb ?? 0)));
   const quotaFinished = Boolean(data?.limit_gb > 0 && (remainingGb <= 0 || Number(data?.used_gb ?? 0) >= Number(data?.limit_gb ?? 0)));
-  const finished = Boolean(data?.finished || data?.status === 'expired' || data?.status === 'disabled' || remaining <= 0 || quotaFinished);
-  const expiring = !finished && (data?.status === 'expiring' || remaining <= 7);
+  const finished = isPublicSubscriptionFinished({
+    serverFinished: data?.finished,
+    status: data?.status,
+    remainingDays: remaining,
+    quotaFinished,
+  });
+  const expiring = isPublicSubscriptionExpiring({ finished, status: data?.status, remainingDays: remaining });
   const statusTone = finished ? 'danger' : expiring ? 'warn' : 'ok';
   const statusLabel = finished ? 'پایان‌یافته' : expiring ? 'نزدیک انقضا' : 'فعال';
   const finishedReason = data?.disable_reason || (quotaFinished ? 'حجم اشتراک به پایان رسیده است' : 'اعتبار اشتراک به پایان رسیده است');
@@ -2850,7 +2855,7 @@ function PublicSubscriptionContent() {
           <div className="absolute top-0 right-0 w-32 h-32 bg-current opacity-[0.03] rounded-full -mr-10 -mt-10 pointer-events-none" />
           <div className="relative z-10 flex flex-col gap-1">
             <span className="text-[10px] font-bold tracking-widest uppercase opacity-70 mb-1">{finished ? 'پایان اشتراک' : expiring ? 'زمان تمدید نزدیک است' : 'وضعیت ارتباط'}</span>
-            <strong className="text-[17px] font-extrabold leading-tight">{finished ? finishedReason : expiring ? `${new Intl.NumberFormat('fa-IR').format(remaining)} روز تا پایان اعتبار باقی مانده` : 'اشتراک شما فعال و آماده کار است'}</strong>
+            <strong className="text-[17px] font-extrabold leading-tight">{finished ? finishedReason : expiring ? `${new Intl.NumberFormat('fa-IR').format(remaining ?? 0)} روز تا پایان اعتبار باقی مانده` : 'اشتراک شما فعال و آماده کار است'}</strong>
           </div>
         </section>
 
@@ -3036,15 +3041,19 @@ function PublicSubscriptionContentV2() {
     url.searchParams.set('format', 'clash');
     return url.toString();
   })() : '';
-  const expires = data?.expires_at ? new Date(data.expires_at) : null;
-  const remaining = expires ? Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 86400000)) : 0;
+  const remaining = remainingSubscriptionDays(data?.expires_at);
   const usedGb = Number(data?.used_gb ?? 0);
   const limitGb = Number(data?.limit_gb ?? 0);
   const remainingGb = Math.max(0, Number(data?.remaining_gb ?? limitGb - usedGb));
   const ratio = limitGb > 0 ? Math.min(100, Math.round((usedGb / limitGb) * 100)) : 0;
   const quotaFinished = Boolean(limitGb > 0 && (remainingGb <= 0 || usedGb >= limitGb));
-  const finished = Boolean(data?.finished || data?.status === 'expired' || data?.status === 'disabled' || remaining <= 0 || quotaFinished);
-  const expiring = !finished && (data?.status === 'expiring' || remaining <= 7);
+  const finished = isPublicSubscriptionFinished({
+    serverFinished: data?.finished,
+    status: data?.status,
+    remainingDays: remaining,
+    quotaFinished,
+  });
+  const expiring = isPublicSubscriptionExpiring({ finished, status: data?.status, remainingDays: remaining });
   const statusTone = finished ? 'danger' : expiring ? 'warn' : 'ok';
   const statusLabel = finished ? 'پایان‌یافته' : expiring ? 'نزدیک انقضا' : 'فعال';
   const finishedReason = data?.disable_reason || (quotaFinished ? 'حجم اشتراک به پایان رسیده است' : 'اعتبار اشتراک به پایان رسیده است');

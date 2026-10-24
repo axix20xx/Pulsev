@@ -2312,3 +2312,17 @@ mtime_ms = 1792883145941
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f946193c-1b5d-48f8-a577-17377c4a827a/4c96a47c-6f8d-404e-a0af-413612f472bb"
 storage_version_token = "1792883180755097"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "pmxqDOcbTRe46jKYie7e0"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T23-13-29-306Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger package — public WireGuard visibility fix"
+description = "Full Hostinger migration package with the /sub fix: subscriptions without an expiry date are no longer marked expired, so enabled protocols such as WireGuard remain visible. Regression tests and production assets included."
+logical_id = "f41bdfbe-81af-45e3-a17e-59462cf04c5b"
+content_hash = "sha256:7ebb2a6c6c4ed416d3a8622a6d1e65a2ad44ebb13cef4d01a2c98fc59f783ac6"
+size = 29109921
+mtime_ms = 1792883718830
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f41bdfbe-81af-45e3-a17e-59462cf04c5b/7545e0ba-e343-4b76-b2ef-453314ffb3b8"
+storage_version_token = "1792883759544343"
+content_type = "application/octet-stream"
