@@ -79,12 +79,14 @@ import {
   listAvailablePanels,
   listPasarguardConnectionUsers,
   readSavedWireGuardProviderUsernames,
+  readSavedAzadPanelOpenVpnUsernames,
   readSavedAzadPanelV2RayUsernames,
   readSavedIpsecProviderUsernames,
   prepareIpsecAccount,
   renewIpsecAccount,
   prepareOpenVpnAccount,
   prepareWireGuardAccount,
+  renewWireGuardAccount,
   provisionUser,
   repairXrayProviderUser,
   type WireGuardDelivery,
@@ -3069,7 +3071,7 @@ router.post("/panels/:key/test", requireMasterAdmin, async (req, res): Promise<v
   });
 });
 
-const providerKinds = ["marzban", "rain_admin", "azadpanel", "azadpanel_v2ray", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"] as const;
+const providerKinds = ["marzban", "rain_admin", "rain_admin_wireguard", "azadpanel", "azadpanel_v2ray", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"] as const;
 type ProviderKind = (typeof providerKinds)[number];
 
 function isProviderKind(value: unknown): value is ProviderKind {
@@ -5846,6 +5848,46 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
        return;
      }
    }
+    let savedWireGuardAccount: { providerKey: string | null; username: string | null } | null = null;
+    try {
+      savedWireGuardAccount = (await readSavedWireGuardProviderUsernames([serviceId])).get(serviceId) ?? null;
+    } catch {
+      res.status(502).json({ error: "هویت ذخیره‌شدهٔ WireGuard خوانده نشد؛ تمدید انجام نشد." });
+      return;
+    }
+    let savedOpenVpnAccounts = new Map<number, Map<string, string>>();
+    let savedV2RayAccounts = new Map<number, Map<string, string>>();
+    try {
+      [savedOpenVpnAccounts, savedV2RayAccounts] = await Promise.all([
+        readSavedAzadPanelOpenVpnUsernames([serviceId]),
+        readSavedAzadPanelV2RayUsernames([serviceId]),
+      ]);
+    } catch {
+      res.status(502).json({ error: "هویت Providerهای OpenVPN و V2Ray خوانده نشد؛ تمدید انجام نشد." });
+      return;
+    }
+    if (savedWireGuardAccount) {
+      if (!savedWireGuardAccount.providerKey || !savedWireGuardAccount.username) {
+        res.status(502).json({ error: "Provider یا نام کاربری ذخیره‌شدهٔ WireGuard قابل شناسایی نیست؛ تمدید انجام نشد." });
+        return;
+      }
+      try {
+        await renewWireGuardAccount(
+          savedWireGuardAccount.providerKey,
+          savedWireGuardAccount.username,
+          current.username,
+          gb,
+          days,
+          Number(current.reseller_tg_id),
+          "reseller",
+        );
+      } catch (error) {
+        res.status(502).json({
+          error: error instanceof Error ? error.message : "تمدید حساب WireGuard انجام نشد.",
+        });
+        return;
+      }
+    }
   let failedProviderKeys: string[] = [];
   let providerWarning: string | null = null;
   let awgWarning: string | null = null;
@@ -5878,6 +5920,40 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
    } catch {
      // Match the legacy worker: cache cleanup must not block renewal.
    }
+    const providerUsageIdentities = new Map<string, string>();
+    if (savedWireGuardAccount?.providerKey && savedWireGuardAccount.username) {
+      providerUsageIdentities.set(savedWireGuardAccount.providerKey, savedWireGuardAccount.username);
+    }
+    for (const accounts of [savedOpenVpnAccounts.get(serviceId), savedV2RayAccounts.get(serviceId)]) {
+      for (const [providerKey, username] of accounts ?? []) {
+        providerUsageIdentities.set(providerKey, username);
+      }
+    }
+    const extraUsageUsernames = new Set<string>();
+    for (const [providerKey, providerUsername] of providerUsageIdentities) {
+      if (providerUsername === current.username) continue;
+      try {
+        await pool.query(
+          `DELETE FROM user_panel_usages
+           WHERE username = $1 AND panel_key = $2`,
+          [providerUsername, providerKey],
+        );
+        extraUsageUsernames.add(providerUsername);
+      } catch (error) {
+        req.log.error({ err: error, serviceId }, "Failed to clear saved WireGuard usage after renewal");
+        res.status(500).json({ error: "مصرف قبلی یکی از حساب‌های VPN پس از تمدید پاک نشد؛ وضعیت تمدید را بررسی کنید." });
+        return;
+      }
+    }
+    for (const providerUsername of extraUsageUsernames) {
+      try {
+        await pool.query("DELETE FROM panel_usage_curr WHERE username = $1", [providerUsername]);
+      } catch (error) {
+        req.log.error({ err: error, serviceId }, "Failed to clear saved provider usage cache after renewal");
+        res.status(500).json({ error: "حافظهٔ مصرف قبلی یکی از حساب‌های VPN پس از تمدید پاک نشد؛ وضعیت تمدید را بررسی کنید." });
+        return;
+      }
+    }
    if (current.awg_client_id) {
      try {
        try {

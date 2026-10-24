@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { decryptPanelCredential } from "./panel-credentials";
+import { parsePasarGuardWireGuardArchive } from "./pasarguard-wireguard-archive";
+import { renewAzadPanelAccount } from "./azadpanel-renewal";
 import { isRetryableAzadPanelStatus } from "./azadpanel-retry-policy";
 import { azadPanelV2RayCollisionUsername } from "./azadpanel-v2ray-username";
 import { shouldPersistAzadPanelV2RayAccountMapping } from "./azadpanel-v2ray-backfill";
@@ -227,7 +229,7 @@ function panelKey(panel: Panel): string {
 
 function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" | "azadpanel" {
   const kind = panel.kind?.trim().toLowerCase();
-  if (kind === "rain_admin") return "rain_admin";
+  if (kind === "rain_admin" || kind === "rain_admin_wireguard") return "rain_admin";
   if (kind === "falcon") return "falcon";
   if (
     kind === "azadpanel"
@@ -447,6 +449,7 @@ export async function fetchPanelSubscription(
   const configuredPanels = await panels(ownerId, role);
   const providerCodes = subscriptionProviderShortCodes(configuredPanels);
   for (const panel of configuredPanels) {
+    if (panel.kind?.trim().toLowerCase() === "rain_admin_wireguard") continue;
     const kind = panelKind(panel);
     const providerCode = providerCodes.get(panelKey(panel)) ?? "VPN";
     const isAzadPanelV2Ray = kind === "azadpanel" && panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
@@ -864,7 +867,9 @@ export async function listPasarguardConnectionUsers(
   ownerId?: number,
   role?: string,
 ): Promise<PasarguardConnectionUser[]> {
-  const rainPanels = (await panels(ownerId, role)).filter((panel) => panelKind(panel) === "rain_admin");
+  const rainPanels = (await panels(ownerId, role)).filter(
+    (panel) => panel.kind?.trim().toLowerCase() === "rain_admin",
+  );
   const recentAfter = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const results = await Promise.all(rainPanels.map(async (panel) => {
     const query = new URLSearchParams({
@@ -926,6 +931,137 @@ async function panelRequest(
     response = await request(panel, method, path, token, body);
   }
   return response;
+}
+
+type BinaryPanelResponse = {
+  status: number;
+  body: Buffer;
+  json: any;
+  text: string;
+  contentDisposition: string | null;
+  retryAfter: string | null;
+};
+
+async function readLimitedPanelBody(response: Response, maxBytes: number): Promise<Buffer> {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new RainApiError("PasarGuard WireGuard archive exceeds the supported download size.", [], false);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) return Buffer.alloc(0);
+
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new RainApiError("PasarGuard WireGuard archive exceeds the supported download size.", [], false);
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, totalBytes);
+}
+
+async function panelRequestBinary(
+  panel: Panel,
+  path: string,
+): Promise<BinaryPanelResponse> {
+  const perform = async (token: string): Promise<BinaryPanelResponse> => {
+    const response = await fetch(`${panel.api_base}${path}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/zip, application/octet-stream",
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const body = await readLimitedPanelBody(response, 8 * 1024 * 1024);
+    const text = response.ok ? "" : body.toString("utf8").slice(0, 4_000);
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    return {
+      status: response.status,
+      body,
+      json,
+      text,
+      contentDisposition: response.headers.get("content-disposition"),
+      retryAfter: response.headers.get("retry-after"),
+    };
+  };
+
+  let token = await tokenFor(panel);
+  let response = await perform(token);
+  if (response.status === 401) {
+    tokenCache.delete(panelKey(panel));
+    token = await tokenFor(panel, true);
+    response = await perform(token);
+  }
+  return response;
+}
+
+async function loadRainAdminWireGuardConfigs(
+  panel: Panel,
+  username: string,
+): Promise<{
+  userId: number;
+  archive: Buffer;
+  configs: ReturnType<typeof parsePasarGuardWireGuardArchive>;
+  contentDisposition: string | null;
+}> {
+  const encodedUsername = encodeURIComponent(username);
+  let userResponse = await panelRequest(panel, "GET", `/api/user/${encodedUsername}`);
+  if ([404, 405].includes(userResponse.status)) {
+    userResponse = await panelRequest(panel, "GET", `/api/user/by-username/${encodedUsername}`);
+  }
+  if (userResponse.status !== 200) {
+    const detail = userResponse.status === 404
+      ? "PasarGuard user was not found. Create the service with the main Rain Admin provider before requesting WireGuard."
+      : `PasarGuard could not read the WireGuard user: ${safeError(userResponse)}`;
+    throw new RainApiError(detail, [], userResponse.status >= 500 || userResponse.status === 429);
+  }
+
+  const user = userResponse.json?.data?.user
+    ?? userResponse.json?.data
+    ?? userResponse.json?.user
+    ?? userResponse.json;
+  const userId = Number(user?.id);
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    throw new RainApiError("PasarGuard did not return a valid user ID for the WireGuard account.", [], false);
+  }
+
+  const response = await panelRequestBinary(panel, `/api/user/${userId}/subscription/wireguard`);
+  if (response.status < 200 || response.status >= 300) {
+    const detail = response.status === 406
+      ? "PasarGuard has no WireGuard configs for this user. Enable or assign WireGuard to the user in the panel first."
+      : `PasarGuard could not download the WireGuard configs: ${safeError(response)}`;
+    throw new RainApiError(detail, [], response.status >= 500 || response.status === 429);
+  }
+
+  return {
+    userId,
+    archive: response.body,
+    configs: parsePasarGuardWireGuardArchive(response.body),
+    contentDisposition: response.contentDisposition,
+  };
+}
+
+function isRainAdminWireGuardPanel(panel: Panel): boolean {
+  return panel.kind?.trim().toLowerCase() === "rain_admin_wireguard";
+}
+
+function isWireGuardDeliveryPanel(panel: Panel): boolean {
+  const kind = panel.kind?.trim().toLowerCase();
+  return kind === "rain_admin_wireguard" || kind === "azadpanel_wireguard";
 }
 
 async function inspectAzadPanelV2RayDelivery(
@@ -1203,6 +1339,7 @@ export async function readPanelUsages(
     }
   };
   for (const panel of configuredPanels) {
+    if (isRainAdminWireGuardPanel(panel)) continue;
     const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
     const ipsecPanel = panel.kind?.trim().toLowerCase() === "azadpanel_ipsec";
     const v2rayPanel = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
@@ -1386,7 +1523,7 @@ export async function readPanelUsages(
     });
   } else if (savedAccount && !savedAccount.providerKey) {
     if (!result.some((usage) => configuredPanels.some((panel) =>
-      panel.kind?.trim().toLowerCase() === "azadpanel_wireguard"
+      isWireGuardDeliveryPanel(panel)
       && usage.panelKey === panelKey(panel),
     ))) {
       result.push({
@@ -1401,7 +1538,7 @@ export async function readPanelUsages(
   } else if (
     savedAccount?.providerKey
     && !configuredPanels.some((panel) =>
-      panel.kind?.trim().toLowerCase() === "azadpanel_wireguard"
+      isWireGuardDeliveryPanel(panel)
       && panelKey(panel) === savedAccount.providerKey,
     )
   ) {
@@ -1495,7 +1632,7 @@ export async function disablePanelUser(
       !savedWireGuardAccount.providerKey
       || !savedWireGuardAccount.username
       || !configuredPanels.some((panel) =>
-      panel.kind?.trim().toLowerCase() === "azadpanel_wireguard"
+      isWireGuardDeliveryPanel(panel)
       && panelKey(panel) === savedWireGuardAccount.providerKey,
       )
     ));
@@ -1518,6 +1655,7 @@ export async function disablePanelUser(
     ).length;
   }
   for (const panel of configuredPanels) {
+    if (isRainAdminWireGuardPanel(panel)) continue;
     const kind = panelKind(panel);
     let providerUsername = username;
     if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {
@@ -2516,6 +2654,10 @@ async function findAzadPanelCore(
 }
 
 async function listWireGuardEndpoints(panel: Panel, username: string): Promise<any[]> {
+  if (isRainAdminWireGuardPanel(panel)) {
+    const { configs } = await loadRainAdminWireGuardConfigs(panel, username);
+    return configs.map(({ id, name }) => ({ id, name }));
+  }
   let response: Awaited<ReturnType<typeof panelRequest>> | null = null;
   for (const delayMs of [0, 1_000, 2_000, 4_000, 8_000]) {
     if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -2541,6 +2683,16 @@ export async function prepareWireGuardAccount(
 ): Promise<WireGuardDelivery> {
   if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
     throw new RainApiError("Invalid service ID for WireGuard account.");
+  }
+  const rainAdminWireGuardPanel = (await panels(ownerId, role)).find(isRainAdminWireGuardPanel);
+  if (rainAdminWireGuardPanel) {
+    const { configs } = await loadRainAdminWireGuardConfigs(rainAdminWireGuardPanel, username);
+    return {
+      provider_key: panelKey(rainAdminWireGuardPanel),
+      username,
+      core: "wireguard",
+      locations: configs.map(({ id, name }) => ({ id, name })),
+    };
   }
   const panel = await findAzadPanelCore("wireguard", ownerId, role);
   let providerUsername = username;
@@ -2760,13 +2912,53 @@ async function findWireGuardProvider(
   role?: string,
 ): Promise<Panel> {
   const panel = (await panels(ownerId, role)).find(
-    (candidate) => panelKey(candidate) === providerKey && panelKind(candidate) === "azadpanel",
+    (candidate) => panelKey(candidate) === providerKey
+      && (isRainAdminWireGuardPanel(candidate) || panelKind(candidate) === "azadpanel"),
   );
-  if (!panel) throw new RainApiError("The selected AzadPanel WireGuard provider is unavailable.");
+  if (!panel) throw new RainApiError("The selected WireGuard provider is unavailable.");
+  if (isRainAdminWireGuardPanel(panel)) return panel;
   if (await azadPanelCore(panel) !== "wireguard") {
     throw new RainApiError(`AzadPanel ${providerKey} is not configured for WireGuard.`);
   }
   return panel;
+}
+
+export async function renewWireGuardAccount(
+  providerKey: string,
+  username: string,
+  serviceUsername: string,
+  gb: number,
+  days: number,
+  ownerId?: number,
+  role?: string,
+): Promise<void> {
+  const panel = await findWireGuardProvider(providerKey, ownerId, role);
+  if (isRainAdminWireGuardPanel(panel)) {
+    if (username !== serviceUsername) {
+      throw new RainApiError("The read-only Rain Admin WireGuard identity does not match the service username.");
+    }
+    return;
+  }
+
+  const isProtocolSpecificProvider = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
+  // Generic AzadPanel accounts are renewed by provisionUser. A different saved
+  // identity, however, must be renewed directly or its old usage remains live.
+  if (!isProtocolSpecificProvider && username === serviceUsername) return;
+
+  const expiresAt = new Date(Date.now() + Math.max(0, days) * 86_400_000);
+  await renewAzadPanelAccount(
+    (method, path, body) => panelRequest(panel, method, path, body),
+    {
+      username,
+      providerLabel: `AzadPanel ${providerKey}`,
+      plan: {
+        status: "active",
+        expire: Math.floor(expiresAt.getTime() / 1000),
+        data_limit: bytesForGb(gb),
+        data_limit_reset_strategy: "no_reset",
+      },
+    },
+  );
 }
 
 export async function downloadWireGuardProfile(
@@ -2777,6 +2969,18 @@ export async function downloadWireGuardProfile(
   role?: string,
 ): Promise<{ body: string; contentType: string; contentDisposition: string | null }> {
   const panel = await findWireGuardProvider(providerKey, ownerId, role);
+  if (isRainAdminWireGuardPanel(panel)) {
+    const { configs } = await loadRainAdminWireGuardConfigs(panel, username);
+    const profile = configs.find((candidate) => candidate.id === hostId);
+    if (!profile) {
+      throw new RainApiError("The requested WireGuard location is not available for this account.");
+    }
+    return {
+      body: profile.body,
+      contentType: "text/plain; charset=utf-8",
+      contentDisposition: null,
+    };
+  }
   const endpoints = await listWireGuardEndpoints(panel, username);
   const endpoint = endpoints.find((candidate) => wireGuardLocationId(candidate) === hostId);
   if (!endpoint) {
@@ -2831,11 +3035,32 @@ export async function downloadWireGuardProfiles(
   role?: string,
 ): Promise<Array<{ hostId: string; body: string; contentType: string; contentDisposition: string | null }>> {
   const panel = await findWireGuardProvider(providerKey, ownerId, role);
-  const endpoints = await listWireGuardEndpoints(panel, username);
   const requestedHostIds = [...new Set(hostIds)];
   if (!requestedHostIds.length || requestedHostIds.length > 40) {
     throw new RainApiError("The WireGuard profile bundle must contain between 1 and 40 servers.");
   }
+  if (isRainAdminWireGuardPanel(panel)) {
+    for (const hostId of requestedHostIds) {
+      if (!/^[A-Za-z0-9._-]{1,80}$/.test(hostId)) {
+        throw new RainApiError("Invalid WireGuard server identity.");
+      }
+    }
+    const { configs } = await loadRainAdminWireGuardConfigs(panel, username);
+    const configById = new Map(configs.map((config) => [config.id, config]));
+    return requestedHostIds.map((hostId) => {
+      const config = configById.get(hostId);
+      if (!config) {
+        throw new RainApiError("A requested WireGuard location is no longer available for this account.");
+      }
+      return {
+        hostId,
+        body: config.body,
+        contentType: "text/plain; charset=utf-8",
+        contentDisposition: null,
+      };
+    });
+  }
+  const endpoints = await listWireGuardEndpoints(panel, username);
   const selected = requestedHostIds.map((hostId) => {
     if (!/^[A-Za-z0-9._-]{1,80}$/.test(hostId)) {
       throw new RainApiError("Invalid WireGuard server identity.");
@@ -2857,8 +3082,16 @@ export async function downloadWireGuardBundle(
   providerKey: string,
   ownerId?: number,
   role?: string,
-): Promise<{ body: string; contentType: string; contentDisposition: string | null }> {
+): Promise<{ body: string | Buffer; contentType: string; contentDisposition: string | null }> {
   const panel = await findWireGuardProvider(providerKey, ownerId, role);
+  if (isRainAdminWireGuardPanel(panel)) {
+    const { archive, contentDisposition } = await loadRainAdminWireGuardConfigs(panel, username);
+    return {
+      body: archive,
+      contentType: "application/zip",
+      contentDisposition,
+    };
+  }
   const response = await panelRequest(
     panel,
     "GET",

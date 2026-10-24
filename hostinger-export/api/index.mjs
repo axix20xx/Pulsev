@@ -75613,6 +75613,178 @@ function decryptPanelCredential(value) {
   }
 }
 
+// src/lib/pasarguard-wireguard-archive.ts
+import { createHash as createHash4 } from "node:crypto";
+import { inflateRawSync } from "node:zlib";
+var END_OF_CENTRAL_DIRECTORY = 101010256;
+var CENTRAL_DIRECTORY_FILE_HEADER = 33639248;
+var LOCAL_FILE_HEADER = 67324752;
+var MAX_ARCHIVE_BYTES = 8 * 1024 * 1024;
+var MAX_CONFIG_BYTES = 512 * 1024;
+var MAX_TOTAL_CONFIG_BYTES = 4 * 1024 * 1024;
+var MAX_CONFIG_FILES = 40;
+function crc32(input) {
+  let crc = 4294967295;
+  for (const byte of input) {
+    crc ^= byte;
+    for (let bit2 = 0; bit2 < 8; bit2 += 1) {
+      crc = crc >>> 1 ^ (crc & 1 ? 3988292384 : 0);
+    }
+  }
+  return (crc ^ 4294967295) >>> 0;
+}
+function findEndOfCentralDirectory(archive) {
+  const earliest = Math.max(0, archive.length - 22 - 65535);
+  for (let offset = archive.length - 22; offset >= earliest; offset -= 1) {
+    if (archive.readUInt32LE(offset) === END_OF_CENTRAL_DIRECTORY && offset + 22 + archive.readUInt16LE(offset + 20) === archive.length) {
+      return offset;
+    }
+  }
+  throw new Error("PasarGuard returned an invalid WireGuard ZIP archive.");
+}
+function safeConfigName(value) {
+  if (!value || value.length > 255 || /[\u0000-\u001f\u007f/\\]/.test(value) || value === "." || value === ".." || !/\.conf$/i.test(value)) {
+    return null;
+  }
+  return value;
+}
+function wireGuardLocationId(fileName) {
+  return `pg-${createHash4("sha256").update(fileName).digest("hex").slice(0, 20)}`;
+}
+function displayName(fileName) {
+  const name = fileName.replace(/\.conf$/i, "").replace(/[_-]+/g, " ").trim();
+  return (name || "WireGuard server").slice(0, 120);
+}
+function validateConfig(body) {
+  if (!/^\s*\[Interface\]\s*$/im.test(body) || !/^\s*\[Peer\]\s*$/im.test(body) || !/^\s*PrivateKey\s*=\s*\S+/im.test(body) || !/^\s*PublicKey\s*=\s*\S+/im.test(body)) {
+    throw new Error("PasarGuard returned a WireGuard file without a usable Interface and Peer config.");
+  }
+}
+function parsePasarGuardWireGuardArchive(input) {
+  const archive = Buffer.from(input.buffer, input.byteOffset, input.byteLength);
+  if (archive.length < 22) {
+    throw new Error("PasarGuard returned an invalid WireGuard ZIP archive.");
+  }
+  if (archive.length > MAX_ARCHIVE_BYTES) {
+    throw new Error("PasarGuard WireGuard archive exceeds the supported size.");
+  }
+  const endOffset = findEndOfCentralDirectory(archive);
+  const diskNumber = archive.readUInt16LE(endOffset + 4);
+  const centralDiskNumber = archive.readUInt16LE(endOffset + 6);
+  const diskEntryCount = archive.readUInt16LE(endOffset + 8);
+  const entryCount = archive.readUInt16LE(endOffset + 10);
+  const centralSize = archive.readUInt32LE(endOffset + 12);
+  const centralOffset = archive.readUInt32LE(endOffset + 16);
+  if (diskNumber !== 0 || centralDiskNumber !== 0 || diskEntryCount !== entryCount || entryCount === 0 || entryCount > MAX_CONFIG_FILES || centralOffset + centralSize > endOffset) {
+    throw new Error("PasarGuard returned an unsupported or invalid WireGuard ZIP archive.");
+  }
+  const configs = [];
+  const seenNames = /* @__PURE__ */ new Set();
+  let totalConfigBytes = 0;
+  let cursor = centralOffset;
+  const centralEnd = centralOffset + centralSize;
+  for (let index = 0; index < entryCount; index += 1) {
+    if (cursor + 46 > centralEnd || archive.readUInt32LE(cursor) !== CENTRAL_DIRECTORY_FILE_HEADER) {
+      throw new Error("PasarGuard returned an invalid WireGuard ZIP directory.");
+    }
+    const flags = archive.readUInt16LE(cursor + 8);
+    const method = archive.readUInt16LE(cursor + 10);
+    const expectedCrc = archive.readUInt32LE(cursor + 16);
+    const compressedSize = archive.readUInt32LE(cursor + 20);
+    const uncompressedSize = archive.readUInt32LE(cursor + 24);
+    const fileNameLength = archive.readUInt16LE(cursor + 28);
+    const extraLength = archive.readUInt16LE(cursor + 30);
+    const commentLength = archive.readUInt16LE(cursor + 32);
+    const diskStart = archive.readUInt16LE(cursor + 34);
+    const localOffset = archive.readUInt32LE(cursor + 42);
+    const recordEnd = cursor + 46 + fileNameLength + extraLength + commentLength;
+    if (recordEnd > centralEnd || diskStart !== 0 || compressedSize === 4294967295 || uncompressedSize === 4294967295 || localOffset === 4294967295 || (flags & 1) !== 0 || ![0, 8].includes(method)) {
+      throw new Error("PasarGuard returned an unsupported WireGuard ZIP entry.");
+    }
+    let fileName;
+    try {
+      fileName = new TextDecoder("utf-8", { fatal: true }).decode(
+        archive.subarray(cursor + 46, cursor + 46 + fileNameLength)
+      );
+    } catch {
+      throw new Error("PasarGuard returned a WireGuard filename that is not valid UTF-8.");
+    }
+    cursor = recordEnd;
+    const safeName = safeConfigName(fileName);
+    if (!safeName) continue;
+    if (seenNames.has(safeName)) {
+      throw new Error("PasarGuard returned duplicate WireGuard filenames.");
+    }
+    seenNames.add(safeName);
+    if (uncompressedSize === 0 || uncompressedSize > MAX_CONFIG_BYTES || totalConfigBytes + uncompressedSize > MAX_TOTAL_CONFIG_BYTES) {
+      throw new Error("PasarGuard returned a WireGuard config that exceeds the supported size.");
+    }
+    totalConfigBytes += uncompressedSize;
+    if (localOffset + 30 > centralOffset || archive.readUInt32LE(localOffset) !== LOCAL_FILE_HEADER) {
+      throw new Error("PasarGuard returned an invalid WireGuard ZIP entry header.");
+    }
+    const localFlags = archive.readUInt16LE(localOffset + 6);
+    const localMethod = archive.readUInt16LE(localOffset + 8);
+    const localNameLength = archive.readUInt16LE(localOffset + 26);
+    const localExtraLength = archive.readUInt16LE(localOffset + 28);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    const dataEnd = dataStart + compressedSize;
+    if ((localFlags & 1) !== 0 || localMethod !== method || dataStart > centralOffset || dataEnd > centralOffset || localNameLength !== fileNameLength || !archive.subarray(localOffset + 30, localOffset + 30 + localNameLength).equals(Buffer.from(fileName, "utf8"))) {
+      throw new Error("PasarGuard returned an inconsistent WireGuard ZIP entry.");
+    }
+    const compressed = archive.subarray(dataStart, dataEnd);
+    let content;
+    try {
+      content = method === 0 ? Buffer.from(compressed) : inflateRawSync(compressed, { maxOutputLength: MAX_CONFIG_BYTES });
+    } catch {
+      throw new Error("PasarGuard returned a damaged or oversized WireGuard config.");
+    }
+    if (content.length !== uncompressedSize || crc32(content) !== expectedCrc) {
+      throw new Error("PasarGuard returned a damaged WireGuard config.");
+    }
+    let body;
+    try {
+      body = new TextDecoder("utf-8", { fatal: true }).decode(content).trim();
+    } catch {
+      throw new Error("PasarGuard returned a WireGuard config that is not valid UTF-8.");
+    }
+    validateConfig(body);
+    configs.push({
+      id: wireGuardLocationId(safeName),
+      name: displayName(safeName),
+      fileName: safeName,
+      body
+    });
+  }
+  if (cursor !== centralEnd || configs.length === 0) {
+    throw new Error("PasarGuard returned no usable WireGuard .conf files.");
+  }
+  return configs;
+}
+
+// src/lib/azadpanel-renewal.ts
+function responseDetail(response) {
+  const detail = response.json?.detail ?? response.json?.message ?? response.json?.error ?? response.text;
+  return typeof detail === "string" && detail.trim() ? detail.trim().slice(0, 300) : `HTTP ${response.status}`;
+}
+async function renewAzadPanelAccount(request3, options) {
+  const path = `/api/user/${encodeURIComponent(options.username)}`;
+  const existing = await request3("GET", path);
+  if (existing.status !== 200) {
+    throw new Error(
+      existing.status === 404 ? `${options.providerLabel} could not find the saved account; it was not recreated.` : `${options.providerLabel} could not check the saved account: ${responseDetail(existing)}`
+    );
+  }
+  const updated = await request3("PUT", path, options.plan);
+  if (updated.status < 200 || updated.status >= 300) {
+    throw new Error(`${options.providerLabel} could not renew the saved account: ${responseDetail(updated)}`);
+  }
+  const reset = await request3("POST", `${path}/reset`);
+  if (reset.status < 200 || reset.status >= 300) {
+    throw new Error(`${options.providerLabel} renewed the plan but could not reset usage: ${responseDetail(reset)}`);
+  }
+}
+
 // src/lib/azadpanel-retry-policy.ts
 function isRetryableAzadPanelStatus(status) {
   return status === 408 || status === 429 || status >= 500;
@@ -75719,7 +75891,7 @@ function isAzadPanelCoreCandidate(kind, core) {
 }
 function isStandardServiceProvisioningPanel(kind) {
   const normalized = normalizeKind(kind);
-  return normalized !== "azadpanel_wireguard" && normalized !== "azadpanel_ipsec";
+  return normalized !== "rain_admin_wireguard" && normalized !== "azadpanel_wireguard" && normalized !== "azadpanel_ipsec";
 }
 function azadPanelXraySubscriptionPath(username) {
   return `/api/xray/user/${encodeURIComponent(username)}/link`;
@@ -75984,7 +76156,7 @@ function panelKey(panel) {
 }
 function panelKind(panel) {
   const kind = panel.kind?.trim().toLowerCase();
-  if (kind === "rain_admin") return "rain_admin";
+  if (kind === "rain_admin" || kind === "rain_admin_wireguard") return "rain_admin";
   if (kind === "falcon") return "falcon";
   if (kind === "azadpanel" || kind === "azadpanel_v2ray" || kind === "azadpanel_openvpn" || kind === "azadpanel_wireguard" || kind === "azadpanel_ipsec") return "azadpanel";
   return "marzban";
@@ -76148,6 +76320,7 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
   const configuredPanels = await panels(ownerId, role);
   const providerCodes = subscriptionProviderShortCodes(configuredPanels);
   for (const panel of configuredPanels) {
+    if (panel.kind?.trim().toLowerCase() === "rain_admin_wireguard") continue;
     const kind = panelKind(panel);
     const providerCode = providerCodes.get(panelKey(panel)) ?? "VPN";
     const isAzadPanelV2Ray = kind === "azadpanel" && panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
@@ -76478,7 +76651,9 @@ async function testPanelAuthentication(key, ownerId, role) {
   }
 }
 async function listPasarguardConnectionUsers(ownerId, role) {
-  const rainPanels = (await panels(ownerId, role)).filter((panel) => panelKind(panel) === "rain_admin");
+  const rainPanels = (await panels(ownerId, role)).filter(
+    (panel) => panel.kind?.trim().toLowerCase() === "rain_admin"
+  );
   const recentAfter = new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString();
   const results = await Promise.all(rainPanels.map(async (panel) => {
     const query = new URLSearchParams({
@@ -76528,6 +76703,99 @@ async function panelRequest(panel, method, path, body) {
     response = await request(panel, method, path, token, body);
   }
   return response;
+}
+async function readLimitedPanelBody(response, maxBytes) {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    await response.body?.cancel().catch(() => void 0);
+    throw new RainApiError("PasarGuard WireGuard archive exceeds the supported download size.", [], false);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) return Buffer.alloc(0);
+  const chunks = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel().catch(() => void 0);
+      throw new RainApiError("PasarGuard WireGuard archive exceeds the supported download size.", [], false);
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, totalBytes);
+}
+async function panelRequestBinary(panel, path) {
+  const perform = async (token2) => {
+    const response2 = await fetch(`${panel.api_base}${path}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token2}`,
+        Accept: "application/zip, application/octet-stream"
+      },
+      signal: AbortSignal.timeout(15e3)
+    });
+    const body = await readLimitedPanelBody(response2, 8 * 1024 * 1024);
+    const text2 = response2.ok ? "" : body.toString("utf8").slice(0, 4e3);
+    let json3 = null;
+    try {
+      json3 = text2 ? JSON.parse(text2) : null;
+    } catch {
+      json3 = null;
+    }
+    return {
+      status: response2.status,
+      body,
+      json: json3,
+      text: text2,
+      contentDisposition: response2.headers.get("content-disposition"),
+      retryAfter: response2.headers.get("retry-after")
+    };
+  };
+  let token = await tokenFor(panel);
+  let response = await perform(token);
+  if (response.status === 401) {
+    tokenCache.delete(panelKey(panel));
+    token = await tokenFor(panel, true);
+    response = await perform(token);
+  }
+  return response;
+}
+async function loadRainAdminWireGuardConfigs(panel, username) {
+  const encodedUsername = encodeURIComponent(username);
+  let userResponse = await panelRequest(panel, "GET", `/api/user/${encodedUsername}`);
+  if ([404, 405].includes(userResponse.status)) {
+    userResponse = await panelRequest(panel, "GET", `/api/user/by-username/${encodedUsername}`);
+  }
+  if (userResponse.status !== 200) {
+    const detail = userResponse.status === 404 ? "PasarGuard user was not found. Create the service with the main Rain Admin provider before requesting WireGuard." : `PasarGuard could not read the WireGuard user: ${safeError(userResponse)}`;
+    throw new RainApiError(detail, [], userResponse.status >= 500 || userResponse.status === 429);
+  }
+  const user = userResponse.json?.data?.user ?? userResponse.json?.data ?? userResponse.json?.user ?? userResponse.json;
+  const userId = Number(user?.id);
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    throw new RainApiError("PasarGuard did not return a valid user ID for the WireGuard account.", [], false);
+  }
+  const response = await panelRequestBinary(panel, `/api/user/${userId}/subscription/wireguard`);
+  if (response.status < 200 || response.status >= 300) {
+    const detail = response.status === 406 ? "PasarGuard has no WireGuard configs for this user. Enable or assign WireGuard to the user in the panel first." : `PasarGuard could not download the WireGuard configs: ${safeError(response)}`;
+    throw new RainApiError(detail, [], response.status >= 500 || response.status === 429);
+  }
+  return {
+    userId,
+    archive: response.body,
+    configs: parsePasarGuardWireGuardArchive(response.body),
+    contentDisposition: response.contentDisposition
+  };
+}
+function isRainAdminWireGuardPanel(panel) {
+  return panel.kind?.trim().toLowerCase() === "rain_admin_wireguard";
+}
+function isWireGuardDeliveryPanel(panel) {
+  const kind = panel.kind?.trim().toLowerCase();
+  return kind === "rain_admin_wireguard" || kind === "azadpanel_wireguard";
 }
 async function inspectAzadPanelV2RayDelivery(panel, username) {
   const linkResponse = await panelRequest(
@@ -76758,6 +77026,7 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
     }
   };
   for (const panel of configuredPanels) {
+    if (isRainAdminWireGuardPanel(panel)) continue;
     const wireGuardPanel = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
     const ipsecPanel = panel.kind?.trim().toLowerCase() === "azadpanel_ipsec";
     const v2rayPanel = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
@@ -76937,7 +77206,7 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
     });
   } else if (savedAccount && !savedAccount.providerKey) {
     if (!result.some((usage) => configuredPanels.some(
-      (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_wireguard" && usage.panelKey === panelKey(panel)
+      (panel) => isWireGuardDeliveryPanel(panel) && usage.panelKey === panelKey(panel)
     ))) {
       result.push({
         panelKey: "WireGuard",
@@ -76949,7 +77218,7 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
       });
     }
   } else if (savedAccount?.providerKey && !configuredPanels.some(
-    (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_wireguard" && panelKey(panel) === savedAccount.providerKey
+    (panel) => isWireGuardDeliveryPanel(panel) && panelKey(panel) === savedAccount.providerKey
   )) {
     result.push({
       panelKey: savedAccount.providerKey,
@@ -77024,7 +77293,7 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
   }
   const savedWireGuardAccount = wireGuardAccounts.get(serviceId);
   const wireGuardAccountUnresolved = wireGuardLookupFailed ? true : Boolean(savedWireGuardAccount && (!savedWireGuardAccount.providerKey || !savedWireGuardAccount.username || !configuredPanels.some(
-    (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_wireguard" && panelKey(panel) === savedWireGuardAccount.providerKey
+    (panel) => isWireGuardDeliveryPanel(panel) && panelKey(panel) === savedWireGuardAccount.providerKey
   )));
   if (wireGuardAccountUnresolved) attempted += 1;
   const savedIpsecAccount = ipsecAccounts.get(serviceId);
@@ -77038,6 +77307,7 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
     ).length;
   }
   for (const panel of configuredPanels) {
+    if (isRainAdminWireGuardPanel(panel)) continue;
     const kind = panelKind(panel);
     let providerUsername = username;
     if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {
@@ -77736,7 +78006,7 @@ function azadPanelWireGuardEndpoints(value) {
   const payload = value?.data ?? value;
   return Array.isArray(payload?.endpoints) ? payload.endpoints : [];
 }
-function wireGuardLocationId(endpoint) {
+function wireGuardLocationId2(endpoint) {
   const id = endpoint?.id ?? endpoint?.host_id;
   return id === null || id === void 0 ? "" : String(id).trim();
 }
@@ -77754,6 +78024,10 @@ async function findAzadPanelCore(expectedCore, ownerId, role, requestedPanelKey)
   throw new RainApiError(`No enabled AzadPanel ${expectedCore === "wireguard" ? "WireGuard" : "IPsec"} provider is configured.`);
 }
 async function listWireGuardEndpoints(panel, username) {
+  if (isRainAdminWireGuardPanel(panel)) {
+    const { configs } = await loadRainAdminWireGuardConfigs(panel, username);
+    return configs.map(({ id, name }) => ({ id, name }));
+  }
   let response = null;
   for (const delayMs of [0, 1e3, 2e3, 4e3, 8e3]) {
     if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -77771,6 +78045,16 @@ async function listWireGuardEndpoints(panel, username) {
 async function prepareWireGuardAccount(username, gb, expiresAt, serviceId, ownerId, role) {
   if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
     throw new RainApiError("Invalid service ID for WireGuard account.");
+  }
+  const rainAdminWireGuardPanel = (await panels(ownerId, role)).find(isRainAdminWireGuardPanel);
+  if (rainAdminWireGuardPanel) {
+    const { configs } = await loadRainAdminWireGuardConfigs(rainAdminWireGuardPanel, username);
+    return {
+      provider_key: panelKey(rainAdminWireGuardPanel),
+      username,
+      core: "wireguard",
+      locations: configs.map(({ id, name }) => ({ id, name }))
+    };
   }
   const panel = await findAzadPanelCore("wireguard", ownerId, role);
   let providerUsername = username;
@@ -77814,7 +78098,7 @@ async function prepareWireGuardAccount(username, gb, expiresAt, serviceId, owner
   const endpointData = await listWireGuardEndpoints(panel, providerUsername);
   const locations = endpointData.flatMap(
     (endpoint) => {
-      const id = wireGuardLocationId(endpoint);
+      const id = wireGuardLocationId2(endpoint);
       if (!id) return [];
       const name = typeof endpoint?.name === "string" && endpoint.name.trim() ? endpoint.name.trim().slice(0, 120) : `Location ${id}`;
       return [{ id, name }];
@@ -77931,18 +78215,56 @@ async function downloadIpsecAppleProfile(username, providerKey, ownerId, role) {
 }
 async function findWireGuardProvider(providerKey, ownerId, role) {
   const panel = (await panels(ownerId, role)).find(
-    (candidate) => panelKey(candidate) === providerKey && panelKind(candidate) === "azadpanel"
+    (candidate) => panelKey(candidate) === providerKey && (isRainAdminWireGuardPanel(candidate) || panelKind(candidate) === "azadpanel")
   );
-  if (!panel) throw new RainApiError("The selected AzadPanel WireGuard provider is unavailable.");
+  if (!panel) throw new RainApiError("The selected WireGuard provider is unavailable.");
+  if (isRainAdminWireGuardPanel(panel)) return panel;
   if (await azadPanelCore(panel) !== "wireguard") {
     throw new RainApiError(`AzadPanel ${providerKey} is not configured for WireGuard.`);
   }
   return panel;
 }
+async function renewWireGuardAccount(providerKey, username, serviceUsername, gb, days, ownerId, role) {
+  const panel = await findWireGuardProvider(providerKey, ownerId, role);
+  if (isRainAdminWireGuardPanel(panel)) {
+    if (username !== serviceUsername) {
+      throw new RainApiError("The read-only Rain Admin WireGuard identity does not match the service username.");
+    }
+    return;
+  }
+  const isProtocolSpecificProvider = panel.kind?.trim().toLowerCase() === "azadpanel_wireguard";
+  if (!isProtocolSpecificProvider && username === serviceUsername) return;
+  const expiresAt = new Date(Date.now() + Math.max(0, days) * 864e5);
+  await renewAzadPanelAccount(
+    (method, path, body) => panelRequest(panel, method, path, body),
+    {
+      username,
+      providerLabel: `AzadPanel ${providerKey}`,
+      plan: {
+        status: "active",
+        expire: Math.floor(expiresAt.getTime() / 1e3),
+        data_limit: bytesForGb(gb),
+        data_limit_reset_strategy: "no_reset"
+      }
+    }
+  );
+}
 async function downloadWireGuardProfile(username, providerKey, hostId, ownerId, role) {
   const panel = await findWireGuardProvider(providerKey, ownerId, role);
+  if (isRainAdminWireGuardPanel(panel)) {
+    const { configs } = await loadRainAdminWireGuardConfigs(panel, username);
+    const profile = configs.find((candidate) => candidate.id === hostId);
+    if (!profile) {
+      throw new RainApiError("The requested WireGuard location is not available for this account.");
+    }
+    return {
+      body: profile.body,
+      contentType: "text/plain; charset=utf-8",
+      contentDisposition: null
+    };
+  }
   const endpoints = await listWireGuardEndpoints(panel, username);
-  const endpoint = endpoints.find((candidate) => wireGuardLocationId(candidate) === hostId);
+  const endpoint = endpoints.find((candidate) => wireGuardLocationId2(candidate) === hostId);
   if (!endpoint) {
     throw new RainApiError("The requested WireGuard location is not available for this account.");
   }
@@ -77977,16 +78299,37 @@ async function downloadWireGuardEndpointConfig(panel, username, providerKey, hos
 }
 async function downloadWireGuardProfiles(username, providerKey, hostIds, ownerId, role) {
   const panel = await findWireGuardProvider(providerKey, ownerId, role);
-  const endpoints = await listWireGuardEndpoints(panel, username);
   const requestedHostIds = [...new Set(hostIds)];
   if (!requestedHostIds.length || requestedHostIds.length > 40) {
     throw new RainApiError("The WireGuard profile bundle must contain between 1 and 40 servers.");
   }
+  if (isRainAdminWireGuardPanel(panel)) {
+    for (const hostId of requestedHostIds) {
+      if (!/^[A-Za-z0-9._-]{1,80}$/.test(hostId)) {
+        throw new RainApiError("Invalid WireGuard server identity.");
+      }
+    }
+    const { configs } = await loadRainAdminWireGuardConfigs(panel, username);
+    const configById = new Map(configs.map((config3) => [config3.id, config3]));
+    return requestedHostIds.map((hostId) => {
+      const config3 = configById.get(hostId);
+      if (!config3) {
+        throw new RainApiError("A requested WireGuard location is no longer available for this account.");
+      }
+      return {
+        hostId,
+        body: config3.body,
+        contentType: "text/plain; charset=utf-8",
+        contentDisposition: null
+      };
+    });
+  }
+  const endpoints = await listWireGuardEndpoints(panel, username);
   const selected = requestedHostIds.map((hostId) => {
     if (!/^[A-Za-z0-9._-]{1,80}$/.test(hostId)) {
       throw new RainApiError("Invalid WireGuard server identity.");
     }
-    const endpoint = endpoints.find((candidate) => wireGuardLocationId(candidate) === hostId);
+    const endpoint = endpoints.find((candidate) => wireGuardLocationId2(candidate) === hostId);
     if (!endpoint) {
       throw new RainApiError("A requested WireGuard server is no longer available for this account.");
     }
@@ -78850,7 +79193,7 @@ async function linkTelegramAccount(message) {
     return;
   }
   const role = access.role;
-  const displayName = safeField([sender.first_name, sender.last_name].filter(Boolean).join(" "), 120) || safeField(access.title, 120) || (role === "master_admin" ? "\u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F" : `\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ${sender.id}`);
+  const displayName2 = safeField([sender.first_name, sender.last_name].filter(Boolean).join(" "), 120) || safeField(access.title, 120) || (role === "master_admin" ? "\u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F" : `\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ${sender.id}`);
   await pool.query(
     `INSERT INTO telegram_bot_recipients
       (telegram_id, chat_id, reseller_tg_id, role, display_name, active, linked_at, last_seen_at)
@@ -78867,18 +79210,18 @@ async function linkTelegramAccount(message) {
       message.chat.id,
       role === "reseller" ? sender.id : null,
       role,
-      displayName
+      displayName2
     ]
   );
   const hello = role === "master_admin" ? `\u2705 \u0627\u062A\u0635\u0627\u0644 \u062D\u0633\u0627\u0628 \u06A9\u0627\u0645\u0644 \u0634\u062F
 
-\u{1F44B} \u0633\u0644\u0627\u0645 ${displayName}
+\u{1F44B} \u0633\u0644\u0627\u0645 ${displayName2}
 \u{1F6E1} \u062F\u0633\u062A\u0631\u0633\u06CC: \u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F
 \u{1F514} \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0645\u062F\u06CC\u0631\u06CC\u062A\u06CC \u0648 \u0648\u0636\u0639\u06CC\u062A \u0633\u0627\u0645\u0627\u0646\u0647 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0634\u0645\u0627 \u0627\u0631\u0633\u0627\u0644 \u0645\u06CC\u200C\u0634\u0648\u0646\u062F.
 
 \u0627\u0632 \u062F\u06A9\u0645\u0647\u200C\u0647\u0627\u06CC \u067E\u0627\u06CC\u06CC\u0646 \u0628\u0631\u0627\u06CC \u0627\u062F\u0627\u0645\u0647 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F.` : `\u2705 \u0627\u062A\u0635\u0627\u0644 \u062D\u0633\u0627\u0628 \u06A9\u0627\u0645\u0644 \u0634\u062F
 
-\u{1F44B} \u0633\u0644\u0627\u0645 ${displayName}
+\u{1F44B} \u0633\u0644\u0627\u0645 ${displayName2}
 \u{1F9D1}\u200D\u{1F4BC} \u062F\u0633\u062A\u0631\u0633\u06CC: \u0641\u0631\u0648\u0634\u0646\u062F\u0647
 \u{1F512} \u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0646\u0645\u0627\u06CC\u0634\u200C\u062F\u0627\u062F\u0647\u200C\u0634\u062F\u0647 \u0641\u0642\u0637 \u0645\u0631\u0628\u0648\u0637 \u0628\u0647 \u0645\u0634\u062A\u0631\u06CC\u0627\u0646\u060C \u0641\u0631\u0648\u0634\u200C\u0647\u0627 \u0648 \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627\u06CC \u062E\u0648\u062F\u062A\u0627\u0646 \u0627\u0633\u062A.
 
@@ -79439,7 +79782,7 @@ function startTelegramBotWorker() {
 // src/routes/mobile.ts
 var import_express = __toESM(require_express2(), 1);
 var import_web_push = __toESM(require_src2(), 1);
-import { createHash as createHash4, randomBytes as randomBytes5 } from "node:crypto";
+import { createHash as createHash5, randomBytes as randomBytes5 } from "node:crypto";
 
 // src/lib/mobile-push-url.ts
 var allowedPushHosts = /* @__PURE__ */ new Set([
@@ -79464,7 +79807,7 @@ function isAllowedPushEndpoint(endpoint) {
 // src/routes/mobile.ts
 var router = (0, import_express.Router)();
 var mobileSessionCookie = "pulse_mobile_session";
-var sessionHash2 = (value) => createHash4("sha256").update(value).digest("hex");
+var sessionHash2 = (value) => createHash5("sha256").update(value).digest("hex");
 var mobileReady = pool.query(`
   ALTER TABLE resellers
     ADD COLUMN IF NOT EXISTS wireguard_enabled SMALLINT NOT NULL DEFAULT 0,
@@ -80694,12 +81037,12 @@ function toClashSubscription(body) {
 }
 
 // src/lib/wireguard-mobileconfig.ts
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 var xmlEscape = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 var uuidNamespace = Buffer.from("6ba7b8109dad11d180b400c04fd430c8", "hex");
 function stablePayloadUuid(identifier) {
   const bytes = Buffer.from(
-    createHash5("sha1").update(uuidNamespace).update(identifier).digest().subarray(0, 16)
+    createHash6("sha1").update(uuidNamespace).update(identifier).digest().subarray(0, 16)
   );
   bytes[6] = bytes[6] & 15 | 80;
   bytes[8] = bytes[8] & 63 | 128;
@@ -80727,7 +81070,7 @@ function safeTunnel(tunnel) {
   };
 }
 function tunnelPayload(tunnel, serviceId, protocol) {
-  const displayName = `Pulse ${protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} - ${tunnel.locationName}`;
+  const displayName2 = `Pulse ${protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} - ${tunnel.locationName}`;
   const identifier = `com.pulse.${protocol}.service-${serviceId}.location-${tunnel.hostId}`;
   const appBundleId = protocol === "amneziawg" ? "org.amnezia.awg" : "com.wireguard.ios";
   return `    <dict>
@@ -80736,7 +81079,7 @@ function tunnelPayload(tunnel, serviceId, protocol) {
       <key>PayloadVersion</key><integer>1</integer>
       <key>PayloadIdentifier</key><string>${xmlEscape(`${identifier}.vpn`)}</string>
       <key>PayloadUUID</key><string>${stablePayloadUuid(`${identifier}.vpn`)}</string>
-      <key>UserDefinedName</key><string>${xmlEscape(displayName)}</string>
+      <key>UserDefinedName</key><string>${xmlEscape(displayName2)}</string>
       <key>VPNType</key><string>VPN</string>
       <key>VPNSubType</key><string>${appBundleId}</string>
       <key>VendorConfig</key>
@@ -80761,7 +81104,7 @@ function createWireGuardMobileConfigBundle(tunnels, serviceId, protocol = "wireg
     throw new Error("An iOS profile cannot contain duplicate server identities.");
   }
   const profileName = `Pulse ${protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} \xB7 ${normalized.length} server${normalized.length === 1 ? "" : "s"}`;
-  const serverSetId = createHash5("sha256").update(normalized.map((tunnel) => tunnel.hostId).sort().join("\0")).digest("hex").slice(0, 16);
+  const serverSetId = createHash6("sha256").update(normalized.map((tunnel) => tunnel.hostId).sort().join("\0")).digest("hex").slice(0, 16);
   const profileIdentifier = `com.pulse.${protocol}.service-${serviceId}.servers-${serverSetId}.profile`;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -80788,7 +81131,7 @@ function createWireGuardMobileConfig(config3, serviceId, hostId, locationName) {
 }
 
 // src/lib/multi-protocol-mobileconfig.ts
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 
 // ../../node_modules/.pnpm/plist@5.0.0/node_modules/plist/dist/parse.js
 var import_xmldom = __toESM(require_lib6(), 1);
@@ -81350,7 +81693,7 @@ function isIkev2VpnPayload(payload) {
 }
 var escapeXml = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 function stableUuid(value) {
-  const bytes = Buffer.from(createHash6("sha1").update("pulse-mobileconfig-v1\0").update(value).digest().subarray(0, 16));
+  const bytes = Buffer.from(createHash7("sha1").update("pulse-mobileconfig-v1\0").update(value).digest().subarray(0, 16));
   bytes[6] = bytes[6] & 15 | 80;
   bytes[8] = bytes[8] & 63 | 128;
   const hex = bytes.toString("hex").toUpperCase();
@@ -81449,14 +81792,14 @@ function wireGuardPayload(entry, serviceId, hostId) {
   if (!endpoint) throw new Error("WireGuard profile is missing its endpoint.");
   const subtype = entry.protocol === "amneziawg" ? "org.amnezia.awg" : "com.wireguard.ios";
   const identifier = `com.pulse.all.${entry.protocol}.service-${serviceId}.location-${hostId}.vpn`;
-  const displayName = `Pulse ${entry.protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} \xB7 ${entry.serverName}`;
+  const displayName2 = `Pulse ${entry.protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} \xB7 ${entry.serverName}`;
   return `    <dict>
       <key>PayloadDisplayName</key><string>VPN</string>
       <key>PayloadType</key><string>com.apple.vpn.managed</string>
       <key>PayloadVersion</key><integer>1</integer>
       <key>PayloadIdentifier</key><string>${escapeXml(identifier)}</string>
       <key>PayloadUUID</key><string>${stableUuid(identifier)}</string>
-      <key>UserDefinedName</key><string>${escapeXml(displayName)}</string>
+      <key>UserDefinedName</key><string>${escapeXml(displayName2)}</string>
       <key>VPNType</key><string>VPN</string>
       <key>VPNSubType</key><string>${subtype}</string>
       <key>VendorConfig</key><dict><key>WgQuickConfig</key><string>${escapeXml(config3)}</string></dict>
@@ -81469,7 +81812,7 @@ function wireGuardPayload(entry, serviceId, hostId) {
 function openVpnPayload(entry, serviceId, hostId) {
   const directives = parseOpenVpnVendorConfig(entry.config);
   const identifier = `com.pulse.all.openvpn.service-${serviceId}.location-${hostId}.vpn`;
-  const displayName = `Pulse OpenVPN \xB7 ${entry.serverName}`;
+  const displayName2 = `Pulse OpenVPN \xB7 ${entry.serverName}`;
   const vendorConfig = [...directives.entries()].map(([key, value]) => `<key>${escapeXml(key)}</key><string>${escapeXml(value.replace(/\r\n?/g, "\n").replace(/\n/g, "\\n"))}</string>`).join("");
   return `    <dict>
       <key>PayloadDisplayName</key><string>VPN</string>
@@ -81477,7 +81820,7 @@ function openVpnPayload(entry, serviceId, hostId) {
       <key>PayloadVersion</key><integer>1</integer>
       <key>PayloadIdentifier</key><string>${escapeXml(identifier)}</string>
       <key>PayloadUUID</key><string>${stableUuid(identifier)}</string>
-      <key>UserDefinedName</key><string>${escapeXml(displayName)}</string>
+      <key>UserDefinedName</key><string>${escapeXml(displayName2)}</string>
       <key>VPNType</key><string>VPN</string>
       <key>VPNSubType</key><string>net.openvpn.connect.app</string>
       <key>VPN</key><dict>
@@ -81610,7 +81953,7 @@ function publicConfigContentType(extension) {
 
 // src/lib/zip-archive.ts
 import { deflateRawSync } from "node:zlib";
-var crc32 = (input) => {
+var crc322 = (input) => {
   let crc = 4294967295;
   for (const byte of input) {
     crc ^= byte;
@@ -81642,7 +81985,7 @@ function createZipArchive(entries) {
     const filename = Buffer.from(name, "utf8");
     const content = Buffer.isBuffer(entry.content) ? entry.content : Buffer.from(entry.content);
     const compressed = deflateRawSync(content);
-    const checksum = crc32(content);
+    const checksum = crc322(content);
     if (filename.length > 65535 || compressed.length > 4294967295 || content.length > 4294967295) {
       throw new Error("ZIP entry exceeds the supported ZIP32 size.");
     }
@@ -83832,12 +84175,12 @@ router2.post("/auth/telegram", async (req, res) => {
     return;
   }
   const { role, resellerId, title } = access;
-  const displayName = [parsed.data.first_name, parsed.data.last_name].filter(Boolean).join(" ") || parsed.data.username || String(telegramId);
+  const displayName2 = [parsed.data.first_name, parsed.data.last_name].filter(Boolean).join(" ") || parsed.data.username || String(telegramId);
   const sessionId = await createWebSession({
     telegramId,
     role,
     resellerId,
-    displayName,
+    displayName: displayName2,
     title,
     customerPricePerGb: null
   });
@@ -83847,7 +84190,7 @@ router2.post("/auth/telegram", async (req, res) => {
       authenticated: true,
       role,
       telegram_id: telegramId,
-      display_name: displayName,
+      display_name: displayName2,
       reseller_id: resellerId,
       title
     })
@@ -83865,12 +84208,12 @@ router2.post("/auth/telegram-id", async (req, res) => {
     res.status(403).json({ error: "\u0627\u06CC\u0646 \u0634\u0646\u0627\u0633\u0647 \u062A\u0644\u06AF\u0631\u0627\u0645 \u062F\u0631 \u0633\u0627\u0645\u0627\u0646\u0647 \u062F\u0633\u062A\u0631\u0633\u06CC \u0646\u062F\u0627\u0631\u062F" });
     return;
   }
-  const displayName = access.role === "master_admin" ? "\u0645\u062F\u06CC\u0631 \u0627\u0635\u0644\u06CC" : `\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ${telegramId}`;
+  const displayName2 = access.role === "master_admin" ? "\u0645\u062F\u06CC\u0631 \u0627\u0635\u0644\u06CC" : `\u0641\u0631\u0648\u0634\u0646\u062F\u0647 ${telegramId}`;
   const sessionId = await createWebSession({
     telegramId,
     role: access.role,
     resellerId: access.resellerId,
-    displayName,
+    displayName: displayName2,
     title: access.title,
     customerPricePerGb: null
   });
@@ -83880,7 +84223,7 @@ router2.post("/auth/telegram-id", async (req, res) => {
       authenticated: true,
       role: access.role,
       telegram_id: telegramId,
-      display_name: displayName,
+      display_name: displayName2,
       reseller_id: access.resellerId,
       title: access.title
     })
@@ -85204,7 +85547,7 @@ router2.post("/panels/:key/test", requireMasterAdmin, async (req, res) => {
     checked_at: (/* @__PURE__ */ new Date()).toISOString()
   });
 });
-var providerKinds = ["marzban", "rain_admin", "azadpanel", "azadpanel_v2ray", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"];
+var providerKinds = ["marzban", "rain_admin", "rain_admin_wireguard", "azadpanel", "azadpanel_v2ray", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"];
 function isProviderKind(value) {
   return typeof value === "string" && providerKinds.includes(value);
 }
@@ -87776,6 +88119,46 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
         return;
       }
     }
+    let savedWireGuardAccount = null;
+    try {
+      savedWireGuardAccount = (await readSavedWireGuardProviderUsernames([serviceId])).get(serviceId) ?? null;
+    } catch {
+      res.status(502).json({ error: "\u0647\u0648\u06CC\u062A \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647\u0654 WireGuard \u062E\u0648\u0627\u0646\u062F\u0647 \u0646\u0634\u062F\u061B \u062A\u0645\u062F\u06CC\u062F \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F." });
+      return;
+    }
+    let savedOpenVpnAccounts = /* @__PURE__ */ new Map();
+    let savedV2RayAccounts = /* @__PURE__ */ new Map();
+    try {
+      [savedOpenVpnAccounts, savedV2RayAccounts] = await Promise.all([
+        readSavedAzadPanelOpenVpnUsernames([serviceId]),
+        readSavedAzadPanelV2RayUsernames([serviceId])
+      ]);
+    } catch {
+      res.status(502).json({ error: "\u0647\u0648\u06CC\u062A Provider\u0647\u0627\u06CC OpenVPN \u0648 V2Ray \u062E\u0648\u0627\u0646\u062F\u0647 \u0646\u0634\u062F\u061B \u062A\u0645\u062F\u06CC\u062F \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F." });
+      return;
+    }
+    if (savedWireGuardAccount) {
+      if (!savedWireGuardAccount.providerKey || !savedWireGuardAccount.username) {
+        res.status(502).json({ error: "Provider \u06CC\u0627 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647\u0654 WireGuard \u0642\u0627\u0628\u0644 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u0646\u06CC\u0633\u062A\u061B \u062A\u0645\u062F\u06CC\u062F \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F." });
+        return;
+      }
+      try {
+        await renewWireGuardAccount(
+          savedWireGuardAccount.providerKey,
+          savedWireGuardAccount.username,
+          current.username,
+          gb,
+          days,
+          Number(current.reseller_tg_id),
+          "reseller"
+        );
+      } catch (error40) {
+        res.status(502).json({
+          error: error40 instanceof Error ? error40.message : "\u062A\u0645\u062F\u06CC\u062F \u062D\u0633\u0627\u0628 WireGuard \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F."
+        });
+        return;
+      }
+    }
     let failedProviderKeys = [];
     let providerWarning = null;
     let awgWarning = null;
@@ -87806,6 +88189,40 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
         await pool.query("DELETE FROM user_stats_cache WHERE token = $1", [token.rows[0].token]);
       }
     } catch {
+    }
+    const providerUsageIdentities = /* @__PURE__ */ new Map();
+    if (savedWireGuardAccount?.providerKey && savedWireGuardAccount.username) {
+      providerUsageIdentities.set(savedWireGuardAccount.providerKey, savedWireGuardAccount.username);
+    }
+    for (const accounts of [savedOpenVpnAccounts.get(serviceId), savedV2RayAccounts.get(serviceId)]) {
+      for (const [providerKey, username] of accounts ?? []) {
+        providerUsageIdentities.set(providerKey, username);
+      }
+    }
+    const extraUsageUsernames = /* @__PURE__ */ new Set();
+    for (const [providerKey, providerUsername] of providerUsageIdentities) {
+      if (providerUsername === current.username) continue;
+      try {
+        await pool.query(
+          `DELETE FROM user_panel_usages
+           WHERE username = $1 AND panel_key = $2`,
+          [providerUsername, providerKey]
+        );
+        extraUsageUsernames.add(providerUsername);
+      } catch (error40) {
+        req.log.error({ err: error40, serviceId }, "Failed to clear saved WireGuard usage after renewal");
+        res.status(500).json({ error: "\u0645\u0635\u0631\u0641 \u0642\u0628\u0644\u06CC \u06CC\u06A9\u06CC \u0627\u0632 \u062D\u0633\u0627\u0628\u200C\u0647\u0627\u06CC VPN \u067E\u0633 \u0627\u0632 \u062A\u0645\u062F\u06CC\u062F \u067E\u0627\u06A9 \u0646\u0634\u062F\u061B \u0648\u0636\u0639\u06CC\u062A \u062A\u0645\u062F\u06CC\u062F \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F." });
+        return;
+      }
+    }
+    for (const providerUsername of extraUsageUsernames) {
+      try {
+        await pool.query("DELETE FROM panel_usage_curr WHERE username = $1", [providerUsername]);
+      } catch (error40) {
+        req.log.error({ err: error40, serviceId }, "Failed to clear saved provider usage cache after renewal");
+        res.status(500).json({ error: "\u062D\u0627\u0641\u0638\u0647\u0654 \u0645\u0635\u0631\u0641 \u0642\u0628\u0644\u06CC \u06CC\u06A9\u06CC \u0627\u0632 \u062D\u0633\u0627\u0628\u200C\u0647\u0627\u06CC VPN \u067E\u0633 \u0627\u0632 \u062A\u0645\u062F\u06CC\u062F \u067E\u0627\u06A9 \u0646\u0634\u062F\u061B \u0648\u0636\u0639\u06CC\u062A \u062A\u0645\u062F\u06CC\u062F \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F." });
+        return;
+      }
     }
     if (current.awg_client_id) {
       try {

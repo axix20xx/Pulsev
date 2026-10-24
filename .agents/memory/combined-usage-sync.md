@@ -56,3 +56,15 @@ WireGuard usage and lifecycle calls must resolve the service's saved encrypted d
 **Why:** AzadPanel WireGuard uses a separate account identity; querying the customer username can return a 403 or attribute another reseller's account.
 
 **How to apply:** Never broadcast a WireGuard username across configured WireGuard panels. If delivery identity or its enabled provider is unavailable, mark the usage snapshot stale, preserve the combined total, and leave remote disable pending rather than treating it as complete. Use the same provider key and username for usage reads and disable requests.
+
+Renewal must also reset the saved AzadPanel WireGuard account explicitly; protocol-only rows are excluded from generic service provisioning, so the generic renewal's reset option cannot reach them.
+
+**Why:** The provider keeps current `used_traffic` on the WireGuard user until `POST /api/user/{username}/reset` is called, and its saved provider username may differ from the service username used by generic cache cleanup.
+
+**How to apply:** Resolve the saved provider identity, update its plan, explicitly reset usage, and clear the old cache row for that provider key and username before completing the local service-period reset. Do not recreate a missing account.
+
+AzadPanel OpenVPN and V2Ray remain in generic renewal provisioning, which updates and resets their remote users. When either uses a saved collision username, clear that provider-specific local usage snapshot as part of renewal too.
+
+**Why:** The normal cleanup by service username does not remove offset-bearing rows stored under an OpenVPN or V2Ray provider username.
+
+**How to apply:** Read saved provider-to-username mappings and delete only the old usage row for each matching provider key and alternate username. Preserve the existing generic `resetUsage` flow for remote OpenVPN and V2Ray accounts.

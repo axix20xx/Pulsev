@@ -25,7 +25,9 @@ export function isAzadPanelCoreCandidate(kind: unknown, core: AzadPanelCore): bo
 
 export function isStandardServiceProvisioningPanel(kind: unknown): boolean {
   const normalized = normalizeKind(kind);
-  return normalized !== "azadpanel_wireguard" && normalized !== "azadpanel_ipsec";
+  return normalized !== "rain_admin_wireguard"
+    && normalized !== "azadpanel_wireguard"
+    && normalized !== "azadpanel_ipsec";
 }
 
 export function azadPanelXraySubscriptionPath(username: string): string {
