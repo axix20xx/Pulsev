@@ -30,6 +30,12 @@ export function isStandardServiceProvisioningPanel(kind: unknown): boolean {
     && normalized !== "azadpanel_ipsec";
 }
 
+export function standardServiceProvisioningPanels<T extends { kind?: unknown }>(
+  panels: readonly T[],
+): T[] {
+  return panels.filter((panel) => isStandardServiceProvisioningPanel(panel.kind));
+}
+
 export function azadPanelXraySubscriptionPath(username: string): string {
   return `/api/xray/user/${encodeURIComponent(username)}/link`;
 }

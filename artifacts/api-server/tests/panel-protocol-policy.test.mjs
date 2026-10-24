@@ -19,6 +19,7 @@ const {
   azadPanelXrayUserPath,
   isAzadPanelCoreCandidate,
   isStandardServiceProvisioningPanel,
+  standardServiceProvisioningPanels,
   mergeAzadPanelXraySubscriptionFeeds,
 } =
   await import(`data:text/javascript;base64,${code}`);
@@ -40,6 +41,19 @@ test("generic service provisioning excludes protocol-only provider rows", () => 
   assert.equal(isStandardServiceProvisioningPanel("azadpanel_openvpn"), true);
   assert.equal(isStandardServiceProvisioningPanel("azadpanel_v2ray"), true);
   assert.equal(isStandardServiceProvisioningPanel("marzban"), true);
+});
+
+test("service creation provider choices never include Rain Admin WireGuard", () => {
+  const configured = [
+    { key: "rain-main", kind: "rain_admin" },
+    { key: "rain-wg", kind: "rain_admin_wireguard" },
+    { key: "azad-openvpn", kind: "azadpanel_openvpn" },
+    { key: "azad-wg", kind: "azadpanel_wireguard" },
+  ];
+  assert.deepEqual(
+    standardServiceProvisioningPanels(configured).map(({ key }) => key),
+    ["rain-main", "azad-openvpn"],
+  );
 });
 
 test("AzadPanel core lookup only checks matching protocol rows plus legacy generic rows", () => {

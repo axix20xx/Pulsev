@@ -75762,6 +75762,20 @@ function parsePasarGuardWireGuardArchive(input) {
   return configs;
 }
 
+// src/lib/pasarguard-instance.ts
+function samePasarGuardInstance(left, right) {
+  try {
+    const normalize = (value) => {
+      const url2 = new URL(value);
+      const path = url2.pathname.replace(/\/+$/, "");
+      return `${url2.protocol.toLowerCase()}//${url2.host.toLowerCase()}${path}`;
+    };
+    return normalize(left) === normalize(right);
+  } catch {
+    return false;
+  }
+}
+
 // src/lib/azadpanel-renewal.ts
 function responseDetail(response) {
   const detail = response.json?.detail ?? response.json?.message ?? response.json?.error ?? response.text;
@@ -75892,6 +75906,9 @@ function isAzadPanelCoreCandidate(kind, core) {
 function isStandardServiceProvisioningPanel(kind) {
   const normalized = normalizeKind(kind);
   return normalized !== "rain_admin_wireguard" && normalized !== "azadpanel_wireguard" && normalized !== "azadpanel_ipsec";
+}
+function standardServiceProvisioningPanels(panels2) {
+  return panels2.filter((panel) => isStandardServiceProvisioningPanel(panel.kind));
 }
 function azadPanelXraySubscriptionPath(username) {
   return `/api/xray/user/${encodeURIComponent(username)}/link`;
@@ -76186,9 +76203,10 @@ async function panels(ownerId, role) {
     return kind === "falcon" ? Boolean(panel.api_key) : Boolean(panel.admin_user && panel.admin_pass);
   });
 }
-async function listAvailablePanels() {
+async function listAvailablePanels(includeProtocolOnly = false) {
   const configured = await panels();
-  return configured.map((panel) => ({ key: panelKey(panel), kind: panelKind(panel) }));
+  const available = includeProtocolOnly ? configured : standardServiceProvisioningPanels(configured);
+  return available.map((panel) => ({ key: panelKey(panel), kind: panelKind(panel) }));
 }
 function subscriptionUrl(token) {
   return `/api/public/subscription/${encodeURIComponent(token)}/feed`;
@@ -76765,21 +76783,48 @@ async function panelRequestBinary(panel, path) {
 }
 async function loadRainAdminWireGuardConfigs(panel, username) {
   const encodedUsername = encodeURIComponent(username);
-  let userResponse = await panelRequest(panel, "GET", `/api/user/${encodedUsername}`);
-  if ([404, 405].includes(userResponse.status)) {
-    userResponse = await panelRequest(panel, "GET", `/api/user/by-username/${encodedUsername}`);
+  const configuredPanels = await panels();
+  const matchingMainPanels = configuredPanels.filter(
+    (candidate) => candidate.kind?.trim().toLowerCase() === "rain_admin" && samePasarGuardInstance(candidate.api_base, panel.api_base)
+  );
+  const lookupPanels = [...matchingMainPanels, panel];
+  const lookupResponses = [];
+  let userResponse = null;
+  for (const lookupPanel of lookupPanels) {
+    let response2 = await panelRequest(lookupPanel, "GET", `/api/user/${encodedUsername}`);
+    if ([404, 405].includes(response2.status)) {
+      response2 = await panelRequest(lookupPanel, "GET", `/api/user/by-username/${encodedUsername}`);
+    }
+    lookupResponses.push({
+      source: lookupPanel === panel ? "wireguard" : "rain_admin",
+      response: response2
+    });
+    if (response2.status === 200) {
+      userResponse = response2;
+      break;
+    }
   }
-  if (userResponse.status !== 200) {
-    const detail = userResponse.status === 404 ? "PasarGuard user was not found. Create the service with the main Rain Admin provider before requesting WireGuard." : `PasarGuard could not read the WireGuard user: ${safeError(userResponse)}`;
-    const retryable = userResponse.status === 408 || userResponse.status === 429 || userResponse.status >= 500;
-    const retryAfterSeconds = Number(userResponse.retryAfter);
-    const retryAfterDate = userResponse.retryAfter ? Date.parse(userResponse.retryAfter) : Number.NaN;
+  if (!userResponse) {
+    const lastResponse = lookupResponses.at(-1)?.response;
+    const userLookupResponse = lookupResponses.find(
+      ({ response: response2 }) => ![404, 405].includes(response2.status)
+    )?.response ?? lastResponse;
+    if (!userLookupResponse) {
+      throw new RainApiError("PasarGuard did not return a user lookup response.", [], true);
+    }
+    const allLookupsNotFound = lookupResponses.every(
+      ({ response: response2 }) => [404, 405].includes(response2.status)
+    );
+    const detail = allLookupsNotFound ? matchingMainPanels.length ? "PasarGuard user was not found by either the main Rain Admin login or the WireGuard extension. Confirm this service exists on that same panel." : "PasarGuard user was not found. Create the service with the main Rain Admin provider, and make sure the WireGuard extension uses the same PasarGuard panel." : `PasarGuard could not read the WireGuard user: ${safeError(userLookupResponse)}`;
+    const retryable = userLookupResponse.status === 408 || userLookupResponse.status === 429 || userLookupResponse.status >= 500;
+    const retryAfterSeconds = Number(userLookupResponse.retryAfter);
+    const retryAfterDate = userLookupResponse.retryAfter ? Date.parse(userLookupResponse.retryAfter) : Number.NaN;
     throw new RainApiError(
       detail,
       [{
         key: panelKey(panel),
         kind: "rain_admin_wireguard",
-        status: userResponse.status,
+        status: userLookupResponse.status,
         error: detail,
         retryable,
         retryAfterMs: Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? Math.round(retryAfterSeconds * 1e3) : Number.isFinite(retryAfterDate) ? Math.max(0, retryAfterDate - Date.now()) : void 0
@@ -77839,9 +77884,7 @@ async function provisionFalcon(panel, gb, days, label) {
 }
 async function provisionUser(username, gb, days, label, ownerId, role, onlyPanelKeys, options) {
   const configured = await panels(ownerId, role);
-  const serviceProvisioningPanels = configured.filter(
-    (panel) => isStandardServiceProvisioningPanel(panel.kind)
-  );
+  const serviceProvisioningPanels = standardServiceProvisioningPanels(configured);
   const configuredPanels = onlyPanelKeys?.length ? serviceProvisioningPanels.filter((panel) => onlyPanelKeys.includes(panelKey(panel))) : serviceProvisioningPanels;
   if (onlyPanelKeys?.length && configuredPanels.length === 0) {
     return { ok: true, results: [] };
@@ -87315,7 +87358,7 @@ router2.post("/admin/provider-account-audit/scan", requireMasterAdmin, async (re
   const candidateTotal = Number(countResult.rows[0]?.candidate_total ?? 0);
   const service = nextResult.rows[0];
   if (!service) {
-    const enabledPanelCount = (await listAvailablePanels()).length;
+    const enabledPanelCount = (await listAvailablePanels(true)).length;
     res.json(ScanProviderAccountAuditResponse.parse({
       candidate_total: candidateTotal,
       checked_count: 0,
@@ -89549,7 +89592,7 @@ router2.get("/command-center", requireAuth, async (req, res) => {
       LEFT JOIN reseller_sales_log s ON s.reseller_tg_id=r.tg_id
       GROUP BY r.tg_id,r.title,r.is_enabled,r.total_gb,r.used_gb`, [monthStart])
   ]);
-  const availableProviderKeys = new Set((await listAvailablePanels()).map((provider) => provider.key));
+  const availableProviderKeys = new Set((await listAvailablePanels(true)).map((provider) => provider.key));
   const providerHealth = providers.rows.map((provider) => {
     const credentialReady = availableProviderKeys.has(String(provider.key ?? ""));
     return {

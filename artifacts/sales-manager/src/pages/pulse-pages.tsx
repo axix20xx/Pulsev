@@ -3887,10 +3887,10 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
             {newPanel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">نام کاربری و رمز نمایندگی مخصوص هستهٔ Xray/V2Ray را وارد کنید؛ حساب جداگانه به‌صورت خودکار هنگام ساخت یا تمدید سرویس ایجاد می‌شود.</small>}
             {newPanel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">نام کاربری و رمز مخصوص هستهٔ WireGuard را وارد کنید؛ این اعتبارنامه از OpenVPN جداست.</small>}
             {newPanel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">credential مدیر AzadPanel مخصوص هستهٔ IPsec را وارد کنید؛ حساب و رمز اتصال کاربران جداگانه از API دریافت می‌شود.</small>}
-            {newPanel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این اتصال فقط فایل‌های WireGuard حساب‌های موجود را از API رسمی PasarGuard می‌خواند. کاربر باید ابتدا در Rain Admin اصلی ساخته شده و هستهٔ WireGuard برای او فعال باشد.</small>}
+            {newPanel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">آدرس API باید همان آدرس Rain Admin اصلی باشد. نام کاربری و رمز، اطلاعات ورود به پنل هستند؛ این Provider فقط WireGuard کاربر موجود را می‌خواند و در ساخت سرویس دخالت ندارد.</small>}
           </label>
           <Field label="آدرس API" value={newPanel.api_base} placeholder="https://panel.example.com" inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, api_base: value })} />
-          <Field label="نام کاربری (اختیاری)" value={newPanel.username} inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, username: value })} />
+          <Field label="نام کاربری ورود به پنل (اختیاری)" value={newPanel.username} inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, username: value })} />
           <Field label="رمز (اختیاری)" value={newPanel.password} inputDir="ltr" type="password" onChange={(value) => setNewPanel({ ...newPanel, password: value })} />
         </div>
         <div className="ax-provider-create-actions">
@@ -3926,7 +3926,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
                 {panel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف از credential مستقل نمایندگی Xray استفاده می‌کند؛ با ذخیره، سرویس‌های فعالِ واجد شرایطی که نگاشت V2Ray ندارند به‌صورت مرحله‌ای صف می‌شوند. حساب‌های موجود تغییر نمی‌کنند.</small>}
                 {panel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از اعتبارنامهٔ مستقل هستهٔ WireGuard استفاده کند.</small>}
                 {panel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از credential مستقل هستهٔ IPsec استفاده کند.</small>}
-                {panel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">فقط configهای WireGuard را از کاربر موجود می‌خواند؛ سرویس‌ها را نمی‌سازد یا تغییر نمی‌دهد.</small>}
+                {panel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">آدرس API باید با Rain Admin اصلی یکی باشد؛ نام کاربری و رمز، اطلاعات ورود پنل هستند. این ردیف فقط configهای WireGuard را می‌خواند و سرویس‌ها را نمی‌سازد یا تغییر نمی‌دهد.</small>}
               </label>
               <Field label="آدرس API" value={panel.api_base} inputDir="ltr" onChange={(value) => edit(panel.key, 'api_base', value)} />
               <Field label="نام کاربری پنل (خالی = حفظ مقدار قبلی)" value={panel.username || ''} placeholder="username پنل" inputDir="ltr" onChange={(value) => edit(panel.key, 'username', value)} />

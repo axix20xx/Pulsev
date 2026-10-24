@@ -4939,7 +4939,7 @@ router.post("/admin/provider-account-audit/scan", requireMasterAdmin, async (req
   const candidateTotal = Number(countResult.rows[0]?.candidate_total ?? 0);
   const service = nextResult.rows[0];
   if (!service) {
-    const enabledPanelCount = (await listAvailablePanels()).length;
+    const enabledPanelCount = (await listAvailablePanels(true)).length;
     res.json(ScanProviderAccountAuditResponse.parse({
       candidate_total: candidateTotal,
       checked_count: 0,
@@ -7350,7 +7350,7 @@ router.get("/command-center", requireAuth, async (req, res): Promise<void> => {
       LEFT JOIN reseller_sales_log s ON s.reseller_tg_id=r.tg_id
       GROUP BY r.tg_id,r.title,r.is_enabled,r.total_gb,r.used_gb`, [monthStart]),
   ]);
-  const availableProviderKeys = new Set((await listAvailablePanels()).map((provider) => provider.key));
+  const availableProviderKeys = new Set((await listAvailablePanels(true)).map((provider) => provider.key));
   const providerHealth = providers.rows.map((provider) => {
     const credentialReady = availableProviderKeys.has(String(provider.key ?? ""));
     return {

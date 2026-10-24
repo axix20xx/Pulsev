@@ -16,6 +16,7 @@ import {
   azadPanelXrayUserPath,
   isAzadPanelCoreCandidate,
   isStandardServiceProvisioningPanel,
+  standardServiceProvisioningPanels,
   mergeAzadPanelXraySubscriptionFeeds,
 } from "./panel-protocol-policy";
 import {
@@ -271,9 +272,14 @@ async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
   });
 }
 
-export async function listAvailablePanels(): Promise<Array<{ key: string; kind: string }>> {
+export async function listAvailablePanels(
+  includeProtocolOnly = false,
+): Promise<Array<{ key: string; kind: string }>> {
   const configured = await panels();
-  return configured.map((panel) => ({ key: panelKey(panel), kind: panelKind(panel) }));
+  const available = includeProtocolOnly
+    ? configured
+    : standardServiceProvisioningPanels(configured);
+  return available.map((panel) => ({ key: panelKey(panel), kind: panelKind(panel) }));
 }
 
 export async function rainConfigured(ownerId?: number, role?: string): Promise<boolean> {
@@ -2416,9 +2422,7 @@ export async function provisionUser(
   },
 ): Promise<{ ok: boolean; results: PanelResult[] }> {
   const configured = await panels(ownerId, role);
-  const serviceProvisioningPanels = configured.filter(
-    (panel) => isStandardServiceProvisioningPanel(panel.kind),
-  );
+  const serviceProvisioningPanels = standardServiceProvisioningPanels(configured);
   const configuredPanels = onlyPanelKeys?.length
     ? serviceProvisioningPanels.filter((panel) => onlyPanelKeys.includes(panelKey(panel)))
     : serviceProvisioningPanels;
