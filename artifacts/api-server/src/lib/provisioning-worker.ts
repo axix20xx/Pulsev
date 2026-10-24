@@ -1,12 +1,15 @@
 import { pool } from "@workspace/db";
 import {
   provisionUser,
+  prepareRainAdminWireGuardDelivery,
   RainApiError,
 } from "./rain";
 import {
   azadPanelV2RayBackfillPlan,
   hasAzadPanelV2RayBackfillProviderResult,
 } from "./azadpanel-v2ray-backfill";
+import { rainAdminWireGuardBackfillPlan } from "./rain-admin-wireguard-backfill";
+import { encryptPanelCredential } from "./panel-credentials";
 import { createAwgClient, disableAwgClient, replaceAwgClient } from "./amneziawg";
 import { logger } from "./logger";
 import { hostname } from "node:os";
@@ -134,6 +137,24 @@ async function pauseRemainingV2rayBackfillJobs(job: ProvisionJob, delayMs: numbe
        AND action = 'providers'
        AND status IN ('pending', 'retrying')
        AND payload->>'azadPanelV2RayBackfill' = 'true'
+       AND provider_keys @> jsonb_build_array($3::text)`,
+    [delayMs, job.id, job.provider_keys[0]],
+  );
+}
+
+async function pauseRemainingRainAdminWireGuardBackfillJobs(job: ProvisionJob, delayMs: number) {
+  if (job.payload.rainAdminWireGuardBackfill !== true || job.provider_keys.length !== 1) return;
+  await pool.query(
+    `UPDATE service_provision_jobs
+     SET next_attempt_at = GREATEST(
+           next_attempt_at,
+           NOW() + ($1 * INTERVAL '1 millisecond')
+         ),
+         updated_at = NOW()
+     WHERE id <> $2
+       AND action = 'providers'
+       AND status IN ('pending', 'retrying')
+       AND payload->>'rainAdminWireGuardBackfill' = 'true'
        AND provider_keys @> jsonb_build_array($3::text)`,
     [delayMs, job.id, job.provider_keys[0]],
   );
@@ -281,9 +302,111 @@ async function refreshV2rayBackfillPlan(job: ProvisionJob): Promise<boolean> {
   return true;
 }
 
+async function processRainAdminWireGuardBackfill(job: ProvisionJob): Promise<void> {
+  const providerKey = job.provider_keys[0];
+  if (!providerKey || job.provider_keys.length !== 1) {
+    await failJob(job.id, "WireGuard backfill must target exactly one configured provider.");
+    return;
+  }
+
+  const result = await pool.query<{
+    username: string | null;
+    owner_tg_id: number | string;
+    status: string;
+    gb: number | string | null;
+    last_remaining_bytes: number | string | null;
+    last_used_bytes: number | string | null;
+    expires_at_unix: number | string | null;
+    wireguard_enabled: number | string;
+  }>(
+    `SELECT svc.rain_username AS username,
+            svc.reseller_tg_id AS owner_tg_id,
+            svc.status,
+            svc.gb::float8 AS gb,
+            svc.last_remaining_bytes::text AS last_remaining_bytes,
+            svc.last_used_bytes::text AS last_used_bytes,
+            CASE WHEN svc.expire_at IS NULL THEN NULL
+                 ELSE FLOOR(EXTRACT(EPOCH FROM svc.expire_at))::bigint
+            END AS expires_at_unix,
+            COALESCE(reseller.wireguard_enabled, 0)::int AS wireguard_enabled
+     FROM reseller_services svc
+     LEFT JOIN resellers reseller ON reseller.tg_id = svc.reseller_tg_id
+     WHERE svc.id = $1 AND svc.lifecycle_version = $2
+     LIMIT 1`,
+    [job.service_id, job.lifecycle_version],
+  );
+  const service = result.rows[0];
+  if (!service?.username) {
+    await completeJob(job.id, "سرویس پیش از آماده‌سازی WireGuard حذف شد یا نام کاربری ندارد.");
+    return;
+  }
+  if (Number(service.wireguard_enabled) === 0) {
+    await completeJob(job.id, "دسترسی WireGuard فروشنده پیش از اجرای صف غیرفعال شد.");
+    return;
+  }
+
+  const plan = rainAdminWireGuardBackfillPlan({
+    status: service.status,
+    gb: service.gb,
+    lastRemainingBytes: service.last_remaining_bytes,
+    lastUsedBytes: service.last_used_bytes,
+    expiresAtUnix: service.expires_at_unix,
+  });
+  if (!plan.eligible) {
+    const warning = plan.reason === "quota_exhausted"
+      ? "سهمیهٔ سرویس پیش از آماده‌سازی WireGuard تمام شد."
+      : plan.reason === "invalid"
+        ? "اطلاعات سرویس برای آماده‌سازی WireGuard معتبر نیست."
+        : "سرویس پیش از آماده‌سازی WireGuard منقضی یا غیرفعال شد.";
+    await completeJob(job.id, warning);
+    return;
+  }
+
+  const existing = await pool.query(
+    "SELECT 1 FROM reseller_service_wireguard_accounts WHERE service_id = $1 LIMIT 1",
+    [job.service_id],
+  );
+  if (existing.rows[0]) {
+    await completeJob(job.id, "جزئیات WireGuard این سرویس قبلاً ذخیره شده است.");
+    return;
+  }
+
+  const delivery = await prepareRainAdminWireGuardDelivery(
+    service.username,
+    providerKey,
+    Number(service.owner_tg_id),
+    "reseller",
+  );
+  const saved = await pool.query(
+    `INSERT INTO reseller_service_wireguard_accounts (service_id, delivery_secret)
+     VALUES ($1, $2)
+     ON CONFLICT (service_id) DO NOTHING
+     RETURNING service_id`,
+    [job.service_id, encryptPanelCredential(JSON.stringify(delivery))],
+  );
+  if (!saved.rows[0]) {
+    const confirmed = await pool.query(
+      "SELECT 1 FROM reseller_service_wireguard_accounts WHERE service_id = $1 LIMIT 1",
+      [job.service_id],
+    );
+    if (!confirmed.rows[0]) {
+      throw new Error("WireGuard delivery was not persisted after the provider returned its configs.");
+    }
+  }
+  await completeJob(job.id);
+  logger.info(
+    { jobId: job.id, serviceId: job.service_id, providerKey },
+    "Rain Admin WireGuard profile backfill completed",
+  );
+}
+
 async function processProviderJob(job: ProvisionJob) {
   const payload = job.payload;
   try {
+    if (payload.rainAdminWireGuardBackfill === true) {
+      await processRainAdminWireGuardBackfill(job);
+      return;
+    }
     if (payload.azadPanelV2RayBackfill === true && !(await refreshV2rayBackfillPlan(job))) {
       return;
     }
@@ -380,6 +503,7 @@ async function processProviderJob(job: ProvisionJob) {
       : 0;
     if (rateLimitDelayMs > 0) {
       await pauseRemainingV2rayBackfillJobs(job, rateLimitDelayMs);
+      await pauseRemainingRainAdminWireGuardBackfillJobs(job, rateLimitDelayMs);
     }
     await retryJob(
       job,

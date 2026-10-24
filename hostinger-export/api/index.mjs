@@ -76771,7 +76771,21 @@ async function loadRainAdminWireGuardConfigs(panel, username) {
   }
   if (userResponse.status !== 200) {
     const detail = userResponse.status === 404 ? "PasarGuard user was not found. Create the service with the main Rain Admin provider before requesting WireGuard." : `PasarGuard could not read the WireGuard user: ${safeError(userResponse)}`;
-    throw new RainApiError(detail, [], userResponse.status >= 500 || userResponse.status === 429);
+    const retryable = userResponse.status === 408 || userResponse.status === 429 || userResponse.status >= 500;
+    const retryAfterSeconds = Number(userResponse.retryAfter);
+    const retryAfterDate = userResponse.retryAfter ? Date.parse(userResponse.retryAfter) : Number.NaN;
+    throw new RainApiError(
+      detail,
+      [{
+        key: panelKey(panel),
+        kind: "rain_admin_wireguard",
+        status: userResponse.status,
+        error: detail,
+        retryable,
+        retryAfterMs: Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? Math.round(retryAfterSeconds * 1e3) : Number.isFinite(retryAfterDate) ? Math.max(0, retryAfterDate - Date.now()) : void 0
+      }],
+      retryable
+    );
   }
   const user = userResponse.json?.data?.user ?? userResponse.json?.data ?? userResponse.json?.user ?? userResponse.json;
   const userId = Number(user?.id);
@@ -76781,7 +76795,21 @@ async function loadRainAdminWireGuardConfigs(panel, username) {
   const response = await panelRequestBinary(panel, `/api/user/${userId}/subscription/wireguard`);
   if (response.status < 200 || response.status >= 300) {
     const detail = response.status === 406 ? "PasarGuard has no WireGuard configs for this user. Enable or assign WireGuard to the user in the panel first." : `PasarGuard could not download the WireGuard configs: ${safeError(response)}`;
-    throw new RainApiError(detail, [], response.status >= 500 || response.status === 429);
+    const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+    const retryAfterSeconds = Number(response.retryAfter);
+    const retryAfterDate = response.retryAfter ? Date.parse(response.retryAfter) : Number.NaN;
+    throw new RainApiError(
+      detail,
+      [{
+        key: panelKey(panel),
+        kind: "rain_admin_wireguard",
+        status: response.status,
+        error: detail,
+        retryable,
+        retryAfterMs: Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? Math.round(retryAfterSeconds * 1e3) : Number.isFinite(retryAfterDate) ? Math.max(0, retryAfterDate - Date.now()) : void 0
+      }],
+      retryable
+    );
   }
   return {
     userId,
@@ -76792,6 +76820,25 @@ async function loadRainAdminWireGuardConfigs(panel, username) {
 }
 function isRainAdminWireGuardPanel(panel) {
   return panel.kind?.trim().toLowerCase() === "rain_admin_wireguard";
+}
+async function prepareRainAdminWireGuardDelivery(username, providerKey, ownerId, role) {
+  const panel = (await panels(ownerId, role)).find(
+    (candidate) => isRainAdminWireGuardPanel(candidate) && panelKey(candidate) === providerKey
+  );
+  if (!panel) {
+    throw new RainApiError(
+      "The selected Rain Admin WireGuard provider is disabled or missing credentials.",
+      [],
+      false
+    );
+  }
+  const { configs } = await loadRainAdminWireGuardConfigs(panel, username);
+  return {
+    provider_key: panelKey(panel),
+    username,
+    core: "wireguard",
+    locations: configs.map(({ id, name }) => ({ id, name }))
+  };
 }
 function isWireGuardDeliveryPanel(panel) {
   const kind = panel.kind?.trim().toLowerCase();
@@ -83587,6 +83634,11 @@ managementReady = pool.query(`
         queued_count INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS rain_admin_wireguard_backfill_runs (
+        provider_key TEXT PRIMARY KEY REFERENCES panel_configs(key) ON DELETE CASCADE,
+        queued_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS subscription_feed_cache (
         service_id BIGINT PRIMARY KEY,
         body_secret TEXT NOT NULL,
@@ -83827,6 +83879,83 @@ async function queueAzadPanelV2RayBackfill(client, providerKey) {
       )
       SELECT inserted_count.queued, updated_run.queued_count AS total_queued
       FROM inserted_count CROSS JOIN updated_run`,
+    [providerKey]
+  );
+  return {
+    queued: Number(queued.rows[0]?.queued ?? 0),
+    alreadyQueued: !created.rowCount
+  };
+}
+async function queueRainAdminWireGuardBackfill(client, providerKey) {
+  const created = await client.query(
+    `INSERT INTO rain_admin_wireguard_backfill_runs (provider_key)
+     VALUES ($1)
+     ON CONFLICT (provider_key) DO NOTHING
+     RETURNING provider_key`,
+    [providerKey]
+  );
+  const queued = await client.query(
+    `WITH eligible AS (
+       SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.lifecycle_version,
+              ROW_NUMBER() OVER (ORDER BY svc.id) AS queue_order
+       FROM reseller_services svc
+       WHERE svc.status = 'active'
+         AND (svc.expire_at IS NULL OR svc.expire_at > NOW())
+         AND (
+           COALESCE(svc.gb, 0) <= 0
+           OR COALESCE(
+             svc.last_remaining_bytes,
+             (svc.gb::float8 * 1073741824) - COALESCE(svc.last_used_bytes, 0)
+           ) > 0
+         )
+         AND svc.rain_username IS NOT NULL
+         AND EXISTS (
+           SELECT 1
+           FROM resellers reseller
+           WHERE reseller.tg_id = svc.reseller_tg_id
+             AND COALESCE(reseller.wireguard_enabled, 0) <> 0
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM reseller_service_wireguard_accounts account
+           WHERE account.service_id = svc.id
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM service_provision_jobs active_job
+           WHERE active_job.service_id = svc.id
+             AND active_job.action = 'providers'
+             AND active_job.status IN ('pending', 'running', 'retrying')
+             AND active_job.provider_keys @> jsonb_build_array($1::text)
+         )
+     ),
+     inserted_jobs AS (
+       INSERT INTO service_provision_jobs
+         (service_id, owner_tg_id, username, action, provider_keys, payload,
+          status, next_attempt_at, lifecycle_version)
+       SELECT eligible.id,
+              eligible.reseller_tg_id,
+              eligible.rain_username,
+              'providers',
+              jsonb_build_array($1::text),
+              jsonb_build_object('rainAdminWireGuardBackfill', true, 'role', 'reseller'),
+              'pending',
+              NOW() + ((eligible.queue_order - 1) * 5 * INTERVAL '1 second'),
+              eligible.lifecycle_version
+       FROM eligible
+       RETURNING id
+     ),
+     inserted_count AS (
+       SELECT COUNT(*)::int AS queued FROM inserted_jobs
+     ),
+     updated_run AS (
+       UPDATE rain_admin_wireguard_backfill_runs
+       SET queued_count = queued_count + (SELECT queued FROM inserted_count)
+       WHERE provider_key = $1
+       RETURNING queued_count
+     )
+     SELECT inserted_count.queued, updated_run.queued_count AS total_queued
+     FROM inserted_count CROSS JOIN updated_run`,
     [providerKey]
   );
   return {
@@ -85597,12 +85726,14 @@ router2.post("/panels", requireMasterAdmin, async (req, res) => {
       ]
     );
     const backfill = kind === "azadpanel_v2ray" && enabled && username && password ? await queueAzadPanelV2RayBackfill(client, key) : null;
+    const wireguardBackfill = kind === "rain_admin_wireguard" && enabled && username && password ? await queueRainAdminWireGuardBackfill(client, key) : null;
     await client.query("COMMIT");
     res.status(201).json({
       ...result.rows[0],
       has_data: Boolean(username && password),
       available_to_all_resellers: true,
-      backfill
+      backfill,
+      wireguardBackfill
     });
   } catch (error40) {
     await client.query("ROLLBACK").catch(() => void 0);
@@ -85664,8 +85795,9 @@ router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
     }
     const panel = result.rows[0];
     const backfill = panel.kind === "azadpanel_v2ray" && panel.enabled && panel.has_data ? await queueAzadPanelV2RayBackfill(client, key) : null;
+    const wireguardBackfill = panel.kind === "rain_admin_wireguard" && panel.enabled && panel.has_data ? await queueRainAdminWireGuardBackfill(client, key) : null;
     await client.query("COMMIT");
-    res.json({ ...panel, backfill });
+    res.json({ ...panel, backfill, wireguardBackfill });
   } catch (error40) {
     await client.query("ROLLBACK").catch(() => void 0);
     throw error40;
@@ -90320,6 +90452,26 @@ if (isBackgroundWorkersPaused()) {
 }
 var app_default = app;
 
+// src/lib/rain-admin-wireguard-backfill.ts
+var bytesPerGb = 1024 ** 3;
+function rainAdminWireGuardBackfillPlan(input) {
+  if (input.status !== "active") return { eligible: false, reason: "inactive" };
+  const nowUnix = Number.isFinite(input.nowUnix) ? Number(input.nowUnix) : Math.floor(Date.now() / 1e3);
+  const expiresAtUnix = input.expiresAtUnix === null || input.expiresAtUnix === void 0 ? null : Number(input.expiresAtUnix);
+  if (expiresAtUnix !== null && (!Number.isFinite(expiresAtUnix) || expiresAtUnix <= nowUnix)) {
+    return { eligible: false, reason: "expired" };
+  }
+  const gb = Number(input.gb);
+  if (!Number.isFinite(gb)) return { eligible: false, reason: "invalid" };
+  if (gb > 0) {
+    const lastRemaining = input.lastRemainingBytes === null || input.lastRemainingBytes === void 0 ? Number.NaN : Number(input.lastRemainingBytes);
+    const lastUsed = Number.isFinite(Number(input.lastUsedBytes)) ? Number(input.lastUsedBytes) : 0;
+    const remainingBytes = Number.isFinite(lastRemaining) ? lastRemaining : gb * bytesPerGb - lastUsed;
+    if (remainingBytes <= 0) return { eligible: false, reason: "quota_exhausted" };
+  }
+  return { eligible: true, expiresAtUnix };
+}
+
 // src/lib/provisioning-worker.ts
 import { hostname as hostname2 } from "node:os";
 import { randomUUID as randomUUID3 } from "node:crypto";
@@ -90433,6 +90585,23 @@ async function pauseRemainingV2rayBackfillJobs(job, delayMs) {
        AND action = 'providers'
        AND status IN ('pending', 'retrying')
        AND payload->>'azadPanelV2RayBackfill' = 'true'
+       AND provider_keys @> jsonb_build_array($3::text)`,
+    [delayMs, job.id, job.provider_keys[0]]
+  );
+}
+async function pauseRemainingRainAdminWireGuardBackfillJobs(job, delayMs) {
+  if (job.payload.rainAdminWireGuardBackfill !== true || job.provider_keys.length !== 1) return;
+  await pool.query(
+    `UPDATE service_provision_jobs
+     SET next_attempt_at = GREATEST(
+           next_attempt_at,
+           NOW() + ($1 * INTERVAL '1 millisecond')
+         ),
+         updated_at = NOW()
+     WHERE id <> $2
+       AND action = 'providers'
+       AND status IN ('pending', 'retrying')
+       AND payload->>'rainAdminWireGuardBackfill' = 'true'
        AND provider_keys @> jsonb_build_array($3::text)`,
     [delayMs, job.id, job.provider_keys[0]]
   );
@@ -90561,9 +90730,93 @@ async function refreshV2rayBackfillPlan(job) {
   job.payload.expiresAtUnix = plan.expiresAtUnix;
   return true;
 }
+async function processRainAdminWireGuardBackfill(job) {
+  const providerKey = job.provider_keys[0];
+  if (!providerKey || job.provider_keys.length !== 1) {
+    await failJob(job.id, "WireGuard backfill must target exactly one configured provider.");
+    return;
+  }
+  const result = await pool.query(
+    `SELECT svc.rain_username AS username,
+            svc.reseller_tg_id AS owner_tg_id,
+            svc.status,
+            svc.gb::float8 AS gb,
+            svc.last_remaining_bytes::text AS last_remaining_bytes,
+            svc.last_used_bytes::text AS last_used_bytes,
+            CASE WHEN svc.expire_at IS NULL THEN NULL
+                 ELSE FLOOR(EXTRACT(EPOCH FROM svc.expire_at))::bigint
+            END AS expires_at_unix,
+            COALESCE(reseller.wireguard_enabled, 0)::int AS wireguard_enabled
+     FROM reseller_services svc
+     LEFT JOIN resellers reseller ON reseller.tg_id = svc.reseller_tg_id
+     WHERE svc.id = $1 AND svc.lifecycle_version = $2
+     LIMIT 1`,
+    [job.service_id, job.lifecycle_version]
+  );
+  const service = result.rows[0];
+  if (!service?.username) {
+    await completeJob(job.id, "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u0634 \u0627\u0632 \u0622\u0645\u0627\u062F\u0647\u200C\u0633\u0627\u0632\u06CC WireGuard \u062D\u0630\u0641 \u0634\u062F \u06CC\u0627 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0646\u062F\u0627\u0631\u062F.");
+    return;
+  }
+  if (Number(service.wireguard_enabled) === 0) {
+    await completeJob(job.id, "\u062F\u0633\u062A\u0631\u0633\u06CC WireGuard \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u067E\u06CC\u0634 \u0627\u0632 \u0627\u062C\u0631\u0627\u06CC \u0635\u0641 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0634\u062F.");
+    return;
+  }
+  const plan = rainAdminWireGuardBackfillPlan({
+    status: service.status,
+    gb: service.gb,
+    lastRemainingBytes: service.last_remaining_bytes,
+    lastUsedBytes: service.last_used_bytes,
+    expiresAtUnix: service.expires_at_unix
+  });
+  if (!plan.eligible) {
+    const warning = plan.reason === "quota_exhausted" ? "\u0633\u0647\u0645\u06CC\u0647\u0654 \u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u0634 \u0627\u0632 \u0622\u0645\u0627\u062F\u0647\u200C\u0633\u0627\u0632\u06CC WireGuard \u062A\u0645\u0627\u0645 \u0634\u062F." : plan.reason === "invalid" ? "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0633\u0631\u0648\u06CC\u0633 \u0628\u0631\u0627\u06CC \u0622\u0645\u0627\u062F\u0647\u200C\u0633\u0627\u0632\u06CC WireGuard \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." : "\u0633\u0631\u0648\u06CC\u0633 \u067E\u06CC\u0634 \u0627\u0632 \u0622\u0645\u0627\u062F\u0647\u200C\u0633\u0627\u0632\u06CC WireGuard \u0645\u0646\u0642\u0636\u06CC \u06CC\u0627 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0634\u062F.";
+    await completeJob(job.id, warning);
+    return;
+  }
+  const existing = await pool.query(
+    "SELECT 1 FROM reseller_service_wireguard_accounts WHERE service_id = $1 LIMIT 1",
+    [job.service_id]
+  );
+  if (existing.rows[0]) {
+    await completeJob(job.id, "\u062C\u0632\u0626\u06CC\u0627\u062A WireGuard \u0627\u06CC\u0646 \u0633\u0631\u0648\u06CC\u0633 \u0642\u0628\u0644\u0627\u064B \u0630\u062E\u06CC\u0631\u0647 \u0634\u062F\u0647 \u0627\u0633\u062A.");
+    return;
+  }
+  const delivery = await prepareRainAdminWireGuardDelivery(
+    service.username,
+    providerKey,
+    Number(service.owner_tg_id),
+    "reseller"
+  );
+  const saved = await pool.query(
+    `INSERT INTO reseller_service_wireguard_accounts (service_id, delivery_secret)
+     VALUES ($1, $2)
+     ON CONFLICT (service_id) DO NOTHING
+     RETURNING service_id`,
+    [job.service_id, encryptPanelCredential(JSON.stringify(delivery))]
+  );
+  if (!saved.rows[0]) {
+    const confirmed = await pool.query(
+      "SELECT 1 FROM reseller_service_wireguard_accounts WHERE service_id = $1 LIMIT 1",
+      [job.service_id]
+    );
+    if (!confirmed.rows[0]) {
+      throw new Error("WireGuard delivery was not persisted after the provider returned its configs.");
+    }
+  }
+  await completeJob(job.id);
+  logger.info(
+    { jobId: job.id, serviceId: job.service_id, providerKey },
+    "Rain Admin WireGuard profile backfill completed"
+  );
+}
 async function processProviderJob(job) {
   const payload = job.payload;
   try {
+    if (payload.rainAdminWireGuardBackfill === true) {
+      await processRainAdminWireGuardBackfill(job);
+      return;
+    }
     if (payload.azadPanelV2RayBackfill === true && !await refreshV2rayBackfillPlan(job)) {
       return;
     }
@@ -90647,6 +90900,7 @@ async function processProviderJob(job) {
     const rateLimitDelayMs = results.some((item) => item.status === 429) ? retryAfterMs || retryDelayMs(job.attempts) : 0;
     if (rateLimitDelayMs > 0) {
       await pauseRemainingV2rayBackfillJobs(job, rateLimitDelayMs);
+      await pauseRemainingRainAdminWireGuardBackfillJobs(job, rateLimitDelayMs);
     }
     await retryJob(
       job,

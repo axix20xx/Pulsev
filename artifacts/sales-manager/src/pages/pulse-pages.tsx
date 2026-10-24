@@ -3773,6 +3773,14 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
   const loadPanels = async () => { setLoading(true); setError(''); try { const response = await fetch('/api/panels', { credentials: 'include' }); if (!response.ok) throw new Error('دریافت پنل‌ها ناموفق بود'); setItems(await response.json()); } finally { setLoading(false); } };
   useEffect(() => { loadPanels().catch((cause) => setError(cause instanceof Error ? cause.message : 'خطای پنل')); }, []);
   const backfillMessage = (payload: any) => {
+    const wireguardBackfill = payload?.wireguardBackfill;
+    if (wireguardBackfill) {
+      const queued = Number(wireguardBackfill.queued || 0);
+      if (queued > 0) {
+        return `${numberFa(queued)} سرویس واجد شرایط برای آماده‌سازی مرحله‌ای پروفایل WireGuard صف شد؛ حساب‌های Provider تغییر نمی‌کنند.`;
+      }
+      return 'سرویس فعال، منقضی‌نشده و واجد شرایط جدیدی برای آماده‌سازی WireGuard پیدا نشد.';
+    }
     const backfill = payload?.backfill;
     if (!backfill) return '';
     const queued = Number(backfill.queued || 0);

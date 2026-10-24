@@ -2158,3 +2158,17 @@ mtime_ms = 1792870381516
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b1a0271e-dbb9-42c7-9bf1-b5d2e4355395/3b4eba89-fcf7-43d1-bf2c-e0651abef134"
 storage_version_token = "1792870417479772"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "UfaiHDJDkH4dy2ylrim_Y"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T20-10-53-255Z.zip"
+type = "unspecified"
+title = "Updated Hostinger migration ZIP"
+description = "Full Hostinger deployment package with the Rain Admin WireGuard read-only backfill and refreshed panel bundle. Build and release validation passed; this does not deploy it to Hostinger."
+logical_id = "b245d541-6807-4b42-81cf-1bc79a1e20d6"
+content_hash = "sha256:b418931691856b565cf552716532291918dfd0d0465c877baf0d45f18e6a2e39"
+size = 29090384
+mtime_ms = 1792872782235
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b245d541-6807-4b42-81cf-1bc79a1e20d6/bd4c447f-1946-4dfa-9670-305eb453c81c"
+storage_version_token = "1792872839356349"
+content_type = "application/octet-stream"

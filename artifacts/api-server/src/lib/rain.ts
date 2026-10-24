@@ -1027,7 +1027,25 @@ async function loadRainAdminWireGuardConfigs(
     const detail = userResponse.status === 404
       ? "PasarGuard user was not found. Create the service with the main Rain Admin provider before requesting WireGuard."
       : `PasarGuard could not read the WireGuard user: ${safeError(userResponse)}`;
-    throw new RainApiError(detail, [], userResponse.status >= 500 || userResponse.status === 429);
+    const retryable = userResponse.status === 408 || userResponse.status === 429 || userResponse.status >= 500;
+    const retryAfterSeconds = Number(userResponse.retryAfter);
+    const retryAfterDate = userResponse.retryAfter ? Date.parse(userResponse.retryAfter) : Number.NaN;
+    throw new RainApiError(
+      detail,
+      [{
+        key: panelKey(panel),
+        kind: "rain_admin_wireguard",
+        status: userResponse.status,
+        error: detail,
+        retryable,
+        retryAfterMs: Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+          ? Math.round(retryAfterSeconds * 1000)
+          : Number.isFinite(retryAfterDate)
+            ? Math.max(0, retryAfterDate - Date.now())
+            : undefined,
+      }],
+      retryable,
+    );
   }
 
   const user = userResponse.json?.data?.user
@@ -1044,7 +1062,25 @@ async function loadRainAdminWireGuardConfigs(
     const detail = response.status === 406
       ? "PasarGuard has no WireGuard configs for this user. Enable or assign WireGuard to the user in the panel first."
       : `PasarGuard could not download the WireGuard configs: ${safeError(response)}`;
-    throw new RainApiError(detail, [], response.status >= 500 || response.status === 429);
+    const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+    const retryAfterSeconds = Number(response.retryAfter);
+    const retryAfterDate = response.retryAfter ? Date.parse(response.retryAfter) : Number.NaN;
+    throw new RainApiError(
+      detail,
+      [{
+        key: panelKey(panel),
+        kind: "rain_admin_wireguard",
+        status: response.status,
+        error: detail,
+        retryable,
+        retryAfterMs: Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+          ? Math.round(retryAfterSeconds * 1000)
+          : Number.isFinite(retryAfterDate)
+            ? Math.max(0, retryAfterDate - Date.now())
+            : undefined,
+      }],
+      retryable,
+    );
   }
 
   return {
@@ -1057,6 +1093,31 @@ async function loadRainAdminWireGuardConfigs(
 
 function isRainAdminWireGuardPanel(panel: Panel): boolean {
   return panel.kind?.trim().toLowerCase() === "rain_admin_wireguard";
+}
+
+export async function prepareRainAdminWireGuardDelivery(
+  username: string,
+  providerKey: string,
+  ownerId?: number,
+  role?: string,
+): Promise<WireGuardDelivery> {
+  const panel = (await panels(ownerId, role)).find(
+    (candidate) => isRainAdminWireGuardPanel(candidate) && panelKey(candidate) === providerKey,
+  );
+  if (!panel) {
+    throw new RainApiError(
+      "The selected Rain Admin WireGuard provider is disabled or missing credentials.",
+      [],
+      false,
+    );
+  }
+  const { configs } = await loadRainAdminWireGuardConfigs(panel, username);
+  return {
+    provider_key: panelKey(panel),
+    username,
+    core: "wireguard",
+    locations: configs.map(({ id, name }) => ({ id, name })),
+  };
 }
 
 function isWireGuardDeliveryPanel(panel: Panel): boolean {
