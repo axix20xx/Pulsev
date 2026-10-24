@@ -3,11 +3,11 @@ name: PasarGuard Provider contract
 description: How the rain_admin provider kind maps to PasarGuard user access and Group 1.
 ---
 
-The `rain_admin` provider kind represents PasarGuard. Use its canonical singular `/api/user` routes; Group 1 grants the intended complete service access.
+The `rain_admin` provider kind represents PasarGuard. Use its canonical singular `/api/user` routes. New accounts should receive all group IDs returned by the panel's group-list endpoint; do not assume Group 1 exists.
 
-**Why:** Plural `/api/users` fallbacks can return misleading 404 responses, and PasarGuard user access is group-based rather than assigned through a `service_ids` field.
+**Why:** PasarGuard user access is group-based, and deployments can have different group IDs or no Group 1.
 
-**How to apply:** Create and renew with active status plus Group 1, preserve existing groups when reconciling older users, and never treat a plural-route 404 as proof that a PasarGuard user is disabled.
+**How to apply:** Prefer `GET /api/groups/simple` (operator-friendly) and fall back to `GET /api/groups`; assign every returned ID when creating a new user. Preserve existing users' group memberships during renewal. Do not globally toggle disabled group states as part of account provisioning.
 
 Renewal must explicitly call `POST /api/user/{username}/reset` after updating the plan. Updating `expire` and `data_limit` alone does not clear PasarGuard's consumed traffic.
 

@@ -185,3 +185,23 @@ test("backfill does not create a user when no group IDs are available", async ()
   );
   assert.equal(createCalls, 0);
 });
+
+test("backfill does not create a user when the panel denies group lookup", async () => {
+  let createCalls = 0;
+  await assert.rejects(
+    ensureRainAdminBackfillAccount(
+      { username: "svc-user", remainingBytes: 1024, expiresAtUnix: 200 },
+      [{
+        key: "panelpasargad",
+        lookup: async () => ({ status: 404 }),
+        listGroupIds: async () => ({ status: 403, error: "forbidden" }),
+        create: async () => {
+          createCalls += 1;
+          return { status: 201 };
+        },
+      }],
+    ),
+    /could not list user groups/,
+  );
+  assert.equal(createCalls, 0);
+});

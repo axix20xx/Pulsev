@@ -3,6 +3,7 @@ import { pool } from "@workspace/db";
 import { decryptPanelCredential } from "./panel-credentials";
 import { parsePasarGuardWireGuardArchive } from "./pasarguard-wireguard-archive";
 import { samePasarGuardInstance } from "./pasarguard-instance";
+import { parsePasarGuardGroupIds } from "./pasarguard-groups";
 import {
   ensureRainAdminBackfillAccount,
   RainAdminBackfillError,
@@ -2129,20 +2130,7 @@ async function readPasarGuardGroupIds(
     lastResponse = response;
     if (response.status < 200 || response.status >= 300) continue;
 
-    const root = response.json;
-    const data = root?.data;
-    const groups = Array.isArray(root)
-      ? root
-      : Array.isArray(data)
-        ? data
-        : Array.isArray(root?.groups)
-          ? root.groups
-          : Array.isArray(data?.groups)
-            ? data.groups
-            : [];
-    const groupIds = [...new Set(groups
-      .map((group: any) => Number(typeof group === "number" ? group : group?.id))
-      .filter((id: number) => Number.isInteger(id) && id > 0))];
+    const groupIds = parsePasarGuardGroupIds(response.json);
     if (groupIds.length) return { status: response.status, groupIds };
   }
   return {
@@ -2647,7 +2635,10 @@ export async function repairXrayProviderUser(
   };
 
   if (kind === "rain_admin") {
-    body.group_ids = groupIdsFromUser(existing.json);
+    const existingGroupIds = groupIdsFromUser(existing.json);
+    body.group_ids = existingGroupIds.length
+      ? existingGroupIds
+      : await requiredPasarGuardGroupIds(panel);
   }
   for (const field of [
     "group_ids",

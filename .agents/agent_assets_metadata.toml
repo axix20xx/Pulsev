@@ -2242,3 +2242,17 @@ mtime_ms = 1792877778167
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/c565c5b2-34a1-4fbd-8b2a-38d136cff2d9/38c37e3e-79de-4c04-8273-2d216f155da5"
 storage_version_token = "1792877830134636"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "wJMbbGb3e_IjKiotHEHCU"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-24T21-54-51-909Z.zip"
+type = "unspecified"
+title = "Updated Hostinger deployment ZIP"
+description = "Fixes PasarGuard Group not found errors by reading the panel’s real group IDs and assigning them to newly created Rain Admin WireGuard accounts. Existing memberships and global group settings are preserved."
+logical_id = "f6e12d91-aab8-44ba-b814-d14fa865128f"
+content_hash = "sha256:280e8b473f5079ed19d184552d3a2cfd1f532f8f6a81e0abec2fe52fc916a965"
+size = 29105848
+mtime_ms = 1792879014574
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f6e12d91-aab8-44ba-b814-d14fa865128f/603d29a4-284f-489a-9f63-80c37f63d7fd"
+storage_version_token = "1792879049427063"
+content_type = "application/octet-stream"

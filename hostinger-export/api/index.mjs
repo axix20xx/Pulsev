@@ -75776,6 +75776,20 @@ function samePasarGuardInstance(left, right) {
   }
 }
 
+// src/lib/pasarguard-groups.ts
+function parsePasarGuardGroupIds(payload) {
+  if (!payload || typeof payload !== "object") return [];
+  const root = payload;
+  const data = root.data;
+  const dataObject = data && typeof data === "object" && !Array.isArray(data) ? data : null;
+  const groups = Array.isArray(payload) ? payload : Array.isArray(data) ? data : Array.isArray(root.groups) ? root.groups : Array.isArray(dataObject?.groups) ? dataObject.groups : [];
+  return [...new Set(groups.map((group) => {
+    if (typeof group === "number" || typeof group === "string") return Number(group);
+    if (!group || typeof group !== "object") return Number.NaN;
+    return Number(group.id);
+  }).filter((id) => Number.isSafeInteger(id) && id > 0))];
+}
+
 // src/lib/rain-admin-wireguard-account.ts
 var RainAdminBackfillError = class extends Error {
   retryable;
@@ -75824,13 +75838,27 @@ async function ensureRainAdminBackfillAccount(input, providers) {
     );
   }
   const provider = missing[0];
+  const groups = await provider.listGroupIds();
+  if (groups.status < 200 || groups.status >= 300) {
+    throw new RainAdminBackfillError(
+      `Rain Admin ${provider.key} could not list user groups: ${groups.error || `HTTP ${groups.status}`}`,
+      retryableStatus(groups.status)
+    );
+  }
+  const groupIds = [...new Set((groups.groupIds ?? []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  if (!groupIds.length) {
+    throw new RainAdminBackfillError(
+      `Rain Admin ${provider.key} returned no valid groups; the WireGuard account was not created.`,
+      false
+    );
+  }
   const created = await provider.create({
     username: input.username.trim(),
     status: "active",
     expire: input.expiresAtUnix,
     data_limit: input.remainingBytes === null ? 0 : Math.max(1, Math.ceil(input.remainingBytes)),
     data_limit_reset_strategy: "no_reset",
-    group_ids: [1],
+    group_ids: groupIds,
     note: "Pulse WireGuard backfill"
   });
   if (created.status >= 200 && created.status < 300) {
@@ -76978,6 +77006,17 @@ async function ensureRainAdminWireGuardBackfillUser(username, remainingBytes, ex
           const response = await lookupPasarGuardUser(accountPanel, username);
           return { status: response.status, error: safeError(response) };
         },
+        listGroupIds: async () => {
+          try {
+            return await readPasarGuardGroupIds(accountPanel);
+          } catch (error40) {
+            return {
+              status: 503,
+              groupIds: [],
+              error: error40 instanceof Error ? error40.message : "Group lookup failed."
+            };
+          }
+        },
         create: async (body) => {
           const response = await panelRequest(accountPanel, "POST", "/api/user", body);
           return { status: response.status, error: safeError(response) };
@@ -77723,7 +77762,47 @@ function groupIdsFromUser(value) {
   const payload = nestedPayload(value);
   const direct = Array.isArray(payload?.group_ids) ? payload.group_ids : [];
   const groups = Array.isArray(payload?.groups) ? payload.groups.map((group) => group?.id) : [];
-  return [...new Set([...direct, ...groups, 1].map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  return [...new Set([...direct, ...groups].map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+}
+async function readPasarGuardGroupIds(panel) {
+  let lastResponse = null;
+  for (const path of ["/api/groups/simple", "/api/groups"]) {
+    const response = await panelRequest(panel, "GET", path);
+    lastResponse = response;
+    if (response.status < 200 || response.status >= 300) continue;
+    const groupIds = parsePasarGuardGroupIds(response.json);
+    if (groupIds.length) return { status: response.status, groupIds };
+  }
+  return {
+    status: lastResponse?.status ?? 503,
+    groupIds: [],
+    error: lastResponse ? safeError(lastResponse) || "PasarGuard returned no valid group IDs." : "PasarGuard did not return a group list."
+  };
+}
+async function requiredPasarGuardGroupIds(panel) {
+  const result = await readPasarGuardGroupIds(panel);
+  if (result.status < 200 || result.status >= 300) {
+    const retryable = result.status === 408 || result.status === 429 || result.status >= 500;
+    throw new RainApiError(
+      `PasarGuard panel ${panelKey(panel)} could not list account groups: ${result.error || `HTTP ${result.status}`}`,
+      [{
+        key: panelKey(panel),
+        kind: "rain_admin",
+        status: result.status,
+        error: result.error,
+        retryable
+      }],
+      retryable
+    );
+  }
+  if (!result.groupIds.length) {
+    throw new RainApiError(
+      `PasarGuard panel ${panelKey(panel)} has no groups available; the account was not created.`,
+      [],
+      false
+    );
+  }
+  return result.groupIds;
 }
 async function marzbanInbounds(panel) {
   const response = await panelRequest(panel, "GET", "/api/inbounds");
@@ -77750,13 +77829,21 @@ async function marzbanInbounds(panel) {
 async function provisionRainAdmin(panel, username, gb, days, resetUsage) {
   const encoded = encodeURIComponent(username);
   const existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (existing.status !== 200 && ![404, 405].includes(existing.status)) {
+    throw new RainApiError(
+      `PasarGuard panel ${panelKey(panel)} could not check the existing user: ${safeError(existing)}`,
+      [{ key: panelKey(panel), kind: "rain_admin", status: existing.status, error: safeError(existing) }],
+      existing.status === 408 || existing.status === 429 || existing.status >= 500
+    );
+  }
+  const existingGroups = existing.status === 200 ? groupIdsFromUser(existing.json) : [];
   const body = {
     username,
     status: "active",
     expire: Math.floor((Date.now() + Math.max(0, days) * 864e5) / 1e3),
     data_limit: bytesForGb(gb),
     data_limit_reset_strategy: "no_reset",
-    group_ids: existing.status === 200 ? groupIdsFromUser(existing.json) : [1],
+    group_ids: existingGroups.length ? existingGroups : await requiredPasarGuardGroupIds(panel),
     note: `Pulse provisioned ${(/* @__PURE__ */ new Date()).toISOString()}`
   };
   const candidates = existing.status === 200 ? [["PUT", `/api/user/${encoded}`]] : [["POST", "/api/user"]];
@@ -78072,7 +78159,8 @@ async function repairXrayProviderUser(username, gb, expiresAt, providerKey, owne
     data_limit_reset_strategy: typeof current?.data_limit_reset_strategy === "string" ? current.data_limit_reset_strategy : "no_reset"
   };
   if (kind === "rain_admin") {
-    body.group_ids = groupIdsFromUser(existing.json);
+    const existingGroupIds = groupIdsFromUser(existing.json);
+    body.group_ids = existingGroupIds.length ? existingGroupIds : await requiredPasarGuardGroupIds(panel);
   }
   for (const field of [
     "group_ids",
