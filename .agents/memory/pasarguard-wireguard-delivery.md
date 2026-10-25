@@ -37,8 +37,8 @@ Both public WireGuard retrieval and the create/retry action must use the same Ra
 
 **How to apply:** Route both actions through the provider-aware backfill/delivery helper, then persist the same delivery record. Return only sanitized provider error detail so missing groups or profiles can be diagnosed without exposing credentials.
 
-When an active Rain Admin WireGuard extension is configured, a cached delivery from another WireGuard provider must not hide it.
+Public subscription and mobile WireGuard delivery is a collection: include every enabled WireGuard provider for the service, such as AzadPanel and the standalone Rain Admin extension.
 
-**Why:** The service has one saved delivery pointer, so returning an older provider first prevents the new Rain Admin profiles from ever reaching `/sub` or mobile.
+**Why:** The user explicitly asked to see both providers and any other configured WireGuard sources together rather than one provider taking precedence over another.
 
-**How to apply:** Reuse a saved delivery when it already belongs to the configured Rain Admin extension; otherwise ensure and fetch the extension delivery, then replace the saved pointer without deleting the previous provider account.
+**How to apply:** Persist each delivery under its provider key, group profiles by provider in `/sub` and mobile, and make combined ZIP and iOS bundles include every enabled provider. Keep provider-specific download links available and never reuse identities across providers.

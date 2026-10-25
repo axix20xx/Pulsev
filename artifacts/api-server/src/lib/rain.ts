@@ -84,9 +84,9 @@ function cacheAzadPanelXrayReadRoute(
 
 export async function readSavedWireGuardProviderUsernames(
   serviceIds: number[],
-): Promise<Map<number, { providerKey: string | null; username: string | null }>> {
+): Promise<Map<number, Map<string, string>>> {
   const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
-  const accounts = new Map<number, { providerKey: string | null; username: string | null }>();
+  const accounts = new Map<number, Map<string, string>>();
   if (!ids.length) return accounts;
   const result = await pool.query<{ service_id: number | string; delivery_secret: string }>(
     `SELECT service_id, delivery_secret
@@ -97,25 +97,45 @@ export async function readSavedWireGuardProviderUsernames(
   for (const row of result.rows) {
     const serviceId = Number(row.service_id);
     const decoded = decryptPanelCredential(row.delivery_secret);
-    let providerKey: string | null = null;
-    let username: string | null = null;
+    const serviceAccounts = accounts.get(serviceId) ?? new Map<string, string>();
     if (decoded) {
       try {
-        const delivery = JSON.parse(decoded) as { core?: unknown; provider_key?: unknown; username?: unknown };
-        if (delivery.core === "wireguard") {
-          providerKey = typeof delivery.provider_key === "string" && delivery.provider_key.trim()
-            ? delivery.provider_key.trim()
-            : null;
-          username = typeof delivery.username === "string" && delivery.username.trim()
-            ? delivery.username.trim()
-            : null;
+        const parsed = JSON.parse(decoded);
+        for (const delivery of Array.isArray(parsed) ? parsed : [parsed]) {
+          if (delivery?.core !== "wireguard") continue;
+          const providerKey = typeof delivery.provider_key === "string" ? delivery.provider_key.trim() : "";
+          const username = typeof delivery.username === "string" ? delivery.username.trim() : "";
+          if (providerKey && username) serviceAccounts.set(providerKey, username);
         }
       } catch {
-        // Retain a null map entry so callers know an account exists but its
-        // provider identity cannot safely be used.
+        // Keep the map entry so callers can recognize unreadable saved account data.
       }
     }
-    accounts.set(serviceId, { providerKey, username });
+    if (serviceAccounts.size === 0) serviceAccounts.set("", "");
+    accounts.set(serviceId, serviceAccounts);
+  }
+
+  const providerRows = await pool.query<{
+    service_id: number | string;
+    provider_key: string;
+    provider_username: string;
+  }>(
+    `SELECT service_id, provider_key, provider_username
+     FROM reseller_service_wireguard_provider_accounts
+     WHERE service_id = ANY($1::bigint[])`,
+    [ids],
+  );
+  for (const row of providerRows.rows) {
+    const serviceId = Number(row.service_id);
+    const providerKey = row.provider_key.trim();
+    const username = row.provider_username.trim();
+    const serviceAccounts = accounts.get(serviceId) ?? new Map<string, string>();
+    if (providerKey && username) {
+      serviceAccounts.delete("");
+      serviceAccounts.set(providerKey, username);
+    }
+    else if (!serviceAccounts.size) serviceAccounts.set("", "");
+    accounts.set(serviceId, serviceAccounts);
   }
   return accounts;
 }
@@ -1142,6 +1162,18 @@ export async function isConfiguredRainAdminWireGuardProvider(
   );
 }
 
+export async function isConfiguredWireGuardProvider(
+  providerKey: string,
+  ownerId?: number,
+  role?: string,
+): Promise<boolean> {
+  const panel = (await panels(ownerId, role)).find((candidate) => panelKey(candidate) === providerKey.trim());
+  if (!panel) return false;
+  if (isRainAdminWireGuardPanel(panel)) return true;
+  if (!isAzadPanelCoreCandidate(panel.kind, "wireguard")) return false;
+  return await azadPanelCore(panel) === "wireguard";
+}
+
 async function matchingRainAdminPanels(panel: Panel): Promise<Panel[]> {
   return (await panels()).filter((candidate) =>
     candidate.kind?.trim().toLowerCase() === "rain_admin"
@@ -1526,7 +1558,7 @@ export async function readPanelUsages(
 ): Promise<PanelUsage[]> {
   const result: PanelUsage[] = [];
   const configuredPanels = await panels(ownerId, role);
-  let wireGuardAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
+  let wireGuardAccounts = new Map<number, Map<string, string>>();
   let wireGuardLookupFailed = false;
   let ipsecAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
   let ipsecLookupFailed = false;
@@ -1565,10 +1597,12 @@ export async function readPanelUsages(
     const panelType = panel.kind?.trim().toLowerCase();
     const azadPanelWireGuard = panelType === "azadpanel_wireguard";
     const rainAdminWireGuard = isRainAdminWireGuardPanel(panel);
-    const wireGuardPanel = azadPanelWireGuard || rainAdminWireGuard;
+    const savedWireGuardAccounts = wireGuardAccounts.get(serviceId);
+    const savedWireGuardUsername = savedWireGuardAccounts?.get(panelKey(panel));
+    const wireGuardPanel = azadPanelWireGuard || rainAdminWireGuard || Boolean(savedWireGuardUsername);
     const ipsecPanel = panel.kind?.trim().toLowerCase() === "azadpanel_ipsec";
     const v2rayPanel = panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
-    const openVpnPanel = isAzadPanelCoreCandidate(panel.kind, "openvpn");
+    const openVpnPanel = !wireGuardPanel && isAzadPanelCoreCandidate(panel.kind, "openvpn");
     let requestUsername = username;
     if (openVpnPanel) {
       if (openVpnLookupFailed) {
@@ -1600,9 +1634,8 @@ export async function readPanelUsages(
       requestUsername = v2rayAccounts.get(serviceId)?.get(panelKey(panel)) ?? username;
     }
     if (azadPanelWireGuard) {
-      if (!wireGuardLookupFailed && !wireGuardAccounts.has(serviceId)) continue;
-      const savedAccount = wireGuardAccounts.get(serviceId);
-      if (wireGuardLookupFailed || !savedAccount?.providerKey) {
+      if (!wireGuardLookupFailed && !savedWireGuardAccounts) continue;
+      if (wireGuardLookupFailed || savedWireGuardAccounts?.has("") || !savedWireGuardUsername) {
         result.push({
           panelKey: panelKey(panel),
           username: "",
@@ -1613,23 +1646,10 @@ export async function readPanelUsages(
         });
         continue;
       }
-      if (savedAccount.providerKey !== panelKey(panel)) continue;
-      if (!savedAccount.username) {
-        result.push({
-          panelKey: panelKey(panel),
-          username: "",
-          usedBytes: 0,
-          totalBytes: null,
-          expiresAt: null,
-          stale: true,
-        });
-        continue;
-      }
-      requestUsername = savedAccount.username;
+      requestUsername = savedWireGuardUsername;
     }
     if (rainAdminWireGuard) {
-      const savedAccount = wireGuardAccounts.get(serviceId);
-      if (wireGuardLookupFailed || (savedAccount && !savedAccount.providerKey)) {
+      if (wireGuardLookupFailed || savedWireGuardAccounts?.has("")) {
         result.push({
           panelKey: panelKey(panel),
           username: "",
@@ -1640,20 +1660,22 @@ export async function readPanelUsages(
         });
         continue;
       }
-      if (savedAccount?.providerKey === panelKey(panel)) {
-        if (!savedAccount.username) {
-          result.push({
-            panelKey: panelKey(panel),
-            username: "",
-            usedBytes: 0,
-            totalBytes: null,
-            expiresAt: null,
-            stale: true,
-          });
-          continue;
-        }
-        requestUsername = savedAccount.username;
+      if (savedWireGuardAccounts?.size && !savedWireGuardUsername) continue;
+      if (savedWireGuardUsername) requestUsername = savedWireGuardUsername;
+    }
+    if (panelType === "azadpanel" && savedWireGuardUsername) {
+      if (wireGuardLookupFailed) {
+        result.push({
+          panelKey: panelKey(panel),
+          username: "",
+          usedBytes: 0,
+          totalBytes: null,
+          expiresAt: null,
+          stale: true,
+        });
+        continue;
       }
+      requestUsername = savedWireGuardUsername;
     }
     if (ipsecPanel) {
       if (!ipsecLookupFailed && !ipsecAccounts.has(serviceId)) continue;
@@ -1764,7 +1786,7 @@ export async function readPanelUsages(
       expiresAt: expiryValue(payload),
     });
   }
-  const savedAccount = wireGuardAccounts.get(serviceId);
+  const savedAccounts = wireGuardAccounts.get(serviceId);
   if (wireGuardLookupFailed) {
     result.push({
       panelKey: "WireGuard",
@@ -1774,7 +1796,7 @@ export async function readPanelUsages(
       expiresAt: null,
       stale: true,
     });
-  } else if (savedAccount && !savedAccount.providerKey) {
+  } else if (savedAccounts?.has("")) {
     if (!result.some((usage) => configuredPanels.some((panel) =>
       isWireGuardDeliveryPanel(panel)
       && usage.panelKey === panelKey(panel),
@@ -1788,21 +1810,21 @@ export async function readPanelUsages(
         stale: true,
       });
     }
-  } else if (
-    savedAccount?.providerKey
-    && !configuredPanels.some((panel) =>
-      isWireGuardDeliveryPanel(panel)
-      && panelKey(panel) === savedAccount.providerKey,
-    )
-  ) {
-    result.push({
-      panelKey: savedAccount.providerKey,
-      username: "",
-      usedBytes: 0,
-      totalBytes: null,
-      expiresAt: null,
-      stale: true,
-    });
+  } else if (savedAccounts?.size) {
+    for (const providerKey of savedAccounts.keys()) {
+      if (configuredPanels.some((panel) =>
+        panelKey(panel) === providerKey
+        && (isWireGuardDeliveryPanel(panel) || panel.kind?.trim().toLowerCase() === "azadpanel"),
+      )) continue;
+      result.push({
+        panelKey: providerKey,
+        username: "",
+        usedBytes: 0,
+        totalBytes: null,
+        expiresAt: null,
+        stale: true,
+      });
+    }
   }
   const savedIpsecAccount = ipsecAccounts.get(serviceId);
   if (ipsecLookupFailed) {
@@ -1857,7 +1879,7 @@ export async function disablePanelUser(
   let attempted = 0;
   let disabled = 0;
   const configuredPanels = await panels(ownerId, role);
-  let wireGuardAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
+  let wireGuardAccounts = new Map<number, Map<string, string>>();
   let wireGuardLookupFailed = false;
   let ipsecAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
   let ipsecLookupFailed = false;
@@ -1878,17 +1900,14 @@ export async function disablePanelUser(
   } catch {
     v2rayLookupFailed = true;
   }
-  const savedWireGuardAccount = wireGuardAccounts.get(serviceId);
+  const savedWireGuardAccounts = wireGuardAccounts.get(serviceId);
+  const enabledWireGuardProviderKeys = new Set(configuredPanels
+    .filter((panel) => isWireGuardDeliveryPanel(panel) || savedWireGuardAccounts?.has(panelKey(panel)))
+    .map(panelKey));
   const wireGuardAccountUnresolved = wireGuardLookupFailed
-    ? true
-    : Boolean(savedWireGuardAccount && (
-      !savedWireGuardAccount.providerKey
-      || !savedWireGuardAccount.username
-      || !configuredPanels.some((panel) =>
-      isWireGuardDeliveryPanel(panel)
-      && panelKey(panel) === savedWireGuardAccount.providerKey,
-      )
-    ));
+    || Boolean(savedWireGuardAccounts?.has(""))
+    || Boolean(savedWireGuardAccounts && [...savedWireGuardAccounts.keys()]
+      .some((providerKey) => providerKey && !enabledWireGuardProviderKeys.has(providerKey)));
   if (wireGuardAccountUnresolved) attempted += 1;
   const savedIpsecAccount = ipsecAccounts.get(serviceId);
   const ipsecAccountUnresolved = ipsecLookupFailed
@@ -1914,10 +1933,20 @@ export async function disablePanelUser(
       if (v2rayLookupFailed) continue;
       providerUsername = v2rayAccounts.get(serviceId)?.get(panelKey(panel)) ?? username;
     }
-    if (panel.kind?.trim().toLowerCase() === "azadpanel_wireguard") {
-      if (wireGuardAccountUnresolved || !savedWireGuardAccount || savedWireGuardAccount.providerKey !== panelKey(panel)) continue;
-      if (!savedWireGuardAccount.username) continue;
-      providerUsername = savedWireGuardAccount.username;
+    const savedWireGuardUsername = savedWireGuardAccounts?.get(panelKey(panel));
+    if (
+      panel.kind?.trim().toLowerCase() === "azadpanel_wireguard"
+      || isRainAdminWireGuardPanel(panel)
+      || savedWireGuardUsername
+    ) {
+      if (wireGuardLookupFailed || savedWireGuardAccounts?.has("")) continue;
+      if (savedWireGuardUsername) {
+        providerUsername = savedWireGuardUsername;
+      } else if (savedWireGuardAccounts?.size) {
+        continue;
+      } else if (panel.kind?.trim().toLowerCase() !== "rain_admin_wireguard") {
+        continue;
+      }
     }
     if (panel.kind?.trim().toLowerCase() === "azadpanel_ipsec") {
       if (ipsecAccountUnresolved || !savedIpsecAccount || savedIpsecAccount.providerKey !== panelKey(panel)) continue;
@@ -3104,18 +3133,30 @@ export async function prepareConfiguredWireGuardDeliveries(
   const configuredPanels = await panels(ownerId, role);
   const savedByProvider = new Map(savedDeliveries.map((delivery) => [delivery.provider_key, delivery]));
   const candidates: Panel[] = [];
+  const candidateKeys = new Set<string>();
   const errors: WireGuardProviderFailure[] = [];
+  const discoveryFailed = new Set<string>();
 
   for (const panel of configuredPanels) {
     if (isRainAdminWireGuardPanel(panel)) {
-      candidates.push(panel);
+      if (!candidateKeys.has(panelKey(panel))) {
+        candidates.push(panel);
+        candidateKeys.add(panelKey(panel));
+      }
       continue;
     }
     if (!isAzadPanelCoreCandidate(panel.kind, "wireguard")) continue;
     try {
-      if (await azadPanelCore(panel) === "wireguard") candidates.push(panel);
+      if (await azadPanelCore(panel) === "wireguard" && !candidateKeys.has(panelKey(panel))) {
+        candidates.push(panel);
+        candidateKeys.add(panelKey(panel));
+      }
     } catch (error) {
-      candidates.push(panel);
+      if (!candidateKeys.has(panelKey(panel))) {
+        candidates.push(panel);
+        candidateKeys.add(panelKey(panel));
+      }
+      discoveryFailed.add(panelKey(panel));
       if (!savedByProvider.has(panelKey(panel))) {
         errors.push({
           provider_key: panelKey(panel),
@@ -3132,6 +3173,15 @@ export async function prepareConfiguredWireGuardDeliveries(
     const saved = savedByProvider.get(providerKey);
     if (saved) {
       deliveries.push(saved);
+      continue;
+    }
+    if (discoveryFailed.has(providerKey)) continue;
+    if (remainingBytes === 0) {
+      errors.push({
+        provider_key: providerKey,
+        provider_label: isRainAdminWireGuardPanel(panel) ? "Rain Admin · WireGuard" : "AzadPanel · WireGuard",
+        error: "This subscription has no remaining quota, so a new provider account was not created.",
+      });
       continue;
     }
     try {

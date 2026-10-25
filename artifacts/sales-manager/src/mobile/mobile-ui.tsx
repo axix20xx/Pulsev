@@ -130,12 +130,19 @@ type MobileOpenVpnDelivery = {
 };
 
 type MobileWireGuardDelivery = {
-  provider_key: string;
-  username: string;
   core: "wireguard";
   bundle_url: string;
   bundle_mobileconfig_url: string;
-  locations: Array<{ id: string; name: string; config_url: string; mobileconfig_url: string }>;
+  providers?: Array<{
+    provider_key: string;
+    provider_label: string;
+    username: string;
+    bundle_url: string;
+    bundle_mobileconfig_url: string;
+    locations: Array<{ id: string; name: string; config_url: string; mobileconfig_url: string }>;
+  }>;
+  provider_errors?: Array<{ provider_key: string; provider_label: string; error: string }>;
+  locations: Array<{ id: string; name: string; config_url: string; mobileconfig_url: string; provider_key?: string; provider_label?: string }>;
 };
 
 type MobileIpsecDelivery = {
@@ -260,7 +267,9 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
       .then((payload) => {
         if (!active) return;
         setWireguardData(payload);
-        setWireguardError('');
+        setWireguardError(Array.isArray(payload?.provider_errors) && payload.provider_errors.length
+          ? payload.provider_errors.map((entry) => `${entry.provider_label || entry.provider_key}: ${entry.error}`).join(' · ')
+          : '');
       })
       .catch((cause) => {
         if (active) setWireguardError(cause instanceof Error ? cause.message : 'دریافت کانفیگ WireGuard ناموفق بود.');
@@ -348,6 +357,9 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
       const payload = await response.json().catch(() => null) as (MobileWireGuardDelivery & { error?: string }) | null;
       if (!response.ok || !payload) throw new Error(payload?.error || 'ساخت کانفیگ WireGuard ناموفق بود.');
       setWireguardData(payload);
+      setWireguardError(Array.isArray(payload.provider_errors) && payload.provider_errors.length
+        ? payload.provider_errors.map((entry) => `${entry.provider_label || entry.provider_key}: ${entry.error}`).join(' · ')
+        : '');
     } catch (cause) {
       setWireguardError(cause instanceof Error ? cause.message : 'ساخت کانفیگ WireGuard ناموفق بود.');
     } finally {
@@ -532,7 +544,15 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
         {wireguardLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی کانفیگ ذخیره‌شدهٔ WireGuard...</div> : !wireguardData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareWireGuard()} disabled={wireguardBusy} data-testid={`button-mobile-wireguard-create-${item.id}`}>{wireguardBusy ? 'در حال آماده‌سازی...' : 'ساخت یا دریافت کانفیگ WireGuard'}</button> : <>
           <a className="mobile-openvpn-download primary" href={wireguardData.bundle_url} download={`Pulse-WireGuard-${item.id}-servers.zip`} data-testid={`link-mobile-wireguard-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ سرورها · ZIP کانفیگ‌های .conf</a>
           {isIOSDevice ? <a className="mobile-openvpn-primary" href={wireguardData.bundle_mobileconfig_url} data-testid={`link-mobile-wireguard-ios-all-profile-${item.id}`}><Download size={15} /> نصب همهٔ سرورها در یک پروفایل iOS</a> : null}
-          <div className="mobile-openvpn-locations">{wireguardData.locations.map((location) => <div className="mobile-openvpn-location" key={location.id}><span>{location.name}</span><a href={location.config_url} download={`Pulse-WireGuard-${location.id}.conf`} data-testid={`link-mobile-wireguard-config-${item.id}-${location.id}`}><Download size={13} />دانلود .conf</a>{isIOSDevice && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-${location.id}.mobileconfig`} data-testid={`link-mobile-wireguard-ios-profile-${item.id}-${location.id}`}>نصب iOS</a>}</div>)}</div>
+          {wireguardData.providers?.length ? wireguardData.providers.map((provider) => <div className="mobile-openvpn-locations" key={provider.provider_key} data-testid={`mobile-wireguard-provider-${item.id}-${provider.provider_key}`}>
+            <strong>{provider.provider_label} <bdi dir="ltr">({provider.provider_key})</bdi></strong>
+            <a className="mobile-openvpn-primary" href={provider.bundle_url} download={`Pulse-WireGuard-${provider.provider_key}.zip`}><Download size={13} />ZIP همین Provider</a>
+            {isIOSDevice && <a className="mobile-openvpn-primary" href={provider.bundle_mobileconfig_url}><Download size={13} />پروفایل iOS همین Provider</a>}
+            {provider.locations.map((location) => {
+              const id = `${provider.provider_key}-${location.id}`;
+              return <div className="mobile-openvpn-location" key={id}><span>{location.name}</span><a href={location.config_url} download={`Pulse-WireGuard-${id}.conf`} data-testid={`link-mobile-wireguard-config-${item.id}-${id}`}><Download size={13} />دانلود .conf</a>{isIOSDevice && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-${id}.mobileconfig`} data-testid={`link-mobile-wireguard-ios-profile-${item.id}-${id}`}>نصب iOS</a>}</div>;
+            })}
+          </div>) : <div className="mobile-openvpn-locations">{wireguardData.locations.map((location) => <div className="mobile-openvpn-location" key={`${location.provider_key ?? 'wireguard'}-${location.id}`}><span>{location.provider_label ? `${location.provider_label} · ` : ''}{location.name}</span><a href={location.config_url} download={`Pulse-WireGuard-${location.provider_key ?? ''}-${location.id}.conf`} data-testid={`link-mobile-wireguard-config-${item.id}-${location.provider_key ?? ''}-${location.id}`}><Download size={13} />دانلود .conf</a>{isIOSDevice && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-${location.provider_key ?? ''}-${location.id}.mobileconfig`} data-testid={`link-mobile-wireguard-ios-profile-${item.id}-${location.provider_key ?? ''}-${location.id}`}>نصب iOS</a>}</div>)}</div>}
           <div className="mobile-openvpn-app-links"><a href="https://apps.apple.com/us/app/wireguard/id1441195209" target="_blank" rel="noreferrer">WireGuard برای iOS <ExternalLink size={13} /></a><a href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" rel="noreferrer">WireGuard برای Android <ExternalLink size={13} /></a></div>
           <p className="mobile-openvpn-hint">در iPhone/iPad، نصب پروفایل تکی یا «نصب همهٔ سرورها» را بزنید و در Settings → Profile Downloaded تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. پروفایل چندسروره تونل‌های جداگانه را یک‌جا اضافه می‌کند؛ در برنامه هر بار یکی را فعال کنید. فایل .conf نیز برای واردکردن دستی موجود است. کلید خصوصی را محرمانه نگه دارید.</p>
         </>}

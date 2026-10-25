@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   GetAuthSessionResponse,
   GetCustomerParams,
@@ -87,7 +87,7 @@ import {
   renewIpsecAccount,
   prepareOpenVpnAccount,
   prepareConfiguredWireGuardDeliveries,
-  prepareWireGuardAccount,
+  isConfiguredWireGuardProvider,
   renewWireGuardAccount,
   provisionUser,
   repairXrayProviderUser,
@@ -1986,7 +1986,7 @@ async function loadSavedWireGuardDeliveries(serviceId: number): Promise<WireGuar
     [serviceId],
   );
   const legacySecret = legacyResult.rows[0]?.delivery_secret;
-  if (legacySecret) {
+  if (legacySecret && deliveries.size === 0) {
     const decoded = decryptPanelCredential(legacySecret);
     if (!decoded) throw new Error("Saved WireGuard account could not be decrypted.");
     let parsed: unknown;
@@ -2046,7 +2046,29 @@ async function saveWireGuardDeliveries(
 function publicWireGuardDelivery(token: string, delivery: WireGuardDelivery) {
   return {
     ...delivery,
+    provider_label: delivery.provider_label ?? `WireGuard · ${delivery.provider_key}`,
     ...publicWireGuardDeliveryLinks(token, delivery.provider_key, delivery.locations),
+  };
+}
+
+function publicWireGuardDeliveries(
+  token: string,
+  deliveries: WireGuardDelivery[],
+  errors: Array<{ provider_key: string; provider_label: string; error: string }> = [],
+) {
+  const providerPath = `/api/public/subscription/${encodeURIComponent(token)}/wireguard`;
+  const providers = deliveries.map((delivery) => publicWireGuardDelivery(token, delivery));
+  return {
+    core: "wireguard" as const,
+    providers,
+    locations: providers.flatMap((provider) => provider.locations.map((location) => ({
+      ...location,
+      provider_key: provider.provider_key,
+      provider_label: provider.provider_label,
+    }))),
+    provider_errors: errors,
+    bundle_url: `${providerPath}/bundle`,
+    bundle_mobileconfig_url: `${providerPath}/mobileconfig`,
   };
 }
 
@@ -2535,7 +2557,7 @@ async function resolvePublicWireGuardProfile(
   if (!service.wireguard_enabled) return { status: 404, error: "WireGuard is not enabled for this reseller" };
   if (publicOpenVpnServiceFinished(service)) return { status: 410, error: "Subscription has expired" };
   try {
-    const delivery = await loadSavedWireGuardDelivery(Number(service.id));
+    const delivery = await loadSavedWireGuardDelivery(Number(service.id), providerKey);
     if (!delivery || delivery.provider_key !== providerKey) {
       return { status: 404, error: "WireGuard account not found" };
     }
@@ -2575,7 +2597,7 @@ async function resolvePublicWireGuardProfiles(
   if (publicOpenVpnServiceFinished(service)) return { status: 410, error: "Subscription has expired" };
 
   try {
-    const delivery = await loadSavedWireGuardDelivery(Number(service.id));
+    const delivery = await loadSavedWireGuardDelivery(Number(service.id), providerKey);
     if (!delivery || delivery.provider_key !== providerKey) {
       return { status: 404, error: "WireGuard account not found" };
     }
@@ -2593,6 +2615,112 @@ async function resolvePublicWireGuardProfiles(
     return { status: message.includes("not available for this account") ? 404 : 502, error: message };
   }
 }
+
+async function resolvePublicAllWireGuardProfiles(token: string): Promise<{
+  serviceId: number;
+  profiles: Array<{
+    providerKey: string;
+    providerLabel: string;
+    hostId: string;
+    locationName: string;
+    body: string;
+  }>;
+} | { status: number; error: string }> {
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
+    return { status: 404, error: "Invalid subscription token" };
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) return { status: 404, error: "Subscription not found" };
+  if (!service.wireguard_enabled) return { status: 404, error: "WireGuard is not enabled for this reseller" };
+  if (publicOpenVpnServiceFinished(service)) return { status: 410, error: "Subscription has expired" };
+
+  try {
+    const savedDeliveries = await loadSavedWireGuardDeliveries(Number(service.id));
+    const deliveries: WireGuardDelivery[] = [];
+    for (const delivery of savedDeliveries) {
+      if (await isConfiguredWireGuardProvider(
+        delivery.provider_key,
+        Number(service.reseller_tg_id),
+        "reseller",
+      )) deliveries.push(delivery);
+    }
+    if (!deliveries.length) return { status: 404, error: "WireGuard accounts are not prepared yet." };
+    const profiles: Array<{
+      providerKey: string;
+      providerLabel: string;
+      hostId: string;
+      locationName: string;
+      body: string;
+    }> = [];
+    for (const delivery of deliveries) {
+      const downloaded = await downloadWireGuardProfiles(
+        delivery.username,
+        delivery.provider_key,
+        delivery.locations.map((location) => location.id),
+        Number(service.reseller_tg_id),
+        "reseller",
+      );
+      if (!downloaded.length) {
+        throw new Error(`${delivery.provider_label ?? delivery.provider_key} returned no WireGuard configs.`);
+      }
+      const names = new Map(delivery.locations.map((location) => [location.id, location.name]));
+      for (const profile of downloaded) {
+        profiles.push({
+          providerKey: delivery.provider_key,
+          providerLabel: delivery.provider_label ?? `WireGuard · ${delivery.provider_key}`,
+          hostId: createHash("sha256")
+            .update(`${delivery.provider_key}:${profile.hostId}`)
+            .digest("hex")
+            .slice(0, 24),
+          locationName: `${delivery.provider_label ?? delivery.provider_key} · ${names.get(profile.hostId) ?? profile.hostId}`,
+          body: profile.body,
+        });
+      }
+    }
+    if (!profiles.length) return { status: 404, error: "No WireGuard server configs are available." };
+    return { serviceId: Number(service.id), profiles };
+  } catch (error) {
+    return {
+      status: error instanceof Error && error.message.includes("not available for this account") ? 404 : 502,
+      error: error instanceof Error ? error.message : "WireGuard profile download failed.",
+    };
+  }
+}
+
+router.get("/public/subscription/:token/wireguard/mobileconfig", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  const result = await resolvePublicAllWireGuardProfiles(token);
+  if ("status" in result) {
+    res.status(result.status).type("text/plain").send(result.error);
+    return;
+  }
+  try {
+    const profile = createWireGuardMobileConfigBundle(
+      result.profiles.map((entry) => ({
+        config: entry.body,
+        hostId: entry.hostId,
+        locationName: entry.locationName,
+      })),
+      result.serviceId,
+      "wireguard",
+    );
+    const filename = safeDownloadFilename(
+      null,
+      `Pulse-${result.serviceId}-wireguard-all-providers`,
+      ".mobileconfig",
+    );
+    res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
+    res.setHeader("content-disposition", attachmentDisposition(filename));
+    res.send(profile);
+  } catch (error) {
+    res.status(422).type("text/plain").send(
+      error instanceof Error ? error.message : "Could not prepare the combined iOS WireGuard profile.",
+    );
+  }
+});
 
 router.get("/public/subscription/:token/wireguard/mobileconfig/:provider", async (req, res): Promise<void> => {
   await managementReady;
@@ -2622,7 +2750,7 @@ router.get("/public/subscription/:token/wireguard/mobileconfig/:provider", async
     return;
   }
   try {
-    const delivery = await loadSavedWireGuardDelivery(Number(service.id));
+    const delivery = await loadSavedWireGuardDelivery(Number(service.id), providerKey);
     if (!delivery || delivery.provider_key !== providerKey) {
       res.status(404).type("text/plain").send("WireGuard account not found");
       return;
@@ -2716,6 +2844,34 @@ router.get("/public/subscription/:token/wireguard/config/:provider/:host", async
   res.setHeader("content-type", publicConfigContentType(".conf"));
   res.setHeader("content-disposition", attachmentDisposition(filename));
   res.send(result.profile.body);
+});
+
+router.get("/public/subscription/:token/wireguard/bundle", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  const result = await resolvePublicAllWireGuardProfiles(token);
+  if ("status" in result) {
+    res.status(result.status).type("text/plain").send(result.error);
+    return;
+  }
+  const archive = createZipArchive(result.profiles.map((profile) => ({
+    name: safeDownloadFilename(
+      null,
+      `Pulse-${result.serviceId}-WireGuard-${profile.providerKey}-${profile.hostId}`,
+      ".conf",
+    ),
+    content: profile.body,
+  })));
+  const filename = safeDownloadFilename(
+    null,
+    `Pulse-${result.serviceId}-wireguard-all-providers`,
+    ".zip",
+  );
+  res.setHeader("content-type", publicConfigContentType(".zip"));
+  res.setHeader("content-disposition", attachmentDisposition(filename));
+  res.send(archive);
 });
 
 router.get("/public/subscription/:token/wireguard/bundle/:provider", async (req, res): Promise<void> => {
@@ -3198,29 +3354,26 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
     }
 
     if (service.wireguard_enabled) {
-      const wireGuard = await loadSavedWireGuardDelivery(serviceId);
-      if (wireGuard?.locations.length) {
-        try {
-          const profiles = await downloadWireGuardProfiles(
-            wireGuard.username,
-            wireGuard.provider_key,
-            wireGuard.locations.map((location) => location.id),
-            resellerId,
-            "reseller",
-          );
-          const locationById = new Map(wireGuard.locations.map((location) => [location.id, location]));
-          entries.push(...profiles.map((profile) => ({
-            protocol: "wireguard" as const,
-            config: profile.body,
-            serverId: profile.hostId,
-            serverName: locationById.get(profile.hostId)?.name ?? `WireGuard ${profile.hostId}`,
-          })));
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "";
-          if (!/No enabled AzadPanel WireGuard provider is configured|selected AzadPanel WireGuard provider is unavailable|AzadPanel .+ is not configured for WireGuard/.test(message)) {
-            throw error;
-          }
-        }
+      const wireGuardDeliveries = await loadSavedWireGuardDeliveries(serviceId);
+      for (const wireGuard of wireGuardDeliveries) {
+        if (!await isConfiguredWireGuardProvider(wireGuard.provider_key, resellerId, "reseller")) continue;
+        const profiles = await downloadWireGuardProfiles(
+          wireGuard.username,
+          wireGuard.provider_key,
+          wireGuard.locations.map((location) => location.id),
+          resellerId,
+          "reseller",
+        );
+        const locationById = new Map(wireGuard.locations.map((location) => [location.id, location]));
+        entries.push(...profiles.map((profile) => ({
+          protocol: "wireguard" as const,
+          config: profile.body,
+          serverId: createHash("sha256")
+            .update(`${wireGuard.provider_key}:${profile.hostId}`)
+            .digest("hex")
+            .slice(0, 24),
+          serverName: `${wireGuard.provider_label ?? wireGuard.provider_key} · ${locationById.get(profile.hostId)?.name ?? `WireGuard ${profile.hostId}`}`,
+        })));
       }
     }
 
@@ -5286,6 +5439,11 @@ async function loadServicePanelUsageMap(
 
   const wireGuardAccounts = await readSavedWireGuardProviderUsernames(serviceIds);
   const usernamesById = new Map(services.map((service) => [Number(service.id), service.username]));
+  const wireGuardAccountRows = serviceIds.flatMap((serviceId) =>
+    [...(wireGuardAccounts.get(serviceId) ?? new Map<string, string>())]
+      .filter(([providerKey, username]) => providerKey && username)
+      .map(([providerKey, username]) => ({ serviceId, providerKey, username })),
+  );
   const usage = await pool.query<{
     service_id: number | string;
     panel_key: string;
@@ -5295,15 +5453,29 @@ async function loadServicePanelUsageMap(
     offset_bytes: number | string | null;
     last_updated: Date | string | null;
   }>(
-    `WITH requested_services AS (
+     `WITH requested_services AS (
        SELECT *
-       FROM unnest($1::bigint[], $2::text[], $3::text[], $4::text[], $5::boolean[])
-         AS requested(service_id, username, wireguard_provider_key, wireguard_username, wireguard_account_present)
+        FROM unnest($1::bigint[], $2::text[])
+          AS requested(service_id, username)
+      ),
+      requested_wireguard_accounts AS (
+        SELECT *
+        FROM unnest($3::bigint[], $4::text[], $5::text[])
+          AS saved(service_id, provider_key, provider_username)
+      ),
+      requested_wireguard_presence AS (
+        SELECT DISTINCT service_id
+        FROM requested_wireguard_accounts
      )
      SELECT requested.service_id, panel.key AS panel_key, panel.kind AS panel_kind,
             usage.upload, usage.download, usage.offset_bytes, usage.last_updated
      FROM requested_services requested
      CROSS JOIN panel_configs panel
+      LEFT JOIN requested_wireguard_accounts wireguard_account
+        ON wireguard_account.service_id = requested.service_id
+       AND wireguard_account.provider_key = panel.key
+      LEFT JOIN requested_wireguard_presence wireguard_presence
+        ON wireguard_presence.service_id = requested.service_id
       LEFT JOIN reseller_service_ipsec_accounts ipsec_account
         ON ipsec_account.service_id = requested.service_id
        AND ipsec_account.provider_key = panel.key
@@ -5319,13 +5491,17 @@ async function loadServicePanelUsageMap(
        WHERE saved.panel_key = panel.key
           AND saved.username = CASE
             WHEN LOWER(panel.kind) = 'rain_admin_wireguard'
-              THEN CASE
-                WHEN requested.wireguard_account_present
-                  AND requested.wireguard_provider_key = panel.key
-                  THEN requested.wireguard_username
-                ELSE requested.username
-              END
-            WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN requested.wireguard_username
+               THEN CASE
+                 WHEN wireguard_account.provider_username IS NOT NULL
+                   THEN wireguard_account.provider_username
+                 WHEN wireguard_presence.service_id IS NULL
+                   THEN requested.username
+                 ELSE NULL
+               END
+             WHEN LOWER(panel.kind) = 'azadpanel_wireguard' THEN wireguard_account.provider_username
+             WHEN LOWER(panel.kind) = 'azadpanel'
+               AND wireguard_account.provider_key IS NOT NULL
+               THEN wireguard_account.provider_username
             WHEN LOWER(panel.kind) = 'azadpanel_ipsec' THEN ipsec_account.provider_username
             WHEN LOWER(panel.kind) = 'azadpanel_v2ray' THEN COALESCE(v2ray_account.provider_username, requested.username)
           WHEN LOWER(panel.kind) IN ('azadpanel', 'azadpanel_openvpn')
@@ -5339,14 +5515,13 @@ async function loadServicePanelUsageMap(
           AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
        AND (
          LOWER(panel.kind) <> 'azadpanel_wireguard'
-         OR (
-           requested.wireguard_account_present
-           AND (
-             requested.wireguard_provider_key IS NULL
-             OR panel.key = requested.wireguard_provider_key
-           )
-         )
+          OR wireguard_account.provider_key IS NOT NULL
        )
+        AND (
+          LOWER(panel.kind) <> 'rain_admin_wireguard'
+          OR wireguard_presence.service_id IS NULL
+          OR wireguard_account.provider_key IS NOT NULL
+        )
         AND (
           LOWER(panel.kind) <> 'azadpanel_ipsec'
           OR ipsec_account.service_id IS NOT NULL
@@ -5355,9 +5530,9 @@ async function loadServicePanelUsageMap(
     [
       serviceIds,
       serviceIds.map((id) => usernamesById.get(id) ?? ""),
-      serviceIds.map((id) => wireGuardAccounts.get(id)?.providerKey ?? null),
-      serviceIds.map((id) => wireGuardAccounts.get(id)?.username ?? null),
-      serviceIds.map((id) => wireGuardAccounts.has(id)),
+      wireGuardAccountRows.map((account) => account.serviceId),
+      wireGuardAccountRows.map((account) => account.providerKey),
+      wireGuardAccountRows.map((account) => account.username),
     ],
   );
 
@@ -6118,9 +6293,9 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
        return;
      }
    }
-    let savedWireGuardAccount: { providerKey: string | null; username: string | null } | null = null;
+     let savedWireGuardAccounts = new Map<string, string>();
     try {
-      savedWireGuardAccount = (await readSavedWireGuardProviderUsernames([serviceId])).get(serviceId) ?? null;
+      savedWireGuardAccounts = (await readSavedWireGuardProviderUsernames([serviceId])).get(serviceId) ?? new Map();
     } catch {
       res.status(502).json({ error: "هویت ذخیره‌شدهٔ WireGuard خوانده نشد؛ تمدید انجام نشد." });
       return;
@@ -6136,15 +6311,15 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       res.status(502).json({ error: "هویت Providerهای OpenVPN و V2Ray خوانده نشد؛ تمدید انجام نشد." });
       return;
     }
-    if (savedWireGuardAccount) {
-      if (!savedWireGuardAccount.providerKey || !savedWireGuardAccount.username) {
-        res.status(502).json({ error: "Provider یا نام کاربری ذخیره‌شدهٔ WireGuard قابل شناسایی نیست؛ تمدید انجام نشد." });
-        return;
-      }
+    if (savedWireGuardAccounts.has("")) {
+      res.status(502).json({ error: "Provider یا نام کاربری ذخیره‌شدهٔ WireGuard قابل شناسایی نیست؛ تمدید انجام نشد." });
+      return;
+    }
+    for (const [providerKey, providerUsername] of savedWireGuardAccounts) {
       try {
         await renewWireGuardAccount(
-          savedWireGuardAccount.providerKey,
-          savedWireGuardAccount.username,
+          providerKey,
+          providerUsername,
           current.username,
           gb,
           days,
@@ -6191,8 +6366,8 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
      // Match the legacy worker: cache cleanup must not block renewal.
    }
     const providerUsageIdentities = new Map<string, string>();
-    if (savedWireGuardAccount?.providerKey && savedWireGuardAccount.username) {
-      providerUsageIdentities.set(savedWireGuardAccount.providerKey, savedWireGuardAccount.username);
+     for (const [providerKey, providerUsername] of savedWireGuardAccounts) {
+       if (providerKey && providerUsername) providerUsageIdentities.set(providerKey, providerUsername);
     }
     for (const accounts of [savedOpenVpnAccounts.get(serviceId), savedV2RayAccounts.get(serviceId)]) {
       for (const [providerKey, username] of accounts ?? []) {

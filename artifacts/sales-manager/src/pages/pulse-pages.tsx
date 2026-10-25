@@ -3106,7 +3106,9 @@ function PublicSubscriptionContentV2() {
       .then((result) => {
         if (!active) return;
         setWireguardData(result);
-        setWireguardError('');
+        setWireguardError(Array.isArray(result?.provider_errors) && result.provider_errors.length
+          ? result.provider_errors.map((entry: any) => `${entry.provider_label || entry.provider_key}: ${entry.error}`).join(' · ')
+          : '');
       })
       .catch((cause) => {
         if (active) setWireguardError(cause instanceof Error ? cause.message : 'اطلاعات WireGuard دریافت نشد.');
@@ -3196,6 +3198,9 @@ function PublicSubscriptionContentV2() {
       const result = await response.json().catch(() => null);
       if (!response.ok) throw new Error(result?.error || 'کانفیگ WireGuard دریافت نشد.');
       setWireguardData(result);
+      setWireguardError(Array.isArray(result?.provider_errors) && result.provider_errors.length
+        ? result.provider_errors.map((entry: any) => `${entry.provider_label || entry.provider_key}: ${entry.error}`).join(' · ')
+        : '');
     } catch (cause) {
       setWireguardError(cause instanceof Error ? cause.message : 'ساخت کانفیگ WireGuard ناموفق بود.');
     } finally {
@@ -3246,6 +3251,11 @@ function PublicSubscriptionContentV2() {
           && message.includes('No enabled AzadPanel OpenVPN provider')
         ) return false;
         throw new Error(message);
+      }
+      if (protocol === 'wireguard') {
+        setWireguardError(Array.isArray(result?.provider_errors) && result.provider_errors.length
+          ? result.provider_errors.map((entry: any) => `${entry.provider_label || entry.provider_key}: ${entry.error}`).join(' · ')
+          : '');
       }
       setValue(result);
       return true;

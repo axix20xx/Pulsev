@@ -368,8 +368,11 @@ async function processRainAdminWireGuardBackfill(job: ProvisionJob): Promise<voi
   }
 
   const existing = await pool.query(
-    "SELECT 1 FROM reseller_service_wireguard_accounts WHERE service_id = $1 LIMIT 1",
-    [job.service_id],
+    `SELECT 1
+     FROM reseller_service_wireguard_provider_accounts
+     WHERE service_id = $1 AND provider_key = $2
+     LIMIT 1`,
+    [job.service_id, providerKey],
   );
   if (existing.rows[0]) {
     await completeJob(job.id, "جزئیات WireGuard این سرویس قبلاً ذخیره شده است.");
@@ -389,16 +392,23 @@ async function processRainAdminWireGuardBackfill(job: ProvisionJob): Promise<voi
     "reseller",
   );
   const saved = await pool.query(
-    `INSERT INTO reseller_service_wireguard_accounts (service_id, delivery_secret)
-     VALUES ($1, $2)
-     ON CONFLICT (service_id) DO NOTHING
+    `INSERT INTO reseller_service_wireguard_provider_accounts
+       (service_id, provider_key, provider_username, delivery_secret)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (service_id, provider_key) DO UPDATE
+     SET provider_username = EXCLUDED.provider_username,
+         delivery_secret = EXCLUDED.delivery_secret,
+         updated_at = NOW()
      RETURNING service_id`,
-    [job.service_id, encryptPanelCredential(JSON.stringify(delivery))],
+    [job.service_id, providerKey, delivery.username, encryptPanelCredential(JSON.stringify(delivery))],
   );
   if (!saved.rows[0]) {
     const confirmed = await pool.query(
-      "SELECT 1 FROM reseller_service_wireguard_accounts WHERE service_id = $1 LIMIT 1",
-      [job.service_id],
+      `SELECT 1
+       FROM reseller_service_wireguard_provider_accounts
+       WHERE service_id = $1 AND provider_key = $2
+       LIMIT 1`,
+      [job.service_id, providerKey],
     );
     if (!confirmed.rows[0]) {
       throw new Error("WireGuard delivery was not persisted after the provider returned its configs.");

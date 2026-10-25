@@ -2354,3 +2354,17 @@ mtime_ms = 1792885576077
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/964ccf96-2ffb-4b42-82ac-291ec36354a1/9f28e680-16ba-4ef9-ab1d-7e4ed0b3aea4"
 storage_version_token = "1792885605607883"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "6kdvGIah-yYXhbiGG_6_v"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-25T00-06-43-671Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger update — multi-provider WireGuard"
+description = "Hostinger migration ZIP with WireGuard profiles grouped by provider and combined downloads for the subscription and mobile pages."
+logical_id = "d23c5994-8c2c-41b5-84c5-37179f520308"
+content_hash = "sha256:8b92c068dcf9850df39772afdd6257ca656dc59d80b98bb93867b04ee10005aa"
+size = 29121186
+mtime_ms = 1792886919313
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/d23c5994-8c2c-41b5-84c5-37179f520308/2b7f8369-d2f8-47bd-b3ea-1496bcbcc49c"
+storage_version_token = "1792886944524991"
+content_type = "application/octet-stream"
