@@ -538,21 +538,18 @@ export function PublicSubscriptionWizard(props: Props) {
                         <a className="public-sub-openvpn-button" href="https://apps.apple.com/us/app/wireguard/id1441195209" target="_blank" rel="noreferrer" data-testid="link-public-sub-wireguard-ios"><ExternalLink size={14} />نصب WireGuard · iOS</a>
                         <a className="public-sub-openvpn-button" href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" rel="noreferrer" data-testid="link-public-sub-wireguard-android"><ExternalLink size={14} />نصب WireGuard · Android</a>
                       </div>
-                      {wireguardData.providers?.length ? wireguardData.providers.map((provider) => (
-                        <div className="public-sub-wireguard-provider" key={provider.provider_key} data-testid={`wireguard-provider-${provider.provider_key}`}>
-                          <div className="public-sub-openvpn-locations">
-                            <strong>{provider.provider_label} <bdi dir="ltr">({provider.provider_key})</bdi></strong>
-                            <div className="public-sub-openvpn-actions">
-                              <a className="public-sub-openvpn-button" href={provider.bundle_url} download={`Pulse-WireGuard-${provider.provider_key}.zip`}><Download size={13} />ZIP همین Provider</a>
-                              {(activeOS === 'iOS' || isIOSDevice()) && <a className="public-sub-openvpn-button" href={provider.bundle_mobileconfig_url}><Smartphone size={13} />پروفایل iOS همین Provider</a>}
-                            </div>
-                            {provider.locations.map((location) => {
-                              const id = `${provider.provider_key}-${location.id}`;
-                              return <div className="public-sub-openvpn-location" key={id}><span>{location.name}</span><a href={location.config_url} download={`Pulse-WireGuard-${id}.conf`} data-testid={`link-public-sub-wireguard-config-${id}`}><Download size={13} />دانلود .conf</a>{isIOSDevice() && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-${id}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${id}`}><Smartphone size={13} />نصب پروفایل iOS</a>}</div>;
-                            })}
-                          </div>
-                        </div>
-                      )) : wireguardData.locations.length ? <div className="public-sub-openvpn-locations"><strong>سرورها</strong>{wireguardData.locations.map((location) => <div className="public-sub-openvpn-location" key={`${location.provider_key ?? 'wireguard'}-${location.id}`}><span>{location.provider_label ? `${location.provider_label} · ` : ''}{location.name}</span><a href={location.config_url} download={`Pulse-WireGuard-${location.provider_key ?? ''}-${location.id}.conf`} data-testid={`link-public-sub-wireguard-config-${location.provider_key ?? ''}-${location.id}`}><Download size={13} />دانلود .conf</a>{isIOSDevice() && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-${location.provider_key ?? ''}-${location.id}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${location.provider_key ?? ''}-${location.id}`}><Smartphone size={13} />نصب پروفایل iOS</a>}</div>)}</div> : <p className="public-sub-openvpn-error" role="status">برای این حساب هنوز سرور آماده‌ای وجود ندارد.</p>}
+                      {wireguardData.providers?.length ? <div className="public-sub-openvpn-locations">
+                        <strong>سرورهای WireGuard</strong>
+                        {wireguardData.providers.flatMap((provider) => provider.locations.map((location) => ({ providerKey: provider.provider_key, location }))).map(({ providerKey, location }, index) => {
+                          const id = `${providerKey}-${location.id}`;
+                          const fileNumber = index + 1;
+                          return <div className="public-sub-openvpn-location" key={id}>
+                            <span>{location.name}</span>
+                            <a href={location.config_url} download={`Pulse-WireGuard-server-${fileNumber}.conf`} data-testid={`link-public-sub-wireguard-config-${fileNumber}`}><Download size={13} />دانلود .conf</a>
+                            {isIOSDevice() && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-server-${fileNumber}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${fileNumber}`}><Smartphone size={13} />نصب پروفایل iOS</a>}
+                          </div>;
+                        })}
+                      </div> : wireguardData.locations.length ? <div className="public-sub-openvpn-locations"><strong>سرورهای WireGuard</strong>{wireguardData.locations.map((location, index) => <div className="public-sub-openvpn-location" key={`${location.provider_key ?? 'wireguard'}-${location.id}`}><span>{location.name}</span><a href={location.config_url} download={`Pulse-WireGuard-server-${index + 1}.conf`} data-testid={`link-public-sub-wireguard-config-${index + 1}`}><Download size={13} />دانلود .conf</a>{isIOSDevice() && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-server-${index + 1}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${index + 1}`}><Smartphone size={13} />نصب پروفایل iOS</a>}</div>)}</div> : <p className="public-sub-openvpn-error" role="status">برای این حساب هنوز سرور آماده‌ای وجود ندارد.</p>}
                       <p className="public-sub-openvpn-hint">در iPhone/iPad، نصب پروفایل تکی یا «نصب همهٔ سرورها» را بزنید و در Settings → Profile Downloaded تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. پروفایل چندسروره، تونل‌های جداگانه را یک‌جا اضافه می‌کند؛ در برنامه هر بار یکی را فعال کنید. فایل .conf هم برای واردکردن دستی موجود است. کلید خصوصی را محرمانه نگه دارید.</p>
                     </>}
                     {wireguardError && wireguardData && <p className="public-sub-openvpn-error" role="alert">{wireguardError}</p>}

@@ -524,3 +524,32 @@ html body #root .public-sub-lux .public-sub-protocol-feed button { display: inli
   html body #root .public-sub-lux .public-sub-protocol-choice,
   html body #root .public-sub-lux .public-sub-protocol-meter-track > span { transition-duration: .01ms !important; }
 }
+@media (max-width: 560px) {
+  html body #root .public-sub-lux .public-sub-wireguard-card .public-sub-openvpn-location {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)) !important;
+    align-items: stretch !important;
+    gap: 7px !important;
+    min-height: 0 !important;
+    padding: 9px !important;
+  }
+  html body #root .public-sub-lux .public-sub-wireguard-card .public-sub-openvpn-location > span {
+    grid-column: 1 / -1;
+    overflow: visible !important;
+    white-space: normal !important;
+    line-height: 1.5;
+  }
+  html body #root .public-sub-lux .public-sub-wireguard-card .public-sub-openvpn-location a {
+    justify-content: center;
+    min-width: 0;
+    min-height: 40px;
+    padding: 5px 7px !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    text-align: center;
+    line-height: 1.4;
+  }
+  html body #root .public-sub-lux .public-sub-wireguard-card .public-sub-openvpn-location > a:only-of-type {
+    grid-column: 1 / -1;
+  }
+}

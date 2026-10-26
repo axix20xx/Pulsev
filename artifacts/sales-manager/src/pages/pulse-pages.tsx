@@ -1739,6 +1739,10 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
   const [repairingKey, setRepairingKey] = useState('');
   const hasPanelUsage = Boolean(service.panelUsages?.length);
   const hasAwgUsage = Boolean(service.awgUsage || service.awgReady);
+  const usagePercent = service.limitGb > 0
+    ? Math.min(100, Math.max(0, Math.round((service.usedGb / service.limitGb) * 100)))
+    : 0;
+  const remainingGb = Math.max(0, service.limitGb - service.usedGb);
   const remainingDays = daysUntil(service.expiresAt);
   const finished = service.status === 'Expired' || service.status === 'Disabled' || remainingDays < 0;
   const expiring = !finished && remainingDays <= 7;
@@ -1769,35 +1773,71 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
     <div className={`ax-notice ${finished ? 'ax-notice-danger' : expiring ? 'ax-notice-warning' : ''}`}><Sparkles size={14} /><div><strong>{announcementTitle}</strong><span>شناسه {serviceDisplayCode(service)} · {announcementDetail}</span></div></div>
     {repairNotice && <div className="ax-notice" role="status">{repairNotice}<button type="button" onClick={() => setRepairNotice('')} aria-label="بستن پیام"><X size={14} /></button></div>}
     {service.publicSubscriptionUrl && <div className="ax-customer-openvpn-action"><a className="ax-service-openvpn-link" href={service.publicSubscriptionUrl} target="_blank" rel="noreferrer" data-testid={`link-customer-openvpn-${service.id}`}><ShieldCheck size={13} /> ساخت / دریافت OpenVPN</a></div>}
-     <div className="ax-usage-breakdown-summary">
-       <strong>مصرف ترکیبی این سرویس: {usageLabel(service.usedGb)} از {usageLabel(service.limitGb)}</strong>
-        <small>جمع مصرف OpenVPN و سایر Providerها، WireGuard، IPsec/IKEv2 و AmneziaWG؛ هر اشتراک جداگانه محاسبه می‌شود.</small>
-     </div>
+      <section className="ax-usage-overview" aria-label="خلاصه مصرف سرویس">
+        <div className="ax-usage-overview-heading">
+          <span className="ax-usage-overview-icon"><Gauge size={18} /></span>
+          <div>
+            <small>مصرف ترکیبی سرویس</small>
+            <strong>{usageLabel(service.usedGb)} <span>از {usageLabel(service.limitGb)}</span></strong>
+          </div>
+          <span className="ax-usage-overview-percent">{new Intl.NumberFormat('fa-IR').format(usagePercent)}٪</span>
+        </div>
+        <div className="ax-usage-overview-track" role="progressbar" aria-label="درصد مصرف ترکیبی" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usagePercent}>
+          <i style={{ width: `${usagePercent}%` }} />
+        </div>
+        <div className="ax-usage-overview-foot">
+          <span>مصرف‌شده <bdi dir="ltr">{usageLabel(service.usedGb)}</bdi></span>
+          <span>باقی‌مانده <bdi dir="ltr">{usageLabel(remainingGb)}</bdi></span>
+        </div>
+        <small className="ax-usage-overview-note">مجموع OpenVPN، WireGuard، IPsec/IKEv2 و AmneziaWG برای همین اشتراک</small>
+      </section>
      {!hasPanelUsage && !hasAwgUsage
-       ? <div className="ax-usage-breakdown empty"><Wifi size={14} /><span>مصرف تفکیکی هنوز از پنل‌ها دریافت نشده است؛ مقدار صفر تأیید نشده است.</span></div>
+        ? <div className="ax-usage-empty"><Wifi size={17} /><span><strong>هنوز آماری دریافت نشده</strong><small>صفر بودن مصرف اتصال‌ها تأیید نشده است. جزئیات پس از همگام‌سازی پنل نمایش داده می‌شود.</small></span></div>
        : <div className="ax-usage-breakdown">
         <div className="ax-usage-breakdown-title">
-           <span>مصرف تفکیکی اتصال‌ها</span>
-           <small>مقادیر هر اتصال در مجموع ترکیبی همین سرویس لحاظ می‌شوند.</small>
+            <span><strong>اتصال‌ها</strong><small>مصرف هر پنل جداگانه ثبت می‌شود و در مجموع بالا محاسبه شده است.</small></span>
+            <span className="ax-usage-source-count">{new Intl.NumberFormat('fa-IR').format((service.panelUsages?.length ?? 0) + (service.awgUsage || service.awgReady ? 1 : 0))} منبع</span>
         </div>
+         <div className="ax-usage-source-grid">
         {service.panelUsages?.map((usage) => {
           const canRepair = !finished && service.limitGb > service.usedGb &&
             (usage.panelKind === 'rain_admin' || usage.panelKind === 'marzban');
           const repairKey = `${service.id}:${usage.panelKey}`;
           const isRepairing = repairingKey === repairKey;
+           const protocolLabel = usage.panelKind === 'azadpanel_v2ray' ? 'V2Ray / Xray'
+             : usage.panelKind === 'azadpanel_ipsec' ? 'IPsec / IKEv2'
+               : usage.panelKind === 'azadpanel_wireguard' || usage.panelKind === 'rain_admin_wireguard' ? 'WireGuard'
+                 : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? 'OpenVPN'
+                   : usage.panelKind || 'Provider';
           return <div className="ax-usage-source" key={`${service.id}-${usage.panelKey}`}>
-            <div className="ax-usage-source-icon"><Server size={13} /></div>
-              <div className="ax-usage-source-name"><strong><bdi dir="ltr">{usage.panelKey}</bdi>{usage.panelKind === 'azadpanel_v2ray' ? ' · V2Ray / Xray' : usage.panelKind === 'azadpanel_ipsec' ? ' · IPsec / IKEv2' : usage.panelKind === 'azadpanel_wireguard' || usage.panelKind === 'rain_admin_wireguard' ? ' · WireGuard' : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? ' · OpenVPN' : ''}</strong><small>{usageDate(usage.lastUpdated)}</small></div>
-            <div className="ax-usage-source-value">
-               <strong>{usage.lastUpdated ? usageLabel(usage.usedGb) : 'آمار هنوز دریافت نشده'}</strong>
-               <small>{usage.lastUpdated ? `عدد خام: ${usageLabel(usage.rawUsedGb)} · پایه مصرف: ${usageLabel(usage.offsetGb)}` : 'صفر بودن مصرف این اتصال تأیید نشده است.'}</small>
-              {canRepair && <button type="button" className="ax-service-provider-repair" onClick={() => void repairProvider(usage.panelKey)} disabled={Boolean(repairingKey)} data-testid={`button-repair-provider-${service.id}-${usage.panelKey}`}>{isRepairing ? <><RefreshCw size={12} className="ax-spin" /> در حال تعمیر...</> : <><RefreshCw size={12} /> تعمیر این Provider</>}</button>}
-            </div>
-          </div>;
+             <div className="ax-usage-source-head">
+               <span className="ax-usage-source-icon"><Server size={16} /></span>
+               <div className="ax-usage-source-name"><strong><bdi dir="ltr">{usage.panelKey}</bdi></strong><small>{protocolLabel}</small></div>
+               <span className={`ax-usage-source-status ${usage.lastUpdated ? 'is-ready' : 'is-waiting'}`}>{usage.lastUpdated ? 'به‌روز' : 'در انتظار آمار'}</span>
+             </div>
+             <div className="ax-usage-source-main">
+               <span>مصرف ثبت‌شده</span>
+               <strong>{usage.lastUpdated ? usageLabel(usage.usedGb) : '—'}</strong>
+               <small>{usage.lastUpdated ? `آخرین همگام‌سازی ${usageDate(usage.lastUpdated)}` : 'صفر بودن مصرف این اتصال تأیید نشده است.'}</small>
+             </div>
+             {usage.lastUpdated && <div className="ax-usage-source-meta">
+               <span><small>عدد خام</small><bdi dir="ltr">{usageLabel(usage.rawUsedGb)}</bdi></span>
+               <span><small>مبنای کسر</small><bdi dir="ltr">{usageLabel(usage.offsetGb)}</bdi></span>
+             </div>}
+             {canRepair && <button type="button" className="ax-service-provider-repair" onClick={() => void repairProvider(usage.panelKey)} disabled={Boolean(repairingKey)} data-testid={`button-repair-provider-${service.id}-${usage.panelKey}`}>{isRepairing ? <><RefreshCw size={13} className="ax-spin" /> در حال تعمیر...</> : <><RefreshCw size={13} /> تعمیر اتصال Provider</>}</button>}
+           </div>;
         })}
          {service.awgUsage
-           ? <div className="ax-usage-source awg"><div className="ax-usage-source-icon"><Wifi size={13} /></div><div className="ax-usage-source-name"><strong>AmneziaWG</strong><small>{service.awgReady ? usageDate(service.awgUsage.lastUpdated) : 'آخرین آمار ذخیره‌شده'}</small></div><div className="ax-usage-source-value"><strong>{service.awgReady && !service.awgUsage.lastUpdated ? 'آمار هنوز دریافت نشده' : usageLabel(service.awgUsage.usedGb)}</strong><small>{service.awgReady && !service.awgUsage.lastUpdated ? 'صفر بودن مصرف تأیید نشده است.' : `دریافت: ${usageLabel(service.awgUsage.rxGb)} · ارسال: ${usageLabel(service.awgUsage.txGb)}`}</small></div></div>
-          : service.awgReady && <div className="ax-usage-source awg"><div className="ax-usage-source-icon"><Wifi size={13} /></div><div className="ax-usage-source-name"><strong>AmneziaWG</strong><small>در انتظار اولین همگام‌سازی</small></div><div className="ax-usage-source-value"><strong>۰ گیگابایت</strong><small>آمار هنوز دریافت نشده است</small></div></div>}
+            ? <div className="ax-usage-source awg">
+                <div className="ax-usage-source-head"><span className="ax-usage-source-icon"><Wifi size={16} /></span><div className="ax-usage-source-name"><strong>AmneziaWG</strong><small>تونل اختصاصی</small></div><span className={`ax-usage-source-status ${service.awgUsage.lastUpdated ? 'is-ready' : 'is-waiting'}`}>{service.awgUsage.lastUpdated ? 'به‌روز' : 'در انتظار آمار'}</span></div>
+                <div className="ax-usage-source-main"><span>مصرف ثبت‌شده</span><strong>{service.awgReady && !service.awgUsage.lastUpdated ? '—' : usageLabel(service.awgUsage.usedGb)}</strong><small>{service.awgReady && !service.awgUsage.lastUpdated ? 'صفر بودن مصرف این اتصال تأیید نشده است.' : `آخرین همگام‌سازی ${usageDate(service.awgUsage.lastUpdated)}`}</small></div>
+                <div className="ax-usage-source-meta"><span><small>دریافت</small><bdi dir="ltr">{usageLabel(service.awgUsage.rxGb)}</bdi></span><span><small>ارسال</small><bdi dir="ltr">{usageLabel(service.awgUsage.txGb)}</bdi></span></div>
+              </div>
+            : service.awgReady && <div className="ax-usage-source awg">
+                <div className="ax-usage-source-head"><span className="ax-usage-source-icon"><Wifi size={16} /></span><div className="ax-usage-source-name"><strong>AmneziaWG</strong><small>تونل اختصاصی</small></div><span className="ax-usage-source-status is-waiting">در انتظار آمار</span></div>
+                <div className="ax-usage-source-main"><span>مصرف ثبت‌شده</span><strong>—</strong><small>اولین همگام‌سازی هنوز انجام نشده است.</small></div>
+              </div>}
+         </div>
       </div>}
   </>;
 }
@@ -3107,11 +3147,11 @@ function PublicSubscriptionContentV2() {
         if (!active) return;
         setWireguardData(result);
         setWireguardError(Array.isArray(result?.provider_errors) && result.provider_errors.length
-          ? result.provider_errors.map((entry: any) => `${entry.provider_label || entry.provider_key}: ${entry.error}`).join(' · ')
+          ? 'برخی سرورهای WireGuard آماده نشدند. کانفیگ‌های موجود قابل دریافت هستند؛ برای تلاش دوباره صفحه را تازه‌سازی کنید.'
           : '');
       })
       .catch((cause) => {
-        if (active) setWireguardError(cause instanceof Error ? cause.message : 'اطلاعات WireGuard دریافت نشد.');
+        if (active) setWireguardError('دریافت کانفیگ WireGuard ناموفق بود. کمی بعد دوباره تلاش کنید.');
       })
       .finally(() => {
         if (active) setWireguardLoading(false);
@@ -3199,10 +3239,10 @@ function PublicSubscriptionContentV2() {
       if (!response.ok) throw new Error(result?.error || 'کانفیگ WireGuard دریافت نشد.');
       setWireguardData(result);
       setWireguardError(Array.isArray(result?.provider_errors) && result.provider_errors.length
-        ? result.provider_errors.map((entry: any) => `${entry.provider_label || entry.provider_key}: ${entry.error}`).join(' · ')
+        ? 'برخی سرورهای WireGuard آماده نشدند. کانفیگ‌های موجود قابل دریافت هستند؛ برای تلاش دوباره صفحه را تازه‌سازی کنید.'
         : '');
     } catch (cause) {
-      setWireguardError(cause instanceof Error ? cause.message : 'ساخت کانفیگ WireGuard ناموفق بود.');
+      setWireguardError('ساخت کانفیگ WireGuard ناموفق بود. کمی بعد دوباره تلاش کنید.');
     } finally {
       setWireguardBusy(false);
     }
@@ -3254,7 +3294,7 @@ function PublicSubscriptionContentV2() {
       }
       if (protocol === 'wireguard') {
         setWireguardError(Array.isArray(result?.provider_errors) && result.provider_errors.length
-          ? result.provider_errors.map((entry: any) => `${entry.provider_label || entry.provider_key}: ${entry.error}`).join(' · ')
+          ? 'برخی سرورهای WireGuard آماده نشدند. کانفیگ‌های موجود قابل دریافت هستند؛ برای تلاش دوباره صفحه را تازه‌سازی کنید.'
           : '');
       }
       setValue(result);

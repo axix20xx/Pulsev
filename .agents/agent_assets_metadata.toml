@@ -2368,3 +2368,31 @@ mtime_ms = 1792886919313
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/d23c5994-8c2c-41b5-84c5-37179f520308/2b7f8369-d2f8-47bd-b3ea-1496bcbcc49c"
 storage_version_token = "1792886944524991"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "_m3RkDKUx7ZqpcW26nHue"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-26T15-17-34-227Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger package — responsive usage redesign"
+description = "Production Hostinger ZIP with redesigned combined-usage summary and responsive provider cards. Includes the current panel, mobile, public subscription, API, and migration files."
+logical_id = "8e126ed1-e5d9-4e0b-aef0-13740c7b3f6b"
+content_hash = "sha256:d4dbb506bbacda797b7baaae012b0b8106495ab10c8c7ddf1763b94f8fefe929"
+size = 29127741
+mtime_ms = 1793027970155
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8e126ed1-e5d9-4e0b-aef0-13740c7b3f6b/e18b2fe3-5a23-45ed-814f-8ffa576f0610"
+storage_version_token = "1793027999163303"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "5hxSgKII28u-bgDzy-opK"
+uri = "file://exports/pulse-hostinger-full-migration-2026-10-26T15-28-22-041Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger ZIP — provider labels removed"
+description = "Updated Hostinger package: hides provider names on public subscription and mobile WireGuard screens, combines servers into one list, and wraps config/profile actions responsively on narrow screens."
+logical_id = "b949857a-a3e7-4c6d-973c-edc4228d6df8"
+content_hash = "sha256:240faf9ffbd8e2cd1f25f2b3033145e9ec759313bd83fd8231c37c77412c2463"
+size = 29129081
+mtime_ms = 1793028605771
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b949857a-a3e7-4c6d-973c-edc4228d6df8/cdf4defd-f707-41b0-b231-205eb5a2c229"
+storage_version_token = "1793028634737426"
+content_type = "application/octet-stream"

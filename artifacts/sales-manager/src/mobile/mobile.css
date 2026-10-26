@@ -485,6 +485,34 @@
 @media (prefers-reduced-motion: reduce) {
   .mobile-app *, .mobile-app *::before, .mobile-app *::after { animation: none !important; transition-duration: .001ms !important; }
 }
+@media (max-width: 560px) {
+  .mobile-app .mobile-wireguard-card .mobile-openvpn-location {
+    grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+    align-items: stretch;
+    gap: 7px;
+    min-height: 0;
+    padding: 9px;
+  }
+  .mobile-app .mobile-wireguard-card .mobile-openvpn-location > span {
+    grid-column: 1 / -1;
+    overflow: visible;
+    white-space: normal;
+    line-height: 1.5;
+  }
+  .mobile-app .mobile-wireguard-card .mobile-openvpn-location > a {
+    justify-content: center;
+    min-width: 0;
+    min-height: 40px;
+    padding: 5px 7px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .mobile-app .mobile-wireguard-card .mobile-openvpn-location > a:only-of-type {
+    grid-column: 1 / -1;
+  }
+}
 
 /* Readability pass for subscription and connection details. */
 .mobile-app { color-scheme: light; }
