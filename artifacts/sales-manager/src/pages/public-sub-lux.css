@@ -553,3 +553,123 @@ html body #root .public-sub-lux .public-sub-protocol-feed button { display: inli
     grid-column: 1 / -1;
   }
 }
+
+/* V2Pro file handoff is isolated from the other app-import paths. */
+html body #root .public-sub-lux .public-sub-v2pro-card {
+  display: grid !important;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--lx-line);
+  border-radius: 22px;
+  background: linear-gradient(145deg, #fffdf9, #f4efe5);
+  box-shadow: 0 12px 28px -24px rgba(20,32,43,.42);
+}
+html body #root .public-sub-lux .public-sub-v2pro-heading {
+  display: grid;
+  grid-template-columns: 42px minmax(0,1fr);
+  align-items: center;
+  gap: 11px;
+}
+html body #root .public-sub-lux .public-sub-v2pro-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(145deg,#8254ea,#5426bb);
+  font-size: 13px;
+  font-weight: 900;
+}
+html body #root .public-sub-lux .public-sub-v2pro-heading h3 {
+  margin: 0;
+  color: var(--lx-ink);
+  font-size: 15px;
+  font-weight: 850;
+}
+html body #root .public-sub-lux .public-sub-v2pro-heading p:last-child {
+  margin: 4px 0 0;
+  color: var(--lx-muted);
+  font-size: 11px;
+  line-height: 1.8;
+}
+html body #root .public-sub-lux .public-sub-v2pro-actions {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 8px;
+}
+html body #root .public-sub-lux .public-sub-v2pro-actions button,
+html body #root .public-sub-lux .public-sub-v2pro-profile button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--lx-line-2);
+  border-radius: 13px;
+  color: var(--lx-ink);
+  background: var(--lx-surface);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+}
+html body #root .public-sub-lux .public-sub-v2pro-actions button:first-child {
+  border-color: transparent;
+  color: #fff;
+  background: var(--lx-lacquer);
+}
+html body #root .public-sub-lux .public-sub-v2pro-actions button:disabled,
+html body #root .public-sub-lux .public-sub-v2pro-profile button:disabled { opacity: .58; cursor: wait; }
+html body #root .public-sub-lux .public-sub-v2pro-profiles {
+  display: grid;
+  gap: 6px;
+  padding-top: 2px;
+}
+html body #root .public-sub-lux .public-sub-v2pro-profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--lx-line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.65);
+}
+html body #root .public-sub-lux .public-sub-v2pro-profile > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: var(--lx-ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+html body #root .public-sub-lux .public-sub-v2pro-profile small {
+  color: var(--lx-muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+html body #root .public-sub-lux .public-sub-v2pro-profile button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  color: var(--lx-lacquer);
+  font-size: 10px;
+}
+html body #root .public-sub-lux .public-sub-v2pro-note,
+html body #root .public-sub-lux .public-sub-v2pro-message,
+html body #root .public-sub-lux .public-sub-v2pro-error {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.8;
+}
+html body #root .public-sub-lux .public-sub-v2pro-note { color: var(--lx-muted); }
+html body #root .public-sub-lux .public-sub-v2pro-message { color: #39725e; }
+html body #root .public-sub-lux .public-sub-v2pro-error { color: var(--lx-danger); }
+@media (max-width: 420px) {
+  html body #root .public-sub-lux .public-sub-v2pro-card { padding: 13px; border-radius: 19px; }
+  html body #root .public-sub-lux .public-sub-v2pro-actions { grid-template-columns: 1fr; }
+  html body #root .public-sub-lux .public-sub-v2pro-profile { align-items: stretch; flex-direction: column; }
+}

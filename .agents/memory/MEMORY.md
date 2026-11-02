@@ -39,6 +39,7 @@
 - [PasarGuard Provider contract](pasarguard-provider-contract.md) — rain_admin uses singular user routes; Group 1 reconciliation must preserve lifecycle shutdown safety.
 - [PasarGuard WireGuard delivery](pasarguard-wireguard-delivery.md) — combine every enabled WireGuard provider in public downloads while keeping each saved identity provider-scoped.
 - [Public subscription visual boundary](public-sub-visual-boundary.md) — keep `/sub` presentation changes in a dedicated class namespace so management UI styling stays untouched.
+- [V2Pro profile handoff](v2pro-profile-handoff.md) — use native file sharing on iOS/Android for `.conf` and `.ovpn`; avoid undocumented app links and V2Box routing.
 - [Provider-blind public VPN names](public-vpn-naming.md) — hide provider brands from `/sub` and `/mobile`; use the same protocol and server number in UI, downloads, and iOS profile names.
 - [Service identity](service-identity.md) — use a stable display reference derived from the internal service ID across cards, notifications, and public subscription pages.
 - [Renewal SQL parameter types](renewal-sql-parameter-types.md) — keep renewal service and ownership placeholders distinct and explicitly typed to avoid PostgreSQL 42P08 failures.
