@@ -1112,6 +1112,7 @@ export const ListServicesResponseItem = zod.object({
   "panel_usages": zod.array(zod.object({
   "panel_key": zod.string(),
   "panel_kind": zod.string(),
+  "provider_username": zod.string(),
   "used_gb": zod.number(),
   "raw_used_gb": zod.number(),
   "offset_gb": zod.number(),
@@ -1185,6 +1186,7 @@ export const CreateServiceResponse = zod.object({
   "panel_usages": zod.array(zod.object({
   "panel_key": zod.string(),
   "panel_kind": zod.string(),
+  "provider_username": zod.string(),
   "used_gb": zod.number(),
   "raw_used_gb": zod.number(),
   "offset_gb": zod.number(),
@@ -1201,6 +1203,47 @@ export const CreateServiceResponse = zod.object({
 }),
   "sale_id": zod.number(),
   "sync_status": zod.enum(['completed', 'partial'])
+})
+
+
+/**
+ * @summary Find local services by their username on a provider panel
+ */
+export const searchProviderAccountsQuerySearchMin = 2;
+export const searchProviderAccountsQuerySearchMax = 100;
+
+export const searchProviderAccountsQueryProviderKeyMax = 255;
+
+export const searchProviderAccountsQueryLimitDefault = 50;
+export const searchProviderAccountsQueryLimitMax = 200;
+
+
+
+export const SearchProviderAccountsQueryParams = zod.object({
+  "search": zod.coerce.string().min(searchProviderAccountsQuerySearchMin).max(searchProviderAccountsQuerySearchMax).optional(),
+  "provider_key": zod.coerce.string().max(searchProviderAccountsQueryProviderKeyMax).optional(),
+  "limit": zod.coerce.number().int().min(1).max(searchProviderAccountsQueryLimitMax).default(searchProviderAccountsQueryLimitDefault)
+})
+
+export const SearchProviderAccountsResponse = zod.object({
+  "providers": zod.array(zod.object({
+  "provider_key": zod.string(),
+  "provider_kind": zod.string(),
+  "enabled": zod.boolean()
+})),
+  "results": zod.array(zod.object({
+  "service_id": zod.number(),
+  "service_code": zod.string(),
+  "customer_id": zod.number(),
+  "customer_name": zod.string(),
+  "service_username": zod.string(),
+  "provider_key": zod.string(),
+  "provider_kind": zod.string(),
+  "provider_username": zod.string(),
+  "service_status": zod.string(),
+  "expires_at": zod.string().nullable(),
+  "provider_enabled": zod.boolean()
+}))
 })
 
 
@@ -1245,6 +1288,7 @@ export const UpdateServiceResponse = zod.object({
   "panel_usages": zod.array(zod.object({
   "panel_key": zod.string(),
   "panel_kind": zod.string(),
+  "provider_username": zod.string(),
   "used_gb": zod.number(),
   "raw_used_gb": zod.number(),
   "offset_gb": zod.number(),
@@ -1315,6 +1359,7 @@ export const RenewServiceResponse = zod.object({
   "panel_usages": zod.array(zod.object({
   "panel_key": zod.string(),
   "panel_kind": zod.string(),
+  "provider_username": zod.string(),
   "used_gb": zod.number(),
   "raw_used_gb": zod.number(),
   "offset_gb": zod.number(),
@@ -1848,6 +1893,7 @@ export const GetCustomerResponse = zod.object({
   "panel_usages": zod.array(zod.object({
   "panel_key": zod.string(),
   "panel_kind": zod.string(),
+  "provider_username": zod.string(),
   "used_gb": zod.number(),
   "raw_used_gb": zod.number(),
   "offset_gb": zod.number(),

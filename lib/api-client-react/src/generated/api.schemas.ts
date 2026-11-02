@@ -870,6 +870,7 @@ export const ServiceStatus = {
 export interface PanelUsage {
   panel_key: string;
   panel_kind: string;
+  provider_username: string;
   used_gb: number;
   raw_used_gb: number;
   offset_gb: number;
@@ -922,6 +923,32 @@ export interface Service {
   awg_config_url?: string | null;
   panel_usages?: PanelUsage[];
   awg_usage?: AwgUsage | null;
+}
+
+export interface ProviderAccountPanel {
+  provider_key: string;
+  provider_kind: string;
+  enabled: boolean;
+}
+
+export interface ProviderAccountSearchResult {
+  service_id: number;
+  service_code: string;
+  customer_id: number;
+  customer_name: string;
+  service_username: string;
+  provider_key: string;
+  provider_kind: string;
+  provider_username: string;
+  service_status: string;
+  /** @nullable */
+  expires_at: string | null;
+  provider_enabled: boolean;
+}
+
+export interface ProviderAccountSearchResponse {
+  providers: ProviderAccountPanel[];
+  results: ProviderAccountSearchResult[];
 }
 
 export interface ServiceProviderRepairInput {
@@ -1287,6 +1314,23 @@ search?: SearchParameter;
  * @maximum 5000
  */
 limit?: ServicesLimitParameter;
+};
+
+export type SearchProviderAccountsParams = {
+/**
+ * @minLength 2
+ * @maxLength 100
+ */
+search?: string;
+/**
+ * @maxLength 255
+ */
+provider_key?: string;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
 };
 
 export type ResetServiceToken200 = {

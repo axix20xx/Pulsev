@@ -25,6 +25,7 @@ import AwgUsageLogPage from '@/pages/awg-usage-log';
 import { InsightDetailPage, SmartCenter } from '@/pages/smart-center';
 import { OperationsCenter } from '@/pages/operations-center';
 import ProviderAccountAuditPage from '@/pages/provider-account-audit';
+import ProviderAccountFinderPage from '@/pages/provider-account-finder';
 import {
   NotificationAnalyticsPage,
   NotificationSendPage,
@@ -37,6 +38,11 @@ import TelegramControlPage from '@/pages/telegram-control';
 function ProviderAccountAuditRoute() {
   const { session } = usePulse();
   return session?.role === 'master_admin' ? <ProviderAccountAuditPage /> : <NotFound />;
+}
+
+function ProviderAccountFinderRoute() {
+  const { session } = usePulse();
+  return session?.role === 'master_admin' ? <ProviderAccountFinderPage /> : <NotFound />;
 }
 
 function AwgUsageLogRoute() {
@@ -78,6 +84,7 @@ export default function ManagementApp() {
             <Route path="/connections" component={Connections} />
             <Route path="/operations" component={OperationsCenter} />
             <Route path="/provider-account-audit" component={ProviderAccountAuditRoute} />
+            <Route path="/provider-account-search" component={ProviderAccountFinderRoute} />
             <Route path="/insights/:focus" component={InsightDetailPage} />
             <Route path="/insights" component={SmartCenter} />
             <Route path="/notification-status" component={NotificationStatusPage} />

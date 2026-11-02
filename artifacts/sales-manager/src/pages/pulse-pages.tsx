@@ -41,7 +41,7 @@ const subscriptionFeedUrl = (raw: string | null | undefined) => { if (!raw) retu
 const mapService = (item: any): Service => {
   const expiresAt = item.expires_at ?? '';
   const status: Service['status'] = item.status === 'disabled' ? 'Disabled' : item.status === 'expired' ? 'Expired' : item.status === 'expiring' || (item.status === 'active' && expiresAt && daysUntil(expiresAt) >= 0 && daysUntil(expiresAt) <= 7) ? 'Expiring' : 'Active';
-  const panelUsages = Array.isArray(item.panel_usages) ? item.panel_usages.map((usage: any) => ({ panelKey: String(usage.panel_key), panelKind: String(usage.panel_kind ?? ''), usedGb: Number(usage.used_gb ?? 0), rawUsedGb: Number(usage.raw_used_gb ?? 0), offsetGb: Number(usage.offset_gb ?? 0), lastUpdated: usage.last_updated ?? null })) : [];
+  const panelUsages = Array.isArray(item.panel_usages) ? item.panel_usages.map((usage: any) => ({ panelKey: String(usage.panel_key), panelKind: String(usage.panel_kind ?? ''), providerUsername: String(usage.provider_username ?? ''), usedGb: Number(usage.used_gb ?? 0), rawUsedGb: Number(usage.raw_used_gb ?? 0), offsetGb: Number(usage.offset_gb ?? 0), lastUpdated: usage.last_updated ?? null })) : [];
   const awgUsage = item.awg_usage ? { rxGb: Number(item.awg_usage.rx_gb ?? 0), txGb: Number(item.awg_usage.tx_gb ?? 0), rawTotalGb: Number(item.awg_usage.raw_total_gb ?? 0), usedGb: Number(item.awg_usage.used_gb ?? 0), offsetGb: Number(item.awg_usage.offset_gb ?? 0), lastUpdated: item.awg_usage.last_updated ?? null } : null;
   const componentUsageGb = panelUsages.reduce((total: number, usage: { usedGb: number }) => total + Math.max(0, usage.usedGb), 0) + Math.max(0, awgUsage?.usedGb ?? 0);
   const usedGb = Math.max(Number(item.used_gb ?? 0), componentUsageGb);
@@ -1789,7 +1789,7 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
           <span>مصرف‌شده <bdi dir="ltr">{usageLabel(service.usedGb)}</bdi></span>
           <span>باقی‌مانده <bdi dir="ltr">{usageLabel(remainingGb)}</bdi></span>
         </div>
-        <small className="ax-usage-overview-note">مجموع OpenVPN، WireGuard، IPsec/IKEv2 و AmneziaWG برای همین اشتراک</small>
+        <small className="ax-usage-overview-note">مجموع مصرف ثبت‌شدهٔ اتصال‌های Provider، از جمله Raven، برای همین اشتراک</small>
       </section>
      {!hasPanelUsage && !hasAwgUsage
         ? <div className="ax-usage-empty"><Wifi size={17} /><span><strong>هنوز آماری دریافت نشده</strong><small>صفر بودن مصرف اتصال‌ها تأیید نشده است. جزئیات پس از همگام‌سازی پنل نمایش داده می‌شود.</small></span></div>
@@ -1804,7 +1804,8 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
             (usage.panelKind === 'rain_admin' || usage.panelKind === 'marzban');
           const repairKey = `${service.id}:${usage.panelKey}`;
           const isRepairing = repairingKey === repairKey;
-           const protocolLabel = usage.panelKind === 'azadpanel_v2ray' ? 'V2Ray / Xray'
+            const protocolLabel = usage.panelKind === 'raven' ? 'Raven'
+              : usage.panelKind === 'azadpanel_v2ray' ? 'V2Ray / Xray'
              : usage.panelKind === 'azadpanel_ipsec' ? 'IPsec / IKEv2'
                : usage.panelKind === 'azadpanel_wireguard' || usage.panelKind === 'rain_admin_wireguard' ? 'WireGuard'
                  : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? 'OpenVPN'
@@ -1812,7 +1813,7 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
           return <div className="ax-usage-source" key={`${service.id}-${usage.panelKey}`}>
              <div className="ax-usage-source-head">
                <span className="ax-usage-source-icon"><Server size={16} /></span>
-               <div className="ax-usage-source-name"><strong><bdi dir="ltr">{usage.panelKey}</bdi></strong><small>{protocolLabel}</small></div>
+                <div className="ax-usage-source-name"><strong><bdi dir="ltr">{usage.panelKey}</bdi></strong><small>{protocolLabel}</small><small className="ax-usage-source-username" dir="ltr">{usage.providerUsername || 'نام کاربری پنل ثبت نشده'}</small></div>
                <span className={`ax-usage-source-status ${usage.lastUpdated ? 'is-ready' : 'is-waiting'}`}>{usage.lastUpdated ? 'به‌روز' : 'در انتظار آمار'}</span>
              </div>
              <div className="ax-usage-source-main">
@@ -1858,7 +1859,35 @@ function ServiceInventoryCard({ service, onNote, onToggle, onRenew }: {
     <td><bdi dir="ltr">{service.panel || 'پنل ثبت‌نشده'}</bdi><small className="ax-sub">ایجاد: {service.createdAt ? dateLabel(service.createdAt) : '—'} · تمدید: {service.lastRenewedAt ? dateLabel(service.lastRenewedAt) : '—'}</small>
       {(service.provisionStatus || service.cancelStatus || service.provisionLastError) && <small className="ax-sub">{service.provisionStatus === 'completed' ? 'ساخت تکمیل‌شده' : service.provisionStatus === 'running' ? 'در حال ساخت' : service.provisionStatus === 'retrying' ? 'تلاش مجدد' : service.provisionStatus === 'pending' ? 'در صف ساخت' : ''}{service.cancelStatus && service.cancelStatus !== 'not_requested' ? ` · لغو ${service.cancelStatus === 'pending' ? 'در انتظار' : service.cancelStatus === 'approved' ? 'تأییدشده' : 'ردشده'}` : ''}</small>}
       {service.provisionLastError && <small className="text-rose-600" role="note">{service.provisionLastError}</small>}
-        {(service.panelUsages?.length || service.awgUsage || service.awgReady) && <details className="ax-service-inventory-usage"><summary>ریز مصرف اتصال‌ها · مجموع {usageLabel(service.usedGb)}</summary><div>{service.panelUsages?.map((usage) => <p key={usage.panelKey}><bdi dir="ltr">{usage.panelKey}{usage.panelKind === 'azadpanel_v2ray' ? ' · V2Ray / Xray' : usage.panelKind === 'azadpanel_ipsec' ? ' · IPsec / IKEv2' : usage.panelKind === 'azadpanel_wireguard' || usage.panelKind === 'rain_admin_wireguard' ? ' · WireGuard' : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? ' · OpenVPN' : usage.panelKind ? ` · ${usage.panelKind}` : ''}</bdi> · {usage.lastUpdated ? usageLabel(usage.usedGb) : 'آمار هنوز دریافت نشده'}<small>{usage.lastUpdated ? `خام ${usageLabel(usage.rawUsedGb)} · مبنا ${usageLabel(usage.offsetGb)} · ${usageDate(usage.lastUpdated)}` : 'صفر بودن مصرف تأیید نشده است.'}</small></p>)}{(service.awgUsage || service.awgReady) && <p>AmneziaWG · {service.awgUsage && (!service.awgReady || service.awgUsage.lastUpdated) ? usageLabel(service.awgUsage.usedGb) : 'آمار هنوز دریافت نشده'}{service.awgUsage && <small>{service.awgReady && !service.awgUsage.lastUpdated ? 'صفر بودن مصرف تأیید نشده است.' : `دریافت ${usageLabel(service.awgUsage.rxGb)} · ارسال ${usageLabel(service.awgUsage.txGb)} · ${usageDate(service.awgUsage.lastUpdated)}`}</small>}</p>}</div></details>}
+        {(service.panelUsages?.length || service.awgUsage || service.awgReady) && (
+          <details className="ax-service-inventory-usage">
+            <summary>ریز مصرف اتصال‌ها · مجموع {usageLabel(service.usedGb)}</summary>
+            <div>
+              {service.panelUsages?.map((usage) => {
+                const protocolLabel = usage.panelKind === 'raven' ? 'Raven'
+                  : usage.panelKind === 'azadpanel_v2ray' ? 'V2Ray / Xray'
+                    : usage.panelKind === 'azadpanel_ipsec' ? 'IPsec / IKEv2'
+                      : usage.panelKind === 'azadpanel_wireguard' || usage.panelKind === 'rain_admin_wireguard' ? 'WireGuard'
+                        : usage.panelKind === 'azadpanel' || usage.panelKind === 'azadpanel_openvpn' ? 'OpenVPN'
+                          : usage.panelKind || '';
+                return (
+                  <p key={usage.panelKey}>
+                    <bdi dir="ltr">{usage.panelKey}{protocolLabel ? ` · ${protocolLabel}` : ''}</bdi>
+                    {' · '}{usage.lastUpdated ? usageLabel(usage.usedGb) : 'آمار هنوز دریافت نشده'}
+                    <small>نام کاربری پنل: <bdi dir="ltr">{usage.providerUsername || '—'}</bdi></small>
+                    <small>{usage.lastUpdated ? `خام ${usageLabel(usage.rawUsedGb)} · مبنا ${usageLabel(usage.offsetGb)} · ${usageDate(usage.lastUpdated)}` : 'صفر بودن مصرف تأیید نشده است.'}</small>
+                  </p>
+                );
+              })}
+              {(service.awgUsage || service.awgReady) && (
+                <p>
+                  AmneziaWG · {service.awgUsage && (!service.awgReady || service.awgUsage.lastUpdated) ? usageLabel(service.awgUsage.usedGb) : 'آمار هنوز دریافت نشده'}
+                  {service.awgUsage && <small>{service.awgReady && !service.awgUsage.lastUpdated ? 'صفر بودن مصرف تأیید نشده است.' : `دریافت ${usageLabel(service.awgUsage.rxGb)} · ارسال ${usageLabel(service.awgUsage.txGb)} · ${usageDate(service.awgUsage.lastUpdated)}`}</small>}
+                </p>
+              )}
+            </div>
+          </details>
+        )}
       {service.note && <small className="ax-sub">یادداشت: {service.note}</small>}
     </td>
     <td><div className="ax-cell-actions"><button type="button" className="ax-btn is-quiet" onClick={() => onNote(service)} data-testid={`button-edit-note-${service.id}`}>{service.note ? 'یادداشت' : 'افزودن یادداشت'}</button><Button variant="quiet" onClick={() => onToggle(service)} testId={`button-toggle-service-${service.id}`}>{service.status === 'Disabled' ? 'فعال‌سازی' : 'توقف'}</Button>{service.status !== 'Disabled' && <Button variant="secondary" onClick={() => onRenew(service)} testId={`button-renew-service-${service.id}`}><RefreshCw size={13} /> تمدید</Button>}</div></td>

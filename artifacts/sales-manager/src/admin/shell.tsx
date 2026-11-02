@@ -41,6 +41,7 @@ const groups: { title: string; items: NavItem[] }[] = [
     { href: '/awg-usage', label: 'مصرف AWG', icon: Wifi },
     { href: '/awg-usage-log', label: 'لاگ زنده AWG', icon: Activity, admin: true },
     { href: '/provider-account-audit', label: 'بازبینی حساب Provider', icon: ShieldEllipsis, admin: true },
+    { href: '/provider-account-search', label: 'جست‌وجوی username پنل', icon: Search, admin: true },
   ] },
   { title: 'مالی', items: [
     { href: '/reseller-accounting', label: 'حسابداری فروشندگان', icon: CreditCard, admin: true },

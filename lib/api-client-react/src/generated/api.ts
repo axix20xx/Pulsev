@@ -53,6 +53,7 @@ import type {
   ProviderAccountAuditRepairResult,
   ProviderAccountAuditScanInput,
   ProviderAccountAuditScanResult,
+  ProviderAccountSearchResponse,
   PublicStorefront,
   PublicStorefrontInquiryInput,
   PublicStorefrontInquiryResult,
@@ -71,6 +72,7 @@ import type {
   Sale,
   SaleUpdate,
   SalesSummary,
+  SearchProviderAccountsParams,
   SearchWorkspaceParams,
   Service,
   ServiceProviderRepairInput,
@@ -2619,6 +2621,90 @@ export const useCreateService = <TError = ErrorType<void>,
       > => {
       return useMutation(getCreateServiceMutationOptions(options));
     }
+
+export const getSearchProviderAccountsUrl = (params?: SearchProviderAccountsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/provider-accounts/search?${stringifiedParams}` : `/api/provider-accounts/search`
+}
+
+/**
+ * @summary Find local services by their username on a provider panel
+ */
+export const searchProviderAccounts = async (params?: SearchProviderAccountsParams, options?: Parameters<typeof customFetch>[1]): Promise<ProviderAccountSearchResponse> => {
+
+  return customFetch<ProviderAccountSearchResponse>(getSearchProviderAccountsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchProviderAccountsQueryKey = (params?: SearchProviderAccountsParams,) => {
+    return [
+    `/api/provider-accounts/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchProviderAccountsQueryOptions = <TData = Awaited<ReturnType<typeof searchProviderAccounts>>, TError = ErrorType<void>>(params?: SearchProviderAccountsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchProviderAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchProviderAccountsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchProviderAccounts>>> = ({ signal }) => searchProviderAccounts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchProviderAccounts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchProviderAccountsQueryResult = NonNullable<Awaited<ReturnType<typeof searchProviderAccounts>>>
+export type SearchProviderAccountsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Find local services by their username on a provider panel
+ */
+
+export function useSearchProviderAccounts<TData = Awaited<ReturnType<typeof searchProviderAccounts>>, TError = ErrorType<void>>(
+ params?: SearchProviderAccountsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchProviderAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchProviderAccountsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getUpdateServiceUrl = (id: number,) => {
 

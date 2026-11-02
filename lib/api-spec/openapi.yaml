@@ -619,6 +619,42 @@ paths:
           description: Invalid service input
         "502":
           description: Rain panel rejected the service
+  /provider-accounts/search:
+    get:
+      operationId: searchProviderAccounts
+      tags: [admin]
+      summary: Find local services by their username on a provider panel
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+        - name: provider_key
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: Provider account matches and configured panel choices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderAccountSearchResponse"
+        "403":
+          description: Master admin access required
   /services/{id}:
     patch:
       operationId: updateService
@@ -2491,11 +2527,13 @@ components:
           nullable: true
     PanelUsage:
       type: object
-      required: [panel_key, panel_kind, used_gb, raw_used_gb, offset_gb, last_updated]
+      required: [panel_key, panel_kind, provider_username, used_gb, raw_used_gb, offset_gb, last_updated]
       properties:
         panel_key:
           type: string
         panel_kind:
+          type: string
+        provider_username:
           type: string
         used_gb:
           type: number
@@ -2505,6 +2543,54 @@ components:
           type: number
         last_updated:
           type: ["string", "null"]
+    ProviderAccountPanel:
+      type: object
+      required: [provider_key, provider_kind, enabled]
+      properties:
+        provider_key:
+          type: string
+        provider_kind:
+          type: string
+        enabled:
+          type: boolean
+    ProviderAccountSearchResult:
+      type: object
+      required: [service_id, service_code, customer_id, customer_name, service_username, provider_key, provider_kind, provider_username, service_status, expires_at, provider_enabled]
+      properties:
+        service_id:
+          type: number
+        service_code:
+          type: string
+        customer_id:
+          type: number
+        customer_name:
+          type: string
+        service_username:
+          type: string
+        provider_key:
+          type: string
+        provider_kind:
+          type: string
+        provider_username:
+          type: string
+        service_status:
+          type: string
+        expires_at:
+          type: ["string", "null"]
+        provider_enabled:
+          type: boolean
+    ProviderAccountSearchResponse:
+      type: object
+      required: [providers, results]
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProviderAccountPanel"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProviderAccountSearchResult"
     ServiceProviderRepairInput:
       type: object
       required: [provider_key]

@@ -2424,3 +2424,17 @@ mtime_ms = 1793610315992
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/a09ec9da-a5c5-4d63-875a-2c64a09c2778/ac6911f4-1c34-4418-8069-e5c85b204af9"
 storage_version_token = "1793610363622432"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Sj1RTGQvSRZSZiFBWEQVP"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-02T09-35-40-948Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger Migration ZIP"
+description = "Updated Hostinger package with Raven provider usage and provider-account usernames in admin, plus a master-admin panel username search page."
+logical_id = "65ddf7e1-dadd-443a-8f7a-3df85e5e5859"
+content_hash = "sha256:b530b85a51422bd96981ca2014cb62c31ad021a5b57e5b67229c499f6c1696f6"
+size = 29182334
+mtime_ms = 1793612250005
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/65ddf7e1-dadd-443a-8f7a-3df85e5e5859/d582055a-c90c-4599-846b-cd1274694051"
+storage_version_token = "1793612271929554"
+content_type = "application/octet-stream"

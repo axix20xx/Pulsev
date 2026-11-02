@@ -9,6 +9,7 @@
 export interface PanelUsage {
   panel_key: string;
   panel_kind: string;
+  provider_username: string;
   used_gb: number;
   raw_used_gb: number;
   offset_gb: number;

@@ -55951,6 +55951,7 @@ var ListServicesResponseItem = objectType({
   "panel_usages": arrayType(objectType({
     "panel_key": stringType(),
     "panel_kind": stringType(),
+    "provider_username": stringType(),
     "used_gb": numberType(),
     "raw_used_gb": numberType(),
     "offset_gb": numberType(),
@@ -56009,6 +56010,7 @@ var CreateServiceResponse = objectType({
     "panel_usages": arrayType(objectType({
       "panel_key": stringType(),
       "panel_kind": stringType(),
+      "provider_username": stringType(),
       "used_gb": numberType(),
       "raw_used_gb": numberType(),
       "offset_gb": numberType(),
@@ -56025,6 +56027,36 @@ var CreateServiceResponse = objectType({
   }),
   "sale_id": numberType(),
   "sync_status": enumType(["completed", "partial"])
+});
+var searchProviderAccountsQuerySearchMin = 2;
+var searchProviderAccountsQuerySearchMax = 100;
+var searchProviderAccountsQueryProviderKeyMax = 255;
+var searchProviderAccountsQueryLimitDefault = 50;
+var searchProviderAccountsQueryLimitMax = 200;
+var SearchProviderAccountsQueryParams = objectType({
+  "search": coerce.string().min(searchProviderAccountsQuerySearchMin).max(searchProviderAccountsQuerySearchMax).optional(),
+  "provider_key": coerce.string().max(searchProviderAccountsQueryProviderKeyMax).optional(),
+  "limit": coerce.number().int().min(1).max(searchProviderAccountsQueryLimitMax).default(searchProviderAccountsQueryLimitDefault)
+});
+var SearchProviderAccountsResponse = objectType({
+  "providers": arrayType(objectType({
+    "provider_key": stringType(),
+    "provider_kind": stringType(),
+    "enabled": booleanType()
+  })),
+  "results": arrayType(objectType({
+    "service_id": numberType(),
+    "service_code": stringType(),
+    "customer_id": numberType(),
+    "customer_name": stringType(),
+    "service_username": stringType(),
+    "provider_key": stringType(),
+    "provider_kind": stringType(),
+    "provider_username": stringType(),
+    "service_status": stringType(),
+    "expires_at": stringType().nullable(),
+    "provider_enabled": booleanType()
+  }))
 });
 var UpdateServiceParams = objectType({
   "id": coerce.number().min(1)
@@ -56059,6 +56091,7 @@ var UpdateServiceResponse = objectType({
   "panel_usages": arrayType(objectType({
     "panel_key": stringType(),
     "panel_kind": stringType(),
+    "provider_username": stringType(),
     "used_gb": numberType(),
     "raw_used_gb": numberType(),
     "offset_gb": numberType(),
@@ -56113,6 +56146,7 @@ var RenewServiceResponse = objectType({
   "panel_usages": arrayType(objectType({
     "panel_key": stringType(),
     "panel_kind": stringType(),
+    "provider_username": stringType(),
     "used_gb": numberType(),
     "raw_used_gb": numberType(),
     "offset_gb": numberType(),
@@ -56462,6 +56496,7 @@ var GetCustomerResponse = objectType({
     "panel_usages": arrayType(objectType({
       "panel_key": stringType(),
       "panel_kind": stringType(),
+      "provider_username": stringType(),
       "used_gb": numberType(),
       "raw_used_gb": numberType(),
       "offset_gb": numberType(),
@@ -89142,6 +89177,23 @@ async function loadServicePanelUsageMap(services) {
         FROM requested_wireguard_accounts
      )
      SELECT requested.service_id, panel.key AS panel_key, panel.kind AS panel_kind,
+            CASE
+              WHEN LOWER(panel.kind) = 'raven' THEN COALESCE(raven_account.config_label, '')
+              WHEN LOWER(panel.kind) = 'rain_admin_wireguard'
+                THEN COALESCE(wireguard_account.provider_username, requested.username)
+              WHEN LOWER(panel.kind) = 'azadpanel_wireguard'
+                THEN COALESCE(wireguard_account.provider_username, '')
+              WHEN LOWER(panel.kind) = 'azadpanel'
+                AND wireguard_account.provider_key IS NOT NULL
+                THEN wireguard_account.provider_username
+              WHEN LOWER(panel.kind) = 'azadpanel_ipsec'
+                THEN COALESCE(ipsec_account.provider_username, '')
+              WHEN LOWER(panel.kind) = 'azadpanel_v2ray'
+                THEN COALESCE(v2ray_account.provider_username, requested.username)
+              WHEN LOWER(panel.kind) IN ('azadpanel', 'azadpanel_openvpn')
+                THEN COALESCE(openvpn_account.provider_username, requested.username)
+              ELSE requested.username
+            END AS provider_username,
             usage.upload, usage.download, usage.offset_bytes, usage.last_updated
      FROM requested_services requested
      CROSS JOIN panel_configs panel
@@ -89159,6 +89211,9 @@ async function loadServicePanelUsageMap(services) {
       LEFT JOIN reseller_service_openvpn_provider_accounts openvpn_account
         ON openvpn_account.service_id = requested.service_id
        AND openvpn_account.provider_key = panel.key
+      LEFT JOIN raven_service_accounts raven_account
+        ON raven_account.service_id = requested.service_id
+       AND raven_account.provider_key = panel.key
      LEFT JOIN LATERAL (
        SELECT saved.upload, saved.download, saved.offset_bytes, saved.last_updated
        FROM user_panel_usages saved
@@ -89180,13 +89235,18 @@ async function loadServicePanelUsageMap(services) {
             WHEN LOWER(panel.kind) = 'azadpanel_v2ray' THEN COALESCE(v2ray_account.provider_username, requested.username)
           WHEN LOWER(panel.kind) IN ('azadpanel', 'azadpanel_openvpn')
             THEN COALESCE(openvpn_account.provider_username, requested.username)
+            WHEN LOWER(panel.kind) = 'raven' THEN raven_account.config_label
            ELSE requested.username
          END
        ORDER BY saved.id DESC
        LIMIT 1
      ) usage ON TRUE
       WHERE panel.is_enabled = 1
-          AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
+          AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'falcon', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec', 'raven')
+       AND (
+         LOWER(panel.kind) <> 'raven'
+         OR raven_account.service_id IS NOT NULL
+       )
        AND (
          LOWER(panel.kind) <> 'azadpanel_wireguard'
           OR wireguard_account.provider_key IS NOT NULL
@@ -89218,6 +89278,7 @@ async function loadServicePanelUsageMap(services) {
     entries.push({
       panel_key: row.panel_key,
       panel_kind: row.panel_kind,
+      provider_username: row.provider_username ?? "",
       used_gb: Math.max(0, upload + download - offset) / 1024 ** 3,
       raw_used_gb: (upload + download) / 1024 ** 3,
       offset_gb: offset / 1024 ** 3,
@@ -89227,6 +89288,160 @@ async function loadServicePanelUsageMap(services) {
   }
   return usageByService;
 }
+router2.get("/provider-accounts/search", requireMasterAdmin, async (req, res) => {
+  await managementReady;
+  const parsed = SearchProviderAccountsQueryParams.parse(req.query);
+  const panelKinds = [
+    "rain_admin",
+    "rain_admin_wireguard",
+    "marzban",
+    "falcon",
+    "azadpanel",
+    "azadpanel_v2ray",
+    "azadpanel_openvpn",
+    "azadpanel_wireguard",
+    "azadpanel_ipsec",
+    "raven"
+  ];
+  const providers = await pool.query(
+    `SELECT key AS provider_key, kind AS provider_kind, (is_enabled = 1) AS enabled
+     FROM panel_configs
+     WHERE LOWER(kind) = ANY($1::text[])
+     ORDER BY key`,
+    [panelKinds]
+  );
+  let results = [];
+  if (parsed.search) {
+    const matches = await pool.query(
+      `WITH provider_accounts AS (
+         SELECT
+           svc.id AS service_id,
+           'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+           svc.customer_id,
+           COALESCE(NULLIF(BTRIM(customer.full_name), ''), '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
+           COALESCE(svc.rain_username, '') AS service_username,
+           panel.key AS provider_key,
+           panel.kind AS provider_kind,
+           panel.is_enabled = 1 AS provider_enabled,
+           svc.status AS service_status,
+           svc.expire_at::date::text AS expires_at,
+           CASE
+             WHEN LOWER(panel.kind) = 'raven'
+               THEN COALESCE(raven_account.config_label, '')
+             WHEN LOWER(panel.kind) = 'rain_admin_wireguard'
+               THEN COALESCE(wireguard_account.provider_username, svc.rain_username, '')
+             WHEN LOWER(panel.kind) = 'azadpanel_wireguard'
+               THEN COALESCE(wireguard_account.provider_username, '')
+             WHEN LOWER(panel.kind) = 'azadpanel'
+               AND wireguard_account.provider_key IS NOT NULL
+               THEN COALESCE(wireguard_account.provider_username, '')
+             WHEN LOWER(panel.kind) = 'azadpanel_ipsec'
+               THEN COALESCE(ipsec_account.provider_username, '')
+             WHEN LOWER(panel.kind) = 'azadpanel_v2ray'
+               THEN COALESCE(v2ray_account.provider_username, svc.rain_username, '')
+             WHEN LOWER(panel.kind) IN ('azadpanel', 'azadpanel_openvpn')
+               THEN COALESCE(openvpn_account.provider_username, svc.rain_username, '')
+             ELSE COALESCE(svc.rain_username, '')
+           END AS provider_username
+         FROM reseller_services svc
+         LEFT JOIN reseller_customers customer ON customer.id = svc.customer_id
+         CROSS JOIN panel_configs panel
+         LEFT JOIN reseller_service_wireguard_provider_accounts wireguard_account
+           ON wireguard_account.service_id = svc.id
+          AND wireguard_account.provider_key = panel.key
+         LEFT JOIN reseller_service_ipsec_accounts ipsec_account
+           ON ipsec_account.service_id = svc.id
+          AND ipsec_account.provider_key = panel.key
+         LEFT JOIN reseller_service_v2ray_accounts v2ray_account
+           ON v2ray_account.service_id = svc.id
+          AND v2ray_account.provider_key = panel.key
+         LEFT JOIN reseller_service_openvpn_provider_accounts openvpn_account
+           ON openvpn_account.service_id = svc.id
+          AND openvpn_account.provider_key = panel.key
+         LEFT JOIN raven_service_accounts raven_account
+           ON raven_account.service_id = svc.id
+          AND raven_account.provider_key = panel.key
+         WHERE LOWER(panel.kind) = ANY($4::text[])
+       )
+       SELECT service_id, service_code, customer_id, customer_name,
+              service_username, provider_key, provider_kind, provider_username,
+              service_status, expires_at, provider_enabled
+       FROM provider_accounts
+       WHERE provider_username <> ''
+         AND STRPOS(LOWER(provider_username), LOWER($1)) > 0
+         AND ($2::text IS NULL OR provider_key = $2)
+       ORDER BY provider_key, provider_username, service_id DESC
+       LIMIT $3`,
+      [parsed.search, parsed.provider_key ?? null, parsed.limit, panelKinds]
+    );
+    results = matches.rows.map((row) => ({
+      ...row,
+      service_id: Number(row.service_id),
+      customer_id: Number(row.customer_id)
+    }));
+    if (results.length < parsed.limit) {
+      const legacyServices = await pool.query(
+        `SELECT
+           svc.id AS service_id,
+           'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+           svc.customer_id,
+           COALESCE(NULLIF(BTRIM(customer.full_name), ''), '\u0645\u0634\u062A\u0631\u06CC \u062D\u0630\u0641\u200C\u0634\u062F\u0647') AS customer_name,
+           COALESCE(svc.rain_username, '') AS service_username,
+           svc.status AS service_status,
+           svc.expire_at::date::text AS expires_at
+         FROM reseller_services svc
+         JOIN reseller_service_wireguard_accounts legacy_account
+           ON legacy_account.service_id = svc.id
+         LEFT JOIN reseller_customers customer ON customer.id = svc.customer_id
+         WHERE NOT EXISTS (
+           SELECT 1
+           FROM reseller_service_wireguard_provider_accounts mapped_account
+           WHERE mapped_account.service_id = svc.id
+         )
+         ORDER BY svc.id DESC
+         LIMIT 10000`
+      );
+      const legacyServiceIds = legacyServices.rows.map((row) => Number(row.service_id));
+      const legacyAccounts = await readSavedWireGuardProviderUsernames(legacyServiceIds);
+      const knownProviderKeys = new Set(providers.rows.map((provider) => provider.provider_key));
+      const knownMatches = new Set(
+        results.map((row) => `${row.service_id}:${row.provider_key}:${String(row.provider_username).toLowerCase()}`)
+      );
+      const searchTerm = parsed.search.toLocaleLowerCase();
+      for (const service of legacyServices.rows) {
+        const serviceId = Number(service.service_id);
+        for (const [legacyProviderKey, providerUsername] of legacyAccounts.get(serviceId) ?? []) {
+          const normalizedUsername = providerUsername.trim();
+          if (!normalizedUsername || !knownProviderKeys.has(legacyProviderKey) || parsed.provider_key && legacyProviderKey !== parsed.provider_key || !normalizedUsername.toLocaleLowerCase().includes(searchTerm)) continue;
+          const matchKey = `${serviceId}:${legacyProviderKey}:${normalizedUsername.toLowerCase()}`;
+          if (knownMatches.has(matchKey)) continue;
+          const provider = providers.rows.find((entry) => entry.provider_key === legacyProviderKey);
+          if (!provider) continue;
+          results.push({
+            service_id: serviceId,
+            service_code: service.service_code,
+            customer_id: Number(service.customer_id),
+            customer_name: service.customer_name,
+            service_username: service.service_username,
+            provider_key: legacyProviderKey,
+            provider_kind: provider.provider_kind,
+            provider_username: normalizedUsername,
+            service_status: service.service_status,
+            expires_at: service.expires_at,
+            provider_enabled: provider.enabled
+          });
+          knownMatches.add(matchKey);
+          if (results.length >= parsed.limit) break;
+        }
+        if (results.length >= parsed.limit) break;
+      }
+    }
+  }
+  res.json(SearchProviderAccountsResponse.parse({
+    providers: providers.rows,
+    results
+  }));
+});
 router2.get("/services", requireAuth, async (req, res) => {
   await managementReady;
   const parsed = ListServicesQueryParams.parse(req.query);
