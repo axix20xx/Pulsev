@@ -2452,3 +2452,17 @@ mtime_ms = 1793613992852
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/7f7a843c-6015-4e47-8447-9d764b1c8f51/cbee866f-034d-4198-867f-07788c63b287"
 storage_version_token = "1793614028990357"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Z2TUcJAkrf6VIZoWOR6Bt"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-02T13-28-10-748Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP"
+description = "Verified Hostinger package with the latest public subscription page and V2Pro all-in-one subscription-link flow."
+logical_id = "1986f9d6-2768-49cf-84e3-20deff0c69a1"
+content_hash = "sha256:9be672d4f3f8da92102380c457e95132db4d5369a4511cd047e40688e7901f96"
+size = 29189007
+mtime_ms = 1793626182948
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1986f9d6-2768-49cf-84e3-20deff0c69a1/cb984e08-5328-44d0-8a3e-d02a4825be5f"
+storage_version_token = "1793626209880607"
+content_type = "application/octet-stream"
