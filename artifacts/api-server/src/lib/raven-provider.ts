@@ -4,6 +4,8 @@ import { pool } from "@workspace/db";
 export const RAVEN_CHANNELS = ["xray", "wireguard", "openvpn", "dns"] as const;
 export type RavenChannel = (typeof RAVEN_CHANNELS)[number];
 export const DEFAULT_RAVEN_CHANNELS: RavenChannel[] = ["xray", "wireguard", "openvpn"];
+const BYTES_PER_GB = 1_073_741_824;
+const SECONDS_PER_DAY = 86_400;
 
 export type RavenPanel = {
   key: string;
@@ -11,6 +13,72 @@ export type RavenPanel = {
   api_key?: string;
   channels?: RavenChannel[];
 };
+
+export type RavenBackfillPlan = {
+  eligible: boolean;
+  quotaGb: number;
+  days: number;
+  expiresAtUnix: number | null;
+  reason?: "inactive" | "expired" | "no_expiry" | "unlimited" | "quota_exhausted" | "invalid" | "expiry_too_soon";
+};
+
+export function ravenBackfillPlan(input: {
+  status: string;
+  gb: number | string | null;
+  lastRemainingBytes: number | string | null;
+  lastUsedBytes: number | string | null;
+  expiresAtUnix: number | string | null;
+}, nowUnix = Math.floor(Date.now() / 1000)): RavenBackfillPlan {
+  if (input.status !== "active") {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: null, reason: "inactive" };
+  }
+  const expiry = input.expiresAtUnix === null ? null : Number(input.expiresAtUnix);
+  if (expiry === null) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: null, reason: "no_expiry" };
+  }
+  if (!Number.isFinite(expiry) || expiry <= nowUnix) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: null, reason: "expired" };
+  }
+
+  const totalGb = Number(input.gb);
+  if (input.gb === null || !Number.isFinite(totalGb) || totalGb < 0) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "invalid" };
+  }
+  if (totalGb === 0) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "unlimited" };
+  }
+
+  const usedBytes = input.lastUsedBytes === null ? 0 : Number(input.lastUsedBytes);
+  const snapshotRemaining = input.lastRemainingBytes === null
+    ? null
+    : Number(input.lastRemainingBytes);
+  if (
+    !Number.isFinite(usedBytes)
+    || usedBytes < 0
+    || (snapshotRemaining !== null && (!Number.isFinite(snapshotRemaining) || snapshotRemaining < 0))
+  ) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "invalid" };
+  }
+  const totalBytes = totalGb * BYTES_PER_GB;
+  if (!Number.isFinite(totalBytes)) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "invalid" };
+  }
+  const remainingBytes = Math.min(
+    totalBytes,
+    snapshotRemaining ?? Math.max(0, totalBytes - usedBytes),
+  );
+  if (remainingBytes <= 0) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "quota_exhausted" };
+  }
+
+  // Raven accepts expiryDays as whole days; round down so backfill never
+  // extends a customer's existing expiry date.
+  const days = Math.floor((expiry - nowUnix) / SECONDS_PER_DAY);
+  if (days < 1) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "expiry_too_soon" };
+  }
+  return { eligible: true, quotaGb: remainingBytes / BYTES_PER_GB, days, expiresAtUnix: expiry };
+}
 
 export class RavenProviderError extends Error {
   constructor(

@@ -52,6 +52,51 @@ test("Raven channels are deduplicated and unknown channels are rejected", () => 
   assert.deepEqual(raven.normalizeRavenChannels(undefined), ["xray", "wireguard", "openvpn"]);
 });
 
+test("Raven backfill uses remaining quota and never extends service expiry", () => {
+  const GB = 1_073_741_824;
+  assert.deepEqual(raven.ravenBackfillPlan({
+    status: "active",
+    gb: 10,
+    lastRemainingBytes: 2.5 * GB,
+    lastUsedBytes: 1 * GB,
+    expiresAtUnix: 1_000 + 5 * 86_400 + 30_000,
+  }, 1_000), {
+    eligible: true,
+    quotaGb: 2.5,
+    days: 5,
+    expiresAtUnix: 1_000 + 5 * 86_400 + 30_000,
+  });
+});
+
+test("Raven backfill derives remaining quota when no usage snapshot exists", () => {
+  const GB = 1_073_741_824;
+  const plan = raven.ravenBackfillPlan({
+    status: "active",
+    gb: 12,
+    lastRemainingBytes: null,
+    lastUsedBytes: 5 * GB,
+    expiresAtUnix: 1_000 + 10 * 86_400,
+  }, 1_000);
+  assert.equal(plan.eligible, true);
+  assert.equal(plan.quotaGb, 7);
+  assert.equal(plan.days, 10);
+});
+
+test("Raven backfill skips unlimited, no-expiry, exhausted, and near-expiry services", () => {
+  const base = {
+    status: "active",
+    gb: 10,
+    lastRemainingBytes: 2 * 1_073_741_824,
+    lastUsedBytes: 0,
+    expiresAtUnix: 1_000 + 3 * 86_400,
+  };
+  assert.equal(raven.ravenBackfillPlan({ ...base, gb: 0 }, 1_000).reason, "unlimited");
+  assert.equal(raven.ravenBackfillPlan({ ...base, expiresAtUnix: null }, 1_000).reason, "no_expiry");
+  assert.equal(raven.ravenBackfillPlan({ ...base, lastRemainingBytes: 0 }, 1_000).reason, "quota_exhausted");
+  assert.equal(raven.ravenBackfillPlan({ ...base, expiresAtUnix: 1_000 + 86_399 }, 1_000).reason, "expiry_too_soon");
+  assert.equal(raven.ravenBackfillPlan({ ...base, status: "disabled" }, 1_000).reason, "inactive");
+});
+
 test("Raven requests use the configured API base and bearer key", async () => {
   const originalFetch = globalThis.fetch;
   let request;

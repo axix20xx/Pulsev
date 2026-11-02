@@ -3839,6 +3839,13 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
   const loadPanels = async () => { setLoading(true); setError(''); try { const response = await fetch('/api/panels', { credentials: 'include' }); if (!response.ok) throw new Error('دریافت پنل‌ها ناموفق بود'); setItems(await response.json()); } finally { setLoading(false); } };
   useEffect(() => { loadPanels().catch((cause) => setError(cause instanceof Error ? cause.message : 'خطای پنل')); }, []);
   const backfillMessage = (payload: any) => {
+    const ravenBackfill = payload?.ravenBackfill;
+    if (ravenBackfill) {
+      const queued = Number(ravenBackfill.queued || 0);
+      return queued > 0
+        ? `${numberFa(queued)} سرویس قدیمیِ واجدشرایط برای ساخت کانفیگ Raven صف شد؛ فقط سهمیهٔ باقی‌مانده و انقضای سرویس استفاده می‌شود و اعتبار GB فروشنده مصرف خواهد شد.`
+        : 'سرویس فعالِ واجدشرایطِ بدون کانفیگ Raven پیدا نشد؛ حساب‌های موجود تغییر نمی‌کنند.';
+    }
     const wireguardBackfill = payload?.wireguardBackfill;
     if (wireguardBackfill) {
       const queued = Number(wireguardBackfill.queued || 0);
@@ -3971,7 +3978,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
           </>}
         </div>
         {newPanel.kind === 'raven' && <>
-          <div className="ax-alert mt-3" role="note">ساخت حساب جدید از اعتبار GB فروشنده Raven استفاده می‌کند. حسابی برای سرویس‌های قدیمی به‌صورت خودکار ساخته نمی‌شود.</div>
+          <div className="ax-alert mt-3" role="note">با ذخیرهٔ Provider فعال، برای سرویس‌های قدیمیِ فعال با حجم باقی‌مانده و بیش از یک روز اعتبار، کانفیگ Raven مرحله‌ای ساخته می‌شود. این کار از اعتبار GB فروشنده کم می‌کند؛ حساب‌های Raven موجود تغییر نمی‌کنند.</div>
           <div className="ax-provider-fields mt-3">
             <div className="ax-field">
               <span>کانال‌های Raven برای سرویس جدید</span>
@@ -4029,7 +4036,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
                 {panel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از اعتبارنامهٔ مستقل هستهٔ WireGuard استفاده کند.</small>}
                 {panel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از credential مستقل هستهٔ IPsec استفاده کند.</small>}
                 {panel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این Provider می‌تواند مستقل باشد و برای ساخت و تمدید حساب‌ها و دریافت فایل WireGuard از همین credential استفاده می‌کند. ذخیرهٔ تنظیمات سرویس‌های فعالِ واجدشرایطی را که حساب ندارند، با سهمیهٔ باقی‌مانده به صف ایجاد حساب می‌فرستد؛ حساب‌های موجود تغییر نمی‌کنند.</small>}
-                {panel.kind === 'raven' && <small className="text-xs text-muted-foreground" dir="rtl">ساخت پیکربندی سرویس جدید از اعتبار GB حساب Raven استفاده می‌کند. سرویس‌های موجود به‌صورت خودکار تغییر نمی‌کنند.</small>}
+                {panel.kind === 'raven' && <small className="text-xs text-muted-foreground" dir="rtl">ذخیرهٔ Provider فعال، کانفیگ‌های مفقود سرویس‌های فعال با سهمیهٔ باقی‌مانده را مرحله‌ای صف می‌کند و از اعتبار GB کم می‌کند؛ کانفیگ‌های موجود تغییر نمی‌کنند.</small>}
               </label>
               <Field label="آدرس API" value={panel.api_base} inputDir="ltr" onChange={(value) => edit(panel.key, 'api_base', value)} />
               {panel.kind === 'raven' ? <Field label="Raven API key (خالی = حفظ مقدار قبلی)" value={panel.api_key || ''} placeholder="کلید API رمزنگاری‌شده" inputDir="ltr" type="password" onChange={(value) => edit(panel.key, 'api_key', value)} /> : <>

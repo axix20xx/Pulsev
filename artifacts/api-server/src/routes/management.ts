@@ -906,6 +906,11 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
         queued_count INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS raven_backfill_runs (
+        provider_key TEXT PRIMARY KEY REFERENCES panel_configs(key) ON DELETE CASCADE,
+        queued_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS subscription_feed_cache (
         service_id BIGINT PRIMARY KEY,
         body_secret TEXT NOT NULL,
@@ -1254,6 +1259,86 @@ async function queueRainAdminWireGuardBackfill(
      ),
      updated_run AS (
        UPDATE rain_admin_wireguard_backfill_runs
+       SET queued_count = queued_count + (SELECT queued FROM inserted_count)
+       WHERE provider_key = $1
+       RETURNING queued_count
+     )
+     SELECT inserted_count.queued, updated_run.queued_count AS total_queued
+     FROM inserted_count CROSS JOIN updated_run`,
+    [providerKey],
+  );
+  return {
+    queued: Number(queued.rows[0]?.queued ?? 0),
+    alreadyQueued: !created.rowCount,
+  };
+}
+
+async function queueRavenBackfill(
+  client: ManagementClient,
+  providerKey: string,
+): Promise<{ queued: number; alreadyQueued: boolean }> {
+  await client.query(
+    "SELECT pg_advisory_xact_lock(74428, hashtext($1::text))",
+    [providerKey],
+  );
+  const created = await client.query(
+    `INSERT INTO raven_backfill_runs (provider_key)
+     VALUES ($1)
+     ON CONFLICT (provider_key) DO NOTHING
+     RETURNING provider_key`,
+    [providerKey],
+  );
+  const queued = await client.query(
+    `WITH eligible AS (
+       SELECT svc.id, svc.reseller_tg_id,
+              COALESCE(NULLIF(svc.rain_username, ''), 'pulse-' || svc.id::text) AS username,
+              svc.lifecycle_version,
+              ROW_NUMBER() OVER (ORDER BY svc.id) AS queue_order
+       FROM reseller_services svc
+       WHERE svc.status = 'active'
+         AND COALESCE(svc.gb, 0) > 0
+         AND svc.expire_at > NOW() + INTERVAL '1 day'
+         AND COALESCE(
+               svc.last_remaining_bytes,
+               (svc.gb::float8 * 1073741824) - COALESCE(svc.last_used_bytes, 0)
+             ) > 0
+         AND NOT EXISTS (
+           SELECT 1
+           FROM raven_service_accounts account
+           WHERE account.service_id = svc.id
+             AND account.provider_key = $1
+             AND account.remote_config_id IS NOT NULL
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM service_provision_jobs active_job
+           WHERE active_job.service_id = svc.id
+             AND active_job.action = 'providers'
+             AND active_job.status IN ('pending', 'running', 'retrying')
+             AND active_job.provider_keys @> jsonb_build_array($1::text)
+         )
+     ),
+     inserted_jobs AS (
+       INSERT INTO service_provision_jobs
+         (service_id, owner_tg_id, username, action, provider_keys, payload,
+          status, next_attempt_at, lifecycle_version)
+       SELECT eligible.id,
+              eligible.reseller_tg_id,
+              eligible.username,
+              'providers',
+              jsonb_build_array($1::text),
+              jsonb_build_object('ravenBackfill', true, 'role', 'reseller'),
+              'pending',
+              NOW() + ((eligible.queue_order - 1) * 5 * INTERVAL '1 second'),
+              eligible.lifecycle_version
+       FROM eligible
+       RETURNING id
+     ),
+     inserted_count AS (
+       SELECT COUNT(*)::int AS queued FROM inserted_jobs
+     ),
+     updated_run AS (
+       UPDATE raven_backfill_runs
        SET queued_count = queued_count + (SELECT queued FROM inserted_count)
        WHERE provider_key = $1
        RETURNING queued_count
@@ -3872,6 +3957,9 @@ router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
     const wireguardBackfill = kind === "rain_admin_wireguard" && enabled && username && password
       ? await queueRainAdminWireGuardBackfill(client, key)
       : null;
+    const ravenBackfill = kind === "raven" && enabled && apiKey
+      ? await queueRavenBackfill(client, key)
+      : null;
     await client.query("COMMIT");
     res.status(201).json({
       ...result.rows[0],
@@ -3880,6 +3968,7 @@ router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
       available_to_all_resellers: true,
       backfill,
       wireguardBackfill,
+      ravenBackfill,
     });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
@@ -3982,6 +4071,9 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
     const wireguardBackfill = panel.kind === "rain_admin_wireguard" && panel.enabled && panel.has_data
       ? await queueRainAdminWireGuardBackfill(client, key)
       : null;
+    const ravenBackfill = panel.kind === "raven" && panel.enabled && panel.has_data
+      ? await queueRavenBackfill(client, key)
+      : null;
     await client.query("COMMIT");
     res.json({
       ...panel,
@@ -3993,6 +4085,7 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
         : undefined,
       backfill,
       wireguardBackfill,
+      ravenBackfill,
     });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);

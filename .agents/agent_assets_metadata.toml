@@ -2396,3 +2396,17 @@ mtime_ms = 1793028605771
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b949857a-a3e7-4c6d-973c-edc4228d6df8/cdf4defd-f707-41b0-b231-205eb5a2c229"
 storage_version_token = "1793028634737426"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "s3vpzwzPB0JevuGqfSCin"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-02T07-50-56-503Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger migration ZIP"
+description = "Verified Hostinger package with automatic Raven backfill queue migration and the updated app/API bundles."
+logical_id = "82ff69c7-1c5e-4c3c-9f0c-44cac259a6f0"
+content_hash = "sha256:eccb98f34b8f00f26e37783b72a9284751865e17f0486158c374947eb4416b4c"
+size = 29159432
+mtime_ms = 1793605951890
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/82ff69c7-1c5e-4c3c-9f0c-44cac259a6f0/3680df5b-7751-489b-a55e-4159ebe5cd47"
+storage_version_token = "1793605987218299"
+content_type = "application/octet-stream"

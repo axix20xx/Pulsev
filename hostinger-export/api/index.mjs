@@ -30047,7 +30047,7 @@ var require_utils5 = __commonJS({
     var nodeCrypto = __require("crypto");
     module.exports = {
       postgresMd5PasswordHash,
-      randomBytes: randomBytes7,
+      randomBytes: randomBytes8,
       deriveKey,
       sha256,
       hashByName,
@@ -30057,7 +30057,7 @@ var require_utils5 = __commonJS({
     var webCrypto = nodeCrypto.webcrypto || globalThis.crypto;
     var subtleCrypto = webCrypto.subtle;
     var textEncoder = new TextEncoder();
-    function randomBytes7(length) {
+    function randomBytes8(length) {
       return webCrypto.getRandomValues(Buffer.alloc(length));
     }
     async function md5(string4) {
@@ -75346,7 +75346,7 @@ function isBackgroundWorkersPaused(value = process.env.PULSE_WORKERS_PAUSED) {
 
 // src/routes/management.ts
 var import_express3 = __toESM(require_express2(), 1);
-import { createHash as createHash8, randomBytes as randomBytes6 } from "node:crypto";
+import { createHash as createHash8, randomBytes as randomBytes7 } from "node:crypto";
 
 // src/lib/service-usage-snapshot.ts
 function nonNegativeBytes(value) {
@@ -75388,6 +75388,9 @@ function storedPanelUsageSql(serviceAlias = "svc") {
     LEFT JOIN reseller_service_openvpn_provider_accounts openvpn_account
       ON openvpn_account.service_id = ${serviceAlias}.id
       AND openvpn_account.provider_key = panel.key
+    LEFT JOIN raven_service_accounts raven_account
+      ON raven_account.service_id = ${serviceAlias}.id
+      AND raven_account.provider_key = panel.key
     LEFT JOIN LATERAL (
       SELECT usage.upload, usage.download, usage.offset_bytes
       FROM user_panel_usages usage
@@ -75395,6 +75398,7 @@ function storedPanelUsageSql(serviceAlias = "svc") {
           WHEN panel.kind = 'azadpanel_ipsec' THEN ipsec_account.provider_username
           WHEN panel.kind IN ('azadpanel', 'azadpanel_openvpn')
             THEN COALESCE(openvpn_account.provider_username, ${serviceAlias}.rain_username)
+        WHEN panel.kind = 'raven' THEN COALESCE(raven_account.config_label, ${serviceAlias}.rain_username)
           ELSE ${serviceAlias}.rain_username
         END
         AND usage.panel_key = panel.key
@@ -75402,7 +75406,7 @@ function storedPanelUsageSql(serviceAlias = "svc") {
       LIMIT 1
     ) latest_usage ON TRUE
     WHERE panel.is_enabled = 1
-      AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
+      AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec', 'raven')
   ), 0)::float8`;
 }
 
@@ -75588,7 +75592,7 @@ function requireMasterAdmin(req, res, next) {
 }
 
 // src/lib/rain.ts
-import { randomBytes as randomBytes4 } from "node:crypto";
+import { randomBytes as randomBytes5 } from "node:crypto";
 
 // src/lib/panel-credentials.ts
 import { createCipheriv, createDecipheriv, createHash as createHash3, randomBytes as randomBytes3 } from "node:crypto";
@@ -76163,6 +76167,398 @@ function providerConfigLabel(providerCode, flag, index) {
   return `${code} - ${flag} ${String(index).padStart(2, "0")}`;
 }
 
+// src/lib/raven-provider.ts
+import { randomBytes as randomBytes4 } from "node:crypto";
+var RAVEN_CHANNELS = ["xray", "wireguard", "openvpn", "dns"];
+var DEFAULT_RAVEN_CHANNELS = ["xray", "wireguard", "openvpn"];
+var BYTES_PER_GB2 = 1073741824;
+var SECONDS_PER_DAY = 86400;
+function ravenBackfillPlan(input, nowUnix = Math.floor(Date.now() / 1e3)) {
+  if (input.status !== "active") {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: null, reason: "inactive" };
+  }
+  const expiry = input.expiresAtUnix === null ? null : Number(input.expiresAtUnix);
+  if (expiry === null) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: null, reason: "no_expiry" };
+  }
+  if (!Number.isFinite(expiry) || expiry <= nowUnix) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: null, reason: "expired" };
+  }
+  const totalGb = Number(input.gb);
+  if (input.gb === null || !Number.isFinite(totalGb) || totalGb < 0) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "invalid" };
+  }
+  if (totalGb === 0) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "unlimited" };
+  }
+  const usedBytes = input.lastUsedBytes === null ? 0 : Number(input.lastUsedBytes);
+  const snapshotRemaining = input.lastRemainingBytes === null ? null : Number(input.lastRemainingBytes);
+  if (!Number.isFinite(usedBytes) || usedBytes < 0 || snapshotRemaining !== null && (!Number.isFinite(snapshotRemaining) || snapshotRemaining < 0)) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "invalid" };
+  }
+  const totalBytes = totalGb * BYTES_PER_GB2;
+  if (!Number.isFinite(totalBytes)) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "invalid" };
+  }
+  const remainingBytes = Math.min(
+    totalBytes,
+    snapshotRemaining ?? Math.max(0, totalBytes - usedBytes)
+  );
+  if (remainingBytes <= 0) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "quota_exhausted" };
+  }
+  const days = Math.floor((expiry - nowUnix) / SECONDS_PER_DAY);
+  if (days < 1) {
+    return { eligible: false, quotaGb: 0, days: 0, expiresAtUnix: expiry, reason: "expiry_too_soon" };
+  }
+  return { eligible: true, quotaGb: remainingBytes / BYTES_PER_GB2, days, expiresAtUnix: expiry };
+}
+var RavenProviderError = class extends Error {
+  constructor(message, status = 502, retryable = false) {
+    super(message);
+    this.status = status;
+    this.retryable = retryable;
+    this.name = "RavenProviderError";
+  }
+};
+function normalizeRavenChannels(value) {
+  if (!Array.isArray(value)) return [...DEFAULT_RAVEN_CHANNELS];
+  return [...new Set(value.filter(
+    (channel) => typeof channel === "string" && RAVEN_CHANNELS.includes(channel)
+  ))];
+}
+function apiBase(panel) {
+  const url2 = new URL(panel.api_base);
+  if (url2.protocol !== "https:" && !["localhost", "127.0.0.1", "::1"].includes(url2.hostname)) {
+    throw new RavenProviderError("Raven API must use HTTPS.", 400);
+  }
+  url2.search = "";
+  url2.hash = "";
+  const path = url2.pathname.replace(/\/+$/, "");
+  url2.pathname = /\/api\/v1$/i.test(path) ? path : `${path}/api/v1`;
+  return url2.toString().replace(/\/+$/, "");
+}
+function payloadObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const root = value;
+  return root.data && typeof root.data === "object" && !Array.isArray(root.data) ? root.data : root;
+}
+function retryableStatus2(status) {
+  return status === 408 || status === 429 || status >= 500;
+}
+async function ravenRequest(panel, method, path, body) {
+  if (!panel.api_key?.trim()) throw new RavenProviderError(`Raven provider ${panel.key} has no API key.`, 400);
+  const base = apiBase(panel);
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Bearer ${panel.api_key.trim()}`
+  };
+  if (body !== void 0) headers["Content-Type"] = "application/json";
+  let response;
+  try {
+    response = await fetch(`${base}${path.startsWith("/") ? path : `/${path}`}`, {
+      method,
+      headers,
+      body: body === void 0 ? void 0 : JSON.stringify(body),
+      signal: AbortSignal.timeout(12e3)
+    });
+  } catch {
+    throw new RavenProviderError(`Raven provider ${panel.key} could not be reached.`, 502, true);
+  }
+  const text2 = await response.text();
+  let data = null;
+  try {
+    data = text2 ? JSON.parse(text2) : {};
+  } catch {
+    data = null;
+  }
+  if (!response.ok) {
+    const parsed = payloadObject(data);
+    const detail = typeof parsed.message === "string" ? parsed.message : typeof parsed.error === "string" ? parsed.error : `HTTP ${response.status}`;
+    const safeDetail = detail.replaceAll(panel.api_key.trim(), "[redacted]").slice(0, 240);
+    throw new RavenProviderError(
+      `Raven provider ${panel.key} rejected the request: ${safeDetail}`,
+      response.status,
+      retryableStatus2(response.status)
+    );
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new RavenProviderError(`Raven provider ${panel.key} returned invalid JSON.`, 502, true);
+  }
+  return payloadObject(data);
+}
+async function testRavenProvider(panel) {
+  try {
+    const account = await ravenRequest(panel, "GET", "/me");
+    if (account.isSeller !== true) {
+      return { ok: false, detail: "Raven API key is valid, but it is not a seller account." };
+    }
+    return {
+      ok: true,
+      detail: `Raven seller connection succeeded${Number.isFinite(Number(account.creditGb)) ? ` \xB7 ${Number(account.creditGb)} GB credit` : ""}.`
+    };
+  } catch (error40) {
+    return {
+      ok: false,
+      detail: error40 instanceof Error ? error40.message : "Raven connection failed."
+    };
+  }
+}
+async function getAccount(serviceId, providerKey) {
+  const result = await pool.query(
+    `SELECT config_label, remote_config_id, channels
+     FROM raven_service_accounts
+     WHERE service_id = $1 AND provider_key = $2
+     LIMIT 1`,
+    [serviceId, providerKey]
+  );
+  return result.rows[0] ?? null;
+}
+function ravenConfigId(value) {
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  return "";
+}
+async function findByLabel(panel, label) {
+  const query = new URLSearchParams({ status: "all", limit: "100", page: "1", q: label });
+  const result = await ravenRequest(panel, "GET", `/configs?${query.toString()}`);
+  const configs = Array.isArray(result.configs) ? result.configs : [];
+  return configs.find(
+    (entry) => entry && typeof entry === "object" && String(entry.label ?? "").trim() === label
+  ) ?? null;
+}
+async function saveAccount(serviceId, panel, account, remoteConfigId) {
+  await pool.query(
+    `UPDATE raven_service_accounts
+     SET remote_config_id = $1,
+         channels = $2::jsonb,
+         updated_at = NOW()
+     WHERE service_id = $3 AND provider_key = $4`,
+    [
+      remoteConfigId,
+      JSON.stringify(account.channels ?? panel.channels ?? DEFAULT_RAVEN_CHANNELS),
+      serviceId,
+      panel.key
+    ]
+  );
+}
+async function provisionRavenConfig(panel, serviceId, gb, days) {
+  if (!Number.isSafeInteger(serviceId) || serviceId <= 0) {
+    throw new RavenProviderError("Raven service ID is invalid.", 400);
+  }
+  if (!Number.isFinite(gb) || gb <= 0 || !Number.isSafeInteger(days) || days <= 0) {
+    throw new RavenProviderError("Raven volume and expiry must be positive.", 400);
+  }
+  const channels = normalizeRavenChannels(panel.channels);
+  if (!channels.length) {
+    throw new RavenProviderError(`Select at least one Raven channel for ${panel.key}.`, 400);
+  }
+  const lockClient = await pool.connect();
+  const lockName = `${serviceId}:${panel.key}`;
+  let locked = false;
+  try {
+    const lock = await lockClient.query(
+      "SELECT pg_try_advisory_lock(74427, hashtext($1::text)) AS locked",
+      [lockName]
+    );
+    locked = Boolean(lock.rows[0]?.locked);
+    if (!locked) throw new RavenProviderError(`Raven provisioning for service ${serviceId} is already running.`, 409, true);
+    let account = await getAccount(serviceId, panel.key);
+    if (!account) {
+      const label = `P${serviceId}-${randomBytes4(8).toString("hex")}`;
+      await pool.query(
+        `INSERT INTO raven_service_accounts
+           (service_id, provider_key, config_label, channels, created_at, updated_at)
+         VALUES ($1, $2, $3, $4::jsonb, NOW(), NOW())
+         ON CONFLICT (service_id, provider_key) DO NOTHING`,
+        [serviceId, panel.key, label, JSON.stringify(channels)]
+      );
+      account = await getAccount(serviceId, panel.key);
+    }
+    if (!account) throw new RavenProviderError("Raven account mapping could not be saved.", 500, true);
+    if (account.remote_config_id) return 200;
+    let remote = await findByLabel(panel, account.config_label);
+    if (!remote) {
+      try {
+        remote = await ravenRequest(panel, "POST", "/configs", {
+          gb,
+          label: account.config_label,
+          expiryDays: days,
+          channels
+        });
+      } catch (error40) {
+        if (!(error40 instanceof RavenProviderError) || !error40.retryable) throw error40;
+        remote = await findByLabel(panel, account.config_label).catch(() => null);
+        if (!remote) throw error40;
+      }
+    }
+    const remoteId = ravenConfigId(remote.id ?? remote.config?.id);
+    if (!remoteId) {
+      throw new RavenProviderError("Raven created the config but returned no config ID.", 502, true);
+    }
+    await saveAccount(serviceId, panel, account, remoteId);
+    return 201;
+  } finally {
+    if (locked) {
+      await lockClient.query("SELECT pg_advisory_unlock(74427, hashtext($1::text))", [lockName]).catch(() => void 0);
+    }
+    lockClient.release();
+  }
+}
+async function renewRavenConfig(panel, serviceId, targetGb, days) {
+  const account = await getAccount(serviceId, panel.key);
+  if (!account?.remote_config_id) {
+    throw new RavenProviderError(`Raven config for service ${serviceId} has not been provisioned.`, 404);
+  }
+  const lockClient = await pool.connect();
+  const lockName = `renew:${serviceId}:${panel.key}`;
+  let locked = false;
+  let resetAttempted = false;
+  let reviveAttempted = false;
+  try {
+    const lock = await lockClient.query(
+      "SELECT pg_try_advisory_lock(74427, hashtext($1::text)) AS locked",
+      [lockName]
+    );
+    locked = Boolean(lock.rows[0]?.locked);
+    if (!locked) throw new RavenProviderError(`Raven renewal for service ${serviceId} is already running.`, 409, true);
+    const id = encodeURIComponent(account.remote_config_id);
+    const current = await ravenRequest(panel, "GET", `/configs/${id}`);
+    const currentGb = Number(current.limitGb);
+    if (!Number.isFinite(targetGb) || targetGb <= 0 || !Number.isSafeInteger(days) || days <= 0) {
+      throw new RavenProviderError("Raven renewal volume and expiry must be positive.", 400);
+    }
+    if (!Number.isFinite(currentGb)) {
+      throw new RavenProviderError("Raven returned an invalid traffic limit; renewal was not applied.", 502, true);
+    }
+    const status = String(current.status ?? "").toLowerCase();
+    if (status !== "active" && status !== "paused") {
+      reviveAttempted = true;
+      await ravenRequest(panel, "POST", `/configs/${id}/revive`, { gb: targetGb, days });
+      return 200;
+    }
+    if (targetGb < currentGb - 1e-6) {
+      throw new RavenProviderError(
+        `Raven cannot reduce this config from ${currentGb} GB to ${targetGb} GB in place; no reset was applied.`,
+        409
+      );
+    }
+    const quote = await ravenRequest(panel, "GET", `/configs/${id}/reset-traffic/quote`);
+    if (quote.allowed !== true) {
+      throw new RavenProviderError(
+        typeof quote.message === "string" && quote.message ? `Raven traffic reset is not allowed: ${quote.message}` : "Raven traffic reset is not allowed; no renewal was applied.",
+        409
+      );
+    }
+    resetAttempted = true;
+    await ravenRequest(panel, "POST", `/configs/${id}/reset-traffic`);
+    const additionalGb = Math.max(0, targetGb - currentGb);
+    if (additionalGb > 1e-6) {
+      await ravenRequest(panel, "POST", `/configs/${id}/extend`, { gb: additionalGb });
+    }
+    await ravenRequest(panel, "PUT", `/configs/${id}/expiry`, { days });
+    if (status === "paused") await ravenRequest(panel, "POST", `/configs/${id}/resume`);
+    return 200;
+  } catch (error40) {
+    if (reviveAttempted) {
+      const failure = error40 instanceof RavenProviderError ? error40 : new RavenProviderError("Raven config revive failed.", 502);
+      throw new RavenProviderError(
+        `${failure.message} Revive may already have applied; check Raven before retrying.`,
+        failure.status,
+        false
+      );
+    }
+    if (error40 instanceof RavenProviderError && resetAttempted) {
+      throw new RavenProviderError(
+        `${error40.message} The traffic reset may already have applied; check Raven before retrying.`,
+        error40.status,
+        false
+      );
+    }
+    throw error40;
+  } finally {
+    if (locked) {
+      await lockClient.query("SELECT pg_advisory_unlock(74427, hashtext($1::text))", [lockName]).catch(() => void 0);
+    }
+    lockClient.release();
+  }
+}
+async function ravenServiceAccount(serviceId, providerKey) {
+  return getAccount(serviceId, providerKey);
+}
+async function ravenConfigUsageBytes(panel, configId) {
+  const config3 = await ravenRequest(panel, "GET", `/configs/${encodeURIComponent(configId)}`);
+  const usedGb = Number(config3.usedGb);
+  if (Number.isFinite(usedGb) && usedGb >= 0) return Math.round(usedGb * 1024 ** 3);
+  const usedBytes = Number(config3.usedBytes);
+  if (Number.isFinite(usedBytes) && usedBytes >= 0) return Math.round(usedBytes);
+  throw new RavenProviderError(`Raven returned invalid usage for ${panel.key}.`, 502, true);
+}
+async function ravenDeliveryLinks(panel, configId) {
+  const links = await ravenRequest(panel, "GET", `/configs/${encodeURIComponent(configId)}/links`);
+  const subscriptionUrl2 = typeof links.subUrl === "string" ? links.subUrl : null;
+  const jsonUrl = typeof links.protocolFiles?.json === "string" ? links.protocolFiles.json : subscriptionUrl2 ? `${subscriptionUrl2}${subscriptionUrl2.includes("?") ? "&" : "?"}format=json` : null;
+  const files = { wireguard: [], openvpn: [] };
+  if (jsonUrl) {
+    const expectedOrigin = new URL(panel.api_base).origin;
+    const deliveryUrl = new URL(jsonUrl, `${expectedOrigin}/`);
+    if (deliveryUrl.protocol !== "https:" || deliveryUrl.origin !== expectedOrigin) {
+      throw new RavenProviderError("Raven returned a profile URL outside its configured HTTPS origin.", 502);
+    }
+    const response = await fetch(deliveryUrl, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(12e3)
+    });
+    if (!response.ok) {
+      throw new RavenProviderError(`Raven profile list returned HTTP ${response.status}.`, response.status, retryableStatus2(response.status));
+    }
+    const payload = payloadObject(await response.json().catch(() => null));
+    for (const [channel, field] of [["wireguard", "wgConfigs"], ["openvpn", "ovpnConfigs"]]) {
+      const rows = Array.isArray(payload[field]) ? payload[field] : [];
+      files[channel] = rows.flatMap((row, index) => {
+        if (!row || typeof row !== "object") return [];
+        const url2 = typeof row.downloadUrl === "string" ? row.downloadUrl : "";
+        const name = typeof row.name === "string" && row.name.trim() ? row.name.trim() : `${channel}-${index + 1}`;
+        if (!url2) return [];
+        const parsed = new URL(url2, deliveryUrl);
+        if (parsed.protocol !== "https:" || parsed.origin !== expectedOrigin) return [];
+        return [{ name, url: parsed.toString() }];
+      });
+    }
+  }
+  const xrayLinks = Array.isArray(links.links) ? links.links.filter(
+    (link) => typeof link === "string" && /^(?:vless|vmess|trojan|ss|hysteria2?|tuic):\/\//i.test(link.trim())
+  ).map((link) => link.trim()) : [];
+  return { subscriptionUrl: subscriptionUrl2, xrayLinks, files };
+}
+async function pauseRavenConfig(panel, serviceId) {
+  const account = await getAccount(serviceId, panel.key);
+  if (!account?.remote_config_id) return false;
+  await ravenRequest(
+    panel,
+    "POST",
+    `/configs/${encodeURIComponent(account.remote_config_id)}/pause`
+  );
+  return true;
+}
+async function reactivateRavenConfig(panel, serviceId) {
+  const account = await getAccount(serviceId, panel.key);
+  if (!account?.remote_config_id) {
+    throw new RavenProviderError(`Raven config for service ${serviceId} was not found.`, 404);
+  }
+  const id = encodeURIComponent(account.remote_config_id);
+  const current = await ravenRequest(panel, "GET", `/configs/${id}`);
+  const status = String(current.status ?? "").trim().toLowerCase();
+  if (status === "active") return "skipped";
+  if (status !== "paused") {
+    throw new RavenProviderError(
+      `Raven config is ${status || "not active"}; use renewal to restore its time and quota.`,
+      409
+    );
+  }
+  await ravenRequest(panel, "POST", `/configs/${id}/resume`);
+  return "repaired";
+}
+
 // src/lib/rain.ts
 var azadPanelXrayReadRouteCache = /* @__PURE__ */ new Map();
 var AZAD_PANEL_XRAY_USER_ROUTE_TTL_MS = 10 * 6e4;
@@ -76318,6 +76714,7 @@ function panelKey(panel) {
 function panelKind(panel) {
   const kind = panel.kind?.trim().toLowerCase();
   if (kind === "rain_admin" || kind === "rain_admin_wireguard") return "rain_admin";
+  if (kind === "raven") return "raven";
   if (kind === "falcon") return "falcon";
   if (kind === "azadpanel" || kind === "azadpanel_v2ray" || kind === "azadpanel_openvpn" || kind === "azadpanel_wireguard" || kind === "azadpanel_ipsec") return "azadpanel";
   return "marzban";
@@ -76327,24 +76724,28 @@ function panelEnvCredential(key, suffix) {
   if (!normalized) return void 0;
   return process.env[`RAIN_${normalized}_${suffix}`]?.trim() || void 0;
 }
-async function panels(ownerId, role) {
+async function panels(ownerId, role, includeDisabled = false) {
   const result = await pool.query(
     `SELECT p.key, p.kind, p.api_base,
-            p.username_secret, p.password_secret, p.api_key_secret
+            p.username_secret, p.password_secret, p.api_key_secret, p.settings_json
      FROM panel_configs p
-     WHERE p.is_enabled = 1
+     WHERE ${includeDisabled ? "TRUE" : "p.is_enabled = 1"}
      ORDER BY p.key`
   );
-  return result.rows.map((panel) => ({
-    key: panel.key,
-    kind: panel.kind,
-    api_base: panel.api_base.replace(/\/+$/, ""),
-    admin_user: decryptPanelCredential(panel.username_secret) ?? panelEnvCredential(panel.key, "USER"),
-    admin_pass: decryptPanelCredential(panel.password_secret) ?? panelEnvCredential(panel.key, "PASS"),
-    api_key: decryptPanelCredential(panel.api_key_secret) ?? panelEnvCredential(panel.key, "API_KEY")
-  })).filter((panel) => {
+  return result.rows.map((panel) => {
+    const settings = panel.settings_json && typeof panel.settings_json === "object" ? panel.settings_json : {};
+    return {
+      key: panel.key,
+      kind: panel.kind,
+      api_base: panel.api_base.replace(/\/+$/, ""),
+      admin_user: decryptPanelCredential(panel.username_secret) ?? panelEnvCredential(panel.key, "USER"),
+      admin_pass: decryptPanelCredential(panel.password_secret) ?? panelEnvCredential(panel.key, "PASS"),
+      api_key: decryptPanelCredential(panel.api_key_secret) ?? panelEnvCredential(panel.key, "API_KEY"),
+      channels: normalizeRavenChannels(settings.ravenChannels ?? settings.channels)
+    };
+  }).filter((panel) => {
     const kind = panelKind(panel);
-    return kind === "falcon" ? Boolean(panel.api_key) : Boolean(panel.admin_user && panel.admin_pass);
+    return kind === "falcon" || kind === "raven" ? Boolean(panel.api_key) : Boolean(panel.admin_user && panel.admin_pass);
   });
 }
 async function listAvailablePanels(includeProtocolOnly = false) {
@@ -76485,6 +76886,21 @@ async function fetchPanelSubscription(username, serviceId, ownerId, role) {
     if (panel.kind?.trim().toLowerCase() === "rain_admin_wireguard") continue;
     const kind = panelKind(panel);
     const providerCode = providerCodes.get(panelKey(panel)) ?? "VPN";
+    if (kind === "raven") {
+      if (!Number.isSafeInteger(serviceId) || !Number(serviceId)) continue;
+      const account = await ravenServiceAccount(Number(serviceId), panelKey(panel)).catch(() => null);
+      if (!account?.remote_config_id) continue;
+      const configuredChannels = Array.isArray(account.channels) ? account.channels : panel.channels ?? [];
+      if (!configuredChannels.includes("xray")) continue;
+      try {
+        const delivery = await ravenDeliveryLinks(panel, account.remote_config_id);
+        for (const link of delivery.xrayLinks) {
+          feeds.push({ text: link, encoded: false, providerCode: "PUL" });
+        }
+      } catch {
+      }
+      continue;
+    }
     const isAzadPanelV2Ray = kind === "azadpanel" && panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
     if (kind === "azadpanel" && !isAzadPanelV2Ray) continue;
     if (isAzadPanelV2Ray && v2rayLookupFailed) continue;
@@ -76787,9 +77203,12 @@ async function tokenFor(panel, forceRefresh = false) {
   throw new RainApiError(`Could not authenticate with panel ${key} (${reason})`);
 }
 async function testPanelAuthentication(key, ownerId, role) {
-  const panel = (await panels(ownerId, role)).find((candidate) => panelKey(candidate) === key);
+  const panel = (await panels(ownerId, role, true)).find((candidate) => panelKey(candidate) === key);
   if (!panel) return { ok: false, detail: `Panel ${key} is not configured or has no credentials.` };
   try {
+    if (panelKind(panel) === "raven") {
+      return await testRavenProvider(panel);
+    }
     const token = await tokenFor(panel, true);
     if (panelKind(panel) === "falcon") {
       const response = await request(panel, "GET", "/configs?limit=1", token);
@@ -77325,6 +77744,30 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
   };
   for (const panel of uniqueRainAdminPanelEntries(configuredPanels)) {
     const panelType = panel.kind?.trim().toLowerCase();
+    if (panelKind(panel) === "raven") {
+      const account = await ravenServiceAccount(serviceId, panelKey(panel)).catch(() => null);
+      if (!account) continue;
+      if (!account.remote_config_id) {
+        const stale = await lastKnownPanelUsage(account.config_label, panelKey(panel));
+        if (stale) result.push(stale);
+        continue;
+      }
+      try {
+        const usedBytes2 = await ravenConfigUsageBytes(panel, account.remote_config_id);
+        result.push({
+          panelKey: panelKey(panel),
+          username: account.config_label,
+          usedBytes: usedBytes2,
+          totalBytes: null,
+          expiresAt: null,
+          stale: false
+        });
+      } catch {
+        const stale = await lastKnownPanelUsage(account.config_label, panelKey(panel));
+        if (stale) result.push(stale);
+      }
+      continue;
+    }
     const azadPanelWireGuard = panelType === "azadpanel_wireguard";
     const rainAdminWireGuard = isRainAdminWireGuardPanel(panel);
     const savedWireGuardAccounts = wireGuardAccounts.get(serviceId);
@@ -77628,6 +78071,14 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
   }
   for (const panel of uniqueRainAdminPanelEntries(configuredPanels)) {
     const kind = panelKind(panel);
+    if (kind === "raven") {
+      attempted += 1;
+      try {
+        if (await pauseRavenConfig(panel, serviceId)) disabled += 1;
+      } catch {
+      }
+      continue;
+    }
     let providerUsername = username;
     if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {
       if (v2rayLookupFailed) continue;
@@ -77795,6 +78246,10 @@ async function scanProviderAccountsForService(service) {
 async function reactivateProviderAccountStatus(service, providerKey) {
   const panel = (await panels()).find((candidate) => panelKey(candidate) === providerKey);
   if (!panel) throw new RainApiError("Provider is not enabled or has no configured credentials.");
+  if (panelKind(panel) === "raven") {
+    const outcome = await reactivateRavenConfig(panel, service.serviceId);
+    return outcome === "repaired" ? { outcome, message: "Raven account was resumed without changing quota, expiry, or usage." } : { outcome, message: "Raven account is already active; no changes were made." };
+  }
   let providerService = service;
   if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {
     const accounts = await readSavedAzadPanelV2RayUsernames([service.serviceId]);
@@ -78165,15 +78620,18 @@ async function provisionFalcon(panel, gb, days, label) {
 }
 async function provisionUser(username, gb, days, label, ownerId, role, onlyPanelKeys, options) {
   const configured = await panels(ownerId, role);
-  const serviceProvisioningPanels = standardServiceProvisioningPanels(configured);
+  const serviceProvisioningPanels = standardServiceProvisioningPanels(configured).filter((panel) => !(options?.skipRaven && panelKind(panel) === "raven"));
   const configuredPanels = onlyPanelKeys?.length ? serviceProvisioningPanels.filter((panel) => onlyPanelKeys.includes(panelKey(panel))) : serviceProvisioningPanels;
   if (onlyPanelKeys?.length && configuredPanels.length === 0) {
     return { ok: true, results: [] };
   }
   const hasCredentials = configuredPanels.some((panel) => {
     const kind = panelKind(panel);
-    return Boolean(kind === "falcon" ? panel.api_key : panel.admin_user && panel.admin_pass);
+    return Boolean(kind === "falcon" || kind === "raven" ? panel.api_key : panel.admin_user && panel.admin_pass);
   });
+  if ((!configuredPanels.length || !hasCredentials) && options?.allowNoProviders) {
+    return { ok: true, results: [] };
+  }
   if (!configuredPanels.length || !hasCredentials) {
     throw new RainApiError(
       "\u0647\u06CC\u0686 Provider \u0641\u0639\u0627\u0644 \u0648 \u062F\u0627\u0631\u0627\u06CC credential \u062F\u0631 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u062F\u06CC\u062A\u0627\u0628\u06CC\u0633 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F. \u0627\u0632 \u0635\u0641\u062D\u0647\u0654 Settings credential \u067E\u0646\u0644 \u0631\u0627 \u0630\u062E\u06CC\u0631\u0647 \u06A9\u0646\u06CC\u062F."
@@ -78182,7 +78640,7 @@ async function provisionUser(username, gb, days, label, ownerId, role, onlyPanel
   const results = await Promise.all(configuredPanels.map(async (panel) => {
     const kind = panelKind(panel);
     try {
-      const status = kind === "rain_admin" ? await provisionRainAdmin(panel, username, gb, days, options?.resetUsage === true) : kind === "azadpanel" ? await provisionAzadPanel(panel, username, gb, days, options ?? {}) : kind === "falcon" ? await provisionFalcon(panel, gb, days, label) : await provisionMarzban(panel, username, gb, days);
+      const status = kind === "rain_admin" ? await provisionRainAdmin(panel, username, gb, days, options?.resetUsage === true) : kind === "azadpanel" ? await provisionAzadPanel(panel, username, gb, days, options ?? {}) : kind === "falcon" ? await provisionFalcon(panel, gb, days, label) : kind === "raven" ? options?.resetUsage ? await renewRavenConfig(panel, Number(options.serviceId), gb, days) : await provisionRavenConfig(panel, Number(options?.serviceId), gb, days) : await provisionMarzban(panel, username, gb, days);
       return { key: panelKey(panel), kind, status };
     } catch (error40) {
       const detail = error40 instanceof Error ? error40.message : "\u062E\u0637\u0627\u06CC \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647 \u062F\u0631 \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 Provider";
@@ -78190,9 +78648,9 @@ async function provisionUser(username, gb, days, label, ownerId, role, onlyPanel
       return {
         key: panelKey(panel),
         kind,
-        status: providerResult?.status ?? (error40 instanceof RainApiError ? 502 : 500),
+        status: providerResult?.status ?? (error40 instanceof RavenProviderError ? error40.status : error40 instanceof RainApiError ? 502 : 500),
         error: providerResult?.error ?? detail.slice(0, 240),
-        retryable: providerResult?.retryable ?? (error40 instanceof RainApiError ? error40.retryable : void 0),
+        retryable: providerResult?.retryable ?? (error40 instanceof RavenProviderError ? error40.retryable : error40 instanceof RainApiError ? error40.retryable : void 0),
         retryAfterMs: providerResult?.retryAfterMs
       };
     }
@@ -78806,10 +79264,10 @@ async function downloadWireGuardProfiles(username, providerKey, hostIds, ownerId
   })));
 }
 function createServiceUsername(customerId2) {
-  return `u${customerId2}_${randomBytes4(8).toString("hex")}`;
+  return `u${customerId2}_${randomBytes5(8).toString("hex")}`;
 }
 function createSubscriptionToken() {
-  return randomBytes4(16).toString("hex");
+  return randomBytes5(16).toString("hex");
 }
 
 // src/lib/service-disable-guard.ts
@@ -80247,7 +80705,7 @@ function startTelegramBotWorker() {
 // src/routes/mobile.ts
 var import_express = __toESM(require_express2(), 1);
 var import_web_push = __toESM(require_src2(), 1);
-import { createHash as createHash5, randomBytes as randomBytes5 } from "node:crypto";
+import { createHash as createHash5, randomBytes as randomBytes6 } from "node:crypto";
 
 // src/lib/mobile-push-url.ts
 var allowedPushHosts = /* @__PURE__ */ new Set([
@@ -80494,7 +80952,7 @@ var clearMobileCookie = (res) => {
   res.clearCookie(mobileSessionCookie, { httpOnly: true, sameSite: "lax", path: "/" });
 };
 var createMobileSession = async (res, customerId2, customerName, phone, serviceId, nativeClient) => {
-  const raw = randomBytes5(32).toString("hex");
+  const raw = randomBytes6(32).toString("hex");
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3).toISOString();
   await pool.query(
     `INSERT INTO mobile_sessions (id, customer_id, source_service_id, expires_at)
@@ -80769,7 +81227,7 @@ var createNotification = async (input) => {
 };
 var sendMobileNotification = async (input) => {
   await mobileReady;
-  const eventId = randomBytes5(12).toString("hex");
+  const eventId = randomBytes6(12).toString("hex");
   let deliveredToInbox = 0;
   let activeDevices = 0;
   let pushAttempted = 0;
@@ -81079,7 +81537,7 @@ router.post("/mobile/auth/otp/request", async (req, res) => {
   }
   res.json({
     // This is an opaque client nonce, not a customer or OTP record identifier.
-    challenge_id: randomBytes5(24).toString("hex"),
+    challenge_id: randomBytes6(24).toString("hex"),
     expires_at: new Date(Date.now() + 5 * 6e4).toISOString()
   });
 });
@@ -81266,7 +81724,7 @@ router.post("/mobile/push/test", requireMobileAuth, async (req, res) => {
   await mobileReady;
   const result = await createNotification({
     customerId: req.mobileAuth.customerId,
-    eventKey: `manual:test:${randomBytes5(12).toString("hex")}`,
+    eventKey: `manual:test:${randomBytes6(12).toString("hex")}`,
     type: "system",
     title: "\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627\u06CC \u067E\u0627\u0644\u0633 \u0641\u0639\u0627\u0644 \u0627\u0633\u062A",
     body: "\u0627\u06CC\u0646 \u06CC\u06A9 \u0627\u0639\u0644\u0627\u0646 \u0622\u0632\u0645\u0627\u06CC\u0634\u06CC \u0628\u0631\u0627\u06CC \u062F\u0633\u062A\u06AF\u0627\u0647 \u0634\u0645\u0627\u0633\u062A.",
@@ -83701,7 +84159,7 @@ router2.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res)
     res.status(404).json({ error: "\u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
     return;
   }
-  const eventId = randomBytes6(12).toString("hex");
+  const eventId = randomBytes7(12).toString("hex");
   let deliveredToInbox = 0;
   for (const row of recipients.rows) {
     const inserted = await pool.query(
@@ -83866,6 +84324,7 @@ managementReady = pool.query(`
       username_secret TEXT,
       password_secret TEXT,
       api_key_secret TEXT,
+      settings_json JSONB NOT NULL DEFAULT '{}'::jsonb,
       is_enabled SMALLINT NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -84068,6 +84527,11 @@ managementReady = pool.query(`
         queued_count INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS raven_backfill_runs (
+        provider_key TEXT PRIMARY KEY REFERENCES panel_configs(key) ON DELETE CASCADE,
+        queued_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS subscription_feed_cache (
         service_id BIGINT PRIMARY KEY,
         body_secret TEXT NOT NULL,
@@ -84087,6 +84551,18 @@ managementReady = pool.query(`
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
         PRIMARY KEY (service_id, provider_key)
+      );
+      CREATE TABLE IF NOT EXISTS raven_service_accounts (
+        service_id BIGINT NOT NULL,
+        provider_key TEXT NOT NULL,
+        config_label TEXT NOT NULL,
+        remote_config_id TEXT,
+        subscription_url TEXT,
+        channels JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (service_id, provider_key),
+        UNIQUE (provider_key, config_label)
       );
        CREATE TABLE IF NOT EXISTS reseller_service_wireguard_accounts (
          service_id BIGINT PRIMARY KEY,
@@ -84217,6 +84693,8 @@ managementReady = pool.query(`
        ADD COLUMN IF NOT EXISTS password_secret TEXT;
      ALTER TABLE panel_configs
        ADD COLUMN IF NOT EXISTS api_key_secret TEXT;
+     ALTER TABLE panel_configs
+       ADD COLUMN IF NOT EXISTS settings_json JSONB NOT NULL DEFAULT '{}'::jsonb;
      INSERT INTO panel_configs (key, kind, api_base, username_env, password_env, api_key_env)
     VALUES
          ('phonepanel', 'rain_admin', 'https://videobazi.com', NULL, NULL, NULL),
@@ -84391,6 +84869,82 @@ async function queueRainAdminWireGuardBackfill(client, providerKey) {
      ),
      updated_run AS (
        UPDATE rain_admin_wireguard_backfill_runs
+       SET queued_count = queued_count + (SELECT queued FROM inserted_count)
+       WHERE provider_key = $1
+       RETURNING queued_count
+     )
+     SELECT inserted_count.queued, updated_run.queued_count AS total_queued
+     FROM inserted_count CROSS JOIN updated_run`,
+    [providerKey]
+  );
+  return {
+    queued: Number(queued.rows[0]?.queued ?? 0),
+    alreadyQueued: !created.rowCount
+  };
+}
+async function queueRavenBackfill(client, providerKey) {
+  await client.query(
+    "SELECT pg_advisory_xact_lock(74428, hashtext($1::text))",
+    [providerKey]
+  );
+  const created = await client.query(
+    `INSERT INTO raven_backfill_runs (provider_key)
+     VALUES ($1)
+     ON CONFLICT (provider_key) DO NOTHING
+     RETURNING provider_key`,
+    [providerKey]
+  );
+  const queued = await client.query(
+    `WITH eligible AS (
+       SELECT svc.id, svc.reseller_tg_id,
+              COALESCE(NULLIF(svc.rain_username, ''), 'pulse-' || svc.id::text) AS username,
+              svc.lifecycle_version,
+              ROW_NUMBER() OVER (ORDER BY svc.id) AS queue_order
+       FROM reseller_services svc
+       WHERE svc.status = 'active'
+         AND COALESCE(svc.gb, 0) > 0
+         AND svc.expire_at > NOW() + INTERVAL '1 day'
+         AND COALESCE(
+               svc.last_remaining_bytes,
+               (svc.gb::float8 * 1073741824) - COALESCE(svc.last_used_bytes, 0)
+             ) > 0
+         AND NOT EXISTS (
+           SELECT 1
+           FROM raven_service_accounts account
+           WHERE account.service_id = svc.id
+             AND account.provider_key = $1
+             AND account.remote_config_id IS NOT NULL
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM service_provision_jobs active_job
+           WHERE active_job.service_id = svc.id
+             AND active_job.action = 'providers'
+             AND active_job.status IN ('pending', 'running', 'retrying')
+             AND active_job.provider_keys @> jsonb_build_array($1::text)
+         )
+     ),
+     inserted_jobs AS (
+       INSERT INTO service_provision_jobs
+         (service_id, owner_tg_id, username, action, provider_keys, payload,
+          status, next_attempt_at, lifecycle_version)
+       SELECT eligible.id,
+              eligible.reseller_tg_id,
+              eligible.username,
+              'providers',
+              jsonb_build_array($1::text),
+              jsonb_build_object('ravenBackfill', true, 'role', 'reseller'),
+              'pending',
+              NOW() + ((eligible.queue_order - 1) * 5 * INTERVAL '1 second'),
+              eligible.lifecycle_version
+       FROM eligible
+       RETURNING id
+     ),
+     inserted_count AS (
+       SELECT COUNT(*)::int AS queued FROM inserted_jobs
+     ),
+     updated_run AS (
+       UPDATE raven_backfill_runs
        SET queued_count = queued_count + (SELECT queued FROM inserted_count)
        WHERE provider_key = $1
        RETURNING queued_count
@@ -84994,6 +85548,68 @@ function publicOpenVpnDelivery(token, delivery) {
     }))
   };
 }
+function ravenPanelApiKey(panelKey2, secret, envName) {
+  const decrypted = decryptPanelCredential(secret);
+  if (decrypted) return decrypted;
+  const normalizedKey = panelKey2.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  return process.env[envName || `RAIN_${normalizedKey}_API_KEY`]?.trim() || null;
+}
+async function ravenProfileSources(serviceId, channel, skipUnavailable = false) {
+  const result = await pool.query(
+    `SELECT account.provider_key, account.remote_config_id, account.channels,
+            panel.api_base, panel.api_key_secret, panel.api_key_env
+     FROM raven_service_accounts account
+     JOIN panel_configs panel ON panel.key = account.provider_key
+     WHERE account.service_id = $1
+       AND panel.kind = 'raven'
+       AND panel.is_enabled = 1
+     ORDER BY account.provider_key`,
+    [serviceId]
+  );
+  const profiles = [];
+  for (const row of result.rows) {
+    if (!row.remote_config_id) continue;
+    const channels = Array.isArray(row.channels) ? row.channels : [];
+    if (!channels.includes(channel)) continue;
+    const apiKey = ravenPanelApiKey(row.provider_key, row.api_key_secret, row.api_key_env);
+    if (!apiKey) {
+      if (skipUnavailable) continue;
+      throw new Error("Raven profile access is not configured.");
+    }
+    try {
+      const delivery = await ravenDeliveryLinks({
+        key: row.provider_key,
+        api_base: row.api_base,
+        api_key: apiKey
+      }, row.remote_config_id);
+      const files = delivery.files[channel];
+      for (let index = 0; index < files.length; index += 1) {
+        profiles.push({
+          provider_key: row.provider_key,
+          channel,
+          index,
+          name: files[index].name,
+          url: files[index].url
+        });
+      }
+    } catch (error40) {
+      if (!skipUnavailable) throw error40;
+    }
+  }
+  return profiles;
+}
+async function publicRavenProfiles(serviceId, token, channel) {
+  const sources = await ravenProfileSources(serviceId, channel, true);
+  return sources.map((source, index) => {
+    const number4 = index + 1;
+    const extension = channel === "wireguard" ? "conf" : "ovpn";
+    return {
+      name: channel === "wireguard" ? `\u0633\u0631\u0648\u0631 WireGuard ${number4}` : `\u0633\u0631\u0648\u0631 OpenVPN ${number4}`,
+      filename: `Pulse-${channel === "wireguard" ? "WireGuard" : "OpenVPN"}-${number4}.${extension}`,
+      download_url: `/api/public/subscription/${encodeURIComponent(token)}/raven/${channel}/${encodeURIComponent(source.provider_key)}/${source.index}`
+    };
+  });
+}
 function isWireGuardDelivery(value) {
   if (!value || typeof value !== "object") return false;
   const delivery = value;
@@ -85153,12 +85769,27 @@ router2.get("/public/subscription/:token/openvpn", async (req, res) => {
     return;
   }
   try {
+    const ravenProfiles = await publicRavenProfiles(Number(service.id), token, "openvpn");
     const delivery = await loadSavedOpenVpnDelivery(Number(service.id));
     if (!delivery) {
+      if (ravenProfiles.length) {
+        res.json({
+          core: "openvpn",
+          provider_key: "pulse",
+          server: "",
+          username: "",
+          password: "",
+          bundle_url: "",
+          bundle_import_url: "",
+          locations: [],
+          raven_profiles: ravenProfiles
+        });
+        return;
+      }
       res.status(404).json({ error: "\u062D\u0633\u0627\u0628 OpenVPN \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647\u200C\u0627\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F", code: "OPENVPN_NOT_CREATED" });
       return;
     }
-    res.json(publicOpenVpnDelivery(token, delivery));
+    res.json({ ...publicOpenVpnDelivery(token, delivery), raven_profiles: ravenProfiles });
   } catch {
     res.status(500).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647 OpenVPN \u0642\u0627\u0628\u0644 \u062E\u0648\u0627\u0646\u062F\u0646 \u0646\u06CC\u0633\u062A." });
   }
@@ -85199,7 +85830,25 @@ router2.post("/public/subscription/:token/openvpn", async (req, res) => {
     }
     const savedDelivery = await loadSavedOpenVpnDelivery(serviceId);
     if (savedDelivery) {
-      res.json(publicOpenVpnDelivery(token, savedDelivery));
+      res.json({
+        ...publicOpenVpnDelivery(token, savedDelivery),
+        raven_profiles: await publicRavenProfiles(serviceId, token, "openvpn")
+      });
+      return;
+    }
+    const ravenProfiles = await publicRavenProfiles(serviceId, token, "openvpn");
+    if (ravenProfiles.length) {
+      res.json({
+        core: "openvpn",
+        provider_key: "pulse",
+        server: "",
+        username: "",
+        password: "",
+        bundle_url: "",
+        bundle_import_url: "",
+        locations: [],
+        raven_profiles: ravenProfiles
+      });
       return;
     }
     const delivery = await prepareOpenVpnAccount(
@@ -85219,7 +85868,10 @@ router2.post("/public/subscription/:token/openvpn", async (req, res) => {
     );
     const persistedDelivery = await loadSavedOpenVpnDelivery(serviceId);
     if (!persistedDelivery) throw new Error("OpenVPN account details were not persisted.");
-    res.json(publicOpenVpnDelivery(token, persistedDelivery));
+    res.json({
+      ...publicOpenVpnDelivery(token, persistedDelivery),
+      raven_profiles: await publicRavenProfiles(serviceId, token, "openvpn")
+    });
   } catch (error40) {
     const message = error40 instanceof Error ? error40.message : "OpenVPN account setup failed.";
     const unavailable = message.includes("No enabled AzadPanel");
@@ -85278,8 +85930,21 @@ router2.get("/public/subscription/:token/wireguard", async (req, res) => {
       "reseller",
       savedDeliveries
     );
+    const ravenProfiles = await publicRavenProfiles(serviceId, token, "wireguard");
     await saveWireGuardDeliveries(serviceId, prepared.deliveries);
     if (!prepared.deliveries.length) {
+      if (ravenProfiles.length) {
+        res.json({
+          core: "wireguard",
+          providers: [],
+          provider_errors: prepared.errors,
+          bundle_url: "",
+          bundle_mobileconfig_url: "",
+          locations: [],
+          raven_profiles: ravenProfiles
+        });
+        return;
+      }
       if (prepared.errors.length) {
         res.status(502).json({
           error: prepared.errors.map((item) => `${item.provider_label}: ${item.error}`).join(" \xB7 "),
@@ -85293,7 +85958,10 @@ router2.get("/public/subscription/:token/wireguard", async (req, res) => {
       });
       return;
     }
-    res.json(publicWireGuardDeliveries(token, prepared.deliveries, prepared.errors));
+    res.json({
+      ...publicWireGuardDeliveries(token, prepared.deliveries, prepared.errors),
+      raven_profiles: ravenProfiles
+    });
   } catch (error40) {
     if (error40 instanceof RainApiError) {
       res.status(502).json({
@@ -85356,7 +86024,20 @@ router2.post("/public/subscription/:token/wireguard", async (req, res) => {
       "reseller",
       savedDeliveries
     );
+    const ravenProfiles = await publicRavenProfiles(serviceId, token, "wireguard");
     if (!prepared.deliveries.length) {
+      if (ravenProfiles.length) {
+        res.json({
+          core: "wireguard",
+          providers: [],
+          provider_errors: prepared.errors,
+          bundle_url: "",
+          bundle_mobileconfig_url: "",
+          locations: [],
+          raven_profiles: ravenProfiles
+        });
+        return;
+      }
       const message = prepared.errors.length ? prepared.errors.map((item) => `${item.provider_label}: ${item.error}`).join(" \xB7 ") : "No enabled WireGuard providers are configured.";
       res.status(prepared.errors.length ? 502 : 503).json({
         error: message,
@@ -85369,7 +86050,10 @@ router2.post("/public/subscription/:token/wireguard", async (req, res) => {
     const selectedProviderKeys = new Set(prepared.deliveries.map((delivery) => delivery.provider_key));
     const persistedSelected = persistedDeliveries.filter((delivery) => selectedProviderKeys.has(delivery.provider_key));
     if (!persistedSelected.length) throw new Error("WireGuard account details were not persisted.");
-    res.json(publicWireGuardDeliveries(token, persistedSelected, prepared.errors));
+    res.json({
+      ...publicWireGuardDeliveries(token, persistedSelected, prepared.errors),
+      raven_profiles: ravenProfiles
+    });
   } catch (error40) {
     const message = error40 instanceof Error ? error40.message : "WireGuard account setup failed.";
     const unavailable = message.includes("No enabled AzadPanel WireGuard provider");
@@ -85385,6 +86069,91 @@ router2.post("/public/subscription/:token/wireguard", async (req, res) => {
       ).catch(() => void 0);
     }
     lockClient.release();
+  }
+});
+router2.get("/public/subscription/:token/raven/:channel/:provider/:index", async (req, res) => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  const channel = String(req.params.channel ?? "").trim().toLowerCase();
+  const providerKey = String(req.params.provider ?? "").trim();
+  const index = Number(req.params.index);
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  if (!/^[A-Za-z0-9_-]{12,256}$/.test(token) || !["wireguard", "openvpn"].includes(channel) || !/^[a-z0-9_-]{2,64}$/.test(providerKey) || !Number.isSafeInteger(index) || index < 0 || index > 100) {
+    res.status(404).json({ error: "\u067E\u0631\u0648\u0641\u0627\u06CC\u0644 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "\u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u0627\u06CC\u0627\u0646 \u06CC\u0627\u0641\u062A\u0647 \u0627\u0633\u062A." });
+    return;
+  }
+  if (channel === "wireguard" && !service.wireguard_enabled) {
+    res.status(404).json({ error: "WireGuard \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0641\u0639\u0627\u0644 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  try {
+    const accountResult = await pool.query(
+      `SELECT account.remote_config_id, account.channels, panel.api_base,
+              panel.api_key_secret, panel.api_key_env
+       FROM raven_service_accounts account
+       JOIN panel_configs panel ON panel.key = account.provider_key
+       WHERE account.service_id = $1
+         AND account.provider_key = $2
+         AND panel.kind = 'raven'
+         AND panel.is_enabled = 1
+       LIMIT 1`,
+      [Number(service.id), providerKey]
+    );
+    const account = accountResult.rows[0];
+    const channels = Array.isArray(account?.channels) ? account.channels : [];
+    if (!account?.remote_config_id || !channels.includes(channel)) {
+      res.status(404).json({ error: "\u067E\u0631\u0648\u0641\u0627\u06CC\u0644 \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u067E\u0631\u0648\u062A\u06A9\u0644 \u0645\u0648\u062C\u0648\u062F \u0646\u06CC\u0633\u062A." });
+      return;
+    }
+    const apiKey = ravenPanelApiKey(providerKey, account.api_key_secret, account.api_key_env);
+    if (!apiKey) {
+      res.status(503).json({ error: "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0627\u062A\u0635\u0627\u0644 \u067E\u0631\u0648\u0641\u0627\u06CC\u0644 \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A." });
+      return;
+    }
+    const delivery = await ravenDeliveryLinks({
+      key: providerKey,
+      api_base: account.api_base,
+      api_key: apiKey
+    }, account.remote_config_id);
+    const profile = delivery.files[channel]?.[index];
+    if (!profile) {
+      res.status(404).json({ error: "\u0641\u0627\u06CC\u0644 \u067E\u0631\u0648\u0641\u0627\u06CC\u0644 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F." });
+      return;
+    }
+    const upstream = await fetch(profile.url, {
+      headers: { Accept: "application/octet-stream, text/plain, */*" },
+      signal: AbortSignal.timeout(15e3)
+    });
+    if (!upstream.ok) {
+      res.status(502).json({ error: `\u062F\u0631\u06CC\u0627\u0641\u062A \u0641\u0627\u06CC\u0644 \u067E\u0631\u0648\u0641\u0627\u06CC\u0644 \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F (HTTP ${upstream.status}).` });
+      return;
+    }
+    const bytes = Buffer.from(await upstream.arrayBuffer());
+    if (!bytes.length || bytes.length > 1048576) {
+      res.status(502).json({ error: "\u0627\u0646\u062F\u0627\u0632\u0647\u0654 \u0641\u0627\u06CC\u0644 \u067E\u0631\u0648\u0641\u0627\u06CC\u0644 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A." });
+      return;
+    }
+    const extension = channel === "wireguard" ? "conf" : "ovpn";
+    const filename = safeDownloadFilename(
+      upstream.headers.get("content-disposition"),
+      `Pulse-${channel}-${index + 1}`,
+      `.${extension}`
+    );
+    res.status(200).setHeader("Content-Type", channel === "wireguard" ? "application/octet-stream" : "application/x-openvpn-profile").setHeader("Content-Disposition", attachmentDisposition(filename)).setHeader("X-Content-Type-Options", "nosniff").send(bytes);
+  } catch (error40) {
+    const status = error40 instanceof Error && "status" in error40 ? Number(error40.status) : 502;
+    res.status(status >= 400 && status <= 599 ? status : 502).json({
+      error: "\u062F\u0631\u06CC\u0627\u0641\u062A \u0641\u0627\u06CC\u0644 \u067E\u0631\u0648\u0641\u0627\u06CC\u0644 \u0627\u0632 Provider \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F."
+    });
   }
 });
 router2.get("/public/subscription/:token/ipsec", async (req, res) => {
@@ -86269,6 +87038,31 @@ router2.get("/public/subscription/:token/all/mobileconfig", async (req, res) => 
         })));
       }
     }
+    const ravenChannels = service.wireguard_enabled ? ["openvpn", "wireguard"] : ["openvpn"];
+    for (const channel of ravenChannels) {
+      const sources = await ravenProfileSources(serviceId, channel);
+      for (const source of sources) {
+        const upstream = await fetch(source.url, {
+          headers: { Accept: "application/octet-stream, text/plain, */*" },
+          signal: AbortSignal.timeout(15e3)
+        });
+        if (!upstream.ok) {
+          throw new Error(`Raven ${channel} profile returned HTTP ${upstream.status}.`);
+        }
+        const bytes = Buffer.from(await upstream.arrayBuffer());
+        if (!bytes.length || bytes.length > 1048576) {
+          throw new Error(`Raven ${channel} profile size is invalid.`);
+        }
+        const protocol = channel;
+        const serverNumber = entries.filter((entry) => entry.protocol === protocol).length + 1;
+        entries.push({
+          protocol,
+          config: bytes.toString("utf8").replace(/^\uFEFF/, ""),
+          serverId: `raven-${createHash8("sha256").update(`${serviceId}:${source.provider_key}:${channel}:${source.index}:${source.url}`).digest("hex").slice(0, 24)}`,
+          serverName: `${channel === "wireguard" ? "WireGuard" : "OpenVPN"} ${serverNumber}`
+        });
+      }
+    }
     if (service.ipsec_enabled) {
       const ipsec = await loadSavedIpsecDelivery(serviceId);
       if (ipsec) {
@@ -86321,7 +87115,7 @@ router2.get("/public/subscription/:token/all/mobileconfig", async (req, res) => 
 });
 router2.get("/panels", requireMasterAdmin, async (_req, res) => {
   const result = await pool.query(
-    `SELECT p.key, p.kind, p.api_base, p.is_enabled = 1 AS enabled,
+    `SELECT p.key, p.kind, p.api_base, p.settings_json, p.is_enabled = 1 AS enabled,
             p.username_secret, p.password_secret, p.api_key_secret,
             COALESCE(array_agg(a.reseller_tg_id) FILTER (WHERE a.reseller_tg_id IS NOT NULL), '{}') AS assigned_reseller_ids
      FROM panel_configs p
@@ -86331,7 +87125,7 @@ router2.get("/panels", requireMasterAdmin, async (_req, res) => {
   );
   const configured = result.rows.map((panel) => ({
     ...panel,
-    has_data: panel.kind === "falcon" ? Boolean(decryptPanelCredential(panel.api_key_secret)) : Boolean(
+    has_data: panel.kind === "falcon" || panel.kind === "raven" ? Boolean(decryptPanelCredential(panel.api_key_secret)) : Boolean(
       decryptPanelCredential(panel.username_secret) && decryptPanelCredential(panel.password_secret)
     )
   }));
@@ -86341,6 +87135,7 @@ router2.get("/panels", requireMasterAdmin, async (_req, res) => {
       kind: panel.kind,
       api_base: panel.api_base,
       enabled: panel.enabled,
+      channels: panel.kind === "raven" ? normalizeRavenChannels(panel.settings_json?.ravenChannels ?? panel.settings_json?.channels) : void 0,
       assigned_reseller_ids: panel.assigned_reseller_ids,
       has_data: panel.has_data,
       available_to_all_resellers: true
@@ -86363,7 +87158,7 @@ router2.post("/panels/:key/test", requireMasterAdmin, async (req, res) => {
     checked_at: (/* @__PURE__ */ new Date()).toISOString()
   });
 });
-var providerKinds = ["marzban", "rain_admin", "rain_admin_wireguard", "azadpanel", "azadpanel_v2ray", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"];
+var providerKinds = ["marzban", "rain_admin", "rain_admin_wireguard", "azadpanel", "azadpanel_v2ray", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec", "raven"];
 function isProviderKind(value) {
   return typeof value === "string" && providerKinds.includes(value);
 }
@@ -86379,17 +87174,21 @@ function isProviderApiBase(value) {
 function credentialValue(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
+function validRavenChannels(value) {
+  return value === void 0 || Array.isArray(value) && value.length > 0 && value.every((channel) => typeof channel === "string" && RAVEN_CHANNELS.includes(channel));
+}
 router2.post("/panels", requireMasterAdmin, async (req, res) => {
   await managementReady;
   const body = req.body ?? {};
   const key = typeof body.key === "string" ? body.key.trim() : "";
   const kind = body.kind;
-  const apiBase = typeof body.api_base === "string" ? body.api_base.trim() : "";
+  const apiBase2 = typeof body.api_base === "string" ? body.api_base.trim() : "";
   const enabled = body.enabled === void 0 ? true : body.enabled;
   const username = credentialValue(body.username);
   const password = credentialValue(body.password);
   const apiKey = credentialValue(body.api_key);
-  if (!/^[a-z0-9_-]{2,64}$/.test(key) || !isProviderKind(kind) || !isProviderApiBase(apiBase) || typeof enabled !== "boolean" || apiKey !== null || username === null !== (password === null)) {
+  const channels = normalizeRavenChannels(body.channels);
+  if (!/^[a-z0-9_-]{2,64}$/.test(key) || !isProviderKind(kind) || !isProviderApiBase(apiBase2) || typeof enabled !== "boolean" || !validRavenChannels(body.channels) || (kind === "raven" ? !apiKey || username !== null || password !== null || channels.length === 0 : apiKey !== null || username === null !== (password === null))) {
     res.status(400).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A Provider \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
     return;
   }
@@ -86399,28 +87198,32 @@ router2.post("/panels", requireMasterAdmin, async (req, res) => {
     const result = await client.query(
       `INSERT INTO panel_configs (
          key, kind, api_base, username_env, password_env, api_key_env,
-         username_secret, password_secret, api_key_secret, is_enabled
-       ) VALUES ($1, $2, $3, NULL, NULL, NULL, $4, $5, $6, $7)
+         username_secret, password_secret, api_key_secret, settings_json, is_enabled
+       ) VALUES ($1, $2, $3, NULL, NULL, NULL, $4, $5, $6, $7::jsonb, $8)
        RETURNING key, kind, api_base, is_enabled = 1 AS enabled`,
       [
         key,
         kind,
-        apiBase,
+        apiBase2,
         username ? encryptPanelCredential(username) : null,
         password ? encryptPanelCredential(password) : null,
         apiKey ? encryptPanelCredential(apiKey) : null,
+        JSON.stringify(kind === "raven" ? { ravenChannels: channels } : {}),
         enabled ? 1 : 0
       ]
     );
     const backfill = kind === "azadpanel_v2ray" && enabled && username && password ? await queueAzadPanelV2RayBackfill(client, key) : null;
     const wireguardBackfill = kind === "rain_admin_wireguard" && enabled && username && password ? await queueRainAdminWireGuardBackfill(client, key) : null;
+    const ravenBackfill = kind === "raven" && enabled && apiKey ? await queueRavenBackfill(client, key) : null;
     await client.query("COMMIT");
     res.status(201).json({
       ...result.rows[0],
-      has_data: Boolean(username && password),
+      channels: kind === "raven" ? channels : void 0,
+      has_data: kind === "raven" ? Boolean(apiKey) : Boolean(username && password),
       available_to_all_resellers: true,
       backfill,
-      wireguardBackfill
+      wireguardBackfill,
+      ravenBackfill
     });
   } catch (error40) {
     await client.query("ROLLBACK").catch(() => void 0);
@@ -86442,13 +87245,14 @@ router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
   const key = String(req.params.key ?? "").trim();
   const body = req.body ?? {};
   const requestedKind = body.kind === void 0 ? void 0 : typeof body.kind === "string" ? body.kind.trim().toLowerCase() : body.kind;
-  if (!/^[a-z0-9_-]{2,64}$/.test(key) || body.enabled !== void 0 && typeof body.enabled !== "boolean" || body.api_base !== void 0 && !isProviderApiBase(body.api_base) || requestedKind !== void 0 && !isProviderKind(requestedKind) || body.username !== void 0 && typeof body.username !== "string" || body.password !== void 0 && typeof body.password !== "string" || body.api_key !== void 0 && typeof body.api_key !== "string") {
+  if (!/^[a-z0-9_-]{2,64}$/.test(key) || body.enabled !== void 0 && typeof body.enabled !== "boolean" || body.api_base !== void 0 && !isProviderApiBase(body.api_base) || requestedKind !== void 0 && !isProviderKind(requestedKind) || body.username !== void 0 && typeof body.username !== "string" || body.password !== void 0 && typeof body.password !== "string" || body.api_key !== void 0 && typeof body.api_key !== "string" || !validRavenChannels(body.channels)) {
     res.status(400).json({ error: "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u067E\u0646\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
     return;
   }
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const channelsUpdate = body.channels !== void 0 ? normalizeRavenChannels(body.channels) : requestedKind === "raven" ? DEFAULT_RAVEN_CHANNELS : null;
     const result = await client.query(
       `UPDATE panel_configs SET
        is_enabled = COALESCE($1, is_enabled),
@@ -86457,14 +87261,28 @@ router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
        username_env = NULL,
        password_env = NULL,
        api_key_env = NULL,
-       username_secret = COALESCE(NULLIF($4, ''), username_secret),
-       password_secret = COALESCE(NULLIF($5, ''), password_secret),
-       api_key_secret = COALESCE(NULLIF($6, ''), api_key_secret),
+       username_secret = CASE
+         WHEN COALESCE(NULLIF($2, ''), kind) = 'raven' THEN NULL
+         ELSE COALESCE(NULLIF($4, ''), username_secret)
+       END,
+       password_secret = CASE
+         WHEN COALESCE(NULLIF($2, ''), kind) = 'raven' THEN NULL
+         ELSE COALESCE(NULLIF($5, ''), password_secret)
+       END,
+       api_key_secret = CASE
+         WHEN COALESCE(NULLIF($2, ''), kind) IN ('falcon', 'raven')
+           THEN COALESCE(NULLIF($6, ''), api_key_secret)
+         ELSE NULL
+       END,
+       settings_json = COALESCE($7::jsonb, settings_json),
        updated_at = NOW()
-     WHERE key = $7
+      WHERE key = $8
       RETURNING key, kind, api_base, is_enabled = 1 AS enabled,
-        ((username_secret IS NOT NULL AND password_secret IS NOT NULL)
-          OR (username_env IS NOT NULL AND password_env IS NOT NULL)) AS has_data`,
+         (CASE WHEN kind IN ('falcon', 'raven')
+           THEN api_key_secret IS NOT NULL
+           ELSE ((username_secret IS NOT NULL AND password_secret IS NOT NULL)
+             OR (username_env IS NOT NULL AND password_env IS NOT NULL))
+          END) AS has_data`,
       [
         body.enabled === void 0 ? null : body.enabled ? 1 : 0,
         requestedKind ?? null,
@@ -86472,6 +87290,7 @@ router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
         body.username ? encryptPanelCredential(body.username.trim()) : null,
         body.password ? encryptPanelCredential(body.password) : null,
         body.api_key ? encryptPanelCredential(body.api_key.trim()) : null,
+        channelsUpdate ? JSON.stringify({ ravenChannels: channelsUpdate }) : null,
         key
       ]
     );
@@ -86483,8 +87302,18 @@ router2.patch("/panels/:key", requireMasterAdmin, async (req, res) => {
     const panel = result.rows[0];
     const backfill = panel.kind === "azadpanel_v2ray" && panel.enabled && panel.has_data ? await queueAzadPanelV2RayBackfill(client, key) : null;
     const wireguardBackfill = panel.kind === "rain_admin_wireguard" && panel.enabled && panel.has_data ? await queueRainAdminWireGuardBackfill(client, key) : null;
+    const ravenBackfill = panel.kind === "raven" && panel.enabled && panel.has_data ? await queueRavenBackfill(client, key) : null;
     await client.query("COMMIT");
-    res.json({ ...panel, backfill, wireguardBackfill });
+    res.json({
+      ...panel,
+      channels: panel.kind === "raven" ? channelsUpdate ?? normalizeRavenChannels((await pool.query(
+        "SELECT settings_json FROM panel_configs WHERE key = $1",
+        [key]
+      )).rows[0]?.settings_json?.ravenChannels) : void 0,
+      backfill,
+      wireguardBackfill,
+      ravenBackfill
+    });
   } catch (error40) {
     await client.query("ROLLBACK").catch(() => void 0);
     throw error40;
@@ -88470,7 +89299,7 @@ router2.post("/services", requireAuth, async (req, res) => {
         ownerId,
         req.auth?.role,
         void 0,
-        { serviceId }
+        { serviceId, skipRaven: true, allowNoProviders: true }
       );
       const failedProviders = provisioning.results.some(
         (result) => result.status < 200 || result.status >= 300
@@ -88611,6 +89440,70 @@ router2.post("/services", requireAuth, async (req, res) => {
       );
     }
     await client.query("COMMIT");
+    const ravenProviderKeys = (await listAvailablePanels(true)).filter((provider) => provider.kind === "raven").map((provider) => provider.key);
+    if (ravenProviderKeys.length) {
+      try {
+        const ravenProvisioning = await provisionUser(
+          username,
+          body.data.gb,
+          body.data.days,
+          body.data.label,
+          ownerId,
+          req.auth?.role,
+          ravenProviderKeys,
+          { serviceId }
+        );
+        const ravenFailures = ravenProvisioning.results.filter(
+          (result) => result.status < 200 || result.status >= 300
+        );
+        if (ravenFailures.length) {
+          const failedKeys = ravenFailures.map((result) => result.key);
+          const detail = ravenFailures.map((result) => `${result.key}: ${result.error ?? `HTTP ${result.status}`}`).join(" \xB7 ");
+          failedProviderKeys.push(...failedKeys);
+          providerWarning = [providerWarning, detail].filter(Boolean).join(" \xB7 ");
+          await pool.query(
+            `INSERT INTO service_provision_jobs
+              (service_id, owner_tg_id, username, action, provider_keys, payload, status, last_error)
+             VALUES ($1, $2, $3, 'providers', $4::jsonb, $5::jsonb, 'pending', $6)`,
+            [
+              serviceId,
+              ownerId,
+              username,
+              JSON.stringify(failedKeys),
+              JSON.stringify({ gb: body.data.gb, days: body.data.days, label: body.data.label, role: req.auth?.role }),
+              detail
+            ]
+          );
+        }
+      } catch (error40) {
+        const failed = error40 instanceof RainApiError ? error40.results : [];
+        const failedKeys = failed.length ? failed.map((result) => result.key) : ravenProviderKeys;
+        const detail = error40 instanceof Error ? error40.message.slice(0, 500) : "Raven provisioning failed.";
+        failedProviderKeys.push(...failedKeys);
+        providerWarning = [providerWarning, detail].filter(Boolean).join(" \xB7 ");
+        await pool.query(
+          `INSERT INTO service_provision_jobs
+            (service_id, owner_tg_id, username, action, provider_keys, payload, status, last_error)
+           VALUES ($1, $2, $3, 'providers', $4::jsonb, $5::jsonb, 'pending', $6)`,
+          [
+            serviceId,
+            ownerId,
+            username,
+            JSON.stringify(failedKeys),
+            JSON.stringify({ gb: body.data.gb, days: body.data.days, label: body.data.label, role: req.auth?.role }),
+            detail
+          ]
+        );
+      }
+      await pool.query(
+        `UPDATE reseller_sync_queue
+         SET status = CASE WHEN $2::boolean THEN 'partial' ELSE 'completed' END,
+             last_error = NULLIF($3, ''),
+             updated_at = NOW()
+         WHERE service_id = $1 AND action = 'create'`,
+        [serviceId, failedProviderKeys.length > 0 || !awg.clientId, providerWarning ?? ""]
+      );
+    }
     const ownerName = req.auth?.displayName ?? req.auth?.title ?? null;
     if (customerCreated) {
       await recordAudit(req, "customer_created", "customer", customerId2, {
@@ -88665,7 +89558,7 @@ router2.post("/services", requireAuth, async (req, res) => {
     res.status(201).json(CreateServiceResponse.parse({
       service: fresh.rows[0],
       sale_id: saleId,
-      sync_status: failedProviderKeys.length || !awg.clientId ? "partial" : "completed"
+      sync_status: failedProviderKeys.length || providerWarning || !awg.clientId ? "partial" : "completed"
     }));
   } catch (error40) {
     try {
@@ -89110,9 +90003,10 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
       );
       const failed = provisioning.results.filter((result2) => result2.status < 200 || result2.status >= 300).map((result2) => ({
         key: result2.key,
-        detail: result2.error ?? `HTTP ${result2.status}`
+        detail: result2.error ?? `HTTP ${result2.status}`,
+        retryable: result2.retryable !== false
       }));
-      failedProviderKeys = failed.map((result2) => result2.key);
+      failedProviderKeys = failed.filter((result2) => result2.retryable).map((result2) => result2.key);
       providerWarning = failed.map((result2) => `${result2.key}: ${result2.detail}`).join(" \xB7 ") || null;
     } catch (error40) {
       if (error40 instanceof RainApiError) {
@@ -90775,7 +91669,7 @@ router5.use(mobile_default);
 var routes_default = router5;
 
 // src/lib/usage-sync.ts
-var BYTES_PER_GB2 = 1024 ** 3;
+var BYTES_PER_GB3 = 1024 ** 3;
 var DEFAULT_INTERVAL_MS = 6e4;
 var COMBINED_WORKER_LOCK_NAMESPACE = 74424;
 var running2 = false;
@@ -90864,7 +91758,7 @@ async function syncServiceUnlocked(service) {
     }
   }
   const calculatedCombinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
-  const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB2));
+  const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB3));
   const expired = service.expired_in_db;
   const usageSnapshotFresh = awgStatsFresh && panelUsages.every((usage) => !usage.stale);
   const combinedBytes = usageSnapshotFresh ? calculatedCombinedBytes : Math.max(Math.max(0, Number(service.last_used_bytes ?? 0)), calculatedCombinedBytes);
@@ -91323,6 +92217,23 @@ async function pauseRemainingRainAdminWireGuardBackfillJobs(job, delayMs) {
     [delayMs, job.id, job.provider_keys[0]]
   );
 }
+async function pauseRemainingRavenBackfillJobs(job, delayMs) {
+  if (job.payload.ravenBackfill !== true || job.provider_keys.length !== 1) return;
+  await pool.query(
+    `UPDATE service_provision_jobs
+     SET next_attempt_at = GREATEST(
+           next_attempt_at,
+           NOW() + ($1 * INTERVAL '1 millisecond')
+         ),
+         updated_at = NOW()
+     WHERE id <> $2
+       AND action = 'providers'
+       AND status IN ('pending', 'retrying')
+       AND payload->>'ravenBackfill' = 'true'
+       AND provider_keys @> jsonb_build_array($3::text)`,
+    [delayMs, job.id, job.provider_keys[0]]
+  );
+}
 async function completeJob(jobId, warning) {
   await pool.query(
     `UPDATE service_provision_jobs
@@ -91447,6 +92358,62 @@ async function refreshV2rayBackfillPlan(job) {
   job.payload.expiresAtUnix = plan.expiresAtUnix;
   return true;
 }
+async function refreshRavenBackfillPlan(job) {
+  const providerKey = job.provider_keys[0];
+  if (!providerKey || job.provider_keys.length !== 1) {
+    await failJob(job.id, "Raven backfill must target exactly one configured provider.");
+    return false;
+  }
+  const result = await pool.query(
+    `SELECT status, gb::float8 AS gb,
+            last_remaining_bytes::text AS last_remaining_bytes,
+            last_used_bytes::text AS last_used_bytes,
+            CASE WHEN expire_at IS NULL THEN NULL
+                 ELSE FLOOR(EXTRACT(EPOCH FROM expire_at))::bigint
+            END AS expires_at_unix,
+            label
+     FROM reseller_services
+     WHERE id = $1
+       AND lifecycle_version = $2
+     LIMIT 1`,
+    [job.service_id, job.lifecycle_version]
+  );
+  const service = result.rows[0];
+  if (!service) {
+    await completeJob(job.id, "Service was removed or renewed before Raven backfill ran.");
+    return false;
+  }
+  const mapped = await pool.query(
+    `SELECT 1
+     FROM raven_service_accounts
+     WHERE service_id = $1
+       AND provider_key = $2
+       AND remote_config_id IS NOT NULL
+     LIMIT 1`,
+    [job.service_id, providerKey]
+  );
+  if (mapped.rows[0]) {
+    await completeJob(job.id, "A Raven config is already mapped to this service.");
+    return false;
+  }
+  const plan = ravenBackfillPlan({
+    status: service.status,
+    gb: service.gb,
+    lastRemainingBytes: service.last_remaining_bytes,
+    lastUsedBytes: service.last_used_bytes,
+    expiresAtUnix: service.expires_at_unix
+  });
+  if (!plan.eligible) {
+    const reason = plan.reason === "quota_exhausted" ? "Service quota was exhausted before Raven backfill." : plan.reason === "unlimited" ? "Unlimited service cannot be mirrored to a finite-quota Raven config." : plan.reason === "no_expiry" || plan.reason === "expiry_too_soon" ? "Service does not have enough finite expiry for Raven's whole-day expiry setting." : plan.reason === "invalid" ? "Service quota or expiry is invalid for Raven backfill." : "Service is no longer active for Raven backfill.";
+    await completeJob(job.id, reason);
+    return false;
+  }
+  job.payload.gb = plan.quotaGb;
+  job.payload.days = plan.days;
+  job.payload.label = service.label ?? "";
+  job.payload.expiresAtUnix = plan.expiresAtUnix;
+  return true;
+}
 async function processRainAdminWireGuardBackfill(job) {
   const providerKey = job.provider_keys[0];
   if (!providerKey || job.provider_keys.length !== 1) {
@@ -91556,6 +92523,9 @@ async function processProviderJob(job) {
       await processRainAdminWireGuardBackfill(job);
       return;
     }
+    if (payload.ravenBackfill === true && !await refreshRavenBackfillPlan(job)) {
+      return;
+    }
     if (payload.azadPanelV2RayBackfill === true && !await refreshV2rayBackfillPlan(job)) {
       return;
     }
@@ -91593,6 +92563,8 @@ async function processProviderJob(job) {
       const rateLimitDelayMs = retryableFailures.some((item) => item.status === 429) ? retryAfterMs || retryDelayMs(job.attempts) : 0;
       if (rateLimitDelayMs > 0) {
         await pauseRemainingV2rayBackfillJobs(job, rateLimitDelayMs);
+        await pauseRemainingRainAdminWireGuardBackfillJobs(job, rateLimitDelayMs);
+        await pauseRemainingRavenBackfillJobs(job, rateLimitDelayMs);
       }
       await retryJob(
         job,
@@ -91621,6 +92593,21 @@ async function processProviderJob(job) {
         return;
       }
     }
+    if (payload.ravenBackfill === true) {
+      const mappings = await pool.query(
+        `SELECT provider_key
+         FROM raven_service_accounts
+         WHERE service_id = $1
+           AND provider_key = ANY($2::text[])
+           AND remote_config_id IS NOT NULL`,
+        [job.service_id, job.provider_keys]
+      );
+      const mapped = new Set(mappings.rows.map((row) => row.provider_key));
+      if (job.provider_keys.some((key) => !mapped.has(key))) {
+        await failJob(job.id, "Raven returned success but did not persist the config mapping.");
+        return;
+      }
+    }
     await completeJob(job.id);
     logger.info({ jobId: job.id, action: job.action }, "Provisioning job completed");
   } catch (error40) {
@@ -91640,6 +92627,7 @@ async function processProviderJob(job) {
     if (rateLimitDelayMs > 0) {
       await pauseRemainingV2rayBackfillJobs(job, rateLimitDelayMs);
       await pauseRemainingRainAdminWireGuardBackfillJobs(job, rateLimitDelayMs);
+      await pauseRemainingRavenBackfillJobs(job, rateLimitDelayMs);
     }
     await retryJob(
       job,

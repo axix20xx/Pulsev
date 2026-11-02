@@ -10,6 +10,7 @@ import {
   hasAzadPanelV2RayBackfillProviderResult,
 } from "./azadpanel-v2ray-backfill";
 import { rainAdminWireGuardBackfillPlan } from "./rain-admin-wireguard-backfill";
+import { ravenBackfillPlan } from "./raven-provider";
 import { encryptPanelCredential } from "./panel-credentials";
 import { createAwgClient, disableAwgClient, replaceAwgClient } from "./amneziawg";
 import { logger } from "./logger";
@@ -162,6 +163,24 @@ async function pauseRemainingRainAdminWireGuardBackfillJobs(job: ProvisionJob, d
   );
 }
 
+async function pauseRemainingRavenBackfillJobs(job: ProvisionJob, delayMs: number) {
+  if (job.payload.ravenBackfill !== true || job.provider_keys.length !== 1) return;
+  await pool.query(
+    `UPDATE service_provision_jobs
+     SET next_attempt_at = GREATEST(
+           next_attempt_at,
+           NOW() + ($1 * INTERVAL '1 millisecond')
+         ),
+         updated_at = NOW()
+     WHERE id <> $2
+       AND action = 'providers'
+       AND status IN ('pending', 'retrying')
+       AND payload->>'ravenBackfill' = 'true'
+       AND provider_keys @> jsonb_build_array($3::text)`,
+    [delayMs, job.id, job.provider_keys[0]],
+  );
+}
+
 async function completeJob(jobId: number, warning?: string) {
   await pool.query(
     `UPDATE service_provision_jobs
@@ -304,6 +323,82 @@ async function refreshV2rayBackfillPlan(job: ProvisionJob): Promise<boolean> {
   return true;
 }
 
+async function refreshRavenBackfillPlan(job: ProvisionJob): Promise<boolean> {
+  const providerKey = job.provider_keys[0];
+  if (!providerKey || job.provider_keys.length !== 1) {
+    await failJob(job.id, "Raven backfill must target exactly one configured provider.");
+    return false;
+  }
+
+  const result = await pool.query<{
+    status: string;
+    gb: number | string | null;
+    last_remaining_bytes: number | string | null;
+    last_used_bytes: number | string | null;
+    expires_at_unix: number | string | null;
+    label: string | null;
+  }>(
+    `SELECT status, gb::float8 AS gb,
+            last_remaining_bytes::text AS last_remaining_bytes,
+            last_used_bytes::text AS last_used_bytes,
+            CASE WHEN expire_at IS NULL THEN NULL
+                 ELSE FLOOR(EXTRACT(EPOCH FROM expire_at))::bigint
+            END AS expires_at_unix,
+            label
+     FROM reseller_services
+     WHERE id = $1
+       AND lifecycle_version = $2
+     LIMIT 1`,
+    [job.service_id, job.lifecycle_version],
+  );
+  const service = result.rows[0];
+  if (!service) {
+    await completeJob(job.id, "Service was removed or renewed before Raven backfill ran.");
+    return false;
+  }
+
+  const mapped = await pool.query(
+    `SELECT 1
+     FROM raven_service_accounts
+     WHERE service_id = $1
+       AND provider_key = $2
+       AND remote_config_id IS NOT NULL
+     LIMIT 1`,
+    [job.service_id, providerKey],
+  );
+  if (mapped.rows[0]) {
+    await completeJob(job.id, "A Raven config is already mapped to this service.");
+    return false;
+  }
+
+  const plan = ravenBackfillPlan({
+    status: service.status,
+    gb: service.gb,
+    lastRemainingBytes: service.last_remaining_bytes,
+    lastUsedBytes: service.last_used_bytes,
+    expiresAtUnix: service.expires_at_unix,
+  });
+  if (!plan.eligible) {
+    const reason = plan.reason === "quota_exhausted"
+      ? "Service quota was exhausted before Raven backfill."
+      : plan.reason === "unlimited"
+        ? "Unlimited service cannot be mirrored to a finite-quota Raven config."
+        : plan.reason === "no_expiry" || plan.reason === "expiry_too_soon"
+          ? "Service does not have enough finite expiry for Raven's whole-day expiry setting."
+          : plan.reason === "invalid"
+            ? "Service quota or expiry is invalid for Raven backfill."
+            : "Service is no longer active for Raven backfill.";
+    await completeJob(job.id, reason);
+    return false;
+  }
+
+  job.payload.gb = plan.quotaGb;
+  job.payload.days = plan.days;
+  job.payload.label = service.label ?? "";
+  job.payload.expiresAtUnix = plan.expiresAtUnix;
+  return true;
+}
+
 async function processRainAdminWireGuardBackfill(job: ProvisionJob): Promise<void> {
   const providerKey = job.provider_keys[0];
   if (!providerKey || job.provider_keys.length !== 1) {
@@ -434,6 +529,9 @@ async function processProviderJob(job: ProvisionJob) {
       await processRainAdminWireGuardBackfill(job);
       return;
     }
+    if (payload.ravenBackfill === true && !(await refreshRavenBackfillPlan(job))) {
+      return;
+    }
     if (payload.azadPanelV2RayBackfill === true && !(await refreshV2rayBackfillPlan(job))) {
       return;
     }
@@ -480,6 +578,8 @@ async function processProviderJob(job: ProvisionJob) {
         : 0;
       if (rateLimitDelayMs > 0) {
         await pauseRemainingV2rayBackfillJobs(job, rateLimitDelayMs);
+        await pauseRemainingRainAdminWireGuardBackfillJobs(job, rateLimitDelayMs);
+        await pauseRemainingRavenBackfillJobs(job, rateLimitDelayMs);
       }
       await retryJob(
         job,
@@ -508,6 +608,21 @@ async function processProviderJob(job: ProvisionJob) {
         return;
       }
     }
+    if (payload.ravenBackfill === true) {
+      const mappings = await pool.query<{ provider_key: string }>(
+        `SELECT provider_key
+         FROM raven_service_accounts
+         WHERE service_id = $1
+           AND provider_key = ANY($2::text[])
+           AND remote_config_id IS NOT NULL`,
+        [job.service_id, job.provider_keys],
+      );
+      const mapped = new Set(mappings.rows.map((row) => row.provider_key));
+      if (job.provider_keys.some((key) => !mapped.has(key))) {
+        await failJob(job.id, "Raven returned success but did not persist the config mapping.");
+        return;
+      }
+    }
     await completeJob(job.id);
     logger.info({ jobId: job.id, action: job.action }, "Provisioning job completed");
   } catch (error) {
@@ -531,6 +646,7 @@ async function processProviderJob(job: ProvisionJob) {
     if (rateLimitDelayMs > 0) {
       await pauseRemainingV2rayBackfillJobs(job, rateLimitDelayMs);
       await pauseRemainingRainAdminWireGuardBackfillJobs(job, rateLimitDelayMs);
+      await pauseRemainingRavenBackfillJobs(job, rateLimitDelayMs);
     }
     await retryJob(
       job,
