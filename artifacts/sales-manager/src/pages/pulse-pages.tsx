@@ -3821,6 +3821,13 @@ function PanelAssignments({ resellers }: { resellers: PulseContextValue['reselle
 }
 
 function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseContextValue['resellers'] }) {
+  const defaultRavenChannels = ['xray', 'wireguard', 'openvpn'];
+  const ravenChannelOptions = [
+    { value: 'xray', label: 'Xray / V2Box' },
+    { value: 'wireguard', label: 'WireGuard' },
+    { value: 'openvpn', label: 'OpenVPN' },
+    { value: 'dns', label: 'DNS' },
+  ];
   const [items, setItems] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -3828,7 +3835,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
   const [saving, setSaving] = useState('');
   const [deleting, setDeleting] = useState('');
   const [creating, setCreating] = useState(false);
-  const [newPanel, setNewPanel] = useState({ key: '', kind: 'rain_admin', api_base: '', enabled: true, username: '', password: '', api_key: '' });
+  const [newPanel, setNewPanel] = useState({ key: '', kind: 'rain_admin', api_base: '', enabled: true, username: '', password: '', api_key: '', channels: defaultRavenChannels });
   const loadPanels = async () => { setLoading(true); setError(''); try { const response = await fetch('/api/panels', { credentials: 'include' }); if (!response.ok) throw new Error('دریافت پنل‌ها ناموفق بود'); setItems(await response.json()); } finally { setLoading(false); } };
   useEffect(() => { loadPanels().catch((cause) => setError(cause instanceof Error ? cause.message : 'خطای پنل')); }, []);
   const backfillMessage = (payload: any) => {
@@ -3866,6 +3873,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
           username: panel.username || '',
           password: panel.password || '',
           api_key: panel.api_key || '',
+          ...(panel.kind === 'raven' ? { channels: panel.channels || defaultRavenChannels } : {}),
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -3894,7 +3902,7 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error || 'افزودن Provider ناموفق بود');
       setNotice(backfillMessage(payload) || 'Provider جدید ذخیره شد.');
-      setNewPanel({ key: '', kind: 'rain_admin', api_base: '', enabled: true, username: '', password: '', api_key: '' });
+      setNewPanel({ key: '', kind: 'rain_admin', api_base: '', enabled: true, username: '', password: '', api_key: '', channels: defaultRavenChannels });
       await loadPanels();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'خطای افزودن Provider');
@@ -3934,7 +3942,15 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
           <Field label="کلید یکتا" value={newPanel.key} placeholder="مثلاً panel_new" inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, key: value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} />
           <label className="ax-field">
             <span>نوع Provider</span>
-            <select dir="ltr" value={newPanel.kind} onChange={(event) => setNewPanel({ ...newPanel, kind: event.target.value })}>
+            <select dir="ltr" value={newPanel.kind} onChange={(event) => setNewPanel({
+              ...newPanel,
+              kind: event.target.value,
+              ...(event.target.value === 'raven' ? {
+                api_base: newPanel.api_base || 'https://su.randomatic.ir/api/v1',
+                enabled: false,
+                channels: newPanel.channels.length ? newPanel.channels : defaultRavenChannels,
+              } : {}),
+            })}>
               <option value="rain_admin">Rain Admin</option>
               <option value="rain_admin_wireguard">Rain Admin · WireGuard</option>
               <option value="marzban">Marzban</option>
@@ -3942,16 +3958,36 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
               <option value="azadpanel_openvpn">AzadPanel · OpenVPN</option>
               <option value="azadpanel_wireguard">AzadPanel · WireGuard</option>
               <option value="azadpanel_ipsec">AzadPanel · IPsec / IKEv2</option>
+              <option value="raven">Raven · Xray / WireGuard / OpenVPN / DNS</option>
             </select>
             {newPanel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">نام کاربری و رمز نمایندگی مخصوص هستهٔ Xray/V2Ray را وارد کنید؛ حساب جداگانه به‌صورت خودکار هنگام ساخت یا تمدید سرویس ایجاد می‌شود.</small>}
             {newPanel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">نام کاربری و رمز مخصوص هستهٔ WireGuard را وارد کنید؛ این اعتبارنامه از OpenVPN جداست.</small>}
             {newPanel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">credential مدیر AzadPanel مخصوص هستهٔ IPsec را وارد کنید؛ حساب و رمز اتصال کاربران جداگانه از API دریافت می‌شود.</small>}
             {newPanel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این Provider می‌تواند مستقل از Rain Admin دیگری کار کند؛ با همین نام کاربری و رمز حساب‌های Rain Admin را می‌سازد و تمدید می‌کند و فایل‌های WireGuard را می‌خواند. پس از ذخیره، حساب‌های مفقودِ سرویس‌های فعالِ واجدشرایط با سهمیهٔ باقی‌مانده ساخته می‌شوند؛ حساب‌های موجود تغییر نمی‌کنند.</small>}
           </label>
-          <Field label="آدرس API" value={newPanel.api_base} placeholder="https://panel.example.com" inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, api_base: value })} />
-          <Field label="نام کاربری ورود به پنل (اختیاری)" value={newPanel.username} inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, username: value })} />
-          <Field label="رمز (اختیاری)" value={newPanel.password} inputDir="ltr" type="password" onChange={(value) => setNewPanel({ ...newPanel, password: value })} />
+          <Field label="آدرس API" value={newPanel.api_base} placeholder={newPanel.kind === 'raven' ? 'https://su.randomatic.ir/api/v1' : 'https://panel.example.com'} inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, api_base: value })} />
+          {newPanel.kind === 'raven' ? <Field label="Raven API key" value={newPanel.api_key} placeholder="کلید API رمزنگاری‌شده ذخیره می‌شود" inputDir="ltr" type="password" onChange={(value) => setNewPanel({ ...newPanel, api_key: value })} /> : <>
+            <Field label="نام کاربری ورود به پنل (اختیاری)" value={newPanel.username} inputDir="ltr" onChange={(value) => setNewPanel({ ...newPanel, username: value })} />
+            <Field label="رمز (اختیاری)" value={newPanel.password} inputDir="ltr" type="password" onChange={(value) => setNewPanel({ ...newPanel, password: value })} />
+          </>}
         </div>
+        {newPanel.kind === 'raven' && <>
+          <div className="ax-alert mt-3" role="note">ساخت حساب جدید از اعتبار GB فروشنده Raven استفاده می‌کند. حسابی برای سرویس‌های قدیمی به‌صورت خودکار ساخته نمی‌شود.</div>
+          <div className="ax-provider-fields mt-3">
+            <div className="ax-field">
+              <span>کانال‌های Raven برای سرویس جدید</span>
+              {ravenChannelOptions.map((channel) => <label key={channel.value} className="ax-preference-row">
+                <span><strong>{channel.label}</strong></span>
+                <input type="checkbox" checked={newPanel.channels.includes(channel.value)} onChange={(event) => setNewPanel({
+                  ...newPanel,
+                  channels: event.target.checked
+                    ? [...new Set([...newPanel.channels, channel.value])]
+                    : newPanel.channels.filter((item) => item !== channel.value),
+                })} />
+              </label>)}
+            </div>
+          </div>
+        </>}
         <div className="ax-provider-create-actions">
           <label className="ax-preference-row ax-provider-enabled">
             <span><strong>فعال باشد</strong><small>بعداً هم از کارت Provider قابل تغییر است.</small></span>
@@ -3981,16 +4017,34 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
                   <option value="azadpanel_openvpn">AzadPanel · OpenVPN</option>
                   <option value="azadpanel_wireguard">AzadPanel · WireGuard</option>
                   <option value="azadpanel_ipsec">AzadPanel · IPsec / IKEv2</option>
+                  <option value="raven">Raven · Xray / WireGuard / OpenVPN / DNS</option>
                 </select>
                 {panel.kind === 'azadpanel_v2ray' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف از credential مستقل نمایندگی Xray استفاده می‌کند؛ با ذخیره، سرویس‌های فعالِ واجد شرایطی که نگاشت V2Ray ندارند به‌صورت مرحله‌ای صف می‌شوند. حساب‌های موجود تغییر نمی‌کنند.</small>}
                 {panel.kind === 'azadpanel_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از اعتبارنامهٔ مستقل هستهٔ WireGuard استفاده کند.</small>}
                 {panel.kind === 'azadpanel_ipsec' && <small className="text-xs text-muted-foreground" dir="rtl">این ردیف باید از credential مستقل هستهٔ IPsec استفاده کند.</small>}
                 {panel.kind === 'rain_admin_wireguard' && <small className="text-xs text-muted-foreground" dir="rtl">این Provider می‌تواند مستقل باشد و برای ساخت و تمدید حساب‌ها و دریافت فایل WireGuard از همین credential استفاده می‌کند. ذخیرهٔ تنظیمات سرویس‌های فعالِ واجدشرایطی را که حساب ندارند، با سهمیهٔ باقی‌مانده به صف ایجاد حساب می‌فرستد؛ حساب‌های موجود تغییر نمی‌کنند.</small>}
+                {panel.kind === 'raven' && <small className="text-xs text-muted-foreground" dir="rtl">ساخت پیکربندی سرویس جدید از اعتبار GB حساب Raven استفاده می‌کند. سرویس‌های موجود به‌صورت خودکار تغییر نمی‌کنند.</small>}
               </label>
               <Field label="آدرس API" value={panel.api_base} inputDir="ltr" onChange={(value) => edit(panel.key, 'api_base', value)} />
-              <Field label="نام کاربری پنل (خالی = حفظ مقدار قبلی)" value={panel.username || ''} placeholder="username پنل" inputDir="ltr" onChange={(value) => edit(panel.key, 'username', value)} />
-              <Field label="رمز پنل (خالی = حفظ مقدار قبلی)" value={panel.password || ''} placeholder="password پنل" inputDir="ltr" type="password" onChange={(value) => edit(panel.key, 'password', value)} />
+              {panel.kind === 'raven' ? <Field label="Raven API key (خالی = حفظ مقدار قبلی)" value={panel.api_key || ''} placeholder="کلید API رمزنگاری‌شده" inputDir="ltr" type="password" onChange={(value) => edit(panel.key, 'api_key', value)} /> : <>
+                <Field label="نام کاربری پنل (خالی = حفظ مقدار قبلی)" value={panel.username || ''} placeholder="username پنل" inputDir="ltr" onChange={(value) => edit(panel.key, 'username', value)} />
+                <Field label="رمز پنل (خالی = حفظ مقدار قبلی)" value={panel.password || ''} placeholder="password پنل" inputDir="ltr" type="password" onChange={(value) => edit(panel.key, 'password', value)} />
+              </>}
             </div>
+            {panel.kind === 'raven' && <div className="ax-provider-fields mt-3">
+              <div className="ax-field">
+                <span>کانال‌های Raven برای سرویس جدید</span>
+                {ravenChannelOptions.map((channel) => <label key={channel.value} className="ax-preference-row">
+                  <span><strong>{channel.label}</strong></span>
+                  <input type="checkbox" checked={(panel.channels || defaultRavenChannels).includes(channel.value)} onChange={(event) => setItems((current) => current.map((item) => item.key === panel.key ? {
+                    ...item,
+                    channels: event.target.checked
+                      ? [...new Set([...(item.channels || defaultRavenChannels), channel.value])]
+                      : (item.channels || defaultRavenChannels).filter((value: string) => value !== channel.value),
+                  } : item))} />
+                </label>)}
+              </div>
+            </div>}
             <Button variant="secondary" disabled={saving === panel.key} onClick={() => save(panel)}>{saving === panel.key ? <><RefreshCw size={14} className="ax-spin" /> ذخیره...</> : <><Save size={14} /> ذخیره در دیتابیس</>}</Button>
           </article>
         ))}

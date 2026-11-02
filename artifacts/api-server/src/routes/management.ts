@@ -113,6 +113,8 @@ import {
   replaceAwgClient,
 } from "../lib/amneziawg";
 import { decryptPanelCredential, encryptPanelCredential } from "../lib/panel-credentials";
+import { DEFAULT_RAVEN_CHANNELS, RAVEN_CHANNELS, normalizeRavenChannels } from "../lib/raven-provider";
+import { ravenDeliveryLinks, type RavenChannel, type RavenPanel } from "../lib/raven-provider";
 import { issueMobileOtp } from "../lib/mobile-otp";
 import { recordTelegramAuditEvent } from "../lib/telegram-bot";
 import { mobileReady, sendMobileNotification } from "./mobile";
@@ -701,6 +703,7 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
       username_secret TEXT,
       password_secret TEXT,
       api_key_secret TEXT,
+      settings_json JSONB NOT NULL DEFAULT '{}'::jsonb,
       is_enabled SMALLINT NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -923,6 +926,18 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
         updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
         PRIMARY KEY (service_id, provider_key)
       );
+      CREATE TABLE IF NOT EXISTS raven_service_accounts (
+        service_id BIGINT NOT NULL,
+        provider_key TEXT NOT NULL,
+        config_label TEXT NOT NULL,
+        remote_config_id TEXT,
+        subscription_url TEXT,
+        channels JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (service_id, provider_key),
+        UNIQUE (provider_key, config_label)
+      );
        CREATE TABLE IF NOT EXISTS reseller_service_wireguard_accounts (
          service_id BIGINT PRIMARY KEY,
          delivery_secret TEXT NOT NULL,
@@ -1052,6 +1067,8 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
        ADD COLUMN IF NOT EXISTS password_secret TEXT;
      ALTER TABLE panel_configs
        ADD COLUMN IF NOT EXISTS api_key_secret TEXT;
+     ALTER TABLE panel_configs
+       ADD COLUMN IF NOT EXISTS settings_json JSONB NOT NULL DEFAULT '{}'::jsonb;
      INSERT INTO panel_configs (key, kind, api_base, username_env, password_env, api_key_env)
     VALUES
          ('phonepanel', 'rain_admin', 'https://videobazi.com', NULL, NULL, NULL),
@@ -1932,6 +1949,62 @@ function publicOpenVpnDelivery(token: string, delivery: OpenVpnDelivery) {
   };
 }
 
+type PublicRavenProfile = { name: string; filename: string; download_url: string };
+
+async function publicRavenProfiles(
+  serviceId: number,
+  token: string,
+  channel: "wireguard" | "openvpn",
+): Promise<PublicRavenProfile[]> {
+  const result = await pool.query<{
+    provider_key: string;
+    remote_config_id: string | null;
+    channels: unknown;
+    api_base: string;
+    api_key_secret: string | null;
+  }>(
+    `SELECT account.provider_key, account.remote_config_id, account.channels,
+            panel.api_base, panel.api_key_secret
+     FROM raven_service_accounts account
+     JOIN panel_configs panel ON panel.key = account.provider_key
+     WHERE account.service_id = $1
+       AND panel.kind = 'raven'
+       AND panel.is_enabled = 1
+       AND panel.api_key_secret IS NOT NULL
+     ORDER BY account.provider_key`,
+    [serviceId],
+  );
+  const profiles: PublicRavenProfile[] = [];
+  for (const row of result.rows) {
+    if (!row.remote_config_id) continue;
+    const channels = Array.isArray(row.channels) ? row.channels : [];
+    if (!channels.includes(channel)) continue;
+    const apiKey = decryptPanelCredential(row.api_key_secret);
+    if (!apiKey) continue;
+    try {
+      const delivery = await ravenDeliveryLinks({
+        key: row.provider_key,
+        api_base: row.api_base,
+        api_key: apiKey,
+      }, row.remote_config_id);
+      const files = delivery.files[channel];
+      for (let index = 0; index < files.length; index += 1) {
+        const number = profiles.length + 1;
+        const extension = channel === "wireguard" ? "conf" : "ovpn";
+        const filename = `Pulse-${channel === "wireguard" ? "WireGuard" : "OpenVPN"}-${number}.${extension}`;
+        profiles.push({
+          name: channel === "wireguard" ? `سرور WireGuard ${number}` : `سرور OpenVPN ${number}`,
+          filename,
+          download_url: `/api/public/subscription/${encodeURIComponent(token)}/raven/${channel}/${encodeURIComponent(row.provider_key)}/${index}`,
+        });
+      }
+    } catch {
+      // Keep other providers' public profiles available if this Raven config is offline.
+    }
+  }
+  return profiles;
+}
+
 function isWireGuardDelivery(value: unknown): value is WireGuardDelivery {
   if (!value || typeof value !== "object") return false;
   const delivery = value as Partial<WireGuardDelivery>;
@@ -2139,12 +2212,25 @@ router.get("/public/subscription/:token/openvpn", async (req, res): Promise<void
     return;
   }
   try {
+    const ravenProfiles = await publicRavenProfiles(Number(service.id), token, "openvpn");
     const delivery = await loadSavedOpenVpnDelivery(Number(service.id));
     if (!delivery) {
+      if (ravenProfiles.length) {
+        res.json({
+          core: "openvpn",
+          provider_key: "pulse",
+          server: "",
+          username: "",
+          password: "",
+          locations: [],
+          raven_profiles: ravenProfiles,
+        });
+        return;
+      }
       res.status(404).json({ error: "حساب OpenVPN ذخیره‌شده‌ای پیدا نشد", code: "OPENVPN_NOT_CREATED" });
       return;
     }
-    res.json(publicOpenVpnDelivery(token, delivery));
+    res.json({ ...publicOpenVpnDelivery(token, delivery), raven_profiles: ravenProfiles });
   } catch {
     res.status(500).json({ error: "اطلاعات ذخیره‌شده OpenVPN قابل خواندن نیست." });
   }
@@ -2187,7 +2273,23 @@ router.post("/public/subscription/:token/openvpn", async (req, res): Promise<voi
 
     const savedDelivery = await loadSavedOpenVpnDelivery(serviceId);
     if (savedDelivery) {
-      res.json(publicOpenVpnDelivery(token, savedDelivery));
+      res.json({
+        ...publicOpenVpnDelivery(token, savedDelivery),
+        raven_profiles: await publicRavenProfiles(serviceId, token, "openvpn"),
+      });
+      return;
+    }
+    const ravenProfiles = await publicRavenProfiles(serviceId, token, "openvpn");
+    if (ravenProfiles.length) {
+      res.json({
+        core: "openvpn",
+        provider_key: "pulse",
+        server: "",
+        username: "",
+        password: "",
+        locations: [],
+        raven_profiles: ravenProfiles,
+      });
       return;
     }
 
@@ -2208,7 +2310,10 @@ router.post("/public/subscription/:token/openvpn", async (req, res): Promise<voi
     );
     const persistedDelivery = await loadSavedOpenVpnDelivery(serviceId);
     if (!persistedDelivery) throw new Error("OpenVPN account details were not persisted.");
-    res.json(publicOpenVpnDelivery(token, persistedDelivery));
+    res.json({
+      ...publicOpenVpnDelivery(token, persistedDelivery),
+      raven_profiles: await publicRavenProfiles(serviceId, token, "openvpn"),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "OpenVPN account setup failed.";
     const unavailable = message.includes("No enabled AzadPanel");
@@ -2271,8 +2376,21 @@ router.get("/public/subscription/:token/wireguard", async (req, res): Promise<vo
       "reseller",
       savedDeliveries,
     );
+    const ravenProfiles = await publicRavenProfiles(serviceId, token, "wireguard");
     await saveWireGuardDeliveries(serviceId, prepared.deliveries);
     if (!prepared.deliveries.length) {
+      if (ravenProfiles.length) {
+        res.json({
+          core: "wireguard",
+          providers: [],
+          provider_errors: prepared.errors,
+          bundle_url: "",
+          bundle_mobileconfig_url: "",
+          locations: [],
+          raven_profiles: ravenProfiles,
+        });
+        return;
+      }
       if (prepared.errors.length) {
         res.status(502).json({
           error: prepared.errors.map((item) => `${item.provider_label}: ${item.error}`).join(" · "),
@@ -2286,7 +2404,10 @@ router.get("/public/subscription/:token/wireguard", async (req, res): Promise<vo
       });
       return;
     }
-    res.json(publicWireGuardDeliveries(token, prepared.deliveries, prepared.errors));
+    res.json({
+      ...publicWireGuardDeliveries(token, prepared.deliveries, prepared.errors),
+      raven_profiles: ravenProfiles,
+    });
   } catch (error) {
     if (error instanceof RainApiError) {
       res.status(502).json({
@@ -2353,7 +2474,20 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
       "reseller",
       savedDeliveries,
     );
+    const ravenProfiles = await publicRavenProfiles(serviceId, token, "wireguard");
     if (!prepared.deliveries.length) {
+      if (ravenProfiles.length) {
+        res.json({
+          core: "wireguard",
+          providers: [],
+          provider_errors: prepared.errors,
+          bundle_url: "",
+          bundle_mobileconfig_url: "",
+          locations: [],
+          raven_profiles: ravenProfiles,
+        });
+        return;
+      }
       const message = prepared.errors.length
         ? prepared.errors.map((item) => `${item.provider_label}: ${item.error}`).join(" · ")
         : "No enabled WireGuard providers are configured.";
@@ -2368,7 +2502,10 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
     const selectedProviderKeys = new Set(prepared.deliveries.map((delivery) => delivery.provider_key));
     const persistedSelected = persistedDeliveries.filter((delivery) => selectedProviderKeys.has(delivery.provider_key));
     if (!persistedSelected.length) throw new Error("WireGuard account details were not persisted.");
-    res.json(publicWireGuardDeliveries(token, persistedSelected, prepared.errors));
+    res.json({
+      ...publicWireGuardDeliveries(token, persistedSelected, prepared.errors),
+      raven_profiles: ravenProfiles,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "WireGuard account setup failed.";
     const unavailable = message.includes("No enabled AzadPanel WireGuard provider");
@@ -3433,7 +3570,7 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
 
 router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
   const result = await pool.query(
-    `SELECT p.key, p.kind, p.api_base, p.is_enabled = 1 AS enabled,
+    `SELECT p.key, p.kind, p.api_base, p.settings_json, p.is_enabled = 1 AS enabled,
             p.username_secret, p.password_secret, p.api_key_secret,
             COALESCE(array_agg(a.reseller_tg_id) FILTER (WHERE a.reseller_tg_id IS NOT NULL), '{}') AS assigned_reseller_ids
      FROM panel_configs p
@@ -3443,7 +3580,7 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
   );
   const configured = result.rows.map((panel) => ({
     ...panel,
-    has_data: panel.kind === "falcon"
+    has_data: panel.kind === "falcon" || panel.kind === "raven"
        ? Boolean(decryptPanelCredential(panel.api_key_secret))
       : Boolean(
             decryptPanelCredential(panel.username_secret) &&
@@ -3456,6 +3593,9 @@ router.get("/panels", requireMasterAdmin, async (_req, res): Promise<void> => {
       kind: panel.kind,
       api_base: panel.api_base,
       enabled: panel.enabled,
+      channels: panel.kind === "raven"
+        ? normalizeRavenChannels(panel.settings_json?.ravenChannels ?? panel.settings_json?.channels)
+        : undefined,
       assigned_reseller_ids: panel.assigned_reseller_ids,
       has_data: panel.has_data,
       available_to_all_resellers: true,
@@ -3480,7 +3620,7 @@ router.post("/panels/:key/test", requireMasterAdmin, async (req, res): Promise<v
   });
 });
 
-const providerKinds = ["marzban", "rain_admin", "rain_admin_wireguard", "azadpanel", "azadpanel_v2ray", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec"] as const;
+const providerKinds = ["marzban", "rain_admin", "rain_admin_wireguard", "azadpanel", "azadpanel_v2ray", "azadpanel_openvpn", "azadpanel_wireguard", "azadpanel_ipsec", "raven"] as const;
 type ProviderKind = (typeof providerKinds)[number];
 
 function isProviderKind(value: unknown): value is ProviderKind {
@@ -3501,6 +3641,14 @@ function credentialValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function validRavenChannels(value: unknown): boolean {
+  return value === undefined || (
+    Array.isArray(value)
+    && value.length > 0
+    && value.every((channel) => typeof channel === "string" && RAVEN_CHANNELS.includes(channel as any))
+  );
+}
+
 router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
   await managementReady;
   const body = req.body ?? {};
@@ -3511,14 +3659,17 @@ router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
   const username = credentialValue(body.username);
   const password = credentialValue(body.password);
   const apiKey = credentialValue(body.api_key);
+  const channels = normalizeRavenChannels(body.channels);
 
   if (
     !/^[a-z0-9_-]{2,64}$/.test(key) ||
     !isProviderKind(kind) ||
     !isProviderApiBase(apiBase) ||
     typeof enabled !== "boolean" ||
-    apiKey !== null ||
-    (username === null) !== (password === null)
+    !validRavenChannels(body.channels) ||
+    (kind === "raven"
+      ? !apiKey || username !== null || password !== null || channels.length === 0
+      : apiKey !== null || (username === null) !== (password === null))
   ) {
     res.status(400).json({ error: "اطلاعات Provider معتبر نیست" });
     return;
@@ -3530,8 +3681,8 @@ router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
     const result = await client.query(
       `INSERT INTO panel_configs (
          key, kind, api_base, username_env, password_env, api_key_env,
-         username_secret, password_secret, api_key_secret, is_enabled
-       ) VALUES ($1, $2, $3, NULL, NULL, NULL, $4, $5, $6, $7)
+         username_secret, password_secret, api_key_secret, settings_json, is_enabled
+       ) VALUES ($1, $2, $3, NULL, NULL, NULL, $4, $5, $6, $7::jsonb, $8)
        RETURNING key, kind, api_base, is_enabled = 1 AS enabled`,
       [
         key,
@@ -3540,6 +3691,7 @@ router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
         username ? encryptPanelCredential(username) : null,
         password ? encryptPanelCredential(password) : null,
         apiKey ? encryptPanelCredential(apiKey) : null,
+        JSON.stringify(kind === "raven" ? { ravenChannels: channels } : {}),
         enabled ? 1 : 0,
       ],
     );
@@ -3552,7 +3704,8 @@ router.post("/panels", requireMasterAdmin, async (req, res): Promise<void> => {
     await client.query("COMMIT");
     res.status(201).json({
       ...result.rows[0],
-      has_data: Boolean(username && password),
+      channels: kind === "raven" ? channels : undefined,
+      has_data: kind === "raven" ? Boolean(apiKey) : Boolean(username && password),
       available_to_all_resellers: true,
       backfill,
       wireguardBackfill,
@@ -3591,7 +3744,8 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
     (requestedKind !== undefined && !isProviderKind(requestedKind)) ||
     (body.username !== undefined && typeof body.username !== "string") ||
     (body.password !== undefined && typeof body.password !== "string") ||
-    (body.api_key !== undefined && typeof body.api_key !== "string")
+    (body.api_key !== undefined && typeof body.api_key !== "string") ||
+    !validRavenChannels(body.channels)
   ) {
     res.status(400).json({ error: "تنظیمات پنل معتبر نیست" });
     return;
@@ -3599,6 +3753,11 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const channelsUpdate = body.channels !== undefined
+      ? normalizeRavenChannels(body.channels)
+      : requestedKind === "raven"
+        ? DEFAULT_RAVEN_CHANNELS
+        : null;
     const result = await client.query(
       `UPDATE panel_configs SET
        is_enabled = COALESCE($1, is_enabled),
@@ -3610,11 +3769,15 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
        username_secret = COALESCE(NULLIF($4, ''), username_secret),
        password_secret = COALESCE(NULLIF($5, ''), password_secret),
        api_key_secret = COALESCE(NULLIF($6, ''), api_key_secret),
+       settings_json = COALESCE($7::jsonb, settings_json),
        updated_at = NOW()
-     WHERE key = $7
+      WHERE key = $8
       RETURNING key, kind, api_base, is_enabled = 1 AS enabled,
-        ((username_secret IS NOT NULL AND password_secret IS NOT NULL)
-          OR (username_env IS NOT NULL AND password_env IS NOT NULL)) AS has_data`,
+         (CASE WHEN kind IN ('falcon', 'raven')
+           THEN api_key_secret IS NOT NULL
+           ELSE ((username_secret IS NOT NULL AND password_secret IS NOT NULL)
+             OR (username_env IS NOT NULL AND password_env IS NOT NULL))
+          END) AS has_data`,
       [
         body.enabled === undefined ? null : body.enabled ? 1 : 0,
         requestedKind ?? null,
@@ -3622,6 +3785,7 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
         body.username ? encryptPanelCredential(body.username.trim()) : null,
         body.password ? encryptPanelCredential(body.password) : null,
         body.api_key ? encryptPanelCredential(body.api_key.trim()) : null,
+        channelsUpdate ? JSON.stringify({ ravenChannels: channelsUpdate }) : null,
         key,
       ],
     );
@@ -3638,7 +3802,17 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
       ? await queueRainAdminWireGuardBackfill(client, key)
       : null;
     await client.query("COMMIT");
-    res.json({ ...panel, backfill, wireguardBackfill });
+    res.json({
+      ...panel,
+      channels: panel.kind === "raven"
+        ? channelsUpdate ?? normalizeRavenChannels((await pool.query<{ settings_json: any }>(
+            "SELECT settings_json FROM panel_configs WHERE key = $1",
+            [key],
+          )).rows[0]?.settings_json?.ravenChannels)
+        : undefined,
+      backfill,
+      wireguardBackfill,
+    });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw error;
@@ -5778,7 +5952,7 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
         ownerId,
         req.auth?.role,
         undefined,
-        { serviceId },
+        { serviceId, skipRaven: true, allowNoProviders: true },
       );
       const failedProviders = provisioning.results.some(
         (result) => result.status < 200 || result.status >= 300,
@@ -5923,6 +6097,72 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
       );
     }
     await client.query("COMMIT");
+    const ravenProviderKeys = (await listAvailablePanels(true))
+      .filter((provider) => provider.kind === "raven")
+      .map((provider) => provider.key);
+    if (ravenProviderKeys.length) {
+      try {
+        const ravenProvisioning = await provisionUser(
+          username,
+          body.data.gb,
+          body.data.days,
+          body.data.label,
+          ownerId,
+          req.auth?.role,
+          ravenProviderKeys,
+          { serviceId },
+        );
+        const ravenFailures = ravenProvisioning.results.filter(
+          (result) => result.status < 200 || result.status >= 300,
+        );
+        if (ravenFailures.length) {
+          const failedKeys = ravenFailures.map((result) => result.key);
+          const detail = ravenFailures.map((result) => `${result.key}: ${result.error ?? `HTTP ${result.status}`}`).join(" · ");
+          failedProviderKeys.push(...failedKeys);
+          providerWarning = [providerWarning, detail].filter(Boolean).join(" · ");
+          await pool.query(
+            `INSERT INTO service_provision_jobs
+              (service_id, owner_tg_id, username, action, provider_keys, payload, status, last_error)
+             VALUES ($1, $2, $3, 'providers', $4::jsonb, $5::jsonb, 'pending', $6)`,
+            [
+              serviceId,
+              ownerId,
+              username,
+              JSON.stringify(failedKeys),
+              JSON.stringify({ gb: body.data.gb, days: body.data.days, label: body.data.label, role: req.auth?.role }),
+              detail,
+            ],
+          );
+        }
+      } catch (error) {
+        const failed = error instanceof RainApiError ? error.results : [];
+        const failedKeys = failed.length ? failed.map((result) => result.key) : ravenProviderKeys;
+        const detail = error instanceof Error ? error.message.slice(0, 500) : "Raven provisioning failed.";
+        failedProviderKeys.push(...failedKeys);
+        providerWarning = [providerWarning, detail].filter(Boolean).join(" · ");
+        await pool.query(
+          `INSERT INTO service_provision_jobs
+            (service_id, owner_tg_id, username, action, provider_keys, payload, status, last_error)
+           VALUES ($1, $2, $3, 'providers', $4::jsonb, $5::jsonb, 'pending', $6)`,
+          [
+            serviceId,
+            ownerId,
+            username,
+            JSON.stringify(failedKeys),
+            JSON.stringify({ gb: body.data.gb, days: body.data.days, label: body.data.label, role: req.auth?.role }),
+            detail,
+          ],
+        );
+      }
+      await pool.query(
+        `UPDATE reseller_sync_queue
+         SET status = CASE WHEN $2::boolean THEN 'partial' ELSE 'completed' END,
+             last_error = NULLIF($3, ''),
+             updated_at = NOW()
+         WHERE service_id = $1 AND action = 'create'`,
+        [serviceId, failedProviderKeys.length > 0 || !awg.clientId, providerWarning ?? ""],
+      );
+    }
     const ownerName = req.auth?.displayName ?? req.auth?.title ?? null;
     if (customerCreated) {
       await recordAudit(req, "customer_created", "customer", customerId, {

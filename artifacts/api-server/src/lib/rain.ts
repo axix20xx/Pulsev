@@ -29,6 +29,19 @@ import {
   providerConfigLabel,
   subscriptionProviderShortCodes,
 } from "./subscription-provider-labels";
+import {
+  RavenProviderError,
+  type RavenChannel,
+  type RavenPanel,
+  normalizeRavenChannels,
+  pauseRavenConfig,
+  provisionRavenConfig,
+  ravenConfigUsageBytes,
+  ravenDeliveryLinks,
+  ravenServiceAccount,
+  renewRavenConfig,
+  testRavenProvider,
+} from "./raven-provider";
 
 type Panel = {
   key?: string;
@@ -37,12 +50,14 @@ type Panel = {
   admin_user?: string;
   admin_pass?: string;
   api_key?: string;
+  channels?: RavenChannel[];
 };
 
 type StoredPanel = Panel & {
   username_secret?: string | null;
   password_secret?: string | null;
   api_key_secret?: string | null;
+  settings_json?: unknown;
 };
 
 type AzadPanelXrayReadRoute = "user" | "denied";
@@ -255,9 +270,10 @@ function panelKey(panel: Panel): string {
   return panel.key?.trim() || panel.api_base;
 }
 
-function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" | "azadpanel" {
+function panelKind(panel: Panel): "rain_admin" | "falcon" | "marzban" | "azadpanel" | "raven" {
   const kind = panel.kind?.trim().toLowerCase();
   if (kind === "rain_admin" || kind === "rain_admin_wireguard") return "rain_admin";
+  if (kind === "raven") return "raven";
   if (kind === "falcon") return "falcon";
   if (
     kind === "azadpanel"
@@ -278,21 +294,27 @@ function panelEnvCredential(key: string | undefined, suffix: "USER" | "PASS" | "
 async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
   const result = await pool.query<StoredPanel>(
     `SELECT p.key, p.kind, p.api_base,
-            p.username_secret, p.password_secret, p.api_key_secret
+            p.username_secret, p.password_secret, p.api_key_secret, p.settings_json
      FROM panel_configs p
      WHERE p.is_enabled = 1
      ORDER BY p.key`,
   );
-  return result.rows.map((panel) => ({
-    key: panel.key,
-    kind: panel.kind,
-    api_base: panel.api_base.replace(/\/+$/, ""),
-    admin_user: decryptPanelCredential(panel.username_secret) ?? panelEnvCredential(panel.key, "USER"),
-    admin_pass: decryptPanelCredential(panel.password_secret) ?? panelEnvCredential(panel.key, "PASS"),
-    api_key: decryptPanelCredential(panel.api_key_secret) ?? panelEnvCredential(panel.key, "API_KEY"),
-  })).filter((panel) => {
+  return result.rows.map((panel) => {
+    const settings = panel.settings_json && typeof panel.settings_json === "object"
+      ? panel.settings_json as Record<string, unknown>
+      : {};
+    return {
+      key: panel.key,
+      kind: panel.kind,
+      api_base: panel.api_base.replace(/\/+$/, ""),
+      admin_user: decryptPanelCredential(panel.username_secret) ?? panelEnvCredential(panel.key, "USER"),
+      admin_pass: decryptPanelCredential(panel.password_secret) ?? panelEnvCredential(panel.key, "PASS"),
+      api_key: decryptPanelCredential(panel.api_key_secret) ?? panelEnvCredential(panel.key, "API_KEY"),
+      channels: normalizeRavenChannels(settings.ravenChannels ?? settings.channels),
+    };
+  }).filter((panel) => {
     const kind = panelKind(panel);
-    return kind === "falcon"
+    return kind === "falcon" || kind === "raven"
       ? Boolean(panel.api_key)
       : Boolean(panel.admin_user && panel.admin_pass);
   });
@@ -315,6 +337,8 @@ export async function rainConfigured(ownerId?: number, role?: string): Promise<b
       panel.api_base &&
         (kind === "falcon"
           ? panel.api_key
+          : kind === "raven"
+            ? panel.api_key
           : panel.admin_user && panel.admin_pass),
     );
   });
@@ -485,6 +509,24 @@ export async function fetchPanelSubscription(
     if (panel.kind?.trim().toLowerCase() === "rain_admin_wireguard") continue;
     const kind = panelKind(panel);
     const providerCode = providerCodes.get(panelKey(panel)) ?? "VPN";
+    if (kind === "raven") {
+      if (!Number.isSafeInteger(serviceId) || !Number(serviceId)) continue;
+      const account = await ravenServiceAccount(Number(serviceId), panelKey(panel)).catch(() => null);
+      if (!account?.remote_config_id) continue;
+      const configuredChannels = Array.isArray(account.channels)
+        ? account.channels
+        : panel.channels ?? [];
+      if (!configuredChannels.includes("xray")) continue;
+      try {
+        const delivery = await ravenDeliveryLinks(panel as RavenPanel, account.remote_config_id);
+        for (const link of delivery.xrayLinks) {
+          feeds.push({ text: link, encoded: false, providerCode: "PUL" });
+        }
+      } catch {
+        // A Raven delivery error must not prevent other enabled providers from serving the feed.
+      }
+      continue;
+    }
     const isAzadPanelV2Ray = kind === "azadpanel" && panel.kind?.trim().toLowerCase() === "azadpanel_v2ray";
     if (kind === "azadpanel" && !isAzadPanelV2Ray) continue;
     if (isAzadPanelV2Ray && v2rayLookupFailed) continue;
@@ -861,6 +903,9 @@ export async function testPanelAuthentication(
   const panel = (await panels(ownerId, role)).find((candidate) => panelKey(candidate) === key);
   if (!panel) return { ok: false, detail: `Panel ${key} is not configured or has no credentials.` };
   try {
+    if (panelKind(panel) === "raven") {
+      return await testRavenProvider(panel as RavenPanel);
+    }
     const token = await tokenFor(panel, true);
     if (panelKind(panel) === "falcon") {
       const response = await request(panel, "GET", "/configs?limit=1", token);
@@ -1595,6 +1640,30 @@ export async function readPanelUsages(
   };
   for (const panel of uniqueRainAdminPanelEntries(configuredPanels)) {
     const panelType = panel.kind?.trim().toLowerCase();
+    if (panelKind(panel) === "raven") {
+      const account = await ravenServiceAccount(serviceId, panelKey(panel)).catch(() => null);
+      if (!account) continue;
+      if (!account.remote_config_id) {
+        const stale = await lastKnownPanelUsage(account.config_label, panelKey(panel));
+        if (stale) result.push(stale);
+        continue;
+      }
+      try {
+        const usedBytes = await ravenConfigUsageBytes(panel as RavenPanel, account.remote_config_id);
+        result.push({
+          panelKey: panelKey(panel),
+          username: account.config_label,
+          usedBytes,
+          totalBytes: null,
+          expiresAt: null,
+          stale: false,
+        });
+      } catch {
+        const stale = await lastKnownPanelUsage(account.config_label, panelKey(panel));
+        if (stale) result.push(stale);
+      }
+      continue;
+    }
     const azadPanelWireGuard = panelType === "azadpanel_wireguard";
     const rainAdminWireGuard = isRainAdminWireGuardPanel(panel);
     const savedWireGuardAccounts = wireGuardAccounts.get(serviceId);
@@ -1928,6 +1997,15 @@ export async function disablePanelUser(
   }
   for (const panel of uniqueRainAdminPanelEntries(configuredPanels)) {
     const kind = panelKind(panel);
+    if (kind === "raven") {
+      attempted += 1;
+      try {
+        if (await pauseRavenConfig(panel as RavenPanel, serviceId)) disabled += 1;
+      } catch {
+        // A failed pause remains pending in the service lifecycle state.
+      }
+      continue;
+    }
     let providerUsername = username;
     if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {
       if (v2rayLookupFailed) continue;
@@ -2657,10 +2735,13 @@ export async function provisionUser(
     expiresAtUnix?: number | null;
     onlyIfMissingAzadPanel?: boolean;
     serviceId?: number;
+    skipRaven?: boolean;
+    allowNoProviders?: boolean;
   },
 ): Promise<{ ok: boolean; results: PanelResult[] }> {
   const configured = await panels(ownerId, role);
-  const serviceProvisioningPanels = standardServiceProvisioningPanels(configured);
+  const serviceProvisioningPanels = standardServiceProvisioningPanels(configured)
+    .filter((panel) => !(options?.skipRaven && panelKind(panel) === "raven"));
   const configuredPanels = onlyPanelKeys?.length
     ? serviceProvisioningPanels.filter((panel) => onlyPanelKeys.includes(panelKey(panel)))
     : serviceProvisioningPanels;
@@ -2672,8 +2753,11 @@ export async function provisionUser(
   }
   const hasCredentials = configuredPanels.some((panel) => {
     const kind = panelKind(panel);
-    return Boolean(kind === "falcon" ? panel.api_key : panel.admin_user && panel.admin_pass);
+    return Boolean(kind === "falcon" || kind === "raven" ? panel.api_key : panel.admin_user && panel.admin_pass);
   });
+  if ((!configuredPanels.length || !hasCredentials) && options?.allowNoProviders) {
+    return { ok: true, results: [] };
+  }
   if (!configuredPanels.length || !hasCredentials) {
     throw new RainApiError(
       "هیچ Provider فعال و دارای credential در تنظیمات دیتابیس پیدا نشد. از صفحهٔ Settings credential پنل را ذخیره کنید.",
@@ -2689,6 +2773,10 @@ export async function provisionUser(
             ? await provisionAzadPanel(panel, username, gb, days, options ?? {})
           : kind === "falcon"
             ? await provisionFalcon(panel, gb, days, label)
+          : kind === "raven"
+            ? options?.resetUsage
+              ? await renewRavenConfig(panel as RavenPanel, Number(options.serviceId), gb, days)
+              : await provisionRavenConfig(panel as RavenPanel, Number(options?.serviceId), gb, days)
             : await provisionMarzban(panel, username, gb, days);
       return { key: panelKey(panel), kind, status };
     } catch (error) {
@@ -2697,9 +2785,11 @@ export async function provisionUser(
       return {
         key: panelKey(panel),
         kind,
-        status: providerResult?.status ?? (error instanceof RainApiError ? 502 : 500),
+        status: providerResult?.status ?? (error instanceof RavenProviderError ? error.status : error instanceof RainApiError ? 502 : 500),
         error: providerResult?.error ?? detail.slice(0, 240),
-        retryable: providerResult?.retryable ?? (error instanceof RainApiError ? error.retryable : undefined),
+        retryable: providerResult?.retryable ?? (error instanceof RavenProviderError
+          ? error.retryable
+          : error instanceof RainApiError ? error.retryable : undefined),
         retryAfterMs: providerResult?.retryAfterMs,
       };
     }

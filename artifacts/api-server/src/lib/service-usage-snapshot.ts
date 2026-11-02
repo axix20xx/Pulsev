@@ -69,6 +69,9 @@ export function storedPanelUsageSql(serviceAlias = "svc"): string {
     LEFT JOIN reseller_service_openvpn_provider_accounts openvpn_account
       ON openvpn_account.service_id = ${serviceAlias}.id
       AND openvpn_account.provider_key = panel.key
+    LEFT JOIN raven_service_accounts raven_account
+      ON raven_account.service_id = ${serviceAlias}.id
+      AND raven_account.provider_key = panel.key
     LEFT JOIN LATERAL (
       SELECT usage.upload, usage.download, usage.offset_bytes
       FROM user_panel_usages usage
@@ -76,6 +79,7 @@ export function storedPanelUsageSql(serviceAlias = "svc"): string {
           WHEN panel.kind = 'azadpanel_ipsec' THEN ipsec_account.provider_username
           WHEN panel.kind IN ('azadpanel', 'azadpanel_openvpn')
             THEN COALESCE(openvpn_account.provider_username, ${serviceAlias}.rain_username)
+        WHEN panel.kind = 'raven' THEN COALESCE(raven_account.config_label, ${serviceAlias}.rain_username)
           ELSE ${serviceAlias}.rain_username
         END
         AND usage.panel_key = panel.key
@@ -83,6 +87,6 @@ export function storedPanelUsageSql(serviceAlias = "svc"): string {
       LIMIT 1
     ) latest_usage ON TRUE
     WHERE panel.is_enabled = 1
-      AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec')
+      AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec', 'raven')
   ), 0)::float8`;
 }
