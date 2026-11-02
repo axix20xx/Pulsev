@@ -2438,3 +2438,17 @@ mtime_ms = 1793612250005
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/65ddf7e1-dadd-443a-8f7a-3df85e5e5859/d582055a-c90c-4599-846b-cd1274694051"
 storage_version_token = "1793612271929554"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "WXTNQhEg1okLEZC76d24K"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-02T10-04-31-638Z.zip"
+type = "unspecified"
+title = "Hostinger deployment ZIP"
+description = "Full Hostinger migration package with the updated V2Pro WireGuard and OpenVPN subscription handoff."
+logical_id = "7f7a843c-6015-4e47-8447-9d764b1c8f51"
+content_hash = "sha256:71c1a4d5c350804b352157d661c13fc13afa48640776f22307c57354fa8e74a0"
+size = 29198305
+mtime_ms = 1793613992852
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/7f7a843c-6015-4e47-8447-9d764b1c8f51/cbee866f-034d-4198-867f-07788c63b287"
+storage_version_token = "1793614028990357"
+content_type = "application/octet-stream"
