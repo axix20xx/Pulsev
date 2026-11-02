@@ -3222,8 +3222,9 @@ function PublicSubscriptionContentV2() {
     window.setTimeout(() => setCopied((current) => current === kind ? null : current), 1800);
   };
   const copyUrl = async (url: string, kind: 'page' | 'feed' | 'awg') => {
-    if (!url || !(await copyTextToClipboard(url))) return;
+    if (!url || !(await copyTextToClipboard(url))) return false;
     flashCopy(kind);
+    return true;
   };
   const copyAwg = async () => {
     if (!data?.awg_url) return;
@@ -3291,23 +3292,6 @@ function PublicSubscriptionContentV2() {
     } finally {
       setWireguardBusy(false);
     }
-  };
-  const ensureV2ProProfiles = async (protocol: 'openvpn' | 'wireguard') => {
-    if (!token || finished) throw new Error('این اشتراک فعال نیست.');
-    const endpoint = `/api/public/subscription/${encodeURIComponent(token)}/${protocol}`;
-    let response = await fetch(endpoint, { cache: 'no-store' });
-    let result = await response.json().catch(() => null);
-    const missingCode = protocol === 'openvpn' ? 'OPENVPN_NOT_CREATED' : 'WIREGUARD_NOT_CREATED';
-    if (!response.ok && response.status === 404 && result?.code === missingCode) {
-      response = await fetch(endpoint, { method: 'POST', cache: 'no-store' });
-      result = await response.json().catch(() => null);
-    }
-    if (!response.ok) {
-      throw new Error(result?.error || `دریافت کانفیگ ${protocol === 'wireguard' ? 'WireGuard' : 'OpenVPN'} ناموفق بود.`);
-    }
-    if (protocol === 'openvpn') setOpenVpnData(result);
-    else setWireguardData(result);
-    return result;
   };
   const prepareIpsec = async () => {
     if (!token || ipsecBusy || finished || data?.ipsec_available !== true) return;
@@ -3499,7 +3483,6 @@ function PublicSubscriptionContentV2() {
         wireguardData={wireguardData}
         wireguardError={wireguardError}
         prepareWireGuard={prepareWireGuard}
-        ensureV2ProProfiles={ensureV2ProProfiles}
         ipsecLoading={ipsecLoading}
         ipsecBusy={ipsecBusy}
         ipsecData={ipsecData}

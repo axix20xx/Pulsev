@@ -25,6 +25,10 @@ import {
 import { openVpnConnectImportUrl } from '@/lib/openvpn-connect-link';
 import { dateLabel } from '@/lib/pulse-data';
 
+const isIOSDevice = (): boolean => typeof navigator !== 'undefined'
+  && (/iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
 export type PublicSubscriptionOS = 'iOS' | 'Android' | 'Windows' | 'macOS' | 'Linux';
 export type PublicSubscriptionProtocol = 'openvpn' | 'wireguard' | 'ipsec' | 'amneziawg' | 'v2ray';
 export type PublicSubscriptionAppRecommendation = {
@@ -135,7 +139,6 @@ type Props = {
   wireguardData: WireGuardAccount | null;
   wireguardError: string;
   prepareWireGuard: () => void;
-  ensureV2ProProfiles: (protocol: 'openvpn' | 'wireguard') => Promise<any>;
   ipsecLoading: boolean;
   ipsecBusy: boolean;
   ipsecData: IpsecAccount | null;
@@ -147,7 +150,7 @@ type Props = {
   allMobileConfigError: string;
   prepareAllMobileConfig: () => void;
   copied: 'page' | 'feed' | 'awg' | null;
-  copyUrl: (url: string, kind: 'page' | 'feed' | 'awg') => void;
+  copyUrl: (url: string, kind: 'page' | 'feed' | 'awg') => Promise<boolean>;
   copyAwg: () => void;
   activeConnectApp: string | null;
   setActiveConnectApp: (appId: string | null) => void;
@@ -251,57 +254,6 @@ function stepMotion(reduceMotion: boolean) {
       };
 }
 
-const isIOSDevice = (): boolean => typeof navigator !== 'undefined'
-  && (/iPhone|iPad|iPod/i.test(navigator.userAgent)
-    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
-
-type V2ProProtocol = 'openvpn' | 'wireguard';
-type V2ProProfile = { id: string; label: string; filename: string; url: string };
-
-function v2ProWireGuardProfiles(account: any): V2ProProfile[] {
-  const providerLocations = Array.isArray(account?.providers)
-    ? account.providers.flatMap((provider: any) => Array.isArray(provider?.locations) ? provider.locations : [])
-    : [];
-  const locations = providerLocations.length
-    ? providerLocations
-    : Array.isArray(account?.locations) ? account.locations : [];
-  const entries = [
-    ...locations.map((location: any) => ({ url: location?.config_url })),
-    ...(Array.isArray(account?.raven_profiles)
-      ? account.raven_profiles.map((profile: any) => ({ url: profile?.download_url }))
-      : []),
-  ].filter((entry) => typeof entry.url === 'string' && entry.url);
-  const unique = [...new Map(entries.map((entry) => [entry.url, entry])).values()];
-  return unique.map((entry, index) => ({
-    id: `wireguard-${index + 1}`,
-    label: `WireGuard · سرور ${index + 1}`,
-    filename: `Pulse-WireGuard-${index + 1}.conf`,
-    url: entry.url,
-  }));
-}
-
-function v2ProOpenVpnProfiles(account: any): V2ProProfile[] {
-  const entries = [
-    ...(Array.isArray(account?.locations)
-      ? account.locations.map((location: any) => ({ url: location?.config_url }))
-      : []),
-    ...(Array.isArray(account?.raven_profiles)
-      ? account.raven_profiles.map((profile: any) => ({ url: profile?.download_url }))
-      : []),
-  ].filter((entry) => typeof entry.url === 'string' && entry.url);
-  if (!entries.length && typeof account?.bundle_url === 'string' && account.bundle_url
-    && !String(account.bundle_filename || '').toLowerCase().endsWith('.zip')) {
-    entries.push({ url: account.bundle_url });
-  }
-  const unique = [...new Map(entries.map((entry) => [entry.url, entry])).values()];
-  return unique.map((entry, index) => ({
-    id: `openvpn-${index + 1}`,
-    label: `OpenVPN · سرور ${index + 1}`,
-    filename: `Pulse-OpenVPN-${index + 1}.ovpn`,
-    url: entry.url,
-  }));
-}
-
 export function PublicSubscriptionWizard(props: Props) {
   const {
     data,
@@ -335,7 +287,6 @@ export function PublicSubscriptionWizard(props: Props) {
     wireguardData,
     wireguardError,
     prepareWireGuard,
-    ensureV2ProProfiles,
     ipsecLoading,
     ipsecBusy,
     ipsecData,
@@ -357,74 +308,36 @@ export function PublicSubscriptionWizard(props: Props) {
     reduceMotion,
   } = props;
 
-  const [v2proData, setV2ProData] = useState<{ openvpn: any; wireguard: any }>({ openvpn: null, wireguard: null });
-  const [v2proLoading, setV2ProLoading] = useState<V2ProProtocol | null>(null);
-  const [v2proImporting, setV2ProImporting] = useState<string | null>(null);
+  const [v2proBusy, setV2ProBusy] = useState(false);
   const [v2proMessage, setV2ProMessage] = useState('');
   const [v2proError, setV2ProError] = useState('');
-  const v2proOpenVpnProfiles = v2ProOpenVpnProfiles(v2proData.openvpn || openVpnData);
-  const v2proWireGuardProfiles = v2ProWireGuardProfiles(v2proData.wireguard || wireguardData);
 
-  const shareV2ProFile = async (profile: V2ProProfile) => {
-    setV2ProImporting(profile.id);
+  const shareV2ProSubscription = async () => {
+    if (finished || v2proBusy || !feedUrl) return;
+    setV2ProBusy(true);
     setV2ProMessage('');
     setV2ProError('');
     try {
-      const target = new URL(profile.url, window.location.origin);
-      if (target.origin !== window.location.origin) throw new Error('آدرس فایل معتبر نیست.');
-      const response = await fetch(target.toString(), { cache: 'no-store', credentials: 'same-origin' });
-      if (!response.ok) throw new Error('دریافت فایل کانفیگ ناموفق بود؛ دوباره تلاش کنید.');
-      const file = new File([await response.blob()], profile.filename, { type: 'text/plain' });
-      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      if (navigator.share) {
         try {
-          await navigator.share({ files: [file], title: profile.filename });
-          setV2ProMessage('فایل آمادهٔ ارسال است؛ V2Pro را از فهرست برنامه‌ها انتخاب کنید.');
+          await navigator.share({
+            title: data?.plan || 'Pulse',
+            url: feedUrl,
+          });
+          setV2ProMessage('لینک کامل اشتراک آماده است؛ V2Pro را از منوی اشتراک‌گذاری انتخاب کنید.');
           return;
         } catch (cause) {
-          if (cause instanceof Error && cause.name === 'AbortError') {
-            setV2ProMessage('ارسال فایل لغو شد.');
-            return;
-          }
-          if (!(cause instanceof Error) || cause.name !== 'NotAllowedError') throw cause;
+          if (cause instanceof Error && cause.name === 'AbortError') return;
         }
       }
-      const download = document.createElement('a');
-      download.href = URL.createObjectURL(file);
-      download.download = profile.filename;
-      download.hidden = true;
-      document.body.appendChild(download);
-      download.click();
-      download.remove();
-      window.setTimeout(() => URL.revokeObjectURL(download.href), 30_000);
-      setV2ProMessage(`فایل ${profile.filename} دانلود شد؛ آن را با V2Pro باز کنید.`);
-    } catch (cause) {
-      if (cause instanceof Error && cause.name === 'AbortError') {
-        setV2ProMessage('ارسال فایل لغو شد.');
-      } else {
-        setV2ProError(cause instanceof Error ? cause.message : 'ارسال فایل به V2Pro ناموفق بود.');
+      if (!(await copyUrl(feedUrl, 'feed'))) {
+        throw new Error('کپی لینک اشتراک ناموفق بود؛ دوباره تلاش کنید.');
       }
-    } finally {
-      setV2ProImporting(null);
-    }
-  };
-
-  const prepareAndShareV2Pro = async (protocol: V2ProProtocol) => {
-    if (finished || v2proLoading) return;
-    setV2ProLoading(protocol);
-    setV2ProError('');
-    setV2ProMessage('');
-    try {
-      const result = await ensureV2ProProfiles(protocol);
-      setV2ProData((current) => ({ ...current, [protocol]: result }));
-      const profiles = protocol === 'wireguard'
-        ? v2ProWireGuardProfiles(result)
-        : v2ProOpenVpnProfiles(result);
-      if (!profiles.length) throw new Error(`برای این اشتراک فایل ${protocol === 'wireguard' ? '.conf' : '.ovpn'} آماده‌ای پیدا نشد.`);
-      await shareV2ProFile(profiles[0]);
+      setV2ProMessage('لینک کامل اشتراک کپی شد؛ آن را در V2Pro به‌عنوان اشتراک اضافه کنید.');
     } catch (cause) {
-      setV2ProError(cause instanceof Error ? cause.message : 'آماده‌سازی فایل برای V2Pro ناموفق بود.');
+      setV2ProError(cause instanceof Error ? cause.message : 'ارسال لینک اشتراک به V2Pro ناموفق بود.');
     } finally {
-      setV2ProLoading(null);
+      setV2ProBusy(false);
     }
   };
 
@@ -567,44 +480,21 @@ export function PublicSubscriptionWizard(props: Props) {
                     <div className="public-sub-v2pro-heading">
                       <span className="public-sub-v2pro-mark">V2</span>
                       <div>
-                        <p className="public-sub-kicker">ورود فایل · iOS / Android</p>
-                        <h3 id="public-sub-v2pro-title">ارسال کانفیگ به V2Pro</h3>
-                        <p>در این بخش فقط فایل‌های WireGuard با پسوند .conf و OpenVPN با پسوند .ovpn نمایش داده می‌شوند.</p>
+                        <p className="public-sub-kicker">اشتراک کامل · iOS / Android</p>
+                        <h3 id="public-sub-v2pro-title">افزودن همهٔ سرورها به V2Pro</h3>
+                        <p>با یک لینک، همهٔ سرورهای موجود در اشتراک را اضافه کنید؛ فهرست سرورها با به‌روزرسانی اشتراک تازه می‌شود.</p>
                       </div>
                     </div>
                     <div className="public-sub-v2pro-actions">
-                      {data?.wireguard_available === true && <button type="button" onClick={() => void prepareAndShareV2Pro('wireguard')} disabled={Boolean(v2proLoading) || Boolean(v2proImporting)} data-testid="button-public-sub-v2pro-wireguard">
-                        {v2proLoading === 'wireguard' ? <><RefreshCw size={14} className="public-sub-spin" />آماده‌سازی...</> : <><Wifi size={15} />ارسال WireGuard · .conf</>}
-                      </button>}
-                      <button type="button" onClick={() => void prepareAndShareV2Pro('openvpn')} disabled={Boolean(v2proLoading) || Boolean(v2proImporting)} data-testid="button-public-sub-v2pro-openvpn">
-                        {v2proLoading === 'openvpn' ? <><RefreshCw size={14} className="public-sub-spin" />آماده‌سازی...</> : <><ShieldCheck size={15} />ارسال OpenVPN · .ovpn</>}
+                      <button type="button" onClick={() => void shareV2ProSubscription()} disabled={finished || v2proBusy || !feedUrl} data-testid="button-public-sub-v2pro-subscription">
+                        {v2proBusy
+                          ? <><RefreshCw size={14} className="public-sub-spin" />آماده‌سازی...</>
+                          : <><ExternalLink size={15} />ارسال لینک کامل اشتراک به V2Pro</>}
                       </button>
                     </div>
-                    {(v2proWireGuardProfiles.length > 0 || v2proOpenVpnProfiles.length > 0) && (
-                      <div className="public-sub-v2pro-profiles">
-                        {v2proWireGuardProfiles.map((profile) => (
-                          <div className="public-sub-v2pro-profile" key={profile.id}>
-                            <span>{profile.label}<small dir="ltr">.conf</small></span>
-                            <button type="button" onClick={() => void shareV2ProFile(profile)} disabled={Boolean(v2proLoading) || Boolean(v2proImporting)} data-testid={`button-public-sub-v2pro-import-${profile.id}`}>
-                              {v2proImporting === profile.id ? <RefreshCw size={13} className="public-sub-spin" /> : <ExternalLink size={13} />}
-                              ارسال به V2Pro
-                            </button>
-                          </div>
-                        ))}
-                        {v2proOpenVpnProfiles.map((profile) => (
-                          <div className="public-sub-v2pro-profile" key={profile.id}>
-                            <span>{profile.label}<small dir="ltr">.ovpn</small></span>
-                            <button type="button" onClick={() => void shareV2ProFile(profile)} disabled={Boolean(v2proLoading) || Boolean(v2proImporting)} data-testid={`button-public-sub-v2pro-import-${profile.id}`}>
-                              {v2proImporting === profile.id ? <RefreshCw size={13} className="public-sub-spin" /> : <ExternalLink size={13} />}
-                              ارسال به V2Pro
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                     {v2proMessage && <p className="public-sub-v2pro-message" role="status">{v2proMessage}</p>}
                     {v2proError && <p className="public-sub-v2pro-error" role="alert">{v2proError}</p>}
-                    <p className="public-sub-v2pro-note">منوی اشتراک‌گذاری دستگاه باز می‌شود؛ V2Pro را انتخاب کنید. پشتیبانی از فایل OpenVPN به نسخهٔ نصب‌شدهٔ برنامه بستگی دارد.</p>
+                    <p className="public-sub-v2pro-note">منوی اشتراک‌گذاری دستگاه باز می‌شود؛ V2Pro را انتخاب کنید. اگر در فهرست نبود، از دکمهٔ «کپی لینک اشتراک» همین صفحه استفاده کنید.</p>
                   </section>
                 )}
                 </>
