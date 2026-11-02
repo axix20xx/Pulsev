@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { createHash, randomBytes } from "node:crypto";
 import {
   GetAuthSessionResponse,
@@ -134,9 +134,15 @@ import {
 import { publicWireGuardDeliveryLinks } from "../lib/wireguard-delivery-links";
 import {
   attachmentDisposition,
+  inlineDisposition,
   publicConfigContentType,
   safeDownloadFilename,
 } from "../lib/public-download";
+import {
+  publicProfileBundleFilename,
+  publicProfileFilename,
+  publicProfileName,
+} from "../lib/public-profile-names";
 import { createZipArchive } from "../lib/zip-archive";
 import { getAwgUsageWorkerLog, recordAwgUsagePollEvent } from "../lib/awg-usage-poll";
 import {
@@ -2016,25 +2022,29 @@ async function loadSavedOpenVpnDelivery(serviceId: number): Promise<OpenVpnDeliv
   return parsed;
 }
 
-function publicOpenVpnDelivery(token: string, delivery: OpenVpnDelivery) {
+function publicOpenVpnDelivery(token: string, delivery: OpenVpnDelivery, serviceId: number) {
   const tokenPath = `/api/public/subscription/${encodeURIComponent(token)}`;
   const providerPath = `${tokenPath}/openvpn`;
   const configBase = `${providerPath}/config/${encodeURIComponent(delivery.provider_key)}`;
   const importBase = `${providerPath}/import/${encodeURIComponent(delivery.provider_key)}`;
   return {
     ...delivery,
+    bundle_filename: publicProfileFilename(serviceId, "openvpn", 1, ".ovpn"),
     bundle_url: `${providerPath}/bundle/${encodeURIComponent(delivery.provider_key)}`,
     bundle_mobileconfig_url: `${providerPath}/mobileconfig/${encodeURIComponent(delivery.provider_key)}`,
     bundle_import_url: `${providerPath}/import-bundle/${encodeURIComponent(delivery.provider_key)}`,
-    locations: delivery.locations.map((location) => ({
+    locations: delivery.locations.map((location, index) => ({
       ...location,
+      name: publicProfileName("openvpn", index + 1),
+      filename: publicProfileFilename(serviceId, "openvpn", index + 1, ".ovpn"),
+      mobileconfig_filename: publicProfileFilename(serviceId, "openvpn", index + 1, ".mobileconfig"),
       config_url: `${configBase}/${encodeURIComponent(location.id)}`,
       import_url: `${importBase}/${encodeURIComponent(location.id)}`,
     })),
   };
 }
 
-type PublicRavenProfile = { name: string; filename: string; download_url: string };
+type PublicRavenProfile = { name: string; filename: string; download_url: string; import_url?: string };
 type RavenProfileSource = {
   provider_key: string;
   channel: "wireguard" | "openvpn";
@@ -2111,18 +2121,137 @@ async function publicRavenProfiles(
   serviceId: number,
   token: string,
   channel: "wireguard" | "openvpn",
+  startNumber = 0,
 ): Promise<PublicRavenProfile[]> {
   const sources = await ravenProfileSources(serviceId, channel, true);
   return sources.map((source, index) => {
-    const number = index + 1;
-    const extension = channel === "wireguard" ? "conf" : "ovpn";
+    const number = startNumber + index + 1;
+    const extension = channel === "wireguard" ? ".conf" : ".ovpn";
+    const protocol = channel;
     return {
-      name: channel === "wireguard" ? `سرور WireGuard ${number}` : `سرور OpenVPN ${number}`,
-      filename: `Pulse-${channel === "wireguard" ? "WireGuard" : "OpenVPN"}-${number}.${extension}`,
+      name: publicProfileName(protocol, number),
+      filename: publicProfileFilename(serviceId, protocol, number, extension),
       download_url: `/api/public/subscription/${encodeURIComponent(token)}/raven/${channel}/${encodeURIComponent(source.provider_key)}/${source.index}`,
+      ...(channel === "openvpn" ? {
+        import_url: `/api/public/subscription/${encodeURIComponent(token)}/raven/openvpn/${encodeURIComponent(source.provider_key)}/${source.index}/import`,
+      } : {}),
     };
   });
 }
+
+async function sendPublicRavenProfile(
+  token: string,
+  channelValue: string,
+  providerKey: string,
+  indexValue: string,
+  res: Response,
+  inline = false,
+): Promise<void> {
+  const channel = channelValue.trim().toLowerCase();
+  const index = Number(indexValue);
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  res.setHeader("x-content-type-options", "nosniff");
+  if (
+    !/^[A-Za-z0-9_-]{12,256}$/.test(token)
+    || !["wireguard", "openvpn"].includes(channel)
+    || !/^[a-z0-9_-]{2,64}$/.test(providerKey)
+    || !Number.isSafeInteger(index)
+    || index < 0
+    || index > 100
+  ) {
+    res.status(404).json({ error: "پروفایل پیدا نشد." });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "لینک اشتراک پیدا نشد." });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "اشتراک پایان یافته است." });
+    return;
+  }
+  if (channel === "wireguard" && !service.wireguard_enabled) {
+    res.status(404).json({ error: "WireGuard برای این فروشنده فعال نیست." });
+    return;
+  }
+  try {
+    const accountResult = await pool.query<{
+      remote_config_id: string | null;
+      channels: unknown;
+      api_base: string;
+      api_key_secret: string | null;
+      api_key_env: string | null;
+    }>(
+      `SELECT account.remote_config_id, account.channels, panel.api_base,
+              panel.api_key_secret, panel.api_key_env
+       FROM raven_service_accounts account
+       JOIN panel_configs panel ON panel.key = account.provider_key
+       WHERE account.service_id = $1
+         AND account.provider_key = $2
+         AND panel.kind = 'raven'
+         AND panel.is_enabled = 1
+       LIMIT 1`,
+      [Number(service.id), providerKey],
+    );
+    const account = accountResult.rows[0];
+    const channels = Array.isArray(account?.channels) ? account.channels : [];
+    if (!account?.remote_config_id || !channels.includes(channel)) {
+      res.status(404).json({ error: "پروفایل برای این پروتکل موجود نیست." });
+      return;
+    }
+    const apiKey = ravenPanelApiKey(providerKey, account.api_key_secret, account.api_key_env);
+    if (!apiKey) {
+      res.status(503).json({ error: "تنظیمات اتصال پروفایل در دسترس نیست." });
+      return;
+    }
+    const delivery = await ravenDeliveryLinks({
+      key: providerKey,
+      api_base: account.api_base,
+      api_key: apiKey,
+    }, account.remote_config_id);
+    const profile = delivery.files[channel as RavenChannel]?.[index];
+    if (!profile) {
+      res.status(404).json({ error: "فایل پروفایل پیدا نشد." });
+      return;
+    }
+    const upstream = await fetch(profile.url, {
+      headers: { Accept: "application/octet-stream, text/plain, */*" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!upstream.ok) {
+      res.status(502).json({ error: `دریافت فایل پروفایل ناموفق بود (HTTP ${upstream.status}).` });
+      return;
+    }
+    const bytes = Buffer.from(await upstream.arrayBuffer());
+    if (!bytes.length || bytes.length > 1_048_576) {
+      res.status(502).json({ error: "اندازهٔ فایل پروفایل نامعتبر است." });
+      return;
+    }
+    const serviceId = Number(service.id);
+    let previousProfiles = 0;
+    if (channel === "openvpn") {
+      previousProfiles = (await loadSavedOpenVpnDelivery(serviceId))?.locations.length ?? 0;
+    } else {
+      const wireGuardDeliveries = await loadSavedWireGuardDeliveries(serviceId);
+      previousProfiles = wireGuardDeliveries.reduce((total, saved) => total + saved.locations.length, 0);
+    }
+    const protocol = channel as "wireguard" | "openvpn";
+    const extension = protocol === "wireguard" ? ".conf" : ".ovpn";
+    const filename = publicProfileFilename(serviceId, protocol, previousProfiles + index + 1, extension);
+    res.status(200)
+      .setHeader("Content-Type", protocol === "wireguard" ? "application/octet-stream" : "application/x-openvpn-profile")
+      .setHeader("Content-Disposition", inline ? inlineDisposition(filename) : attachmentDisposition(filename))
+      .setHeader("X-Content-Type-Options", "nosniff")
+      .send(bytes);
+  } catch (error) {
+    const status = error instanceof Error && "status" in error ? Number((error as any).status) : 502;
+    res.status(status >= 400 && status <= 599 ? status : 502).json({
+      error: "دریافت فایل پروفایل از Provider ناموفق بود.",
+    });
+  }
+}
+
 function isWireGuardDelivery(value: unknown): value is WireGuardDelivery {
   if (!value || typeof value !== "object") return false;
   const delivery = value as Partial<WireGuardDelivery>;
@@ -2234,11 +2363,42 @@ async function saveWireGuardDeliveries(
   for (const delivery of deliveries) await saveWireGuardDelivery(serviceId, delivery);
 }
 
-function publicWireGuardDelivery(token: string, delivery: WireGuardDelivery) {
+async function loadPublicWireGuardProfileNumbers(
+  serviceId: number,
+  resellerId: number,
+): Promise<Map<string, number>> {
+  const deliveries = (await loadSavedWireGuardDeliveries(serviceId))
+    .slice()
+    .sort((left, right) => left.provider_key.localeCompare(right.provider_key));
+  const numbers = new Map<string, number>();
+  let ordinal = 0;
+  for (const delivery of deliveries) {
+    if (!await isConfiguredWireGuardProvider(delivery.provider_key, resellerId, "reseller")) continue;
+    for (const location of delivery.locations) {
+      ordinal += 1;
+      numbers.set(`${delivery.provider_key}:${location.id}`, ordinal);
+    }
+  }
+  return numbers;
+}
+
+function publicWireGuardDelivery(token: string, delivery: WireGuardDelivery, serviceId: number, firstOrdinal: number) {
+  const links = publicWireGuardDeliveryLinks(token, delivery.provider_key, delivery.locations);
   return {
     ...delivery,
     provider_label: delivery.provider_label ?? `WireGuard · ${delivery.provider_key}`,
-    ...publicWireGuardDeliveryLinks(token, delivery.provider_key, delivery.locations),
+    ...links,
+    locations: delivery.locations.map((location, index) => {
+      const ordinal = firstOrdinal + index + 1;
+      return {
+        ...location,
+        name: publicProfileName("wireguard", ordinal),
+        filename: publicProfileFilename(serviceId, "wireguard", ordinal, ".conf"),
+        mobileconfig_filename: publicProfileFilename(serviceId, "wireguard", ordinal, ".mobileconfig"),
+        config_url: links.locations[index]?.config_url ?? "",
+        mobileconfig_url: links.locations[index]?.mobileconfig_url ?? "",
+      };
+    }),
   };
 }
 
@@ -2246,9 +2406,18 @@ function publicWireGuardDeliveries(
   token: string,
   deliveries: WireGuardDelivery[],
   errors: Array<{ provider_key: string; provider_label: string; error: string }> = [],
+  serviceId: number,
+  ravenStartNumber = 0,
 ) {
   const providerPath = `/api/public/subscription/${encodeURIComponent(token)}/wireguard`;
-  const providers = deliveries.map((delivery) => publicWireGuardDelivery(token, delivery));
+  let nextOrdinal = 0;
+  const providers = [...deliveries]
+    .sort((left, right) => left.provider_key.localeCompare(right.provider_key))
+    .map((delivery) => {
+    const provider = publicWireGuardDelivery(token, delivery, serviceId, nextOrdinal);
+    nextOrdinal += delivery.locations.length;
+    return provider;
+    });
   return {
     core: "wireguard" as const,
     providers,
@@ -2259,7 +2428,9 @@ function publicWireGuardDeliveries(
     }))),
     provider_errors: errors,
     bundle_url: `${providerPath}/bundle`,
+    bundle_filename: publicProfileBundleFilename(serviceId, "wireguard", ".zip"),
     bundle_mobileconfig_url: `${providerPath}/mobileconfig`,
+    bundle_mobileconfig_filename: publicProfileBundleFilename(serviceId, "wireguard", ".mobileconfig"),
   };
 }
 
@@ -2330,8 +2501,13 @@ router.get("/public/subscription/:token/openvpn", async (req, res): Promise<void
     return;
   }
   try {
-    const ravenProfiles = await publicRavenProfiles(Number(service.id), token, "openvpn");
     const delivery = await loadSavedOpenVpnDelivery(Number(service.id));
+    const ravenProfiles = await publicRavenProfiles(
+      Number(service.id),
+      token,
+      "openvpn",
+      delivery?.locations.length ?? 0,
+    );
     if (!delivery) {
       if (ravenProfiles.length) {
         res.json({
@@ -2350,7 +2526,7 @@ router.get("/public/subscription/:token/openvpn", async (req, res): Promise<void
       res.status(404).json({ error: "حساب OpenVPN ذخیره‌شده‌ای پیدا نشد", code: "OPENVPN_NOT_CREATED" });
       return;
     }
-    res.json({ ...publicOpenVpnDelivery(token, delivery), raven_profiles: ravenProfiles });
+    res.json({ ...publicOpenVpnDelivery(token, delivery, Number(service.id)), raven_profiles: ravenProfiles });
   } catch {
     res.status(500).json({ error: "اطلاعات ذخیره‌شده OpenVPN قابل خواندن نیست." });
   }
@@ -2394,8 +2570,8 @@ router.post("/public/subscription/:token/openvpn", async (req, res): Promise<voi
     const savedDelivery = await loadSavedOpenVpnDelivery(serviceId);
     if (savedDelivery) {
       res.json({
-        ...publicOpenVpnDelivery(token, savedDelivery),
-        raven_profiles: await publicRavenProfiles(serviceId, token, "openvpn"),
+        ...publicOpenVpnDelivery(token, savedDelivery, serviceId),
+        raven_profiles: await publicRavenProfiles(serviceId, token, "openvpn", savedDelivery.locations.length),
       });
       return;
     }
@@ -2433,8 +2609,8 @@ router.post("/public/subscription/:token/openvpn", async (req, res): Promise<voi
     const persistedDelivery = await loadSavedOpenVpnDelivery(serviceId);
     if (!persistedDelivery) throw new Error("OpenVPN account details were not persisted.");
     res.json({
-      ...publicOpenVpnDelivery(token, persistedDelivery),
-      raven_profiles: await publicRavenProfiles(serviceId, token, "openvpn"),
+      ...publicOpenVpnDelivery(token, persistedDelivery, serviceId),
+      raven_profiles: await publicRavenProfiles(serviceId, token, "openvpn", persistedDelivery.locations.length),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "OpenVPN account setup failed.";
@@ -2498,7 +2674,11 @@ router.get("/public/subscription/:token/wireguard", async (req, res): Promise<vo
       "reseller",
       savedDeliveries,
     );
-    const ravenProfiles = await publicRavenProfiles(serviceId, token, "wireguard");
+    const wireGuardProfileCount = prepared.deliveries.reduce(
+      (total, delivery) => total + delivery.locations.length,
+      0,
+    );
+    const ravenProfiles = await publicRavenProfiles(serviceId, token, "wireguard", wireGuardProfileCount);
     await saveWireGuardDeliveries(serviceId, prepared.deliveries);
     if (!prepared.deliveries.length) {
       if (ravenProfiles.length) {
@@ -2515,7 +2695,7 @@ router.get("/public/subscription/:token/wireguard", async (req, res): Promise<vo
       }
       if (prepared.errors.length) {
         res.status(502).json({
-          error: prepared.errors.map((item) => `${item.provider_label}: ${item.error}`).join(" · "),
+        error: "Some WireGuard servers could not be prepared. Try again later.",
           provider_errors: prepared.errors,
         });
         return;
@@ -2527,7 +2707,7 @@ router.get("/public/subscription/:token/wireguard", async (req, res): Promise<vo
       return;
     }
     res.json({
-      ...publicWireGuardDeliveries(token, prepared.deliveries, prepared.errors),
+      ...publicWireGuardDeliveries(token, prepared.deliveries, prepared.errors, serviceId),
       raven_profiles: ravenProfiles,
     });
   } catch (error) {
@@ -2596,7 +2776,11 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
       "reseller",
       savedDeliveries,
     );
-    const ravenProfiles = await publicRavenProfiles(serviceId, token, "wireguard");
+    const wireGuardProfileCount = prepared.deliveries.reduce(
+      (total, delivery) => total + delivery.locations.length,
+      0,
+    );
+    const ravenProfiles = await publicRavenProfiles(serviceId, token, "wireguard", wireGuardProfileCount);
     if (!prepared.deliveries.length) {
       if (ravenProfiles.length) {
         res.json({
@@ -2611,7 +2795,7 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
         return;
       }
       const message = prepared.errors.length
-        ? prepared.errors.map((item) => `${item.provider_label}: ${item.error}`).join(" · ")
+        ? "Some WireGuard servers could not be prepared. Try again later."
         : "No enabled WireGuard providers are configured.";
       res.status(prepared.errors.length ? 502 : 503).json({
         error: message,
@@ -2625,7 +2809,7 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
     const persistedSelected = persistedDeliveries.filter((delivery) => selectedProviderKeys.has(delivery.provider_key));
     if (!persistedSelected.length) throw new Error("WireGuard account details were not persisted.");
     res.json({
-      ...publicWireGuardDeliveries(token, persistedSelected, prepared.errors),
+      ...publicWireGuardDeliveries(token, persistedSelected, prepared.errors, serviceId),
       raven_profiles: ravenProfiles,
     });
   } catch (error) {
@@ -2649,105 +2833,25 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
 
 router.get("/public/subscription/:token/raven/:channel/:provider/:index", async (req, res): Promise<void> => {
   await managementReady;
-  const token = String(req.params.token ?? "").trim();
-  const channel = String(req.params.channel ?? "").trim().toLowerCase();
-  const providerKey = String(req.params.provider ?? "").trim();
-  const index = Number(req.params.index);
-  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
-  if (
-    !/^[A-Za-z0-9_-]{12,256}$/.test(token)
-    || !["wireguard", "openvpn"].includes(channel)
-    || !/^[a-z0-9_-]{2,64}$/.test(providerKey)
-    || !Number.isSafeInteger(index)
-    || index < 0
-    || index > 100
-  ) {
-    res.status(404).json({ error: "پروفایل پیدا نشد." });
-    return;
-  }
-  const service = await loadPublicOpenVpnService(token);
-  if (!service) {
-    res.status(404).json({ error: "لینک اشتراک پیدا نشد." });
-    return;
-  }
-  if (publicOpenVpnServiceFinished(service)) {
-    res.status(410).json({ error: "اشتراک پایان یافته است." });
-    return;
-  }
-  if (channel === "wireguard" && !service.wireguard_enabled) {
-    res.status(404).json({ error: "WireGuard برای این فروشنده فعال نیست." });
-    return;
-  }
-  try {
-    const accountResult = await pool.query<{
-      remote_config_id: string | null;
-      channels: unknown;
-      api_base: string;
-      api_key_secret: string | null;
-      api_key_env: string | null;
-    }>(
-      `SELECT account.remote_config_id, account.channels, panel.api_base,
-              panel.api_key_secret, panel.api_key_env
-       FROM raven_service_accounts account
-       JOIN panel_configs panel ON panel.key = account.provider_key
-       WHERE account.service_id = $1
-         AND account.provider_key = $2
-         AND panel.kind = 'raven'
-         AND panel.is_enabled = 1
-       LIMIT 1`,
-      [Number(service.id), providerKey],
-    );
-    const account = accountResult.rows[0];
-    const channels = Array.isArray(account?.channels) ? account.channels : [];
-    if (!account?.remote_config_id || !channels.includes(channel)) {
-      res.status(404).json({ error: "پروفایل برای این پروتکل موجود نیست." });
-      return;
-    }
-    const apiKey = ravenPanelApiKey(providerKey, account.api_key_secret, account.api_key_env);
-    if (!apiKey) {
-      res.status(503).json({ error: "تنظیمات اتصال پروفایل در دسترس نیست." });
-      return;
-    }
-    const delivery = await ravenDeliveryLinks({
-      key: providerKey,
-      api_base: account.api_base,
-      api_key: apiKey,
-    }, account.remote_config_id);
-    const profile = delivery.files[channel as RavenChannel]?.[index];
-    if (!profile) {
-      res.status(404).json({ error: "فایل پروفایل پیدا نشد." });
-      return;
-    }
-    const upstream = await fetch(profile.url, {
-      headers: { Accept: "application/octet-stream, text/plain, */*" },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!upstream.ok) {
-      res.status(502).json({ error: `دریافت فایل پروفایل ناموفق بود (HTTP ${upstream.status}).` });
-      return;
-    }
-    const bytes = Buffer.from(await upstream.arrayBuffer());
-    if (!bytes.length || bytes.length > 1_048_576) {
-      res.status(502).json({ error: "اندازهٔ فایل پروفایل نامعتبر است." });
-      return;
-    }
-    const extension = channel === "wireguard" ? "conf" : "ovpn";
-    const filename = safeDownloadFilename(
-      upstream.headers.get("content-disposition"),
-      `Pulse-${channel}-${index + 1}`,
-      `.${extension}`,
-    );
-    res.status(200)
-      .setHeader("Content-Type", channel === "wireguard" ? "application/octet-stream" : "application/x-openvpn-profile")
-      .setHeader("Content-Disposition", attachmentDisposition(filename))
-      .setHeader("X-Content-Type-Options", "nosniff")
-      .send(bytes);
-  } catch (error) {
-    const status = error instanceof Error && "status" in error ? Number((error as any).status) : 502;
-    res.status(status >= 400 && status <= 599 ? status : 502).json({
-      error: "دریافت فایل پروفایل از Provider ناموفق بود.",
-    });
-  }
+  await sendPublicRavenProfile(
+    String(req.params.token ?? "").trim(),
+    String(req.params.channel ?? ""),
+    String(req.params.provider ?? "").trim(),
+    String(req.params.index ?? ""),
+    res,
+  );
+});
+
+router.get("/public/subscription/:token/raven/openvpn/:provider/:index/import", async (req, res): Promise<void> => {
+  await managementReady;
+  await sendPublicRavenProfile(
+    String(req.params.token ?? "").trim(),
+    "openvpn",
+    String(req.params.provider ?? "").trim(),
+    String(req.params.index ?? ""),
+    res,
+    true,
+  );
 });
 
 router.get("/public/subscription/:token/ipsec", async (req, res): Promise<void> => {
@@ -2905,6 +3009,7 @@ async function resolvePublicWireGuardProfile(
   hostId: string,
 ): Promise<{
   serviceId: number;
+  profileNumber: number;
   locationName: string;
   profile: { body: string; contentType: string; contentDisposition: string | null };
 } | { status: number; error: string }> {
@@ -2925,6 +3030,10 @@ async function resolvePublicWireGuardProfile(
     }
     const location = delivery.locations.find((candidate) => candidate.id === hostId);
     if (!location) return { status: 404, error: "WireGuard location not found" };
+    const profileNumbers = await loadPublicWireGuardProfileNumbers(
+      Number(service.id),
+      Number(service.reseller_tg_id),
+    );
     const profile = await downloadWireGuardProfile(
       delivery.username,
       providerKey,
@@ -2932,7 +3041,12 @@ async function resolvePublicWireGuardProfile(
       Number(service.reseller_tg_id),
       "reseller",
     );
-    return { serviceId: Number(service.id), locationName: location.name, profile };
+    return {
+      serviceId: Number(service.id),
+      profileNumber: profileNumbers.get(`${providerKey}:${hostId}`) ?? 1,
+      locationName: `Server ${String(profileNumbers.get(`${providerKey}:${hostId}`) ?? 1).padStart(2, "0")}`,
+      profile,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "WireGuard profile download failed.";
     return { status: message.includes("not available for this account") ? 404 : 502, error: message };
@@ -2946,6 +3060,7 @@ async function resolvePublicWireGuardProfiles(
   serviceId: number;
   profiles: Awaited<ReturnType<typeof downloadWireGuardProfiles>>;
   locations: WireGuardDelivery["locations"];
+  profileNumbers: Map<string, number>;
 } | { status: number; error: string }> {
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     return { status: 404, error: "Invalid subscription token" };
@@ -2971,7 +3086,15 @@ async function resolvePublicWireGuardProfiles(
       "reseller",
     );
     if (!profiles.length) return { status: 404, error: "No WireGuard server configs are available." };
-    return { serviceId: Number(service.id), profiles, locations: delivery.locations };
+    return {
+      serviceId: Number(service.id),
+      profiles,
+      locations: delivery.locations,
+      profileNumbers: await loadPublicWireGuardProfileNumbers(
+        Number(service.id),
+        Number(service.reseller_tg_id),
+      ),
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "WireGuard profile download failed.";
     return { status: message.includes("not available for this account") ? 404 : 502, error: message };
@@ -2982,8 +3105,8 @@ async function resolvePublicAllWireGuardProfiles(token: string): Promise<{
   serviceId: number;
   profiles: Array<{
     providerKey: string;
-    providerLabel: string;
     hostId: string;
+    profileNumber: number;
     locationName: string;
     body: string;
   }>;
@@ -2999,7 +3122,7 @@ async function resolvePublicAllWireGuardProfiles(token: string): Promise<{
   try {
     const savedDeliveries = await loadSavedWireGuardDeliveries(Number(service.id));
     const deliveries: WireGuardDelivery[] = [];
-    for (const delivery of savedDeliveries) {
+    for (const delivery of [...savedDeliveries].sort((left, right) => left.provider_key.localeCompare(right.provider_key))) {
       if (await isConfiguredWireGuardProvider(
         delivery.provider_key,
         Number(service.reseller_tg_id),
@@ -3009,8 +3132,8 @@ async function resolvePublicAllWireGuardProfiles(token: string): Promise<{
     if (!deliveries.length) return { status: 404, error: "WireGuard accounts are not prepared yet." };
     const profiles: Array<{
       providerKey: string;
-      providerLabel: string;
       hostId: string;
+      profileNumber: number;
       locationName: string;
       body: string;
     }> = [];
@@ -3023,18 +3146,18 @@ async function resolvePublicAllWireGuardProfiles(token: string): Promise<{
         "reseller",
       );
       if (!downloaded.length) {
-        throw new Error(`${delivery.provider_label ?? delivery.provider_key} returned no WireGuard configs.`);
+        throw new Error("A WireGuard server returned no configuration.");
       }
-      const names = new Map(delivery.locations.map((location) => [location.id, location.name]));
       for (const profile of downloaded) {
+        const profileNumber = profiles.length + 1;
         profiles.push({
           providerKey: delivery.provider_key,
-          providerLabel: delivery.provider_label ?? `WireGuard · ${delivery.provider_key}`,
           hostId: createHash("sha256")
             .update(`${delivery.provider_key}:${profile.hostId}`)
             .digest("hex")
             .slice(0, 24),
-          locationName: `${delivery.provider_label ?? delivery.provider_key} · ${names.get(profile.hostId) ?? profile.hostId}`,
+          profileNumber,
+          locationName: `Server ${String(profileNumber).padStart(2, "0")}`,
           body: profile.body,
         });
       }
@@ -3071,7 +3194,7 @@ router.get("/public/subscription/:token/wireguard/mobileconfig", async (req, res
     );
     const filename = safeDownloadFilename(
       null,
-      `Pulse-${result.serviceId}-wireguard-all-providers`,
+      `Pulse-${String(result.serviceId).padStart(6, "0")}-WireGuard-all`,
       ".mobileconfig",
     );
     res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
@@ -3124,19 +3247,22 @@ router.get("/public/subscription/:token/wireguard/mobileconfig/:provider", async
       Number(service.reseller_tg_id),
       "reseller",
     );
-    const locationById = new Map(delivery.locations.map((location) => [location.id, location]));
+    const profileNumbers = await loadPublicWireGuardProfileNumbers(
+      Number(service.id),
+      Number(service.reseller_tg_id),
+    );
     const profile = createWireGuardMobileConfigBundle(
       profiles.map((entry) => ({
         config: entry.body,
         hostId: entry.hostId,
-        locationName: locationById.get(entry.hostId)?.name ?? `Location ${entry.hostId}`,
+        locationName: `Server ${String(profileNumbers.get(`${providerKey}:${entry.hostId}`) ?? 1).padStart(2, "0")}`,
       })),
       Number(service.id),
       "wireguard",
     );
     const filename = safeDownloadFilename(
       null,
-      `Pulse-${String(service.id)}-wireguard-all-servers`,
+      `Pulse-${String(service.id).padStart(6, "0")}-WireGuard-all`,
       ".mobileconfig",
     );
     res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
@@ -3172,7 +3298,7 @@ router.get("/public/subscription/:token/wireguard/mobileconfig/:provider/:host",
     );
     const filename = safeDownloadFilename(
       null,
-      `Pulse-${result.serviceId}-${hostId}`,
+      publicProfileFilename(result.serviceId, "wireguard", result.profileNumber, ".mobileconfig"),
       ".mobileconfig",
     );
     res.setHeader("content-type", publicConfigContentType(".mobileconfig"));
@@ -3199,8 +3325,8 @@ router.get("/public/subscription/:token/wireguard/config/:provider/:host", async
     return;
   }
   const filename = safeDownloadFilename(
-    result.profile.contentDisposition,
-    `Pulse-${String(result.serviceId)}-${String(req.params.host)}`,
+    null,
+    publicProfileFilename(result.serviceId, "wireguard", result.profileNumber, ".conf"),
     ".conf",
   );
   res.setHeader("content-type", publicConfigContentType(".conf"));
@@ -3221,14 +3347,14 @@ router.get("/public/subscription/:token/wireguard/bundle", async (req, res): Pro
   const archive = createZipArchive(result.profiles.map((profile) => ({
     name: safeDownloadFilename(
       null,
-      `Pulse-${result.serviceId}-WireGuard-${profile.providerKey}-${profile.hostId}`,
+      publicProfileFilename(result.serviceId, "wireguard", profile.profileNumber, ".conf"),
       ".conf",
     ),
     content: profile.body,
   })));
   const filename = safeDownloadFilename(
     null,
-    `Pulse-${result.serviceId}-wireguard-all-providers`,
+    `PULSE-${String(result.serviceId).padStart(6, "0")}-WireGuard-all`,
     ".zip",
   );
   res.setHeader("content-type", publicConfigContentType(".zip"));
@@ -3246,18 +3372,20 @@ router.get("/public/subscription/:token/wireguard/bundle/:provider", async (req,
     res.status(result.status).type("text/plain").send(result.error);
     return;
   }
-  const locationById = new Map(result.locations.map((location) => [location.id, location]));
   const archive = createZipArchive(result.profiles.map((profile) => {
-    const location = locationById.get(profile.hostId);
-    const base = `Pulse-${result.serviceId}-WireGuard-${profile.hostId}-${location?.name ?? "server"}`;
+    const profileNumber = result.profileNumbers.get(`${String(req.params.provider ?? "")}:${profile.hostId}`) ?? 1;
     return {
-      name: safeDownloadFilename(null, base, ".conf"),
+      name: safeDownloadFilename(
+        null,
+        publicProfileFilename(result.serviceId, "wireguard", profileNumber, ".conf"),
+        ".conf",
+      ),
       content: profile.body,
     };
   }));
   const filename = safeDownloadFilename(
     null,
-    `Pulse-${String(result.serviceId)}-wireguard-servers`,
+    `PULSE-${String(result.serviceId).padStart(6, "0")}-WireGuard-all`,
     ".zip",
   );
   res.setHeader("content-type", publicConfigContentType(".zip"));
@@ -3269,7 +3397,7 @@ async function resolvePublicOpenVpnProfile(
   token: string,
   providerKey: string,
   hostId?: string,
-): Promise<{ serviceId: string; profile: { body: string; contentType: string } } | { status: number; error: string }> {
+): Promise<{ serviceId: number; profileNumber: number; profile: { body: string; contentType: string } } | { status: number; error: string }> {
   if (!/^[A-Za-z0-9_-]{12,256}$/.test(token)) {
     return { status: 404, error: "Invalid subscription token" };
   }
@@ -3280,6 +3408,11 @@ async function resolvePublicOpenVpnProfile(
   if (!service) return { status: 404, error: "Subscription not found" };
   if (publicOpenVpnServiceFinished(service)) return { status: 410, error: "Subscription has expired" };
   try {
+    const delivery = await loadSavedOpenVpnDelivery(Number(service.id));
+    const locationIndex = hostId
+      ? delivery?.locations.findIndex((location) => location.id === hostId) ?? -1
+      : 0;
+    if (hostId && locationIndex < 0) return { status: 404, error: "OpenVPN location not found" };
     const profile = await downloadOpenVpnProfile(
       String(service.username),
       providerKey,
@@ -3288,7 +3421,7 @@ async function resolvePublicOpenVpnProfile(
       "reseller",
       Number(service.id),
     );
-    return { serviceId: String(service.id), profile };
+    return { serviceId: Number(service.id), profileNumber: locationIndex + 1, profile };
   } catch (error) {
     const message = error instanceof Error ? error.message : "OpenVPN profile download failed.";
     return { status: 502, error: message };
@@ -3309,7 +3442,7 @@ router.get("/public/subscription/:token/openvpn/config/:provider/:host", async (
   }
   const filename = safeDownloadFilename(
     null,
-    `Pulse-${result.serviceId}-${String(req.params.host)}`,
+    publicProfileFilename(result.serviceId, "openvpn", result.profileNumber, ".ovpn"),
     ".ovpn",
   );
   res.setHeader("content-type", publicConfigContentType(".ovpn"));
@@ -3327,7 +3460,7 @@ router.get("/public/subscription/:token/openvpn/bundle/:provider", async (req, r
   }
   const filename = safeDownloadFilename(
     null,
-    `Pulse-${result.serviceId}-all`,
+    publicProfileFilename(result.serviceId, "openvpn", 1, ".ovpn"),
     ".ovpn",
   );
   res.setHeader("content-type", publicConfigContentType(".ovpn"));
@@ -3351,6 +3484,10 @@ router.get("/public/subscription/:token/openvpn/import/:provider/:host", async (
   // OpenVPN Connect fetches this URL directly from its import-profile deeplink.
   // Return the profile inline instead of forcing a browser-style download.
   res.setHeader("content-type", "application/x-openvpn-profile");
+  res.setHeader(
+    "content-disposition",
+    inlineDisposition(publicProfileFilename(result.serviceId, "openvpn", result.profileNumber, ".ovpn")),
+  );
   res.send(result.profile.body);
 });
 
@@ -3364,6 +3501,10 @@ router.get("/public/subscription/:token/openvpn/import-bundle/:provider", async 
     return;
   }
   res.setHeader("content-type", "application/x-openvpn-profile");
+  res.setHeader(
+    "content-disposition",
+    inlineDisposition(publicProfileFilename(result.serviceId, "openvpn", 1, ".ovpn")),
+  );
   res.send(result.profile.body);
 });
 
@@ -3704,8 +3845,8 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
         entries.push({
           protocol: "openvpn",
           config: profile.body,
-          serverId: openVpn.provider_key,
-          serverName: openVpn.locations.map((location) => location.name).join(" · ") || "OpenVPN",
+          serverId: "openvpn",
+          serverName: "Server 01",
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
@@ -3726,15 +3867,15 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
           resellerId,
           "reseller",
         );
-        const locationById = new Map(wireGuard.locations.map((location) => [location.id, location]));
-        entries.push(...profiles.map((profile) => ({
+        const firstProfileNumber = entries.filter((entry) => entry.protocol === "wireguard").length + 1;
+        entries.push(...profiles.map((profile, index) => ({
           protocol: "wireguard" as const,
           config: profile.body,
           serverId: createHash("sha256")
             .update(`${wireGuard.provider_key}:${profile.hostId}`)
             .digest("hex")
             .slice(0, 24),
-          serverName: `${wireGuard.provider_label ?? wireGuard.provider_key} · ${locationById.get(profile.hostId)?.name ?? `WireGuard ${profile.hostId}`}`,
+          serverName: `Server ${String(firstProfileNumber + index).padStart(2, "0")}`,
         })));
       }
     }
@@ -3765,7 +3906,7 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
             .update(`${serviceId}:${source.provider_key}:${channel}:${source.index}:${source.url}`)
             .digest("hex")
             .slice(0, 24)}`,
-          serverName: `${channel === "wireguard" ? "WireGuard" : "OpenVPN"} ${serverNumber}`,
+          serverName: `Server ${String(serverNumber).padStart(2, "0")}`,
         });
       }
     }
@@ -3789,7 +3930,7 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
         protocol: "amneziawg",
         config: awg.config,
         serverId: "amneziawg",
-        serverName: "AmneziaWG",
+        serverName: "Server 01",
       });
     } else if (awg.status === 502) {
       res.status(502).type("text/plain").send(awg.error);
@@ -3811,7 +3952,7 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
     ].join(",");
     const filename = safeDownloadFilename(
       null,
-      `Pulse-${serviceId}-all-active-services`,
+      `PULSE-${String(serviceId).padStart(6, "0")}-VPN-all`,
       ".mobileconfig",
     );
     res.setHeader("content-type", "application/x-apple-aspen-config");

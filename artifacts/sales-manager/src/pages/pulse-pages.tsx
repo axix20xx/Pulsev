@@ -3208,8 +3208,10 @@ function PublicSubscriptionContentV2() {
       await copyUrl(new URL(data.awg_url, window.location.origin).toString(), 'awg');
     }
   };
-  const prepareOpenVpn = async () => {
+  const prepareOpenVpn = async (autoImport = false) => {
     if (!token || openVpnBusy || finished) return;
+    const importWindow = autoImport ? window.open('about:blank', '_blank') : null;
+    if (importWindow) importWindow.opener = null;
     setOpenVpnBusy(true);
     setOpenVpnError('');
     try {
@@ -3220,7 +3222,21 @@ function PublicSubscriptionContentV2() {
       const result = await response.json().catch(() => null);
       if (!response.ok) throw new Error(result?.error || 'اطلاعات OpenVPN دریافت نشد.');
       setOpenVpnData(result);
+      if (autoImport) {
+        const profileUrl = result?.bundle_import_url
+          || result?.raven_profiles?.find((profile: { import_url?: string }) => profile.import_url)?.import_url;
+        const importHref = profileUrl ? openVpnConnectImportUrl(profileUrl, window.location.origin) : null;
+        if (!importHref) {
+          importWindow?.close();
+          throw new Error('فایل OpenVPN آماده است، اما لینک واردکردن خودکار در دسترس نیست. از دکمهٔ دانلود استفاده کنید.');
+        }
+        if (importWindow && !importWindow.closed) importWindow.location.replace(importHref);
+        else window.location.assign(importHref);
+      } else {
+        importWindow?.close();
+      }
     } catch (cause) {
+      importWindow?.close();
       setOpenVpnError(cause instanceof Error ? cause.message : 'ساخت حساب OpenVPN ناموفق بود.');
     } finally {
       setOpenVpnBusy(false);

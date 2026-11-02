@@ -44,10 +44,13 @@ type OpenVpnAccount = {
   username: string;
   password: string;
   bundle_url: string;
-  raven_profiles?: Array<{ name: string; filename: string; download_url: string }>;
+  raven_profiles?: Array<{ name: string; filename: string; download_url: string; import_url?: string }>;
+  bundle_filename?: string;
   locations?: Array<{
     id: string | number;
     name: string;
+    filename?: string;
+    mobileconfig_filename?: string;
     import_url?: string | null;
     config_url: string;
   }>;
@@ -56,6 +59,8 @@ type OpenVpnAccount = {
 type WireGuardLocation = {
   id: string;
   name: string;
+  filename?: string;
+  mobileconfig_filename?: string;
   config_url: string;
   mobileconfig_url: string;
 };
@@ -75,7 +80,9 @@ type WireGuardAccount = {
   providers?: WireGuardProviderAccount[];
   provider_errors?: Array<{ provider_key: string; provider_label: string; error: string }>;
   bundle_url: string;
+  bundle_filename?: string;
   bundle_mobileconfig_url: string;
+  bundle_mobileconfig_filename?: string;
   locations: Array<WireGuardLocation & { provider_key?: string; provider_label?: string }>;
   raven_profiles?: Array<{ name: string; filename: string; download_url: string }>;
 };
@@ -120,7 +127,7 @@ type Props = {
   openVpnError: string;
   openVpnCopied: 'server' | 'username' | 'password' | null;
   openVpnBundleImportHref: string | null;
-  prepareOpenVpn: () => void;
+  prepareOpenVpn: (autoImport?: boolean) => void;
   copyOpenVpnValue: (value: string, kind: 'server' | 'username' | 'password') => void;
   wireguardLoading: boolean;
   wireguardBusy: boolean;
@@ -306,6 +313,13 @@ export function PublicSubscriptionWizard(props: Props) {
     setSelectedProtocol(null);
     window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
   };
+  const openVpnRavenImportHref = openVpnData?.raven_profiles?.find((profile) => profile.import_url)?.import_url
+    ? openVpnConnectImportUrl(
+      openVpnData.raven_profiles.find((profile) => profile.import_url)!.import_url!,
+      window.location.origin,
+    )
+    : null;
+  const openVpnImportHref = openVpnBundleImportHref || openVpnRavenImportHref;
 
   return (
     <div className={`public-sub-v3 public-sub-lux ${statusTone}`} dir="rtl">
@@ -502,7 +516,11 @@ export function PublicSubscriptionWizard(props: Props) {
                   </div>
                   <section className="public-sub-openvpn-card" data-testid="card-public-sub-openvpn">
                     <div className="public-sub-openvpn-heading"><div className="public-sub-openvpn-icon"><ShieldCheck size={20} /></div><div><p className="public-sub-kicker">دسترسی OpenVPN</p><h2>حساب و پروفایل‌ها</h2><p>اطلاعات اتصال فقط در این صفحه خصوصی نمایش داده می‌شود.</p></div></div>
-                    {openVpnLoading ? <div className="public-sub-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی حساب ذخیره‌شدهٔ OpenVPN...</div> : !openVpnData ? <div className="public-sub-openvpn-setup"><button type="button" className="public-sub-openvpn-button primary" onClick={prepareOpenVpn} disabled={openVpnBusy} data-testid="button-public-sub-openvpn-create">{openVpnBusy ? <><RefreshCw size={15} className="public-sub-spin" />در حال آماده‌سازی حساب...</> : <><Plus size={15} />ساخت یا دریافت حساب OpenVPN</>}</button>{openVpnError && <p className="public-sub-openvpn-error" role="alert">{openVpnError}</p>}</div> : <>
+                    {openVpnLoading ? <div className="public-sub-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی حساب ذخیره‌شدهٔ OpenVPN...</div> : !openVpnData ? <div className="public-sub-openvpn-setup">
+                      <button type="button" className="public-sub-openvpn-button primary" onClick={() => prepareOpenVpn(true)} disabled={openVpnBusy} data-testid="button-public-sub-openvpn-create-import">{openVpnBusy ? <><RefreshCw size={15} className="public-sub-spin" />در حال آماده‌سازی و بازکردن برنامه...</> : <><ExternalLink size={14} />ساخت و واردکردن در OpenVPN Connect</>}</button>
+                      <button type="button" className="public-sub-openvpn-button" onClick={() => prepareOpenVpn(false)} disabled={openVpnBusy} data-testid="button-public-sub-openvpn-create">{openVpnBusy ? 'در حال آماده‌سازی...' : <><Plus size={15} />فقط ساخت حساب</>}</button>
+                      {openVpnError && <p className="public-sub-openvpn-error" role="alert">{openVpnError}</p>}
+                    </div> : <>
                       {(openVpnData.server || openVpnData.username || openVpnData.password) && <div className="public-sub-openvpn-credentials">
                         {([
                           ['server', 'آدرس سرور', openVpnData.server],
@@ -511,14 +529,14 @@ export function PublicSubscriptionWizard(props: Props) {
                         ] as const).map(([kind, label, value]) => <div key={kind}><span>{label}</span><strong dir="ltr">{value}</strong><button type="button" onClick={() => copyOpenVpnValue(value, kind)} aria-label={`کپی ${label}`} data-testid={`button-public-sub-openvpn-copy-${kind}`}>{openVpnCopied === kind ? <Check size={15} /> : <Copy size={15} />}</button></div>)}
                       </div>}
                       <div className="public-sub-openvpn-actions">
-                         {openVpnData.bundle_url && <a className="public-sub-openvpn-button primary" href={openVpnData.bundle_url} download="Pulse-OpenVPN-all.ovpn" data-testid="link-public-sub-openvpn-bundle"><Download size={15} />دانلود همهٔ فایل‌ها · .ovpn</a>}
-                        {openVpnBundleImportHref && <a className="public-sub-openvpn-button" href={openVpnBundleImportHref} referrerPolicy="no-referrer" data-testid="link-public-sub-openvpn-import-connect"><ExternalLink size={14} />واردکردن خودکار در OpenVPN Connect</a>}
+                         {openVpnData.bundle_url && <a className="public-sub-openvpn-button primary" href={openVpnData.bundle_url} download={openVpnData.bundle_filename || 'Pulse-OpenVPN-all.ovpn'} data-testid="link-public-sub-openvpn-bundle"><Download size={15} />دانلود همهٔ فایل‌ها · .ovpn</a>}
+                        {openVpnImportHref && <a className="public-sub-openvpn-button" href={openVpnImportHref} referrerPolicy="no-referrer" data-testid="link-public-sub-openvpn-import-connect"><ExternalLink size={14} />واردکردن خودکار در OpenVPN Connect</a>}
                         <a className="public-sub-openvpn-button" href="https://apps.apple.com/us/app/openvpn-connect-openvpn-app/id590379981" target="_blank" rel="noreferrer" data-testid="link-public-sub-openvpn-ios"><ExternalLink size={14} />نصب OpenVPN · iOS</a>
                         <a className="public-sub-openvpn-button" href="https://play.google.com/store/apps/details?id=net.openvpn.openvpn" target="_blank" rel="noreferrer" data-testid="link-public-sub-openvpn-android"><ExternalLink size={14} />نصب OpenVPN · Android</a>
                       </div>
                       <p className="public-sub-openvpn-hint">واردکردن خودکار را بزنید تا OpenVPN Connect پروفایل را باز کند. اگر برنامه روی دستگاه شما باز نشد یا نصب نیست، فایل سرور را دانلود و از داخل برنامه وارد کنید.</p>
-                      {openVpnData.locations?.length ? <div className="public-sub-openvpn-locations"><strong>سرورها</strong>{openVpnData.locations.map((location) => { const importHref = location.import_url ? openVpnConnectImportUrl(location.import_url, window.location.origin) : null; return <div className="public-sub-openvpn-location" key={location.id}><span>{location.name}</span>{importHref && <a href={importHref} referrerPolicy="no-referrer" data-testid={`link-public-sub-openvpn-import-connect-${location.id}`}><ExternalLink size={13} />واردکردن</a>}<a href={location.config_url} download={`Pulse-OpenVPN-${location.id}.ovpn`} data-testid={`link-public-sub-openvpn-config-${location.id}`}><Download size={13} />دانلود .ovpn</a></div>; })}</div> : null}
-                      {openVpnData.raven_profiles?.length ? <div className="public-sub-openvpn-locations"><strong>فایل‌های سرور</strong>{openVpnData.raven_profiles.map((profile) => <div className="public-sub-openvpn-location" key={profile.download_url}><span>{profile.name}</span><a href={profile.download_url} download={profile.filename}><Download size={13} />دانلود .ovpn</a></div>)}</div> : null}
+                      {openVpnData.locations?.length ? <div className="public-sub-openvpn-locations"><strong>سرورها</strong>{openVpnData.locations.map((location) => { const importHref = location.import_url ? openVpnConnectImportUrl(location.import_url, window.location.origin) : null; return <div className="public-sub-openvpn-location" key={location.id}><span>{location.name}</span>{importHref && <a href={importHref} referrerPolicy="no-referrer" data-testid={`link-public-sub-openvpn-import-connect-${location.id}`}><ExternalLink size={13} />واردکردن</a>}<a href={location.config_url} download={location.filename || `Pulse-OpenVPN-${location.id}.ovpn`} data-testid={`link-public-sub-openvpn-config-${location.id}`}><Download size={13} />دانلود .ovpn</a></div>; })}</div> : null}
+                      {openVpnData.raven_profiles?.length ? <div className="public-sub-openvpn-locations"><strong>سرورهای OpenVPN</strong>{openVpnData.raven_profiles.map((profile) => { const importHref = profile.import_url ? openVpnConnectImportUrl(profile.import_url, window.location.origin) : null; return <div className="public-sub-openvpn-location" key={profile.download_url}><span>{profile.name}</span>{importHref && <a href={importHref} referrerPolicy="no-referrer"><ExternalLink size={13} />واردکردن</a>}<a href={profile.download_url} download={profile.filename}><Download size={13} />دانلود .ovpn</a></div>; })}</div> : null}
                     </>}
                     {openVpnError && openVpnData && <p className="public-sub-openvpn-error" role="alert">{openVpnError}</p>}
                   </section>
@@ -536,8 +554,8 @@ export function PublicSubscriptionWizard(props: Props) {
                     <div className="public-sub-openvpn-heading"><div className="public-sub-openvpn-icon"><Wifi size={20} /></div><div><p className="public-sub-kicker">دسترسی WireGuard</p><h2>کانفیگ‌های امن شما</h2><p>کلید خصوصی داخل فایل کانفیگ است؛ آن را محرمانه نگه دارید.</p></div></div>
                     {wireguardLoading ? <div className="public-sub-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی کانفیگ ذخیره‌شدهٔ WireGuard...</div> : !wireguardData ? <div className="public-sub-openvpn-setup"><button type="button" className="public-sub-openvpn-button primary" onClick={prepareWireGuard} disabled={wireguardBusy} data-testid="button-public-sub-wireguard-create">{wireguardBusy ? <><RefreshCw size={15} className="public-sub-spin" />در حال آماده‌سازی کانفیگ...</> : <><Plus size={15} />ساخت یا دریافت کانفیگ WireGuard</>}</button>{wireguardError && <p className="public-sub-openvpn-error" role="alert">{wireguardError}</p>}</div> : <>
                       <div className="public-sub-openvpn-actions">
-                         {wireguardData.bundle_url && <a className="public-sub-openvpn-button primary" href={wireguardData.bundle_url} download="Pulse-WireGuard-servers.zip" data-testid="link-public-sub-wireguard-bundle"><Download size={15} />دانلود همهٔ سرورها · ZIP کانفیگ‌های .conf</a>}
-                        {(activeOS === 'iOS' || isIOSDevice()) && wireguardData.bundle_mobileconfig_url && <a className="public-sub-openvpn-button" href={wireguardData.bundle_mobileconfig_url} data-testid="link-public-sub-wireguard-ios-all-profile"><Smartphone size={14} />نصب همهٔ سرورها در یک پروفایل iOS</a>}
+                         {wireguardData.bundle_url && <a className="public-sub-openvpn-button primary" href={wireguardData.bundle_url} download={wireguardData.bundle_filename || 'Pulse-WireGuard-servers.zip'} data-testid="link-public-sub-wireguard-bundle"><Download size={15} />دانلود همهٔ سرورها · ZIP کانفیگ‌های .conf</a>}
+                        {(activeOS === 'iOS' || isIOSDevice()) && wireguardData.bundle_mobileconfig_url && <a className="public-sub-openvpn-button" href={wireguardData.bundle_mobileconfig_url} download={wireguardData.bundle_mobileconfig_filename} data-testid="link-public-sub-wireguard-ios-all-profile"><Smartphone size={14} />نصب همهٔ سرورها در یک پروفایل iOS</a>}
                         <a className="public-sub-openvpn-button" href="https://apps.apple.com/us/app/wireguard/id1441195209" target="_blank" rel="noreferrer" data-testid="link-public-sub-wireguard-ios"><ExternalLink size={14} />نصب WireGuard · iOS</a>
                         <a className="public-sub-openvpn-button" href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" rel="noreferrer" data-testid="link-public-sub-wireguard-android"><ExternalLink size={14} />نصب WireGuard · Android</a>
                       </div>
@@ -548,11 +566,11 @@ export function PublicSubscriptionWizard(props: Props) {
                           const fileNumber = index + 1;
                           return <div className="public-sub-openvpn-location" key={id}>
                             <span>{location.name}</span>
-                            <a href={location.config_url} download={`Pulse-WireGuard-server-${fileNumber}.conf`} data-testid={`link-public-sub-wireguard-config-${fileNumber}`}><Download size={13} />دانلود .conf</a>
-                            {isIOSDevice() && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-server-${fileNumber}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${fileNumber}`}><Smartphone size={13} />نصب پروفایل iOS</a>}
+                            <a href={location.config_url} download={location.filename || `Pulse-WireGuard-server-${fileNumber}.conf`} data-testid={`link-public-sub-wireguard-config-${fileNumber}`}><Download size={13} />دانلود .conf</a>
+                            {isIOSDevice() && <a href={location.mobileconfig_url} download={location.mobileconfig_filename || `Pulse-WireGuard-server-${fileNumber}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${fileNumber}`}><Smartphone size={13} />نصب پروفایل iOS</a>}
                           </div>;
                         })}
-                      </div> : wireguardData.locations.length ? <div className="public-sub-openvpn-locations"><strong>سرورهای WireGuard</strong>{wireguardData.locations.map((location, index) => <div className="public-sub-openvpn-location" key={`${location.provider_key ?? 'wireguard'}-${location.id}`}><span>{location.name}</span><a href={location.config_url} download={`Pulse-WireGuard-server-${index + 1}.conf`} data-testid={`link-public-sub-wireguard-config-${index + 1}`}><Download size={13} />دانلود .conf</a>{isIOSDevice() && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-server-${index + 1}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${index + 1}`}><Smartphone size={13} />نصب پروفایل iOS</a>}</div>)}</div> : !wireguardData.raven_profiles?.length ? <p className="public-sub-openvpn-error" role="status">برای این حساب هنوز سرور آماده‌ای وجود ندارد.</p> : null}
+                      </div> : wireguardData.locations.length ? <div className="public-sub-openvpn-locations"><strong>سرورهای WireGuard</strong>{wireguardData.locations.map((location, index) => <div className="public-sub-openvpn-location" key={`${location.provider_key ?? 'wireguard'}-${location.id}`}><span>{location.name}</span><a href={location.config_url} download={location.filename || `Pulse-WireGuard-server-${index + 1}.conf`} data-testid={`link-public-sub-wireguard-config-${index + 1}`}><Download size={13} />دانلود .conf</a>{isIOSDevice() && <a href={location.mobileconfig_url} download={location.mobileconfig_filename || `Pulse-WireGuard-server-${index + 1}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${index + 1}`}><Smartphone size={13} />نصب پروفایل iOS</a>}</div>)}</div> : !wireguardData.raven_profiles?.length ? <p className="public-sub-openvpn-error" role="status">برای این حساب هنوز سرور آماده‌ای وجود ندارد.</p> : null}
                       {wireguardData.raven_profiles?.length ? <div className="public-sub-openvpn-locations"><strong>فایل‌های سرور</strong>{wireguardData.raven_profiles.map((profile) => <div className="public-sub-openvpn-location" key={profile.download_url}><span>{profile.name}</span><a href={profile.download_url} download={profile.filename}><Download size={13} />دانلود .conf</a></div>)}</div> : null}
                       <p className="public-sub-openvpn-hint">در iPhone/iPad، نصب پروفایل تکی یا «نصب همهٔ سرورها» را بزنید و در Settings → Profile Downloaded تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. پروفایل چندسروره، تونل‌های جداگانه را یک‌جا اضافه می‌کند؛ در برنامه هر بار یکی را فعال کنید. فایل .conf هم برای واردکردن دستی موجود است. کلید خصوصی را محرمانه نگه دارید.</p>
                     </>}

@@ -2410,3 +2410,17 @@ mtime_ms = 1793605951890
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/82ff69c7-1c5e-4c3c-9f0c-44cac259a6f0/e18ac61e-6b60-4229-94c2-b9df7387aace"
 storage_version_token = "1793606836597619"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "4d2KtuQk5gdpdO3ecp3NQ"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-02T09-03-23-281Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger Update ZIP"
+description = "Hostinger migration package with standardized OpenVPN/WireGuard profile names, provider-neutral public labels, and create-and-import OpenVPN buttons for /sub and /mobile."
+logical_id = "a09ec9da-a5c5-4d63-875a-2c64a09c2778"
+content_hash = "sha256:e1e6d8b0e96e7c8421306ff0a8229367d3eee1eb9433911adcff9dd80b0ad3a2"
+size = 29168186
+mtime_ms = 1793610315992
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/a09ec9da-a5c5-4d63-875a-2c64a09c2778/ac6911f4-1c34-4418-8069-e5c85b204af9"
+storage_version_token = "1793610363622432"
+content_type = "application/octet-stream"

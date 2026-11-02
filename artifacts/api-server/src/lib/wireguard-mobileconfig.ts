@@ -59,7 +59,7 @@ function tunnelPayload(
   serviceId: number,
   protocol: WireGuardMobileConfigProtocol,
 ): string {
-  const displayName = `Pulse ${protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} - ${tunnel.locationName}`;
+  const displayName = `Pulse ${protocol === "amneziawg" ? "AmneziaWG" : "WireGuard"} · ${tunnel.locationName}`;
   const identifier = `com.pulse.${protocol}.service-${serviceId}.location-${tunnel.hostId}`;
   const appBundleId = protocol === "amneziawg" ? "org.amnezia.awg" : "com.wireguard.ios";
   return `    <dict>

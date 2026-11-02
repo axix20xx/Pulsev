@@ -35,13 +35,21 @@ export function safeDownloadFilename(
 }
 
 export function attachmentDisposition(filename: string): string {
+  return disposition("attachment", filename);
+}
+
+export function inlineDisposition(filename: string): string {
+  return disposition("inline", filename);
+}
+
+function disposition(kind: "attachment" | "inline", filename: string): string {
   const asciiFallback = filename
     .replace(/[^\x20-\x7e]/g, "_")
     .replace(/["\\;]/g, "_");
   const encoded = encodeURIComponent(filename).replace(/[!'()*]/g, (char) =>
     `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
   );
-  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
+  return `${kind}; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
 }
 
 export function publicConfigContentType(extension: PublicDownloadExtension): string {

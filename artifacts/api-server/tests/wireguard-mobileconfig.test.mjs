@@ -37,7 +37,7 @@ test("one iOS profile contains independent tunnels for every selected WireGuard 
   assert.equal((profile.match(/<key>WgQuickConfig<\/key>/g) ?? []).length, 2);
   assert.match(profile, /edge-one\.example:51820/);
   assert.match(profile, /edge-two\.example:51820/);
-  assert.match(profile, /Pulse WireGuard - Edge &amp; Two/);
+  assert.match(profile, /Pulse WireGuard · Edge &amp; Two/);
   assert.match(profile, /<key>VPNSubType<\/key><string>com\.wireguard\.ios<\/string>/);
   assert.match(profile, /<string>com\.pulse\.wireguard\.service-79\.location-edge-one\.vpn<\/string>/);
 });
