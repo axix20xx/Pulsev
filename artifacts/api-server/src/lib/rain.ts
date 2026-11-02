@@ -39,6 +39,7 @@ import {
   ravenConfigUsageBytes,
   ravenDeliveryLinks,
   ravenServiceAccount,
+  reactivateRavenConfig,
   renewRavenConfig,
   testRavenProvider,
 } from "./raven-provider";
@@ -291,12 +292,12 @@ function panelEnvCredential(key: string | undefined, suffix: "USER" | "PASS" | "
   return process.env[`RAIN_${normalized}_${suffix}`]?.trim() || undefined;
 }
 
-async function panels(ownerId?: number, role?: string): Promise<Panel[]> {
+async function panels(ownerId?: number, role?: string, includeDisabled = false): Promise<Panel[]> {
   const result = await pool.query<StoredPanel>(
     `SELECT p.key, p.kind, p.api_base,
             p.username_secret, p.password_secret, p.api_key_secret, p.settings_json
      FROM panel_configs p
-     WHERE p.is_enabled = 1
+     WHERE ${includeDisabled ? "TRUE" : "p.is_enabled = 1"}
      ORDER BY p.key`,
   );
   return result.rows.map((panel) => {
@@ -900,7 +901,7 @@ export async function testPanelAuthentication(
   ownerId?: number,
   role?: string,
 ): Promise<{ ok: boolean; detail: string }> {
-  const panel = (await panels(ownerId, role)).find((candidate) => panelKey(candidate) === key);
+  const panel = (await panels(ownerId, role, true)).find((candidate) => panelKey(candidate) === key);
   if (!panel) return { ok: false, detail: `Panel ${key} is not configured or has no credentials.` };
   try {
     if (panelKind(panel) === "raven") {
@@ -2259,6 +2260,12 @@ export async function reactivateProviderAccountStatus(
 ): Promise<{ outcome: "repaired" | "skipped"; message: string }> {
   const panel = (await panels()).find((candidate) => panelKey(candidate) === providerKey);
   if (!panel) throw new RainApiError("Provider is not enabled or has no configured credentials.");
+  if (panelKind(panel) === "raven") {
+    const outcome = await reactivateRavenConfig(panel as RavenPanel, service.serviceId);
+    return outcome === "repaired"
+      ? { outcome, message: "Raven account was resumed without changing quota, expiry, or usage." }
+      : { outcome, message: "Raven account is already active; no changes were made." };
+  }
 
   let providerService = service;
   if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {

@@ -127,13 +127,12 @@ export async function testRavenProvider(panel: RavenPanel): Promise<{ ok: boolea
 type RavenAccountRow = {
   config_label: string;
   remote_config_id: string | null;
-  subscription_url: string | null;
   channels: RavenChannel[] | string[] | null;
 };
 
 async function getAccount(serviceId: number, providerKey: string): Promise<RavenAccountRow | null> {
   const result = await pool.query<RavenAccountRow>(
-    `SELECT config_label, remote_config_id, subscription_url, channels
+    `SELECT config_label, remote_config_id, channels
      FROM raven_service_accounts
      WHERE service_id = $1 AND provider_key = $2
      LIMIT 1`,
@@ -161,18 +160,15 @@ async function saveAccount(
   panel: RavenPanel,
   account: RavenAccountRow,
   remoteConfigId: string,
-  subscriptionUrl: string | null,
 ): Promise<void> {
   await pool.query(
     `UPDATE raven_service_accounts
      SET remote_config_id = $1,
-         subscription_url = COALESCE(NULLIF($2, ''), subscription_url),
-         channels = $3::jsonb,
+         channels = $2::jsonb,
          updated_at = NOW()
-     WHERE service_id = $4 AND provider_key = $5`,
+     WHERE service_id = $3 AND provider_key = $4`,
     [
       remoteConfigId,
-      subscriptionUrl,
       JSON.stringify(account.channels ?? panel.channels ?? DEFAULT_RAVEN_CHANNELS),
       serviceId,
       panel.key,
@@ -244,13 +240,7 @@ export async function provisionRavenConfig(
     if (!remoteId) {
       throw new RavenProviderError("Raven created the config but returned no config ID.", 502, true);
     }
-    await saveAccount(
-      serviceId,
-      panel,
-      account,
-      remoteId,
-      typeof remote.subUrl === "string" ? remote.subUrl : null,
-    );
+    await saveAccount(serviceId, panel, account, remoteId);
     return 201;
   } finally {
     if (locked) {
@@ -274,6 +264,7 @@ export async function renewRavenConfig(
   const lockName = `renew:${serviceId}:${panel.key}`;
   let locked = false;
   let resetAttempted = false;
+  let reviveAttempted = false;
   try {
     const lock = await lockClient.query<{ locked: boolean }>(
       "SELECT pg_try_advisory_lock(74427, hashtext($1::text)) AS locked",
@@ -293,6 +284,7 @@ export async function renewRavenConfig(
     }
     const status = String(current.status ?? "").toLowerCase();
     if (status !== "active" && status !== "paused") {
+      reviveAttempted = true;
       await ravenRequest(panel, "POST", `/configs/${id}/revive`, { gb: targetGb, days });
       return 200;
     }
@@ -313,15 +305,25 @@ export async function renewRavenConfig(
       );
     }
     resetAttempted = true;
-    await ravenRequest(panel, "POST", `/configs/${id}/reset-traffic`, {});
+    await ravenRequest(panel, "POST", `/configs/${id}/reset-traffic`);
     const additionalGb = Math.max(0, targetGb - currentGb);
     if (additionalGb > 0.000001) {
       await ravenRequest(panel, "POST", `/configs/${id}/extend`, { gb: additionalGb });
     }
     await ravenRequest(panel, "PUT", `/configs/${id}/expiry`, { days });
-    if (status === "paused") await ravenRequest(panel, "POST", `/configs/${id}/resume`, {});
+    if (status === "paused") await ravenRequest(panel, "POST", `/configs/${id}/resume`);
     return 200;
   } catch (error) {
+    if (reviveAttempted) {
+      const failure = error instanceof RavenProviderError
+        ? error
+        : new RavenProviderError("Raven config revive failed.", 502);
+      throw new RavenProviderError(
+        `${failure.message} Revive may already have applied; check Raven before retrying.`,
+        failure.status,
+        false,
+      );
+    }
     if (error instanceof RavenProviderError && resetAttempted) {
       throw new RavenProviderError(
         `${error.message} The traffic reset may already have applied; check Raven before retrying.`,
@@ -371,7 +373,7 @@ export async function ravenDeliveryLinks(
   const files: Record<string, Array<{ name: string; url: string }>> = { wireguard: [], openvpn: [] };
   if (jsonUrl) {
     const expectedOrigin = new URL(panel.api_base).origin;
-    const deliveryUrl = new URL(jsonUrl);
+    const deliveryUrl = new URL(jsonUrl, `${expectedOrigin}/`);
     if (deliveryUrl.protocol !== "https:" || deliveryUrl.origin !== expectedOrigin) {
       throw new RavenProviderError("Raven returned a profile URL outside its configured HTTPS origin.", 502);
     }
@@ -411,7 +413,28 @@ export async function pauseRavenConfig(panel: RavenPanel, serviceId: number): Pr
     panel,
     "POST",
     `/configs/${encodeURIComponent(account.remote_config_id)}/pause`,
-    {},
   );
   return true;
+}
+
+export async function reactivateRavenConfig(
+  panel: RavenPanel,
+  serviceId: number,
+): Promise<"repaired" | "skipped"> {
+  const account = await getAccount(serviceId, panel.key);
+  if (!account?.remote_config_id) {
+    throw new RavenProviderError(`Raven config for service ${serviceId} was not found.`, 404);
+  }
+  const id = encodeURIComponent(account.remote_config_id);
+  const current = await ravenRequest(panel, "GET", `/configs/${id}`);
+  const status = String(current.status ?? "").trim().toLowerCase();
+  if (status === "active") return "skipped";
+  if (status !== "paused") {
+    throw new RavenProviderError(
+      `Raven config is ${status || "not active"}; use renewal to restore its time and quota.`,
+      409,
+    );
+  }
+  await ravenRequest(panel, "POST", `/configs/${id}/resume`);
+  return "repaired";
 }

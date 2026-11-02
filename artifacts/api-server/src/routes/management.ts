@@ -1950,37 +1950,54 @@ function publicOpenVpnDelivery(token: string, delivery: OpenVpnDelivery) {
 }
 
 type PublicRavenProfile = { name: string; filename: string; download_url: string };
+type RavenProfileSource = {
+  provider_key: string;
+  channel: "wireguard" | "openvpn";
+  index: number;
+  name: string;
+  url: string;
+};
 
-async function publicRavenProfiles(
+function ravenPanelApiKey(panelKey: string, secret: string | null, envName: string | null): string | null {
+  const decrypted = decryptPanelCredential(secret);
+  if (decrypted) return decrypted;
+  const normalizedKey = panelKey.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  return process.env[envName || `RAIN_${normalizedKey}_API_KEY`]?.trim() || null;
+}
+
+async function ravenProfileSources(
   serviceId: number,
-  token: string,
   channel: "wireguard" | "openvpn",
-): Promise<PublicRavenProfile[]> {
+  skipUnavailable = false,
+): Promise<RavenProfileSource[]> {
   const result = await pool.query<{
     provider_key: string;
     remote_config_id: string | null;
     channels: unknown;
     api_base: string;
     api_key_secret: string | null;
+    api_key_env: string | null;
   }>(
     `SELECT account.provider_key, account.remote_config_id, account.channels,
-            panel.api_base, panel.api_key_secret
+            panel.api_base, panel.api_key_secret, panel.api_key_env
      FROM raven_service_accounts account
      JOIN panel_configs panel ON panel.key = account.provider_key
      WHERE account.service_id = $1
        AND panel.kind = 'raven'
        AND panel.is_enabled = 1
-       AND panel.api_key_secret IS NOT NULL
      ORDER BY account.provider_key`,
     [serviceId],
   );
-  const profiles: PublicRavenProfile[] = [];
+  const profiles: RavenProfileSource[] = [];
   for (const row of result.rows) {
     if (!row.remote_config_id) continue;
     const channels = Array.isArray(row.channels) ? row.channels : [];
     if (!channels.includes(channel)) continue;
-    const apiKey = decryptPanelCredential(row.api_key_secret);
-    if (!apiKey) continue;
+    const apiKey = ravenPanelApiKey(row.provider_key, row.api_key_secret, row.api_key_env);
+    if (!apiKey) {
+      if (skipUnavailable) continue;
+      throw new Error("Raven profile access is not configured.");
+    }
     try {
       const delivery = await ravenDeliveryLinks({
         key: row.provider_key,
@@ -1989,22 +2006,38 @@ async function publicRavenProfiles(
       }, row.remote_config_id);
       const files = delivery.files[channel];
       for (let index = 0; index < files.length; index += 1) {
-        const number = profiles.length + 1;
-        const extension = channel === "wireguard" ? "conf" : "ovpn";
-        const filename = `Pulse-${channel === "wireguard" ? "WireGuard" : "OpenVPN"}-${number}.${extension}`;
         profiles.push({
-          name: channel === "wireguard" ? `سرور WireGuard ${number}` : `سرور OpenVPN ${number}`,
-          filename,
-          download_url: `/api/public/subscription/${encodeURIComponent(token)}/raven/${channel}/${encodeURIComponent(row.provider_key)}/${index}`,
+          provider_key: row.provider_key,
+          channel,
+          index,
+          name: files[index].name,
+          url: files[index].url,
         });
       }
-    } catch {
+    } catch (error) {
       // Keep other providers' public profiles available if this Raven config is offline.
+      if (!skipUnavailable) throw error;
     }
   }
   return profiles;
 }
 
+async function publicRavenProfiles(
+  serviceId: number,
+  token: string,
+  channel: "wireguard" | "openvpn",
+): Promise<PublicRavenProfile[]> {
+  const sources = await ravenProfileSources(serviceId, channel, true);
+  return sources.map((source, index) => {
+    const number = index + 1;
+    const extension = channel === "wireguard" ? "conf" : "ovpn";
+    return {
+      name: channel === "wireguard" ? `سرور WireGuard ${number}` : `سرور OpenVPN ${number}`,
+      filename: `Pulse-${channel === "wireguard" ? "WireGuard" : "OpenVPN"}-${number}.${extension}`,
+      download_url: `/api/public/subscription/${encodeURIComponent(token)}/raven/${channel}/${encodeURIComponent(source.provider_key)}/${source.index}`,
+    };
+  });
+}
 function isWireGuardDelivery(value: unknown): value is WireGuardDelivery {
   if (!value || typeof value !== "object") return false;
   const delivery = value as Partial<WireGuardDelivery>;
@@ -2222,6 +2255,8 @@ router.get("/public/subscription/:token/openvpn", async (req, res): Promise<void
           server: "",
           username: "",
           password: "",
+          bundle_url: "",
+          bundle_import_url: "",
           locations: [],
           raven_profiles: ravenProfiles,
         });
@@ -2287,6 +2322,8 @@ router.post("/public/subscription/:token/openvpn", async (req, res): Promise<voi
         server: "",
         username: "",
         password: "",
+        bundle_url: "",
+        bundle_import_url: "",
         locations: [],
         raven_profiles: ravenProfiles,
       });
@@ -2522,6 +2559,109 @@ router.post("/public/subscription/:token/wireguard", async (req, res): Promise<v
       ).catch(() => undefined);
     }
     lockClient.release();
+  }
+});
+
+router.get("/public/subscription/:token/raven/:channel/:provider/:index", async (req, res): Promise<void> => {
+  await managementReady;
+  const token = String(req.params.token ?? "").trim();
+  const channel = String(req.params.channel ?? "").trim().toLowerCase();
+  const providerKey = String(req.params.provider ?? "").trim();
+  const index = Number(req.params.index);
+  res.setHeader("cache-control", "private, no-store, no-cache, must-revalidate");
+  if (
+    !/^[A-Za-z0-9_-]{12,256}$/.test(token)
+    || !["wireguard", "openvpn"].includes(channel)
+    || !/^[a-z0-9_-]{2,64}$/.test(providerKey)
+    || !Number.isSafeInteger(index)
+    || index < 0
+    || index > 100
+  ) {
+    res.status(404).json({ error: "پروفایل پیدا نشد." });
+    return;
+  }
+  const service = await loadPublicOpenVpnService(token);
+  if (!service) {
+    res.status(404).json({ error: "لینک اشتراک پیدا نشد." });
+    return;
+  }
+  if (publicOpenVpnServiceFinished(service)) {
+    res.status(410).json({ error: "اشتراک پایان یافته است." });
+    return;
+  }
+  if (channel === "wireguard" && !service.wireguard_enabled) {
+    res.status(404).json({ error: "WireGuard برای این فروشنده فعال نیست." });
+    return;
+  }
+  try {
+    const accountResult = await pool.query<{
+      remote_config_id: string | null;
+      channels: unknown;
+      api_base: string;
+      api_key_secret: string | null;
+      api_key_env: string | null;
+    }>(
+      `SELECT account.remote_config_id, account.channels, panel.api_base,
+              panel.api_key_secret, panel.api_key_env
+       FROM raven_service_accounts account
+       JOIN panel_configs panel ON panel.key = account.provider_key
+       WHERE account.service_id = $1
+         AND account.provider_key = $2
+         AND panel.kind = 'raven'
+         AND panel.is_enabled = 1
+       LIMIT 1`,
+      [Number(service.id), providerKey],
+    );
+    const account = accountResult.rows[0];
+    const channels = Array.isArray(account?.channels) ? account.channels : [];
+    if (!account?.remote_config_id || !channels.includes(channel)) {
+      res.status(404).json({ error: "پروفایل برای این پروتکل موجود نیست." });
+      return;
+    }
+    const apiKey = ravenPanelApiKey(providerKey, account.api_key_secret, account.api_key_env);
+    if (!apiKey) {
+      res.status(503).json({ error: "تنظیمات اتصال پروفایل در دسترس نیست." });
+      return;
+    }
+    const delivery = await ravenDeliveryLinks({
+      key: providerKey,
+      api_base: account.api_base,
+      api_key: apiKey,
+    }, account.remote_config_id);
+    const profile = delivery.files[channel as RavenChannel]?.[index];
+    if (!profile) {
+      res.status(404).json({ error: "فایل پروفایل پیدا نشد." });
+      return;
+    }
+    const upstream = await fetch(profile.url, {
+      headers: { Accept: "application/octet-stream, text/plain, */*" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!upstream.ok) {
+      res.status(502).json({ error: `دریافت فایل پروفایل ناموفق بود (HTTP ${upstream.status}).` });
+      return;
+    }
+    const bytes = Buffer.from(await upstream.arrayBuffer());
+    if (!bytes.length || bytes.length > 1_048_576) {
+      res.status(502).json({ error: "اندازهٔ فایل پروفایل نامعتبر است." });
+      return;
+    }
+    const extension = channel === "wireguard" ? "conf" : "ovpn";
+    const filename = safeDownloadFilename(
+      upstream.headers.get("content-disposition"),
+      `Pulse-${channel}-${index + 1}`,
+      `.${extension}`,
+    );
+    res.status(200)
+      .setHeader("Content-Type", channel === "wireguard" ? "application/octet-stream" : "application/x-openvpn-profile")
+      .setHeader("Content-Disposition", attachmentDisposition(filename))
+      .setHeader("X-Content-Type-Options", "nosniff")
+      .send(bytes);
+  } catch (error) {
+    const status = error instanceof Error && "status" in error ? Number((error as any).status) : 502;
+    res.status(status >= 400 && status <= 599 ? status : 502).json({
+      error: "دریافت فایل پروفایل از Provider ناموفق بود.",
+    });
   }
 });
 
@@ -3514,6 +3654,37 @@ router.get("/public/subscription/:token/all/mobileconfig", async (req, res): Pro
       }
     }
 
+    const ravenChannels: Array<"openvpn" | "wireguard"> = service.wireguard_enabled
+      ? ["openvpn", "wireguard"]
+      : ["openvpn"];
+    for (const channel of ravenChannels) {
+      const sources = await ravenProfileSources(serviceId, channel);
+      for (const source of sources) {
+        const upstream = await fetch(source.url, {
+          headers: { Accept: "application/octet-stream, text/plain, */*" },
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!upstream.ok) {
+          throw new Error(`Raven ${channel} profile returned HTTP ${upstream.status}.`);
+        }
+        const bytes = Buffer.from(await upstream.arrayBuffer());
+        if (!bytes.length || bytes.length > 1_048_576) {
+          throw new Error(`Raven ${channel} profile size is invalid.`);
+        }
+        const protocol = channel;
+        const serverNumber = entries.filter((entry) => entry.protocol === protocol).length + 1;
+        entries.push({
+          protocol,
+          config: bytes.toString("utf8").replace(/^\uFEFF/, ""),
+          serverId: `raven-${createHash("sha256")
+            .update(`${serviceId}:${source.provider_key}:${channel}:${source.index}:${source.url}`)
+            .digest("hex")
+            .slice(0, 24)}`,
+          serverName: `${channel === "wireguard" ? "WireGuard" : "OpenVPN"} ${serverNumber}`,
+        });
+      }
+    }
+
     if (service.ipsec_enabled) {
       const ipsec = await loadSavedIpsecDelivery(serviceId);
       if (ipsec) {
@@ -3766,9 +3937,19 @@ router.patch("/panels/:key", requireMasterAdmin, async (req, res): Promise<void>
        username_env = NULL,
        password_env = NULL,
        api_key_env = NULL,
-       username_secret = COALESCE(NULLIF($4, ''), username_secret),
-       password_secret = COALESCE(NULLIF($5, ''), password_secret),
-       api_key_secret = COALESCE(NULLIF($6, ''), api_key_secret),
+       username_secret = CASE
+         WHEN COALESCE(NULLIF($2, ''), kind) = 'raven' THEN NULL
+         ELSE COALESCE(NULLIF($4, ''), username_secret)
+       END,
+       password_secret = CASE
+         WHEN COALESCE(NULLIF($2, ''), kind) = 'raven' THEN NULL
+         ELSE COALESCE(NULLIF($5, ''), password_secret)
+       END,
+       api_key_secret = CASE
+         WHEN COALESCE(NULLIF($2, ''), kind) IN ('falcon', 'raven')
+           THEN COALESCE(NULLIF($6, ''), api_key_secret)
+         ELSE NULL
+       END,
        settings_json = COALESCE($7::jsonb, settings_json),
        updated_at = NOW()
       WHERE key = $8
@@ -6217,7 +6398,7 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
      res.status(201).json(CreateServiceResponse.parse({
        service: fresh.rows[0],
        sale_id: saleId,
-       sync_status: failedProviderKeys.length || !awg.clientId ? "partial" : "completed",
+       sync_status: failedProviderKeys.length || providerWarning || !awg.clientId ? "partial" : "completed",
      }));
   } catch (error) {
     try {
@@ -6686,8 +6867,11 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       .map((result) => ({
         key: result.key,
         detail: result.error ?? `HTTP ${result.status}`,
+        retryable: result.retryable !== false,
       }));
-    failedProviderKeys = failed.map((result) => result.key);
+    // A Raven failure after its reset request may already have consumed quota credit.
+    // Do not automatically replay that billable renewal step.
+    failedProviderKeys = failed.filter((result) => result.retryable).map((result) => result.key);
     providerWarning = failed.map((result) => `${result.key}: ${result.detail}`).join(" · ") || null;
   } catch (error) {
     if (error instanceof RainApiError) {

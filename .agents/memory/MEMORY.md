@@ -64,3 +64,4 @@
 - [sing-box IPv6 interface prefixes](singbox-ipv6-interface-prefixes.md) — remove Android IPv6 zone IDs before serializing interface addresses as prefixes, or Go netip can abort the native process.
 - [sing-box hostname bootstrap DNS](singbox-hostname-bootstrap-dns.md) — resolve proxy hosts on the physical network and pin their IP without losing TLS SNI/Host.
 - [Android release build resilience](android-release-build-resilience.md) — after interrupted Gradle/CMake builds, verify the APK version and signature; never hand out a stale artifact.
+- [Raven provider policy](raven-provider-policy.md) — configure channels for new Raven services; quote before renewal reset and avoid automatic replay after a possibly applied reset.

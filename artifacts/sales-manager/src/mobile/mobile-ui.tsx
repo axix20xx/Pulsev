@@ -127,6 +127,7 @@ type MobileOpenVpnDelivery = {
   bundle_url: string;
   bundle_import_url: string;
   locations: MobileOpenVpnLocation[];
+  raven_profiles?: Array<{ name: string; filename: string; download_url: string }>;
 };
 
 type MobileWireGuardDelivery = {
@@ -143,6 +144,7 @@ type MobileWireGuardDelivery = {
   }>;
   provider_errors?: Array<{ provider_key: string; provider_label: string; error: string }>;
   locations: Array<{ id: string; name: string; config_url: string; mobileconfig_url: string; provider_key?: string; provider_label?: string }>;
+  raven_profiles?: Array<{ name: string; filename: string; download_url: string }>;
 };
 
 type MobileIpsecDelivery = {
@@ -491,6 +493,16 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
         </button>;
       })}</div>
       {!protocolDefinitions.length ? <p className="mobile-protocol-empty">برای این اشتراک، پروتکل قابل استفاده‌ای در دسترس نیست.</p> : null}
+      {isIOSDevice && openVpnToken && item.status === 'active' ? <div className="mobile-ios-profile-action">
+        <a
+          className="mobile-openvpn-primary"
+          href={`/api/public/subscription/${encodeURIComponent(openVpnToken)}/all/mobileconfig`}
+          data-testid={`link-mobile-install-all-ios-profile-${item.id}`}
+        >
+          <Download size={15} /> نصب یک‌جای VPNهای پشتیبانی‌شده · iOS
+        </a>
+        <p className="mobile-openvpn-hint">این پروفایل کانفیگ‌های آمادهٔ OpenVPN، WireGuard، AmneziaWG و IPsec را یک‌جا نصب می‌کند. V2Box/Xray و DNS بازی جداگانه‌اند و داخل پروفایل VPN قرار نمی‌گیرند.</p>
+      </div> : null}
     </section>
     {selectedProtocolDefinition ? <section className="mobile-app-picker" data-testid={`panel-mobile-app-picker-${item.id}`}>
       <div className="mobile-connection-card-head"><span className="mobile-connection-icon"><Smartphone size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ دوم · {selectedProtocolDefinition.name}</span><h3>برنامهٔ دستگاه را انتخاب کنید</h3><p>{devicePlatform === 'unknown' ? 'سیستم‌عامل دستگاه به‌طور قطعی تشخیص داده نشد؛ برنامه‌های iOS و Android نمایش داده می‌شوند.' : `دستگاه شناسایی‌شده: ${deviceLabel}؛ برنامه‌های سازگار فیلتر شده‌اند.`}</p></div></div>
@@ -519,21 +531,22 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
       {selectedConfigApp === 'openvpn' && openVpnToken && item.status === 'active' ? <section className="mobile-openvpn-card" data-testid={`panel-mobile-openvpn-${item.id}`}>
         <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><ShieldCheck size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ سوم · سرورهای OpenVPN</span><h3>OpenVPN</h3><p>بازیابی حساب موجود؛ ساخت حساب فقط با انتخاب شما</p></div></div>
         {openVpnLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی حساب ذخیره‌شدهٔ OpenVPN...</div> : !openVpnData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareOpenVpn()} disabled={openVpnBusy} data-testid={`button-mobile-openvpn-prepare-${item.id}`}>{openVpnBusy ? 'در حال دریافت...' : 'بازیابی یا ساخت حساب OpenVPN'}</button> : <>
-         <div className="mobile-openvpn-details">
+         {(openVpnData.server || openVpnData.username || openVpnData.password) && <div className="mobile-openvpn-details">
            <div><span>آدرس سرور</span><strong dir="ltr">{openVpnData.server}</strong></div>
            <div><span>نام کاربری</span><strong dir="ltr">{openVpnData.username}</strong><button type="button" onClick={() => void copyValue(openVpnData.username, 'نام کاربری OpenVPN')}>کپی</button></div>
            <div><span>رمز عبور</span><strong dir="ltr">{openVpnData.password}</strong><button type="button" onClick={() => void copyValue(openVpnData.password, 'رمز OpenVPN')}>کپی</button></div>
-         </div>
-          <a className="mobile-openvpn-download primary" href={openVpnData.bundle_url} download={`Pulse-OpenVPN-${item.id}-all.ovpn`} data-testid={`link-mobile-openvpn-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ فایل‌ها · .ovpn</a>
+         </div>}
+          {openVpnData.bundle_url && <a className="mobile-openvpn-download primary" href={openVpnData.bundle_url} download={`Pulse-OpenVPN-${item.id}-all.ovpn`} data-testid={`link-mobile-openvpn-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ فایل‌ها · .ovpn</a>}
           {openVpnBundleImportHref && <a className="mobile-openvpn-primary" href={openVpnBundleImportHref} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-connect-${item.id}`}><ExternalLink size={14} /> واردکردن همه در OpenVPN Connect</a>}
-         <div className="mobile-openvpn-locations">{openVpnData.locations.map((location) => {
+         {openVpnData.locations.length ? <div className="mobile-openvpn-locations">{openVpnData.locations.map((location) => {
            const importHref = openVpnConnectImportUrl(location.import_url, window.location.origin);
            return <div className="mobile-openvpn-location" key={location.id}>
              <span>{location.name}</span>
               {importHref && <a href={importHref} referrerPolicy="no-referrer" data-testid={`link-mobile-openvpn-import-connect-${item.id}-${location.id}`}><ExternalLink size={13} />واردکردن</a>}
               <a href={location.config_url} download={`Pulse-OpenVPN-${location.id}.ovpn`} data-testid={`link-mobile-openvpn-config-${item.id}-${location.id}`}><Download size={13} />دانلود .ovpn</a>
            </div>;
-         })}</div>
+         })}</div> : null}
+         {openVpnData.raven_profiles?.length ? <div className="mobile-openvpn-locations"><strong>فایل‌های سرور</strong>{openVpnData.raven_profiles.map((profile) => <div className="mobile-openvpn-location" key={profile.download_url}><span>{profile.name}</span><a href={profile.download_url} download={profile.filename}><Download size={13} />دانلود .ovpn</a></div>)}</div> : null}
          <div className="mobile-openvpn-app-links"><a href="https://apps.apple.com/us/app/openvpn-connect-openvpn-app/id590379981" target="_blank" rel="noreferrer">OpenVPN Connect برای iOS <ExternalLink size={13} /></a><a href="https://play.google.com/store/apps/details?id=net.openvpn.openvpn" target="_blank" rel="noreferrer">OpenVPN Connect برای Android <ExternalLink size={13} /></a></div>
          <p className="mobile-openvpn-hint">دکمهٔ واردکردن، لینک امن پروفایل همین اشتراک را برای OpenVPN Connect باز می‌کند. اگر برنامه روی دستگاه شما باز نشد یا نصب نیست، فایل .ovpn سرور را دانلود و از داخل برنامه وارد کنید.</p>
        </>}
@@ -542,8 +555,8 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
        {selectedConfigApp === 'wireguard' && item.wireguard_available && item.status === 'active' ? <section className="mobile-openvpn-card mobile-wireguard-card" data-testid={`panel-mobile-wireguard-${item.id}`}>
          <div className="mobile-connection-card-head"><span className="mobile-openvpn-icon"><Wifi size={19} /></span><div><span className="mobile-eyebrow">مرحلهٔ سوم · سرورهای WireGuard</span><h3>WireGuard</h3><p>ساخت کانفیگ فقط با انتخاب شما انجام می‌شود.</p></div></div>
         {wireguardLoading ? <div className="mobile-openvpn-loading" role="status"><RefreshCw size={15} className="public-sub-spin" />در حال بررسی کانفیگ ذخیره‌شدهٔ WireGuard...</div> : !wireguardData ? <button type="button" className="mobile-openvpn-primary" onClick={() => void prepareWireGuard()} disabled={wireguardBusy} data-testid={`button-mobile-wireguard-create-${item.id}`}>{wireguardBusy ? 'در حال آماده‌سازی...' : 'ساخت یا دریافت کانفیگ WireGuard'}</button> : <>
-          <a className="mobile-openvpn-download primary" href={wireguardData.bundle_url} download={`Pulse-WireGuard-${item.id}-servers.zip`} data-testid={`link-mobile-wireguard-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ سرورها · ZIP کانفیگ‌های .conf</a>
-          {isIOSDevice ? <a className="mobile-openvpn-primary" href={wireguardData.bundle_mobileconfig_url} data-testid={`link-mobile-wireguard-ios-all-profile-${item.id}`}><Download size={15} /> نصب همهٔ سرورها در یک پروفایل iOS</a> : null}
+          {wireguardData.bundle_url && <a className="mobile-openvpn-download primary" href={wireguardData.bundle_url} download={`Pulse-WireGuard-${item.id}-servers.zip`} data-testid={`link-mobile-wireguard-bundle-${item.id}`}><Download size={15} /> دانلود همهٔ سرورها · ZIP کانفیگ‌های .conf</a>}
+          {isIOSDevice && wireguardData.bundle_mobileconfig_url ? <a className="mobile-openvpn-primary" href={wireguardData.bundle_mobileconfig_url} data-testid={`link-mobile-wireguard-ios-all-profile-${item.id}`}><Download size={15} /> نصب همهٔ سرورها در یک پروفایل iOS</a> : null}
           {wireguardData.providers?.length ? <div className="mobile-openvpn-locations">
             <strong>سرورهای WireGuard</strong>
             {wireguardData.providers.flatMap((provider) => provider.locations.map((location) => ({ providerKey: provider.provider_key, location }))).map(({ providerKey, location }, index) => {
@@ -555,7 +568,8 @@ export function AccessActions({ item }: { item: MobileSubscription }) {
                 {isIOSDevice && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-server-${fileNumber}.mobileconfig`} data-testid={`link-mobile-wireguard-ios-profile-${item.id}-${fileNumber}`}>نصب iOS</a>}
               </div>;
             })}
-          </div> : <div className="mobile-openvpn-locations"><strong>سرورهای WireGuard</strong>{wireguardData.locations.map((location, index) => <div className="mobile-openvpn-location" key={`${location.provider_key ?? 'wireguard'}-${location.id}`}><span>{location.name}</span><a href={location.config_url} download={`Pulse-WireGuard-server-${index + 1}.conf`} data-testid={`link-mobile-wireguard-config-${item.id}-${index + 1}`}><Download size={13} />دانلود .conf</a>{isIOSDevice && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-server-${index + 1}.mobileconfig`} data-testid={`link-mobile-wireguard-ios-profile-${item.id}-${index + 1}`}>نصب iOS</a>}</div>)}</div>}
+          </div> : wireguardData.locations.length ? <div className="mobile-openvpn-locations"><strong>سرورهای WireGuard</strong>{wireguardData.locations.map((location, index) => <div className="mobile-openvpn-location" key={`${location.provider_key ?? 'wireguard'}-${location.id}`}><span>{location.name}</span><a href={location.config_url} download={`Pulse-WireGuard-server-${index + 1}.conf`} data-testid={`link-mobile-wireguard-config-${item.id}-${index + 1}`}><Download size={13} />دانلود .conf</a>{isIOSDevice && <a href={location.mobileconfig_url} download={`Pulse-WireGuard-server-${index + 1}.mobileconfig`} data-testid={`link-mobile-wireguard-ios-profile-${item.id}-${index + 1}`}>نصب iOS</a>}</div>)}</div> : null}
+          {wireguardData.raven_profiles?.length ? <div className="mobile-openvpn-locations"><strong>فایل‌های سرور</strong>{wireguardData.raven_profiles.map((profile) => <div className="mobile-openvpn-location" key={profile.download_url}><span>{profile.name}</span><a href={profile.download_url} download={profile.filename}><Download size={13} />دانلود .conf</a></div>)}</div> : null}
           <div className="mobile-openvpn-app-links"><a href="https://apps.apple.com/us/app/wireguard/id1441195209" target="_blank" rel="noreferrer">WireGuard برای iOS <ExternalLink size={13} /></a><a href="https://play.google.com/store/apps/details?id=com.wireguard.android" target="_blank" rel="noreferrer">WireGuard برای Android <ExternalLink size={13} /></a></div>
           <p className="mobile-openvpn-hint">در iPhone/iPad، نصب پروفایل تکی یا «نصب همهٔ سرورها» را بزنید و در Settings → Profile Downloaded تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. پروفایل چندسروره تونل‌های جداگانه را یک‌جا اضافه می‌کند؛ در برنامه هر بار یکی را فعال کنید. فایل .conf نیز برای واردکردن دستی موجود است. کلید خصوصی را محرمانه نگه دارید.</p>
         </>}

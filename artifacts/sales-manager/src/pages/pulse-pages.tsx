@@ -3870,10 +3870,9 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
           enabled: panel.enabled,
           kind: String(panel.kind || '').trim().toLowerCase(),
           api_base: String(panel.api_base || '').trim(),
-          username: panel.username || '',
-          password: panel.password || '',
-          api_key: panel.api_key || '',
-          ...(panel.kind === 'raven' ? { channels: panel.channels || defaultRavenChannels } : {}),
+          ...(panel.kind === 'raven'
+            ? { api_key: panel.api_key || '', channels: panel.channels || defaultRavenChannels }
+            : { username: panel.username || '', password: panel.password || '', api_key: panel.api_key || '' }),
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -4008,7 +4007,14 @@ function ProviderManagementEditor({ resellers: _resellers }: { resellers: PulseC
             <div className="ax-provider-fields">
               <label className="ax-field">
                 <span>نوع Provider</span>
-                <select dir="ltr" value={panel.kind} onChange={(event) => edit(panel.key, 'kind', event.target.value)}>
+                <select dir="ltr" value={panel.kind} onChange={(event) => setItems((current) => current.map((item) => item.key === panel.key ? {
+                  ...item,
+                  kind: event.target.value,
+                  ...(event.target.value === 'raven' ? {
+                    api_base: item.api_base || 'https://su.randomatic.ir/api/v1',
+                    channels: item.channels || defaultRavenChannels,
+                  } : {}),
+                } : item))}>
                   <option value="rain_admin">Rain Admin</option>
                   <option value="rain_admin_wireguard">Rain Admin · WireGuard</option>
                   <option value="marzban">Marzban</option>
