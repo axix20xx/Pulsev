@@ -288,7 +288,7 @@
   .ax-sidebar { display: none; }
   .ax-main, .ax-shell.is-collapsed .ax-main { margin-right: 0; }
   .ax-header-menu { display: inline-grid; }
-  .ax-search { display: none; }
+  .ax-header > .ax-search { display: none; }
   .ax-search.is-open { position: absolute; inset: 10px 12px; z-index: 5; display: flex; width: auto; }
   .ax-search-toggle { display: inline-grid !important; }
   .ax-profile-btn .ax-profile-copy, .ax-profile-btn > svg, .ax-crumbs { display: none !important; }
