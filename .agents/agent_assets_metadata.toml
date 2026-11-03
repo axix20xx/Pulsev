@@ -2466,3 +2466,17 @@ mtime_ms = 1793626182948
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/1986f9d6-2768-49cf-84e3-20deff0c69a1/cb984e08-5328-44d0-8a3e-d02a4825be5f"
 storage_version_token = "1793626209880607"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "QscpgYkCcSdQoafXDtGOs"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-03T15-12-27-719Z.zip"
+type = "unspecified"
+title = "Hostinger deployment ZIP"
+description = "Full Hostinger migration package with the permanent customer-code fix. Release validation passed."
+logical_id = "348eb23c-730d-4837-971a-0b300aa59567"
+content_hash = "sha256:854496f68844ed20c4b88d911ea641aeec581bb35695b5371a89e4ac4d773359"
+size = 29192706
+mtime_ms = 1793718851659
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/348eb23c-730d-4837-971a-0b300aa59567/82f2a235-8b08-468f-9f1a-1c3f21074684"
+storage_version_token = "1793718895354458"
+content_type = "application/octet-stream"

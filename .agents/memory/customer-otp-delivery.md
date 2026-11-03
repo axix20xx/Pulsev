@@ -3,8 +3,8 @@ name: Customer OTP delivery
 description: The current customer login verification flow and its delivery boundary.
 ---
 
-Customer login uses a database-backed, four-digit, non-expiring OTP challenge that remains valid for repeated logins until a newer code is generated. Until a real SMS or messaging provider is connected, a reseller or master admin can generate the code from the customer profile or receive it in the post-sale/renewal delivery message.
+Customer login uses a database-backed, four-digit reusable code that never expires and is replaced only by an explicit reseller/master-admin action. New codes are encrypted at rest so the same code can be shown again. During upgrade, the latest legacy hash-only code is preserved and made reusable; because hashes cannot be reversed, it remains valid but cannot be displayed until the reseller explicitly creates a replacement. The encryption key derives from `SESSION_SECRET`, which must remain stable.
 
-**Why:** The workspace has no SMS provider configured, but customer login must not fall back to passwordless phone-only access; master admins also need to support customer onboarding from Hostinger.
+**Why:** Until a real SMS or messaging provider is connected, a reseller or master admin must be able to deliver the code directly and customers must not lose access on refresh or after logging in once.
 
-**How to apply:** Preserve four-digit validation, failed-attempt limits, phone/customer binding, ownership checks, and invalidation when a newer code is generated. A future SMS integration should replace only delivery, not the reusable-code verification semantics.
+**How to apply:** Preserve four-digit validation, failed-attempt limits, phone/customer binding, ownership checks, and existing mobile-session contracts. Never rotate a code during customer page loads, service creation, or renewal; only the explicit “new code” action invalidates the previous code. A future SMS integration should replace only delivery, not the reusable-code verification semantics.

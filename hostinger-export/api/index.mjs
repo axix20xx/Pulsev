@@ -75213,23 +75213,42 @@ pool.on("error", (error40) => {
 var db = drizzle(pool, { schema: schema_exports });
 
 // src/lib/mobile-otp.ts
-import { createHash, createHmac, randomBytes, randomInt } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  randomInt
+} from "node:crypto";
 var mobileOtpReady = pool.query(`
   CREATE TABLE IF NOT EXISTS mobile_login_otps (
     id TEXT PRIMARY KEY,
     customer_id BIGINT NOT NULL,
     phone TEXT NOT NULL,
     otp_hash TEXT NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
+    otp_ciphertext TEXT,
+    is_permanent BOOLEAN NOT NULL DEFAULT FALSE,
+    expires_at TIMESTAMP,
     attempts SMALLINT NOT NULL DEFAULT 0,
     used_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   );
   ALTER TABLE mobile_login_otps ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
-  UPDATE mobile_login_otps
-     SET expires_at = NOW(), used_at = COALESCE(used_at, NOW())
-   WHERE expires_at IS NULL;
-  ALTER TABLE mobile_login_otps ALTER COLUMN expires_at SET NOT NULL;
+  ALTER TABLE mobile_login_otps ADD COLUMN IF NOT EXISTS otp_ciphertext TEXT;
+  ALTER TABLE mobile_login_otps
+    ADD COLUMN IF NOT EXISTS is_permanent BOOLEAN NOT NULL DEFAULT FALSE;
+  ALTER TABLE mobile_login_otps ALTER COLUMN expires_at DROP NOT NULL;
+  WITH latest_customer_codes AS (
+    SELECT DISTINCT ON (customer_id, phone) id
+    FROM mobile_login_otps
+    ORDER BY customer_id, phone, created_at DESC, id DESC
+  )
+  UPDATE mobile_login_otps AS otp
+     SET is_permanent = TRUE, expires_at = NULL, used_at = NULL
+    FROM latest_customer_codes
+   WHERE otp.id = latest_customer_codes.id
+     AND otp.is_permanent = FALSE;
   CREATE INDEX IF NOT EXISTS mobile_login_otps_lookup_idx
     ON mobile_login_otps (customer_id, phone, expires_at DESC);
   CREATE TABLE IF NOT EXISTS mobile_auth_rate_limits (
@@ -75241,13 +75260,32 @@ var mobileOtpReady = pool.query(`
   CREATE INDEX IF NOT EXISTS mobile_auth_rate_limits_window_idx
     ON mobile_auth_rate_limits (window_started_at);
 `);
-var MOBILE_OTP_LIFETIME_MS = 5 * 6e4;
 var RATE_LIMIT_WINDOW_MS = 15 * 6e4;
 var lastRateLimitCleanupAt = 0;
 var hashOtp = (challengeId, otp) => createHash("sha256").update(`${challengeId}:${otp}`).digest("hex");
+var otpEncryptionKey = () => {
+  const secret = process.env.SESSION_SECRET?.trim();
+  if (!secret) throw new Error("SESSION_SECRET is required to protect customer login codes.");
+  return createHash("sha256").update(`pulse-customer-mobile-otp\0${secret}`).digest();
+};
+function encryptMobileOtp(otp) {
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", otpEncryptionKey(), nonce);
+  const encrypted = Buffer.concat([cipher.update(otp, "utf8"), cipher.final()]);
+  return Buffer.concat([nonce, cipher.getAuthTag(), encrypted]).toString("base64url");
+}
+function decryptMobileOtp(encrypted) {
+  const payload = Buffer.from(encrypted, "base64url");
+  if (payload.length < 29) throw new Error("Stored customer login code is invalid.");
+  const nonce = payload.subarray(0, 12);
+  const tag = payload.subarray(12, 28);
+  const decipher = createDecipheriv("aes-256-gcm", otpEncryptionKey(), nonce);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(payload.subarray(28)), decipher.final()]).toString("utf8");
+}
 function mobileOtpRowValid(row, otp, nowMs = Date.now()) {
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : Number.NaN;
-  return Number(row.attempts) < 5 && !row.used_at && Number.isFinite(expiresAt) && expiresAt > nowMs && hashOtp(row.id, otp) === row.otp_hash;
+  return Number(row.attempts) < 5 && (row.is_permanent === true || !row.used_at && Number.isFinite(expiresAt) && expiresAt > nowMs) && hashOtp(row.id, otp) === row.otp_hash;
 }
 var allowMobileAuthAttempt = async (purpose, phoneKey, ipAddress) => {
   await mobileOtpReady;
@@ -75299,28 +75337,70 @@ var allowMobileAuthAttempt = async (purpose, phoneKey, ipAddress) => {
   }
   return { allowed, retryAfterSeconds };
 };
-var issueMobileOtp = async (customerId2, phone) => {
+var issueMobileOtp = async (customerId2, phone, forceNew = false) => {
   await mobileOtpReady;
-  const challengeId = randomBytes(24).toString("hex");
-  const otp = String(randomInt(1e3, 1e4));
-  await pool.query(
-    `UPDATE mobile_login_otps
-     SET used_at = COALESCE(used_at, NOW())
-     WHERE customer_id = $1 AND phone = $2 AND used_at IS NULL`,
-    [customerId2, phone]
-  );
-  const inserted = await pool.query(
-    `INSERT INTO mobile_login_otps (id, customer_id, phone, otp_hash, expires_at)
-     VALUES ($1, $2, $3, $4, NOW() + INTERVAL '5 minutes')
-     RETURNING expires_at`,
-    [challengeId, customerId2, phone, hashOtp(challengeId, otp)]
-  );
-  const expiresAt = inserted.rows[0]?.expires_at ?? new Date(Date.now() + MOBILE_OTP_LIFETIME_MS);
-  return {
-    challengeId,
-    otp,
-    expiresAt: new Date(expiresAt).toISOString()
-  };
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtext($1)::bigint)",
+      [`customer-mobile-otp:${customerId2}:${phone}`]
+    );
+    const existing = await client.query(
+      `SELECT id, otp_ciphertext, attempts
+       FROM mobile_login_otps
+       WHERE customer_id = $1 AND phone = $2
+         AND is_permanent = TRUE
+       ORDER BY created_at DESC
+       LIMIT 1
+       FOR UPDATE`,
+      [customerId2, phone]
+    );
+    const current = existing.rows[0];
+    if (!forceNew && current?.otp_ciphertext) {
+      const otp2 = decryptMobileOtp(current.otp_ciphertext);
+      await client.query("COMMIT");
+      return {
+        challengeId: current.id,
+        otp: otp2,
+        expiresAt: null,
+        reused: true,
+        locked: Number(current.attempts) >= 5
+      };
+    }
+    if (!forceNew && current) {
+      await client.query("COMMIT");
+      return {
+        challengeId: current.id,
+        otp: null,
+        expiresAt: null,
+        reused: true,
+        legacy: true,
+        locked: Number(current.attempts) >= 5
+      };
+    }
+    const challengeId = randomBytes(24).toString("hex");
+    const otp = String(randomInt(1e3, 1e4));
+    await client.query(
+      `UPDATE mobile_login_otps
+       SET used_at = COALESCE(used_at, NOW())
+       WHERE customer_id = $1 AND phone = $2 AND used_at IS NULL`,
+      [customerId2, phone]
+    );
+    await client.query(
+      `INSERT INTO mobile_login_otps
+         (id, customer_id, phone, otp_hash, otp_ciphertext, is_permanent, expires_at)
+       VALUES ($1, $2, $3, $4, $5, TRUE, NULL)`,
+      [challengeId, customerId2, phone, hashOtp(challengeId, otp), encryptMobileOtp(otp)]
+    );
+    await client.query("COMMIT");
+    return { challengeId, otp, expiresAt: null, reused: false, legacy: false, locked: false };
+  } catch (error40) {
+    await client.query("ROLLBACK").catch(() => void 0);
+    throw error40;
+  } finally {
+    client.release();
+  }
 };
 var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
   await mobileOtpReady;
@@ -75334,7 +75414,7 @@ var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
        WHERE customer_id = $1
          AND phone = $2
          AND used_at IS NULL
-         AND expires_at > NOW()
+         AND (expires_at IS NULL OR expires_at > NOW())
          AND attempts < 5
        ORDER BY created_at DESC
        LIMIT 1
@@ -75358,8 +75438,11 @@ var consumeMobileOtp = async (challengeId, customerId2, phone, otp) => {
     }
     const consumed = await client.query(
       `UPDATE mobile_login_otps
-       SET used_at = NOW(), attempts = 0
-       WHERE id = $1 AND used_at IS NULL AND expires_at > NOW()
+       SET used_at = CASE WHEN is_permanent THEN NULL ELSE NOW() END,
+           attempts = 0
+       WHERE id = $1
+         AND (is_permanent = TRUE OR used_at IS NULL)
+         AND (expires_at IS NULL OR expires_at > NOW())
        RETURNING id`,
       [row.id]
     );
@@ -75630,7 +75713,7 @@ function requireMasterAdmin(req, res, next) {
 import { randomBytes as randomBytes5 } from "node:crypto";
 
 // src/lib/panel-credentials.ts
-import { createCipheriv, createDecipheriv, createHash as createHash3, randomBytes as randomBytes3 } from "node:crypto";
+import { createCipheriv as createCipheriv2, createDecipheriv as createDecipheriv2, createHash as createHash3, randomBytes as randomBytes3 } from "node:crypto";
 var version3 = "v1";
 function encryptionKey() {
   const secret = process.env.SESSION_SECRET?.trim();
@@ -75641,7 +75724,7 @@ function encryptionKey() {
 }
 function encryptPanelCredential(value) {
   const iv = randomBytes3(12);
-  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const cipher = createCipheriv2("aes-256-gcm", encryptionKey(), iv);
   const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return [version3, iv.toString("base64url"), tag.toString("base64url"), encrypted.toString("base64url")].join(".");
@@ -75651,7 +75734,7 @@ function decryptPanelCredential(value) {
   try {
     const [storedVersion, ivValue, tagValue, encryptedValue] = value.split(".");
     if (storedVersion !== version3 || !ivValue || !tagValue || !encryptedValue) return void 0;
-    const decipher = createDecipheriv(
+    const decipher = createDecipheriv2(
       "aes-256-gcm",
       encryptionKey(),
       Buffer.from(ivValue, "base64url")
@@ -91026,11 +91109,19 @@ router2.post("/customers/:id/mobile-otp", requireAuth, async (req, res) => {
     res.status(404).json({ error: "\u0645\u0634\u062A\u0631\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F" });
     return;
   }
-  const challenge = await issueMobileOtp(Number(customer.id), customer.phone);
+  const challenge = await issueMobileOtp(
+    Number(customer.id),
+    customer.phone,
+    req.body?.regenerate === true
+  );
   res.json({
     customer: { id: String(customer.id), name: customer.name, phone: customer.phone },
     otp: challenge.otp,
-    expires_at: null
+    expires_at: challenge.expiresAt,
+    permanent: true,
+    reused: challenge.reused,
+    legacy: challenge.legacy ?? false,
+    locked: challenge.locked
   });
 });
 router2.get("/resellers", requireMasterAdmin, async (_req, res) => {

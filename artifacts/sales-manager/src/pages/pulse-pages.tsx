@@ -112,14 +112,16 @@ const fetchCustomerCrm = async (id: number, page = 1) => {
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'اطلاعات CRM دریافت نشد.');
   return response.json();
 };
-const generateCustomerMobileOtp = async (id: number) => {
+const generateCustomerMobileOtp = async (id: number, regenerate = false) => {
   const response = await fetch(`/api/customers/${id}/mobile-otp`, {
     method: 'POST',
     credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(regenerate ? { regenerate: true } : {}),
   });
   const body = await response.json().catch(() => null);
   if (!response.ok) throw new Error(body?.error || 'کد ورود ساخته نشد.');
-  return body as { otp: string; expires_at: null; customer: { phone: string } };
+  return body as { otp: string | null; expires_at: null; permanent: true; reused: boolean; legacy: boolean; locked: boolean; customer: { phone: string } };
 };
 type MobileOtpAccess = { phone?: string | null; otp?: string | null };
 const mobilePortalUrl = () => new URL('/mobile', window.location.origin).toString();
@@ -1235,7 +1237,7 @@ function PointOfSaleContent() {
       });
        try {
          const mobileAccess = await generateCustomerMobileOtp(Number(service.customerId));
-         setMobileOtp(mobileAccess.otp);
+         setMobileOtp(mobileAccess.otp ?? '');
          setMobileOtpPhone(mobileAccess.customer.phone);
        } catch {
          setMobileOtp('');
@@ -1479,7 +1481,7 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
       });
        try {
          const mobileAccess = await generateCustomerMobileOtp(Number(service.customerId));
-         setMobileOtp(mobileAccess.otp);
+         setMobileOtp(mobileAccess.otp ?? '');
          setMobileOtpPhone(mobileAccess.customer.phone);
        } catch {
          setMobileOtp('');
@@ -1602,7 +1604,7 @@ function LegacyServiceModal({ onClose }: { onClose: () => void }) {
       const service = await createService({ customer_name: form.customerName.trim(), phone: form.phone.trim(), label: form.label.trim(), gb: Number(form.gb), days: Number(form.days), sell_price: form.sellPrice !== '' ? Number(form.sellPrice) : isReseller && lockedSellPrice > 0 ? lockedSellPrice : null, is_paid: form.isPaid });
        try {
          const mobileAccess = await generateCustomerMobileOtp(Number(service.customerId));
-         setMobileOtp(mobileAccess.otp);
+         setMobileOtp(mobileAccess.otp ?? '');
          setMobileOtpPhone(mobileAccess.customer.phone);
        } catch {
          setMobileOtp('');
@@ -1650,7 +1652,7 @@ function RenewWizard({ service, onClose, onRenew }: { service: Service; onClose:
     return () => window.clearInterval(timer);
   }, [submitting]);
   const suggestedPrice = Number(session?.customer_price_per_gb ?? 0) * Number(gb || 0);
-  const submit = async () => { setSubmitting(true); setError(''); try { const parsedSellPrice = sellPrice.trim() === '' ? null : Number(sellPrice); const result = await onRenew(service, Number(days), Number(gb), parsedSellPrice, isPaid, renewalRequestId); try { const mobileAccess = await generateCustomerMobileOtp(Number(result.customerId)); setMobileOtp(mobileAccess.otp); setMobileOtpPhone(mobileAccess.customer.phone); } catch { setError('تمدید انجام شد؛ ساخت کد ورود موبایل را از صفحه مشتری انجام دهید.'); } setRenewed(result); } catch (cause) { setError(describeApiError(cause)); } finally { setSubmitting(false); } };
+  const submit = async () => { setSubmitting(true); setError(''); try { const parsedSellPrice = sellPrice.trim() === '' ? null : Number(sellPrice); const result = await onRenew(service, Number(days), Number(gb), parsedSellPrice, isPaid, renewalRequestId); try { const mobileAccess = await generateCustomerMobileOtp(Number(result.customerId)); setMobileOtp(mobileAccess.otp ?? ''); setMobileOtpPhone(mobileAccess.customer.phone); } catch { setError('تمدید انجام شد؛ ساخت کد ورود موبایل را از صفحه مشتری انجام دهید.'); } setRenewed(result); } catch (cause) { setError(describeApiError(cause)); } finally { setSubmitting(false); } };
   if (submitting) {
     const phase = renewSeconds < 2 ? 0 : renewSeconds < 7 ? 1 : renewSeconds < 13 ? 2 : 3;
     const phases = [
@@ -2524,12 +2526,16 @@ function CustomerDetailContent() {
    const [serviceIssueFilter, setServiceIssueFilter] = useState('all');
   const [serviceSearch, setServiceSearch] = useState('');
    const [mobileOtp, setMobileOtp] = useState('');
+    const [mobileOtpLegacy, setMobileOtpLegacy] = useState(false);
    const [mobileOtpLoading, setMobileOtpLoading] = useState(false);
    const mobileOtpAutoIssuedRef = useRef<number | null>(null);
   useEffect(() => {
     setServiceTab('active');
      setServiceIssueFilter('all');
     setServiceSearch('');
+     setMobileOtp('');
+     setMobileOtpLegacy(false);
+     mobileOtpAutoIssuedRef.current = null;
   }, [id]);
   const visibleCustomerServices = allCustomerServices.filter((service) => {
     const isActive = service.status === 'Active' || service.status === 'Expiring';
@@ -2542,7 +2548,7 @@ function CustomerDetailContent() {
   const customerServices = {
     length: visibleCustomerServices.length,
     map: (render: (service: Service) => ReactNode) => [
-       (session?.role === 'reseller' || session?.role === 'master_admin') ? <div className="ax-customer-mobile-otp-action" key="customer-mobile-otp"><Button variant="secondary" onClick={() => void requestMobileOtp()} disabled={mobileOtpLoading}><KeyRound size={14} />{mobileOtpLoading ? 'در حال ساخت کد...' : mobileOtp ? 'ساخت کد تازه' : 'ساخت کد ورود موبایل'}</Button>{allCustomerServices[0] ? <Button variant="quiet" onClick={() => void copyTextToClipboard(customerWhatsAppMessage(allCustomerServices[0], Math.max(0, daysUntil(allCustomerServices[0].expiresAt)), { phone: customer?.phone, otp: mobileOtp }))}><Copy size={14} /> کپی پیام واتساپ</Button> : null}</div> : null,
+        (session?.role === 'reseller' || session?.role === 'master_admin') ? <div className="ax-customer-mobile-otp-action" key="customer-mobile-otp"><Button variant="secondary" onClick={() => regenerateOrLoadMobileOtp()} disabled={mobileOtpLoading}><KeyRound size={14} />{mobileOtpLoading ? 'در حال آماده‌سازی کد...' : mobileOtp || mobileOtpLegacy ? 'ساخت کد تازه' : 'کد ورود موبایل'}</Button>{allCustomerServices[0] ? <Button variant="quiet" disabled={!mobileOtp} onClick={() => void copyTextToClipboard(customerWhatsAppMessage(allCustomerServices[0], Math.max(0, daysUntil(allCustomerServices[0].expiresAt)), { phone: customer?.phone, otp: mobileOtp }))}><Copy size={14} /> کپی پیام واتساپ</Button> : null}</div> : null,
        <CustomerServiceControls key="customer-service-controls" services={allCustomerServices} tab={serviceTab} issueFilter={serviceIssueFilter} search={serviceSearch} onTabChange={setServiceTab} onIssueFilterChange={setServiceIssueFilter} onSearchChange={setServiceSearch} />,
       ...visibleCustomerServices.map(render),
     ],
@@ -2573,19 +2579,32 @@ function CustomerDetailContent() {
     });
     return () => { active = false; };
   }, [numericId, session?.authenticated]);
-   const requestMobileOtp = async () => {
+    const requestMobileOtp = async (regenerate = false) => {
      if (session?.role !== 'reseller' && session?.role !== 'master_admin' || !numericId) return;
      setMobileOtpLoading(true);
      try {
-       const result = await generateCustomerMobileOtp(numericId);
-       setMobileOtp(result.otp);
-       setNotice(`کد ورود ۴ رقمی مشتری ساخته شد: ${result.otp} · این کد دائمی است و تا زمان ساخت کد جدید قابل استفاده است.`);
+        const result = await generateCustomerMobileOtp(numericId, regenerate);
+        setMobileOtp(result.otp ?? '');
+        setMobileOtpLegacy(result.legacy);
+        const resultMessage = result.locked
+          ? 'تعداد تلاش‌های ورود با این کد به سقف مجاز رسیده؛ برای فعال‌کردن کد تازه، آن را دوباره بسازید.'
+          : result.legacy
+            ? 'کد قبلی مشتری حفظ شده و منقضی نمی‌شود؛ برای نمایش کد جدید، «ساخت کد تازه» را بزنید.'
+          : result.reused
+            ? 'کد دائمی فعلی مشتری بازیابی شد و تغییری نکرد.'
+            : 'کد ورود دائمی مشتری ساخته شد؛ تا زمانی که کد تازه نسازید معتبر می‌ماند.';
+        setNotice(result.otp ? `${resultMessage} کد: ${result.otp}` : resultMessage);
      } catch (cause) {
        setNotice(cause instanceof Error ? cause.message : 'ساخت کد ورود انجام نشد.');
      } finally {
        setMobileOtpLoading(false);
      }
    };
+    const regenerateOrLoadMobileOtp = () => {
+      const regenerate = Boolean(mobileOtp) || mobileOtpLegacy;
+      if (regenerate && !window.confirm('ساخت کد تازه، کد فعلی مشتری را نامعتبر می‌کند. ادامه می‌دهید؟')) return;
+      void requestMobileOtp(regenerate);
+    };
    useEffect(() => {
      const canIssue = session?.role === 'reseller' || session?.role === 'master_admin';
      if (!customer || !canIssue || !numericId || mobileOtpAutoIssuedRef.current === numericId) return;
@@ -2745,7 +2764,7 @@ function CustomerDetailContent() {
         </SectionPanel>
 
         <SectionPanel className="ax-customer-services-workspace" eyebrow="دسترسی‌ها" title="سرویس‌ها و اشتراک‌ها" description="مصرف، تمدید و لینک اتصال در یک پروندهٔ عملیاتی." action={<Link href="/services" className="ax-btn"><Plus size={14} /> ساخت سرویس</Link>}>
-          {(session?.role === 'reseller' || session?.role === 'master_admin') && <div className="ax-customer-profile-quick-actions"><Button variant="secondary" onClick={() => void requestMobileOtp()} disabled={mobileOtpLoading}><KeyRound size={14} />{mobileOtpLoading ? 'در حال ساخت کد...' : mobileOtp ? 'ساخت کد تازه' : 'کد ورود موبایل'}</Button>{allCustomerServices[0] && <Button variant="quiet" onClick={() => void copyTextToClipboard(customerWhatsAppMessage(allCustomerServices[0], Math.max(0, daysUntil(allCustomerServices[0].expiresAt)), { phone: customer?.phone, otp: mobileOtp }))}><Copy size={14} /> کپی پیام واتساپ</Button>}</div>}
+          {(session?.role === 'reseller' || session?.role === 'master_admin') && <div className="ax-customer-profile-quick-actions"><Button variant="secondary" onClick={regenerateOrLoadMobileOtp} disabled={mobileOtpLoading}><KeyRound size={14} />{mobileOtpLoading ? 'در حال آماده‌سازی کد...' : mobileOtp || mobileOtpLegacy ? 'ساخت کد تازه' : 'کد ورود موبایل'}</Button>{allCustomerServices[0] && <Button variant="quiet" disabled={!mobileOtp} onClick={() => void copyTextToClipboard(customerWhatsAppMessage(allCustomerServices[0], Math.max(0, daysUntil(allCustomerServices[0].expiresAt)), { phone: customer?.phone, otp: mobileOtp }))}><Copy size={14} /> کپی پیام واتساپ</Button>}</div>}
           <CustomerServiceControls services={allCustomerServices} tab={serviceTab} issueFilter={serviceIssueFilter} search={serviceSearch} onTabChange={setServiceTab} onIssueFilterChange={setServiceIssueFilter} onSearchChange={setServiceSearch} />
             {visibleCustomerServices.length ? <div className="ax-table-wrap is-stack"><table className="ax-table ax-customer-service-table" aria-label="اشتراک‌های مشتری"><thead><tr><th>اشتراک</th><th>مصرف ترکیبی</th><th>اعتبار</th><th>جزئیات</th><th>عملیات</th></tr></thead><tbody>{visibleCustomerServices.map((service) => {
             const ratio = service.limitGb ? Math.min(100, Math.round(service.usedGb / service.limitGb * 100)) : 0;

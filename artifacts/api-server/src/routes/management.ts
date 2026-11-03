@@ -8056,11 +8056,19 @@ router.post("/customers/:id/mobile-otp", requireAuth, async (req, res): Promise<
     res.status(404).json({ error: "مشتری پیدا نشد" });
     return;
   }
-  const challenge = await issueMobileOtp(Number(customer.id), customer.phone);
+  const challenge = await issueMobileOtp(
+    Number(customer.id),
+    customer.phone,
+    req.body?.regenerate === true,
+  );
   res.json({
     customer: { id: String(customer.id), name: customer.name, phone: customer.phone },
     otp: challenge.otp,
-    expires_at: null,
+    expires_at: challenge.expiresAt,
+    permanent: true,
+    reused: challenge.reused,
+    legacy: challenge.legacy ?? false,
+    locked: challenge.locked,
   });
 });
 
