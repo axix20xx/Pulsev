@@ -167,7 +167,7 @@ router.use((req, res, next) => {
     .catch(next);
 });
 
-const campaignTargets = new Set(["all", "recipient", "expiring_3d", "expiring_7d", "expired", "low_traffic", "no_push", "unpaid"]);
+const campaignTargets = new Set(["all", "recipient", "push_enabled", "expiring_3d", "expiring_7d", "expired", "low_traffic", "no_push", "unpaid"]);
 
 const notificationHref = (value: unknown) => {
   const input = typeof value === "string" ? value.trim() : "";
@@ -186,6 +186,7 @@ const resolveCampaignAudience = async (target: string, recipientId?: number) => 
   }
   const predicates: Record<string, string> = {
     all: "TRUE",
+    push_enabled: "COALESCE((SELECT pref.system_enabled FROM mobile_notification_preferences pref WHERE pref.customer_id = c.id), 1) = 1 AND EXISTS (SELECT 1 FROM mobile_push_subscriptions mps WHERE mps.customer_id = c.id AND mps.is_active = 1)",
     expiring_3d: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at BETWEEN NOW() AND NOW() + INTERVAL '3 days')",
     expiring_7d: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at BETWEEN NOW() AND NOW() + INTERVAL '7 days')",
     expired: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at < NOW())",
@@ -200,6 +201,7 @@ const resolveCampaignAudience = async (target: string, recipientId?: number) => 
 
 const campaignTargetLabel = (target: string) => ({
   all: "همه مشتریان",
+  push_enabled: "دارای دستگاه Push فعال و مجاز",
   recipient: "مشتری مشخص",
   expiring_3d: "در حال انقضا تا ۳ روز",
   expiring_7d: "در حال انقضا تا ۷ روز",
@@ -454,12 +456,27 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
   const scheduledInput = typeof req.body?.scheduled_at === "string" ? req.body.scheduled_at.trim() : "";
   const scheduledAt = scheduledInput ? new Date(scheduledInput) : null;
   const isScheduled = Boolean(scheduledAt && !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() > Date.now() + 5000);
+  const expiresInput = typeof req.body?.expires_at === "string" ? req.body.expires_at.trim() : "";
+  const expiresAt = expiresInput ? new Date(expiresInput) : null;
+  const priorityValue = typeof req.body?.priority === "string" ? req.body.priority : "normal";
+  const priority = new Set(["normal", "important", "urgent"]).has(priorityValue)
+    ? priorityValue as "normal" | "important" | "urgent"
+    : "normal";
+  const tone = priority === "urgent" ? "danger" : priority === "important" ? "warning" : "normal";
   const kind = req.body?.recipient_type === "reseller" ? "reseller" : "customer";
   const requestedTarget = typeof req.body?.target === "string" ? req.body.target : "recipient";
   const target = campaignTargets.has(requestedTarget) ? requestedTarget : "recipient";
   const recipientId = Number(req.body?.recipient_id ?? req.body?.customer_id);
   if (!title || title.length > 120 || !body || body.length > 4000 || href === null) {
     res.status(400).json({ error: "عنوان و متن اعلان را کامل و در اندازه مجاز وارد کنید." });
+    return;
+  }
+  if (expiresInput && (!expiresAt || Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now())) {
+    res.status(400).json({ error: "زمان انقضای اعلان باید در آینده باشد." });
+    return;
+  }
+  if (isScheduled && expiresAt && scheduledAt && expiresAt.getTime() <= scheduledAt.getTime()) {
+    res.status(400).json({ error: "انقضای اعلان باید بعد از زمان ارسال باشد." });
     return;
   }
   if (target === "recipient" && (!Number.isSafeInteger(recipientId) || recipientId <= 0)) {
@@ -474,8 +491,8 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
     }
     const campaign = await pool.query<{ id: number }>(
       `INSERT INTO notification_campaigns
-         (name, notification_type, title, body, href, action_label, tone, audience_type, status, scheduled_at, created_by, started_at, personalize)
-       VALUES ($1, 'admin_message', $2, $3, $4, $5, 'normal', $6, $7, $8, $9, CASE WHEN $7 = 'sending' THEN NOW() ELSE NULL END, 1)
+         (name, notification_type, title, body, href, action_label, tone, priority, audience_type, status, scheduled_at, expires_at, created_by, started_at, personalize)
+       VALUES ($1, 'admin_message', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CASE WHEN $9 = 'sending' THEN NOW() ELSE NULL END, 1)
        RETURNING id`,
       [
         name,
@@ -483,9 +500,12 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
         body,
         href,
         actionLabel,
+        tone,
+        priority,
         target,
         isScheduled ? "scheduled" : "sending",
         isScheduled ? scheduledAt : null,
+        expiresAt,
         req.auth?.telegramId ?? null,
       ],
     );
@@ -507,6 +527,7 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
         kind,
          targetCount: recipientIds.length,
         scheduledAt: scheduledAt?.toISOString(),
+      expiresAt: expiresAt?.toISOString() ?? null,
       });
       return;
     }
@@ -517,12 +538,24 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
       body,
       href,
       actionLabel,
-      tone: "normal",
+      tone,
+      priority,
       personalize: true,
     });
     await pool.query(
-      `UPDATE notification_campaigns SET status = 'completed', completed_at = NOW() WHERE id = $1`,
-      [campaignId],
+      `UPDATE notification_campaigns SET status = $2,
+       completed_at = CASE WHEN $2 = 'queued' THEN NULL ELSE NOW() END
+       WHERE id = $1`,
+      [
+        campaignId,
+        result.pushFailed > 0 && result.pushSent > 0
+          ? "partial"
+          : result.pushFailed > 0 && result.pushQueued === 0
+            ? "failed"
+            : result.pushQueued > 0 && result.pushSent === 0
+              ? "queued"
+              : "completed",
+      ],
     );
     res.json({ sent: true, scheduled: false, campaignId, kind, ...result });
     return;

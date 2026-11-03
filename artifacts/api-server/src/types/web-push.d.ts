@@ -10,7 +10,11 @@ declare module "web-push" {
   type WebPush = {
     generateVAPIDKeys(): { publicKey: string; privateKey: string };
     setVapidDetails(subject: string, publicKey: string, privateKey: string): void;
-    sendNotification(subscription: PushSubscription, payload: string): Promise<unknown>;
+    sendNotification(
+      subscription: PushSubscription,
+      payload: string,
+      options?: { urgency?: "very-low" | "low" | "normal" | "high"; TTL?: number },
+    ): Promise<unknown>;
   };
 
   const webpush: WebPush;

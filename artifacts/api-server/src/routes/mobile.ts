@@ -103,6 +103,7 @@ export const mobileReady = pool.query(`
     body TEXT NOT NULL,
     href TEXT,
     tone TEXT NOT NULL DEFAULT 'normal',
+    priority TEXT NOT NULL DEFAULT 'normal',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     read_at TIMESTAMP,
     opened_at TIMESTAMP,
@@ -111,6 +112,7 @@ export const mobileReady = pool.query(`
   ALTER TABLE mobile_notifications ADD COLUMN IF NOT EXISTS campaign_id BIGINT;
   ALTER TABLE mobile_notifications ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP;
   ALTER TABLE mobile_notifications ADD COLUMN IF NOT EXISTS clicked_at TIMESTAMP;
+  ALTER TABLE mobile_notifications ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'normal';
   CREATE UNIQUE INDEX IF NOT EXISTS mobile_notifications_event_idx
     ON mobile_notifications (customer_id, event_key);
   CREATE INDEX IF NOT EXISTS mobile_notifications_inbox_idx
@@ -126,9 +128,11 @@ export const mobileReady = pool.query(`
     href TEXT,
     action_label TEXT,
     tone TEXT NOT NULL DEFAULT 'normal',
+    priority TEXT NOT NULL DEFAULT 'normal',
     audience_type TEXT NOT NULL DEFAULT 'customers',
     status TEXT NOT NULL DEFAULT 'sending',
     scheduled_at TIMESTAMP,
+    expires_at TIMESTAMP,
     created_by BIGINT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     started_at TIMESTAMP,
@@ -137,6 +141,8 @@ export const mobileReady = pool.query(`
     personalize SMALLINT NOT NULL DEFAULT 1
   );
   ALTER TABLE notification_campaigns ADD COLUMN IF NOT EXISTS personalize SMALLINT NOT NULL DEFAULT 1;
+  ALTER TABLE notification_campaigns ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'normal';
+  ALTER TABLE notification_campaigns ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
   CREATE INDEX IF NOT EXISTS notification_campaigns_status_idx
     ON notification_campaigns (status, scheduled_at);
   CREATE TABLE IF NOT EXISTS notification_campaign_recipients (
@@ -147,12 +153,14 @@ export const mobileReady = pool.query(`
     inbox_saved_at TIMESTAMP,
     opened_at TIMESTAMP,
     clicked_at TIMESTAMP,
+    suppression_reason TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (campaign_id, customer_id)
   );
   CREATE INDEX IF NOT EXISTS notification_campaign_recipients_customer_idx
     ON notification_campaign_recipients (customer_id, created_at DESC);
+  ALTER TABLE notification_campaign_recipients ADD COLUMN IF NOT EXISTS suppression_reason TEXT;
   CREATE TABLE IF NOT EXISTS notification_delivery_attempts (
     id BIGSERIAL PRIMARY KEY,
     campaign_id BIGINT,
@@ -171,6 +179,20 @@ export const mobileReady = pool.query(`
     ON notification_delivery_attempts (campaign_id, attempted_at DESC);
   CREATE INDEX IF NOT EXISTS notification_delivery_customer_idx
     ON notification_delivery_attempts (customer_id, attempted_at DESC);
+  CREATE TABLE IF NOT EXISTS notification_push_queue (
+    notification_id BIGINT PRIMARY KEY REFERENCES mobile_notifications(id) ON DELETE CASCADE,
+    customer_id BIGINT NOT NULL,
+    campaign_id BIGINT,
+    scheduled_at TIMESTAMP NOT NULL,
+    delivery_mode TEXT NOT NULL CHECK (delivery_mode IN ('quiet_hours', 'digest')),
+    status TEXT NOT NULL DEFAULT 'queued',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS notification_push_queue_ready_idx
+    ON notification_push_queue (status, scheduled_at);
   CREATE TABLE IF NOT EXISTS notification_clicks (
     id BIGSERIAL PRIMARY KEY,
     campaign_id BIGINT,
@@ -201,8 +223,19 @@ export const mobileReady = pool.query(`
     expiry_enabled SMALLINT NOT NULL DEFAULT 1,
     usage_enabled SMALLINT NOT NULL DEFAULT 1,
     system_enabled SMALLINT NOT NULL DEFAULT 1,
+    quiet_hours_enabled SMALLINT NOT NULL DEFAULT 0,
+    quiet_hours_start TIME NOT NULL DEFAULT '22:00',
+    quiet_hours_end TIME NOT NULL DEFAULT '07:00',
+    digest_enabled SMALLINT NOT NULL DEFAULT 0,
+    digest_time TIME NOT NULL DEFAULT '09:00',
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   );
+  ALTER TABLE mobile_notification_preferences
+    ADD COLUMN IF NOT EXISTS quiet_hours_enabled SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS quiet_hours_start TIME NOT NULL DEFAULT '22:00',
+    ADD COLUMN IF NOT EXISTS quiet_hours_end TIME NOT NULL DEFAULT '07:00',
+    ADD COLUMN IF NOT EXISTS digest_enabled SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS digest_time TIME NOT NULL DEFAULT '09:00';
   CREATE TABLE IF NOT EXISTS mobile_push_config (
     id SMALLINT PRIMARY KEY CHECK (id = 1),
     vapid_public_key TEXT NOT NULL,
@@ -463,6 +496,90 @@ type PushDeliveryResult = {
   failed: number;
   deactivated: number;
   errors: string[];
+  suppressedReason?: "push_disabled" | "no_active_device";
+};
+
+const getTehranParts = (value: Date) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tehran",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value || 0);
+  return { year: part("year"), month: part("month"), day: part("day"), hour: part("hour"), minute: part("minute") };
+};
+
+const shiftCalendarDay = (date: { year: number; month: number; day: number }, amount: number) => {
+  const shifted = new Date(Date.UTC(date.year, date.month - 1, date.day + amount));
+  return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate() };
+};
+
+const tehranDateTimeToUtc = (date: { year: number; month: number; day: number }, hour: number, minute: number) => {
+  const target = Date.UTC(date.year, date.month - 1, date.day, hour, minute);
+  let guess = target;
+  for (let index = 0; index < 3; index += 1) {
+    const parts = getTehranParts(new Date(guess));
+    const represented = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute);
+    guess = target - (represented - guess);
+  }
+  return new Date(guess);
+};
+
+const parseClockMinutes = (value: string) => {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value.slice(0, 5));
+  return match ? Number(match[1]) * 60 + Number(match[2]) : 0;
+};
+
+const isQuietMinute = (minute: number, start: number, end: number) => {
+  if (start === end) return false;
+  return start < end ? minute >= start && minute < end : minute >= start || minute < end;
+};
+
+const quietEndForLocalTime = (
+  date: { year: number; month: number; day: number },
+  minute: number,
+  start: number,
+  end: number,
+) => {
+  const endDate = start > end && minute >= start ? shiftCalendarDay(date, 1) : date;
+  return tehranDateTimeToUtc(endDate, Math.floor(end / 60), end % 60);
+};
+
+const getDeferredPushSchedule = (preferences: {
+  quiet_hours_enabled: number;
+  quiet_hours_start: string;
+  quiet_hours_end: string;
+  digest_enabled: number;
+  digest_time: string;
+}, now = new Date()) => {
+  const local = getTehranParts(now);
+  const today = { year: local.year, month: local.month, day: local.day };
+  const currentMinute = local.hour * 60 + local.minute;
+  const quietStart = parseClockMinutes(preferences.quiet_hours_start);
+  const quietEnd = parseClockMinutes(preferences.quiet_hours_end);
+  const candidates: Date[] = [];
+  if (preferences.quiet_hours_enabled && isQuietMinute(currentMinute, quietStart, quietEnd)) {
+    candidates.push(quietEndForLocalTime(today, currentMinute, quietStart, quietEnd));
+  }
+  if (preferences.digest_enabled) {
+    const digestMinute = parseClockMinutes(preferences.digest_time);
+    const digestDate = currentMinute < digestMinute ? today : shiftCalendarDay(today, 1);
+    let digestAt = tehranDateTimeToUtc(digestDate, Math.floor(digestMinute / 60), digestMinute % 60);
+    if (preferences.quiet_hours_enabled && isQuietMinute(digestMinute, quietStart, quietEnd)) {
+      digestAt = quietEndForLocalTime(digestDate, digestMinute, quietStart, quietEnd);
+    }
+    candidates.push(digestAt);
+  }
+  if (!candidates.length) return null;
+  const scheduledAt = new Date(Math.max(...candidates.map((candidate) => candidate.getTime())));
+  return {
+    scheduledAt,
+    mode: preferences.digest_enabled ? "digest" as const : "quiet_hours" as const,
+  };
 };
 
 const sendPush = async (
@@ -475,15 +592,48 @@ const sendPush = async (
     href: string | null;
     actionLabel?: string | null;
     tone: string;
+    priority?: "normal" | "important" | "urgent";
   },
 ): Promise<PushDeliveryResult> => {
-  const config = await getVapidConfig();
-  configureVapid(config);
-  const result = await pool.query<{ id: number; endpoint: string; p256dh: string; auth: string }>(
-    `SELECT id, endpoint, p256dh, auth FROM mobile_push_subscriptions
-     WHERE customer_id = $1 AND is_active = 1`,
+  const preferences = await pool.query<{ system_enabled: number }>(
+    "SELECT system_enabled FROM mobile_notification_preferences WHERE customer_id = $1",
     [customerId],
   );
+  if (preferences.rows[0] && Number(preferences.rows[0].system_enabled) !== 1) {
+    return { activeDevices: 0, attempted: 0, sent: 0, failed: 0, deactivated: 0, errors: [], suppressedReason: "push_disabled" };
+  }
+  const result = await pool.query<{ id: number; endpoint: string; p256dh: string; auth: string }>(
+    `SELECT id, endpoint, p256dh, auth FROM mobile_push_subscriptions
+     WHERE customer_id = $1 AND is_active = 1
+       AND NOT EXISTS (
+         SELECT 1 FROM notification_delivery_attempts prior
+         WHERE prior.customer_id = $1
+           AND prior.subscription_id = mobile_push_subscriptions.id
+           AND prior.status = 'accepted'
+           AND (
+             ($2::bigint IS NOT NULL AND prior.campaign_id = $2)
+             OR ($2::bigint IS NULL AND $3::bigint IS NOT NULL AND prior.notification_id = $3)
+           )
+       )`,
+    [customerId, notification.campaignId ?? null, notification.id ?? null],
+  );
+  if (!result.rows.length) {
+    const active = await pool.query<{ count: number }>(
+      "SELECT COUNT(*)::int AS count FROM mobile_push_subscriptions WHERE customer_id = $1 AND is_active = 1",
+      [customerId],
+    );
+    return {
+      activeDevices: Number(active.rows[0]?.count || 0),
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      deactivated: 0,
+      errors: [],
+      ...(!Number(active.rows[0]?.count) ? { suppressedReason: "no_active_device" as const } : {}),
+    };
+  }
+  const config = await getVapidConfig();
+  configureVapid(config);
   const outcomes = await Promise.all(result.rows.map(async (subscription) => {
     const attempt = await pool.query<{ id: number }>(
       `INSERT INTO notification_delivery_attempts
@@ -506,10 +656,12 @@ const sendPush = async (
           url: notification.href || "/mobile",
           href: notification.href || "/mobile",
           tone: notification.tone,
+          priority: notification.priority ?? "normal",
           action_label: notification.actionLabel || null,
           notification_id: notification.id ?? null,
           campaign_id: notification.campaignId ?? null,
         }),
+        { urgency: notification.priority === "urgent" ? "high" : notification.priority === "important" ? "normal" : "low" },
       );
       await pool.query("UPDATE mobile_push_subscriptions SET last_used_at = NOW() WHERE id = $1", [subscription.id]);
       if (attemptId) {
@@ -573,6 +725,86 @@ const sendPush = async (
   };
 };
 
+type DeferredPushResult = PushDeliveryResult & {
+  queued?: boolean;
+  queueMode?: "quiet_hours" | "digest";
+};
+
+const deliverOrQueuePush = async (
+  customerId: number,
+  notification: {
+    id?: number | null;
+    campaignId?: number | null;
+    title: string;
+    body: string;
+    href: string | null;
+    actionLabel?: string | null;
+    tone: string;
+    priority?: "normal" | "important" | "urgent";
+  },
+): Promise<DeferredPushResult> => {
+  const preferences = await pool.query<{
+    system_enabled: number;
+    quiet_hours_enabled: number;
+    quiet_hours_start: string;
+    quiet_hours_end: string;
+    digest_enabled: number;
+    digest_time: string;
+  }>(
+    `SELECT system_enabled, quiet_hours_enabled, quiet_hours_start, quiet_hours_end,
+            digest_enabled, digest_time
+     FROM mobile_notification_preferences WHERE customer_id = $1`,
+    [customerId],
+  );
+  const preference = preferences.rows[0] ?? {
+    system_enabled: 1,
+    quiet_hours_enabled: 0,
+    quiet_hours_start: "22:00",
+    quiet_hours_end: "07:00",
+    digest_enabled: 0,
+    digest_time: "09:00",
+  };
+  if (Number(preference.system_enabled) !== 1) {
+    return { activeDevices: 0, attempted: 0, sent: 0, failed: 0, deactivated: 0, errors: [], suppressedReason: "push_disabled" };
+  }
+  const activeDevices = await pool.query<{ count: number }>(
+    "SELECT COUNT(*)::int AS count FROM mobile_push_subscriptions WHERE customer_id = $1 AND is_active = 1",
+    [customerId],
+  );
+  const deviceCount = Number(activeDevices.rows[0]?.count || 0);
+  if (!deviceCount) {
+    return { activeDevices: 0, attempted: 0, sent: 0, failed: 0, deactivated: 0, errors: [], suppressedReason: "no_active_device" };
+  }
+  const schedule = getDeferredPushSchedule(preference);
+  if (schedule && notification.id) {
+    await pool.query(
+      `INSERT INTO notification_push_queue
+         (notification_id, customer_id, campaign_id, scheduled_at, delivery_mode, status)
+       VALUES ($1, $2, $3, $4, $5, 'queued')
+       ON CONFLICT (notification_id) DO UPDATE SET
+         scheduled_at = EXCLUDED.scheduled_at,
+         delivery_mode = EXCLUDED.delivery_mode,
+         status = 'queued',
+         attempts = 0,
+         last_error = NULL,
+         updated_at = NOW()
+       WHERE notification_push_queue.status IN ('failed', 'cancelled', 'suppressed')`,
+      [notification.id, customerId, notification.campaignId ?? null, schedule.scheduledAt, schedule.mode],
+    );
+    return {
+      activeDevices: deviceCount,
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      deactivated: 0,
+      errors: [],
+      queued: true,
+      queueMode: schedule.mode,
+    };
+  }
+  return sendPush(customerId, notification);
+};
+
 const notificationPreference = (type: string) => {
   if (type === "subscription_expiring" || type === "subscription_expired") return "expiry_enabled";
   if (type === "traffic_warning") return "usage_enabled";
@@ -592,7 +824,8 @@ const createNotification = async (input: {
   href?: string | null;
   actionLabel?: string | null;
   tone?: string;
-}): Promise<{ id: number | null; delivery?: PushDeliveryResult }> => {
+  priority?: "normal" | "important" | "urgent";
+}): Promise<{ id: number | null; delivery?: DeferredPushResult }> => {
   const preferenceKey = notificationPreference(input.type);
   const preference = await pool.query<Record<string, number>>(
     `SELECT ${preferenceKey} FROM mobile_notification_preferences WHERE customer_id = $1`,
@@ -601,8 +834,8 @@ const createNotification = async (input: {
   if (preference.rows[0] && Number(preference.rows[0][preferenceKey] ?? 1) !== 1) return { id: null };
   const inserted = await pool.query<{ id: number }>(
     `INSERT INTO mobile_notifications
-       (customer_id, service_id, campaign_id, event_key, notification_type, title, body, href, tone)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (customer_id, service_id, campaign_id, event_key, notification_type, title, body, href, tone, priority)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT (customer_id, event_key) DO NOTHING
      RETURNING id`,
     [
@@ -615,10 +848,11 @@ const createNotification = async (input: {
       input.body,
       input.href ?? null,
       input.tone ?? "normal",
+      input.priority ?? "normal",
     ],
   );
   if (!inserted.rows[0]) return { id: null };
-  const delivery = await sendPush(input.customerId, {
+  const delivery = await deliverOrQueuePush(input.customerId, {
     id: inserted.rows[0].id,
     campaignId: input.campaignId ?? null,
     title: input.title,
@@ -626,6 +860,7 @@ const createNotification = async (input: {
     href: input.href ?? null,
     actionLabel: input.actionLabel ?? null,
     tone: input.tone ?? "normal",
+    priority: input.priority ?? "normal",
   });
   return { id: inserted.rows[0].id, delivery };
 };
@@ -638,6 +873,7 @@ export const sendMobileNotification = async (input: {
   href?: string | null;
   actionLabel?: string | null;
   tone?: string;
+  priority?: "normal" | "important" | "urgent";
   personalize?: boolean;
 }) => {
   await mobileReady;
@@ -647,6 +883,7 @@ export const sendMobileNotification = async (input: {
   let pushAttempted = 0;
   let pushSent = 0;
   let pushFailed = 0;
+  let pushQueued = 0;
   let pushDeactivated = 0;
   const pushErrors = new Set<string>();
   for (const customerId of [...new Set(input.customerIds)]) {
@@ -697,22 +934,29 @@ export const sendMobileNotification = async (input: {
       : null;
     const inserted = await pool.query<{ id: number }>(
       `INSERT INTO mobile_notifications
-         (customer_id, service_id, campaign_id, event_key, notification_type, title, body, href, tone)
-       VALUES ($1, NULL, $2, $3, 'admin_message', $4, $5, $6, $7)
+         (customer_id, service_id, campaign_id, event_key, notification_type, title, body, href, tone, priority)
+       VALUES ($1, NULL, $2, $3, 'admin_message', $4, $5, $6, $7, $8)
        ON CONFLICT (customer_id, event_key) DO NOTHING
        RETURNING id`,
       [
         customerId,
         input.campaignId ?? null,
-        `admin:${eventId}:${customerId}`,
+        input.campaignId ? `admin:${input.campaignId}:${customerId}` : `admin:${eventId}:${customerId}`,
          renderedTitle,
          renderedBody,
          renderedHref,
         input.tone ?? "normal",
+        input.priority ?? "normal",
       ],
     );
-    if (inserted.rows[0]) {
-      deliveredToInbox += 1;
+    const notificationId = inserted.rows[0]?.id ?? (input.campaignId
+      ? (await pool.query<{ id: number }>(
+          "SELECT id FROM mobile_notifications WHERE customer_id = $1 AND event_key = $2 LIMIT 1",
+          [customerId, `admin:${input.campaignId}:${customerId}`],
+        )).rows[0]?.id
+      : undefined);
+    if (notificationId) {
+      if (inserted.rows[0]) deliveredToInbox += 1;
       if (input.campaignId && recipient?.rows[0]) {
         await pool.query(
           `UPDATE notification_campaign_recipients
@@ -721,32 +965,43 @@ export const sendMobileNotification = async (input: {
           [recipient.rows[0].id],
         );
       }
-      const delivery = await sendPush(customerId, {
-        id: inserted.rows[0].id,
+      const delivery = await deliverOrQueuePush(customerId, {
+        id: notificationId,
         campaignId: input.campaignId ?? null,
          title: renderedTitle,
          body: renderedBody,
          href: renderedHref,
          actionLabel: renderedActionLabel || null,
         tone: input.tone ?? "normal",
+        priority: input.priority ?? "normal",
       });
       activeDevices += delivery.activeDevices;
       pushAttempted += delivery.attempted;
       pushSent += delivery.sent;
       pushFailed += delivery.failed;
+      if (delivery.queued) pushQueued += 1;
       pushDeactivated += delivery.deactivated;
       delivery.errors.forEach((error) => pushErrors.add(error));
       if (input.campaignId) {
         await pool.query(
           `UPDATE notification_campaign_recipients
            SET inbox_status = CASE
-                 WHEN $2::int > 0 THEN 'push_accepted'
-                 WHEN $3::int > 0 THEN 'push_failed'
+                 WHEN $2::boolean THEN 'push_queued'
+                 WHEN $3::int > 0 THEN 'push_accepted'
+                 WHEN $4::int > 0 THEN 'push_failed'
                  ELSE 'inbox_only'
                END,
+               suppression_reason = NULLIF($5, ''),
                updated_at = NOW()
-           WHERE campaign_id = $1 AND customer_id = $4`,
-          [input.campaignId, delivery.sent, delivery.failed, customerId],
+           WHERE campaign_id = $1 AND customer_id = $6`,
+          [
+            input.campaignId,
+            Boolean(delivery.queued),
+            delivery.sent,
+            delivery.failed,
+            delivery.queueMode || delivery.suppressedReason || "",
+            customerId,
+          ],
         );
       }
     } else if (input.campaignId) {
@@ -765,13 +1020,158 @@ export const sendMobileNotification = async (input: {
     pushAttempted,
     pushSent,
     pushFailed,
+    pushQueued,
     pushDeactivated,
     pushErrors: [...pushErrors],
   };
 };
 
+export const runScheduledMobilePushQueue = async (): Promise<void> => {
+  await mobileReady;
+  const claimed = await pool.query<{
+    notification_id: number;
+    customer_id: number;
+    campaign_id: number | null;
+    delivery_mode: "quiet_hours" | "digest";
+    attempts: number;
+  }>(
+    `UPDATE notification_push_queue queue
+     SET status = 'sending', attempts = attempts + 1, updated_at = NOW()
+     WHERE notification_id IN (
+       SELECT notification_id
+       FROM notification_push_queue
+       WHERE status = 'queued' AND scheduled_at <= NOW()
+       ORDER BY scheduled_at, notification_id
+       LIMIT 200
+       FOR UPDATE SKIP LOCKED
+     )
+     RETURNING notification_id, customer_id, campaign_id, delivery_mode, attempts`,
+  );
+  if (!claimed.rows.length) return;
+
+  const notificationRows = await pool.query<{
+    id: number;
+    title: string;
+    body: string;
+    href: string | null;
+    action_label: string | null;
+    tone: string;
+    priority: "normal" | "important" | "urgent";
+  }>(
+    `SELECT id, title, body, href, action_label, tone, priority
+     FROM mobile_notifications WHERE id = ANY($1::bigint[])`,
+    [claimed.rows.map((row) => row.notification_id)],
+  );
+  const byId = new Map(notificationRows.rows.map((row) => [Number(row.id), row]));
+  const digestGroups = new Map<number, typeof claimed.rows>();
+  const quietRows = claimed.rows.filter((row) => row.delivery_mode === "quiet_hours");
+  for (const row of claimed.rows.filter((item) => item.delivery_mode === "digest")) {
+    const group = digestGroups.get(Number(row.customer_id)) ?? [];
+    group.push(row);
+    digestGroups.set(Number(row.customer_id), group);
+  }
+
+  const updateQueueResults = async (
+    rows: typeof claimed.rows,
+    result: DeferredPushResult,
+    digest: boolean,
+  ) => {
+    const retry = result.failed > 0 && result.sent === 0 && !result.deactivated && Math.max(...rows.map((row) => row.attempts)) < 3;
+    for (const row of rows) {
+      const status = result.sent > 0 ? "accepted" : result.suppressedReason ? "suppressed" : retry ? "queued" : "failed";
+      await pool.query(
+        `UPDATE notification_push_queue
+         SET status = $2,
+             scheduled_at = CASE WHEN $2 = 'queued' THEN NOW() + ($3::text || ' minutes')::interval ELSE scheduled_at END,
+             last_error = $4,
+             updated_at = NOW()
+         WHERE notification_id = $1`,
+        [
+          row.notification_id,
+          status,
+          String(Math.min(30, 2 ** Math.max(0, row.attempts - 1))),
+          result.errors.join("، ").slice(0, 500) || result.suppressedReason || null,
+        ],
+      );
+      if (row.campaign_id) {
+        await pool.query(
+          `UPDATE notification_campaign_recipients
+           SET inbox_status = CASE
+                 WHEN $3::boolean AND $4 = 'accepted' THEN 'digest_accepted'
+                 WHEN $4 = 'accepted' THEN 'push_accepted'
+                 WHEN $4 = 'queued' THEN 'push_queued'
+                 WHEN $4 = 'suppressed' THEN 'inbox_only'
+                 WHEN $4 = 'failed' THEN 'push_failed'
+                 ELSE inbox_status
+               END,
+               suppression_reason = CASE WHEN $5 <> '' THEN $5 ELSE suppression_reason END,
+               updated_at = NOW()
+           WHERE campaign_id = $1 AND customer_id = $2`,
+          [row.campaign_id, row.customer_id, digest, status, result.suppressedReason || ""],
+        );
+      }
+    }
+  };
+
+  for (const row of quietRows) {
+    const notification = byId.get(Number(row.notification_id));
+    if (!notification) {
+      await pool.query(
+        "UPDATE notification_push_queue SET status = 'failed', last_error = 'Notification record is missing', updated_at = NOW() WHERE notification_id = $1",
+        [row.notification_id],
+      );
+      continue;
+    }
+    try {
+      const result = await sendPush(Number(row.customer_id), {
+        id: Number(row.notification_id),
+        campaignId: row.campaign_id,
+        title: notification.title,
+        body: notification.body,
+        href: notification.href,
+        actionLabel: notification.action_label,
+        tone: notification.tone,
+        priority: notification.priority,
+      });
+      await updateQueueResults([row], result, false);
+    } catch (error) {
+      logger.warn({ notificationId: row.notification_id, error }, "Deferred Push send failed");
+      await updateQueueResults([row], {
+        activeDevices: 0, attempted: 0, sent: 0, failed: 1, deactivated: 0,
+        errors: [error instanceof Error ? error.message : "خطای ارسال Push"],
+      }, false);
+    }
+  }
+
+  for (const [customerId, rows] of digestGroups) {
+    const latestNotificationId = Math.max(...rows.map((row) => Number(row.notification_id)));
+    try {
+      const result = await sendPush(customerId, {
+        id: latestNotificationId,
+        title: "خلاصه اعلان‌های پالس",
+        body: `${rows.length} اعلان تازه در صندوق اعلان‌های شما آماده است.`,
+        href: "/mobile/notifications",
+        tone: "normal",
+        priority: "normal",
+      });
+      await updateQueueResults(rows, result, true);
+    } catch (error) {
+      logger.warn({ customerId, error }, "Push digest send failed");
+      await updateQueueResults(rows, {
+        activeDevices: 0, attempted: 0, sent: 0, failed: 1, deactivated: 0,
+        errors: [error instanceof Error ? error.message : "خطای ارسال خلاصه اعلان"],
+      }, true);
+    }
+  }
+};
+
 export const runScheduledNotificationCampaigns = async (): Promise<void> => {
   await mobileReady;
+  await pool.query(
+    `UPDATE notification_campaigns
+     SET status = 'expired', completed_at = NOW(), last_error = 'Campaign expired before sending'
+     WHERE status = 'scheduled' AND expires_at IS NOT NULL AND expires_at <= NOW()`,
+  );
   const claimed = await pool.query<{
     id: number;
     title: string;
@@ -779,12 +1179,14 @@ export const runScheduledNotificationCampaigns = async (): Promise<void> => {
     href: string | null;
     action_label: string | null;
     tone: string;
+    priority: "normal" | "important" | "urgent";
     personalize: number;
   }>(
     `UPDATE notification_campaigns
      SET status = 'sending', started_at = COALESCE(started_at, NOW())
      WHERE status = 'scheduled' AND scheduled_at <= NOW()
-     RETURNING id, title, body, href, action_label, tone, personalize`,
+       AND (expires_at IS NULL OR expires_at > NOW())
+     RETURNING id, title, body, href, action_label, tone, priority, personalize`,
   );
   for (const campaign of claimed.rows) {
     try {
@@ -796,7 +1198,7 @@ export const runScheduledNotificationCampaigns = async (): Promise<void> => {
          ORDER BY id`,
         [campaign.id],
       );
-      await sendMobileNotification({
+      const result = await sendMobileNotification({
         campaignId: campaign.id,
         customerIds: recipients.rows.map((row) => Number(row.customer_id)),
         title: campaign.title,
@@ -804,13 +1206,23 @@ export const runScheduledNotificationCampaigns = async (): Promise<void> => {
         href: campaign.href,
         actionLabel: campaign.action_label,
         tone: campaign.tone,
+        priority: campaign.priority,
         personalize: campaign.personalize === 1,
       });
       await pool.query(
-        `UPDATE notification_campaigns
-         SET status = 'completed', completed_at = NOW()
+        `UPDATE notification_campaigns SET status = $2,
+         completed_at = CASE WHEN $2 = 'queued' THEN NULL ELSE NOW() END
          WHERE id = $1`,
-        [campaign.id],
+        [
+          campaign.id,
+          result.pushFailed > 0 && result.pushSent > 0
+            ? "partial"
+            : result.pushFailed > 0 && result.pushQueued === 0
+              ? "failed"
+              : result.pushQueued > 0 && result.pushSent === 0
+                ? "queued"
+                : "completed",
+        ],
       );
     } catch (error) {
       await pool.query(
@@ -870,13 +1282,18 @@ export const runMobileNotificationSweep = async (): Promise<void> => {
 
 export const startMobileNotificationWorker = () => {
   const run = () => void runMobileNotificationSweep().catch(() => undefined);
+  const runPushQueue = () => void runScheduledMobilePushQueue().catch((error) => {
+    logger.error({ error }, "Deferred Push queue worker failed");
+  });
   const runCampaigns = () => void runScheduledNotificationCampaigns().catch((error) => {
     logger.error({ error }, "Scheduled notification worker failed");
   });
   void mobileReady.then(run);
   void mobileReady.then(runCampaigns);
+  void mobileReady.then(runPushQueue);
   setInterval(run, 30 * 60 * 1000).unref();
   setInterval(runCampaigns, 60 * 1000).unref();
+  setInterval(runPushQueue, 60 * 1000).unref();
 };
 
 router.use(attachMobileAuth);
