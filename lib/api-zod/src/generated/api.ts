@@ -1004,6 +1004,90 @@ export const ListAwgUsageResponse = zod.object({
 
 
 /**
+ * Master admins see system-wide totals; resellers are always restricted to their own services.
+ * @summary Read historical traffic usage visible to the authenticated workspace
+ */
+export const getUsageAnalyticsQueryRangeDefault = `day`;
+export const getUsageAnalyticsQueryProviderKeyMax = 120;
+
+
+export const getUsageAnalyticsQuerySearchMax = 120;
+
+export const getUsageAnalyticsQueryLimitDefault = 50;
+export const getUsageAnalyticsQueryLimitMax = 100;
+
+export const getUsageAnalyticsQueryOffsetDefault = 0;
+export const getUsageAnalyticsQueryOffsetMin = 0;
+export const getUsageAnalyticsQueryOffsetMax = 100000;
+
+
+
+export const GetUsageAnalyticsQueryParams = zod.object({
+  "range": zod.enum(['6h', '12h', 'day', 'week', 'month']).default(getUsageAnalyticsQueryRangeDefault),
+  "provider_key": zod.coerce.string().max(getUsageAnalyticsQueryProviderKeyMax).optional(),
+  "service_id": zod.coerce.number().int().min(1).optional(),
+  "search": zod.coerce.string().max(getUsageAnalyticsQuerySearchMax).optional(),
+  "limit": zod.coerce.number().int().min(1).max(getUsageAnalyticsQueryLimitMax).default(getUsageAnalyticsQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(getUsageAnalyticsQueryOffsetMin).max(getUsageAnalyticsQueryOffsetMax).default(getUsageAnalyticsQueryOffsetDefault)
+})
+
+export const getUsageAnalyticsResponseTotalBytesMin = 0;
+
+export const getUsageAnalyticsResponseServiceCountMin = 0;
+export const getUsageAnalyticsResponseServiceCountMultipleOf = 1;
+
+export const getUsageAnalyticsResponseServicesTotalMin = 0;
+export const getUsageAnalyticsResponseServicesTotalMultipleOf = 1;
+
+export const getUsageAnalyticsResponseBucketsItemBytesMin = 0;
+
+export const getUsageAnalyticsResponseProvidersItemTwoBytesMin = 0;
+
+export const getUsageAnalyticsResponseServicesItemBytesMin = 0;
+
+export const getUsageAnalyticsResponseServicesItemProviderCountMin = 0;
+export const getUsageAnalyticsResponseServicesItemProviderCountMultipleOf = 1;
+
+
+
+export const GetUsageAnalyticsResponse = zod.object({
+  "scope": zod.enum(['system', 'reseller']),
+  "range": zod.enum(['6h', '12h', 'day', 'week', 'month']),
+  "from_at": zod.coerce.date(),
+  "to_at": zod.coerce.date(),
+  "history_started_at": zod.coerce.date().nullable(),
+  "is_partial": zod.boolean(),
+  "bucket_interval": zod.string(),
+  "total_bytes": zod.number().min(getUsageAnalyticsResponseTotalBytesMin),
+  "service_count": zod.number().min(getUsageAnalyticsResponseServiceCountMin).multipleOf(getUsageAnalyticsResponseServiceCountMultipleOf),
+  "services_total": zod.number().min(getUsageAnalyticsResponseServicesTotalMin).multipleOf(getUsageAnalyticsResponseServicesTotalMultipleOf),
+  "buckets": zod.array(zod.object({
+  "bucket_at": zod.coerce.date(),
+  "bytes": zod.number().min(getUsageAnalyticsResponseBucketsItemBytesMin)
+})),
+  "provider_options": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+})),
+  "providers": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string()
+}).and(zod.object({
+  "bytes": zod.number().min(getUsageAnalyticsResponseProvidersItemTwoBytesMin)
+}))),
+  "services": zod.array(zod.object({
+  "service_id": zod.number(),
+  "service_code": zod.string(),
+  "username": zod.string(),
+  "customer_id": zod.number().nullable(),
+  "customer_name": zod.string(),
+  "bytes": zod.number().min(getUsageAnalyticsResponseServicesItemBytesMin),
+  "provider_count": zod.number().min(getUsageAnalyticsResponseServicesItemProviderCountMin).multipleOf(getUsageAnalyticsResponseServicesItemProviderCountMultipleOf)
+}))
+})
+
+
+/**
  * @summary Read live usage from AmneziaWG for one active service
  */
 

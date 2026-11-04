@@ -778,6 +778,75 @@ export interface AwgUsagePage {
   total: number;
 }
 
+export type UsageAnalyticsScope = typeof UsageAnalyticsScope[keyof typeof UsageAnalyticsScope];
+
+
+export const UsageAnalyticsScope = {
+  system: 'system',
+  reseller: 'reseller',
+} as const;
+
+export type UsageAnalyticsRange = typeof UsageAnalyticsRange[keyof typeof UsageAnalyticsRange];
+
+
+export const UsageAnalyticsRange = {
+  '6h': '6h',
+  '12h': '12h',
+  day: 'day',
+  week: 'week',
+  month: 'month',
+} as const;
+
+export interface UsageAnalyticsBucket {
+  bucket_at: string;
+  /** @minimum 0 */
+  bytes: number;
+}
+
+export interface UsageAnalyticsProvider {
+  key: string;
+  label: string;
+}
+
+export type UsageAnalyticsProviderTotal = UsageAnalyticsProvider & {
+  /** @minimum 0 */
+  bytes: number;
+};
+
+export interface UsageAnalyticsService {
+  service_id: number;
+  service_code: string;
+  username: string;
+  /** @nullable */
+  customer_id: number | null;
+  customer_name: string;
+  /** @minimum 0 */
+  bytes: number;
+  /** @minimum 0 */
+  provider_count: number;
+}
+
+export interface UsageAnalytics {
+  scope: UsageAnalyticsScope;
+  range: UsageAnalyticsRange;
+  from_at: string;
+  to_at: string;
+  /** @nullable */
+  history_started_at: string | null;
+  is_partial: boolean;
+  bucket_interval: string;
+  /** @minimum 0 */
+  total_bytes: number;
+  /** @minimum 0 */
+  service_count: number;
+  /** @minimum 0 */
+  services_total: number;
+  buckets: UsageAnalyticsBucket[];
+  provider_options: UsageAnalyticsProvider[];
+  providers: UsageAnalyticsProviderTotal[];
+  services: UsageAnalyticsService[];
+}
+
 export interface AwgUsageRefreshResult {
   item: AwgUsageItem;
   checked_at: string;
@@ -1211,6 +1280,27 @@ export type AwgUsageLimitParameter = number;
  */
 export type AwgUsageOffsetParameter = number;
 
+export type UsageAnalyticsRangeParameter = typeof UsageAnalyticsRangeParameter[keyof typeof UsageAnalyticsRangeParameter];
+
+
+export const UsageAnalyticsRangeParameter = {
+  '6h': '6h',
+  '12h': '12h',
+  day: 'day',
+  week: 'week',
+  month: 'month',
+} as const;
+
+export type UsageAnalyticsProviderParameter = string;
+
+export type UsageAnalyticsServiceParameter = number;
+
+export type UsageAnalyticsSearchParameter = string;
+
+export type UsageAnalyticsLimitParameter = number;
+
+export type UsageAnalyticsOffsetParameter = number;
+
 /**
  * Start date in ISO Gregorian format; the UI displays this as a Persian date.
  */
@@ -1311,6 +1401,32 @@ limit?: AwgUsageLimitParameter;
  * @maximum 100000
  */
 offset?: AwgUsageOffsetParameter;
+};
+
+export type GetUsageAnalyticsParams = {
+range?: UsageAnalyticsRangeParameter;
+/**
+ * @maxLength 120
+ */
+provider_key?: UsageAnalyticsProviderParameter;
+/**
+ * @minimum 1
+ */
+service_id?: UsageAnalyticsServiceParameter;
+/**
+ * @maxLength 120
+ */
+search?: UsageAnalyticsSearchParameter;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: UsageAnalyticsLimitParameter;
+/**
+ * @minimum 0
+ * @maximum 100000
+ */
+offset?: UsageAnalyticsOffsetParameter;
 };
 
 export type ListServicesParams = {

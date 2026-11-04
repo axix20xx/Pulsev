@@ -55866,6 +55866,67 @@ var ListAwgUsageResponse = objectType({
   })),
   "total": numberType().min(listAwgUsageResponseTotalMin)
 });
+var getUsageAnalyticsQueryRangeDefault = `day`;
+var getUsageAnalyticsQueryProviderKeyMax = 120;
+var getUsageAnalyticsQuerySearchMax = 120;
+var getUsageAnalyticsQueryLimitDefault = 50;
+var getUsageAnalyticsQueryLimitMax = 100;
+var getUsageAnalyticsQueryOffsetDefault = 0;
+var getUsageAnalyticsQueryOffsetMin = 0;
+var getUsageAnalyticsQueryOffsetMax = 1e5;
+var GetUsageAnalyticsQueryParams = objectType({
+  "range": enumType(["6h", "12h", "day", "week", "month"]).default(getUsageAnalyticsQueryRangeDefault),
+  "provider_key": coerce.string().max(getUsageAnalyticsQueryProviderKeyMax).optional(),
+  "service_id": coerce.number().int().min(1).optional(),
+  "search": coerce.string().max(getUsageAnalyticsQuerySearchMax).optional(),
+  "limit": coerce.number().int().min(1).max(getUsageAnalyticsQueryLimitMax).default(getUsageAnalyticsQueryLimitDefault),
+  "offset": coerce.number().int().min(getUsageAnalyticsQueryOffsetMin).max(getUsageAnalyticsQueryOffsetMax).default(getUsageAnalyticsQueryOffsetDefault)
+});
+var getUsageAnalyticsResponseTotalBytesMin = 0;
+var getUsageAnalyticsResponseServiceCountMin = 0;
+var getUsageAnalyticsResponseServiceCountMultipleOf = 1;
+var getUsageAnalyticsResponseServicesTotalMin = 0;
+var getUsageAnalyticsResponseServicesTotalMultipleOf = 1;
+var getUsageAnalyticsResponseBucketsItemBytesMin = 0;
+var getUsageAnalyticsResponseProvidersItemTwoBytesMin = 0;
+var getUsageAnalyticsResponseServicesItemBytesMin = 0;
+var getUsageAnalyticsResponseServicesItemProviderCountMin = 0;
+var getUsageAnalyticsResponseServicesItemProviderCountMultipleOf = 1;
+var GetUsageAnalyticsResponse = objectType({
+  "scope": enumType(["system", "reseller"]),
+  "range": enumType(["6h", "12h", "day", "week", "month"]),
+  "from_at": coerce.date(),
+  "to_at": coerce.date(),
+  "history_started_at": coerce.date().nullable(),
+  "is_partial": booleanType(),
+  "bucket_interval": stringType(),
+  "total_bytes": numberType().min(getUsageAnalyticsResponseTotalBytesMin),
+  "service_count": numberType().min(getUsageAnalyticsResponseServiceCountMin).multipleOf(getUsageAnalyticsResponseServiceCountMultipleOf),
+  "services_total": numberType().min(getUsageAnalyticsResponseServicesTotalMin).multipleOf(getUsageAnalyticsResponseServicesTotalMultipleOf),
+  "buckets": arrayType(objectType({
+    "bucket_at": coerce.date(),
+    "bytes": numberType().min(getUsageAnalyticsResponseBucketsItemBytesMin)
+  })),
+  "provider_options": arrayType(objectType({
+    "key": stringType(),
+    "label": stringType()
+  })),
+  "providers": arrayType(objectType({
+    "key": stringType(),
+    "label": stringType()
+  }).and(objectType({
+    "bytes": numberType().min(getUsageAnalyticsResponseProvidersItemTwoBytesMin)
+  }))),
+  "services": arrayType(objectType({
+    "service_id": numberType(),
+    "service_code": stringType(),
+    "username": stringType(),
+    "customer_id": numberType().nullable(),
+    "customer_name": stringType(),
+    "bytes": numberType().min(getUsageAnalyticsResponseServicesItemBytesMin),
+    "provider_count": numberType().min(getUsageAnalyticsResponseServicesItemProviderCountMin).multipleOf(getUsageAnalyticsResponseServicesItemProviderCountMultipleOf)
+  }))
+});
 var RefreshAwgUsageParams = objectType({
   "id": coerce.number().min(1)
 });
@@ -83803,6 +83864,122 @@ function startAwgUsagePollWorker() {
   logger.info({ intervalMs: AWG_USAGE_POLL_INTERVAL_MS }, "AWG-only usage poll worker started");
 }
 
+// src/lib/usage-history.ts
+var SAMPLE_INTERVAL_MS = 5 * 6e4;
+var RETENTION_DAYS = 120;
+var schemaPromise2 = null;
+var lastRetentionCleanupAt = 0;
+var recordedBucketByIdentity = /* @__PURE__ */ new Map();
+async function ensureUsageHistorySchema() {
+  if (!schemaPromise2) {
+    schemaPromise2 = pool.query(`
+      CREATE TABLE IF NOT EXISTS reseller_service_usage_history (
+        service_id BIGINT NOT NULL,
+        reseller_tg_id BIGINT NOT NULL,
+        provider_key TEXT NOT NULL,
+        source_username TEXT NOT NULL DEFAULT '',
+        captured_at TIMESTAMPTZ NOT NULL,
+        counter_bytes NUMERIC(20, 0) NOT NULL DEFAULT 0,
+        delta_bytes NUMERIC(20, 0) NOT NULL DEFAULT 0,
+        service_code TEXT NOT NULL,
+        service_username TEXT NOT NULL,
+        customer_id BIGINT,
+        customer_name TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (service_id, provider_key, source_username, captured_at)
+      );
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_time_idx
+        ON reseller_service_usage_history (captured_at DESC);
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_time_idx
+        ON reseller_service_usage_history (reseller_tg_id, captured_at DESC);
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_provider_time_idx
+        ON reseller_service_usage_history (provider_key, captured_at DESC);
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_provider_idx
+        ON reseller_service_usage_history (reseller_tg_id, provider_key);
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_service_time_idx
+        ON reseller_service_usage_history (reseller_tg_id, service_id, captured_at DESC);
+    `).then(() => void 0).catch((error40) => {
+      schemaPromise2 = null;
+      throw error40;
+    });
+  }
+  await schemaPromise2;
+}
+async function recordUsageHistorySample(sample) {
+  const providerKey = sample.providerKey.trim();
+  const sourceUsername = sample.sourceUsername.trim();
+  const counterBytes = Math.max(0, Math.round(Number(sample.counterBytes)));
+  if (!Number.isSafeInteger(sample.serviceId) || sample.serviceId <= 0 || !Number.isSafeInteger(sample.resellerTelegramId) || sample.resellerTelegramId <= 0 || !providerKey || !sourceUsername || !Number.isFinite(counterBytes)) {
+    return;
+  }
+  await ensureUsageHistorySchema();
+  const capturedAt = new Date(Math.floor(Date.now() / SAMPLE_INTERVAL_MS) * SAMPLE_INTERVAL_MS);
+  const bucketEpoch = capturedAt.getTime();
+  const identity = `${sample.serviceId}\0${providerKey}\0${sourceUsername}`;
+  if (recordedBucketByIdentity.get(identity) === bucketEpoch) return;
+  const previous = await pool.query(
+    `SELECT counter_bytes::float8 AS counter_bytes, captured_at
+     FROM reseller_service_usage_history
+     WHERE service_id = $1
+       AND provider_key = $2
+       AND source_username = $3
+       AND captured_at <= $4
+     ORDER BY captured_at DESC
+     LIMIT 1`,
+    [sample.serviceId, providerKey, sourceUsername, capturedAt]
+  );
+  if (previous.rows[0] && new Date(previous.rows[0].captured_at).getTime() === bucketEpoch) {
+    recordedBucketByIdentity.set(identity, bucketEpoch);
+    return;
+  }
+  const previousBytes = previous.rows[0] ? Number(previous.rows[0].counter_bytes) : null;
+  const deltaBytes = previousBytes === null ? 0 : counterBytes >= previousBytes ? counterBytes - previousBytes : counterBytes;
+  const serviceCode = `PULSE-${String(sample.serviceId).padStart(6, "0")}`;
+  await pool.query(
+    `INSERT INTO reseller_service_usage_history (
+       service_id, reseller_tg_id, provider_key, source_username, captured_at,
+       counter_bytes, delta_bytes, service_code, service_username, customer_id, customer_name
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     ON CONFLICT (service_id, provider_key, source_username, captured_at)
+     DO UPDATE SET
+       reseller_tg_id = EXCLUDED.reseller_tg_id,
+       counter_bytes = EXCLUDED.counter_bytes,
+       delta_bytes = EXCLUDED.delta_bytes,
+       service_code = EXCLUDED.service_code,
+       service_username = EXCLUDED.service_username,
+       customer_id = EXCLUDED.customer_id,
+       customer_name = EXCLUDED.customer_name`,
+    [
+      sample.serviceId,
+      sample.resellerTelegramId,
+      providerKey,
+      sourceUsername,
+      capturedAt,
+      counterBytes,
+      deltaBytes,
+      serviceCode,
+      sample.serviceUsername,
+      sample.customerId,
+      sample.customerName.slice(0, 160)
+    ]
+  );
+  if (recordedBucketByIdentity.size > 5e4) recordedBucketByIdentity.clear();
+  recordedBucketByIdentity.set(identity, bucketEpoch);
+  const now = Date.now();
+  if (now - lastRetentionCleanupAt >= 24 * 60 * 6e4) {
+    try {
+      await pool.query(
+        `DELETE FROM reseller_service_usage_history
+         WHERE captured_at < NOW() - ($1::int * INTERVAL '1 day')`,
+        [RETENTION_DAYS]
+      );
+      lastRetentionCleanupAt = now;
+    } catch (error40) {
+      logger.warn({ err: error40 }, "Usage history retention cleanup failed");
+    }
+  }
+}
+
 // src/routes/storefront.ts
 var import_express2 = __toESM(require_express2(), 1);
 var storefrontRouter = (0, import_express2.Router)();
@@ -85796,6 +85973,211 @@ router2.get("/awg-usage", requireAuth, async (req, res) => {
   res.json(ListAwgUsageResponse.parse({
     items: result.rows.map((row) => toAwgUsageItem(row)),
     total: Number(countResult.rows[0]?.total ?? 0)
+  }));
+});
+router2.get("/usage-analytics", requireAuth, async (req, res) => {
+  const parsed = GetUsageAnalyticsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "\u067E\u0627\u0631\u0627\u0645\u062A\u0631\u0647\u0627\u06CC \u06AF\u0632\u0627\u0631\u0634 \u0645\u0635\u0631\u0641 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  await Promise.all([managementReady, ensureUsageHistorySchema()]);
+  const now = /* @__PURE__ */ new Date();
+  const range = parsed.data.range;
+  const rangeMs = {
+    "6h": 6 * 60 * 6e4,
+    "12h": 12 * 60 * 6e4,
+    day: 24 * 60 * 6e4,
+    week: 7 * 24 * 60 * 6e4,
+    month: 30 * 24 * 60 * 6e4
+  };
+  const bucketInterval = {
+    "6h": "15 minutes",
+    "12h": "30 minutes",
+    day: "1 hour",
+    week: "1 day",
+    month: "1 day"
+  };
+  const fromAt = new Date(now.getTime() - rangeMs[range]);
+  const isMaster = req.auth?.role === "master_admin";
+  const filters = [];
+  const filterParams = [];
+  if (!isMaster) {
+    const ownerId = Number(req.auth?.telegramId);
+    filterParams.push(ownerId);
+    const ownerIndex = filterParams.length;
+    filters.push(`h.reseller_tg_id = $${ownerIndex}`);
+    filters.push(`NOT EXISTS (
+      SELECT 1 FROM reseller_services scoped_service
+      WHERE scoped_service.id = h.service_id
+        AND scoped_service.reseller_tg_id <> $${ownerIndex}
+    )`);
+    filters.push(`NOT EXISTS (
+      SELECT 1 FROM reseller_customers scoped_customer
+      WHERE scoped_customer.id = h.customer_id
+        AND scoped_customer.reseller_tg_id <> $${ownerIndex}
+    )`);
+  }
+  if (parsed.data.provider_key) {
+    filterParams.push(parsed.data.provider_key.trim());
+    filters.push(`h.provider_key = $${filterParams.length}`);
+  }
+  if (parsed.data.service_id) {
+    filterParams.push(parsed.data.service_id);
+    filters.push(`h.service_id = $${filterParams.length}`);
+  }
+  const search = String(parsed.data.search ?? "").trim().slice(0, 120);
+  if (search) {
+    filterParams.push(search);
+    const searchIndex = filterParams.length;
+    filters.push(`(
+      POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.service_code, ''))) > 0
+      OR POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.service_username, ''))) > 0
+      OR POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.customer_name, ''))) > 0
+      OR POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.customer_id::text, ''))) > 0
+    )`);
+  }
+  const filterSql = filters.length ? filters.join(" AND ") : "TRUE";
+  const rangeParams = [...filterParams, fromAt, now];
+  const rangeSql = `${filterSql}
+    AND h.captured_at >= $${filterParams.length + 1}
+    AND h.captured_at < $${filterParams.length + 2}`;
+  const pageParams = [...rangeParams, parsed.data.limit, parsed.data.offset];
+  const bucketParams = [...rangeParams, bucketInterval[range]];
+  const bucketIntervalIndex = bucketParams.length;
+  const ownerParams = [];
+  const ownerSql = isMaster ? "TRUE" : (ownerParams.push(Number(req.auth?.telegramId)), `h.reseller_tg_id = $${ownerParams.length}
+       AND NOT EXISTS (
+         SELECT 1 FROM reseller_services scoped_service
+         WHERE scoped_service.id = h.service_id
+           AND scoped_service.reseller_tg_id <> $${ownerParams.length}
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM reseller_customers scoped_customer
+         WHERE scoped_customer.id = h.customer_id
+           AND scoped_customer.reseller_tg_id <> $${ownerParams.length}
+       )`);
+  const [summary, providers, buckets, serviceCount, services, history, providerOptions] = await Promise.all([
+    pool.query(
+      `SELECT COALESCE(SUM(h.delta_bytes), 0)::float8 AS total_bytes,
+              COUNT(DISTINCT h.service_id) FILTER (WHERE h.delta_bytes > 0)::int AS service_count
+       FROM reseller_service_usage_history h
+       WHERE ${rangeSql}`,
+      rangeParams
+    ),
+    pool.query(
+      `SELECT h.provider_key AS key,
+              COALESCE(
+                NULLIF(pc.settings_json->>'display_name', ''),
+                NULLIF(pc.settings_json->>'label', ''),
+                NULLIF(pc.settings_json->>'name', ''),
+                CASE WHEN h.provider_key = 'amneziawg' THEN 'AmneziaWG' ELSE h.provider_key END
+              ) AS label,
+              COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes
+       FROM reseller_service_usage_history h
+       LEFT JOIN panel_configs pc ON pc.key = h.provider_key
+       WHERE ${rangeSql}
+       GROUP BY h.provider_key, pc.settings_json
+       ORDER BY bytes DESC, h.provider_key`,
+      rangeParams
+    ),
+    pool.query(
+      `WITH bins AS (
+         SELECT generate_series(
+           date_bin($${bucketIntervalIndex}::interval, $${filterParams.length + 1}::timestamptz, '1970-01-01T00:00:00Z'::timestamptz),
+           date_bin($${bucketIntervalIndex}::interval, $${filterParams.length + 2}::timestamptz, '1970-01-01T00:00:00Z'::timestamptz),
+           $${bucketIntervalIndex}::interval
+         ) AS bucket_at
+       )
+       SELECT bins.bucket_at,
+              COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes
+       FROM bins
+       LEFT JOIN reseller_service_usage_history h
+         ON date_bin($${bucketIntervalIndex}::interval, h.captured_at, '1970-01-01T00:00:00Z'::timestamptz) = bins.bucket_at
+        AND ${rangeSql}
+       GROUP BY bins.bucket_at
+       ORDER BY bins.bucket_at`,
+      bucketParams
+    ),
+    pool.query(
+      `SELECT COUNT(DISTINCT h.service_id)::int AS total
+       FROM reseller_service_usage_history h
+       WHERE ${rangeSql}`,
+      rangeParams
+    ),
+    pool.query(
+      `SELECT h.service_id::float8 AS service_id,
+              (ARRAY_AGG(h.service_code ORDER BY h.captured_at DESC))[1] AS service_code,
+              (ARRAY_AGG(h.service_username ORDER BY h.captured_at DESC))[1] AS username,
+              MAX(h.customer_id)::float8 AS customer_id,
+              COALESCE((ARRAY_AGG(h.customer_name ORDER BY h.captured_at DESC))[1], '') AS customer_name,
+              COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes,
+              COUNT(DISTINCT h.provider_key)::int AS provider_count
+       FROM reseller_service_usage_history h
+       WHERE ${rangeSql}
+       GROUP BY h.service_id
+       ORDER BY bytes DESC, h.service_id DESC
+       LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
+      pageParams
+    ),
+    pool.query(
+      `SELECT MIN(h.captured_at) AS history_started_at
+       FROM reseller_service_usage_history h
+       WHERE ${filterSql}`,
+      filterParams
+    ),
+    pool.query(
+      `SELECT options.key, options.label
+       FROM (
+         SELECT p.key,
+                COALESCE(
+                  NULLIF(p.settings_json->>'display_name', ''),
+                  NULLIF(p.settings_json->>'label', ''),
+                  NULLIF(p.settings_json->>'name', ''),
+                  p.key
+                ) AS label
+         FROM panel_configs p
+         WHERE p.is_enabled = 1
+         UNION
+         SELECT DISTINCT h.provider_key AS key,
+                COALESCE(
+                  NULLIF(pc.settings_json->>'display_name', ''),
+                  NULLIF(pc.settings_json->>'label', ''),
+                  NULLIF(pc.settings_json->>'name', ''),
+                  CASE WHEN h.provider_key = 'amneziawg' THEN 'AmneziaWG' ELSE h.provider_key END
+                ) AS label
+         FROM reseller_service_usage_history h
+         LEFT JOIN panel_configs pc ON pc.key = h.provider_key
+         WHERE ${ownerSql}
+         UNION
+         SELECT 'amneziawg' AS key, 'AmneziaWG' AS label
+       ) options
+       ORDER BY options.label, options.key`,
+      ownerParams
+    )
+  ]);
+  const historyStartedAt = history.rows[0]?.history_started_at ?? null;
+  const historyStartDate = historyStartedAt ? new Date(historyStartedAt) : null;
+  const totalBytes = Number(summary.rows[0]?.total_bytes ?? 0);
+  const totalServices = Number(serviceCount.rows[0]?.total ?? 0);
+  res.json(GetUsageAnalyticsResponse.parse({
+    scope: isMaster ? "system" : "reseller",
+    range,
+    from_at: fromAt,
+    to_at: now,
+    history_started_at: historyStartedAt,
+    is_partial: !historyStartDate || historyStartDate.getTime() > fromAt.getTime(),
+    bucket_interval: bucketInterval[range],
+    total_bytes: Math.max(0, totalBytes),
+    service_count: Number(summary.rows[0]?.service_count ?? 0),
+    services_total: totalServices,
+    buckets: buckets.rows.map((row) => ({
+      bucket_at: row.bucket_at,
+      bytes: Math.max(0, Number(row.bytes ?? 0))
+    })),
+    provider_options: providerOptions.rows,
+    providers: providers.rows,
+    services: services.rows
   }));
 });
 router2.post("/awg-usage/:id/refresh", requireAuth, async (req, res) => {
@@ -92706,7 +93088,20 @@ async function syncServiceUnlocked(service) {
   );
   let panelUsedBytes = 0;
   for (const usage of panelUsages) {
-    panelUsedBytes += usage.stale ? usage.usedBytes : await updatePanelUsage(usage.username, usage.panelKey, usage.usedBytes);
+    const effectiveBytes = usage.stale ? usage.usedBytes : await updatePanelUsage(usage.username, usage.panelKey, usage.usedBytes);
+    panelUsedBytes += effectiveBytes;
+    if (!usage.stale) {
+      await recordUsageHistorySample({
+        serviceId: Number(service.id),
+        resellerTelegramId: Number(service.reseller_tg_id),
+        providerKey: usage.panelKey,
+        sourceUsername: usage.username,
+        counterBytes: effectiveBytes,
+        serviceUsername: service.rain_username,
+        customerId: service.customer_id,
+        customerName: service.customer_name ?? ""
+      });
+    }
   }
   let awgUsedBytes = effectiveAwgBytes(service.awg_total, service.awg_offset_bytes);
   let awgRx = 0;
@@ -92722,6 +93117,16 @@ async function syncServiceUnlocked(service) {
       const counter = reconcileAwgCounter(rawAwgBytes, service.awg_total, service.awg_offset_bytes);
       const offset = counter.offsetBytes;
       awgUsedBytes = counter.effectiveBytes;
+      await recordUsageHistorySample({
+        serviceId: Number(service.id),
+        resellerTelegramId: Number(service.reseller_tg_id),
+        providerKey: "amneziawg",
+        sourceUsername: service.awg_client_id,
+        counterBytes: awgUsedBytes,
+        serviceUsername: service.rain_username,
+        customerId: service.customer_id,
+        customerName: service.customer_name ?? ""
+      });
       await pool.query(
         `UPDATE reseller_services
          SET awg_rx = $1, awg_tx = $2, awg_total = $3, awg_offset_bytes = $4
@@ -92852,13 +93257,17 @@ async function syncService(service) {
   try {
     await lockClient.query("SELECT pg_advisory_lock(74421, $1)", [service.id]);
     const fresh = await pool.query(
-      `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
+      `SELECT svc.id, svc.reseller_tg_id, svc.customer_id,
+              COALESCE(c.full_name, '') AS customer_name,
+              svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
               svc.last_used_bytes,
               COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
               svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
               svc.lifecycle_version, svc.remote_disable_pending
        FROM reseller_services svc
+       LEFT JOIN reseller_customers c
+         ON c.id = svc.customer_id AND c.reseller_tg_id = svc.reseller_tg_id
        LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
        WHERE svc.id = $1
        LIMIT 1`,
@@ -92892,13 +93301,17 @@ async function runUsageSync() {
     if (!lockResult.rows[0]?.locked) return;
     workerLockAcquired = true;
     const result = await workerLockClient.query(
-      `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
+      `SELECT svc.id, svc.reseller_tg_id, svc.customer_id,
+              COALESCE(c.full_name, '') AS customer_name,
+              svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
               svc.last_used_bytes,
               COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
                svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
                svc.lifecycle_version, svc.remote_disable_pending
        FROM reseller_services svc
+       LEFT JOIN reseller_customers c
+         ON c.id = svc.customer_id AND c.reseller_tg_id = svc.reseller_tg_id
        LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
         WHERE svc.status IN ('active', 'expiring')
            OR (svc.status = 'disabled' AND COALESCE(svc.remote_disable_pending, 0) = 1)

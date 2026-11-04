@@ -31,6 +31,7 @@ import type {
   CustomerDetail,
   DashboardSummary,
   GetSalesSummaryParams,
+  GetUsageAnalyticsParams,
   HealthStatus,
   IpsecDelivery,
   ListAdminSalesParams,
@@ -90,6 +91,7 @@ import type {
   TelegramRecipient,
   TelegramRecipientRevocation,
   TelegramSettingsInput,
+  UsageAnalytics,
   WireGuardDelivery,
   WorkspaceSearchResult
 } from './api.schemas';
@@ -2307,6 +2309,91 @@ export function useListAwgUsage<TData = Awaited<ReturnType<typeof listAwgUsage>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAwgUsageQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetUsageAnalyticsUrl = (params?: GetUsageAnalyticsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/usage-analytics?${stringifiedParams}` : `/api/usage-analytics`
+}
+
+/**
+ * Master admins see system-wide totals; resellers are always restricted to their own services.
+ * @summary Read historical traffic usage visible to the authenticated workspace
+ */
+export const getUsageAnalytics = async (params?: GetUsageAnalyticsParams, options?: Parameters<typeof customFetch>[1]): Promise<UsageAnalytics> => {
+
+  return customFetch<UsageAnalytics>(getGetUsageAnalyticsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUsageAnalyticsQueryKey = (params?: GetUsageAnalyticsParams,) => {
+    return [
+    `/api/usage-analytics`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetUsageAnalyticsQueryOptions = <TData = Awaited<ReturnType<typeof getUsageAnalytics>>, TError = ErrorType<unknown>>(params?: GetUsageAnalyticsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUsageAnalytics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUsageAnalyticsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsageAnalytics>>> = ({ signal }) => getUsageAnalytics(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUsageAnalytics>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUsageAnalyticsQueryResult = NonNullable<Awaited<ReturnType<typeof getUsageAnalytics>>>
+export type GetUsageAnalyticsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Read historical traffic usage visible to the authenticated workspace
+ */
+
+export function useGetUsageAnalytics<TData = Awaited<ReturnType<typeof getUsageAnalytics>>, TError = ErrorType<unknown>>(
+ params?: GetUsageAnalyticsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUsageAnalytics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUsageAnalyticsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

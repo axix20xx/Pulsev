@@ -35,6 +35,8 @@ import {
   GetAwgUsageWorkerLogResponse,
   ListAwgUsageQueryParams,
   ListAwgUsageResponse,
+  GetUsageAnalyticsQueryParams,
+  GetUsageAnalyticsResponse,
   SearchProviderAccountsQueryParams,
   SearchProviderAccountsResponse,
   RefreshAwgUsageParams,
@@ -147,6 +149,7 @@ import {
 } from "../lib/public-profile-names";
 import { createZipArchive } from "../lib/zip-archive";
 import { getAwgUsageWorkerLog, recordAwgUsagePollEvent } from "../lib/awg-usage-poll";
+import { ensureUsageHistorySchema } from "../lib/usage-history";
 import {
   ensureStorefrontSchema,
   normalizeStorefrontPhone,
@@ -1670,6 +1673,216 @@ router.get("/awg-usage", requireAuth, async (req, res): Promise<void> => {
   res.json(ListAwgUsageResponse.parse({
     items: result.rows.map((row) => toAwgUsageItem(row as Record<string, unknown>)),
     total: Number(countResult.rows[0]?.total ?? 0),
+  }));
+});
+
+router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
+  const parsed = GetUsageAnalyticsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "پارامترهای گزارش مصرف معتبر نیست." });
+    return;
+  }
+
+  await Promise.all([managementReady, ensureUsageHistorySchema()]);
+  const now = new Date();
+  const range = parsed.data.range;
+  const rangeMs: Record<typeof range, number> = {
+    "6h": 6 * 60 * 60_000,
+    "12h": 12 * 60 * 60_000,
+    day: 24 * 60 * 60_000,
+    week: 7 * 24 * 60 * 60_000,
+    month: 30 * 24 * 60 * 60_000,
+  };
+  const bucketInterval: Record<typeof range, string> = {
+    "6h": "15 minutes",
+    "12h": "30 minutes",
+    day: "1 hour",
+    week: "1 day",
+    month: "1 day",
+  };
+  const fromAt = new Date(now.getTime() - rangeMs[range]);
+  const isMaster = req.auth?.role === "master_admin";
+  const filters: string[] = [];
+  const filterParams: unknown[] = [];
+  if (!isMaster) {
+    const ownerId = Number(req.auth?.telegramId);
+    filterParams.push(ownerId);
+    const ownerIndex = filterParams.length;
+    filters.push(`h.reseller_tg_id = $${ownerIndex}`);
+    filters.push(`NOT EXISTS (
+      SELECT 1 FROM reseller_services scoped_service
+      WHERE scoped_service.id = h.service_id
+        AND scoped_service.reseller_tg_id <> $${ownerIndex}
+    )`);
+    filters.push(`NOT EXISTS (
+      SELECT 1 FROM reseller_customers scoped_customer
+      WHERE scoped_customer.id = h.customer_id
+        AND scoped_customer.reseller_tg_id <> $${ownerIndex}
+    )`);
+  }
+  if (parsed.data.provider_key) {
+    filterParams.push(parsed.data.provider_key.trim());
+    filters.push(`h.provider_key = $${filterParams.length}`);
+  }
+  if (parsed.data.service_id) {
+    filterParams.push(parsed.data.service_id);
+    filters.push(`h.service_id = $${filterParams.length}`);
+  }
+  const search = String(parsed.data.search ?? "").trim().slice(0, 120);
+  if (search) {
+    filterParams.push(search);
+    const searchIndex = filterParams.length;
+    filters.push(`(
+      POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.service_code, ''))) > 0
+      OR POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.service_username, ''))) > 0
+      OR POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.customer_name, ''))) > 0
+      OR POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.customer_id::text, ''))) > 0
+    )`);
+  }
+  const filterSql = filters.length ? filters.join(" AND ") : "TRUE";
+  const rangeParams = [...filterParams, fromAt, now];
+  const rangeSql = `${filterSql}
+    AND h.captured_at >= $${filterParams.length + 1}
+    AND h.captured_at < $${filterParams.length + 2}`;
+
+  const pageParams = [...rangeParams, parsed.data.limit, parsed.data.offset];
+  const bucketParams = [...rangeParams, bucketInterval[range]];
+  const bucketIntervalIndex = bucketParams.length;
+  const ownerParams: unknown[] = [];
+  const ownerSql = isMaster
+    ? "TRUE"
+    : (ownerParams.push(Number(req.auth?.telegramId)), `h.reseller_tg_id = $${ownerParams.length}
+       AND NOT EXISTS (
+         SELECT 1 FROM reseller_services scoped_service
+         WHERE scoped_service.id = h.service_id
+           AND scoped_service.reseller_tg_id <> $${ownerParams.length}
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM reseller_customers scoped_customer
+         WHERE scoped_customer.id = h.customer_id
+           AND scoped_customer.reseller_tg_id <> $${ownerParams.length}
+       )`);
+  const [summary, providers, buckets, serviceCount, services, history, providerOptions] = await Promise.all([
+    pool.query<{ total_bytes: number; service_count: number }>(
+      `SELECT COALESCE(SUM(h.delta_bytes), 0)::float8 AS total_bytes,
+              COUNT(DISTINCT h.service_id) FILTER (WHERE h.delta_bytes > 0)::int AS service_count
+       FROM reseller_service_usage_history h
+       WHERE ${rangeSql}`,
+      rangeParams,
+    ),
+    pool.query(
+      `SELECT h.provider_key AS key,
+              COALESCE(
+                NULLIF(pc.settings_json->>'display_name', ''),
+                NULLIF(pc.settings_json->>'label', ''),
+                NULLIF(pc.settings_json->>'name', ''),
+                CASE WHEN h.provider_key = 'amneziawg' THEN 'AmneziaWG' ELSE h.provider_key END
+              ) AS label,
+              COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes
+       FROM reseller_service_usage_history h
+       LEFT JOIN panel_configs pc ON pc.key = h.provider_key
+       WHERE ${rangeSql}
+       GROUP BY h.provider_key, pc.settings_json
+       ORDER BY bytes DESC, h.provider_key`,
+      rangeParams,
+    ),
+    pool.query<{ bucket_at: Date; bytes: number }>(
+      `WITH bins AS (
+         SELECT generate_series(
+           date_bin($${bucketIntervalIndex}::interval, $${filterParams.length + 1}::timestamptz, '1970-01-01T00:00:00Z'::timestamptz),
+           date_bin($${bucketIntervalIndex}::interval, $${filterParams.length + 2}::timestamptz, '1970-01-01T00:00:00Z'::timestamptz),
+           $${bucketIntervalIndex}::interval
+         ) AS bucket_at
+       )
+       SELECT bins.bucket_at,
+              COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes
+       FROM bins
+       LEFT JOIN reseller_service_usage_history h
+         ON date_bin($${bucketIntervalIndex}::interval, h.captured_at, '1970-01-01T00:00:00Z'::timestamptz) = bins.bucket_at
+        AND ${rangeSql}
+       GROUP BY bins.bucket_at
+       ORDER BY bins.bucket_at`,
+      bucketParams,
+    ),
+    pool.query<{ total: number }>(
+      `SELECT COUNT(DISTINCT h.service_id)::int AS total
+       FROM reseller_service_usage_history h
+       WHERE ${rangeSql}`,
+      rangeParams,
+    ),
+    pool.query(
+      `SELECT h.service_id::float8 AS service_id,
+              (ARRAY_AGG(h.service_code ORDER BY h.captured_at DESC))[1] AS service_code,
+              (ARRAY_AGG(h.service_username ORDER BY h.captured_at DESC))[1] AS username,
+              MAX(h.customer_id)::float8 AS customer_id,
+              COALESCE((ARRAY_AGG(h.customer_name ORDER BY h.captured_at DESC))[1], '') AS customer_name,
+              COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes,
+              COUNT(DISTINCT h.provider_key)::int AS provider_count
+       FROM reseller_service_usage_history h
+       WHERE ${rangeSql}
+       GROUP BY h.service_id
+       ORDER BY bytes DESC, h.service_id DESC
+       LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
+      pageParams,
+    ),
+    pool.query<{ history_started_at: Date | null }>(
+      `SELECT MIN(h.captured_at) AS history_started_at
+       FROM reseller_service_usage_history h
+       WHERE ${filterSql}`,
+      filterParams,
+    ),
+    pool.query(
+      `SELECT options.key, options.label
+       FROM (
+         SELECT p.key,
+                COALESCE(
+                  NULLIF(p.settings_json->>'display_name', ''),
+                  NULLIF(p.settings_json->>'label', ''),
+                  NULLIF(p.settings_json->>'name', ''),
+                  p.key
+                ) AS label
+         FROM panel_configs p
+         WHERE p.is_enabled = 1
+         UNION
+         SELECT DISTINCT h.provider_key AS key,
+                COALESCE(
+                  NULLIF(pc.settings_json->>'display_name', ''),
+                  NULLIF(pc.settings_json->>'label', ''),
+                  NULLIF(pc.settings_json->>'name', ''),
+                  CASE WHEN h.provider_key = 'amneziawg' THEN 'AmneziaWG' ELSE h.provider_key END
+                ) AS label
+         FROM reseller_service_usage_history h
+         LEFT JOIN panel_configs pc ON pc.key = h.provider_key
+         WHERE ${ownerSql}
+         UNION
+         SELECT 'amneziawg' AS key, 'AmneziaWG' AS label
+       ) options
+       ORDER BY options.label, options.key`,
+      ownerParams,
+    ),
+  ]);
+  const historyStartedAt = history.rows[0]?.history_started_at ?? null;
+  const historyStartDate = historyStartedAt ? new Date(historyStartedAt) : null;
+  const totalBytes = Number(summary.rows[0]?.total_bytes ?? 0);
+  const totalServices = Number(serviceCount.rows[0]?.total ?? 0);
+  res.json(GetUsageAnalyticsResponse.parse({
+    scope: isMaster ? "system" : "reseller",
+    range,
+    from_at: fromAt,
+    to_at: now,
+    history_started_at: historyStartedAt,
+    is_partial: !historyStartDate || historyStartDate.getTime() > fromAt.getTime(),
+    bucket_interval: bucketInterval[range],
+    total_bytes: Math.max(0, totalBytes),
+    service_count: Number(summary.rows[0]?.service_count ?? 0),
+    services_total: totalServices,
+    buckets: buckets.rows.map((row) => ({
+      bucket_at: row.bucket_at,
+      bytes: Math.max(0, Number(row.bytes ?? 0)),
+    })),
+    provider_options: providerOptions.rows,
+    providers: providers.rows,
+    services: services.rows,
   }));
 });
 

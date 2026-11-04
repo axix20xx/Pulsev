@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pulse-shell-v2';
+const CACHE_NAME = 'pulse-shell-v3';
 const APP_SHELL = ['./', './login', './manifest.webmanifest', './favicon.svg'];
 const scopePath = new URL('./', self.location.href).pathname;
 

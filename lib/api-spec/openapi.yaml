@@ -545,6 +545,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AwgUsagePage"
+  /usage-analytics:
+    get:
+      operationId: getUsageAnalytics
+      tags: [services]
+      summary: Read historical traffic usage visible to the authenticated workspace
+      description: Master admins see system-wide totals; resellers are always restricted to their own services.
+      parameters:
+        - $ref: "#/components/parameters/UsageAnalyticsRange"
+        - $ref: "#/components/parameters/UsageAnalyticsProvider"
+        - $ref: "#/components/parameters/UsageAnalyticsService"
+        - $ref: "#/components/parameters/UsageAnalyticsSearch"
+        - $ref: "#/components/parameters/UsageAnalyticsLimit"
+        - $ref: "#/components/parameters/UsageAnalyticsOffset"
+      responses:
+        "200":
+          description: Historical usage totals, time buckets, providers, and services
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageAnalytics"
   /awg-usage/{id}/refresh:
     post:
       operationId: refreshAwgUsage
@@ -1408,6 +1428,54 @@ components:
       in: query
       required: false
       description: Number of matching active AWG users to skip
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 100000
+        default: 0
+    UsageAnalyticsRange:
+      name: range
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: ["6h", "12h", "day", "week", "month"]
+        default: day
+    UsageAnalyticsProvider:
+      name: provider_key
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 120
+    UsageAnalyticsService:
+      name: service_id
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    UsageAnalyticsSearch:
+      name: search
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 120
+    UsageAnalyticsLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    UsageAnalyticsOffset:
+      name: offset
+      in: query
+      required: false
       schema:
         type: integer
         minimum: 0
@@ -2390,6 +2458,104 @@ components:
             $ref: "#/components/schemas/AwgUsageItem"
         total:
           type: number
+          minimum: 0
+    UsageAnalytics:
+      type: object
+      required: [scope, range, from_at, to_at, history_started_at, is_partial, bucket_interval, total_bytes, service_count, services_total, buckets, provider_options, providers, services]
+      properties:
+        scope:
+          type: string
+          enum: [system, reseller]
+        range:
+          type: string
+          enum: ["6h", "12h", day, week, month]
+        from_at:
+          type: string
+          format: date-time
+        to_at:
+          type: string
+          format: date-time
+        history_started_at:
+          type: ["string", "null"]
+          format: date-time
+        is_partial:
+          type: boolean
+        bucket_interval:
+          type: string
+        total_bytes:
+          type: number
+          minimum: 0
+        service_count:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        services_total:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        buckets:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageAnalyticsBucket"
+        provider_options:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageAnalyticsProvider"
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageAnalyticsProviderTotal"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageAnalyticsService"
+    UsageAnalyticsBucket:
+      type: object
+      required: [bucket_at, bytes]
+      properties:
+        bucket_at:
+          type: string
+          format: date-time
+        bytes:
+          type: number
+          minimum: 0
+    UsageAnalyticsProvider:
+      type: object
+      required: [key, label]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+    UsageAnalyticsProviderTotal:
+      allOf:
+        - $ref: "#/components/schemas/UsageAnalyticsProvider"
+        - type: object
+          required: [bytes]
+          properties:
+            bytes:
+              type: number
+              minimum: 0
+    UsageAnalyticsService:
+      type: object
+      required: [service_id, service_code, username, customer_id, customer_name, bytes, provider_count]
+      properties:
+        service_id:
+          type: number
+        service_code:
+          type: string
+        username:
+          type: string
+        customer_id:
+          type: ["number", "null"]
+        customer_name:
+          type: string
+        bytes:
+          type: number
+          minimum: 0
+        provider_count:
+          type: number
+          multipleOf: 1
           minimum: 0
     AwgUsageRefreshResult:
       type: object

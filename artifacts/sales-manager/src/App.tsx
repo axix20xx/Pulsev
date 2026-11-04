@@ -6,6 +6,7 @@ import { useLocation, Router as WouterRouter, Route, Switch } from 'wouter';
 
 const queryClient = new QueryClient();
 const ManagementApp = lazy(() => import('@/management-app'));
+const PublicLanding = lazy(() => import('@/pages/root-landing'));
 const MobileApp = lazy(() =>
   import('@/mobile/mobile-pages').then((module) => ({ default: module.MobileApp })),
 );
@@ -16,6 +17,7 @@ const PublicStorefront = lazy(() =>
   import('@/pages/storefront').then((module) => ({ default: module.PublicStorefrontPage })),
 );
 const isMobileBuild = import.meta.env.BASE_URL.replace(/\/$/, '').endsWith('/mobile');
+const isPublicLandingBuild = import.meta.env.BASE_URL === '/';
 
 function RouteLoading() {
   return (
@@ -53,6 +55,9 @@ function Router() {
   }
   if (isMobileBuild || isMobilePath) {
     return <Suspense fallback={<RouteLoading />}><MobileApp /></Suspense>;
+  }
+  if (isPublicLandingBuild) {
+    return <Suspense fallback={<RouteLoading />}><PublicLanding /></Suspense>;
   }
   return <Suspense fallback={<RouteLoading />}><ManagementApp /></Suspense>;
 }

@@ -4,6 +4,7 @@ import { disablePanelUser, readPanelUsages } from "./rain";
 import { hasOtherActiveServiceWithUsername } from "./service-disable-guard";
 import { effectiveAwgBytes, reconcileAwgCounter } from "./awg-counters";
 import { logger } from "./logger";
+import { recordUsageHistorySample } from "./usage-history";
 
 const BYTES_PER_GB = 1024 ** 3;
 const DEFAULT_INTERVAL_MS = 60_000;
@@ -24,6 +25,8 @@ function shouldLogAwgUsageError(error: unknown, serviceId: number): boolean {
 type ServiceRow = {
   id: number;
   reseller_tg_id: number;
+  customer_id: number | string | null;
+  customer_name: string;
   rain_username: string;
   falco_config_id: number | null;
   awg_client_id: string | null;
@@ -88,9 +91,22 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
   );
   let panelUsedBytes = 0;
   for (const usage of panelUsages) {
-    panelUsedBytes += usage.stale
+    const effectiveBytes = usage.stale
       ? usage.usedBytes
       : await updatePanelUsage(usage.username, usage.panelKey, usage.usedBytes);
+    panelUsedBytes += effectiveBytes;
+    if (!usage.stale) {
+      await recordUsageHistorySample({
+        serviceId: Number(service.id),
+        resellerTelegramId: Number(service.reseller_tg_id),
+        providerKey: usage.panelKey,
+        sourceUsername: usage.username,
+        counterBytes: effectiveBytes,
+        serviceUsername: service.rain_username,
+        customerId: service.customer_id,
+        customerName: service.customer_name ?? "",
+      });
+    }
   }
 
   let awgUsedBytes = effectiveAwgBytes(service.awg_total, service.awg_offset_bytes);
@@ -107,6 +123,16 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
       const counter = reconcileAwgCounter(rawAwgBytes, service.awg_total, service.awg_offset_bytes);
       const offset = counter.offsetBytes;
       awgUsedBytes = counter.effectiveBytes;
+      await recordUsageHistorySample({
+        serviceId: Number(service.id),
+        resellerTelegramId: Number(service.reseller_tg_id),
+        providerKey: "amneziawg",
+        sourceUsername: service.awg_client_id,
+        counterBytes: awgUsedBytes,
+        serviceUsername: service.rain_username,
+        customerId: service.customer_id,
+        customerName: service.customer_name ?? "",
+      });
       await pool.query(
         `UPDATE reseller_services
          SET awg_rx = $1, awg_tx = $2, awg_total = $3, awg_offset_bytes = $4
@@ -256,13 +282,17 @@ async function syncService(service: ServiceRow): Promise<void> {
   try {
     await lockClient.query("SELECT pg_advisory_lock(74421, $1)", [service.id]);
     const fresh = await pool.query<ServiceRow>(
-      `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
+      `SELECT svc.id, svc.reseller_tg_id, svc.customer_id,
+              COALESCE(c.full_name, '') AS customer_name,
+              svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
               svc.last_used_bytes,
               COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
               svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
               svc.lifecycle_version, svc.remote_disable_pending
        FROM reseller_services svc
+       LEFT JOIN reseller_customers c
+         ON c.id = svc.customer_id AND c.reseller_tg_id = svc.reseller_tg_id
        LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
        WHERE svc.id = $1
        LIMIT 1`,
@@ -277,13 +307,17 @@ async function syncService(service: ServiceRow): Promise<void> {
 
 export async function syncServiceUsageById(serviceId: number): Promise<boolean> {
   const result = await pool.query<ServiceRow>(
-    `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
+    `SELECT svc.id, svc.reseller_tg_id, svc.customer_id,
+            COALESCE(c.full_name, '') AS customer_name,
+            svc.rain_username, svc.falco_config_id,
             svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
             svc.last_used_bytes,
             COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
              svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
              svc.lifecycle_version, svc.remote_disable_pending
      FROM reseller_services svc
+     LEFT JOIN reseller_customers c
+       ON c.id = svc.customer_id AND c.reseller_tg_id = svc.reseller_tg_id
      LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
      WHERE svc.id = $1
      LIMIT 1`,
@@ -317,13 +351,17 @@ export async function runUsageSync(): Promise<void> {
     if (!lockResult.rows[0]?.locked) return;
     workerLockAcquired = true;
     const result = await workerLockClient.query<ServiceRow>(
-      `SELECT svc.id, svc.reseller_tg_id, svc.rain_username, svc.falco_config_id,
+      `SELECT svc.id, svc.reseller_tg_id, svc.customer_id,
+              COALESCE(c.full_name, '') AS customer_name,
+              svc.rain_username, svc.falco_config_id,
               svc.awg_client_id, svc.awg_offset_bytes, svc.awg_total, svc.expire_at,
               svc.last_used_bytes,
               COALESCE(svc.expire_at <= NOW(), FALSE) AS expired_in_db,
                svc.gb::float8 AS gb, rst.token, svc.status, svc.disable_reason,
                svc.lifecycle_version, svc.remote_disable_pending
        FROM reseller_services svc
+       LEFT JOIN reseller_customers c
+         ON c.id = svc.customer_id AND c.reseller_tg_id = svc.reseller_tg_id
        LEFT JOIN reseller_sub_tokens rst ON rst.service_id = svc.id
         WHERE svc.status IN ('active', 'expiring')
            OR (svc.status = 'disabled' AND COALESCE(svc.remote_disable_pending, 0) = 1)

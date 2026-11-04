@@ -39,6 +39,7 @@ const groups: { title: string; items: NavItem[] }[] = [
     { href: '/monitoring', label: 'مانیتورینگ ساخت', icon: Activity },
     { href: '/connections', label: 'کاربران آنلاین', icon: Wifi },
     { href: '/awg-usage', label: 'مصرف AWG', icon: Wifi },
+    { href: '/usage-analytics', label: 'تحلیل مصرف ترافیک', icon: BarChart3 },
     { href: '/awg-usage-log', label: 'لاگ زنده AWG', icon: Activity, admin: true },
     { href: '/provider-account-audit', label: 'بازبینی حساب Provider', icon: ShieldEllipsis, admin: true },
     { href: '/provider-account-search', label: 'جست‌وجوی username پنل', icon: Search, admin: true },

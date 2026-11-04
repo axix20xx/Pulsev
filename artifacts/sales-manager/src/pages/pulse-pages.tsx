@@ -332,11 +332,11 @@ function LoginPageContent() {
   const login = useLoginWithTelegramId();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
-  const [telegramId, setTelegramId] = useState('');
+  const [staffId, setStaffId] = useState('');
   
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const id = Number(telegramId.replace(/[^\d]/g, ''));
+    const id = Number(staffId.replace(/[^\d]/g, ''));
     if (!Number.isSafeInteger(id) || id <= 0) return;
     const authenticatedSession = await login.mutateAsync({ data: { telegram_id: id } });
     queryClient.setQueryData(getGetAuthSessionQueryKey(), authenticatedSession);
@@ -350,12 +350,12 @@ function LoginPageContent() {
     <main className="ax-auth" dir="rtl">
       <section className="ax-auth-panel" aria-labelledby="ax-auth-title">
         <div className="ax-brand-link"><span className="ax-logo">P</span><span className="ax-brand-copy"><strong>پالس</strong><small>کنسول مدیریت فروش</small></span></div>
-        <div className="ax-auth-copy"><p className="ax-eyebrow">ورود کارکنان</p><h1 id="ax-auth-title">به کنسول خوش آمدید</h1><p className="ax-lede">با شناسهٔ عددی تلگرام وارد شوید. نقش و دسترسی شما پس از ورود بررسی می‌شود.</p></div>
+        <div className="ax-auth-copy"><p className="ax-eyebrow">ورود کارکنان</p><h1 id="ax-auth-title">به کنسول خوش آمدید</h1><p className="ax-lede">با شناسهٔ دسترسی اختصاصی خود وارد شوید. نقش و دسترسی شما در سامانه بررسی می‌شود.</p></div>
         {session?.authenticated ? <div className="ax-state" role="status"><span className="ax-state-glyph" style={{ color: 'hsl(var(--ax-good))' }}><Check size={20} /></span><strong>دسترسی تأیید شد</strong><p>در حال انتقال به داشبورد…</p><Link href="/" className="ax-btn is-primary">ورود به داشبورد <ChevronLeft size={15} /></Link></div> : (
           <form onSubmit={submit} className="ax-auth-form" noValidate>
-            <label className="ax-field" htmlFor="telegram-id-input"><span>شناسه تلگرام</span><div className="ax-search" style={{ width: '100%' }}><KeyRound size={16} aria-hidden="true" /><input id="telegram-id-input" inputMode="numeric" dir="ltr" autoFocus value={telegramId} onChange={(event) => setTelegramId(event.target.value)} data-testid="input-telegram-id" placeholder="123456789" autoComplete="off" aria-invalid={login.isError || undefined} aria-describedby="telegram-id-hint" /></div><small id="telegram-id-hint">شناسهٔ عددی حساب، بدون علامت @</small></label>
-            <button type="submit" className="ax-btn is-primary" style={{ minHeight: 44 }} disabled={login.isPending || !telegramId.trim()} data-testid="button-login-id">{login.isPending ? <><RefreshCw size={16} className="ax-spin" /> در حال احراز هویت…</> : <>ورود <ChevronLeft size={16} /></>}</button>
-            {login.isError && <div className="ax-alert" role="alert"><ShieldAlert size={16} /><span>این شناسه در فهرست کارکنان مجاز یافت نشد.</span></div>}
+            <label className="ax-field" htmlFor="staff-id-input"><span>شناسهٔ ورود</span><div className="ax-search" style={{ width: '100%' }}><KeyRound size={16} aria-hidden="true" /><input id="staff-id-input" inputMode="numeric" dir="ltr" autoFocus value={staffId} onChange={(event) => setStaffId(event.target.value)} data-testid="input-staff-id" placeholder="شناسهٔ ورود" autoComplete="off" aria-invalid={login.isError || undefined} aria-describedby="staff-id-hint" /></div><small id="staff-id-hint">شناسهٔ اختصاصی دسترسی خود را وارد کنید.</small></label>
+            <button type="submit" className="ax-btn is-primary" style={{ minHeight: 44 }} disabled={login.isPending || !staffId.trim()} data-testid="button-staff-login">{login.isPending ? <><RefreshCw size={16} className="ax-spin" /> در حال احراز هویت…</> : <>ورود <ChevronLeft size={16} /></>}</button>
+            {login.isError && <div className="ax-alert" role="alert"><ShieldAlert size={16} /><span>اطلاعات ورود معتبر نیست یا دسترسی فعالی برای آن پیدا نشد.</span></div>}
           </form>
         )}
         <p className="ax-auth-foot"><Lock size={13} /> نشست با کوکی امن نگهداری می‌شود · <Server size={13} /> Pulse Console</p>
