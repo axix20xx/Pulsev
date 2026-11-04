@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { openVpnConnectImportUrl } from '@/lib/openvpn-connect-link';
 import { dateLabel } from '@/lib/pulse-data';
+import { LiquidButton, LiquidGlass } from '@/lib/glisse-ui';
+import './public-sub-glisse.css';
 
 const isIOSDevice = (): boolean => typeof navigator !== 'undefined'
   && (/iPhone|iPad|iPod/i.test(navigator.userAgent)
@@ -359,18 +361,19 @@ export function PublicSubscriptionWizard(props: Props) {
     <div className={`public-sub-v3 public-sub-lux ${statusTone}`} dir="rtl">
       <main className="public-sub-app-shell public-sub-protocol-shell">
         <motion.header {...motionProps} className="public-sub-appbar">
+          <LiquidGlass className="public-sub-appbar-glisse" aria-hidden="true" />
           <div className="public-sub-v3-brand">
             <span className="pulse-mark"><span /></span>
             <div><strong>پالس</strong><small>فضای اتصال شخصی</small></div>
           </div>
           <div className="public-sub-appbar-actions">
             <span className="public-sub-secure-chip" data-testid="status-public-sub-private"><Lock size={13} /> لینک خصوصی</span>
-            <button type="button" className="public-sub-icon-button" onClick={sharePage} aria-label={shared ? 'لینک کپی شد' : 'اشتراک‌گذاری صفحه'} data-testid="button-public-sub-share">
+            <LiquidButton type="button" variant="glass" className="public-sub-icon-button public-sub-glisse-control" onClick={sharePage} aria-label={shared ? 'لینک کپی شد' : 'اشتراک‌گذاری صفحه'} data-testid="button-public-sub-share">
               {shared ? <Check size={17} /> : <ExternalLink size={17} />}
-            </button>
-            <button type="button" className="public-sub-icon-button" onClick={openQr} aria-label="نمایش QR اشتراک" data-testid="button-public-sub-open-qr">
+            </LiquidButton>
+            <LiquidButton type="button" variant="glass" className="public-sub-icon-button public-sub-glisse-control" onClick={openQr} aria-label="نمایش QR اشتراک" data-testid="button-public-sub-open-qr">
               <Sparkles size={17} />
-            </button>
+            </LiquidButton>
           </div>
         </motion.header>
 
@@ -381,6 +384,7 @@ export function PublicSubscriptionWizard(props: Props) {
           className="public-sub-hero-card public-sub-protocol-hero"
           data-testid="card-public-sub-hero"
         >
+          <LiquidGlass className="public-sub-hero-glisse" aria-hidden="true" />
           <div className="public-sub-hero-top">
             <span className={`public-sub-status-pill ${statusTone}`} data-testid="status-public-sub-subscription">
               <span className="public-sub-status-dot" />{statusLabel}
@@ -486,11 +490,11 @@ export function PublicSubscriptionWizard(props: Props) {
                       </div>
                     </div>
                     <div className="public-sub-v2pro-actions">
-                      <button type="button" onClick={() => void shareV2ProSubscription()} disabled={finished || v2proBusy || !feedUrl} data-testid="button-public-sub-v2pro-subscription">
+                      <LiquidButton type="button" variant="filled" onClick={() => void shareV2ProSubscription()} disabled={finished || v2proBusy || !feedUrl} data-testid="button-public-sub-v2pro-subscription">
                         {v2proBusy
                           ? <><RefreshCw size={14} className="public-sub-spin" />آماده‌سازی...</>
                           : <><ExternalLink size={15} />ارسال لینک کامل اشتراک به V2Pro</>}
-                      </button>
+                      </LiquidButton>
                     </div>
                     {v2proMessage && <p className="public-sub-v2pro-message" role="status">{v2proMessage}</p>}
                     {v2proError && <p className="public-sub-v2pro-error" role="alert">{v2proError}</p>}
@@ -517,9 +521,9 @@ export function PublicSubscriptionWizard(props: Props) {
               className={`public-sub-protocol-stage public-sub-protocol-detail ${selectedProtocol}`}
               data-testid={`section-public-sub-protocol-${selectedProtocol}`}
             >
-              <button type="button" className="public-sub-protocol-back" onClick={backToPicker} data-testid="button-public-sub-protocol-back">
+              <LiquidButton type="button" variant="glass" className="public-sub-protocol-back public-sub-glisse-control" onClick={backToPicker} data-testid="button-public-sub-protocol-back">
                 <ArrowRight size={16} />بازگشت به روش‌های اتصال
-              </button>
+              </LiquidButton>
               <div className="public-sub-protocol-detail-head">
                 <span className={`public-sub-protocol-detail-icon ${selectedProtocol}`}>
                   {selectedProtocol === 'openvpn' || selectedProtocol === 'ipsec' ? <ShieldCheck size={24} /> : selectedProtocol === 'wireguard' || selectedProtocol === 'amneziawg' ? <Wifi size={24} /> : <Globe2 size={24} />}

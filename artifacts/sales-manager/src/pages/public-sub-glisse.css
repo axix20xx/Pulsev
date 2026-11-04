@@ -1,0 +1,259 @@
+/* A distinct, calm liquid-glass subscription portal; the wizard state/API stays unchanged. */
+html body #root .public-sub-lux {
+  --lx-bg: #f2f4fb;
+  --lx-bg-2: #e8ecf6;
+  --lx-surface: rgba(255,255,255,.84);
+  --lx-line: #e0e5f0;
+  --lx-line-2: #cbd2e4;
+  --lx-ink: #20243a;
+  --lx-ink-2: #444b65;
+  --lx-muted: #6b7288;
+  --lx-lacquer: #28264d;
+  --lx-lacquer-2: #464294;
+  --lx-champ: #4f55c1;
+  --lx-champ-soft: #d8d9ff;
+  --lx-jade: #25867d;
+  --lx-jade-soft: #e1f4ef;
+  --lx-warn: #986b21;
+  --lx-warn-soft: #fff1d4;
+  --lx-danger: #a74752;
+  --lx-danger-soft: #fde9ed;
+  min-height: 100dvh;
+  background:
+    radial-gradient(95% 42% at 100% 0%, rgba(190,198,255,.35), transparent 70%),
+    radial-gradient(70% 40% at 0% 100%, rgba(187,233,221,.28), transparent 70%),
+    var(--lx-bg) !important;
+}
+html body #root .public-sub-lux::before { opacity: .07; }
+html body #root .public-sub-lux .public-sub-app-shell {
+  width: min(100%, 1080px) !important;
+  gap: 18px !important;
+  padding-inline: clamp(14px, 3vw, 30px) !important;
+}
+html body #root .public-sub-lux .public-sub-appbar {
+  position: sticky !important;
+  z-index: 10 !important;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 66px;
+  margin-inline: calc(clamp(14px, 3vw, 30px) * -1) !important;
+  padding-inline: clamp(14px, 3vw, 30px) !important;
+  border-bottom-color: rgba(220,225,238,.8) !important;
+  background: transparent !important;
+}
+html body #root .public-sub-lux .public-sub-appbar-glisse {
+  position: absolute !important;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  --lg-glass: rgba(248,249,255,.68);
+  --lg-blur: 22px;
+}
+html body #root .public-sub-lux .public-sub-appbar > :not(.public-sub-appbar-glisse) {
+  position: relative;
+  z-index: 1;
+}
+html body #root .public-sub-lux .public-sub-v3-brand strong { color: #28264d !important; }
+html body #root .public-sub-lux .pulse-mark {
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 15px !important;
+  background: linear-gradient(145deg, #716be6, #393578) !important;
+  box-shadow: 0 8px 20px -12px rgba(60,56,148,.68) !important;
+}
+html body #root .public-sub-lux .public-sub-secure-chip,
+html body #root .public-sub-lux .public-sub-icon-button {
+  border-color: rgba(255,255,255,.9) !important;
+  border-radius: 15px !important;
+  color: #4f5183 !important;
+  background: rgba(255,255,255,.7) !important;
+  box-shadow: 0 6px 18px -15px rgba(40,45,90,.38) !important;
+}
+html body #root .public-sub-lux .public-sub-protocol-hero {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.25) !important;
+  border-radius: 30px !important;
+  background:
+    radial-gradient(85% 75% at 100% 0%, rgba(175,184,255,.25), transparent 65%),
+    radial-gradient(70% 90% at 0% 100%, rgba(111,218,190,.25), transparent 62%),
+    linear-gradient(145deg, #454396, #292750 76%) !important;
+  box-shadow: 0 26px 58px -38px rgba(38,37,87,.8), inset 0 1px rgba(255,255,255,.18) !important;
+}
+html body #root .public-sub-lux .public-sub-hero-glisse {
+  position: absolute !important;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  --lg-glass: rgba(255,255,255,.045);
+  --lg-blur: 12px;
+}
+html body #root .public-sub-lux .public-sub-protocol-hero > *:not(.public-sub-hero-glisse) {
+  position: relative;
+  z-index: 1;
+}
+html body #root .public-sub-lux .public-sub-protocol-hero .public-sub-kicker,
+html body #root .public-sub-lux .public-sub-protocol-hero .public-sub-hero-caption { color: #d8d9ff !important; }
+html body #root .public-sub-lux .public-sub-protocol-hero .public-sub-hero-copy h1 { color: #fff !important; }
+html body #root .public-sub-lux .public-sub-protocol-hero .public-sub-username { color: #d8e7ff !important; }
+html body #root .public-sub-lux .public-sub-protocol-hero .public-sub-hero-meta { border-color: rgba(255,255,255,.2) !important; }
+html body #root .public-sub-lux .public-sub-protocol-meter-label,
+html body #root .public-sub-lux .public-sub-protocol-meter-foot { color: rgba(255,255,255,.76) !important; }
+html body #root .public-sub-lux .public-sub-protocol-meter-label strong { color: #fff !important; }
+html body #root .public-sub-lux .public-sub-protocol-meter-track { background: rgba(255,255,255,.2) !important; }
+html body #root .public-sub-lux .public-sub-protocol-meter-track > span { background: linear-gradient(90deg,#a8f0dc,#c9c9ff) !important; }
+html body #root .public-sub-lux .public-sub-status-card,
+html body #root .public-sub-lux .public-sub-surface,
+html body #root .public-sub-lux .public-sub-connections-card,
+html body #root .public-sub-lux .public-sub-openvpn-card,
+html body #root .public-sub-lux .public-sub-awg-card,
+html body #root .public-sub-lux .public-sub-share-card,
+html body #root .public-sub-lux .public-sub-finished-card,
+html body #root .public-sub-lux .public-sub-expired-config-card,
+html body #root .public-sub-lux .public-sub-protocol-stage,
+html body #root .public-sub-lux .public-sub-v2pro-card {
+  border-color: rgba(218,223,238,.94) !important;
+  border-radius: 24px !important;
+  background: rgba(255,255,255,.82) !important;
+  box-shadow: 0 16px 36px -28px rgba(42,48,90,.3), inset 0 1px rgba(255,255,255,.95) !important;
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+}
+html body #root .public-sub-lux .public-sub-protocol-heading h2,
+html body #root .public-sub-lux .public-sub-protocol-detail-head h2 { color: #252642 !important; }
+html body #root .public-sub-lux .public-sub-protocol-choice {
+  min-height: 112px;
+  border-color: #e0e5f2 !important;
+  border-radius: 21px !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.96), rgba(247,248,253,.84)) !important;
+  box-shadow: 0 8px 22px -18px rgba(51,57,108,.36) !important;
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s, border-color .22s !important;
+}
+html body #root .public-sub-lux .public-sub-protocol-choice:hover {
+  transform: translateY(-3px);
+  border-color: #b7b9ed !important;
+  box-shadow: 0 17px 30px -22px rgba(63,60,151,.42) !important;
+}
+html body #root .public-sub-lux .public-sub-protocol-icon {
+  border: 1px solid rgba(105,100,211,.12);
+  border-radius: 16px !important;
+  color: #5551bd !important;
+  background: linear-gradient(145deg,#f1f0ff,#e9f6f1) !important;
+}
+html body #root .public-sub-lux .public-sub-protocol-choice-copy > strong { color: #252642 !important; }
+html body #root .public-sub-lux .public-sub-protocol-choice-copy > small { color: #555b78 !important; }
+html body #root .public-sub-lux .public-sub-protocol-ready.ready {
+  border: 1px solid #d2ece5;
+  border-radius: 99px;
+  color: #24786f !important;
+  background: #e7f6f1;
+}
+html body #root .public-sub-lux .public-sub-platforms {
+  border: 1px solid #e2e6f2 !important;
+  border-radius: 17px !important;
+  background: rgba(229,232,245,.72) !important;
+}
+html body #root .public-sub-lux .public-sub-platforms button.active { color: #38377e !important; }
+html body #root .public-sub-lux .public-sub-platform-pill {
+  border: 1px solid rgba(255,255,255,.9);
+  border-radius: 13px !important;
+  background: rgba(255,255,255,.92) !important;
+  box-shadow: 0 4px 12px -8px rgba(50,54,100,.3) !important;
+}
+html body #root .public-sub-lux .public-sub-app-list,
+html body #root .public-sub-lux .public-sub-openvpn-credentials,
+html body #root .public-sub-lux .public-sub-openvpn-locations,
+html body #root .public-sub-lux .public-sub-awg-grid {
+  border-color: #e0e5f0 !important;
+  border-radius: 20px !important;
+  background: rgba(255,255,255,.8) !important;
+}
+html body #root .public-sub-lux .public-sub-app-icon {
+  border-color: #e2e5f1 !important;
+  border-radius: 15px !important;
+  color: #514bb7 !important;
+  background: #f2f1ff !important;
+}
+html body #root .public-sub-lux .public-sub-app-item.recommended { background: linear-gradient(90deg, rgba(230,246,241,.32), rgba(241,240,255,.5)) !important; }
+html body #root .public-sub-lux .public-sub-openvpn-button,
+html body #root .public-sub-lux .public-sub-awg-action,
+html body #root .public-sub-lux .public-sub-awg-trigger,
+html body #root .public-sub-lux .public-sub-protocol-back,
+html body #root .public-sub-lux .public-sub-protocol-copy-feed {
+  border-color: #dce1f0 !important;
+  border-radius: 16px !important;
+  color: #363663 !important;
+  background: rgba(255,255,255,.88) !important;
+}
+html body #root .public-sub-lux .public-sub-openvpn-button.primary,
+html body #root .public-sub-lux .public-sub-awg-action.primary,
+html body #root .public-sub-lux .public-sub-protocol-copy-feed,
+html body #root .public-sub-lux .public-sub-v2pro-actions button {
+  border: 0 !important;
+  color: #fff !important;
+  background: linear-gradient(135deg,#6e66e7,#4845a8) !important;
+  box-shadow: 0 12px 24px -16px rgba(74,69,178,.65) !important;
+}
+html body #root .public-sub-lux .public-sub-protocol-detail-head .public-sub-protocol-detail-icon {
+  border-radius: 17px !important;
+  color: #514bb7 !important;
+  background: linear-gradient(145deg,#eeedff,#e2f4ee) !important;
+}
+html body #root .public-sub-lux .public-sub-v2pro-card {
+  border-color: #dcdcf3 !important;
+  background: linear-gradient(145deg,rgba(255,255,255,.92),rgba(238,238,255,.74)) !important;
+}
+html body #root .public-sub-lux .public-sub-v2pro-mark {
+  border-radius: 16px !important;
+  color: #fff !important;
+  background: linear-gradient(145deg,#7771ee,#4845a8) !important;
+}
+html body #root .public-sub-lux .public-sub-v2pro-actions .lg-button {
+  min-height: 50px;
+  border-radius: 16px !important;
+  font-family: 'Vazirmatn', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  --lg-fill: #5d57ca;
+}
+html body #root .public-sub-lux .lg-button.public-sub-glisse-control {
+  border-radius: 15px !important;
+  font-family: 'Vazirmatn', sans-serif !important;
+}
+html body #root .public-sub-lux .public-sub-quick-action,
+html body #root .public-sub-lux .public-sub-copy-action,
+html body #root .public-sub-lux .public-sub-install-action {
+  min-height: 46px !important;
+  border-radius: 15px !important;
+}
+html body #root .public-sub-lux .public-sub-copy-link {
+  border-radius: 17px !important;
+  color: #fff !important;
+  background: linear-gradient(135deg,#6e66e7,#4845a8) !important;
+}
+html body #root .public-sub-lux .public-sub-protocol-privacy,
+html body #root .public-sub-lux .public-sub-openvpn-hint {
+  border-radius: 17px !important;
+  color: #525a74 !important;
+  background: rgba(234,237,247,.8) !important;
+}
+@media (min-width: 760px) {
+  html body #root .public-sub-lux .public-sub-protocol-hero { padding: 26px !important; }
+  html body #root .public-sub-lux .public-sub-appbar { border-radius: 0 0 22px 22px !important; }
+}
+@media (max-width: 420px) {
+  html body #root .public-sub-lux .public-sub-protocol-hero { padding: 19px 16px !important; }
+  html body #root .public-sub-lux .public-sub-protocol-choice { min-height: 98px; }
+  html body #root .public-sub-lux .public-sub-app-shell { padding-inline: 12px !important; }
+  html body #root .public-sub-lux .public-sub-appbar {
+    margin-inline: -12px !important;
+    padding-inline: 12px !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html body #root .public-sub-lux *,
+  html body #root .public-sub-lux *::before,
+  html body #root .public-sub-lux *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}

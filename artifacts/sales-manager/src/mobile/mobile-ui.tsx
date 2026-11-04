@@ -7,6 +7,7 @@ import {
 import QRCode from 'qrcode';
 import { type MobileNotification, type MobileSubscription, faNumber, formatMobileDate, statusCopy } from './mobile-api';
 import { openVpnConnectImportUrl } from '../lib/openvpn-connect-link';
+import { LiquidButton, LiquidGlass } from '@/lib/glisse-ui';
 
 const mobileLogoSrc = `${import.meta.env.BASE_URL}favicon.svg`;
 
@@ -32,7 +33,7 @@ export function MobileState({ loading, error, empty, onRetry, children }: { load
 export function MobileTopbar({ title, back = false, action }: { title?: string; back?: boolean; action?: ReactNode }) {
   const [, setLocation] = useLocation();
   return <header className="mobile-topbar" data-testid="header-mobile">
-    {back ? <button className="mobile-icon-button" aria-label="بازگشت" data-testid="button-mobile-back" onClick={() => window.history.length > 1 ? window.history.back() : setLocation('/mobile/dashboard')}><ChevronLeft size={21} /></button> : <div className="mobile-brand-mark" data-testid="mark-mobile-brand"><img src={mobileLogoSrc} alt="لوگوی پالس" /></div>}
+    {back ? <LiquidButton type="button" variant="glass" className="mobile-icon-button mobile-glisse-button" aria-label="بازگشت" data-testid="button-mobile-back" onClick={() => window.history.length > 1 ? window.history.back() : setLocation('/mobile/dashboard')}><ChevronLeft size={21} /></LiquidButton> : <div className="mobile-brand-mark" data-testid="mark-mobile-brand"><img src={mobileLogoSrc} alt="لوگوی پالس" /></div>}
     <div className="mobile-topbar-title">{title || 'پالس شخصی'}</div>
     <div className="mobile-topbar-action">{action}</div>
   </header>;
@@ -49,6 +50,7 @@ export function MobileNav({ unread = 0 }: { unread?: number }) {
   const [location] = useLocation();
   return <nav className="mobile-nav-rebuilt" aria-label="ناوبری اصلی">
     <div className="mobile-nav-rebuilt-inner">
+      <LiquidGlass className="mobile-nav-glisse-layer" aria-hidden="true" />
       {navItems.map(({ href, label, Icon }) => {
         const active = location === href
           || (href !== '/mobile/dashboard' && location.startsWith(href))
@@ -87,11 +89,12 @@ export function SubscriptionCard({ item, compact = false, onCopy }: { item: Mobi
   const percent = Math.max(0, Math.min(100, Number(item.usage_percent ?? (item.total_gb ? (Number(item.used_gb || 0) / Number(item.total_gb)) * 100 : 0))));
   const remaining = item.remaining_days ?? 0;
   return <article className={`mobile-sub-card ${compact ? 'is-compact' : ''} status-${item.status}`} data-testid={`card-mobile-subscription-${item.id}`}>
+    <LiquidGlass className="mobile-sub-card-glisse-layer" aria-hidden="true" />
     <div className="mobile-sub-card-top"><span className={`mobile-status status-${item.status}`}><i />{statusCopy(item.status)}</span><span className="mobile-sub-code">{item.service_code || `#${item.id}`}</span></div>
     <div className="mobile-sub-card-title"><div><small>اشتراک</small><h3>{item.plan}</h3></div><div className="mobile-sub-orbit"><ShieldCheck size={22} /></div></div>
     <div className="mobile-sub-card-meta"><span><strong>{faNumber(Math.max(0, Number(remaining)))}</strong><small>روز باقی‌مانده</small></span><span><strong>{faNumber(Number(item.remaining_gb ?? 0), { maximumFractionDigits: 1 })} <em>GB</em></strong><small>حجم باقی‌مانده</small></span></div>
     {!compact && <div className="mobile-progress-wrap"><div className="mobile-progress-label"><span>مصرف‌شده: {faNumber(item.used_gb ?? 0, { maximumFractionDigits: 4 })} GB</span><b>{faNumber(Math.round(percent))}٪</b></div><div className="mobile-progress"><i style={{ width: `${percent}%` }} /></div></div>}
-    {onCopy && (item.subscription_url || item.public_url) ? <button className="mobile-sub-copy" onClick={() => onCopy((item.subscription_url || item.public_url) as string)}><Copy size={14} /> کپی لینک اتصال</button> : null}
+    {onCopy && (item.subscription_url || item.public_url) ? <LiquidButton type="button" variant="glass" className="mobile-sub-copy mobile-glisse-button" onClick={() => onCopy((item.subscription_url || item.public_url) as string)}><Copy size={14} /> کپی لینک اتصال</LiquidButton> : null}
   </article>;
 }
 
