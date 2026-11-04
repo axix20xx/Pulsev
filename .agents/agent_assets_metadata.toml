@@ -2620,3 +2620,17 @@ mtime_ms = 1793828245398
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f38ab8f0-e880-46fa-ba97-76b026739300/961dcc12-5ef1-47c6-9fd0-03d0be225ec5"
 storage_version_token = "1793828315880090"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "MCNlSVElaTCMyLNr3SETV"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-04T23-02-21-137Z.zip"
+type = "unspecified"
+title = "Usage analytics fix — Hostinger ZIP"
+description = "Validated Hostinger full migration bundle with the complete service filter, zero-usage provider reporting, optimized usage-history queries, and updated API/UI builds. SHA-256: 8f0bc6e58cb19c63e2684342450cf19011170e5cee2d087f2eb45f39ae2a1340."
+logical_id = "664fed36-a328-48d0-ab49-3b6fbef565d6"
+content_hash = "sha256:8f0bc6e58cb19c63e2684342450cf19011170e5cee2d087f2eb45f39ae2a1340"
+size = 30935169
+mtime_ms = 1793833458263
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/664fed36-a328-48d0-ab49-3b6fbef565d6/ebca234b-9d93-4e2a-a0a4-3ea798fb7c07"
+storage_version_token = "1793833487357999"
+content_type = "application/octet-stream"
