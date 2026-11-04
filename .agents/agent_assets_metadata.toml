@@ -2634,3 +2634,17 @@ mtime_ms = 1793833458263
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/664fed36-a328-48d0-ab49-3b6fbef565d6/ebca234b-9d93-4e2a-a0a4-3ea798fb7c07"
 storage_version_token = "1793833487357999"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "gKSgO3VneEQ5IbVHXUpzJ"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-04T23-32-24-854Z.zip"
+type = "unspecified"
+title = "Hostinger update ZIP"
+description = "Includes provider-specific username matching in service usage totals, usage-report search, and the complete Hostinger app bundle."
+logical_id = "5b288c17-10e2-4fd5-b224-6af9b2ea4739"
+content_hash = "sha256:109963841ff7d26e8e5a32afe9cacd2cc5e85f1af6346974eab16f0999ed3da6"
+size = 30973432
+mtime_ms = 1793835258766
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5b288c17-10e2-4fd5-b224-6af9b2ea4739/2c609233-ff27-4477-87be-0da7a253a0cc"
+storage_version_token = "1793835338744500"
+content_type = "application/octet-stream"
