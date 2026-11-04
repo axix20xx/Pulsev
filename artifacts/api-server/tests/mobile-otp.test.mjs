@@ -31,6 +31,40 @@ globalThis.__mobileOtpTestPool = {
           );
           return { rows: row ? [row] : [] };
         }
+        if (statement.includes("SELECT id, otp_hash, attempts, expires_at, used_at")) {
+          const customerId = Number(values[0]);
+          const phone = values[1];
+          const row = [...otpRows].reverse().find((entry) =>
+            entry.customer_id === customerId
+            && entry.phone === phone
+            && !entry.used_at
+            && entry.attempts < 5
+            && (!entry.expires_at || new Date(entry.expires_at).getTime() > Date.now())
+          );
+          if (!row) return { rows: [] };
+          return {
+            rows: [{
+              id: row.id,
+              otp_hash: row.otp_hash,
+              attempts: row.attempts,
+              expires_at: row.expires_at,
+              used_at: row.used_at,
+              ...(statement.includes("is_permanent") ? { is_permanent: row.is_permanent } : {}),
+            }],
+          };
+        }
+        if (statement.includes("SET attempts = attempts + 1")) {
+          const row = otpRows.find((entry) => entry.id === values[0]);
+          if (row) row.attempts += 1;
+          return { rows: [] };
+        }
+        if (statement.includes("SET used_at = CASE WHEN is_permanent THEN NULL")) {
+          const row = otpRows.find((entry) => entry.id === values[0]);
+          if (!row || (!row.is_permanent && row.used_at)) return { rows: [] };
+          if (!row.is_permanent) row.used_at = new Date();
+          row.attempts = 0;
+          return { rows: [{ id: row.id }] };
+        }
         if (statement.includes("UPDATE mobile_login_otps")) {
           const customerId = Number(values[0]);
           const phone = values[1];
@@ -89,6 +123,7 @@ const result = await build({
 const code = Buffer.from(result.outputFiles[0].text).toString("base64");
 const {
   allowMobileAuthAttempt,
+  consumeMobileOtp,
   decryptMobileOtp,
   encryptMobileOtp,
   issueMobileOtp,
@@ -146,6 +181,14 @@ test("customer OTP stays the same until an explicit regeneration", async () => {
   assert.equal(replaced.reused, false);
   const reopenedAfterReplacement = await issueMobileOtp(42, "09121234567");
   assert.equal(reopenedAfterReplacement.otp, replaced.otp);
+});
+
+test("new permanent customer code verifies repeatedly in the mobile login flow", async () => {
+  const phone = "09120000088";
+  const issued = await issueMobileOtp(88, phone, true);
+
+  assert.equal((await consumeMobileOtp(issued.challengeId, 88, phone, issued.otp)).ok, true);
+  assert.equal((await consumeMobileOtp(issued.challengeId, 88, phone, issued.otp)).ok, true);
 });
 
 test("legacy hash-only customer codes are preserved until an explicit regeneration", async () => {

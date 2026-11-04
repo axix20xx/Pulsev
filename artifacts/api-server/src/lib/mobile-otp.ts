@@ -246,7 +246,7 @@ export const consumeMobileOtp = async (
   try {
     await client.query("BEGIN");
     const result = await client.query<MobileOtpRow>(
-      `SELECT id, otp_hash, attempts, expires_at, used_at
+      `SELECT id, otp_hash, attempts, expires_at, used_at, is_permanent
        FROM mobile_login_otps
        WHERE customer_id = $1
          AND phone = $2
