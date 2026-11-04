@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LimitParameter } from './limitParameter';
+import type { ListCustomersIncludeMobileOtp } from './listCustomersIncludeMobileOtp';
 import type { SearchParameter } from './searchParameter';
 
 export type ListCustomersParams = {
@@ -15,4 +16,5 @@ search?: SearchParameter;
  * @maximum 200
  */
 limit?: LimitParameter;
+include_mobile_otp?: ListCustomersIncludeMobileOtp;
 };

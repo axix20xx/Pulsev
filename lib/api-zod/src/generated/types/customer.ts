@@ -14,4 +14,11 @@ export interface Customer {
   total_spend: number;
   /** @nullable */
   last_purchase: string | null;
+  /**
+     * @nullable
+     * @pattern ^[0-9]{4}$
+     */
+  mobile_otp?: string | null;
+  mobile_otp_legacy?: boolean;
+  mobile_otp_locked?: boolean;
 }

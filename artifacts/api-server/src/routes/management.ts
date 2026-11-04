@@ -8018,7 +8018,36 @@ router.get("/customers", requireAuth, async (req, res): Promise<void> => {
   res.setHeader("X-Page-Size", String(parsed.limit));
   res.setHeader("X-Offset", String(offset));
   res.setHeader("X-Total-Pages", String(Math.max(1, Math.ceil(total / parsed.limit))));
-  res.json(ListCustomersResponse.parse(result.rows));
+  const canViewMobileOtp =
+    req.auth?.role === "reseller" || req.auth?.role === "master_admin";
+  const includeMobileOtp =
+    canViewMobileOtp && parsed.include_mobile_otp === "true";
+  if (includeMobileOtp) {
+    res.setHeader("Cache-Control", "private, no-store");
+  }
+  const responseRows = includeMobileOtp
+    ? await Promise.all(
+        result.rows.map(async (customer) => {
+          const phone = typeof customer.phone === "string" ? customer.phone.trim() : "";
+          if (!phone) {
+            return {
+              ...customer,
+              mobile_otp: null,
+              mobile_otp_legacy: false,
+              mobile_otp_locked: false,
+            };
+          }
+          const access = await issueMobileOtp(Number(customer.id), phone);
+          return {
+            ...customer,
+            mobile_otp: access.otp,
+            mobile_otp_legacy: Boolean(access.legacy),
+            mobile_otp_locked: access.locked,
+          };
+        }),
+      )
+    : result.rows;
+  res.json(ListCustomersResponse.parse(responseRows));
 });
 
 router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {

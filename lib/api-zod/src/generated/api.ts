@@ -1835,8 +1835,12 @@ export const listCustomersQueryLimitMax = 200;
 
 export const ListCustomersQueryParams = zod.object({
   "search": zod.coerce.string().optional(),
-  "limit": zod.coerce.number().min(1).max(listCustomersQueryLimitMax).default(listCustomersQueryLimitDefault)
+  "limit": zod.coerce.number().min(1).max(listCustomersQueryLimitMax).default(listCustomersQueryLimitDefault),
+  "include_mobile_otp": zod.enum(['true']).optional()
 })
+
+export const listCustomersResponseMobileOtpRegExp = new RegExp('^[0-9]{4}$');
+
 
 export const ListCustomersResponseItem = zod.object({
   "id": zod.number(),
@@ -1844,7 +1848,10 @@ export const ListCustomersResponseItem = zod.object({
   "phone": zod.string(),
   "active_services": zod.number(),
   "total_spend": zod.number(),
-  "last_purchase": zod.string().nullable()
+  "last_purchase": zod.string().nullable(),
+  "mobile_otp": zod.string().regex(listCustomersResponseMobileOtpRegExp).nullish(),
+  "mobile_otp_legacy": zod.boolean().optional(),
+  "mobile_otp_locked": zod.boolean().optional()
 })
 export const ListCustomersResponse = zod.array(ListCustomersResponseItem)
 
@@ -1859,13 +1866,19 @@ export const GetCustomerParams = zod.object({
   "id": zod.coerce.number().min(1)
 })
 
+export const getCustomerResponseOneMobileOtpRegExp = new RegExp('^[0-9]{4}$');
+
+
 export const GetCustomerResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "phone": zod.string(),
   "active_services": zod.number(),
   "total_spend": zod.number(),
-  "last_purchase": zod.string().nullable()
+  "last_purchase": zod.string().nullable(),
+  "mobile_otp": zod.string().regex(getCustomerResponseOneMobileOtpRegExp).nullish(),
+  "mobile_otp_legacy": zod.boolean().optional(),
+  "mobile_otp_locked": zod.boolean().optional()
 }).and(zod.object({
   "services": zod.array(zod.object({
   "id": zod.number(),

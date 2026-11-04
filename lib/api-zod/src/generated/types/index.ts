@@ -39,6 +39,7 @@ export * from './ipsecLocation';
 export * from './limitParameter';
 export * from './listAdminSalesParams';
 export * from './listAwgUsageParams';
+export * from './listCustomersIncludeMobileOtp';
 export * from './listCustomersParams';
 export * from './listResellerStorefrontLeadsParams';
 export * from './listSalesParams';

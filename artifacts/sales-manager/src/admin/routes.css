@@ -568,6 +568,11 @@
 .ax-root .ax-customer-file-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
 .ax-root .ax-customer-file-status i { width: 7px; height: 7px; border-radius: 99px; background: currentColor; }
 .ax-root .ax-customer-file-status.is-active { color: hsl(var(--ax-good)); } .ax-root .ax-customer-file-status.is-inactive { color: hsl(var(--ax-muted)); }
+.ax-root .ax-customer-cell-content { display: grid; min-width: 0; gap: 3px; }
+.ax-root .ax-customer-list-otp { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 3px; color: hsl(var(--ax-accent)); font-size: 11px; font-weight: 700; }
+.ax-root .ax-customer-list-otp bdi { padding: 2px 7px; border: 1px solid hsl(var(--ax-line-soft)); border-radius: 7px; background: hsl(var(--ax-surface)); color: hsl(var(--ax-ink)); font-size: 13px; letter-spacing: .08em; }
+.ax-root .ax-customer-list-otp small { color: hsl(var(--ax-muted)); font-size: 10px; font-weight: 500; }
+.ax-root .ax-customer-list-otp.is-locked { color: hsl(var(--ax-danger)); }
 .ax-root .ax-customer-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; font-size: 13px; }
 .ax-root .ax-customer-pagination small { color: hsl(var(--ax-muted)); }
 

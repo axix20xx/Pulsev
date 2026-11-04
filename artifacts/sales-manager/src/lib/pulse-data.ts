@@ -48,6 +48,9 @@ export type Customer = {
   activeServices: number;
   totalSpend: number;
   lastPurchase: string;
+  mobileOtp?: string | null;
+  mobileOtpLegacy?: boolean;
+  mobileOtpLocked?: boolean;
 };
 
 export type Panel = { name: string; location: string; status: 'Online' | 'Degraded' | 'Offline'; latency: number };

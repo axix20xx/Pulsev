@@ -977,6 +977,12 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Search"
         - $ref: "#/components/parameters/Limit"
+        - name: include_mobile_otp
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["true"]
       responses:
         "200":
           description: Visible customers
@@ -2771,6 +2777,13 @@ components:
           type: number
         last_purchase:
           type: ["string", "null"]
+        mobile_otp:
+          type: ["string", "null"]
+          pattern: "^[0-9]{4}$"
+        mobile_otp_legacy:
+          type: boolean
+        mobile_otp_locked:
+          type: boolean
     CustomerDetail:
       allOf:
         - $ref: "#/components/schemas/Customer"

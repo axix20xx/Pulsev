@@ -81,7 +81,7 @@ const describeApiError = (cause: unknown) => {
     request ? `درخواست: ${request}` : '',
   ].filter(Boolean).join(' · ');
 };
-const mapCustomer = (item: any): Customer => ({ id: String(item.id), name: item.name ?? 'مشتری', phone: item.phone ?? 'ثبت نشده', email: item.email ?? 'ثبت نشده', activeServices: Number(item.active_services ?? 0), totalSpend: Number(item.total_spend ?? 0), lastPurchase: item.last_purchase ?? '' });
+const mapCustomer = (item: any): Customer => ({ id: String(item.id), name: item.name ?? 'مشتری', phone: item.phone ?? 'ثبت نشده', email: item.email ?? 'ثبت نشده', activeServices: Number(item.active_services ?? 0), totalSpend: Number(item.total_spend ?? 0), lastPurchase: item.last_purchase ?? '', mobileOtp: item.mobile_otp ?? null, mobileOtpLegacy: Boolean(item.mobile_otp_legacy), mobileOtpLocked: Boolean(item.mobile_otp_locked) });
 type CustomerTab = 'active' | 'inactive';
 const CUSTOMER_PAGE_SIZE = 12;
 type CustomerServiceTab = 'active' | 'inactive';
@@ -2394,6 +2394,7 @@ function CustomersContent() {
   const [retryKey, setRetryKey] = useState(0);
   const numberFormat = new Intl.NumberFormat('fa-IR');
   const authenticated = session?.authenticated === true;
+  const canViewMobileOtp = session?.role === 'reseller' || session?.role === 'master_admin';
 
   useEffect(() => {
     if (!authenticated) {
@@ -2401,6 +2402,9 @@ function CustomersContent() {
       setTotalCount(0);
       return;
     }
+    setRemoteCustomers(null);
+    setTotalCount(0);
+    setLoading(true);
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams({
@@ -2409,6 +2413,7 @@ function CustomersContent() {
         status: tab,
       });
       if (search.trim()) params.set('search', search.trim());
+      if (canViewMobileOtp) params.set('include_mobile_otp', 'true');
       setLoading(true);
       setError('');
       fetch(`/api/customers?${params.toString()}`, { credentials: 'include', signal: controller.signal })
@@ -2441,7 +2446,17 @@ function CustomersContent() {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [authenticated, page, retryKey, search, tab]);
+  }, [authenticated, canViewMobileOtp, page, retryKey, search, session?.telegram_id, session?.reseller_id, tab]);
+
+  useEffect(() => {
+    const refreshVisibleCustomerCodes = () => {
+      if (document.visibilityState === 'visible') {
+        setRetryKey((current) => current + 1);
+      }
+    };
+    window.addEventListener('focus', refreshVisibleCustomerCodes);
+    return () => window.removeEventListener('focus', refreshVisibleCustomerCodes);
+  }, []);
 
   const localFiltered = customers.filter((customer) => {
     const matchesTab = tab === 'active' ? customer.activeServices > 0 : customer.activeServices === 0;
@@ -2490,9 +2505,9 @@ function CustomersContent() {
           </div>
         </Toolbar>
         {error && <div className="ax-pad"><ErrorAlert message={`دریافت فهرست مشتری‌ها ناموفق بود: ${error}`} retrying={loading} onRetry={() => { setError(''); setLoading(true); setRetryKey((current) => current + 1); }} /></div>}
-        {loading && !visibleCustomers.length ? <SkeletonRows rows={6} label="در حال دریافت پرونده‌های مشتری" /> : null}
-        {!loading && visibleCustomers.length > 0 && <DataTable label="دفتر پرونده‌های مشتری" head={['مشتری', 'وضعیت', 'سرویس فعال', 'مجموع خرید', 'آخرین خرید']}>{visibleCustomers.map((customer, index) => <tr key={customer.id} data-testid={`row-customer-${customer.id}`}>
-          <td><Link href={`/customers/${customer.id}`} className="ax-cell-main"><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><span><strong>{customer.name}</strong><small>{customer.phone || 'شماره ثبت نشده'}{customer.email ? ` · ${customer.email}` : ''}</small></span><ChevronLeft size={14} /></Link></td>
+         {loading && !visibleCustomers.length ? <SkeletonRows rows={6} label="در حال دریافت پرونده‌های مشتری" /> : null}
+         {!loading && visibleCustomers.length > 0 && <DataTable label="دفتر پرونده‌های مشتری" head={['مشتری', 'وضعیت', 'سرویس فعال', 'مجموع خرید', 'آخرین خرید']}>{visibleCustomers.map((customer, index) => <tr key={customer.id} data-testid={`row-customer-${customer.id}`}>
+           <td><Link href={`/customers/${customer.id}`} className="ax-cell-main"><Avatar name={customer.name} color={['teal', 'amber', 'sage', 'coral'][(page * CUSTOMER_PAGE_SIZE + index) % 4]} /><span className="ax-customer-cell-content"><strong>{customer.name}</strong><small>{customer.phone || 'شماره ثبت نشده'}{customer.email ? ` · ${customer.email}` : ''}</small>{canViewMobileOtp && <span className={`ax-customer-list-otp${customer.mobileOtpLocked ? ' is-locked' : ''}`} data-testid={`customer-mobile-otp-${customer.id}`}><KeyRound size={12} /><span>کد ورود:</span>{customer.mobileOtp ? <bdi dir="ltr">{customer.mobileOtp}</bdi> : customer.mobileOtpLegacy ? <small>کد قدیمی است؛ برای نمایش پرونده را باز کنید و کد تازه بسازید.</small> : <small>کدی برای نمایش موجود نیست.</small>}{customer.mobileOtpLocked && <small>قفل شده؛ کد تازه لازم است.</small>}</span>}</span><ChevronLeft size={14} /></Link></td>
           <td><Badge tone={customer.activeServices > 0 ? 'good' : 'neutral'} dot>{customer.activeServices > 0 ? 'فعال' : 'غیرفعال'}</Badge></td>
           <td className="ax-num">{numberFormat.format(customer.activeServices)}</td><td className="ax-num">{money(customer.totalSpend)}</td><td>{dateLabel(customer.lastPurchase)}</td>
         </tr>)}</DataTable>}
