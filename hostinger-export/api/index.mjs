@@ -56448,27 +56448,36 @@ var listCustomersQueryLimitDefault = 100;
 var listCustomersQueryLimitMax = 200;
 var ListCustomersQueryParams = objectType({
   "search": coerce.string().optional(),
-  "limit": coerce.number().min(1).max(listCustomersQueryLimitMax).default(listCustomersQueryLimitDefault)
+  "limit": coerce.number().min(1).max(listCustomersQueryLimitMax).default(listCustomersQueryLimitDefault),
+  "include_mobile_otp": enumType(["true"]).optional()
 });
+var listCustomersResponseMobileOtpRegExp = new RegExp("^[0-9]{4}$");
 var ListCustomersResponseItem = objectType({
   "id": numberType(),
   "name": stringType(),
   "phone": stringType(),
   "active_services": numberType(),
   "total_spend": numberType(),
-  "last_purchase": stringType().nullable()
+  "last_purchase": stringType().nullable(),
+  "mobile_otp": stringType().regex(listCustomersResponseMobileOtpRegExp).nullish(),
+  "mobile_otp_legacy": booleanType().optional(),
+  "mobile_otp_locked": booleanType().optional()
 });
 var ListCustomersResponse = arrayType(ListCustomersResponseItem);
 var GetCustomerParams = objectType({
   "id": coerce.number().min(1)
 });
+var getCustomerResponseOneMobileOtpRegExp = new RegExp("^[0-9]{4}$");
 var GetCustomerResponse = objectType({
   "id": numberType(),
   "name": stringType(),
   "phone": stringType(),
   "active_services": numberType(),
   "total_spend": numberType(),
-  "last_purchase": stringType().nullable()
+  "last_purchase": stringType().nullable(),
+  "mobile_otp": stringType().regex(getCustomerResponseOneMobileOtpRegExp).nullish(),
+  "mobile_otp_legacy": booleanType().optional(),
+  "mobile_otp_locked": booleanType().optional()
 }).and(objectType({
   "services": arrayType(objectType({
     "id": numberType(),
@@ -91490,7 +91499,32 @@ router2.get("/customers", requireAuth, async (req, res) => {
   res.setHeader("X-Page-Size", String(parsed.limit));
   res.setHeader("X-Offset", String(offset));
   res.setHeader("X-Total-Pages", String(Math.max(1, Math.ceil(total / parsed.limit))));
-  res.json(ListCustomersResponse.parse(result.rows));
+  const canViewMobileOtp = req.auth?.role === "reseller" || req.auth?.role === "master_admin";
+  const includeMobileOtp = canViewMobileOtp && parsed.include_mobile_otp === "true";
+  if (includeMobileOtp) {
+    res.setHeader("Cache-Control", "private, no-store");
+  }
+  const responseRows = includeMobileOtp ? await Promise.all(
+    result.rows.map(async (customer) => {
+      const phone = typeof customer.phone === "string" ? customer.phone.trim() : "";
+      if (!phone) {
+        return {
+          ...customer,
+          mobile_otp: null,
+          mobile_otp_legacy: false,
+          mobile_otp_locked: false
+        };
+      }
+      const access = await issueMobileOtp(Number(customer.id), phone);
+      return {
+        ...customer,
+        mobile_otp: access.otp,
+        mobile_otp_legacy: Boolean(access.legacy),
+        mobile_otp_locked: access.locked
+      };
+    })
+  ) : result.rows;
+  res.json(ListCustomersResponse.parse(responseRows));
 });
 router2.get("/customers/:id", requireAuth, async (req, res) => {
   await managementReady;
