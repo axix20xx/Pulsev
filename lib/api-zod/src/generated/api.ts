@@ -1083,6 +1083,13 @@ export const GetUsageAnalyticsResponse = zod.object({
   "customer_name": zod.string(),
   "bytes": zod.number().min(getUsageAnalyticsResponseServicesItemBytesMin),
   "provider_count": zod.number().min(getUsageAnalyticsResponseServicesItemProviderCountMin).multipleOf(getUsageAnalyticsResponseServicesItemProviderCountMultipleOf)
+})),
+  "service_options": zod.array(zod.object({
+  "service_id": zod.number(),
+  "service_code": zod.string(),
+  "username": zod.string(),
+  "customer_id": zod.number().nullable(),
+  "customer_name": zod.string()
 }))
 })
 

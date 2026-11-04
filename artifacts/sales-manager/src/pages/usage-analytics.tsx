@@ -122,6 +122,7 @@ export default function UsageAnalyticsPage() {
   });
   const data = usageQuery.data;
   const services = data?.services ?? [];
+  const serviceOptions = data?.service_options ?? [];
   const providers = data?.providers ?? [];
   const loading = usageQuery.isLoading || usageQuery.isFetching;
   const highestProvider = Math.max(1, ...providers.map((provider) => provider.bytes));
@@ -138,7 +139,7 @@ export default function UsageAnalyticsPage() {
       </div>
       <div className="usage-filter-grid" style={{ marginTop: 14 }}>
         <label className="usage-filter-field"><span>ارائه‌دهنده</span><select value={providerKey} onChange={(event) => changeFilter(setProviderKey)(event.target.value)} aria-label="فیلتر ارائه‌دهنده" data-testid="select-usage-provider"><option value="">همهٔ ارائه‌دهندگان</option>{(data?.provider_options ?? []).map((provider) => <option key={provider.key} value={provider.key}>{provider.label}</option>)}</select></label>
-        <label className="usage-filter-field"><span>سرویس</span><select value={serviceId} onChange={(event) => changeFilter(setServiceId)(event.target.value)} aria-label="فیلتر سرویس" data-testid="select-usage-service"><option value="">همهٔ سرویس‌ها</option>{services.map((service) => <option key={service.service_id} value={service.service_id}>{service.service_code} · {service.customer_name}</option>)}</select></label>
+        <label className="usage-filter-field"><span>سرویس</span><select value={serviceId} onChange={(event) => changeFilter(setServiceId)(event.target.value)} aria-label="فیلتر سرویس" data-testid="select-usage-service"><option value="">همهٔ سرویس‌ها</option>{serviceOptions.map((service) => <option key={service.service_id} value={service.service_id}>{service.service_code} · {service.customer_name || service.username}</option>)}</select></label>
         <label className="usage-filter-field"><span>جست‌وجوی سرویس، username یا مشتری</span><input type="search" value={search} onChange={(event) => changeFilter(setSearch)(event.target.value)} placeholder="کد سرویس، username یا نام مشتری" aria-label="جست‌وجو در سرویس‌های ترافیک" data-testid="input-usage-search"/></label>
       </div>
     </Card>
@@ -147,14 +148,14 @@ export default function UsageAnalyticsPage() {
     <section className="usage-kpis" aria-label="خلاصهٔ مصرف">
        <article className="usage-kpi"><label>کل مصرف در بازه</label><strong data-testid="metric-usage-total">{loading && !data ? "…" : data ? bytesFormat(data.total_bytes) : "—"}</strong><small>{data ? `${dateLabel(data.from_at, true)} تا ${dateLabel(data.to_at, true)}` : "بر اساس نمونه‌های ثبت‌شده"}</small></article>
        <article className="usage-kpi"><label>سرویس‌های دارای مصرف</label><strong data-testid="metric-usage-services">{loading && !data ? "…" : data ? numberFa.format(data.service_count) : "—"}</strong><small>{data ? `${numberFa.format(data.services_total)} سرویس دارای نمونه` : "در بازهٔ انتخاب‌شده"}</small></article>
-       <article className="usage-kpi"><label>ارائه‌دهندگان دارای نمونه</label><strong data-testid="metric-usage-providers">{loading && !data ? "…" : data ? numberFa.format(providers.length) : "—"}</strong><small>تعداد ثبت‌شده در فیلتر فعلی</small></article>
+        <article className="usage-kpi"><label>ارائه‌دهندگان در گزارش</label><strong data-testid="metric-usage-providers">{loading && !data ? "…" : data ? numberFa.format(providers.length) : "—"}</strong><small>ارائه‌دهندگان بدون نمونه هم نمایش داده می‌شوند</small></article>
     </section>
     <div className="usage-history-note" role="note"><Activity size={16}/><span>نمودار بر پایهٔ نمونه‌های واقعی در فاصلهٔ «{intervalText}» نمایش داده می‌شود؛ مصرف نقطهٔ آغاز به‌عنوان خط مبنا صفر در نظر گرفته شده است.</span></div>
     <div className="usage-layout">
       <Card title="روند مصرف" description={data ? `${dateLabel(data.from_at, true)} — ${dateLabel(data.to_at, true)}` : "ترافیک ثبت‌شده در طول زمان"} actions={<span className="usage-chart-legend"><i/>حجم مصرف</span>}>
         {loading && !data ? <div className="usage-chart-empty"><span className="ax-skel" style={{ width:"100%", height:190 }}/></div> : data ? <UsageChart data={data.buckets} range={range}/> : <EmptyState title="داده‌ای برای نمایش نیست" detail="پس از ثبت نمونه‌های تاریخی، نمودار اینجا نمایش داده می‌شود." icon={BarChart3}/>}
       </Card>
-      <Card title="تفکیک ارائه‌دهنده" description="سهم هر ارائه‌دهنده از مصرف بازه">
+      <Card title="تفکیک ارائه‌دهنده" description="مصرف هر ارائه‌دهنده در بازه؛ مقدار صفر نیز نمایش داده می‌شود">
         {loading && !data ? <SkeletonRows rows={4}/> : providers.length ? <div className="usage-provider-list">{providers.map((provider) => <div className="usage-provider-row" key={provider.key}><div className="usage-provider-head"><strong>{provider.label}</strong><span>{bytesFormat(provider.bytes)}</span></div><div className="usage-provider-track"><i style={{ width:`${Math.max(0, Math.min(100, provider.bytes / highestProvider * 100))}%` }}/></div></div>)}</div> : <EmptyState title="ارائه‌دهنده‌ای ثبت نشده" detail="در این بازه ترافیکی برای ارائه‌دهندگان موجود نیست." icon={HardDrive}/>}
       </Card>
     </div>

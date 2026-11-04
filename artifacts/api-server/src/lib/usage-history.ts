@@ -43,6 +43,8 @@ export async function ensureUsageHistorySchema(): Promise<void> {
         ON reseller_service_usage_history (provider_key, captured_at DESC);
       CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_provider_idx
         ON reseller_service_usage_history (reseller_tg_id, provider_key);
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_provider_time_idx
+        ON reseller_service_usage_history (reseller_tg_id, provider_key, captured_at DESC);
       CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_service_time_idx
         ON reseller_service_usage_history (reseller_tg_id, service_id, captured_at DESC);
     `).then(() => undefined).catch((error) => {

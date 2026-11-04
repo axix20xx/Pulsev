@@ -138,6 +138,7 @@ export * from './usageAnalyticsRangeParameter';
 export * from './usageAnalyticsScope';
 export * from './usageAnalyticsSearchParameter';
 export * from './usageAnalyticsService';
+export * from './usageAnalyticsServiceOption';
 export * from './usageAnalyticsServiceParameter';
 export * from './wireGuardDelivery';
 export * from './wireGuardDeliveryCore';

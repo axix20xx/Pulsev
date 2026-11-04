@@ -1762,10 +1762,15 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
          WHERE scoped_customer.id = h.customer_id
            AND scoped_customer.reseller_tg_id <> $${ownerParams.length}
        )`);
-  const [summary, providers, buckets, serviceCount, services, history, providerOptions] = await Promise.all([
-    pool.query<{ total_bytes: number; service_count: number }>(
+  const serviceOptionParams: unknown[] = [];
+  const serviceOptionsSql = isMaster
+    ? "TRUE"
+    : (serviceOptionParams.push(Number(req.auth?.telegramId)), `svc.reseller_tg_id = $${serviceOptionParams.length}`);
+  const [summary, providers, buckets, services, history, providerOptions, serviceOptions] = await Promise.all([
+    pool.query<{ total_bytes: number; service_count: number; services_total: number }>(
       `SELECT COALESCE(SUM(h.delta_bytes), 0)::float8 AS total_bytes,
-              COUNT(DISTINCT h.service_id) FILTER (WHERE h.delta_bytes > 0)::int AS service_count
+              COUNT(DISTINCT h.service_id) FILTER (WHERE h.delta_bytes > 0)::int AS service_count,
+              COUNT(DISTINCT h.service_id)::int AS services_total
        FROM reseller_service_usage_history h
        WHERE ${rangeSql}`,
       rangeParams,
@@ -1804,12 +1809,6 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
        ORDER BY bins.bucket_at`,
       bucketParams,
     ),
-    pool.query<{ total: number }>(
-      `SELECT COUNT(DISTINCT h.service_id)::int AS total
-       FROM reseller_service_usage_history h
-       WHERE ${rangeSql}`,
-      rangeParams,
-    ),
     pool.query(
       `SELECT h.service_id::float8 AS service_id,
               (ARRAY_AGG(h.service_code ORDER BY h.captured_at DESC))[1] AS service_code,
@@ -1831,7 +1830,7 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
        WHERE ${filterSql}`,
       filterParams,
     ),
-    pool.query(
+     pool.query<{ key: string; label: string }>(
       `SELECT options.key, options.label
        FROM (
          SELECT p.key,
@@ -1853,18 +1852,63 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
                 ) AS label
          FROM reseller_service_usage_history h
          LEFT JOIN panel_configs pc ON pc.key = h.provider_key
-         WHERE ${ownerSql}
+          WHERE ${ownerSql}
+            AND h.captured_at >= NOW() - INTERVAL '120 days'
          UNION
          SELECT 'amneziawg' AS key, 'AmneziaWG' AS label
        ) options
        ORDER BY options.label, options.key`,
       ownerParams,
     ),
+     pool.query<{
+       service_id: number;
+       service_code: string;
+       username: string;
+       customer_id: number | null;
+       customer_name: string;
+     }>(
+       `SELECT svc.id::float8 AS service_id,
+               'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+               COALESCE(svc.rain_username, '') AS username,
+               svc.customer_id::float8 AS customer_id,
+               COALESCE(c.full_name, '') AS customer_name
+        FROM reseller_services svc
+        LEFT JOIN reseller_customers c
+          ON c.id = svc.customer_id
+         AND c.reseller_tg_id = svc.reseller_tg_id
+        WHERE ${serviceOptionsSql}
+        ORDER BY svc.id DESC`,
+       serviceOptionParams,
+     ),
   ]);
   const historyStartedAt = history.rows[0]?.history_started_at ?? null;
   const historyStartDate = historyStartedAt ? new Date(historyStartedAt) : null;
   const totalBytes = Number(summary.rows[0]?.total_bytes ?? 0);
-  const totalServices = Number(serviceCount.rows[0]?.total ?? 0);
+  const totalServices = Number(summary.rows[0]?.services_total ?? 0);
+  const providerOptionsByKey = new Map<string, { key: string; label: string }>();
+  for (const row of providerOptions.rows) {
+    const key = String(row.key ?? "").trim();
+    const label = String(row.label ?? "").trim() || key;
+    if (key && (!providerOptionsByKey.has(key) || providerOptionsByKey.get(key)?.label === key)) {
+      providerOptionsByKey.set(key, { key, label });
+    }
+  }
+  const providerTotalsByKey = new Map<string, number>();
+  for (const row of providers.rows as Array<{ key: string; label: string; bytes: number }>) {
+    const key = String(row.key ?? "").trim();
+    if (!key) continue;
+    const bytes = Math.max(0, Number(row.bytes ?? 0));
+    providerTotalsByKey.set(key, (providerTotalsByKey.get(key) ?? 0) + bytes);
+    if (!providerOptionsByKey.has(key)) {
+      providerOptionsByKey.set(key, { key, label: String(row.label ?? "").trim() || key });
+    }
+  }
+  const allProviderOptions = [...providerOptionsByKey.values()]
+    .sort((a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key));
+  const allProviderTotals = allProviderOptions.map((provider) => ({
+    ...provider,
+    bytes: providerTotalsByKey.get(provider.key) ?? 0,
+  }));
   res.json(GetUsageAnalyticsResponse.parse({
     scope: isMaster ? "system" : "reseller",
     range,
@@ -1880,9 +1924,10 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
       bucket_at: row.bucket_at,
       bytes: Math.max(0, Number(row.bytes ?? 0)),
     })),
-    provider_options: providerOptions.rows,
-    providers: providers.rows,
+    provider_options: allProviderOptions,
+    providers: allProviderTotals,
     services: services.rows,
+    service_options: serviceOptions.rows,
   }));
 });
 

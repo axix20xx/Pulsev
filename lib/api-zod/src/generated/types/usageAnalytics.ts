@@ -11,6 +11,7 @@ import type { UsageAnalyticsProviderTotal } from './usageAnalyticsProviderTotal'
 import type { UsageAnalyticsRange } from './usageAnalyticsRange';
 import type { UsageAnalyticsScope } from './usageAnalyticsScope';
 import type { UsageAnalyticsService } from './usageAnalyticsService';
+import type { UsageAnalyticsServiceOption } from './usageAnalyticsServiceOption';
 
 export interface UsageAnalytics {
   scope: UsageAnalyticsScope;
@@ -31,4 +32,5 @@ export interface UsageAnalytics {
   provider_options: UsageAnalyticsProvider[];
   providers: UsageAnalyticsProviderTotal[];
   services: UsageAnalyticsService[];
+  service_options: UsageAnalyticsServiceOption[];
 }

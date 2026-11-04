@@ -826,6 +826,15 @@ export interface UsageAnalyticsService {
   provider_count: number;
 }
 
+export interface UsageAnalyticsServiceOption {
+  service_id: number;
+  service_code: string;
+  username: string;
+  /** @nullable */
+  customer_id: number | null;
+  customer_name: string;
+}
+
 export interface UsageAnalytics {
   scope: UsageAnalyticsScope;
   range: UsageAnalyticsRange;
@@ -845,6 +854,7 @@ export interface UsageAnalytics {
   provider_options: UsageAnalyticsProvider[];
   providers: UsageAnalyticsProviderTotal[];
   services: UsageAnalyticsService[];
+  service_options: UsageAnalyticsServiceOption[];
 }
 
 export interface AwgUsageRefreshResult {

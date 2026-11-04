@@ -2461,7 +2461,7 @@ components:
           minimum: 0
     UsageAnalytics:
       type: object
-      required: [scope, range, from_at, to_at, history_started_at, is_partial, bucket_interval, total_bytes, service_count, services_total, buckets, provider_options, providers, services]
+      required: [scope, range, from_at, to_at, history_started_at, is_partial, bucket_interval, total_bytes, service_count, services_total, buckets, provider_options, providers, services, service_options]
       properties:
         scope:
           type: string
@@ -2509,6 +2509,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/UsageAnalyticsService"
+        service_options:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageAnalyticsServiceOption"
     UsageAnalyticsBucket:
       type: object
       required: [bucket_at, bytes]
@@ -2557,6 +2561,20 @@ components:
           type: number
           multipleOf: 1
           minimum: 0
+    UsageAnalyticsServiceOption:
+      type: object
+      required: [service_id, service_code, username, customer_id, customer_name]
+      properties:
+        service_id:
+          type: number
+        service_code:
+          type: string
+        username:
+          type: string
+        customer_id:
+          type: ["number", "null"]
+        customer_name:
+          type: string
     AwgUsageRefreshResult:
       type: object
       required: [item, checked_at]
