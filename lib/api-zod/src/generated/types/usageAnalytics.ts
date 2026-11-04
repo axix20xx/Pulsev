@@ -5,13 +5,20 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { UsageAnalyticsAnomaly } from './usageAnalyticsAnomaly';
 import type { UsageAnalyticsBucket } from './usageAnalyticsBucket';
+import type { UsageAnalyticsComparison } from './usageAnalyticsComparison';
+import type { UsageAnalyticsCustomer } from './usageAnalyticsCustomer';
 import type { UsageAnalyticsProvider } from './usageAnalyticsProvider';
+import type { UsageAnalyticsProviderHealth } from './usageAnalyticsProviderHealth';
 import type { UsageAnalyticsProviderTotal } from './usageAnalyticsProviderTotal';
+import type { UsageAnalyticsQuotaForecast } from './usageAnalyticsQuotaForecast';
+import type { UsageAnalyticsQuotaSummary } from './usageAnalyticsQuotaSummary';
 import type { UsageAnalyticsRange } from './usageAnalyticsRange';
 import type { UsageAnalyticsScope } from './usageAnalyticsScope';
 import type { UsageAnalyticsService } from './usageAnalyticsService';
 import type { UsageAnalyticsServiceOption } from './usageAnalyticsServiceOption';
+import type { UsageAnalyticsWeekdayHour } from './usageAnalyticsWeekdayHour';
 
 export interface UsageAnalytics {
   scope: UsageAnalyticsScope;
@@ -25,12 +32,24 @@ export interface UsageAnalytics {
   /** @minimum 0 */
   total_bytes: number;
   /** @minimum 0 */
+  average_daily_bytes: number;
+  /** @minimum 0 */
   service_count: number;
   /** @minimum 0 */
+  customer_count: number;
+  /** @minimum 0 */
   services_total: number;
+  comparison: UsageAnalyticsComparison;
+  peak_bucket: UsageAnalyticsBucket | null;
   buckets: UsageAnalyticsBucket[];
+  weekday_hour: UsageAnalyticsWeekdayHour[];
   provider_options: UsageAnalyticsProvider[];
   providers: UsageAnalyticsProviderTotal[];
+  provider_health: UsageAnalyticsProviderHealth[];
   services: UsageAnalyticsService[];
   service_options: UsageAnalyticsServiceOption[];
+  customers: UsageAnalyticsCustomer[];
+  quota_summary: UsageAnalyticsQuotaSummary;
+  quota_forecasts: UsageAnalyticsQuotaForecast[];
+  anomalies: UsageAnalyticsAnomaly[];
 }

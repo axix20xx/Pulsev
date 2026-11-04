@@ -10,4 +10,9 @@ import type { UsageAnalyticsProvider } from './usageAnalyticsProvider';
 export type UsageAnalyticsProviderTotal = UsageAnalyticsProvider & {
   /** @minimum 0 */
   bytes: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  share_percent: number;
 };

@@ -795,10 +795,38 @@ export const UsageAnalyticsRange = {
   day: 'day',
   week: 'week',
   month: 'month',
+  custom: 'custom',
 } as const;
+
+export interface UsageAnalyticsComparison {
+  previous_from_at: string;
+  previous_to_at: string;
+  /** @minimum 0 */
+  total_bytes: number;
+  delta_bytes: number;
+  /** @nullable */
+  change_percent: number | null;
+  /** @minimum 0 */
+  service_count: number;
+}
 
 export interface UsageAnalyticsBucket {
   bucket_at: string;
+  /** @minimum 0 */
+  bytes: number;
+}
+
+export interface UsageAnalyticsWeekdayHour {
+  /**
+     * @minimum 0
+     * @maximum 6
+     */
+  weekday: number;
+  /**
+     * @minimum 0
+     * @maximum 23
+     */
+  hour: number;
   /** @minimum 0 */
   bytes: number;
 }
@@ -811,7 +839,31 @@ export interface UsageAnalyticsProvider {
 export type UsageAnalyticsProviderTotal = UsageAnalyticsProvider & {
   /** @minimum 0 */
   bytes: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  share_percent: number;
 };
+
+export type UsageAnalyticsProviderHealthStatus = typeof UsageAnalyticsProviderHealthStatus[keyof typeof UsageAnalyticsProviderHealthStatus];
+
+
+export const UsageAnalyticsProviderHealthStatus = {
+  fresh: 'fresh',
+  stale: 'stale',
+  never: 'never',
+} as const;
+
+export interface UsageAnalyticsProviderHealth {
+  key: string;
+  label: string;
+  /** @minimum 0 */
+  service_count: number;
+  /** @nullable */
+  last_sample_at: string | null;
+  status: UsageAnalyticsProviderHealthStatus;
+}
 
 export interface UsageAnalyticsService {
   service_id: number;
@@ -835,6 +887,83 @@ export interface UsageAnalyticsServiceOption {
   customer_name: string;
 }
 
+export interface UsageAnalyticsCustomer {
+  customer_id: number;
+  customer_name: string;
+  /** @minimum 0 */
+  bytes: number;
+  /** @minimum 0 */
+  service_count: number;
+  /** @minimum 0 */
+  provider_count: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  share_percent: number;
+}
+
+export interface UsageAnalyticsQuotaSummary {
+  /** @minimum 0 */
+  active_services: number;
+  /** @minimum 0 */
+  tracked_services: number;
+  /** @minimum 0 */
+  used_bytes: number;
+  /** @minimum 0 */
+  limit_bytes: number;
+  /** @minimum 0 */
+  remaining_bytes: number;
+  /** @minimum 0 */
+  above_70_count: number;
+  /** @minimum 0 */
+  above_90_count: number;
+  /** @minimum 0 */
+  exhausted_count: number;
+}
+
+export interface UsageAnalyticsQuotaForecast {
+  service_id: number;
+  service_code: string;
+  username: string;
+  /** @nullable */
+  customer_id: number | null;
+  customer_name: string;
+  /** @minimum 0 */
+  limit_bytes: number;
+  /** @minimum 0 */
+  used_bytes: number;
+  /** @minimum 0 */
+  remaining_bytes: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  used_percent: number;
+  /** @nullable */
+  average_daily_bytes: number | null;
+  /** @nullable */
+  days_until_empty: number | null;
+  /** @minimum 0 */
+  coverage_days: number;
+  /** @nullable */
+  expires_at: string | null;
+}
+
+export interface UsageAnalyticsAnomaly {
+  service_id: number;
+  service_code: string;
+  username: string;
+  customer_name: string;
+  /** @minimum 0 */
+  current_bytes: number;
+  /** @minimum 0 */
+  previous_bytes: number;
+  delta_bytes: number;
+  /** @nullable */
+  multiple: number | null;
+}
+
 export interface UsageAnalytics {
   scope: UsageAnalyticsScope;
   range: UsageAnalyticsRange;
@@ -847,14 +976,26 @@ export interface UsageAnalytics {
   /** @minimum 0 */
   total_bytes: number;
   /** @minimum 0 */
+  average_daily_bytes: number;
+  /** @minimum 0 */
   service_count: number;
   /** @minimum 0 */
+  customer_count: number;
+  /** @minimum 0 */
   services_total: number;
+  comparison: UsageAnalyticsComparison;
+  peak_bucket: UsageAnalyticsBucket | null;
   buckets: UsageAnalyticsBucket[];
+  weekday_hour: UsageAnalyticsWeekdayHour[];
   provider_options: UsageAnalyticsProvider[];
   providers: UsageAnalyticsProviderTotal[];
+  provider_health: UsageAnalyticsProviderHealth[];
   services: UsageAnalyticsService[];
   service_options: UsageAnalyticsServiceOption[];
+  customers: UsageAnalyticsCustomer[];
+  quota_summary: UsageAnalyticsQuotaSummary;
+  quota_forecasts: UsageAnalyticsQuotaForecast[];
+  anomalies: UsageAnalyticsAnomaly[];
 }
 
 export interface AwgUsageRefreshResult {
@@ -1299,6 +1440,7 @@ export const UsageAnalyticsRangeParameter = {
   day: 'day',
   week: 'week',
   month: 'month',
+  custom: 'custom',
 } as const;
 
 export type UsageAnalyticsProviderParameter = string;
@@ -1306,6 +1448,21 @@ export type UsageAnalyticsProviderParameter = string;
 export type UsageAnalyticsServiceParameter = number;
 
 export type UsageAnalyticsSearchParameter = string;
+
+/**
+ * Inclusive start date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.
+ */
+export type UsageAnalyticsFromDateParameter = string;
+
+/**
+ * Inclusive end date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.
+ */
+export type UsageAnalyticsToDateParameter = string;
+
+/**
+ * Master-admin-only reseller filter.
+ */
+export type UsageAnalyticsResellerParameter = number;
 
 export type UsageAnalyticsLimitParameter = number;
 
@@ -1428,6 +1585,21 @@ service_id?: UsageAnalyticsServiceParameter;
  */
 search?: UsageAnalyticsSearchParameter;
 /**
+ * Inclusive start date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from_date?: UsageAnalyticsFromDateParameter;
+/**
+ * Inclusive end date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to_date?: UsageAnalyticsToDateParameter;
+/**
+ * Master-admin-only reseller filter.
+ * @minimum 1
+ */
+reseller_id?: UsageAnalyticsResellerParameter;
+/**
  * @minimum 1
  * @maximum 100
  */
@@ -1437,6 +1609,37 @@ limit?: UsageAnalyticsLimitParameter;
  * @maximum 100000
  */
 offset?: UsageAnalyticsOffsetParameter;
+};
+
+export type GetUsageAnalyticsExportParams = {
+range?: UsageAnalyticsRangeParameter;
+/**
+ * @maxLength 120
+ */
+provider_key?: UsageAnalyticsProviderParameter;
+/**
+ * @minimum 1
+ */
+service_id?: UsageAnalyticsServiceParameter;
+/**
+ * @maxLength 120
+ */
+search?: UsageAnalyticsSearchParameter;
+/**
+ * Inclusive start date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from_date?: UsageAnalyticsFromDateParameter;
+/**
+ * Inclusive end date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to_date?: UsageAnalyticsToDateParameter;
+/**
+ * Master-admin-only reseller filter.
+ * @minimum 1
+ */
+reseller_id?: UsageAnalyticsResellerParameter;
 };
 
 export type ListServicesParams = {

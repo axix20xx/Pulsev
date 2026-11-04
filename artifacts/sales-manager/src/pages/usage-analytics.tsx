@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { Activity, AlertCircle, BarChart3, ChevronLeft, ChevronRight, HardDrive, RefreshCw, Users } from "lucide-react";
-import { getGetUsageAnalyticsQueryKey, useGetUsageAnalytics, type GetUsageAnalyticsParams, type UsageAnalyticsRange } from "@workspace/api-client-react";
-import { Badge, Btn, Card, DataTable, EmptyState, ErrorAlert, Page, PageHead, SkeletonRows } from "@/admin/ui";
-import { usePulse } from "@/pages/pulse-pages";
+import { useEffect, useState } from "react";
+import { Activity, AlertCircle, BarChart3, ChevronLeft, ChevronRight, Download, Gauge, HardDrive, RefreshCw, TrendingUp, Users } from "lucide-react";
+import { getGetUsageAnalyticsQueryKey, getListResellersQueryKey, useGetUsageAnalytics, useListResellers, type GetUsageAnalyticsParams, type UsageAnalyticsRange } from "@workspace/api-client-react";
+import { Badge, Btn, Card, DataTable, EmptyState, ErrorAlert, Meter, Page, PageHead, SkeletonRows } from "@/admin/ui";
+import { isoToday } from "@/lib/pulse-data";
+import { PersianDateField, usePulse } from "@/pages/pulse-pages";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import "./usage-analytics.css";
 
@@ -10,9 +11,10 @@ const PAGE_SIZE = 25;
 const ranges: Array<{ value: UsageAnalyticsRange; label: string }> = [
   { value: "6h", label: "۶ ساعت اخیر" },
   { value: "12h", label: "۱۲ ساعت اخیر" },
-  { value: "day", label: "روزانه · ۲۴ ساعت" },
+  { value: "day", label: "امروز · تهران" },
   { value: "week", label: "هفتگی · ۷ روز" },
   { value: "month", label: "ماهانه · ۳۰ روز" },
+  { value: "custom", label: "بازهٔ دلخواه" },
 ];
 const numberFa = new Intl.NumberFormat("fa-IR");
 const bytesFormat = (bytes: number) => {
@@ -40,10 +42,34 @@ const compactBytes = (bytes: number) => {
   const value = safe / 1024 ** index;
   return `${new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 }).format(value)} ${units[index]}`;
 };
+const percentFa = (value: number) => `${new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 }).format(value)}٪`;
+const weekdayLabels = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
+
+function UsageHeatmap({ rows }: { rows: Array<{ weekday: number; hour: number; bytes: number }> }) {
+  const values = new Map(rows.map((row) => [`${row.weekday}:${row.hour}`, Number(row.bytes)]));
+  const maximum = Math.max(1, ...rows.map((row) => Number(row.bytes)));
+  return <div className="usage-heatmap-scroll" role="img" aria-label="نقشهٔ گرمای مصرف بر اساس روز هفته و ساعت تهران">
+    <div className="usage-heatmap">
+      <span className="usage-heatmap-corner">روز / ساعت</span>
+      {Array.from({ length: 24 }, (_, hour) => <span key={`hour-${hour}`} className="usage-heatmap-hour">{new Intl.NumberFormat("fa-IR", { useGrouping: false }).format(hour)}</span>)}
+      {weekdayLabels.map((day, weekday) => <div className="usage-heatmap-row" key={day}>
+        <strong>{day}</strong>
+        {Array.from({ length: 24 }, (_, hour) => {
+          const bytes = values.get(`${weekday}:${hour}`) ?? 0;
+          const alpha = bytes > 0 ? 0.12 + 0.78 * (bytes / maximum) : 0.035;
+          return <span key={`${weekday}-${hour}`} title={`${day}، ساعت ${hour}: ${bytesFormat(bytes)}`} style={{ background: `hsl(var(--primary) / ${alpha})` }} />;
+        })}
+      </div>)}
+    </div>
+  </div>;
+}
 
 function UsageChart({ data, range }: { data: Array<{ bucket_at: string; bytes: number }>; range: UsageAnalyticsRange }) {
   if (!data.length) return <div className="usage-chart-empty">برای این بازه هنوز نمونهٔ تاریخی ثبت نشده است.</div>;
-  const timeOnly = range === "6h" || range === "12h" || range === "day";
+  const customSpan = range === "custom" && data.length > 1
+    ? new Date(data[data.length - 1].bucket_at).getTime() - new Date(data[0].bucket_at).getTime()
+    : Number.POSITIVE_INFINITY;
+  const timeOnly = range === "6h" || range === "12h" || range === "day" || customSpan <= 48 * 60 * 60_000;
   return <div className="usage-chart-wrap" role="img" aria-label="نمودار مصرف ترافیک بر اساس نمونه‌های ثبت‌شده">
     <ResponsiveContainer width="100%" height="100%" debounce={0}>
       <AreaChart data={data} margin={{ top: 8, right: 10, left: 8, bottom: 3 }}>
@@ -97,15 +123,29 @@ function UsageChart({ data, range }: { data: Array<{ bucket_at: string; bytes: n
 export default function UsageAnalyticsPage() {
   const { session, sessionLoading } = usePulse();
   const [range, setRange] = useState<UsageAnalyticsRange>("day");
+  const [fromDate, setFromDate] = useState(isoToday);
+  const [toDate, setToDate] = useState(isoToday);
   const [providerKey, setProviderKey] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [resellerId, setResellerId] = useState("");
   const [page, setPage] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const resellersQuery = useListResellers({ query: { enabled: session?.role === "master_admin" && !sessionLoading, queryKey: [...getListResellersQueryKey(), session?.telegram_id ?? "unknown"] } });
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search), 300);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
   const params: GetUsageAnalyticsParams = {
     range,
+    from_date: range === "custom" ? fromDate : undefined,
+    to_date: range === "custom" ? toDate : undefined,
     provider_key: providerKey || undefined,
     service_id: serviceId ? Number(serviceId) : undefined,
-    search: search.trim() || undefined,
+    search: debouncedSearch.trim() || undefined,
+    reseller_id: session?.role === "master_admin" && resellerId ? Number(resellerId) : undefined,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   };
@@ -114,7 +154,7 @@ export default function UsageAnalyticsPage() {
     : "signed-out";
   const usageQuery = useGetUsageAnalytics(params, {
     query: {
-      enabled: session?.authenticated === true && !sessionLoading,
+      enabled: session?.authenticated === true && !sessionLoading && (range !== "custom" || Boolean(fromDate && toDate)),
       queryKey: [...getGetUsageAnalyticsQueryKey(params), session?.role ?? "unknown", session?.telegram_id ?? session?.reseller_id ?? "unknown", authScope],
       staleTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false,
@@ -125,30 +165,73 @@ export default function UsageAnalyticsPage() {
   const serviceOptions = data?.service_options ?? [];
   const providers = data?.providers ?? [];
   const loading = usageQuery.isLoading || usageQuery.isFetching;
-  const highestProvider = Math.max(1, ...providers.map((provider) => provider.bytes));
   const intervalText = data?.bucket_interval || "—";
+  const comparisonPercent = data?.comparison.change_percent;
+  const comparisonLabel = comparisonPercent === null || comparisonPercent === undefined
+    ? "برای دورهٔ قبل نمونهٔ کافی ثبت نشده است"
+    : `${comparisonPercent >= 0 ? "افزایش" : "کاهش"} ${percentFa(Math.abs(comparisonPercent))} نسبت به دورهٔ قبل`;
+  const quota = data?.quota_summary;
+  const quotaUsedPercent = quota && quota.limit_bytes > 0 ? quota.used_bytes / quota.limit_bytes * 100 : 0;
+  const providerStatusLabel = (status: string) => status === "fresh" ? "نمونهٔ تازه" : status === "stale" ? "نمونه قدیمی" : "بدون نمونه";
+  const providerStatusTone = (status: string) => status === "fresh" ? "good" as const : status === "stale" ? "warn" as const : "neutral" as const;
 
   const changeRange = (next: UsageAnalyticsRange) => { setRange(next); setPage(0); };
   const changeFilter = (setter: (value: string) => void) => (value: string) => { setter(value); setPage(0); };
+  const exportCsv = async () => {
+    setExportError("");
+    setExporting(true);
+    try {
+      const query = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null && value !== "") query.set(key, String(value));
+      }
+      const response = await fetch(`/api/usage-analytics/export?${query.toString()}`, { credentials: "include" });
+      if (!response.ok) {
+        let message = "دریافت فایل خروجی ناموفق بود.";
+        try { const body = await response.json(); if (typeof body?.error === "string") message = body.error; } catch { /* Keep a safe generic message for non-JSON errors. */ }
+        throw new Error(message);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `pulse-usage-${range}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setExportError(errorText(error));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return <Page surface="usage-analytics" className="usage-page">
-    <PageHead eyebrow="تحلیل ترافیک" title="آنالیز مصرف" lede={<span className="usage-intro"><span className="usage-scope"><i/> {data?.scope === "system" ? "نمای کلی سیستم" : "فضای فروشنده"}</span>نمونه‌های ثبت‌شدهٔ ترافیک در بازه‌های زمانی</span>} actions={<Btn onClick={() => void usageQuery.refetch()} disabled={usageQuery.isFetching} testId="button-refresh-usage"><RefreshCw size={15} className={usageQuery.isFetching ? "ax-spin" : ""}/>{usageQuery.isFetching ? "در حال بروزرسانی" : "بروزرسانی"}</Btn>}/>
+    <PageHead eyebrow="تحلیل ترافیک" title="آنالیز مصرف" lede={<span className="usage-intro"><span className="usage-scope"><i/> {data?.scope === "system" ? "نمای کلی سیستم" : "فضای فروشنده"}</span>نمونه‌های ثبت‌شدهٔ ترافیک در بازه‌های زمانی</span>} actions={<><Btn onClick={() => void exportCsv()} disabled={exporting || !data} testId="button-export-usage"><Download size={15}/>{exporting ? "در حال آماده‌سازی" : "خروجی CSV"}</Btn><Btn onClick={() => void usageQuery.refetch()} disabled={usageQuery.isFetching} testId="button-refresh-usage"><RefreshCw size={15} className={usageQuery.isFetching ? "ax-spin" : ""}/>{usageQuery.isFetching ? "در حال بروزرسانی" : "بروزرسانی"}</Btn></>}/>
     <Card className="ax-pad" ariaLabel="فیلترهای تحلیل ترافیک">
       <div className="usage-range-tabs" role="group" aria-label="بازهٔ زمانی">
         {ranges.map((item) => <button key={item.value} type="button" aria-pressed={range === item.value} onClick={() => changeRange(item.value)} data-testid={`range-${item.value}`}>{item.label}</button>)}
       </div>
       <div className="usage-filter-grid" style={{ marginTop: 14 }}>
+        {session?.role === "master_admin" && <label className="usage-filter-field"><span>فروشنده</span><select value={resellerId} onChange={(event) => changeFilter(setResellerId)(event.target.value)} aria-label="فیلتر فروشنده" data-testid="select-usage-reseller"><option value="">همهٔ فروشندگان</option>{(resellersQuery.data ?? []).map((reseller) => <option key={reseller.telegram_id} value={reseller.telegram_id}>{reseller.title || `فروشنده ${reseller.telegram_id}`} · {reseller.telegram_id}</option>)}</select></label>}
         <label className="usage-filter-field"><span>ارائه‌دهنده</span><select value={providerKey} onChange={(event) => changeFilter(setProviderKey)(event.target.value)} aria-label="فیلتر ارائه‌دهنده" data-testid="select-usage-provider"><option value="">همهٔ ارائه‌دهندگان</option>{(data?.provider_options ?? []).map((provider) => <option key={provider.key} value={provider.key}>{provider.label}</option>)}</select></label>
         <label className="usage-filter-field"><span>سرویس</span><select value={serviceId} onChange={(event) => changeFilter(setServiceId)(event.target.value)} aria-label="فیلتر سرویس" data-testid="select-usage-service"><option value="">همهٔ سرویس‌ها</option>{serviceOptions.map((service) => <option key={service.service_id} value={service.service_id}>{service.service_code} · {service.customer_name || service.username}</option>)}</select></label>
         <label className="usage-filter-field"><span>جست‌وجوی سرویس، username یا مشتری</span><input type="search" value={search} onChange={(event) => changeFilter(setSearch)(event.target.value)} placeholder="کد سرویس، username یا نام مشتری" aria-label="جست‌وجو در سرویس‌های ترافیک" data-testid="input-usage-search"/></label>
       </div>
+      {range === "custom" && <div className="usage-custom-range">
+        <PersianDateField label="از تاریخ شمسی" value={fromDate} onChange={(value) => { setFromDate(value); if (value > toDate) setToDate(value); setPage(0); }} />
+        <PersianDateField label="تا تاریخ شمسی" value={toDate} onChange={(value) => { setToDate(value); if (value < fromDate) setFromDate(value); setPage(0); }} />
+      </div>}
     </Card>
     {usageQuery.isError && <ErrorAlert message={errorText(usageQuery.error)} onRetry={() => void usageQuery.refetch()} retrying={usageQuery.isFetching}/>}
+    {exportError && <ErrorAlert message={exportError} onRetry={() => void exportCsv()} retrying={exporting}/>}
     <div className="usage-history-note" role="note"><AlertCircle size={16}/><span>ثبت تاریخچه از زمان نصب آغاز می‌شود؛ تا زمانی که نمونه‌های کافی جمع‌آوری نشده‌اند، بازهٔ انتخابی ممکن است ناقص باشد. اولین نمونه فقط خط مبناست و مصرفی به آن نسبت داده نمی‌شود.{data?.history_started_at ? ` شروع ثبت: ${dateLabel(data.history_started_at, true)}.` : ""}{data?.is_partial ? " داده‌های این بازه ناقص است." : ""}</span></div>
     <section className="usage-kpis" aria-label="خلاصهٔ مصرف">
-       <article className="usage-kpi"><label>کل مصرف در بازه</label><strong data-testid="metric-usage-total">{loading && !data ? "…" : data ? bytesFormat(data.total_bytes) : "—"}</strong><small>{data ? `${dateLabel(data.from_at, true)} تا ${dateLabel(data.to_at, true)}` : "بر اساس نمونه‌های ثبت‌شده"}</small></article>
-       <article className="usage-kpi"><label>سرویس‌های دارای مصرف</label><strong data-testid="metric-usage-services">{loading && !data ? "…" : data ? numberFa.format(data.service_count) : "—"}</strong><small>{data ? `${numberFa.format(data.services_total)} سرویس دارای نمونه` : "در بازهٔ انتخاب‌شده"}</small></article>
-        <article className="usage-kpi"><label>ارائه‌دهندگان در گزارش</label><strong data-testid="metric-usage-providers">{loading && !data ? "…" : data ? numberFa.format(providers.length) : "—"}</strong><small>ارائه‌دهندگان بدون نمونه هم نمایش داده می‌شوند</small></article>
+      <article className="usage-kpi"><label>کل مصرف در بازه</label><strong data-testid="metric-usage-total">{loading && !data ? "…" : data ? bytesFormat(data.total_bytes) : "—"}</strong><small>{data ? `${dateLabel(data.from_at, true)} تا ${dateLabel(data.to_at, true)}` : "بر اساس نمونه‌های ثبت‌شده"}</small></article>
+      <article className="usage-kpi"><label>مقایسه با بازهٔ قبل</label><strong className={comparisonPercent === null || comparisonPercent === undefined ? "" : comparisonPercent >= 0 ? "is-up" : "is-down"}>{data ? comparisonPercent == null ? "—" : percentFa(Math.abs(comparisonPercent)) : "—"}</strong><small>{comparisonLabel}</small></article>
+      <article className="usage-kpi"><label>میانگین مصرف روزانه</label><strong>{data ? bytesFormat(data.average_daily_bytes) : "—"}</strong><small>محاسبه از مدت واقعی بازهٔ انتخابی</small></article>
+      <article className="usage-kpi"><label>کاربران و سرویس‌ها</label><strong>{data ? `${numberFa.format(data.customer_count)} / ${numberFa.format(data.service_count)}` : "—"}</strong><small>مشتری یکتا / سرویس دارای مصرف</small></article>
     </section>
     <div className="usage-history-note" role="note"><Activity size={16}/><span>نمودار بر پایهٔ نمونه‌های واقعی در فاصلهٔ «{intervalText}» نمایش داده می‌شود؛ مصرف نقطهٔ آغاز به‌عنوان خط مبنا صفر در نظر گرفته شده است.</span></div>
     <div className="usage-layout">
@@ -156,7 +239,49 @@ export default function UsageAnalyticsPage() {
         {loading && !data ? <div className="usage-chart-empty"><span className="ax-skel" style={{ width:"100%", height:190 }}/></div> : data ? <UsageChart data={data.buckets} range={range}/> : <EmptyState title="داده‌ای برای نمایش نیست" detail="پس از ثبت نمونه‌های تاریخی، نمودار اینجا نمایش داده می‌شود." icon={BarChart3}/>}
       </Card>
       <Card title="تفکیک ارائه‌دهنده" description="مصرف هر ارائه‌دهنده در بازه؛ مقدار صفر نیز نمایش داده می‌شود">
-        {loading && !data ? <SkeletonRows rows={4}/> : providers.length ? <div className="usage-provider-list">{providers.map((provider) => <div className="usage-provider-row" key={provider.key}><div className="usage-provider-head"><strong>{provider.label}</strong><span>{bytesFormat(provider.bytes)}</span></div><div className="usage-provider-track"><i style={{ width:`${Math.max(0, Math.min(100, provider.bytes / highestProvider * 100))}%` }}/></div></div>)}</div> : <EmptyState title="ارائه‌دهنده‌ای ثبت نشده" detail="در این بازه ترافیکی برای ارائه‌دهندگان موجود نیست." icon={HardDrive}/>}
+        {loading && !data ? <SkeletonRows rows={4}/> : providers.length ? <div className="usage-provider-list">{providers.map((provider) => <div className="usage-provider-row" key={provider.key}><div className="usage-provider-head"><strong>{provider.label}</strong><span>{bytesFormat(provider.bytes)} · {percentFa(provider.share_percent)}</span></div><div className="usage-provider-track"><i style={{ width:`${Math.max(0, Math.min(100, provider.share_percent))}%` }}/></div></div>)}</div> : <EmptyState title="ارائه‌دهنده‌ای ثبت نشده" detail="در این بازه ترافیکی برای ارائه‌دهندگان موجود نیست." icon={HardDrive}/>}
+      </Card>
+    </div>
+    <div className="usage-insights-grid">
+      <Card title="اوج مصرف" description="بیشترین بازهٔ ثبت‌شده در نمودار، بر اساس ساعت تهران">
+        {data?.peak_bucket ? <div className="usage-peak"><strong>{bytesFormat(data.peak_bucket.bytes)}</strong><span>{dateLabel(data.peak_bucket.bucket_at, true)}</span></div> : <EmptyState title="اوجی برای نمایش نیست" detail="پس از ثبت مصرف مثبت در بازه نمایش داده می‌شود." icon={TrendingUp}/>}
+      </Card>
+      <Card title="سلامت دریافت Providerها" description="تازگی آخرین نمونه در ۱۲۰ روز گذشته؛ کهنه یعنی بیش از ۱۵ دقیقه">
+        {loading && !data ? <SkeletonRows rows={3}/> : data?.provider_health.length ? <div className="usage-health-list">{data.provider_health.map((provider) => <div className="usage-health-row" key={provider.key}><div><strong>{provider.label}</strong><small>{numberFa.format(provider.service_count)} سرویس دارای نمونه</small></div><div><Badge tone={providerStatusTone(provider.status)} dot>{providerStatusLabel(provider.status)}</Badge><small>{provider.last_sample_at ? dateLabel(provider.last_sample_at, true) : "هنوز نمونه‌ای ثبت نشده"}</small></div></div>)}</div> : <EmptyState title="Providerی در دسترس نیست" icon={HardDrive}/>}
+      </Card>
+    </div>
+    <Card title="الگوی مصرف روز و ساعت" description="حجم ترافیک ثبت‌شده در ساعت‌های هفته به وقت تهران">
+      {loading && !data ? <SkeletonRows rows={3}/> : data ? <UsageHeatmap rows={data.weekday_hour}/> : <EmptyState title="داده‌ای برای نمایش نیست" icon={BarChart3}/>}
+    </Card>
+    <div className="usage-insights-grid">
+      <Card title="سلامت حجم اشتراک‌ها" description="وضعیت فعلی همهٔ سرویس‌های فعال در محدودهٔ دسترسی شما">
+        {quota ? <>
+          <div className="usage-quota-summary">
+            <div><span>مصرف کل</span><strong>{bytesFormat(quota.used_bytes)}</strong></div>
+            <div><span>ماندهٔ کل</span><strong>{bytesFormat(quota.remaining_bytes)}</strong></div>
+            <div><span>سرویس‌های فعال</span><strong>{numberFa.format(quota.active_services)}</strong></div>
+          </div>
+          <div className="usage-quota-progress"><div className="usage-provider-track"><i style={{ width: `${Math.max(0, Math.min(100, quotaUsedPercent))}%` }}/></div><span>{percentFa(quotaUsedPercent)} از حجم کل مصرف شده</span></div>
+          <div className="usage-quota-thresholds"><Badge tone="warn">{numberFa.format(quota.above_70_count)} سرویس بالای ۷۰٪</Badge><Badge tone="bad">{numberFa.format(quota.above_90_count)} سرویس بالای ۹۰٪</Badge><Badge tone="neutral">{numberFa.format(quota.exhausted_count)} تمام‌شده</Badge></div>
+          <small className="usage-muted">{numberFa.format(quota.tracked_services)} از {numberFa.format(quota.active_services)} سرویس دادهٔ مصرف ثبت‌شده دارند.</small>
+        </> : <SkeletonRows rows={3}/>}
+      </Card>
+      <Card title="پیش‌بینی اتمام حجم" description="بر اساس میانگین روزانهٔ نمونه‌های هفت روز اخیر؛ حداقل یک روز تاریخچه لازم است">
+        {data?.quota_forecasts.length ? <div className="usage-forecast-list">{data.quota_forecasts.map((item) => <article className="usage-forecast-row" key={item.service_id}>
+          <div className="usage-forecast-head"><strong>{item.service_code}</strong><span>{item.customer_name || item.username || "—"}</span></div>
+          <Meter value={item.used_percent} label={`مصرف حجم ${item.service_code}`}/>
+          <div className="usage-forecast-foot"><span>{percentFa(item.used_percent)} مصرف · {bytesFormat(item.remaining_bytes)} مانده</span><strong>{item.days_until_empty === null ? "تاریخچهٔ کافی نیست" : `حدود ${numberFa.format(item.days_until_empty)} روز`}</strong></div>
+        </article>)}</div> : <EmptyState title="پیش‌بینی هنوز آماده نیست" detail="برای پیش‌بینی معتبر، دست‌کم یک روز نمونهٔ تاریخی و مصرف مثبت لازم است." icon={Gauge}/>}
+      </Card>
+    </div>
+    <div className="usage-insights-grid">
+      <Card title="پرترافیک‌ترین مشتریان" description="۱۰ مشتری برتر در همین بازه؛ سهم از کل ترافیک">
+        {data?.customers.length ? <DataTable head={["مشتری", "سرویس", "Provider", "مصرف", "سهم"]} label="مشتریان پرترافیک">
+          {data.customers.map((customer) => <tr key={customer.customer_id}><td>{customer.customer_name || `#${customer.customer_id}`}</td><td>{numberFa.format(customer.service_count)}</td><td>{numberFa.format(customer.provider_count)}</td><td className="usage-traffic-cell">{bytesFormat(customer.bytes)}</td><td>{percentFa(customer.share_percent)}</td></tr>)}
+        </DataTable> : <EmptyState title="مشتری دارای مصرفی پیدا نشد" detail="این فهرست فقط مشتریانی را نشان می‌دهد که نمونهٔ مصرف دارند." icon={Users}/>}
+      </Card>
+      <Card title="افزایش غیرعادی مصرف" description="هشدار داخل گزارش: حداقل ۵۱۲ مگابایت و حداقل ۲٫۵ برابر دورهٔ قبل">
+        {data?.anomalies.length ? <div className="usage-anomaly-list">{data.anomalies.map((item) => <article className="usage-anomaly-row" key={item.service_id}><div><strong>{item.service_code}</strong><small>{item.customer_name || item.username || "—"}</small></div><div><Badge tone="bad" dot>{item.multiple === null ? "بدون خط مبنا" : `${numberFa.format(item.multiple)}×`}</Badge><strong>{bytesFormat(item.current_bytes)}</strong></div></article>)}</div> : <EmptyState title="افزایش غیرعادی پیدا نشد" detail="هشدارها فقط در همین صفحه نمایش داده می‌شوند و Push ارسال نمی‌شود." icon={Activity}/>}
       </Card>
     </div>
     <Card title="سرویس‌های پرترافیک" description="سرویس‌های دارای نمونه در بازهٔ انتخاب‌شده" actions={data ? <Badge tone="info">{numberFa.format(data.services_total)} سرویس</Badge> : undefined} flush>

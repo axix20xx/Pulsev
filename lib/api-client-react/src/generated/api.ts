@@ -31,6 +31,7 @@ import type {
   CustomerDetail,
   DashboardSummary,
   GetSalesSummaryParams,
+  GetUsageAnalyticsExportParams,
   GetUsageAnalyticsParams,
   HealthStatus,
   IpsecDelivery,
@@ -2394,6 +2395,91 @@ export function useGetUsageAnalytics<TData = Awaited<ReturnType<typeof getUsageA
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetUsageAnalyticsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetUsageAnalyticsExportUrl = (params?: GetUsageAnalyticsExportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/usage-analytics/export?${stringifiedParams}` : `/api/usage-analytics/export`
+}
+
+/**
+ * Resellers can export only their own services; master admins may optionally filter by reseller.
+ * @summary Export all matching service usage rows as CSV
+ */
+export const getUsageAnalyticsExport = async (params?: GetUsageAnalyticsExportParams, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getGetUsageAnalyticsExportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUsageAnalyticsExportQueryKey = (params?: GetUsageAnalyticsExportParams,) => {
+    return [
+    `/api/usage-analytics/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetUsageAnalyticsExportQueryOptions = <TData = Awaited<ReturnType<typeof getUsageAnalyticsExport>>, TError = ErrorType<unknown>>(params?: GetUsageAnalyticsExportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUsageAnalyticsExport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUsageAnalyticsExportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsageAnalyticsExport>>> = ({ signal }) => getUsageAnalyticsExport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUsageAnalyticsExport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUsageAnalyticsExportQueryResult = NonNullable<Awaited<ReturnType<typeof getUsageAnalyticsExport>>>
+export type GetUsageAnalyticsExportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Export all matching service usage rows as CSV
+ */
+
+export function useGetUsageAnalyticsExport<TData = Awaited<ReturnType<typeof getUsageAnalyticsExport>>, TError = ErrorType<unknown>>(
+ params?: GetUsageAnalyticsExportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUsageAnalyticsExport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUsageAnalyticsExportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

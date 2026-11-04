@@ -556,6 +556,9 @@ paths:
         - $ref: "#/components/parameters/UsageAnalyticsProvider"
         - $ref: "#/components/parameters/UsageAnalyticsService"
         - $ref: "#/components/parameters/UsageAnalyticsSearch"
+        - $ref: "#/components/parameters/UsageAnalyticsFromDate"
+        - $ref: "#/components/parameters/UsageAnalyticsToDate"
+        - $ref: "#/components/parameters/UsageAnalyticsReseller"
         - $ref: "#/components/parameters/UsageAnalyticsLimit"
         - $ref: "#/components/parameters/UsageAnalyticsOffset"
       responses:
@@ -565,6 +568,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UsageAnalytics"
+  /usage-analytics/export:
+    get:
+      operationId: getUsageAnalyticsExport
+      tags: [services]
+      summary: Export all matching service usage rows as CSV
+      description: Resellers can export only their own services; master admins may optionally filter by reseller.
+      parameters:
+        - $ref: "#/components/parameters/UsageAnalyticsRange"
+        - $ref: "#/components/parameters/UsageAnalyticsProvider"
+        - $ref: "#/components/parameters/UsageAnalyticsService"
+        - $ref: "#/components/parameters/UsageAnalyticsSearch"
+        - $ref: "#/components/parameters/UsageAnalyticsFromDate"
+        - $ref: "#/components/parameters/UsageAnalyticsToDate"
+        - $ref: "#/components/parameters/UsageAnalyticsReseller"
+      responses:
+        "200":
+          description: CSV export of all matching services
+          content:
+            text/csv:
+              schema:
+                type: string
   /awg-usage/{id}/refresh:
     post:
       operationId: refreshAwgUsage
@@ -1439,7 +1463,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["6h", "12h", "day", "week", "month"]
+        enum: ["6h", "12h", "day", "week", "month", "custom"]
         default: day
     UsageAnalyticsProvider:
       name: provider_key
@@ -1463,6 +1487,31 @@ components:
       schema:
         type: string
         maxLength: 120
+    UsageAnalyticsFromDate:
+      name: from_date
+      in: query
+      required: false
+      description: Inclusive start date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.
+      schema:
+        type: string
+        pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+    UsageAnalyticsToDate:
+      name: to_date
+      in: query
+      required: false
+      description: Inclusive end date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.
+      schema:
+        type: string
+        pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+    UsageAnalyticsReseller:
+      name: reseller_id
+      in: query
+      required: false
+      description: Master-admin-only reseller filter.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
     UsageAnalyticsLimit:
       name: limit
       in: query
@@ -2461,14 +2510,14 @@ components:
           minimum: 0
     UsageAnalytics:
       type: object
-      required: [scope, range, from_at, to_at, history_started_at, is_partial, bucket_interval, total_bytes, service_count, services_total, buckets, provider_options, providers, services, service_options]
+      required: [scope, range, from_at, to_at, history_started_at, is_partial, bucket_interval, total_bytes, average_daily_bytes, service_count, customer_count, services_total, comparison, peak_bucket, buckets, weekday_hour, provider_options, providers, provider_health, services, service_options, customers, quota_summary, quota_forecasts, anomalies]
       properties:
         scope:
           type: string
           enum: [system, reseller]
         range:
           type: string
-          enum: ["6h", "12h", day, week, month]
+          enum: ["6h", "12h", day, week, month, custom]
         from_at:
           type: string
           format: date-time
@@ -2485,7 +2534,14 @@ components:
         total_bytes:
           type: number
           minimum: 0
+        average_daily_bytes:
+          type: number
+          minimum: 0
         service_count:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        customer_count:
           type: number
           multipleOf: 1
           minimum: 0
@@ -2493,10 +2549,20 @@ components:
           type: number
           multipleOf: 1
           minimum: 0
+        comparison:
+          $ref: "#/components/schemas/UsageAnalyticsComparison"
+        peak_bucket:
+          oneOf:
+            - $ref: "#/components/schemas/UsageAnalyticsBucket"
+            - type: "null"
         buckets:
           type: array
           items:
             $ref: "#/components/schemas/UsageAnalyticsBucket"
+        weekday_hour:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageAnalyticsWeekdayHour"
         provider_options:
           type: array
           items:
@@ -2505,6 +2571,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/UsageAnalyticsProviderTotal"
+        provider_health:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageAnalyticsProviderHealth"
         services:
           type: array
           items:
@@ -2513,6 +2583,41 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/UsageAnalyticsServiceOption"
+        customers:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageAnalyticsCustomer"
+        quota_summary:
+          $ref: "#/components/schemas/UsageAnalyticsQuotaSummary"
+        quota_forecasts:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageAnalyticsQuotaForecast"
+        anomalies:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageAnalyticsAnomaly"
+    UsageAnalyticsComparison:
+      type: object
+      required: [previous_from_at, previous_to_at, total_bytes, delta_bytes, change_percent, service_count]
+      properties:
+        previous_from_at:
+          type: string
+          format: date-time
+        previous_to_at:
+          type: string
+          format: date-time
+        total_bytes:
+          type: number
+          minimum: 0
+        delta_bytes:
+          type: number
+        change_percent:
+          type: ["number", "null"]
+        service_count:
+          type: number
+          multipleOf: 1
+          minimum: 0
     UsageAnalyticsBucket:
       type: object
       required: [bucket_at, bytes]
@@ -2520,6 +2625,23 @@ components:
         bucket_at:
           type: string
           format: date-time
+        bytes:
+          type: number
+          minimum: 0
+    UsageAnalyticsWeekdayHour:
+      type: object
+      required: [weekday, hour, bytes]
+      properties:
+        weekday:
+          type: number
+          multipleOf: 1
+          minimum: 0
+          maximum: 6
+        hour:
+          type: number
+          multipleOf: 1
+          minimum: 0
+          maximum: 23
         bytes:
           type: number
           minimum: 0
@@ -2535,11 +2657,56 @@ components:
       allOf:
         - $ref: "#/components/schemas/UsageAnalyticsProvider"
         - type: object
-          required: [bytes]
+          required: [bytes, share_percent]
           properties:
             bytes:
               type: number
               minimum: 0
+            share_percent:
+              type: number
+              minimum: 0
+              maximum: 100
+    UsageAnalyticsProviderHealth:
+      type: object
+      required: [key, label, service_count, last_sample_at, status]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        service_count:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        last_sample_at:
+          type: ["string", "null"]
+          format: date-time
+        status:
+          type: string
+          enum: [fresh, stale, never]
+    UsageAnalyticsCustomer:
+      type: object
+      required: [customer_id, customer_name, bytes, service_count, provider_count, share_percent]
+      properties:
+        customer_id:
+          type: number
+        customer_name:
+          type: string
+        bytes:
+          type: number
+          minimum: 0
+        service_count:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        provider_count:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        share_percent:
+          type: number
+          minimum: 0
+          maximum: 100
     UsageAnalyticsService:
       type: object
       required: [service_id, service_code, username, customer_id, customer_name, bytes, provider_count]
@@ -2575,6 +2742,98 @@ components:
           type: ["number", "null"]
         customer_name:
           type: string
+    UsageAnalyticsQuotaSummary:
+      type: object
+      required: [active_services, tracked_services, used_bytes, limit_bytes, remaining_bytes, above_70_count, above_90_count, exhausted_count]
+      properties:
+        active_services:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        tracked_services:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        used_bytes:
+          type: number
+          minimum: 0
+        limit_bytes:
+          type: number
+          minimum: 0
+        remaining_bytes:
+          type: number
+          minimum: 0
+        above_70_count:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        above_90_count:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        exhausted_count:
+          type: number
+          multipleOf: 1
+          minimum: 0
+    UsageAnalyticsQuotaForecast:
+      type: object
+      required: [service_id, service_code, username, customer_id, customer_name, limit_bytes, used_bytes, remaining_bytes, used_percent, average_daily_bytes, days_until_empty, coverage_days, expires_at]
+      properties:
+        service_id:
+          type: number
+        service_code:
+          type: string
+        username:
+          type: string
+        customer_id:
+          type: ["number", "null"]
+        customer_name:
+          type: string
+        limit_bytes:
+          type: number
+          minimum: 0
+        used_bytes:
+          type: number
+          minimum: 0
+        remaining_bytes:
+          type: number
+          minimum: 0
+        used_percent:
+          type: number
+          minimum: 0
+          maximum: 100
+        average_daily_bytes:
+          type: ["number", "null"]
+        days_until_empty:
+          type: ["number", "null"]
+        coverage_days:
+          type: number
+          minimum: 0
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+    UsageAnalyticsAnomaly:
+      type: object
+      required: [service_id, service_code, username, customer_name, current_bytes, previous_bytes, delta_bytes, multiple]
+      properties:
+        service_id:
+          type: number
+        service_code:
+          type: string
+        username:
+          type: string
+        customer_name:
+          type: string
+        current_bytes:
+          type: number
+          minimum: 0
+        previous_bytes:
+          type: number
+          minimum: 0
+        delta_bytes:
+          type: number
+        multiple:
+          type: ["number", "null"]
     AwgUsageRefreshResult:
       type: object
       required: [item, checked_at]

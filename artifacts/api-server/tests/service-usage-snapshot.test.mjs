@@ -74,12 +74,16 @@ test("AWG actions require an active, unexpired service with quota remaining", ()
 
 test("panel snapshot SQL reads only the latest saved row per configured panel", () => {
   const sql = storedPanelUsageSql("svc");
-  assert.match(sql, /ORDER BY usage\.id DESC\s+LIMIT 1/);
+  assert.match(sql, /ORDER BY usage\.username, usage\.id DESC/);
   assert.match(sql, /panel\.is_enabled = 1/);
-  assert.match(sql, /reseller_service_ipsec_accounts ipsec_account/);
-  assert.match(sql, /panel\.kind = 'azadpanel_ipsec' THEN ipsec_account\.provider_username/);
-  assert.match(sql, /reseller_service_openvpn_provider_accounts openvpn_account/);
-  assert.match(sql, /panel\.kind IN \('azadpanel', 'azadpanel_openvpn'\)[\s\S]*COALESCE\(openvpn_account\.provider_username, svc\.rain_username\)/);
+  assert.match(sql, /reseller_service_usage_provider_accounts mapped/);
+  assert.match(sql, /reseller_service_wireguard_provider_accounts mapped/);
+  assert.match(sql, /reseller_service_v2ray_accounts mapped/);
+  assert.match(sql, /reseller_service_openvpn_provider_accounts mapped/);
+  assert.match(sql, /reseller_service_ipsec_accounts mapped/);
+  assert.match(sql, /raven_service_accounts mapped/);
+  assert.match(sql, /usage\.username = ANY\(provider_accounts\.usernames\)/);
+  assert.match(sql, /DISTINCT ON \(usage\.username\)/);
   assert.match(sql, /'azadpanel_ipsec'/);
   assert.match(sql, /'rain_admin_wireguard'/);
   assert.throws(() => storedPanelUsageSql("svc; DROP TABLE reseller_services"), /Invalid SQL alias/);

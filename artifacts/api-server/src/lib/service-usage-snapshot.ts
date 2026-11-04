@@ -56,35 +56,61 @@ export function storedPanelUsageSql(serviceAlias = "svc"): string {
     throw new Error("Invalid SQL alias for stored service usage.");
   }
   return `COALESCE((
-    SELECT SUM(GREATEST(
-      0::float8,
-      COALESCE(latest_usage.upload, 0)::float8
-        + COALESCE(latest_usage.download, 0)::float8
-        - COALESCE(latest_usage.offset_bytes, 0)::float8
-    ))
+    SELECT SUM(COALESCE(latest_usage.used_bytes, 0)::float8)
     FROM panel_configs panel
-    LEFT JOIN reseller_service_ipsec_accounts ipsec_account
-      ON ipsec_account.service_id = ${serviceAlias}.id
-      AND ipsec_account.provider_key = panel.key
-    LEFT JOIN reseller_service_openvpn_provider_accounts openvpn_account
-      ON openvpn_account.service_id = ${serviceAlias}.id
-      AND openvpn_account.provider_key = panel.key
-    LEFT JOIN raven_service_accounts raven_account
-      ON raven_account.service_id = ${serviceAlias}.id
-      AND raven_account.provider_key = panel.key
     LEFT JOIN LATERAL (
-      SELECT usage.upload, usage.download, usage.offset_bytes
-      FROM user_panel_usages usage
-      WHERE usage.username = CASE
-          WHEN panel.kind = 'azadpanel_ipsec' THEN ipsec_account.provider_username
-          WHEN panel.kind IN ('azadpanel', 'azadpanel_openvpn')
-            THEN COALESCE(openvpn_account.provider_username, ${serviceAlias}.rain_username)
-        WHEN panel.kind = 'raven' THEN COALESCE(raven_account.config_label, ${serviceAlias}.rain_username)
-          ELSE ${serviceAlias}.rain_username
-        END
-        AND usage.panel_key = panel.key
-      ORDER BY usage.id DESC
-      LIMIT 1
+      SELECT COALESCE(
+        array_agg(DISTINCT NULLIF(BTRIM(account_names.username), ''))
+          FILTER (WHERE NULLIF(BTRIM(account_names.username), '') IS NOT NULL),
+        ARRAY[COALESCE(NULLIF(BTRIM(${serviceAlias}.rain_username), ''), '')]::text[]
+      ) AS usernames
+      FROM (
+        SELECT mapped.provider_username AS username
+        FROM reseller_service_usage_provider_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+        UNION ALL
+        SELECT mapped.provider_username AS username
+        FROM reseller_service_wireguard_provider_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+        UNION ALL
+        SELECT mapped.provider_username AS username
+        FROM reseller_service_v2ray_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+        UNION ALL
+        SELECT mapped.provider_username AS username
+        FROM reseller_service_openvpn_provider_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+        UNION ALL
+        SELECT mapped.provider_username AS username
+        FROM reseller_service_ipsec_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+        UNION ALL
+        SELECT mapped.config_label AS username
+        FROM raven_service_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+      ) account_names
+    ) provider_accounts ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT SUM(GREATEST(
+        0::float8,
+        COALESCE(latest.upload, 0)::float8
+          + COALESCE(latest.download, 0)::float8
+          - COALESCE(latest.offset_bytes, 0)::float8
+      )) AS used_bytes
+      FROM (
+        SELECT DISTINCT ON (usage.username)
+          usage.username, usage.upload, usage.download, usage.offset_bytes
+        FROM user_panel_usages usage
+        WHERE usage.panel_key = panel.key
+          AND usage.username = ANY(provider_accounts.usernames)
+        ORDER BY usage.username, usage.id DESC
+      ) latest
     ) latest_usage ON TRUE
     WHERE panel.is_enabled = 1
       AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec', 'raven')

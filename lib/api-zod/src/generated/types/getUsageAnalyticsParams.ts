@@ -5,12 +5,15 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { UsageAnalyticsFromDateParameter } from './usageAnalyticsFromDateParameter';
 import type { UsageAnalyticsLimitParameter } from './usageAnalyticsLimitParameter';
 import type { UsageAnalyticsOffsetParameter } from './usageAnalyticsOffsetParameter';
 import type { UsageAnalyticsProviderParameter } from './usageAnalyticsProviderParameter';
 import type { UsageAnalyticsRangeParameter } from './usageAnalyticsRangeParameter';
+import type { UsageAnalyticsResellerParameter } from './usageAnalyticsResellerParameter';
 import type { UsageAnalyticsSearchParameter } from './usageAnalyticsSearchParameter';
 import type { UsageAnalyticsServiceParameter } from './usageAnalyticsServiceParameter';
+import type { UsageAnalyticsToDateParameter } from './usageAnalyticsToDateParameter';
 
 export type GetUsageAnalyticsParams = {
 range?: UsageAnalyticsRangeParameter;
@@ -26,6 +29,21 @@ service_id?: UsageAnalyticsServiceParameter;
  * @maxLength 120
  */
 search?: UsageAnalyticsSearchParameter;
+/**
+ * Inclusive start date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from_date?: UsageAnalyticsFromDateParameter;
+/**
+ * Inclusive end date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to_date?: UsageAnalyticsToDateParameter;
+/**
+ * Master-admin-only reseller filter.
+ * @minimum 1
+ */
+reseller_id?: UsageAnalyticsResellerParameter;
 /**
  * @minimum 1
  * @maximum 100

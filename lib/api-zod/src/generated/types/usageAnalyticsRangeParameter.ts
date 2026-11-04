@@ -15,4 +15,5 @@ export const UsageAnalyticsRangeParameter = {
   day: 'day',
   week: 'week',
   month: 'month',
+  custom: 'custom',
 } as const;

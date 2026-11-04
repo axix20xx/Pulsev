@@ -1013,6 +1013,9 @@ export const getUsageAnalyticsQueryProviderKeyMax = 120;
 
 export const getUsageAnalyticsQuerySearchMax = 120;
 
+export const getUsageAnalyticsQueryFromDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getUsageAnalyticsQueryToDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
 export const getUsageAnalyticsQueryLimitDefault = 50;
 export const getUsageAnalyticsQueryLimitMax = 100;
 
@@ -1023,47 +1026,144 @@ export const getUsageAnalyticsQueryOffsetMax = 100000;
 
 
 export const GetUsageAnalyticsQueryParams = zod.object({
-  "range": zod.enum(['6h', '12h', 'day', 'week', 'month']).default(getUsageAnalyticsQueryRangeDefault),
+  "range": zod.enum(['6h', '12h', 'day', 'week', 'month', 'custom']).default(getUsageAnalyticsQueryRangeDefault),
   "provider_key": zod.coerce.string().max(getUsageAnalyticsQueryProviderKeyMax).optional(),
   "service_id": zod.coerce.number().int().min(1).optional(),
   "search": zod.coerce.string().max(getUsageAnalyticsQuerySearchMax).optional(),
+  "from_date": zod.coerce.string().regex(getUsageAnalyticsQueryFromDateRegExp).optional().describe('Inclusive start date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.'),
+  "to_date": zod.coerce.string().regex(getUsageAnalyticsQueryToDateRegExp).optional().describe('Inclusive end date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.'),
+  "reseller_id": zod.coerce.number().int().min(1).optional().describe('Master-admin-only reseller filter.'),
   "limit": zod.coerce.number().int().min(1).max(getUsageAnalyticsQueryLimitMax).default(getUsageAnalyticsQueryLimitDefault),
   "offset": zod.coerce.number().int().min(getUsageAnalyticsQueryOffsetMin).max(getUsageAnalyticsQueryOffsetMax).default(getUsageAnalyticsQueryOffsetDefault)
 })
 
 export const getUsageAnalyticsResponseTotalBytesMin = 0;
 
+export const getUsageAnalyticsResponseAverageDailyBytesMin = 0;
+
 export const getUsageAnalyticsResponseServiceCountMin = 0;
 export const getUsageAnalyticsResponseServiceCountMultipleOf = 1;
+
+export const getUsageAnalyticsResponseCustomerCountMin = 0;
+export const getUsageAnalyticsResponseCustomerCountMultipleOf = 1;
 
 export const getUsageAnalyticsResponseServicesTotalMin = 0;
 export const getUsageAnalyticsResponseServicesTotalMultipleOf = 1;
 
+export const getUsageAnalyticsResponseComparisonTotalBytesMin = 0;
+
+export const getUsageAnalyticsResponseComparisonServiceCountMin = 0;
+export const getUsageAnalyticsResponseComparisonServiceCountMultipleOf = 1;
+
+export const getUsageAnalyticsResponsePeakBucketOneBytesMin = 0;
+
 export const getUsageAnalyticsResponseBucketsItemBytesMin = 0;
 
+export const getUsageAnalyticsResponseWeekdayHourItemWeekdayMin = 0;
+export const getUsageAnalyticsResponseWeekdayHourItemWeekdayMax = 6;
+export const getUsageAnalyticsResponseWeekdayHourItemWeekdayMultipleOf = 1;
+
+export const getUsageAnalyticsResponseWeekdayHourItemHourMin = 0;
+export const getUsageAnalyticsResponseWeekdayHourItemHourMax = 23;
+export const getUsageAnalyticsResponseWeekdayHourItemHourMultipleOf = 1;
+
+export const getUsageAnalyticsResponseWeekdayHourItemBytesMin = 0;
+
 export const getUsageAnalyticsResponseProvidersItemTwoBytesMin = 0;
+
+export const getUsageAnalyticsResponseProvidersItemTwoSharePercentMin = 0;
+export const getUsageAnalyticsResponseProvidersItemTwoSharePercentMax = 100;
+
+export const getUsageAnalyticsResponseProviderHealthItemServiceCountMin = 0;
+export const getUsageAnalyticsResponseProviderHealthItemServiceCountMultipleOf = 1;
 
 export const getUsageAnalyticsResponseServicesItemBytesMin = 0;
 
 export const getUsageAnalyticsResponseServicesItemProviderCountMin = 0;
 export const getUsageAnalyticsResponseServicesItemProviderCountMultipleOf = 1;
 
+export const getUsageAnalyticsResponseCustomersItemBytesMin = 0;
+
+export const getUsageAnalyticsResponseCustomersItemServiceCountMin = 0;
+export const getUsageAnalyticsResponseCustomersItemServiceCountMultipleOf = 1;
+
+export const getUsageAnalyticsResponseCustomersItemProviderCountMin = 0;
+export const getUsageAnalyticsResponseCustomersItemProviderCountMultipleOf = 1;
+
+export const getUsageAnalyticsResponseCustomersItemSharePercentMin = 0;
+export const getUsageAnalyticsResponseCustomersItemSharePercentMax = 100;
+
+export const getUsageAnalyticsResponseQuotaSummaryActiveServicesMin = 0;
+export const getUsageAnalyticsResponseQuotaSummaryActiveServicesMultipleOf = 1;
+
+export const getUsageAnalyticsResponseQuotaSummaryTrackedServicesMin = 0;
+export const getUsageAnalyticsResponseQuotaSummaryTrackedServicesMultipleOf = 1;
+
+export const getUsageAnalyticsResponseQuotaSummaryUsedBytesMin = 0;
+
+export const getUsageAnalyticsResponseQuotaSummaryLimitBytesMin = 0;
+
+export const getUsageAnalyticsResponseQuotaSummaryRemainingBytesMin = 0;
+
+export const getUsageAnalyticsResponseQuotaSummaryAbove70CountMin = 0;
+export const getUsageAnalyticsResponseQuotaSummaryAbove70CountMultipleOf = 1;
+
+export const getUsageAnalyticsResponseQuotaSummaryAbove90CountMin = 0;
+export const getUsageAnalyticsResponseQuotaSummaryAbove90CountMultipleOf = 1;
+
+export const getUsageAnalyticsResponseQuotaSummaryExhaustedCountMin = 0;
+export const getUsageAnalyticsResponseQuotaSummaryExhaustedCountMultipleOf = 1;
+
+export const getUsageAnalyticsResponseQuotaForecastsItemLimitBytesMin = 0;
+
+export const getUsageAnalyticsResponseQuotaForecastsItemUsedBytesMin = 0;
+
+export const getUsageAnalyticsResponseQuotaForecastsItemRemainingBytesMin = 0;
+
+export const getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMin = 0;
+export const getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMax = 100;
+
+export const getUsageAnalyticsResponseQuotaForecastsItemCoverageDaysMin = 0;
+
+export const getUsageAnalyticsResponseAnomaliesItemCurrentBytesMin = 0;
+
+export const getUsageAnalyticsResponseAnomaliesItemPreviousBytesMin = 0;
+
 
 
 export const GetUsageAnalyticsResponse = zod.object({
   "scope": zod.enum(['system', 'reseller']),
-  "range": zod.enum(['6h', '12h', 'day', 'week', 'month']),
+  "range": zod.enum(['6h', '12h', 'day', 'week', 'month', 'custom']),
   "from_at": zod.coerce.date(),
   "to_at": zod.coerce.date(),
   "history_started_at": zod.coerce.date().nullable(),
   "is_partial": zod.boolean(),
   "bucket_interval": zod.string(),
   "total_bytes": zod.number().min(getUsageAnalyticsResponseTotalBytesMin),
+  "average_daily_bytes": zod.number().min(getUsageAnalyticsResponseAverageDailyBytesMin),
   "service_count": zod.number().min(getUsageAnalyticsResponseServiceCountMin).multipleOf(getUsageAnalyticsResponseServiceCountMultipleOf),
+  "customer_count": zod.number().min(getUsageAnalyticsResponseCustomerCountMin).multipleOf(getUsageAnalyticsResponseCustomerCountMultipleOf),
   "services_total": zod.number().min(getUsageAnalyticsResponseServicesTotalMin).multipleOf(getUsageAnalyticsResponseServicesTotalMultipleOf),
+  "comparison": zod.object({
+  "previous_from_at": zod.coerce.date(),
+  "previous_to_at": zod.coerce.date(),
+  "total_bytes": zod.number().min(getUsageAnalyticsResponseComparisonTotalBytesMin),
+  "delta_bytes": zod.number(),
+  "change_percent": zod.number().nullable(),
+  "service_count": zod.number().min(getUsageAnalyticsResponseComparisonServiceCountMin).multipleOf(getUsageAnalyticsResponseComparisonServiceCountMultipleOf)
+}),
+  "peak_bucket": zod.union([zod.object({
+  "bucket_at": zod.coerce.date(),
+  "bytes": zod.number().min(getUsageAnalyticsResponsePeakBucketOneBytesMin)
+}),zod.null()]),
   "buckets": zod.array(zod.object({
   "bucket_at": zod.coerce.date(),
   "bytes": zod.number().min(getUsageAnalyticsResponseBucketsItemBytesMin)
+})),
+  "weekday_hour": zod.array(zod.object({
+  "weekday": zod.number().min(getUsageAnalyticsResponseWeekdayHourItemWeekdayMin).max(getUsageAnalyticsResponseWeekdayHourItemWeekdayMax).multipleOf(getUsageAnalyticsResponseWeekdayHourItemWeekdayMultipleOf),
+  "hour": zod.number().min(getUsageAnalyticsResponseWeekdayHourItemHourMin).max(getUsageAnalyticsResponseWeekdayHourItemHourMax).multipleOf(getUsageAnalyticsResponseWeekdayHourItemHourMultipleOf),
+  "bytes": zod.number().min(getUsageAnalyticsResponseWeekdayHourItemBytesMin)
 })),
   "provider_options": zod.array(zod.object({
   "key": zod.string(),
@@ -1073,8 +1173,16 @@ export const GetUsageAnalyticsResponse = zod.object({
   "key": zod.string(),
   "label": zod.string()
 }).and(zod.object({
-  "bytes": zod.number().min(getUsageAnalyticsResponseProvidersItemTwoBytesMin)
+  "bytes": zod.number().min(getUsageAnalyticsResponseProvidersItemTwoBytesMin),
+  "share_percent": zod.number().min(getUsageAnalyticsResponseProvidersItemTwoSharePercentMin).max(getUsageAnalyticsResponseProvidersItemTwoSharePercentMax)
 }))),
+  "provider_health": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "service_count": zod.number().min(getUsageAnalyticsResponseProviderHealthItemServiceCountMin).multipleOf(getUsageAnalyticsResponseProviderHealthItemServiceCountMultipleOf),
+  "last_sample_at": zod.coerce.date().nullable(),
+  "status": zod.enum(['fresh', 'stale', 'never'])
+})),
   "services": zod.array(zod.object({
   "service_id": zod.number(),
   "service_code": zod.string(),
@@ -1090,8 +1198,79 @@ export const GetUsageAnalyticsResponse = zod.object({
   "username": zod.string(),
   "customer_id": zod.number().nullable(),
   "customer_name": zod.string()
+})),
+  "customers": zod.array(zod.object({
+  "customer_id": zod.number(),
+  "customer_name": zod.string(),
+  "bytes": zod.number().min(getUsageAnalyticsResponseCustomersItemBytesMin),
+  "service_count": zod.number().min(getUsageAnalyticsResponseCustomersItemServiceCountMin).multipleOf(getUsageAnalyticsResponseCustomersItemServiceCountMultipleOf),
+  "provider_count": zod.number().min(getUsageAnalyticsResponseCustomersItemProviderCountMin).multipleOf(getUsageAnalyticsResponseCustomersItemProviderCountMultipleOf),
+  "share_percent": zod.number().min(getUsageAnalyticsResponseCustomersItemSharePercentMin).max(getUsageAnalyticsResponseCustomersItemSharePercentMax)
+})),
+  "quota_summary": zod.object({
+  "active_services": zod.number().min(getUsageAnalyticsResponseQuotaSummaryActiveServicesMin).multipleOf(getUsageAnalyticsResponseQuotaSummaryActiveServicesMultipleOf),
+  "tracked_services": zod.number().min(getUsageAnalyticsResponseQuotaSummaryTrackedServicesMin).multipleOf(getUsageAnalyticsResponseQuotaSummaryTrackedServicesMultipleOf),
+  "used_bytes": zod.number().min(getUsageAnalyticsResponseQuotaSummaryUsedBytesMin),
+  "limit_bytes": zod.number().min(getUsageAnalyticsResponseQuotaSummaryLimitBytesMin),
+  "remaining_bytes": zod.number().min(getUsageAnalyticsResponseQuotaSummaryRemainingBytesMin),
+  "above_70_count": zod.number().min(getUsageAnalyticsResponseQuotaSummaryAbove70CountMin).multipleOf(getUsageAnalyticsResponseQuotaSummaryAbove70CountMultipleOf),
+  "above_90_count": zod.number().min(getUsageAnalyticsResponseQuotaSummaryAbove90CountMin).multipleOf(getUsageAnalyticsResponseQuotaSummaryAbove90CountMultipleOf),
+  "exhausted_count": zod.number().min(getUsageAnalyticsResponseQuotaSummaryExhaustedCountMin).multipleOf(getUsageAnalyticsResponseQuotaSummaryExhaustedCountMultipleOf)
+}),
+  "quota_forecasts": zod.array(zod.object({
+  "service_id": zod.number(),
+  "service_code": zod.string(),
+  "username": zod.string(),
+  "customer_id": zod.number().nullable(),
+  "customer_name": zod.string(),
+  "limit_bytes": zod.number().min(getUsageAnalyticsResponseQuotaForecastsItemLimitBytesMin),
+  "used_bytes": zod.number().min(getUsageAnalyticsResponseQuotaForecastsItemUsedBytesMin),
+  "remaining_bytes": zod.number().min(getUsageAnalyticsResponseQuotaForecastsItemRemainingBytesMin),
+  "used_percent": zod.number().min(getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMin).max(getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMax),
+  "average_daily_bytes": zod.number().nullable(),
+  "days_until_empty": zod.number().nullable(),
+  "coverage_days": zod.number().min(getUsageAnalyticsResponseQuotaForecastsItemCoverageDaysMin),
+  "expires_at": zod.coerce.date().nullable()
+})),
+  "anomalies": zod.array(zod.object({
+  "service_id": zod.number(),
+  "service_code": zod.string(),
+  "username": zod.string(),
+  "customer_name": zod.string(),
+  "current_bytes": zod.number().min(getUsageAnalyticsResponseAnomaliesItemCurrentBytesMin),
+  "previous_bytes": zod.number().min(getUsageAnalyticsResponseAnomaliesItemPreviousBytesMin),
+  "delta_bytes": zod.number(),
+  "multiple": zod.number().nullable()
 }))
 })
+
+
+/**
+ * Resellers can export only their own services; master admins may optionally filter by reseller.
+ * @summary Export all matching service usage rows as CSV
+ */
+export const getUsageAnalyticsExportQueryRangeDefault = `day`;
+export const getUsageAnalyticsExportQueryProviderKeyMax = 120;
+
+
+export const getUsageAnalyticsExportQuerySearchMax = 120;
+
+export const getUsageAnalyticsExportQueryFromDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getUsageAnalyticsExportQueryToDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+
+export const GetUsageAnalyticsExportQueryParams = zod.object({
+  "range": zod.enum(['6h', '12h', 'day', 'week', 'month', 'custom']).default(getUsageAnalyticsExportQueryRangeDefault),
+  "provider_key": zod.coerce.string().max(getUsageAnalyticsExportQueryProviderKeyMax).optional(),
+  "service_id": zod.coerce.number().int().min(1).optional(),
+  "search": zod.coerce.string().max(getUsageAnalyticsExportQuerySearchMax).optional(),
+  "from_date": zod.coerce.string().regex(getUsageAnalyticsExportQueryFromDateRegExp).optional().describe('Inclusive start date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.'),
+  "to_date": zod.coerce.string().regex(getUsageAnalyticsExportQueryToDateRegExp).optional().describe('Inclusive end date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI.'),
+  "reseller_id": zod.coerce.number().int().min(1).optional().describe('Master-admin-only reseller filter.')
+})
+
+export const GetUsageAnalyticsExportResponse = zod.unknown()
 
 
 /**

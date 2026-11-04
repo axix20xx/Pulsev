@@ -55869,43 +55869,113 @@ var ListAwgUsageResponse = objectType({
 var getUsageAnalyticsQueryRangeDefault = `day`;
 var getUsageAnalyticsQueryProviderKeyMax = 120;
 var getUsageAnalyticsQuerySearchMax = 120;
+var getUsageAnalyticsQueryFromDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+var getUsageAnalyticsQueryToDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
 var getUsageAnalyticsQueryLimitDefault = 50;
 var getUsageAnalyticsQueryLimitMax = 100;
 var getUsageAnalyticsQueryOffsetDefault = 0;
 var getUsageAnalyticsQueryOffsetMin = 0;
 var getUsageAnalyticsQueryOffsetMax = 1e5;
 var GetUsageAnalyticsQueryParams = objectType({
-  "range": enumType(["6h", "12h", "day", "week", "month"]).default(getUsageAnalyticsQueryRangeDefault),
+  "range": enumType(["6h", "12h", "day", "week", "month", "custom"]).default(getUsageAnalyticsQueryRangeDefault),
   "provider_key": coerce.string().max(getUsageAnalyticsQueryProviderKeyMax).optional(),
   "service_id": coerce.number().int().min(1).optional(),
   "search": coerce.string().max(getUsageAnalyticsQuerySearchMax).optional(),
+  "from_date": coerce.string().regex(getUsageAnalyticsQueryFromDateRegExp).optional().describe("Inclusive start date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI."),
+  "to_date": coerce.string().regex(getUsageAnalyticsQueryToDateRegExp).optional().describe("Inclusive end date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI."),
+  "reseller_id": coerce.number().int().min(1).optional().describe("Master-admin-only reseller filter."),
   "limit": coerce.number().int().min(1).max(getUsageAnalyticsQueryLimitMax).default(getUsageAnalyticsQueryLimitDefault),
   "offset": coerce.number().int().min(getUsageAnalyticsQueryOffsetMin).max(getUsageAnalyticsQueryOffsetMax).default(getUsageAnalyticsQueryOffsetDefault)
 });
 var getUsageAnalyticsResponseTotalBytesMin = 0;
+var getUsageAnalyticsResponseAverageDailyBytesMin = 0;
 var getUsageAnalyticsResponseServiceCountMin = 0;
 var getUsageAnalyticsResponseServiceCountMultipleOf = 1;
+var getUsageAnalyticsResponseCustomerCountMin = 0;
+var getUsageAnalyticsResponseCustomerCountMultipleOf = 1;
 var getUsageAnalyticsResponseServicesTotalMin = 0;
 var getUsageAnalyticsResponseServicesTotalMultipleOf = 1;
+var getUsageAnalyticsResponseComparisonTotalBytesMin = 0;
+var getUsageAnalyticsResponseComparisonServiceCountMin = 0;
+var getUsageAnalyticsResponseComparisonServiceCountMultipleOf = 1;
+var getUsageAnalyticsResponsePeakBucketOneBytesMin = 0;
 var getUsageAnalyticsResponseBucketsItemBytesMin = 0;
+var getUsageAnalyticsResponseWeekdayHourItemWeekdayMin = 0;
+var getUsageAnalyticsResponseWeekdayHourItemWeekdayMax = 6;
+var getUsageAnalyticsResponseWeekdayHourItemWeekdayMultipleOf = 1;
+var getUsageAnalyticsResponseWeekdayHourItemHourMin = 0;
+var getUsageAnalyticsResponseWeekdayHourItemHourMax = 23;
+var getUsageAnalyticsResponseWeekdayHourItemHourMultipleOf = 1;
+var getUsageAnalyticsResponseWeekdayHourItemBytesMin = 0;
 var getUsageAnalyticsResponseProvidersItemTwoBytesMin = 0;
+var getUsageAnalyticsResponseProvidersItemTwoSharePercentMin = 0;
+var getUsageAnalyticsResponseProvidersItemTwoSharePercentMax = 100;
+var getUsageAnalyticsResponseProviderHealthItemServiceCountMin = 0;
+var getUsageAnalyticsResponseProviderHealthItemServiceCountMultipleOf = 1;
 var getUsageAnalyticsResponseServicesItemBytesMin = 0;
 var getUsageAnalyticsResponseServicesItemProviderCountMin = 0;
 var getUsageAnalyticsResponseServicesItemProviderCountMultipleOf = 1;
+var getUsageAnalyticsResponseCustomersItemBytesMin = 0;
+var getUsageAnalyticsResponseCustomersItemServiceCountMin = 0;
+var getUsageAnalyticsResponseCustomersItemServiceCountMultipleOf = 1;
+var getUsageAnalyticsResponseCustomersItemProviderCountMin = 0;
+var getUsageAnalyticsResponseCustomersItemProviderCountMultipleOf = 1;
+var getUsageAnalyticsResponseCustomersItemSharePercentMin = 0;
+var getUsageAnalyticsResponseCustomersItemSharePercentMax = 100;
+var getUsageAnalyticsResponseQuotaSummaryActiveServicesMin = 0;
+var getUsageAnalyticsResponseQuotaSummaryActiveServicesMultipleOf = 1;
+var getUsageAnalyticsResponseQuotaSummaryTrackedServicesMin = 0;
+var getUsageAnalyticsResponseQuotaSummaryTrackedServicesMultipleOf = 1;
+var getUsageAnalyticsResponseQuotaSummaryUsedBytesMin = 0;
+var getUsageAnalyticsResponseQuotaSummaryLimitBytesMin = 0;
+var getUsageAnalyticsResponseQuotaSummaryRemainingBytesMin = 0;
+var getUsageAnalyticsResponseQuotaSummaryAbove70CountMin = 0;
+var getUsageAnalyticsResponseQuotaSummaryAbove70CountMultipleOf = 1;
+var getUsageAnalyticsResponseQuotaSummaryAbove90CountMin = 0;
+var getUsageAnalyticsResponseQuotaSummaryAbove90CountMultipleOf = 1;
+var getUsageAnalyticsResponseQuotaSummaryExhaustedCountMin = 0;
+var getUsageAnalyticsResponseQuotaSummaryExhaustedCountMultipleOf = 1;
+var getUsageAnalyticsResponseQuotaForecastsItemLimitBytesMin = 0;
+var getUsageAnalyticsResponseQuotaForecastsItemUsedBytesMin = 0;
+var getUsageAnalyticsResponseQuotaForecastsItemRemainingBytesMin = 0;
+var getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMin = 0;
+var getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMax = 100;
+var getUsageAnalyticsResponseQuotaForecastsItemCoverageDaysMin = 0;
+var getUsageAnalyticsResponseAnomaliesItemCurrentBytesMin = 0;
+var getUsageAnalyticsResponseAnomaliesItemPreviousBytesMin = 0;
 var GetUsageAnalyticsResponse = objectType({
   "scope": enumType(["system", "reseller"]),
-  "range": enumType(["6h", "12h", "day", "week", "month"]),
+  "range": enumType(["6h", "12h", "day", "week", "month", "custom"]),
   "from_at": coerce.date(),
   "to_at": coerce.date(),
   "history_started_at": coerce.date().nullable(),
   "is_partial": booleanType(),
   "bucket_interval": stringType(),
   "total_bytes": numberType().min(getUsageAnalyticsResponseTotalBytesMin),
+  "average_daily_bytes": numberType().min(getUsageAnalyticsResponseAverageDailyBytesMin),
   "service_count": numberType().min(getUsageAnalyticsResponseServiceCountMin).multipleOf(getUsageAnalyticsResponseServiceCountMultipleOf),
+  "customer_count": numberType().min(getUsageAnalyticsResponseCustomerCountMin).multipleOf(getUsageAnalyticsResponseCustomerCountMultipleOf),
   "services_total": numberType().min(getUsageAnalyticsResponseServicesTotalMin).multipleOf(getUsageAnalyticsResponseServicesTotalMultipleOf),
+  "comparison": objectType({
+    "previous_from_at": coerce.date(),
+    "previous_to_at": coerce.date(),
+    "total_bytes": numberType().min(getUsageAnalyticsResponseComparisonTotalBytesMin),
+    "delta_bytes": numberType(),
+    "change_percent": numberType().nullable(),
+    "service_count": numberType().min(getUsageAnalyticsResponseComparisonServiceCountMin).multipleOf(getUsageAnalyticsResponseComparisonServiceCountMultipleOf)
+  }),
+  "peak_bucket": unionType([objectType({
+    "bucket_at": coerce.date(),
+    "bytes": numberType().min(getUsageAnalyticsResponsePeakBucketOneBytesMin)
+  }), nullType()]),
   "buckets": arrayType(objectType({
     "bucket_at": coerce.date(),
     "bytes": numberType().min(getUsageAnalyticsResponseBucketsItemBytesMin)
+  })),
+  "weekday_hour": arrayType(objectType({
+    "weekday": numberType().min(getUsageAnalyticsResponseWeekdayHourItemWeekdayMin).max(getUsageAnalyticsResponseWeekdayHourItemWeekdayMax).multipleOf(getUsageAnalyticsResponseWeekdayHourItemWeekdayMultipleOf),
+    "hour": numberType().min(getUsageAnalyticsResponseWeekdayHourItemHourMin).max(getUsageAnalyticsResponseWeekdayHourItemHourMax).multipleOf(getUsageAnalyticsResponseWeekdayHourItemHourMultipleOf),
+    "bytes": numberType().min(getUsageAnalyticsResponseWeekdayHourItemBytesMin)
   })),
   "provider_options": arrayType(objectType({
     "key": stringType(),
@@ -55915,8 +55985,16 @@ var GetUsageAnalyticsResponse = objectType({
     "key": stringType(),
     "label": stringType()
   }).and(objectType({
-    "bytes": numberType().min(getUsageAnalyticsResponseProvidersItemTwoBytesMin)
+    "bytes": numberType().min(getUsageAnalyticsResponseProvidersItemTwoBytesMin),
+    "share_percent": numberType().min(getUsageAnalyticsResponseProvidersItemTwoSharePercentMin).max(getUsageAnalyticsResponseProvidersItemTwoSharePercentMax)
   }))),
+  "provider_health": arrayType(objectType({
+    "key": stringType(),
+    "label": stringType(),
+    "service_count": numberType().min(getUsageAnalyticsResponseProviderHealthItemServiceCountMin).multipleOf(getUsageAnalyticsResponseProviderHealthItemServiceCountMultipleOf),
+    "last_sample_at": coerce.date().nullable(),
+    "status": enumType(["fresh", "stale", "never"])
+  })),
   "services": arrayType(objectType({
     "service_id": numberType(),
     "service_code": stringType(),
@@ -55932,8 +56010,66 @@ var GetUsageAnalyticsResponse = objectType({
     "username": stringType(),
     "customer_id": numberType().nullable(),
     "customer_name": stringType()
+  })),
+  "customers": arrayType(objectType({
+    "customer_id": numberType(),
+    "customer_name": stringType(),
+    "bytes": numberType().min(getUsageAnalyticsResponseCustomersItemBytesMin),
+    "service_count": numberType().min(getUsageAnalyticsResponseCustomersItemServiceCountMin).multipleOf(getUsageAnalyticsResponseCustomersItemServiceCountMultipleOf),
+    "provider_count": numberType().min(getUsageAnalyticsResponseCustomersItemProviderCountMin).multipleOf(getUsageAnalyticsResponseCustomersItemProviderCountMultipleOf),
+    "share_percent": numberType().min(getUsageAnalyticsResponseCustomersItemSharePercentMin).max(getUsageAnalyticsResponseCustomersItemSharePercentMax)
+  })),
+  "quota_summary": objectType({
+    "active_services": numberType().min(getUsageAnalyticsResponseQuotaSummaryActiveServicesMin).multipleOf(getUsageAnalyticsResponseQuotaSummaryActiveServicesMultipleOf),
+    "tracked_services": numberType().min(getUsageAnalyticsResponseQuotaSummaryTrackedServicesMin).multipleOf(getUsageAnalyticsResponseQuotaSummaryTrackedServicesMultipleOf),
+    "used_bytes": numberType().min(getUsageAnalyticsResponseQuotaSummaryUsedBytesMin),
+    "limit_bytes": numberType().min(getUsageAnalyticsResponseQuotaSummaryLimitBytesMin),
+    "remaining_bytes": numberType().min(getUsageAnalyticsResponseQuotaSummaryRemainingBytesMin),
+    "above_70_count": numberType().min(getUsageAnalyticsResponseQuotaSummaryAbove70CountMin).multipleOf(getUsageAnalyticsResponseQuotaSummaryAbove70CountMultipleOf),
+    "above_90_count": numberType().min(getUsageAnalyticsResponseQuotaSummaryAbove90CountMin).multipleOf(getUsageAnalyticsResponseQuotaSummaryAbove90CountMultipleOf),
+    "exhausted_count": numberType().min(getUsageAnalyticsResponseQuotaSummaryExhaustedCountMin).multipleOf(getUsageAnalyticsResponseQuotaSummaryExhaustedCountMultipleOf)
+  }),
+  "quota_forecasts": arrayType(objectType({
+    "service_id": numberType(),
+    "service_code": stringType(),
+    "username": stringType(),
+    "customer_id": numberType().nullable(),
+    "customer_name": stringType(),
+    "limit_bytes": numberType().min(getUsageAnalyticsResponseQuotaForecastsItemLimitBytesMin),
+    "used_bytes": numberType().min(getUsageAnalyticsResponseQuotaForecastsItemUsedBytesMin),
+    "remaining_bytes": numberType().min(getUsageAnalyticsResponseQuotaForecastsItemRemainingBytesMin),
+    "used_percent": numberType().min(getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMin).max(getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMax),
+    "average_daily_bytes": numberType().nullable(),
+    "days_until_empty": numberType().nullable(),
+    "coverage_days": numberType().min(getUsageAnalyticsResponseQuotaForecastsItemCoverageDaysMin),
+    "expires_at": coerce.date().nullable()
+  })),
+  "anomalies": arrayType(objectType({
+    "service_id": numberType(),
+    "service_code": stringType(),
+    "username": stringType(),
+    "customer_name": stringType(),
+    "current_bytes": numberType().min(getUsageAnalyticsResponseAnomaliesItemCurrentBytesMin),
+    "previous_bytes": numberType().min(getUsageAnalyticsResponseAnomaliesItemPreviousBytesMin),
+    "delta_bytes": numberType(),
+    "multiple": numberType().nullable()
   }))
 });
+var getUsageAnalyticsExportQueryRangeDefault = `day`;
+var getUsageAnalyticsExportQueryProviderKeyMax = 120;
+var getUsageAnalyticsExportQuerySearchMax = 120;
+var getUsageAnalyticsExportQueryFromDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+var getUsageAnalyticsExportQueryToDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+var GetUsageAnalyticsExportQueryParams = objectType({
+  "range": enumType(["6h", "12h", "day", "week", "month", "custom"]).default(getUsageAnalyticsExportQueryRangeDefault),
+  "provider_key": coerce.string().max(getUsageAnalyticsExportQueryProviderKeyMax).optional(),
+  "service_id": coerce.number().int().min(1).optional(),
+  "search": coerce.string().max(getUsageAnalyticsExportQuerySearchMax).optional(),
+  "from_date": coerce.string().regex(getUsageAnalyticsExportQueryFromDateRegExp).optional().describe("Inclusive start date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI."),
+  "to_date": coerce.string().regex(getUsageAnalyticsExportQueryToDateRegExp).optional().describe("Inclusive end date in Gregorian ISO format; custom dates are entered in the Persian calendar in the UI."),
+  "reseller_id": coerce.number().int().min(1).optional().describe("Master-admin-only reseller filter.")
+});
+var GetUsageAnalyticsExportResponse = unknownType();
 var RefreshAwgUsageParams = objectType({
   "id": coerce.number().min(1)
 });
@@ -75570,39 +75706,162 @@ function storedPanelUsageSql(serviceAlias = "svc") {
     throw new Error("Invalid SQL alias for stored service usage.");
   }
   return `COALESCE((
-    SELECT SUM(GREATEST(
-      0::float8,
-      COALESCE(latest_usage.upload, 0)::float8
-        + COALESCE(latest_usage.download, 0)::float8
-        - COALESCE(latest_usage.offset_bytes, 0)::float8
-    ))
+    SELECT SUM(COALESCE(latest_usage.used_bytes, 0)::float8)
     FROM panel_configs panel
-    LEFT JOIN reseller_service_ipsec_accounts ipsec_account
-      ON ipsec_account.service_id = ${serviceAlias}.id
-      AND ipsec_account.provider_key = panel.key
-    LEFT JOIN reseller_service_openvpn_provider_accounts openvpn_account
-      ON openvpn_account.service_id = ${serviceAlias}.id
-      AND openvpn_account.provider_key = panel.key
-    LEFT JOIN raven_service_accounts raven_account
-      ON raven_account.service_id = ${serviceAlias}.id
-      AND raven_account.provider_key = panel.key
     LEFT JOIN LATERAL (
-      SELECT usage.upload, usage.download, usage.offset_bytes
-      FROM user_panel_usages usage
-      WHERE usage.username = CASE
-          WHEN panel.kind = 'azadpanel_ipsec' THEN ipsec_account.provider_username
-          WHEN panel.kind IN ('azadpanel', 'azadpanel_openvpn')
-            THEN COALESCE(openvpn_account.provider_username, ${serviceAlias}.rain_username)
-        WHEN panel.kind = 'raven' THEN COALESCE(raven_account.config_label, ${serviceAlias}.rain_username)
-          ELSE ${serviceAlias}.rain_username
-        END
-        AND usage.panel_key = panel.key
-      ORDER BY usage.id DESC
-      LIMIT 1
+      SELECT COALESCE(
+        array_agg(DISTINCT NULLIF(BTRIM(account_names.username), ''))
+          FILTER (WHERE NULLIF(BTRIM(account_names.username), '') IS NOT NULL),
+        ARRAY[COALESCE(NULLIF(BTRIM(${serviceAlias}.rain_username), ''), '')]::text[]
+      ) AS usernames
+      FROM (
+        SELECT mapped.provider_username AS username
+        FROM reseller_service_usage_provider_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+        UNION ALL
+        SELECT mapped.provider_username AS username
+        FROM reseller_service_wireguard_provider_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+        UNION ALL
+        SELECT mapped.provider_username AS username
+        FROM reseller_service_v2ray_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+        UNION ALL
+        SELECT mapped.provider_username AS username
+        FROM reseller_service_openvpn_provider_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+        UNION ALL
+        SELECT mapped.provider_username AS username
+        FROM reseller_service_ipsec_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+        UNION ALL
+        SELECT mapped.config_label AS username
+        FROM raven_service_accounts mapped
+        WHERE mapped.service_id = ${serviceAlias}.id
+          AND mapped.provider_key = panel.key
+      ) account_names
+    ) provider_accounts ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT SUM(GREATEST(
+        0::float8,
+        COALESCE(latest.upload, 0)::float8
+          + COALESCE(latest.download, 0)::float8
+          - COALESCE(latest.offset_bytes, 0)::float8
+      )) AS used_bytes
+      FROM (
+        SELECT DISTINCT ON (usage.username)
+          usage.username, usage.upload, usage.download, usage.offset_bytes
+        FROM user_panel_usages usage
+        WHERE usage.panel_key = panel.key
+          AND usage.username = ANY(provider_accounts.usernames)
+        ORDER BY usage.username, usage.id DESC
+      ) latest
     ) latest_usage ON TRUE
     WHERE panel.is_enabled = 1
       AND panel.kind IN ('rain_admin', 'rain_admin_wireguard', 'marzban', 'azadpanel', 'azadpanel_v2ray', 'azadpanel_openvpn', 'azadpanel_wireguard', 'azadpanel_ipsec', 'raven')
   ), 0)::float8`;
+}
+
+// src/lib/usage-analytics-window.ts
+var TEHRAN_TIME_ZONE = "Asia/Tehran";
+var tehranPartsFormatter = new Intl.DateTimeFormat("en-US-u-ca-gregory-nu-latn", {
+  timeZone: TEHRAN_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23"
+});
+function partsOf(value) {
+  return tehranPartsFormatter.formatToParts(value).reduce((result, part) => {
+    if (part.type !== "literal") result[part.type] = Number(part.value);
+    return result;
+  }, {});
+}
+function tehranDateKey(value) {
+  const parts = partsOf(value);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+function isValidDateKey(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}
+function shiftDateKey(value, days) {
+  const [year, month, day] = value.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}-${String(shifted.getUTCDate()).padStart(2, "0")}`;
+}
+function dateOrdinal(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return Date.UTC(year, month - 1, day) / 864e5;
+}
+function tehranMidnightUtc(dateKey) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const targetWallClockAsUtc = Date.UTC(year, month - 1, day);
+  let guess = targetWallClockAsUtc;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const local = partsOf(new Date(guess));
+    const observedWallClockAsUtc = Date.UTC(
+      local.year,
+      local.month - 1,
+      local.day,
+      local.hour,
+      local.minute,
+      local.second
+    );
+    guess += targetWallClockAsUtc - observedWallClockAsUtc;
+  }
+  return new Date(guess);
+}
+function resolveUsageAnalyticsWindow(range, fromDate, toDate, now = /* @__PURE__ */ new Date()) {
+  let fromAt;
+  let toAt = now;
+  let previousFromAt;
+  let previousToAt;
+  if (range === "custom") {
+    if (!fromDate || !toDate || !isValidDateKey(fromDate) || !isValidDateKey(toDate)) return null;
+    const today = tehranDateKey(now);
+    if (fromDate > toDate || toDate > today) return null;
+    const inclusiveDays = dateOrdinal(toDate) - dateOrdinal(fromDate) + 1;
+    if (inclusiveDays > 120) return null;
+    fromAt = tehranMidnightUtc(fromDate);
+    const dayAfterEnd = tehranMidnightUtc(shiftDateKey(toDate, 1));
+    toAt = new Date(Math.min(dayAfterEnd.getTime(), now.getTime()));
+    const duration4 = toAt.getTime() - fromAt.getTime();
+    if (duration4 <= 0) return null;
+    previousToAt = fromAt;
+    previousFromAt = new Date(fromAt.getTime() - duration4);
+  } else if (range === "day") {
+    const today = tehranDateKey(now);
+    fromAt = tehranMidnightUtc(today);
+    const duration4 = now.getTime() - fromAt.getTime();
+    previousFromAt = tehranMidnightUtc(shiftDateKey(today, -1));
+    previousToAt = new Date(previousFromAt.getTime() + duration4);
+  } else {
+    const durationByRange = {
+      "6h": 6 * 60 * 6e4,
+      "12h": 12 * 60 * 6e4,
+      day: 24 * 60 * 6e4,
+      week: 7 * 24 * 60 * 6e4,
+      month: 30 * 24 * 60 * 6e4
+    };
+    const duration4 = durationByRange[range];
+    fromAt = new Date(now.getTime() - duration4);
+    previousToAt = fromAt;
+    previousFromAt = new Date(fromAt.getTime() - duration4);
+  }
+  const duration3 = toAt.getTime() - fromAt.getTime();
+  const bucketInterval = range === "6h" ? "15 minutes" : range === "12h" ? "30 minutes" : duration3 <= 12 * 60 * 6e4 ? "15 minutes" : duration3 <= 24 * 60 * 6e4 ? "30 minutes" : duration3 <= 48 * 60 * 6e4 ? "1 hour" : "1 day";
+  return { fromAt, toAt, previousFromAt, previousToAt, bucketInterval };
 }
 
 // src/lib/protocol-access.ts
@@ -83906,6 +84165,13 @@ async function ensureUsageHistorySchema() {
         ON reseller_service_usage_history (reseller_tg_id, provider_key, captured_at DESC);
       CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_service_time_idx
         ON reseller_service_usage_history (reseller_tg_id, service_id, captured_at DESC);
+      CREATE TABLE IF NOT EXISTS reseller_service_usage_provider_accounts (
+        service_id BIGINT NOT NULL,
+        provider_key TEXT NOT NULL,
+        provider_username TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (service_id, provider_key)
+      );
     `).then(() => void 0).catch((error40) => {
       schemaPromise2 = null;
       throw error40;
@@ -83921,6 +84187,15 @@ async function recordUsageHistorySample(sample) {
     return;
   }
   await ensureUsageHistorySchema();
+  await pool.query(
+    `INSERT INTO reseller_service_usage_provider_accounts
+       (service_id, provider_key, provider_username, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (service_id, provider_key) DO UPDATE
+     SET provider_username = EXCLUDED.provider_username,
+         updated_at = NOW()`,
+    [sample.serviceId, providerKey, sourceUsername]
+  );
   const capturedAt = new Date(Math.floor(Date.now() / SAMPLE_INTERVAL_MS) * SAMPLE_INTERVAL_MS);
   const bucketEpoch = capturedAt.getTime();
   const identity = `${sample.serviceId}\0${providerKey}\0${sourceUsername}`;
@@ -85181,6 +85456,13 @@ managementReady = pool.query(`
     );
     CREATE INDEX IF NOT EXISTS user_panel_usages_user_panel_id_idx
       ON user_panel_usages (username, panel_key, id DESC);
+    CREATE TABLE IF NOT EXISTS reseller_service_usage_provider_accounts (
+      service_id BIGINT NOT NULL,
+      provider_key TEXT NOT NULL,
+      provider_username TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (service_id, provider_key)
+    );
     ALTER TABLE user_panel_usages
       ADD COLUMN IF NOT EXISTS offset_bytes BIGINT NOT NULL DEFAULT 0;
     CREATE SEQUENCE IF NOT EXISTS user_panel_usages_id_seq;
@@ -85984,6 +86266,51 @@ router2.get("/awg-usage", requireAuth, async (req, res) => {
     total: Number(countResult.rows[0]?.total ?? 0)
   }));
 });
+function buildUsageAnalyticsFilter(input, resellerId) {
+  const params = [];
+  const filters = [
+    `EXISTS (
+      SELECT 1 FROM reseller_services scoped_service
+      WHERE scoped_service.id = h.service_id
+        AND scoped_service.reseller_tg_id = h.reseller_tg_id
+    )`,
+    `(h.customer_id IS NULL OR EXISTS (
+      SELECT 1 FROM reseller_customers scoped_customer
+      WHERE scoped_customer.id = h.customer_id
+        AND scoped_customer.reseller_tg_id = h.reseller_tg_id
+    ))`
+  ];
+  if (resellerId !== null) {
+    params.push(resellerId);
+    filters.push(`h.reseller_tg_id = $${params.length}`);
+  }
+  if (input.provider_key) {
+    params.push(input.provider_key.trim());
+    filters.push(`h.provider_key = $${params.length}`);
+  }
+  if (input.service_id) {
+    params.push(input.service_id);
+    filters.push(`h.service_id = $${params.length}`);
+  }
+  const search = String(input.search ?? "").trim().slice(0, 120);
+  if (search) {
+    params.push(search);
+    const index = params.length;
+    filters.push(`(
+      POSITION(LOWER($${index}) IN LOWER(COALESCE(h.service_code, ''))) > 0
+      OR POSITION(LOWER($${index}) IN LOWER(COALESCE(h.service_username, ''))) > 0
+      OR POSITION(LOWER($${index}) IN LOWER(COALESCE(h.source_username, ''))) > 0
+      OR POSITION(LOWER($${index}) IN LOWER(COALESCE(h.customer_name, ''))) > 0
+      OR POSITION(LOWER($${index}) IN LOWER(COALESCE(h.customer_id::text, ''))) > 0
+    )`);
+  }
+  return { sql: filters.join(" AND "), params };
+}
+function csvCell(value) {
+  let text2 = String(value ?? "");
+  if (/^[\s]*[=+\-@]/.test(text2)) text2 = `'${text2}`;
+  return `"${text2.replace(/"/g, '""')}"`;
+}
 router2.get("/usage-analytics", requireAuth, async (req, res) => {
   const parsed = GetUsageAnalyticsQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -85993,98 +86320,58 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
   await Promise.all([managementReady, ensureUsageHistorySchema()]);
   const now = /* @__PURE__ */ new Date();
   const range = parsed.data.range;
-  const rangeMs = {
-    "6h": 6 * 60 * 6e4,
-    "12h": 12 * 60 * 6e4,
-    day: 24 * 60 * 6e4,
-    week: 7 * 24 * 60 * 6e4,
-    month: 30 * 24 * 60 * 6e4
-  };
-  const bucketInterval = {
-    "6h": "15 minutes",
-    "12h": "30 minutes",
-    day: "1 hour",
-    week: "1 day",
-    month: "1 day"
-  };
-  const fromAt = new Date(now.getTime() - rangeMs[range]);
   const isMaster = req.auth?.role === "master_admin";
-  const filters = [];
-  const filterParams = [];
-  if (!isMaster) {
-    const ownerId = Number(req.auth?.telegramId);
-    filterParams.push(ownerId);
-    const ownerIndex = filterParams.length;
-    filters.push(`h.reseller_tg_id = $${ownerIndex}`);
-    filters.push(`NOT EXISTS (
-      SELECT 1 FROM reseller_services scoped_service
-      WHERE scoped_service.id = h.service_id
-        AND scoped_service.reseller_tg_id <> $${ownerIndex}
-    )`);
-    filters.push(`NOT EXISTS (
-      SELECT 1 FROM reseller_customers scoped_customer
-      WHERE scoped_customer.id = h.customer_id
-        AND scoped_customer.reseller_tg_id <> $${ownerIndex}
-    )`);
+  if (!isMaster && parsed.data.reseller_id) {
+    res.status(403).json({ error: "\u0641\u06CC\u0644\u062A\u0631 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0645\u062F\u06CC\u0631 \u06A9\u0644 \u0645\u062C\u0627\u0632 \u0627\u0633\u062A." });
+    return;
   }
-  if (parsed.data.provider_key) {
-    filterParams.push(parsed.data.provider_key.trim());
-    filters.push(`h.provider_key = $${filterParams.length}`);
+  const window2 = resolveUsageAnalyticsWindow(range, parsed.data.from_date, parsed.data.to_date, now);
+  if (!window2) {
+    res.status(400).json({ error: "\u0628\u0627\u0632\u0647\u0654 \u0632\u0645\u0627\u0646\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A\u061B \u062A\u0627\u0631\u06CC\u062E \u0634\u0645\u0633\u06CC \u0634\u0631\u0648\u0639 \u0648 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F." });
+    return;
   }
-  if (parsed.data.service_id) {
-    filterParams.push(parsed.data.service_id);
-    filters.push(`h.service_id = $${filterParams.length}`);
-  }
-  const search = String(parsed.data.search ?? "").trim().slice(0, 120);
-  if (search) {
-    filterParams.push(search);
-    const searchIndex = filterParams.length;
-    filters.push(`(
-      POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.service_code, ''))) > 0
-      OR POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.service_username, ''))) > 0
-      OR POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.customer_name, ''))) > 0
-      OR POSITION(LOWER($${searchIndex}) IN LOWER(COALESCE(h.customer_id::text, ''))) > 0
-    )`);
-  }
-  const filterSql = filters.length ? filters.join(" AND ") : "TRUE";
-  const rangeParams = [...filterParams, fromAt, now];
+  const { fromAt, toAt, previousFromAt, previousToAt, bucketInterval } = window2;
+  const effectiveResellerId = isMaster ? parsed.data.reseller_id ? Number(parsed.data.reseller_id) : null : Number(req.auth?.telegramId);
+  const { sql: filterSql, params: filterParams } = buildUsageAnalyticsFilter(parsed.data, effectiveResellerId);
+  const rangeParams = [...filterParams, fromAt, toAt];
   const rangeSql = `${filterSql}
     AND h.captured_at >= $${filterParams.length + 1}
     AND h.captured_at < $${filterParams.length + 2}`;
   const pageParams = [...rangeParams, parsed.data.limit, parsed.data.offset];
-  const bucketParams = [...rangeParams, bucketInterval[range]];
+  const bucketParams = [...rangeParams, bucketInterval];
   const bucketIntervalIndex = bucketParams.length;
-  const ownerParams = [];
-  const ownerSql = isMaster ? "TRUE" : (ownerParams.push(Number(req.auth?.telegramId)), `h.reseller_tg_id = $${ownerParams.length}
-       AND NOT EXISTS (
-         SELECT 1 FROM reseller_services scoped_service
-         WHERE scoped_service.id = h.service_id
-           AND scoped_service.reseller_tg_id <> $${ownerParams.length}
-       )
-       AND NOT EXISTS (
-         SELECT 1 FROM reseller_customers scoped_customer
-         WHERE scoped_customer.id = h.customer_id
-           AND scoped_customer.reseller_tg_id <> $${ownerParams.length}
-       )`);
+  const currentFromIndex = filterParams.length + 1;
+  const currentToIndex = filterParams.length + 2;
+  const previousFromIndex = filterParams.length + 3;
+  const previousToIndex = filterParams.length + 4;
+  const comparisonParams = [...filterParams, fromAt, toAt, previousFromAt, previousToAt];
+  const combinedWindowSql = `(
+    (h.captured_at >= $${currentFromIndex} AND h.captured_at < $${currentToIndex})
+    OR (h.captured_at >= $${previousFromIndex} AND h.captured_at < $${previousToIndex})
+  )`;
+  const ownerParams = effectiveResellerId === null ? [] : [effectiveResellerId];
+  const ownerSql = effectiveResellerId === null ? "TRUE" : `h.reseller_tg_id = $1`;
   const serviceOptionParams = [];
-  const serviceOptionsSql = isMaster ? "TRUE" : (serviceOptionParams.push(Number(req.auth?.telegramId)), `svc.reseller_tg_id = $${serviceOptionParams.length}`);
-  const [summary, providers, buckets, services, history, providerOptions, serviceOptions] = await Promise.all([
+  const serviceOptionsSql = effectiveResellerId === null ? "TRUE" : (serviceOptionParams.push(effectiveResellerId), `svc.reseller_tg_id = $${serviceOptionParams.length}`);
+  const quotaParams = effectiveResellerId === null ? [] : [effectiveResellerId];
+  const quotaScopeSql = effectiveResellerId === null ? "TRUE" : `svc.reseller_tg_id = $1`;
+  const [summary, providers, buckets, services, history, providerOptions, serviceOptions, weekdayHours, customers, quotaSummaryResult, quotaForecastRows, anomalyRows] = await Promise.all([
     pool.query(
-      `SELECT COALESCE(SUM(h.delta_bytes), 0)::float8 AS total_bytes,
-              COUNT(DISTINCT h.service_id) FILTER (WHERE h.delta_bytes > 0)::int AS service_count,
-              COUNT(DISTINCT h.service_id)::int AS services_total
+      `SELECT
+         COALESCE(SUM(h.delta_bytes) FILTER (WHERE h.captured_at >= $${currentFromIndex} AND h.captured_at < $${currentToIndex}), 0)::float8 AS total_bytes,
+         COUNT(DISTINCT h.service_id) FILTER (WHERE h.captured_at >= $${currentFromIndex} AND h.captured_at < $${currentToIndex} AND h.delta_bytes > 0)::int AS service_count,
+         COUNT(DISTINCT h.customer_id) FILTER (WHERE h.captured_at >= $${currentFromIndex} AND h.captured_at < $${currentToIndex} AND h.delta_bytes > 0 AND h.customer_id IS NOT NULL)::int AS customer_count,
+         COUNT(DISTINCT h.service_id) FILTER (WHERE h.captured_at >= $${currentFromIndex} AND h.captured_at < $${currentToIndex})::int AS services_total,
+         COALESCE(SUM(h.delta_bytes) FILTER (WHERE h.captured_at >= $${previousFromIndex} AND h.captured_at < $${previousToIndex}), 0)::float8 AS previous_total_bytes,
+         COUNT(DISTINCT h.service_id) FILTER (WHERE h.captured_at >= $${previousFromIndex} AND h.captured_at < $${previousToIndex} AND h.delta_bytes > 0)::int AS previous_service_count
        FROM reseller_service_usage_history h
-       WHERE ${rangeSql}`,
-      rangeParams
+       WHERE ${filterSql} AND ${combinedWindowSql}`,
+      comparisonParams
     ),
     pool.query(
       `SELECT h.provider_key AS key,
-              COALESCE(
-                NULLIF(pc.settings_json->>'display_name', ''),
-                NULLIF(pc.settings_json->>'label', ''),
-                NULLIF(pc.settings_json->>'name', ''),
-                CASE WHEN h.provider_key = 'amneziawg' THEN 'AmneziaWG' ELSE h.provider_key END
-              ) AS label,
+              COALESCE(NULLIF(pc.settings_json->>'display_name', ''), NULLIF(pc.settings_json->>'label', ''), NULLIF(pc.settings_json->>'name', ''),
+                CASE WHEN h.provider_key = 'amneziawg' THEN 'AmneziaWG' ELSE h.provider_key END) AS label,
               COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes
        FROM reseller_service_usage_history h
        LEFT JOIN panel_configs pc ON pc.key = h.provider_key
@@ -86096,19 +86383,19 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
     pool.query(
       `WITH bins AS (
          SELECT generate_series(
-           date_bin($${bucketIntervalIndex}::interval, $${filterParams.length + 1}::timestamptz, '1970-01-01T00:00:00Z'::timestamptz),
-           date_bin($${bucketIntervalIndex}::interval, $${filterParams.length + 2}::timestamptz, '1970-01-01T00:00:00Z'::timestamptz),
+           date_bin($${bucketIntervalIndex}::interval, ($${filterParams.length + 1}::timestamptz AT TIME ZONE 'Asia/Tehran'), TIMESTAMP '1970-01-01'),
+           date_bin($${bucketIntervalIndex}::interval, ($${filterParams.length + 2}::timestamptz AT TIME ZONE 'Asia/Tehran'), TIMESTAMP '1970-01-01'),
            $${bucketIntervalIndex}::interval
-         ) AS bucket_at
+         ) AS bucket_local
        )
-       SELECT bins.bucket_at,
+       SELECT bins.bucket_local AT TIME ZONE 'Asia/Tehran' AS bucket_at,
               COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes
        FROM bins
        LEFT JOIN reseller_service_usage_history h
-         ON date_bin($${bucketIntervalIndex}::interval, h.captured_at, '1970-01-01T00:00:00Z'::timestamptz) = bins.bucket_at
+         ON date_bin($${bucketIntervalIndex}::interval, h.captured_at AT TIME ZONE 'Asia/Tehran', TIMESTAMP '1970-01-01') = bins.bucket_local
         AND ${rangeSql}
-       GROUP BY bins.bucket_at
-       ORDER BY bins.bucket_at`,
+       GROUP BY bins.bucket_local
+       ORDER BY bins.bucket_local`,
       bucketParams
     ),
     pool.query(
@@ -86129,57 +86416,166 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
     pool.query(
       `SELECT MIN(h.captured_at) AS history_started_at
        FROM reseller_service_usage_history h
-       WHERE ${filterSql}`,
-      filterParams
+        WHERE ${ownerSql} AND h.captured_at >= NOW() - INTERVAL '120 days'`,
+      ownerParams
     ),
     pool.query(
-      `SELECT options.key, options.label
-       FROM (
-         SELECT p.key,
-                COALESCE(
-                  NULLIF(p.settings_json->>'display_name', ''),
-                  NULLIF(p.settings_json->>'label', ''),
-                  NULLIF(p.settings_json->>'name', ''),
-                  p.key
-                ) AS label
-         FROM panel_configs p
-         WHERE p.is_enabled = 1
-         UNION
-         SELECT DISTINCT h.provider_key AS key,
-                COALESCE(
-                  NULLIF(pc.settings_json->>'display_name', ''),
-                  NULLIF(pc.settings_json->>'label', ''),
-                  NULLIF(pc.settings_json->>'name', ''),
-                  CASE WHEN h.provider_key = 'amneziawg' THEN 'AmneziaWG' ELSE h.provider_key END
-                ) AS label
+      `WITH historical AS (
+         SELECT h.provider_key AS key,
+                COALESCE(NULLIF(pc.settings_json->>'display_name', ''), NULLIF(pc.settings_json->>'label', ''), NULLIF(pc.settings_json->>'name', ''),
+                  CASE WHEN h.provider_key = 'amneziawg' THEN 'AmneziaWG' ELSE h.provider_key END) AS label,
+                COUNT(DISTINCT h.service_id)::int AS service_count,
+                MAX(h.captured_at) AS last_sample_at
          FROM reseller_service_usage_history h
          LEFT JOIN panel_configs pc ON pc.key = h.provider_key
-          WHERE ${ownerSql}
-            AND h.captured_at >= NOW() - INTERVAL '120 days'
-         UNION
-         SELECT 'amneziawg' AS key, 'AmneziaWG' AS label
-       ) options
-       ORDER BY options.label, options.key`,
+         WHERE ${ownerSql} AND h.captured_at >= NOW() - INTERVAL '120 days'
+           AND EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.id = h.service_id AND svc.reseller_tg_id = h.reseller_tg_id)
+           AND (h.customer_id IS NULL OR EXISTS (SELECT 1 FROM reseller_customers c WHERE c.id = h.customer_id AND c.reseller_tg_id = h.reseller_tg_id))
+         GROUP BY h.provider_key, pc.settings_json
+       ),
+       options AS (
+         SELECT p.key,
+                COALESCE(NULLIF(p.settings_json->>'display_name', ''), NULLIF(p.settings_json->>'label', ''), NULLIF(p.settings_json->>'name', ''), p.key) AS label,
+                COALESCE(h.service_count, 0)::int AS service_count,
+                h.last_sample_at
+         FROM panel_configs p
+         LEFT JOIN historical h ON h.key = p.key
+         WHERE p.is_enabled = 1 OR h.key IS NOT NULL
+         UNION ALL
+         SELECT h.key, h.label, h.service_count, h.last_sample_at
+         FROM historical h
+         WHERE NOT EXISTS (SELECT 1 FROM panel_configs p WHERE p.key = h.key AND p.is_enabled = 1)
+         UNION ALL
+         SELECT 'amneziawg', 'AmneziaWG', 0, NULL::timestamptz
+         WHERE NOT EXISTS (SELECT 1 FROM historical h WHERE h.key = 'amneziawg')
+           AND NOT EXISTS (SELECT 1 FROM panel_configs p WHERE p.key = 'amneziawg' AND p.is_enabled = 1)
+       )
+       SELECT DISTINCT ON (key) key, label, service_count, last_sample_at
+       FROM options
+       ORDER BY key, last_sample_at DESC NULLS LAST, label`,
       ownerParams
     ),
     pool.query(
       `SELECT svc.id::float8 AS service_id,
-               'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
-               COALESCE(svc.rain_username, '') AS username,
-               svc.customer_id::float8 AS customer_id,
-               COALESCE(c.full_name, '') AS customer_name
-        FROM reseller_services svc
-        LEFT JOIN reseller_customers c
-          ON c.id = svc.customer_id
-         AND c.reseller_tg_id = svc.reseller_tg_id
-        WHERE ${serviceOptionsSql}
-        ORDER BY svc.id DESC`,
+              'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+              COALESCE(svc.rain_username, '') AS username,
+              svc.customer_id::float8 AS customer_id,
+              COALESCE(c.full_name, '') AS customer_name
+       FROM reseller_services svc
+       LEFT JOIN reseller_customers c ON c.id = svc.customer_id AND c.reseller_tg_id = svc.reseller_tg_id
+       WHERE ${serviceOptionsSql}
+       ORDER BY svc.id DESC`,
       serviceOptionParams
+    ),
+    pool.query(
+      `SELECT ((EXTRACT(DOW FROM h.captured_at AT TIME ZONE 'Asia/Tehran')::int + 1) % 7)::int AS weekday,
+              EXTRACT(HOUR FROM h.captured_at AT TIME ZONE 'Asia/Tehran')::int AS hour,
+              COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes
+       FROM reseller_service_usage_history h
+       WHERE ${rangeSql}
+       GROUP BY weekday, hour`,
+      rangeParams
+    ),
+    pool.query(
+      `SELECT h.customer_id::float8 AS customer_id,
+              COALESCE((ARRAY_AGG(h.customer_name ORDER BY h.captured_at DESC))[1], '') AS customer_name,
+              COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes,
+              COUNT(DISTINCT h.service_id)::int AS service_count,
+              COUNT(DISTINCT h.provider_key)::int AS provider_count
+       FROM reseller_service_usage_history h
+       WHERE ${rangeSql} AND h.customer_id IS NOT NULL
+       GROUP BY h.customer_id
+       ORDER BY bytes DESC, customer_name
+       LIMIT 10`,
+      rangeParams
+    ),
+    pool.query(
+      `WITH active AS (
+         SELECT svc.gb::float8 * 1073741824 AS limit_bytes,
+                (svc.last_used_bytes IS NOT NULL OR svc.last_remaining_bytes IS NOT NULL) AS tracked,
+                LEAST(svc.gb::float8 * 1073741824, GREATEST(COALESCE(svc.last_used_bytes::float8,
+                  svc.gb::float8 * 1073741824 - COALESCE(svc.last_remaining_bytes::float8, svc.gb::float8 * 1073741824)), 0)) AS used_bytes,
+                LEAST(svc.gb::float8 * 1073741824, GREATEST(COALESCE(svc.last_remaining_bytes::float8,
+                  svc.gb::float8 * 1073741824 - COALESCE(svc.last_used_bytes::float8, 0)), 0)) AS remaining_bytes
+         FROM reseller_services svc
+         WHERE ${quotaScopeSql} AND svc.status IN ('active', 'expiring')
+           AND (svc.expire_at IS NULL OR svc.expire_at > NOW()) AND COALESCE(svc.gb, 0) > 0
+       )
+       SELECT COUNT(*)::int AS active_services,
+              COUNT(*) FILTER (WHERE tracked)::int AS tracked_services,
+              COALESCE(SUM(used_bytes), 0)::float8 AS used_bytes,
+              COALESCE(SUM(limit_bytes), 0)::float8 AS limit_bytes,
+              COALESCE(SUM(remaining_bytes), 0)::float8 AS remaining_bytes,
+              COUNT(*) FILTER (WHERE used_bytes / NULLIF(limit_bytes, 0) >= 0.7)::int AS above_70_count,
+              COUNT(*) FILTER (WHERE used_bytes / NULLIF(limit_bytes, 0) >= 0.9)::int AS above_90_count,
+              COUNT(*) FILTER (WHERE remaining_bytes <= 0)::int AS exhausted_count
+       FROM active`,
+      quotaParams
+    ),
+    pool.query(
+      `WITH rate AS (
+         SELECT h.service_id, SUM(h.delta_bytes)::float8 AS sampled_bytes,
+                GREATEST(EXTRACT(EPOCH FROM (MAX(h.captured_at) - MIN(h.captured_at))) / 86400.0, 0)::float8 AS coverage_days
+         FROM reseller_service_usage_history h
+         WHERE ${ownerSql} AND h.captured_at >= NOW() - INTERVAL '7 days'
+         GROUP BY h.service_id
+       ),
+       forecast AS (
+         SELECT svc.id::float8 AS service_id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+                COALESCE(svc.rain_username, '') AS username, svc.customer_id::float8 AS customer_id,
+                COALESCE(c.full_name, '') AS customer_name, (svc.gb::float8 * 1073741824) AS limit_bytes,
+                LEAST(svc.gb::float8 * 1073741824, GREATEST(COALESCE(svc.last_used_bytes::float8,
+                  svc.gb::float8 * 1073741824 - COALESCE(svc.last_remaining_bytes::float8, svc.gb::float8 * 1073741824)), 0)) AS used_bytes,
+                LEAST(svc.gb::float8 * 1073741824, GREATEST(COALESCE(svc.last_remaining_bytes::float8,
+                  svc.gb::float8 * 1073741824 - COALESCE(svc.last_used_bytes::float8, 0)), 0)) AS remaining_bytes,
+                LEAST(100, 100 * LEAST(svc.gb::float8 * 1073741824, GREATEST(COALESCE(svc.last_used_bytes::float8,
+                  svc.gb::float8 * 1073741824 - COALESCE(svc.last_remaining_bytes::float8, svc.gb::float8 * 1073741824)), 0))
+                  / NULLIF(svc.gb::float8 * 1073741824, 0))::float8 AS used_percent,
+                CASE WHEN COALESCE(rate.coverage_days, 0) >= 1 THEN rate.sampled_bytes / NULLIF(rate.coverage_days, 0) ELSE NULL END::float8 AS average_daily_bytes,
+                CASE WHEN COALESCE(rate.coverage_days, 0) >= 1 AND COALESCE(rate.sampled_bytes, 0) > 0
+                  THEN LEAST(svc.gb::float8 * 1073741824, GREATEST(COALESCE(svc.last_remaining_bytes::float8,
+                    svc.gb::float8 * 1073741824 - COALESCE(svc.last_used_bytes::float8, 0)), 0))
+                    / (rate.sampled_bytes / NULLIF(rate.coverage_days, 0))
+                  ELSE NULL END::float8 AS days_until_empty,
+                COALESCE(rate.coverage_days, 0)::float8 AS coverage_days, svc.expire_at AS expires_at
+         FROM reseller_services svc
+         LEFT JOIN reseller_customers c ON c.id = svc.customer_id AND c.reseller_tg_id = svc.reseller_tg_id
+         LEFT JOIN rate ON rate.service_id = svc.id
+         WHERE ${quotaScopeSql} AND svc.status IN ('active', 'expiring')
+           AND (svc.expire_at IS NULL OR svc.expire_at > NOW()) AND COALESCE(svc.gb, 0) > 0
+       )
+       SELECT * FROM forecast
+       WHERE used_percent >= 70 OR days_until_empty IS NOT NULL
+       ORDER BY days_until_empty ASC NULLS LAST, used_percent DESC, service_id
+       LIMIT 20`,
+      quotaParams
+    ),
+    pool.query(
+      `WITH per_service AS (
+         SELECT h.service_id, (ARRAY_AGG(h.service_code ORDER BY h.captured_at DESC))[1] AS service_code,
+                (ARRAY_AGG(h.service_username ORDER BY h.captured_at DESC))[1] AS username,
+                COALESCE((ARRAY_AGG(h.customer_name ORDER BY h.captured_at DESC))[1], '') AS customer_name,
+                COALESCE(SUM(h.delta_bytes) FILTER (WHERE h.captured_at >= $${currentFromIndex} AND h.captured_at < $${currentToIndex}), 0)::float8 AS current_bytes,
+                COALESCE(SUM(h.delta_bytes) FILTER (WHERE h.captured_at >= $${previousFromIndex} AND h.captured_at < $${previousToIndex}), 0)::float8 AS previous_bytes
+         FROM reseller_service_usage_history h
+         WHERE ${filterSql} AND ${combinedWindowSql}
+         GROUP BY h.service_id
+       )
+       SELECT service_id::float8 AS service_id, service_code, username, customer_name, current_bytes, previous_bytes,
+              (current_bytes - previous_bytes)::float8 AS delta_bytes,
+              CASE WHEN previous_bytes > 0 THEN current_bytes / previous_bytes ELSE NULL END::float8 AS multiple
+       FROM per_service
+       WHERE current_bytes >= 536870912 AND current_bytes - previous_bytes >= 268435456
+         AND (previous_bytes = 0 OR current_bytes >= previous_bytes * 2.5)
+       ORDER BY delta_bytes DESC LIMIT 12`,
+      comparisonParams
     )
   ]);
   const historyStartedAt = history.rows[0]?.history_started_at ?? null;
   const historyStartDate = historyStartedAt ? new Date(historyStartedAt) : null;
   const totalBytes = Number(summary.rows[0]?.total_bytes ?? 0);
+  const previousTotalBytes = Number(summary.rows[0]?.previous_total_bytes ?? 0);
+  const periodDays = Math.max((toAt.getTime() - fromAt.getTime()) / 864e5, 1 / 1440);
   const totalServices = Number(summary.rows[0]?.services_total ?? 0);
   const providerOptionsByKey = /* @__PURE__ */ new Map();
   for (const row of providerOptions.rows) {
@@ -86202,28 +86598,156 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
   const allProviderOptions = [...providerOptionsByKey.values()].sort((a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key));
   const allProviderTotals = allProviderOptions.map((provider) => ({
     ...provider,
-    bytes: providerTotalsByKey.get(provider.key) ?? 0
+    bytes: providerTotalsByKey.get(provider.key) ?? 0,
+    share_percent: totalBytes > 0 ? Math.min(100, (providerTotalsByKey.get(provider.key) ?? 0) / totalBytes * 100) : 0
   }));
+  const providerHealthByKey = new Map(providerOptions.rows.map((row) => [row.key, row]));
+  const allProviderHealth = allProviderOptions.map((provider) => {
+    const row = providerHealthByKey.get(provider.key);
+    const lastSample = row?.last_sample_at ? new Date(row.last_sample_at) : null;
+    const ageMs = lastSample ? Math.max(0, now.getTime() - lastSample.getTime()) : null;
+    return {
+      key: provider.key,
+      label: provider.label,
+      service_count: Number(row?.service_count ?? 0),
+      last_sample_at: lastSample?.toISOString() ?? null,
+      status: !lastSample ? "never" : ageMs !== null && ageMs <= 15 * 6e4 ? "fresh" : "stale"
+    };
+  });
+  const peakRow = buckets.rows.reduce((peak, row) => {
+    const bytes = Number(row.bytes ?? 0);
+    return bytes > 0 && (!peak || bytes > Number(peak.bytes)) ? { bucket_at: row.bucket_at, bytes } : peak;
+  }, null);
+  const quotaSummary = quotaSummaryResult.rows[0] ?? {
+    active_services: 0,
+    tracked_services: 0,
+    used_bytes: 0,
+    limit_bytes: 0,
+    remaining_bytes: 0,
+    above_70_count: 0,
+    above_90_count: 0,
+    exhausted_count: 0
+  };
+  const currentFromIso = fromAt.toISOString();
+  const currentToIso = toAt.toISOString();
+  const previousFromIso = previousFromAt.toISOString();
+  const previousToIso = previousToAt.toISOString();
+  const deltaBytes = totalBytes - previousTotalBytes;
+  const changePercent = previousTotalBytes > 0 ? deltaBytes / previousTotalBytes * 100 : null;
   res.json(GetUsageAnalyticsResponse.parse({
     scope: isMaster ? "system" : "reseller",
     range,
-    from_at: fromAt,
-    to_at: now,
-    history_started_at: historyStartedAt,
+    from_at: currentFromIso,
+    to_at: currentToIso,
+    history_started_at: historyStartedAt ? new Date(historyStartedAt).toISOString() : null,
     is_partial: !historyStartDate || historyStartDate.getTime() > fromAt.getTime(),
-    bucket_interval: bucketInterval[range],
+    bucket_interval: bucketInterval,
     total_bytes: Math.max(0, totalBytes),
+    average_daily_bytes: Math.max(0, totalBytes / periodDays),
     service_count: Number(summary.rows[0]?.service_count ?? 0),
+    customer_count: Number(summary.rows[0]?.customer_count ?? 0),
     services_total: totalServices,
+    comparison: {
+      previous_from_at: previousFromIso,
+      previous_to_at: previousToIso,
+      total_bytes: Math.max(0, previousTotalBytes),
+      delta_bytes: deltaBytes,
+      change_percent: changePercent,
+      service_count: Number(summary.rows[0]?.previous_service_count ?? 0)
+    },
+    peak_bucket: peakRow ? { bucket_at: new Date(peakRow.bucket_at).toISOString(), bytes: Math.max(0, Number(peakRow.bytes)) } : null,
     buckets: buckets.rows.map((row) => ({
-      bucket_at: row.bucket_at,
+      bucket_at: new Date(row.bucket_at).toISOString(),
+      bytes: Math.max(0, Number(row.bytes ?? 0))
+    })),
+    weekday_hour: weekdayHours.rows.map((row) => ({
+      weekday: Number(row.weekday),
+      hour: Number(row.hour),
       bytes: Math.max(0, Number(row.bytes ?? 0))
     })),
     provider_options: allProviderOptions,
     providers: allProviderTotals,
+    provider_health: allProviderHealth,
     services: services.rows,
-    service_options: serviceOptions.rows
+    service_options: serviceOptions.rows,
+    customers: customers.rows.map((row) => ({
+      ...row,
+      bytes: Math.max(0, Number(row.bytes ?? 0)),
+      share_percent: totalBytes > 0 ? Math.min(100, Number(row.bytes ?? 0) / totalBytes * 100) : 0
+    })),
+    quota_summary: {
+      active_services: Number(quotaSummary.active_services ?? 0),
+      tracked_services: Number(quotaSummary.tracked_services ?? 0),
+      used_bytes: Math.max(0, Number(quotaSummary.used_bytes ?? 0)),
+      limit_bytes: Math.max(0, Number(quotaSummary.limit_bytes ?? 0)),
+      remaining_bytes: Math.max(0, Number(quotaSummary.remaining_bytes ?? 0)),
+      above_70_count: Number(quotaSummary.above_70_count ?? 0),
+      above_90_count: Number(quotaSummary.above_90_count ?? 0),
+      exhausted_count: Number(quotaSummary.exhausted_count ?? 0)
+    },
+    quota_forecasts: quotaForecastRows.rows.map((row) => ({
+      ...row,
+      expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null
+    })),
+    anomalies: anomalyRows.rows.map((row) => ({
+      ...row,
+      current_bytes: Math.max(0, Number(row.current_bytes ?? 0)),
+      previous_bytes: Math.max(0, Number(row.previous_bytes ?? 0)),
+      delta_bytes: Number(row.delta_bytes ?? 0),
+      multiple: row.multiple === null ? null : Number(row.multiple)
+    }))
   }));
+});
+router2.get("/usage-analytics/export", requireAuth, async (req, res) => {
+  const parsed = GetUsageAnalyticsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "\u0641\u06CC\u0644\u062A\u0631\u0647\u0627\u06CC \u062E\u0631\u0648\u062C\u06CC \u06AF\u0632\u0627\u0631\u0634 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  const isMaster = req.auth?.role === "master_admin";
+  if (!isMaster && parsed.data.reseller_id) {
+    res.status(403).json({ error: "\u0641\u06CC\u0644\u062A\u0631 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0645\u062F\u06CC\u0631 \u06A9\u0644 \u0645\u062C\u0627\u0632 \u0627\u0633\u062A." });
+    return;
+  }
+  const now = /* @__PURE__ */ new Date();
+  const window2 = resolveUsageAnalyticsWindow(parsed.data.range, parsed.data.from_date, parsed.data.to_date, now);
+  if (!window2) {
+    res.status(400).json({ error: "\u0628\u0627\u0632\u0647\u0654 \u0632\u0645\u0627\u0646\u06CC \u062E\u0631\u0648\u062C\u06CC \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+    return;
+  }
+  await Promise.all([managementReady, ensureUsageHistorySchema()]);
+  const resellerId = isMaster ? parsed.data.reseller_id ? Number(parsed.data.reseller_id) : null : Number(req.auth?.telegramId);
+  const { sql: filterSql, params } = buildUsageAnalyticsFilter(parsed.data, resellerId);
+  const fromIndex = params.length + 1;
+  const toIndex = params.length + 2;
+  const result = await pool.query(
+    `SELECT (ARRAY_AGG(h.service_code ORDER BY h.captured_at DESC))[1] AS service_code,
+            (ARRAY_AGG(h.service_username ORDER BY h.captured_at DESC))[1] AS username,
+            COALESCE((ARRAY_AGG(h.customer_name ORDER BY h.captured_at DESC))[1], '') AS customer_name,
+            COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes,
+            COUNT(DISTINCT h.provider_key)::int AS provider_count
+     FROM reseller_service_usage_history h
+     WHERE ${filterSql}
+       AND h.captured_at >= $${fromIndex}
+       AND h.captured_at < $${toIndex}
+     GROUP BY h.service_id
+     ORDER BY bytes DESC, service_code`,
+    [...params, window2.fromAt, window2.toAt]
+  );
+  const lines = [
+    ["Pulse usage report", "Range", parsed.data.range],
+    ["From", window2.fromAt.toISOString()],
+    ["To", window2.toAt.toISOString()],
+    ["Reseller", resellerId ?? "All"],
+    [],
+    ["Service", "Username", "Customer", "Recorded traffic bytes", "Provider count"],
+    ...result.rows.map((row) => [row.service_code, row.username, row.customer_name, Number(row.bytes ?? 0), Number(row.provider_count ?? 0)])
+  ];
+  const csv = `\uFEFF${lines.map((line2) => line2.map(csvCell).join(",")).join("\r\n")}`;
+  const filenameDate = now.toISOString().slice(0, 10).replace(/-/g, "");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="pulse-usage-${filenameDate}.csv"`);
+  res.send(csv);
 });
 router2.post("/awg-usage/:id/refresh", requireAuth, async (req, res) => {
   const parsed = RefreshAwgUsageParams.safeParse(req.params);

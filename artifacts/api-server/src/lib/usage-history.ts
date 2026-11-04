@@ -47,6 +47,13 @@ export async function ensureUsageHistorySchema(): Promise<void> {
         ON reseller_service_usage_history (reseller_tg_id, provider_key, captured_at DESC);
       CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_service_time_idx
         ON reseller_service_usage_history (reseller_tg_id, service_id, captured_at DESC);
+      CREATE TABLE IF NOT EXISTS reseller_service_usage_provider_accounts (
+        service_id BIGINT NOT NULL,
+        provider_key TEXT NOT NULL,
+        provider_username TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (service_id, provider_key)
+      );
     `).then(() => undefined).catch((error) => {
       schemaPromise = null;
       throw error;
@@ -72,6 +79,15 @@ export async function recordUsageHistorySample(sample: UsageHistorySample): Prom
   }
 
   await ensureUsageHistorySchema();
+  await pool.query(
+    `INSERT INTO reseller_service_usage_provider_accounts
+       (service_id, provider_key, provider_username, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (service_id, provider_key) DO UPDATE
+     SET provider_username = EXCLUDED.provider_username,
+         updated_at = NOW()`,
+    [sample.serviceId, providerKey, sourceUsername],
+  );
   const capturedAt = new Date(Math.floor(Date.now() / SAMPLE_INTERVAL_MS) * SAMPLE_INTERVAL_MS);
   const bucketEpoch = capturedAt.getTime();
   const identity = `${sample.serviceId}\u0000${providerKey}\u0000${sourceUsername}`;
