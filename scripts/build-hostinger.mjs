@@ -94,6 +94,43 @@ function buildFrontend(packageName, basePath, port) {
   );
 }
 
+async function brandPublicRootAsFlorist(destination) {
+  const indexPath = path.join(destination, "index.html");
+  let html = await readFile(indexPath, "utf8");
+  const replacements = [
+    [/<title>[\s\S]*?<\/title>/, "<title>گل‌آرا | گل‌فروشیِ باغ ایرانی</title>", "title"],
+    [/<meta name="description" content="[^"]*"\s*\/>/, '<meta name="description" content="گل‌آرا؛ گل‌فروشیِ باغ ایرانی با چیدمان‌های دست‌ساز و گل‌های فصل." />', "description"],
+    [/<meta name="theme-color" content="[^"]*"\s*\/>/, '<meta name="theme-color" content="#466b4e" />', "theme color"],
+    [/<meta name="apple-mobile-web-app-title" content="[^"]*"\s*\/>/, '<meta name="apple-mobile-web-app-title" content="گل‌آرا" />', "home-screen title"],
+    [/<meta property="og:title" content="[^"]*"\s*\/>/, '<meta property="og:title" content="گل‌آرا | گل‌فروشیِ باغ ایرانی" />', "Open Graph title"],
+    [/<meta property="og:description" content="[^"]*"\s*\/>/, '<meta property="og:description" content="گل‌های فصل، با چیدمانی از دلِ باغ." />', "Open Graph description"],
+    [/<meta name="twitter:title" content="[^"]*"\s*\/>/, '<meta name="twitter:title" content="گل‌آرا | گل‌فروشیِ باغ ایرانی" />', "Twitter title"],
+    [/<meta name="twitter:description" content="[^"]*"\s*\/>/, '<meta name="twitter:description" content="گل‌های فصل، با چیدمانی از دلِ باغ." />', "Twitter description"],
+  ];
+  for (const [pattern, replacement, label] of replacements) {
+    if (!pattern.test(html)) throw new Error(`Could not apply florist root ${label} metadata.`);
+    html = html.replace(pattern, replacement);
+  }
+  await writeFile(indexPath, html, "utf8");
+
+  const manifestPath = path.join(destination, "manifest.webmanifest");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  Object.assign(manifest, {
+    name: "گل‌آرا | گل‌فروشی باغ ایرانی",
+    short_name: "گل‌آرا",
+    description: "گل‌های فصل، با چیدمانی از دلِ باغ.",
+    start_url: "/",
+    scope: "/",
+    background_color: "#f6f1e5",
+    theme_color: "#466b4e",
+    icons: [
+      { src: "/flower-shop-icon.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+      { src: "/flower-shop.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+    ],
+  });
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+}
+
 console.log("Building the API bundle...");
 run("pnpm", ["--filter", "@workspace/api-server", "run", "build"]);
 await cp(apiDist, path.join(exportRoot, "api"), { recursive: true });
@@ -113,6 +150,9 @@ for (const build of salesBuilds) {
   console.log(`Building the sales app for ${build.basePath}...`);
   buildFrontend("@workspace/sales-manager", build.basePath, build.port);
   await replaceDirectory(frontendDist, build.destination);
+  if (build.basePath === "/") {
+    await brandPublicRootAsFlorist(build.destination);
+  }
   if (build.basePath === "/panel-sub-assets/") {
     const subscriptionRoot = path.join(webRoot, "sub-app");
     await rm(subscriptionRoot, { recursive: true, force: true });

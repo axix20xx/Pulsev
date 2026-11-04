@@ -2606,3 +2606,17 @@ mtime_ms = 1793827358554
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/cb75eb57-e30e-4663-8417-c0b31eafa517/721241dd-98b8-4128-b4b8-24a3152c9133"
 storage_version_token = "1793827513947064"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "xrIFiu38KeqKv48DI4WLr"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-04T21-35-00-630Z.zip"
+type = "unspecified"
+title = "Hostinger ZIP — گل‌آرا florist landing page"
+description = "Full 29.5 MB migration package. The root page, title, metadata, manifest, and icons are branded as a fictional Persian flower shop; staff panel and mobile app routes remain separate."
+logical_id = "f38ab8f0-e880-46fa-ba97-76b026739300"
+content_hash = "sha256:4beb1e5040602ee9b975d9fb8dc2a149a58bd166871ee825ddc9e5c18c9dfcba"
+size = 30933928
+mtime_ms = 1793828245398
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/f38ab8f0-e880-46fa-ba97-76b026739300/961dcc12-5ef1-47c6-9fd0-03d0be225ec5"
+storage_version_token = "1793828315880090"
+content_type = "application/octet-stream"

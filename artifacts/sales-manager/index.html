@@ -15,13 +15,14 @@
         var path = window.location.pathname;
         var mobileIndex = path.indexOf('/mobile');
         var isMobile = mobileIndex >= 0 && (path.length === mobileIndex + 7 || path.charAt(mobileIndex + 7) === '/');
+        var isPublicRoot = path === '/' || path === '/index.html';
         var base = isMobile ? path.slice(0, mobileIndex + 1) : '';
         var manifest = document.createElement('link');
         manifest.rel = 'manifest';
         manifest.href = isMobile ? base + 'mobile/manifest.webmanifest' : 'manifest.webmanifest';
         document.head.appendChild(manifest);
-        var mobileIconHref = isMobile ? base + 'mobile/favicon.svg' : 'favicon.svg';
-        var mobileTouchIconHref = isMobile ? base + 'mobile/apple-touch-icon.png' : 'apple-touch-icon.png';
+        var mobileIconHref = isMobile ? base + 'mobile/favicon.svg' : isPublicRoot ? '/flower-shop.svg' : 'favicon.svg';
+        var mobileTouchIconHref = isMobile ? base + 'mobile/apple-touch-icon.png' : isPublicRoot ? '/flower-shop-icon.png' : 'apple-touch-icon.png';
         document.querySelectorAll('link[rel="icon"]').forEach(function (link) {
           link.href = mobileIconHref;
         });

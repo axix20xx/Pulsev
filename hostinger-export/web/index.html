@@ -3,25 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>پالس | خدمات ارتباطی</title>
-    <meta name="description" content="صفحهٔ رسمی پالس برای دسترسی به خدمات، پیگیری اشتراک و راهنمای اتصال." />
-    <meta name="theme-color" content="#0f766e" />
+    <title>گل‌آرا | گل‌فروشیِ باغ ایرانی</title>
+    <meta name="description" content="گل‌آرا؛ گل‌فروشیِ باغ ایرانی با چیدمان‌های دست‌ساز و گل‌های فصل." />
+    <meta name="theme-color" content="#466b4e" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="پالس" />
+    <meta name="apple-mobile-web-app-title" content="گل‌آرا" />
     <script>
       (function () {
         var path = window.location.pathname;
         var mobileIndex = path.indexOf('/mobile');
         var isMobile = mobileIndex >= 0 && (path.length === mobileIndex + 7 || path.charAt(mobileIndex + 7) === '/');
+        var isPublicRoot = path === '/' || path === '/index.html';
         var base = isMobile ? path.slice(0, mobileIndex + 1) : '';
         var manifest = document.createElement('link');
         manifest.rel = 'manifest';
         manifest.href = isMobile ? base + 'mobile/manifest.webmanifest' : 'manifest.webmanifest';
         document.head.appendChild(manifest);
-        var mobileIconHref = isMobile ? base + 'mobile/favicon.svg' : 'favicon.svg';
-        var mobileTouchIconHref = isMobile ? base + 'mobile/apple-touch-icon.png' : 'apple-touch-icon.png';
+        var mobileIconHref = isMobile ? base + 'mobile/favicon.svg' : isPublicRoot ? '/flower-shop.svg' : 'favicon.svg';
+        var mobileTouchIconHref = isMobile ? base + 'mobile/apple-touch-icon.png' : isPublicRoot ? '/flower-shop-icon.png' : 'apple-touch-icon.png';
         document.querySelectorAll('link[rel="icon"]').forEach(function (link) {
           link.href = mobileIconHref;
         });
@@ -48,18 +49,18 @@
       })();
     </script>
     <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="پالس | خدمات ارتباطی" />
-    <meta property="og:description" content="دسترسی به خدمات پالس، پیگیری اشتراک و راهنمای اتصال." />
+    <meta property="og:title" content="گل‌آرا | گل‌فروشیِ باغ ایرانی" />
+    <meta property="og:description" content="گل‌های فصل، با چیدمانی از دلِ باغ." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="پالس | خدمات ارتباطی" />
-    <meta name="twitter:description" content="دسترسی به خدمات پالس، پیگیری اشتراک و راهنمای اتصال." />
+    <meta name="twitter:title" content="گل‌آرا | گل‌فروشیِ باغ ایرانی" />
+    <meta name="twitter:description" content="گل‌های فصل، با چیدمانی از دلِ باغ." />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="apple-touch-icon" href="favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-C7CUNCcP.js"></script>
+    <script type="module" crossorigin src="/assets/index-DmuQIgos.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-DH_pmYAk.css">
   </head>
   <body>

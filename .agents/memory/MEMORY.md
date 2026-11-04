@@ -27,7 +27,7 @@
 - [Insight ownership scopes](insight-ownership-scopes.md) — aggregate dashboards must scope joined customer, service, sale, and job rows independently for every reseller.
 - [ThreeUI integration](threeui-integration.md) — keep WebGL as a resilient visual enhancement with reduced-motion/fallback paths and package-scoped installation.
 - [Server entity cache boundary](server-entity-cache-boundary.md) — authenticated business records must not be restored from generic browser storage across account changes.
-- [Hostinger root bundle](hostinger-root-bundle.md) — serve the public landing at `/`, keep staff management at `/panel`, and version shell caches when replacing the root page.
+- [Hostinger root bundle](hostinger-root-bundle.md) — keep the florist facade at `/`, staff management at `/panel`, and brand root metadata/icons independently.
 - [Hostinger public subscription routing](hostinger-sub-router-base.md) — `/sub` is served at root while its assets use `/panel-sub-assets`; keep the public router base empty.
 - [Hostinger orphan API process](hostinger-orphan-api.md) — after forced restarts, reuse a healthy internal API child instead of spawning a second process on the fixed internal port.
 - [Hostinger runtime boundary](hostinger-runtime-boundary.md) — verify SSH is on the Web App host before treating localhost and process checks as deployment evidence.
