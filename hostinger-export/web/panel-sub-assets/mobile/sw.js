@@ -9,6 +9,9 @@ self.addEventListener('push', (event) => {
     badge: './favicon.svg',
     dir: 'rtl',
     lang: 'fa',
+    tag: data.notification_id ? `pulse-${data.notification_id}` : undefined,
+    renotify: false,
+    requireInteraction: data.priority === 'urgent',
     data: {
       href: data.href || './notifications',
       notification_id: data.notification_id || null,

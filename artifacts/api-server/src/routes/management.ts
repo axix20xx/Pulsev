@@ -191,7 +191,7 @@ const resolveCampaignAudience = async (target: string, recipientId?: number) => 
     expiring_7d: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at BETWEEN NOW() AND NOW() + INTERVAL '7 days')",
     expired: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.expire_at < NOW())",
     low_traffic: "EXISTS (SELECT 1 FROM reseller_services svc WHERE svc.customer_id = c.id AND svc.status <> 'disabled' AND svc.gb > 0 AND COALESCE(svc.last_remaining_bytes, svc.gb * 1073741824) <= svc.gb * 1073741824 * 0.2)",
-    no_push: "NOT EXISTS (SELECT 1 FROM mobile_push_subscriptions mps WHERE mps.customer_id = c.id AND mps.is_active = 1)",
+    no_push: "COALESCE((SELECT pref.system_enabled FROM mobile_notification_preferences pref WHERE pref.customer_id = c.id), 1) = 0 OR NOT EXISTS (SELECT 1 FROM mobile_push_subscriptions mps WHERE mps.customer_id = c.id AND mps.is_active = 1)",
     unpaid: "EXISTS (SELECT 1 FROM reseller_sales_log sale JOIN reseller_services svc ON svc.id = sale.service_id WHERE svc.customer_id = c.id AND COALESCE(sale.is_paid, 0) = 0)",
   };
   const predicate = predicates[target] || predicates.all;
@@ -207,7 +207,7 @@ const campaignTargetLabel = (target: string) => ({
   expiring_7d: "در حال انقضا تا ۷ روز",
   expired: "منقضی‌شده‌ها",
   low_traffic: "حجم باقی‌مانده کم",
-  no_push: "بدون دستگاه Push",
+  no_push: "بدون دستگاه یا Push غیرفعال",
   unpaid: "دارای پرداخت معوق",
 }[target] || "مخاطبان انتخاب‌شده");
 
@@ -471,6 +471,10 @@ router.post("/admin/mobile-notifications", requireMasterAdmin, async (req, res):
     res.status(400).json({ error: "عنوان و متن اعلان را کامل و در اندازه مجاز وارد کنید." });
     return;
   }
+  if (scheduledInput && (!scheduledAt || Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now() + 5000)) {
+    res.status(400).json({ error: "زمان ارسال باید یک زمان معتبر در آینده باشد." });
+    return;
+  }
   if (expiresInput && (!expiresAt || Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now())) {
     res.status(400).json({ error: "زمان انقضای اعلان باید در آینده باشد." });
     return;
@@ -605,11 +609,15 @@ router.get("/admin/notification-campaigns", requireMasterAdmin, async (req, res)
   const limit = Number.isSafeInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 30;
   const result = await pool.query(
     `SELECT c.id, c.name, c.notification_type, c.title, c.body, c.href, c.action_label,
-            c.tone, c.audience_type, c.audience_type AS target, c.status, c.scheduled_at, c.created_by,
+             c.tone, c.priority, c.expires_at, c.audience_type, c.audience_type AS target, c.status, c.scheduled_at, c.created_by,
             c.created_at, c.started_at, c.completed_at, c.last_error,
             COUNT(DISTINCT cr.id)::int AS target_count,
-            COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status IN ('saved', 'push_accepted', 'push_failed', 'inbox_only'))::int AS inbox_saved,
-            COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'accepted')::int AS push_accepted,
+             COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status IN ('saved', 'push_queued', 'push_accepted', 'digest_accepted', 'push_failed', 'inbox_only'))::int AS inbox_saved,
+             COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status = 'push_queued')::int AS push_queued,
+             COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status = 'inbox_only')::int AS push_suppressed,
+             COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status = 'digest_accepted')::int AS digest_accepted,
+             (COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'accepted')
+               + COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status = 'digest_accepted'))::int AS push_accepted,
             COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'failed')::int AS push_failed,
             COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'deactivated')::int AS deactivated_devices,
             COUNT(DISTINCT cr.id) FILTER (WHERE cr.opened_at IS NOT NULL)::int AS opened,
@@ -635,9 +643,13 @@ router.get("/admin/notification-analytics", requireMasterAdmin, async (req, res)
     `SELECT
        COUNT(DISTINCT c.id)::int AS campaigns,
        COUNT(DISTINCT cr.id)::int AS target_count,
-       COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status IN ('saved', 'push_accepted', 'push_failed', 'inbox_only'))::int AS inbox_saved,
+       COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status IN ('saved', 'push_queued', 'push_accepted', 'digest_accepted', 'push_failed', 'inbox_only'))::int AS inbox_saved,
+       COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status = 'push_queued')::int AS push_queued,
+       COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status = 'inbox_only')::int AS push_suppressed,
+       COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status = 'digest_accepted')::int AS digest_accepted,
        COUNT(DISTINCT da.id)::int AS push_attempted,
-       COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'accepted')::int AS push_accepted,
+       (COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'accepted')
+         + COUNT(DISTINCT cr.id) FILTER (WHERE cr.inbox_status = 'digest_accepted'))::int AS push_accepted,
        COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'failed')::int AS push_failed,
        COUNT(DISTINCT da.id) FILTER (WHERE da.status = 'deactivated')::int AS deactivated_devices,
        COUNT(DISTINCT cr.id) FILTER (WHERE cr.opened_at IS NOT NULL)::int AS opened,
@@ -683,24 +695,54 @@ router.get("/admin/notification-campaigns/:id/logs", requireMasterAdmin, async (
             cr.inbox_saved_at,
             cr.opened_at,
             cr.clicked_at,
+             cr.suppression_reason,
+             pq.status AS push_queue_status,
+             pq.scheduled_at AS push_scheduled_at,
             da.subscription_id,
             da.status AS push_status,
             da.provider_status_code,
-            da.provider_message AS failure_reason,
+             COALESCE(da.provider_message, pq.last_error, cr.suppression_reason) AS failure_reason,
             da.attempted_at,
             da.accepted_at,
             da.failed_at,
             da.deactivated_at
      FROM notification_campaign_recipients cr
      LEFT JOIN reseller_customers c ON c.id = cr.customer_id
+      LEFT JOIN mobile_notifications n ON n.campaign_id = cr.campaign_id AND n.customer_id = cr.customer_id
      LEFT JOIN notification_delivery_attempts da
        ON da.campaign_id = cr.campaign_id AND da.customer_id = cr.customer_id
+      LEFT JOIN notification_push_queue pq ON pq.notification_id = n.id
      WHERE cr.campaign_id = $1
      ORDER BY COALESCE(da.attempted_at, cr.created_at) DESC
      LIMIT 500`,
     [campaignId],
   );
   res.json({ items: result.rows });
+});
+
+router.post("/admin/notification-campaigns/:id/cancel", requireMasterAdmin, async (req, res): Promise<void> => {
+  await Promise.all([managementReady, mobileReady]);
+  const campaignId = Number(req.params.id);
+  if (!Number.isSafeInteger(campaignId) || campaignId <= 0) {
+    res.status(400).json({ error: "شناسه کمپین معتبر نیست" });
+    return;
+  }
+  const result = await pool.query(
+    `UPDATE notification_campaigns
+     SET status = 'cancelled', completed_at = NOW(), last_error = 'Cancelled by administrator'
+     WHERE id = $1 AND status = 'scheduled'
+     RETURNING id`,
+    [campaignId],
+  );
+  if (!result.rows[0]) {
+    res.status(409).json({ error: "فقط کمپین زمان‌بندی‌شده و ارسال‌نشده قابل لغو است." });
+    return;
+  }
+  await pool.query(
+    "UPDATE notification_push_queue SET status = 'cancelled', updated_at = NOW() WHERE campaign_id = $1 AND status = 'queued'",
+    [campaignId],
+  );
+  res.json({ cancelled: true, campaignId });
 });
 
 router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async (req, res): Promise<void> => {
@@ -710,12 +752,16 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
     res.status(400).json({ error: "شناسه کمپین معتبر نیست" });
     return;
   }
-  const campaign = await pool.query<{ title: string; body: string; href: string | null; action_label: string | null; tone: string }>(
-    `SELECT title, body, href, action_label, tone FROM notification_campaigns WHERE id = $1 LIMIT 1`,
+  const campaign = await pool.query<{ title: string; body: string; href: string | null; action_label: string | null; tone: string; priority: "normal" | "important" | "urgent"; expires_at: string | null }>(
+    `SELECT title, body, href, action_label, tone, priority, expires_at FROM notification_campaigns WHERE id = $1 LIMIT 1`,
     [campaignId],
   );
   if (!campaign.rows[0]) {
     res.status(404).json({ error: "کمپین پیدا نشد" });
+    return;
+  }
+  if (campaign.rows[0].expires_at && new Date(campaign.rows[0].expires_at).getTime() <= Date.now()) {
+    res.status(409).json({ error: "زمان اعتبار این کمپین پایان یافته است." });
     return;
   }
   const recipients = await pool.query<{ customer_id: number }>(
@@ -729,6 +775,21 @@ router.post("/admin/notification-campaigns/:id/retry", requireMasterAdmin, async
     customerIds: recipients.rows.map((row) => Number(row.customer_id)),
     ...campaign.rows[0],
   });
+  await pool.query(
+    `UPDATE notification_campaigns SET status = $2,
+     completed_at = CASE WHEN $2 = 'queued' THEN NULL ELSE NOW() END
+     WHERE id = $1`,
+    [
+      campaignId,
+      result.pushFailed > 0 && result.pushSent > 0
+        ? "partial"
+        : result.pushFailed > 0 && result.pushQueued === 0
+          ? "failed"
+          : result.pushQueued > 0 && result.pushSent === 0
+            ? "queued"
+            : "completed",
+    ],
+  );
   res.json({ retried: true, campaignId, ...result });
 });
 

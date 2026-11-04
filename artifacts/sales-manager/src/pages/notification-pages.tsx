@@ -20,6 +20,7 @@ import {
   Smartphone,
   Trash2,
   Users,
+  X,
   XCircle,
 } from 'lucide-react';
 import { Link } from 'wouter';
@@ -78,6 +79,7 @@ const builtInNotificationTemplates: NotificationTemplate[] = [
 const audienceOptions = [
   ['recipient', 'یک مشتری مشخص'],
   ['all', 'همه مشتریان'],
+  ['push_enabled', 'دستگاه‌های دارای Push فعال'],
   ['expiring_3d', 'در حال انقضا تا ۳ روز'],
   ['expiring_7d', 'در حال انقضا تا ۷ روز'],
   ['expired', 'منقضی‌شده‌ها'],
@@ -98,6 +100,8 @@ type Campaign = {
   status?: string | null;
   created_at?: string | null;
   scheduled_at?: string | null;
+  expires_at?: string | null;
+  priority?: string | null;
   sent_at?: string | null;
   target_count?: number | null;
   accepted?: number | null;
@@ -117,7 +121,6 @@ type AnalyticsSummary = Record<string, unknown> & {
   deactivated?: number;
   opened?: number;
   clicked?: number;
-  delivered?: number;
   pending?: number;
 };
 
@@ -171,24 +174,30 @@ const statusText = (value: unknown) => {
   const labels: Record<string, string> = {
     accepted: 'پذیرفته شد',
     sent: 'ارسال شد',
-    delivered: 'تحویل شد',
     failed: 'ناموفق',
     deactivated: 'دستگاه غیرفعال',
     pending: 'در انتظار',
     scheduled: 'زمان‌بندی‌شده',
     processing: 'در حال پردازش',
     completed: 'تکمیل‌شده',
-    inbox_only: 'فقط در inbox',
+    inbox_only: 'فقط در صندوق اعلان',
+    push_queued: 'در صف ارسال Push',
     push_accepted: 'Push پذیرفته شد',
+    digest_accepted: 'خلاصه Push پذیرفته شد',
     push_failed: 'Push ناموفق',
+    queued: 'در صف زمان‌بندی',
+    partial: 'ارسال ناقص',
+    cancelled: 'لغوشده',
+    expired: 'منقضی‌شده',
+    suppressed: 'ارسال نشد',
     duplicate: 'تکراری',
   };
   return typeof value === 'string' ? labels[value] || value : '—';
 };
 
 const statusTone = (value: unknown): Tone => {
-  if (value === 'failed' || value === 'deactivated') return 'bad';
-  if (value === 'pending' || value === 'scheduled' || value === 'processing') return 'warn';
+  if (value === 'failed' || value === 'deactivated' || value === 'expired') return 'bad';
+  if (value === 'pending' || value === 'scheduled' || value === 'processing' || value === 'push_queued' || value === 'queued' || value === 'partial') return 'warn';
   return 'good';
 };
 
@@ -294,6 +303,8 @@ export function NotificationSendPage() {
   const [href, setHref] = useState('');
   const [actionLabel, setActionLabel] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [priority, setPriority] = useState<'normal' | 'important' | 'urgent'>('normal');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState<Record<string, unknown> | null>(null);
@@ -417,10 +428,13 @@ export function NotificationSendPage() {
   const hrefError = attachSubscription && href.trim() && !href.trim().startsWith('/') && !/^https:\/\//i.test(href.trim())
     ? 'لینک باید داخلی باشد یا با https:// شروع شود.'
     : '';
+  const expiryError = scheduledAt && expiresAt && expiresAt <= scheduledAt
+    ? 'زمان انقضا باید بعد از زمان ارسال باشد.'
+    : '';
 
   const send = async (event: FormEvent) => {
     event.preventDefault();
-    if (hrefError) return;
+    if (hrefError || expiryError) return;
     setSending(true);
     setFeedback(null);
     setError('');
@@ -439,6 +453,8 @@ export function NotificationSendPage() {
            href: attachSubscription ? (href.trim() || undefined) : undefined,
           action_label: actionLabel.trim() || undefined,
           scheduled_at: scheduledAt ? tehranDateTimeToIso(scheduledAt) : undefined,
+          expires_at: expiresAt ? tehranDateTimeToIso(expiresAt) : undefined,
+          priority,
         }),
       });
       const result = await response.json().catch(() => null);
@@ -450,6 +466,8 @@ export function NotificationSendPage() {
       setAttachSubscription(true);
       setActionLabel('');
       setScheduledAt('');
+      setExpiresAt('');
+      setPriority('normal');
       setTemplateId('');
       setSelected(null);
       setSearch('');
@@ -515,14 +533,14 @@ export function NotificationSendPage() {
 
   if (session?.role !== 'master_admin') return <AdminOnlyNotice surface="notification-send" />;
   const audienceName = audience?.label || audienceOptions.find(([key]) => key === target)?.[1] || 'مخاطبان';
-  const canSend = !sending && Boolean(title.trim()) && Boolean(body.trim()) && !hrefError && !(target === 'recipient' && !selected);
+  const canSend = !sending && Boolean(title.trim()) && Boolean(body.trim()) && !hrefError && !expiryError && !(target === 'recipient' && !selected);
   return (
     <Page surface="notification-send">
       <PageHead eyebrow="پیام‌رسانی مشتریان" title="ارسال اعلان" lede="یک پیام عملیاتی برای یک مشتری یا کل مشتریان آماده کنید و نتیجه واقعی ارسال را ببینید." actions={<Link className="ax-btn" href="/notification-analytics"><BarChart3 size={15} /> گزارش کمپین‌ها</Link>} />
       <NotificationNav active="send" />
       <form onSubmit={send}>
         <Workbench asideLabel="پیش‌نمایش زنده اعلان" aside={<div className="ax-sticky">
-          <Card title="پیش‌نمایش زنده" description="Web Push · همان چیزی که مشتری می‌بیند">
+          <Card title="پیش‌نمایش زنده" description="Web Push · فقط دستگاه فعال و مجاز دریافت می‌کند">
             <div className="ax-push-preview">
               <div className="ax-push-brand"><span className="ax-push-mark">P</span><span>Pulse <small>اعلان جدید</small></span><time>اکنون</time></div>
               <strong>{title.trim() || 'عنوان اعلان'}</strong>
@@ -537,12 +555,14 @@ export function NotificationSendPage() {
           {feedback ? <SendSummary result={feedback} /> : null}
         </div>}>
           <Card title="ساخت اعلان" description="مخاطب را مشخص کنید، سپس پیام را آماده کنید؛ پیش از ارسال، audience و شواهد تحویل را مرور کنید."
-            footer={<div className="ax-foot-bar"><span className="ax-sub"><Smartphone size={13} /> تحویل Web Push جداگانه در گزارش ثبت می‌شود.</span><Btn variant="primary" type="submit" disabled={!canSend}>{sending ? <><RefreshCw size={14} className="ax-spin" /> در حال ثبت...</> : <><Send size={14} /> {scheduledAt ? 'زمان‌بندی اعلان' : 'ثبت و ارسال اعلان'}</>}</Btn></div>}>
+            footer={<div className="ax-foot-bar"><span className="ax-sub"><Smartphone size={13} /> Push فقط برای دستگاه‌های فعال با اجازهٔ اعلان ارسال می‌شود؛ پیام در صندوق برنامه هم ثبت می‌شود.</span><Btn variant="primary" type="submit" disabled={!canSend}>{sending ? <><RefreshCw size={14} className="ax-spin" /> در حال ثبت...</> : <><Send size={14} /> {scheduledAt ? 'زمان‌بندی اعلان' : 'ثبت و ارسال اعلان'}</>}</Btn></div>}>
             <Section step="۰۱" title="مخاطب و زمان‌بندی" description="ارسال به یک مشتری یا audience موجود؛ بدون تغییر در مجوزهای فعلی.">
               <FormGrid>
                 <Field label="دامنه ارسال"><select value={target} onChange={(event) => { setTarget(event.target.value as (typeof audienceOptions)[number][0]); setSelected(null); setResults([]); }} aria-label="مخاطبان کمپین">{audienceOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>
                 <Field label="زمان ارسال" hint="اختیاری؛ زمان تهران"><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} /></Field>
+                <Field label="انقضای اعلان" hint="اختیاری؛ برای کمپین زمان‌بندی‌شده"><input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} disabled={!scheduledAt} /></Field>
               </FormGrid>
+              {expiryError ? <Callout tone="bad" icon={AlertTriangle} role="alert">{expiryError}</Callout> : null}
               {target === 'recipient' ? <div className="ax-stack">
                 <Field label="جست‌وجوی مشتری"><span className="ax-search"><Search size={15} aria-hidden="true" /><input value={selected ? selected.name : search} onChange={(event) => { setSelected(null); setSearch(event.target.value); setError(''); }} placeholder="حداقل دو حرف از نام یا شماره موبایل" /></span></Field>
                 {loading ? <SkeletonRows rows={2} label="در حال جست‌وجو..." /> : results.length > 0 ? <div className="ax-picklist" role="listbox" aria-label="نتایج جست‌وجوی مشتری">{results.map((item) => <button type="button" role="option" aria-selected="false" key={String(item.id)} className="ax-pick" onClick={() => { setSelected(item); setResults([]); }}><span className="ax-avatar is-sm">{item.name.slice(0, 1)}</span><span className="ax-pick-copy"><strong>{item.name}</strong><small dir="ltr">{item.phone || '—'}</small></span><Badge>{faNumber(item.active_devices)} دستگاه</Badge></button>)}</div> : search.trim().length >= 2 && !selected ? <p className="ax-sub">مشتری پیدا نشد.</p> : null}
@@ -566,6 +586,7 @@ export function NotificationSendPage() {
               <FormGrid>
                 <Field label="عنوان اعلان"><input required maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="مثلاً اختلال کوتاه‌مدت در سرویس" /></Field>
                 <Field label="برچسب دکمه"><input maxLength={40} value={actionLabel} onChange={(event) => setActionLabel(event.target.value)} placeholder="مثلاً مشاهده جزئیات" /></Field>
+                <Field label="اولویت Push" hint="اولویت بالا، اجازه یا تنظیمات کاربر را دور نمی‌زند"><select value={priority} onChange={(event) => setPriority(event.target.value as typeof priority)}><option value="normal">معمولی</option><option value="important">مهم</option><option value="urgent">فوری</option></select></Field>
                 <Field label="متن پیام" full hint={`${faNumber(body.length)} / ۴۰۰۰`}><textarea required maxLength={4000} rows={6} value={body} onChange={(event) => setBody(event.target.value)} placeholder="متن دقیق و قابل اقدام پیام را بنویسید." /></Field>
                 <Field label="لینک سریع"><select value="" onChange={(event) => { if (event.target.value) setHref(event.target.value); }}><option value="">لینک سریع انتخاب کنید...</option><option value="/mobile">داشبورد مشتری</option><option value="/mobile/notifications">صندوق اعلان‌ها</option><option value="/mobile/services">سرویس‌های من</option><option value="/mobile/renew">تمدید سرویس</option></select></Field>
                 <Field label="لینک داخلی یا HTTPS" error={hrefError || undefined}><input dir="ltr" value={href} onChange={(event) => setHref(event.target.value)} placeholder="/services یا https://..." /></Field>
@@ -584,12 +605,14 @@ function SendSummary({ result }: { result: Record<string, unknown> }) {
   const activeDevices = maybeNumber(result, ['activeDevices', 'active_devices']);
   const pushSent = maybeNumber(result, ['pushSent', 'push_sent', 'push_accepted', 'accepted', 'sent']);
   const pushFailed = maybeNumber(result, ['pushFailed', 'push_failed', 'failed']);
+  const pushQueued = maybeNumber(result, ['pushQueued', 'push_queued']);
   const displayNumber = (value: number | null) => value === null ? '—' : faNumber(value);
   return <Card title={<><CheckCircle2 size={15} /> اعلان ثبت شد</>} description={typeof result.scheduled_at === 'string' || typeof result.scheduledAt === 'string' ? `زمان ارسال: ${dateLabel(result.scheduled_at || result.scheduledAt)}` : 'نتیجهٔ واقعی ثبت از API'}>
     <div role="status"><StatRow label="نتیجه ارسال">
       <Stat label="مخاطب ثبت‌شده" value={`${displayNumber(targetCount)}${targetCount === null ? '' : ' مشتری'}`} />
       <Stat label="دستگاه فعال" value={displayNumber(activeDevices)} />
       <Stat label="پذیرفته / ناموفق" value={`${displayNumber(pushSent)} / ${displayNumber(pushFailed)}`} tone={pushFailed ? 'warn' : 'good'} />
+      <Stat label="در صف ساعت سکوت / خلاصه" value={displayNumber(pushQueued)} />
     </StatRow></div>
   </Card>;
 }
@@ -604,6 +627,7 @@ export function NotificationAnalyticsPage() {
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
   const [detailError, setDetailError] = useState('');
 
@@ -675,9 +699,28 @@ export function NotificationAnalyticsPage() {
     }
   };
 
+  const cancelScheduled = async () => {
+    if (!selectedId || selectedCampaign?.status !== 'scheduled') return;
+    setCancelling(true);
+    setDetailError('');
+    try {
+      const response = await fetch(`/api/admin/notification-campaigns/${encodeURIComponent(selectedId)}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(errorText(result, 'لغو کمپین انجام نشد.'));
+      await loadCampaigns();
+    } catch (cause) {
+      setDetailError(cause instanceof Error ? cause.message : 'لغو کمپین انجام نشد.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (session?.role !== 'master_admin') return <AdminOnlyNotice surface="notification-analytics" />;
   const total = summary ? maybeNumber(summary, ['total', 'target_count', 'audience']) : null;
-  const accepted = summary ? maybeNumber(summary, ['push_accepted', 'accepted', 'sent', 'delivered']) : null;
+  const accepted = summary ? maybeNumber(summary, ['push_accepted', 'accepted', 'sent']) : null;
   const failed = summary ? maybeNumber(summary, ['push_failed', 'failed']) : null;
   const deliveryCoverage = total !== null && accepted !== null && total > 0 ? Math.round(accepted / total * 100) : null;
   const opened = summary ? maybeNumber(summary, ['opened']) : null;
@@ -692,7 +735,7 @@ export function NotificationAnalyticsPage() {
         {loadingCampaigns ? <SkeletonRows rows={5} label="در حال دریافت سابقه..." /> : campaigns.length === 0 ? <EmptyState icon={Bell} title="هنوز کمپینی ثبت نشده است." action={<Link className="ax-btn" href="/notification-send">ارسال اولین پیام</Link>} /> : <div className="ax-picklist is-rail" role="listbox" aria-label="کمپین‌ها">{campaigns.map((campaign) => { const active = String(campaign.id) === selectedId; return <button type="button" role="option" aria-selected={active} key={String(campaign.id)} onClick={() => setSelectedId(String(campaign.id))} className={`ax-pick${active ? ' is-active' : ''}`}><span className="ax-pick-copy"><strong className="ax-clamp">{campaign.title || campaign.name || 'اعلان بدون عنوان'}</strong><small>{dateLabel(campaign.created_at || campaign.scheduled_at)}</small></span><Badge tone={statusTone(campaign.status)}>{statusText(campaign.status)}</Badge><ChevronLeft size={14} className="ax-rowlink-chev" /></button>; })}</div>}
       </Card>}>
         {!selectedCampaign ? <Card><EmptyState icon={BarChart3} title="یک کمپین را انتخاب کنید" detail="جزئیات تحویل و رفتار مشتری اینجا نمایش داده می‌شود." /></Card> : <>
-          <Card title={campaignTitle} description="جزئیات کمپین" actions={<>{selectedCampaign.href ? <a className="ax-btn is-quiet is-sm" href={selectedCampaign.href} target="_blank" rel="noreferrer" aria-label="باز کردن لینک"><ExternalLink size={15} /></a> : null}<Btn size="sm" onClick={() => void retry()} disabled={retrying}><RotateCcw size={13} className={retrying ? 'ax-spin' : ''} /> تلاش مجدد</Btn></>}>
+          <Card title={campaignTitle} description="جزئیات کمپین" actions={<>{selectedCampaign.href ? <a className="ax-btn is-quiet is-sm" href={selectedCampaign.href} target="_blank" rel="noreferrer" aria-label="باز کردن لینک"><ExternalLink size={15} /></a> : null}{selectedCampaign.status === 'scheduled' ? <Btn size="sm" variant="danger" onClick={() => void cancelScheduled()} disabled={cancelling}><X size={13} className={cancelling ? 'ax-spin' : ''} /> لغو ارسال</Btn> : null}<Btn size="sm" onClick={() => void retry()} disabled={retrying}><RotateCcw size={13} className={retrying ? 'ax-spin' : ''} /> تلاش مجدد</Btn></>}>
             <p className="ax-prose ax-pre">{selectedCampaign.body || 'متن کمپین در دسترس نیست.'}</p>
             <div className="ax-meta-line"><span><Clock3 size={13} /> {dateLabel(selectedCampaign.scheduled_at || selectedCampaign.created_at)}</span>{selectedCampaign.action_label ? <span><MousePointerClick size={13} /> {selectedCampaign.action_label}</span> : null}<span><Users size={13} /> {selectedCampaign.target === 'all' ? 'همه مشتریان' : 'مخاطب مشخص'}</span></div>
             {!loadingDetail && <div className="ax-coverage" aria-label="پوشش تحویل"><div className="ax-coverage-head"><span>پذیرفته‌شده {accepted === null ? '—' : faNumber(accepted)} {total === null ? '' : `از ${faNumber(total)} مخاطب`}</span><strong>{deliveryCoverage === null ? 'پوشش نامشخص' : `${faNumber(deliveryCoverage)}٪`}</strong></div><Meter value={deliveryCoverage ?? 0} label="پوشش تحویل" /></div>}

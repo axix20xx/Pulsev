@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Route, Switch, useLocation, useParams } from 'wouter';
 import { ArrowDownToLine, Bell, Check, ChevronLeft, Download, LockKeyhole, LogOut, MoreHorizontal, Phone, Plus, RefreshCw, Settings, Share2, ShieldCheck, Smartphone, X } from 'lucide-react';
-import { arrayFrom, faNumber, formatMobileDate, mobileRequest, objectFrom, type MobileDashboard, type MobileNotification, type MobileSettings, type MobileSubscription, useMobileFetch } from './mobile-api';
+import { arrayFrom, faNumber, formatMobileDate, mobileRequest, objectFrom, type MobileDashboard, type MobileNotification, type MobileSettingToggle, type MobileSettings, type MobileSubscription, useMobileFetch } from './mobile-api';
 import { AccessActions, BrandLockup, MobileFrame, MobileLogo, MobileOfflineBanner, MobileState, NotificationRow, SubscriptionCard, UsageRing } from './mobile-ui';
 import './mobile.css';
 
@@ -252,14 +252,17 @@ function SettingsPage() {
     return () => { active = false; };
   }, []);
   useEffect(() => { if (data) setSettings(objectFrom<MobileSettings>(data, 'settings')); }, [data]);
-  const items: { key: keyof MobileSettings; title: string; detail: string }[] = [
+  const items: { key: MobileSettingToggle; title: string; detail: string }[] = [
     { key: 'service_enabled', title: 'تغییر وضعیت سرویس', detail: 'وقتی اتصال شما فعال یا غیرفعال شود' },
     { key: 'renewal_enabled', title: 'یادآوری تمدید', detail: 'پیش از پایان زمان اشتراک' },
     { key: 'expiry_enabled', title: 'نزدیک شدن به انقضا', detail: 'وقتی زمان اشتراک رو به پایان باشد' },
     { key: 'usage_enabled', title: 'مصرف حجم', detail: 'هنگام رسیدن مصرف به حد مهم' },
     { key: 'system_enabled', title: 'پیام‌های سیستمی', detail: 'به‌روزرسانی‌های مهم پالس' },
+    { key: 'quiet_hours_enabled', title: 'ساعات سکوت', detail: 'در این بازه اعلان‌ها برای بعد نگه داشته می‌شوند' },
+    { key: 'digest_enabled', title: 'خلاصه روزانه', detail: 'اعلان‌ها یک‌بار در روز به‌صورت خلاصه فرستاده می‌شوند' },
   ];
-  const update = async (key: keyof MobileSettings) => { if (!settings) return; const next = { ...settings, [key]: !settings[key] }; setSettings(next); await mobileRequest('/api/mobile/settings', { method: 'PATCH', body: JSON.stringify({ [key]: next[key] }) }).catch(() => setSettings(settings)); };
+  const update = async (key: MobileSettingToggle) => { if (!settings) return; const next = { ...settings, [key]: !settings[key] }; setSettings(next); await mobileRequest('/api/mobile/settings', { method: 'PATCH', body: JSON.stringify({ [key]: next[key] }) }).catch(() => setSettings(settings)); };
+  const updateTime = async (key: 'quiet_hours_start' | 'quiet_hours_end' | 'digest_time', value: string) => { if (!settings) return; const previous = settings; const next = { ...settings, [key]: value }; setSettings(next); try { const saved = await mobileRequest<Partial<MobileSettings>>('/api/mobile/settings', { method: 'PATCH', body: JSON.stringify({ [key]: value }) }); setSettings({ ...next, ...saved }); } catch { setSettings(previous); } };
   const enablePush = async () => {
     setPushState('working');
     try {
@@ -281,20 +284,20 @@ function SettingsPage() {
     setPushTestState('working');
     setPushTestMessage('');
     try {
-      const result = await mobileRequest<{ sent?: boolean; activeDevices?: number; failed?: number; errors?: string[] }>('/api/mobile/push/test', { method: 'POST' });
+      const result = await mobileRequest<{ sent?: boolean; activeDevices?: number; failed?: number; errors?: string[]; suppressedReason?: string }>('/api/mobile/push/test', { method: 'POST' });
       if (result.sent) {
         setPushTestState('success');
         setPushTestMessage('اعلان آزمایشی ارسال شد.');
       } else {
         setPushTestState('error');
-        setPushTestMessage(result.activeDevices ? (result.errors?.join('، ') || 'ارسال Push ناموفق بود.') : 'برای این حساب دستگاه Push فعالی ثبت نشده است.');
+        setPushTestMessage(result.suppressedReason === 'push_disabled' ? 'اعلان‌های سیستمی خاموش هستند؛ ابتدا آن‌ها را از تنظیمات فعال کنید.' : result.activeDevices ? (result.errors?.join('، ') || 'ارسال Push ناموفق بود.') : 'برای این حساب دستگاه Push فعالی ثبت نشده است.');
       }
     } catch (cause) {
       setPushTestState('error');
       setPushTestMessage(cause instanceof Error ? cause.message : 'ارسال اعلان آزمایشی ناموفق بود.');
     }
   };
-  return <MobileFrame title="تنظیمات" back><div className="mobile-page-heading"><span className="mobile-eyebrow">کنترل‌های شخصی</span><h1>تنظیمات اعلان</h1><p>فقط پیام‌هایی را دریافت کنید که برایتان مهم‌اند.</p></div><MobileState loading={loading} error={error} onRetry={reload}>{settings ? <><div className="mobile-settings-card">{items.map(({ key, title, detail }) => <div className="mobile-setting-row" key={key}><span><strong>{title}</strong><small>{detail}</small></span><button className={`mobile-switch ${settings[key] ? 'is-on' : ''}`} role="switch" aria-checked={settings[key]} onClick={() => update(key)}><i /></button></div>)}</div><div className="mobile-push-card"><div className="mobile-push-icon"><Smartphone size={20} /></div><div><h2>اعلان روی دستگاه</h2><p>با فعال‌سازی، پایان اشتراک و تغییرات مهم را حتی بیرون از برنامه از دست نمی‌دهید.</p>{pushState === 'enabled' ? <><span className="mobile-push-success">اعلان‌ها فعال هستند</span><div className="mobile-push-actions"><button className="mobile-push-link" onClick={() => void testPush()} disabled={pushTestState === 'working'}>{pushTestState === 'working' ? 'در حال ارسال…' : 'ارسال اعلان آزمایشی'}</button><button className="mobile-push-link is-danger" onClick={disablePush}>غیرفعال‌سازی</button></div>{pushTestMessage ? <span className={`mobile-push-test-result ${pushTestState}`}>{pushTestMessage}</span> : null}</> : pushState === 'error' ? <><span className="mobile-form-error">فعال‌سازی انجام نشد. دوباره امتحان کنید.</span><button className="mobile-button mobile-button-dark" onClick={enablePush}>تلاش دوباره</button></> : <button className="mobile-button mobile-button-dark" onClick={enablePush}>{pushState === 'working' ? 'در حال فعال‌سازی…' : 'فعال‌سازی اعلان‌ها'}</button>}</div></div></> : null}</MobileState></MobileFrame>;
+  return <MobileFrame title="تنظیمات" back><div className="mobile-page-heading"><span className="mobile-eyebrow">کنترل‌های شخصی</span><h1>تنظیمات اعلان</h1><p>فقط پیام‌هایی را دریافت کنید که برایتان مهم‌اند.</p></div><MobileState loading={loading} error={error} onRetry={reload}>{settings ? <><div className="mobile-settings-card">{items.map(({ key, title, detail }) => <div className="mobile-setting-row" key={key}><span><strong>{title}</strong><small>{detail}</small></span><button className={`mobile-switch ${settings[key] ? 'is-on' : ''}`} role="switch" aria-checked={Boolean(settings[key])} onClick={() => update(key)}><i /></button></div>)}{settings.quiet_hours_enabled ? <div className="mobile-settings-time-grid"><label><span>شروع ساعات سکوت</span><input type="time" value={settings.quiet_hours_start.slice(0, 5)} onChange={(event) => void updateTime('quiet_hours_start', event.target.value)} /></label><label><span>پایان ساعات سکوت</span><input type="time" value={settings.quiet_hours_end.slice(0, 5)} onChange={(event) => void updateTime('quiet_hours_end', event.target.value)} /></label><small>زمان‌ها بر اساس ساعت تهران هستند.</small></div> : null}{settings.digest_enabled ? <div className="mobile-settings-time-grid"><label><span>زمان خلاصه روزانه</span><input type="time" value={settings.digest_time.slice(0, 5)} onChange={(event) => void updateTime('digest_time', event.target.value)} /></label><small>اعلان‌ها فقط برای دستگاه‌هایی ارسال می‌شوند که Push در آن‌ها فعال است.</small></div> : null}</div><div className="mobile-push-card"><div className="mobile-push-icon"><Smartphone size={20} /></div><div><h2>اعلان روی دستگاه</h2><p>با فعال‌سازی، پایان اشتراک و تغییرات مهم را حتی بیرون از برنامه از دست نمی‌دهید.</p>{pushState === 'enabled' ? <><span className="mobile-push-success">اعلان‌ها فعال هستند</span><div className="mobile-push-actions"><button className="mobile-push-link" onClick={() => void testPush()} disabled={pushTestState === 'working'}>{pushTestState === 'working' ? 'در حال ارسال…' : 'ارسال اعلان آزمایشی'}</button><button className="mobile-push-link is-danger" onClick={disablePush}>غیرفعال‌سازی</button></div>{pushTestMessage ? <span className={`mobile-push-test-result ${pushTestState}`}>{pushTestMessage}</span> : null}</> : pushState === 'error' ? <><span className="mobile-form-error">فعال‌سازی انجام نشد. دوباره امتحان کنید.</span><button className="mobile-button mobile-button-dark" onClick={enablePush}>تلاش دوباره</button></> : <button className="mobile-button mobile-button-dark" onClick={enablePush}>{pushState === 'working' ? 'در حال فعال‌سازی…' : 'فعال‌سازی اعلان‌ها'}</button>}</div></div></> : null}</MobileState></MobileFrame>;
 }
 
 function MobilePushPrompt({ customerKey }: { customerKey: string }) {

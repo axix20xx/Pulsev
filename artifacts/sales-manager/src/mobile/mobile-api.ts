@@ -42,7 +42,20 @@ export type MobileDashboard = {
   notifications: MobileNotification[];
   unread_count: number;
 };
-export type MobileSettings = Record<'service_enabled' | 'renewal_enabled' | 'expiry_enabled' | 'usage_enabled' | 'system_enabled', boolean>;
+export type MobileSettingToggle =
+  | 'service_enabled'
+  | 'renewal_enabled'
+  | 'expiry_enabled'
+  | 'usage_enabled'
+  | 'system_enabled'
+  | 'quiet_hours_enabled'
+  | 'digest_enabled';
+
+export type MobileSettings = Record<MobileSettingToggle, boolean> & {
+  quiet_hours_start: string;
+  quiet_hours_end: string;
+  digest_time: string;
+};
 
 export const mobileRequest = async <T,>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(path, {

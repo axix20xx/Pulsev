@@ -2480,3 +2480,31 @@ mtime_ms = 1793718851659
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/348eb23c-730d-4837-971a-0b300aa59567/82f2a235-8b08-468f-9f1a-1c3f21074684"
 storage_version_token = "1793718895354458"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "o0IbzHts148KzwI3xVcaH"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-04T06-36-54-447Z.zip"
+type = "unspecified"
+title = "Pulse Hostinger full migration ZIP"
+description = "Full Hostinger deployment package with the notification improvements. Release package validation passed."
+logical_id = "ec41ef55-c840-4ea8-aa44-5b7ebad2218c"
+content_hash = "sha256:c816f7be6d0ee9d214a645c1bd801563b2b0573e6b55858a0b5e7794f56f7370"
+size = 29213442
+mtime_ms = 1793774312139
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ec41ef55-c840-4ea8-aa44-5b7ebad2218c/6c313857-152c-4aaf-a620-8dc6e3eaff59"
+storage_version_token = "1793774402373281"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "yyLNSLw8o_RNyWjpN8jIo"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-04T06-36-54-447Z.zip.sha256"
+type = "unspecified"
+title = "Hostinger ZIP SHA-256"
+description = "Checksum for verifying the downloaded migration ZIP."
+logical_id = "8e68c025-487e-4f5e-9632-21a36364aba6"
+content_hash = "sha256:d612cb2903df218979074eb6ae603f88400701e1ad151a17267f3efb7cbfa986"
+size = 126
+mtime_ms = 1793774313555
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/8e68c025-487e-4f5e-9632-21a36364aba6/882fad08-e689-4737-84eb-51df2eb4bcdd"
+storage_version_token = "1793774403640461"
+content_type = "application/octet-stream"

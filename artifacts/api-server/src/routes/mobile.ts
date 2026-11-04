@@ -741,6 +741,7 @@ const deliverOrQueuePush = async (
     actionLabel?: string | null;
     tone: string;
     priority?: "normal" | "important" | "urgent";
+    defer?: boolean;
   },
 ): Promise<DeferredPushResult> => {
   const preferences = await pool.query<{
@@ -775,7 +776,7 @@ const deliverOrQueuePush = async (
   if (!deviceCount) {
     return { activeDevices: 0, attempted: 0, sent: 0, failed: 0, deactivated: 0, errors: [], suppressedReason: "no_active_device" };
   }
-  const schedule = getDeferredPushSchedule(preference);
+  const schedule = notification.defer === false ? null : getDeferredPushSchedule(preference);
   if (schedule && notification.id) {
     await pool.query(
       `INSERT INTO notification_push_queue
@@ -825,6 +826,7 @@ const createNotification = async (input: {
   actionLabel?: string | null;
   tone?: string;
   priority?: "normal" | "important" | "urgent";
+  skipSchedule?: boolean;
 }): Promise<{ id: number | null; delivery?: DeferredPushResult }> => {
   const preferenceKey = notificationPreference(input.type);
   const preference = await pool.query<Record<string, number>>(
@@ -861,6 +863,7 @@ const createNotification = async (input: {
     actionLabel: input.actionLabel ?? null,
     tone: input.tone ?? "normal",
     priority: input.priority ?? "normal",
+    defer: !input.skipSchedule,
   });
   return { id: inserted.rows[0].id, delivery };
 };
@@ -1028,6 +1031,19 @@ export const sendMobileNotification = async (input: {
 
 export const runScheduledMobilePushQueue = async (): Promise<void> => {
   await mobileReady;
+  await pool.query(
+    `UPDATE notification_campaigns
+     SET status = 'expired', completed_at = NOW(), last_error = 'Campaign expired before Push delivery'
+     WHERE status = 'queued' AND expires_at IS NOT NULL AND expires_at <= NOW()`,
+  );
+  await pool.query(
+    `UPDATE notification_push_queue queue
+     SET status = 'cancelled', last_error = 'Campaign expired before Push delivery', updated_at = NOW()
+     WHERE queue.status = 'queued'
+       AND queue.campaign_id IN (
+         SELECT id FROM notification_campaigns WHERE status = 'expired'
+       )`,
+  );
   const claimed = await pool.query<{
     notification_id: number;
     customer_id: number;
@@ -1076,9 +1092,9 @@ export const runScheduledMobilePushQueue = async (): Promise<void> => {
     result: DeferredPushResult,
     digest: boolean,
   ) => {
-    const retry = result.failed > 0 && result.sent === 0 && !result.deactivated && Math.max(...rows.map((row) => row.attempts)) < 3;
+    const retry = result.failed > 0 && !result.deactivated && Math.max(...rows.map((row) => row.attempts)) < 3;
     for (const row of rows) {
-      const status = result.sent > 0 ? "accepted" : result.suppressedReason ? "suppressed" : retry ? "queued" : "failed";
+      const status = result.suppressedReason ? "suppressed" : retry ? "queued" : result.sent > 0 ? "accepted" : "failed";
       await pool.query(
         `UPDATE notification_push_queue
          SET status = $2,
@@ -1162,6 +1178,37 @@ export const runScheduledMobilePushQueue = async (): Promise<void> => {
         errors: [error instanceof Error ? error.message : "خطای ارسال خلاصه اعلان"],
       }, true);
     }
+  }
+
+  const campaignIds = [...new Set(claimed.rows.map((row) => Number(row.campaign_id)).filter((id) => Number.isSafeInteger(id) && id > 0))];
+  for (const campaignId of campaignIds) {
+    await pool.query(
+      `UPDATE notification_campaigns c SET
+         status = CASE
+           WHEN EXISTS (
+             SELECT 1 FROM notification_campaign_recipients r
+             WHERE r.campaign_id = c.id AND r.inbox_status = 'push_queued'
+           ) THEN 'queued'
+           WHEN EXISTS (
+             SELECT 1 FROM notification_campaign_recipients r
+             WHERE r.campaign_id = c.id AND r.inbox_status = 'push_failed'
+           ) AND EXISTS (
+             SELECT 1 FROM notification_campaign_recipients r
+             WHERE r.campaign_id = c.id AND r.inbox_status IN ('push_accepted', 'digest_accepted')
+           ) THEN 'partial'
+           WHEN EXISTS (
+             SELECT 1 FROM notification_campaign_recipients r
+             WHERE r.campaign_id = c.id AND r.inbox_status = 'push_failed'
+           ) THEN 'failed'
+           ELSE 'completed'
+         END,
+         completed_at = CASE WHEN EXISTS (
+           SELECT 1 FROM notification_campaign_recipients r
+           WHERE r.campaign_id = c.id AND r.inbox_status = 'push_queued'
+         ) THEN NULL ELSE NOW() END
+       WHERE c.id = $1 AND c.status <> 'scheduled' AND c.status <> 'cancelled'`,
+      [campaignId],
+    );
   }
 };
 
@@ -1524,7 +1571,8 @@ router.get("/mobile/settings", requireMobileAuth, async (req, res): Promise<void
   const result = await pool.query(
     `INSERT INTO mobile_notification_preferences (customer_id)
      VALUES ($1) ON CONFLICT (customer_id) DO UPDATE SET customer_id = EXCLUDED.customer_id
-     RETURNING service_enabled, renewal_enabled, expiry_enabled, usage_enabled, system_enabled`,
+     RETURNING service_enabled, renewal_enabled, expiry_enabled, usage_enabled, system_enabled,
+               quiet_hours_enabled, quiet_hours_start, quiet_hours_end, digest_enabled, digest_time`,
     [req.mobileAuth!.customerId],
   );
   res.json(result.rows[0]);
@@ -1533,21 +1581,43 @@ router.get("/mobile/settings", requireMobileAuth, async (req, res): Promise<void
 router.patch("/mobile/settings", requireMobileAuth, async (req, res): Promise<void> => {
   await mobileReady;
   const body = req.body ?? {};
-  const values = ["service_enabled", "renewal_enabled", "expiry_enabled", "usage_enabled", "system_enabled"].map((key) => body[key] === undefined ? null : Boolean(body[key]) ? 1 : 0);
-  await pool.query(
+  const booleanKeys = [
+    "service_enabled", "renewal_enabled", "expiry_enabled", "usage_enabled", "system_enabled",
+    "quiet_hours_enabled", "digest_enabled",
+  ];
+  const values = booleanKeys.map((key) => body[key] === undefined ? null : Boolean(body[key]) ? 1 : 0);
+  const timeKeys = ["quiet_hours_start", "quiet_hours_end", "digest_time"];
+  const times = timeKeys.map((key) => {
+    if (body[key] === undefined) return null;
+    return typeof body[key] === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(body[key]) ? `${body[key]}:00` : "__invalid__";
+  });
+  if (times.includes("__invalid__")) {
+    res.status(400).json({ error: "زمان را با قالب ساعت و دقیقه وارد کنید." });
+    return;
+  }
+  const result = await pool.query(
     `INSERT INTO mobile_notification_preferences
-       (customer_id, service_enabled, renewal_enabled, expiry_enabled, usage_enabled, system_enabled)
-     VALUES ($1, COALESCE($2, 1), COALESCE($3, 1), COALESCE($4, 1), COALESCE($5, 1), COALESCE($6, 1))
+       (customer_id, service_enabled, renewal_enabled, expiry_enabled, usage_enabled, system_enabled,
+        quiet_hours_enabled, digest_enabled, quiet_hours_start, quiet_hours_end, digest_time)
+     VALUES ($1, COALESCE($2, 1), COALESCE($3, 1), COALESCE($4, 1), COALESCE($5, 1), COALESCE($6, 1),
+             COALESCE($7, 0), COALESCE($8, 0), COALESCE($9::time, '22:00'), COALESCE($10::time, '07:00'), COALESCE($11::time, '09:00'))
      ON CONFLICT (customer_id) DO UPDATE SET
        service_enabled = COALESCE($2, mobile_notification_preferences.service_enabled),
        renewal_enabled = COALESCE($3, mobile_notification_preferences.renewal_enabled),
        expiry_enabled = COALESCE($4, mobile_notification_preferences.expiry_enabled),
        usage_enabled = COALESCE($5, mobile_notification_preferences.usage_enabled),
        system_enabled = COALESCE($6, mobile_notification_preferences.system_enabled),
-       updated_at = NOW()`,
-    [req.mobileAuth!.customerId, ...values],
+       quiet_hours_enabled = COALESCE($7, mobile_notification_preferences.quiet_hours_enabled),
+       digest_enabled = COALESCE($8, mobile_notification_preferences.digest_enabled),
+       quiet_hours_start = COALESCE($9::time, mobile_notification_preferences.quiet_hours_start),
+       quiet_hours_end = COALESCE($10::time, mobile_notification_preferences.quiet_hours_end),
+       digest_time = COALESCE($11::time, mobile_notification_preferences.digest_time),
+       updated_at = NOW()
+     RETURNING service_enabled, renewal_enabled, expiry_enabled, usage_enabled, system_enabled,
+               quiet_hours_enabled, quiet_hours_start, quiet_hours_end, digest_enabled, digest_time`,
+    [req.mobileAuth!.customerId, ...values, ...times],
   );
-  res.json({ saved: true });
+  res.json(result.rows[0] ?? { saved: true });
 });
 
 router.get("/mobile/push/status", requireMobileAuth, async (req, res): Promise<void> => {
@@ -1603,6 +1673,7 @@ router.post("/mobile/push/test", requireMobileAuth, async (req, res): Promise<vo
     title: "اعلان‌های پالس فعال است",
     body: "این یک اعلان آزمایشی برای دستگاه شماست.",
     href: "/mobile/notifications",
+    skipSchedule: true,
   });
   const delivery = result.delivery ?? { activeDevices: 0, attempted: 0, sent: 0, failed: 0, deactivated: 0, errors: [] };
   res.json({
@@ -1610,6 +1681,7 @@ router.post("/mobile/push/test", requireMobileAuth, async (req, res): Promise<vo
     sent: delivery.sent > 0,
     inboxSaved: Boolean(result.id),
     configured: true,
+    ...(!result.id ? { suppressedReason: "push_disabled" } : {}),
   });
 });
 
