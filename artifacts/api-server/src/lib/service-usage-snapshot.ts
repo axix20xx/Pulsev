@@ -5,6 +5,8 @@ export type ServiceUsageSnapshot = {
   awgOffsetBytes?: number | null;
 };
 
+const BYTES_PER_GB = 1024 ** 3;
+
 function nonNegativeBytes(value: number | null | undefined): number {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? Math.max(0, number) : 0;
@@ -13,6 +15,21 @@ function nonNegativeBytes(value: number | null | undefined): number {
 function signedBytes(value: number | null | undefined): number {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? Math.round(number) : 0;
+}
+
+export function serviceQuotaBytes(limitGb: number | string | null | undefined): number {
+  const limit = Number(limitGb ?? 0);
+  return Number.isFinite(limit) && limit > 0
+    ? Math.round(limit * BYTES_PER_GB)
+    : 0;
+}
+
+export function serviceQuotaReached(
+  limitGb: number | string | null | undefined,
+  usedBytes: number | null | undefined,
+): boolean {
+  const limitBytes = serviceQuotaBytes(limitGb);
+  return limitBytes > 0 && nonNegativeBytes(usedBytes) >= limitBytes;
 }
 
 /**

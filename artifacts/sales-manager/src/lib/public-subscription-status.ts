@@ -8,6 +8,15 @@ export function remainingSubscriptionDays(
   return Math.max(0, Math.ceil((timestamp - nowMs) / 86_400_000));
 }
 
+export function isSubscriptionQuotaExceeded(
+  usedGb: number | string | null | undefined,
+  limitGb: number | string | null | undefined,
+): boolean {
+  const used = Number(usedGb ?? 0);
+  const limit = Number(limitGb ?? 0);
+  return Number.isFinite(used) && Number.isFinite(limit) && limit > 0 && used >= limit;
+}
+
 export function isPublicSubscriptionFinished(input: {
   serverFinished?: boolean;
   status?: string;

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   isPublicSubscriptionExpiring,
   isPublicSubscriptionFinished,
+  isSubscriptionQuotaExceeded,
   remainingSubscriptionDays,
 } from "../src/lib/public-subscription-status.ts";
 
@@ -43,4 +44,11 @@ test("a subscription expiring within seven days is marked expiring", () => {
     status: "active",
     remainingDays,
   }), true);
+});
+
+test("quota exhaustion overrides an active status and an unlimited quota stays open", () => {
+  assert.equal(isSubscriptionQuotaExceeded(121.97, 100), true);
+  assert.equal(isSubscriptionQuotaExceeded(100, 100), true);
+  assert.equal(isSubscriptionQuotaExceeded(99.99, 100), false);
+  assert.equal(isSubscriptionQuotaExceeded(121.97, 0), false);
 });

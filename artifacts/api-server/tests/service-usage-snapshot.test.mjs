@@ -11,7 +11,13 @@ const { outputFiles } = await build({
   write: false,
 });
 const code = Buffer.from(outputFiles[0].text).toString("base64");
-const { serviceCanUseAwg, serviceUsageBytes, storedPanelUsageSql } = await import(`data:text/javascript;base64,${code}`);
+const {
+  serviceCanUseAwg,
+  serviceQuotaBytes,
+  serviceQuotaReached,
+  serviceUsageBytes,
+  storedPanelUsageSql,
+} = await import(`data:text/javascript;base64,${code}`);
 
 test("adds effective AWG usage when the saved combined total is behind", () => {
   assert.equal(serviceUsageBytes({
@@ -56,6 +62,15 @@ test("IPsec usage is added with all provider usage in the shared service total",
     awgTotalBytes: 3,
     awgOffsetBytes: 1,
   }), 13);
+});
+
+test("service quota uses the seller-assigned limit rather than a stale provider total", () => {
+  const usedBytes = 121.97 * 1024 ** 3;
+  assert.equal(serviceQuotaBytes(100), 100 * 1024 ** 3);
+  assert.equal(serviceQuotaReached(100, usedBytes), true);
+  assert.equal(serviceQuotaReached(100, 100 * 1024 ** 3), true);
+  assert.equal(serviceQuotaReached(100, 99 * 1024 ** 3), false);
+  assert.equal(serviceQuotaReached(0, usedBytes), false);
 });
 
 test("AWG actions require an active, unexpired service with quota remaining", () => {

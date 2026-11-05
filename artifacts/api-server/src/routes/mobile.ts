@@ -3,7 +3,12 @@ import { createHash, randomBytes } from "node:crypto";
 import webpush from "web-push";
 import { pool } from "@workspace/db";
 import { MASTER_ADMIN_TELEGRAM_ID } from "../lib/auth";
-import { serviceUsageBytes, storedPanelUsageSql } from "../lib/service-usage-snapshot";
+import {
+  serviceQuotaBytes,
+  serviceQuotaReached,
+  serviceUsageBytes,
+  storedPanelUsageSql,
+} from "../lib/service-usage-snapshot";
 import { allowMobileAuthAttempt, consumeMobileOtp, mobileOtpReady } from "../lib/mobile-otp";
 import { isAllowedPushEndpoint } from "../lib/mobile-push-url";
 import { hasWireGuardAccess, isWireGuardServiceAvailable } from "../lib/protocol-access";
@@ -392,9 +397,7 @@ const originPath = (req: Request, pathname: string) => {
 const asIso = (value: Date | string | null) => value ? new Date(value).toISOString() : null;
 
 const mapService = (req: Request, row: MobileServiceRow) => {
-  const totalBytes = Number(row.last_total_bytes ?? 0) > 0
-    ? Number(row.last_total_bytes)
-    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const totalBytes = serviceQuotaBytes(row.limit_gb);
   const usedBytes = serviceUsageBytes({
     lastUsedBytes: row.last_used_bytes,
     panelUsageBytes: row.panel_usage_bytes,
@@ -404,9 +407,10 @@ const mapService = (req: Request, row: MobileServiceRow) => {
   const remainingBytes = Math.max(0, totalBytes - usedBytes);
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const daysRemaining = expiresAt ? Math.ceil((expiresAt - Date.now()) / 86400000) : null;
+  const quotaFinished = serviceQuotaReached(row.limit_gb, usedBytes);
   const status = row.status === "disabled"
     ? "cancelled"
-    : expiresAt > 0 && expiresAt <= Date.now()
+    : (expiresAt > 0 && expiresAt <= Date.now()) || quotaFinished
       ? "expired"
       : row.status === "pending"
         ? "pending"
@@ -1304,7 +1308,7 @@ export const runMobileNotificationSweep = async (): Promise<void> => {
     const serviceUrl = `/mobile/subscriptions/${row.id}`;
     const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
     const days = expiresAt ? Math.ceil((expiresAt - Date.now()) / 86400000) : null;
-    const total = Number(row.last_total_bytes ?? 0) > 0 ? Number(row.last_total_bytes) : Number(row.limit_gb ?? 0) * 1024 ** 3;
+    const total = serviceQuotaBytes(row.limit_gb);
     const used = serviceUsageBytes({
       lastUsedBytes: row.last_used_bytes,
       panelUsageBytes: row.panel_usage_bytes,

@@ -54,7 +54,13 @@ import {
   UpdateServiceResponse,
 } from "@workspace/api-zod";
 import { pool } from "@workspace/db";
-import { serviceCanUseAwg, serviceUsageBytes, storedPanelUsageSql } from "../lib/service-usage-snapshot";
+import {
+  serviceCanUseAwg,
+  serviceQuotaBytes,
+  serviceQuotaReached,
+  serviceUsageBytes,
+  storedPanelUsageSql,
+} from "../lib/service-usage-snapshot";
 import { resolveUsageAnalyticsWindow } from "../lib/usage-analytics-window";
 import { hasWireGuardAccess } from "../lib/protocol-access";
 type ManagementClient = { query: typeof pool.query };
@@ -2482,9 +2488,6 @@ async function loadPublicOpenVpnService(token: string): Promise<any | null> {
 
 function publicOpenVpnServiceFinished(service: any): boolean {
   const expiresAt = service.expires_at ? new Date(service.expires_at).getTime() : 0;
-  const totalBytes = Number(service.last_total_bytes) > 0
-    ? Number(service.last_total_bytes)
-    : Math.round(Number(service.limit_gb ?? 0) * 1024 ** 3);
   const usedBytes = serviceUsageBytes({
     lastUsedBytes: service.last_used_bytes,
     panelUsageBytes: service.panel_usage_bytes,
@@ -2493,7 +2496,7 @@ function publicOpenVpnServiceFinished(service: any): boolean {
   });
   return service.status === "disabled"
     || service.status === "expired"
-    || (totalBytes > 0 && usedBytes >= totalBytes)
+    || serviceQuotaReached(service.limit_gb, usedBytes)
     || (Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now());
 }
 
@@ -2501,9 +2504,7 @@ function publicWireGuardProvisioningLimits(service: any): {
   remainingBytes: number | null;
   expiresAtUnix: number | null;
 } {
-  const totalBytes = Number(service.last_total_bytes) > 0
-    ? Number(service.last_total_bytes)
-    : Math.round(Number(service.limit_gb ?? 0) * 1024 ** 3);
+  const totalBytes = serviceQuotaBytes(service.limit_gb);
   const usedBytes = serviceUsageBytes({
     lastUsedBytes: service.last_used_bytes,
     panelUsageBytes: service.panel_usage_bytes,
@@ -2553,9 +2554,7 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     awgTotalBytes: row.awg_total_bytes,
     awgOffsetBytes: row.awg_offset_bytes,
   });
-  const totalBytes = Number(row.last_total_bytes) > 0
-    ? Number(row.last_total_bytes)
-    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const totalBytes = serviceQuotaBytes(row.limit_gb);
   const remainingBytes = Math.max(0, totalBytes - usedBytes);
   const usedGb = usedBytes / (1024 ** 3);
   const wireguardEnabled = hasWireGuardAccess(
@@ -2564,7 +2563,7 @@ router.get("/public/subscription/:token", async (req, res): Promise<void> => {
     MASTER_ADMIN_TELEGRAM_ID,
   );
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
-  const quotaFinished = totalBytes > 0 && usedBytes >= totalBytes;
+  const quotaFinished = serviceQuotaReached(row.limit_gb, usedBytes);
   const dateFinished = Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now();
   const finished = row.status === "disabled" || quotaFinished || dateFinished;
   const disableReason = row.disable_reason
@@ -4196,9 +4195,7 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     res.status(404).send("Subscription not found");
     return;
   }
-  const finishedTotalBytes = Number(row.last_total_bytes) > 0
-    ? Number(row.last_total_bytes)
-    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const finishedTotalBytes = serviceQuotaBytes(row.limit_gb);
   const finishedUsedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
   const finishedExpiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const quotaFinished = finishedTotalBytes > 0 && finishedUsedBytes >= finishedTotalBytes;
@@ -4308,16 +4305,9 @@ router.get("/public/subscription/:token/feed", async (req, res): Promise<void> =
     upstreamContentType = "text/yaml; charset=utf-8";
   }
 
-  const totalBytes = Number(row.last_total_bytes) > 0
-    ? Number(row.last_total_bytes)
-    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const totalBytes = serviceQuotaBytes(row.limit_gb);
   const usedBytes = Math.max(0, Number(row.last_used_bytes ?? 0));
-  const storedRemainingBytes = row.last_remaining_bytes === null || row.last_remaining_bytes === undefined
-    ? null
-    : Number(row.last_remaining_bytes);
-  const remainingBytes = storedRemainingBytes !== null && Number.isFinite(storedRemainingBytes)
-    ? Math.max(0, storedRemainingBytes)
-    : Math.max(0, totalBytes - usedBytes);
+  const remainingBytes = Math.max(0, totalBytes - usedBytes);
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   const expire = Number.isFinite(expiresAt) && expiresAt > 0 ? Math.floor(expiresAt / 1000) : 0;
 
@@ -4384,9 +4374,7 @@ async function resolvePublicAwgProfile(token: string): Promise<PublicAwgProfileR
   );
   const row = result.rows[0];
   if (!row) return { status: 404, error: "لینک اشتراک پیدا نشد." };
-  const totalBytes = Number(row.last_total_bytes) > 0
-    ? Number(row.last_total_bytes)
-    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+  const totalBytes = serviceQuotaBytes(row.limit_gb);
   const usedBytes = serviceUsageBytes({
     lastUsedBytes: row.last_used_bytes,
     panelUsageBytes: row.panel_usage_bytes,
@@ -8326,9 +8314,7 @@ router.post("/services/:id/awg", requireAuth, async (req, res): Promise<void> =>
       res.status(404).json({ error: "سرویس پیدا نشد" });
       return;
     }
-    const totalBytes = Number(row.last_total_bytes) > 0
-      ? Number(row.last_total_bytes)
-      : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+     const totalBytes = serviceQuotaBytes(row.limit_gb);
     const usedBytes = serviceUsageBytes({
       lastUsedBytes: row.last_used_bytes,
       panelUsageBytes: row.panel_usage_bytes,
@@ -8451,9 +8437,7 @@ router.get("/services/:id/awg/config", requireAuth, async (req, res): Promise<vo
     res.status(404).json({ error: "کلاینت AmneziaWG پیدا نشد" });
     return;
   }
-  const totalBytes = Number(row.last_total_bytes) > 0
-    ? Number(row.last_total_bytes)
-    : Math.round(Number(row.limit_gb ?? 0) * 1024 ** 3);
+   const totalBytes = serviceQuotaBytes(row.limit_gb);
   const usedBytes = serviceUsageBytes({
     lastUsedBytes: row.last_used_bytes,
     panelUsageBytes: row.panel_usage_bytes,

@@ -2662,3 +2662,17 @@ mtime_ms = 1793879973749
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b8c94930-1b52-4c03-8d2a-4d69b0e10c03/e655bb82-6daa-4c63-8ce3-19f2cc40ad70"
 storage_version_token = "1793879998631728"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "vsNuvtaqw7YzbVsyrxj1u"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-05T21-08-23-390Z.zip"
+type = "unspecified"
+title = "Hostinger full migration ZIP — quota status fix"
+description = "Updated package with over-quota status corrections, consistent enforcement based on the seller-assigned service limit, and the earlier AzadPanel OpenVPN fixes."
+logical_id = "ed91842d-487e-4380-a7dc-7125ff00ba4a"
+content_hash = "sha256:a2b83f9df610c87078023da9464b4fd65b228aa2b35ce0ca622780d0617edb58"
+size = 30975709
+mtime_ms = 1793913026084
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ed91842d-487e-4380-a7dc-7125ff00ba4a/2e297694-4b09-4f1d-a750-ae415a5e3879"
+storage_version_token = "1793913056244109"
+content_type = "application/octet-stream"

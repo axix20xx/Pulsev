@@ -10,7 +10,12 @@ import { useGetAuthSession, useGetDashboard, useLoginWithTelegramId, useListSale
 import { Customer, Service, Sale, dateLabel, dateTimeLabel, daysUntil, isoDaysFromToday, isoStartOfPersianMonth, isoToday, jalaliInputToIso, jalaliInputValue, jalaliToGregorian, money, todayLabel } from '@/lib/pulse-data';
 import { Avatar, MetricTile, PageHeader, SectionPanel, StatePanel, StatusPill } from '@/components/admin-console-primitives';
 import { copyTextToClipboard } from '@/lib/browser-utils';
-import { isPublicSubscriptionExpiring, isPublicSubscriptionFinished, remainingSubscriptionDays } from '@/lib/public-subscription-status';
+import {
+  isPublicSubscriptionExpiring,
+  isPublicSubscriptionFinished,
+  isSubscriptionQuotaExceeded,
+  remainingSubscriptionDays,
+} from '@/lib/public-subscription-status';
 import { Badge, Btn, Callout, Card, DataTable, EmptyState as AxEmpty, ErrorAlert, Kpi, KpiGrid, Meter, Page, PageHead, RefreshBtn, RowLink, RowList, SearchInput, Segment, SelectField, SkeletonRows, Stat, StatRow, Toolbar, Workbench, faNumber } from '@/admin/ui';
 import './public-sub-lux.css';
 import { openVpnConnectImportUrl } from '@/lib/openvpn-connect-link';
@@ -40,12 +45,20 @@ const freshSubscriptionUrl = (raw: string | null | undefined) => { if (!raw) ret
 const subscriptionFeedUrl = (raw: string | null | undefined) => { if (!raw) return null; try { const parsed = new URL(raw, window.location.origin); const token = subscriptionTokenFromUrl(parsed); return token ? `${window.location.origin}/api/public/subscription/${encodeURIComponent(token)}/feed` : parsed.toString(); } catch { return raw; } };
 const mapService = (item: any): Service => {
   const expiresAt = item.expires_at ?? '';
-  const status: Service['status'] = item.status === 'disabled' ? 'Disabled' : item.status === 'expired' ? 'Expired' : item.status === 'expiring' || (item.status === 'active' && expiresAt && daysUntil(expiresAt) >= 0 && daysUntil(expiresAt) <= 7) ? 'Expiring' : 'Active';
   const panelUsages = Array.isArray(item.panel_usages) ? item.panel_usages.map((usage: any) => ({ panelKey: String(usage.panel_key), panelKind: String(usage.panel_kind ?? ''), providerUsername: String(usage.provider_username ?? ''), usedGb: Number(usage.used_gb ?? 0), rawUsedGb: Number(usage.raw_used_gb ?? 0), offsetGb: Number(usage.offset_gb ?? 0), lastUpdated: usage.last_updated ?? null })) : [];
   const awgUsage = item.awg_usage ? { rxGb: Number(item.awg_usage.rx_gb ?? 0), txGb: Number(item.awg_usage.tx_gb ?? 0), rawTotalGb: Number(item.awg_usage.raw_total_gb ?? 0), usedGb: Number(item.awg_usage.used_gb ?? 0), offsetGb: Number(item.awg_usage.offset_gb ?? 0), lastUpdated: item.awg_usage.last_updated ?? null } : null;
   const componentUsageGb = panelUsages.reduce((total: number, usage: { usedGb: number }) => total + Math.max(0, usage.usedGb), 0) + Math.max(0, awgUsage?.usedGb ?? 0);
   const usedGb = Math.max(Number(item.used_gb ?? 0), componentUsageGb);
-  return { id: String(item.id), serviceCode: item.service_code ?? `PULSE-${String(item.id).padStart(6, '0')}`, customerId: String(item.customer_id ?? ''), customerName: item.customer_name ?? 'مشتری', username: item.username ?? 'بدون نام کاربری', plan: item.plan ?? 'سرویس پایه', panel: item.panel ?? 'پنل اصلی', status, expiresAt, createdAt: item.created_at ?? '', lastRenewedAt: item.last_renewed_at ?? null, provisionStatus: item.provision_status ?? null, provisionLastError: item.provision_last_error ?? null, provisionUpdatedAt: item.provision_updated_at ?? null, cancelStatus: item.cancel_status ?? null, cancelRequestedAt: item.cancel_requested_at ?? null, usedGb, limitGb: Number(item.limit_gb ?? 0), note: item.note ?? item.admin_notes ?? '', subscriptionUrl: subscriptionFeedUrl(item.subscription_url ?? null), publicSubscriptionUrl: freshSubscriptionUrl(item.subscription_url ?? null), awgReady: Boolean(item.awg_ready), awgConfigUrl: item.awg_config_url ?? null, panelUsages, awgUsage };
+  const limitGb = Number(item.limit_gb ?? 0);
+  const quotaFinished = isSubscriptionQuotaExceeded(usedGb, limitGb);
+  const status: Service['status'] = item.status === 'disabled'
+    ? 'Disabled'
+    : item.status === 'expired' || quotaFinished
+      ? 'Expired'
+      : item.status === 'expiring' || (item.status === 'active' && expiresAt && daysUntil(expiresAt) >= 0 && daysUntil(expiresAt) <= 7)
+        ? 'Expiring'
+        : 'Active';
+  return { id: String(item.id), serviceCode: item.service_code ?? `PULSE-${String(item.id).padStart(6, '0')}`, customerId: String(item.customer_id ?? ''), customerName: item.customer_name ?? 'مشتری', username: item.username ?? 'بدون نام کاربری', plan: item.plan ?? 'سرویس پایه', panel: item.panel ?? 'پنل اصلی', status, expiresAt, createdAt: item.created_at ?? '', lastRenewedAt: item.last_renewed_at ?? null, provisionStatus: item.provision_status ?? null, provisionLastError: item.provision_last_error ?? null, provisionUpdatedAt: item.provision_updated_at ?? null, cancelStatus: item.cancel_status ?? null, cancelRequestedAt: item.cancel_requested_at ?? null, usedGb, limitGb, note: item.note ?? item.admin_notes ?? '', subscriptionUrl: subscriptionFeedUrl(item.subscription_url ?? null), publicSubscriptionUrl: freshSubscriptionUrl(item.subscription_url ?? null), awgReady: Boolean(item.awg_ready), awgConfigUrl: item.awg_config_url ?? null, panelUsages, awgUsage };
 };
 const serviceDisplayCode = (service: Service) => service.serviceCode ?? `PULSE-${String(service.id).replace(/\D/g, '').padStart(6, '0')}`;
 const serviceTimestamp = (value?: string | null) => value ? new Date(value).getTime() || 0 : 0;
@@ -1746,7 +1759,10 @@ function ServiceUsageBreakdown({ service }: { service: Service }) {
     : 0;
   const remainingGb = Math.max(0, service.limitGb - service.usedGb);
   const remainingDays = daysUntil(service.expiresAt);
-  const finished = service.status === 'Expired' || service.status === 'Disabled' || remainingDays < 0;
+  const finished = service.status === 'Expired'
+    || service.status === 'Disabled'
+    || remainingDays < 0
+    || isSubscriptionQuotaExceeded(service.usedGb, service.limitGb);
   const expiring = !finished && remainingDays <= 7;
   const announcementTitle = finished ? 'اشتراک پایان یافته است' : expiring ? 'زمان تمدید نزدیک است' : 'اشتراک آماده استفاده است';
   const announcementDetail = finished ? 'برای فعال‌سازی دوباره این سرویس، آن را تمدید کنید.' : expiring ? `${remainingDays} روز تا پایان اعتبار باقی مانده است.` : 'این سرویس فعال است و برای اتصال آماده است.';
@@ -2868,7 +2884,8 @@ function PublicSubscriptionContent() {
   const remaining = remainingSubscriptionDays(data?.expires_at);
   const ratio = data?.limit_gb ? Math.min(100, Math.round((Number(data.used_gb) / Number(data.limit_gb)) * 100)) : 0;
   const remainingGb = Math.max(0, Number(data?.remaining_gb ?? Number(data?.limit_gb ?? 0) - Number(data?.used_gb ?? 0)));
-  const quotaFinished = Boolean(data?.limit_gb > 0 && (remainingGb <= 0 || Number(data?.used_gb ?? 0) >= Number(data?.limit_gb ?? 0)));
+  const quotaFinished = isSubscriptionQuotaExceeded(data?.used_gb, data?.limit_gb)
+    || Boolean(data?.limit_gb > 0 && remainingGb <= 0);
   const finished = isPublicSubscriptionFinished({
     serverFinished: data?.finished,
     status: data?.status,
@@ -3149,7 +3166,7 @@ function PublicSubscriptionContentV2() {
   const limitGb = Number(data?.limit_gb ?? 0);
   const remainingGb = Math.max(0, Number(data?.remaining_gb ?? limitGb - usedGb));
   const ratio = limitGb > 0 ? Math.min(100, Math.round((usedGb / limitGb) * 100)) : 0;
-  const quotaFinished = Boolean(limitGb > 0 && (remainingGb <= 0 || usedGb >= limitGb));
+  const quotaFinished = isSubscriptionQuotaExceeded(usedGb, limitGb) || Boolean(limitGb > 0 && remainingGb <= 0);
   const finished = isPublicSubscriptionFinished({
     serverFinished: data?.finished,
     status: data?.status,
