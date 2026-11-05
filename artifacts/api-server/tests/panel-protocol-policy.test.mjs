@@ -17,6 +17,7 @@ const {
   azadPanelXrayDeliveryDisposition,
   azadPanelXraySubscriptionPath,
   azadPanelXrayUserPath,
+  azadPanelReportsCore,
   isAzadPanelCoreCandidate,
   isStandardServiceProvisioningPanel,
   standardServiceProvisioningPanels,
@@ -30,6 +31,13 @@ test("OpenVPN core selection excludes WireGuard- and IPsec-specific panels", () 
   assert.equal(isAzadPanelCoreCandidate("azadpanel_openvpn", "openvpn"), true);
   assert.equal(isAzadPanelCoreCandidate("azadpanel_v2ray", "openvpn"), false);
   assert.equal(isAzadPanelCoreCandidate("azadpanel", "openvpn"), true);
+});
+
+test("OpenVPN provider selection skips generic AzadPanel rows with a different actual core", () => {
+  assert.equal(azadPanelReportsCore("azadpanel", "xray", "openvpn"), false);
+  assert.equal(azadPanelReportsCore("azadpanel", "openvpn", "openvpn"), true);
+  assert.equal(azadPanelReportsCore("azadpanel_openvpn", "openvpn", "openvpn"), true);
+  assert.equal(azadPanelReportsCore("azadpanel_openvpn", "xray", "openvpn"), false);
 });
 
 test("generic service provisioning excludes protocol-only provider rows", () => {

@@ -105,6 +105,7 @@ import {
   legacySubscriptionUrl,
   subscriptionUrl,
   type OpenVpnDelivery,
+  OpenVpnAccountNotFoundError,
 } from "../lib/rain";
 import { hasOtherActiveServiceWithUsername } from "../lib/service-disable-guard";
 import { awgOffsetForReplacementClient, reconcileAwgCounter } from "../lib/awg-counters";
@@ -3131,9 +3132,39 @@ router.get("/public/subscription/:token/openvpn", async (req, res): Promise<void
     return;
   }
   try {
-    const delivery = await loadSavedOpenVpnDelivery(Number(service.id));
+    const serviceId = Number(service.id);
+    let delivery = await loadSavedOpenVpnDelivery(serviceId);
+    if (!delivery) {
+      try {
+        const discovered = await prepareOpenVpnAccount(
+          String(service.username),
+          Number(service.limit_gb ?? 0),
+          new Date(service.expires_at),
+          Number(service.reseller_tg_id),
+          "reseller",
+          undefined,
+          serviceId,
+          false,
+        );
+        await pool.query(
+          `INSERT INTO reseller_service_openvpn_accounts (service_id, delivery_secret)
+           VALUES ($1, $2)
+           ON CONFLICT (service_id) DO NOTHING`,
+          [serviceId, encryptPanelCredential(JSON.stringify(discovered))],
+        );
+        delivery = await loadSavedOpenVpnDelivery(serviceId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (
+          !(error instanceof OpenVpnAccountNotFoundError)
+          && !message.includes("No enabled AzadPanel OpenVPN provider is configured")
+        ) {
+          throw error;
+        }
+      }
+    }
     const ravenProfiles = await publicRavenProfiles(
-      Number(service.id),
+      serviceId,
       token,
       "openvpn",
       delivery?.locations.length ?? 0,
@@ -3153,10 +3184,15 @@ router.get("/public/subscription/:token/openvpn", async (req, res): Promise<void
         });
         return;
       }
-      res.status(404).json({ error: "حساب OpenVPN ذخیره‌شده‌ای پیدا نشد", code: "OPENVPN_NOT_CREATED" });
-      return;
+      if (!delivery) {
+        res.status(404).json({
+          error: "حساب OpenVPN ذخیره‌شده‌ای پیدا نشد",
+          code: "OPENVPN_NOT_CREATED",
+        });
+        return;
+      }
     }
-    res.json({ ...publicOpenVpnDelivery(token, delivery, Number(service.id)), raven_profiles: ravenProfiles });
+    res.json({ ...publicOpenVpnDelivery(token, delivery, serviceId), raven_profiles: ravenProfiles });
   } catch {
     res.status(500).json({ error: "اطلاعات ذخیره‌شده OpenVPN قابل خواندن نیست." });
   }

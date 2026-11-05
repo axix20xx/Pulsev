@@ -25,6 +25,15 @@ export function isAzadPanelCoreCandidate(kind: unknown, core: AzadPanelCore): bo
   return normalized === "azadpanel" || azadPanelExpectedCore(normalized) === core;
 }
 
+export function azadPanelReportsCore(
+  kind: unknown,
+  reportedCore: unknown,
+  expectedCore: AzadPanelCore,
+): boolean {
+  return isAzadPanelCoreCandidate(kind, expectedCore)
+    && normalizeKind(reportedCore) === expectedCore;
+}
+
 export function isStandardServiceProvisioningPanel(kind: unknown): boolean {
   const normalized = normalizeKind(kind);
   return normalized !== "azadpanel_wireguard"

@@ -76477,6 +76477,9 @@ function isAzadPanelCoreCandidate(kind, core) {
   const normalized = normalizeKind(kind);
   return normalized === "azadpanel" || azadPanelExpectedCore(normalized) === core;
 }
+function azadPanelReportsCore(kind, reportedCore, expectedCore) {
+  return isAzadPanelCoreCandidate(kind, expectedCore) && normalizeKind(reportedCore) === expectedCore;
+}
 function isStandardServiceProvisioningPanel(kind) {
   const normalized = normalizeKind(kind);
   return normalized !== "azadpanel_wireguard" && normalized !== "azadpanel_ipsec";
@@ -79163,40 +79166,81 @@ async function repairXrayProviderUser(username, gb, expiresAt, providerKey, owne
   }
   return { key: panelKey(panel), kind, status: response.status };
 }
-async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, requestedPanelKey, serviceId) {
-  const openVpnPanels = (await panels(ownerId, role)).filter(
+var OpenVpnAccountNotFoundError = class extends Error {
+  constructor() {
+    super("No existing OpenVPN account was found for this service.");
+    this.name = "OpenVpnAccountNotFoundError";
+  }
+};
+async function prepareOpenVpnAccount(username, gb, expiresAt, ownerId, role, requestedPanelKey, serviceId, createIfMissing = true) {
+  const candidates = (await panels(ownerId, role)).filter(
     (panel2) => isAzadPanelCoreCandidate(panel2.kind, "openvpn")
   );
-  const panel = requestedPanelKey ? openVpnPanels.find((candidate) => panelKey(candidate) === requestedPanelKey) : openVpnPanels[0];
-  if (!panel) throw new RainApiError("No enabled AzadPanel OpenVPN provider is configured.");
-  if (await azadPanelCore(panel) !== "openvpn") {
-    throw new RainApiError(`AzadPanel ${panelKey(panel)} is not configured for OpenVPN.`);
+  const requestedPanel = requestedPanelKey ? candidates.find((candidate) => panelKey(candidate) === requestedPanelKey) : void 0;
+  if (requestedPanelKey && !requestedPanel) {
+    throw new RainApiError(`AzadPanel OpenVPN provider ${requestedPanelKey} is unavailable.`);
   }
-  let providerUsername = username;
-  if (Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
-    const saved = await pool.query(
-      `SELECT provider_username
-       FROM reseller_service_openvpn_provider_accounts
-       WHERE service_id = $1 AND provider_key = $2
-       LIMIT 1`,
-      [serviceId, panelKey(panel)]
-    );
-    if (saved.rows[0]?.provider_username?.trim()) {
-      providerUsername = saved.rows[0].provider_username.trim();
+  const openVpnPanels = [];
+  const panelErrors = [];
+  for (const candidate of requestedPanel ? [requestedPanel] : candidates) {
+    try {
+      const core = await azadPanelCore(candidate);
+      if (azadPanelReportsCore(candidate.kind, core, "openvpn")) {
+        openVpnPanels.push(candidate);
+      }
+    } catch (error40) {
+      panelErrors.push(error40 instanceof Error ? error40 : new Error(String(error40)));
     }
   }
-  let encoded = encodeURIComponent(providerUsername);
-  let existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
-  if (shouldUseAzadPanelOpenVpnCollision({
-    status: existing.status,
-    providerUsername,
-    serviceUsername: username,
-    serviceId
-  })) {
-    providerUsername = azadPanelOpenVpnCollisionUsername(serviceId);
-    encoded = encodeURIComponent(providerUsername);
-    existing = await panelRequest(panel, "GET", `/api/user/${encoded}`);
+  if (!openVpnPanels.length) {
+    if (panelErrors.length) throw panelErrors[0];
+    throw new RainApiError("No enabled AzadPanel OpenVPN provider is configured.");
   }
+  const probes = [];
+  for (const candidate of openVpnPanels) {
+    let providerUsername2 = username;
+    if (Number.isSafeInteger(serviceId) && Number(serviceId) > 0) {
+      const saved = await pool.query(
+        `SELECT provider_username
+         FROM reseller_service_openvpn_provider_accounts
+         WHERE service_id = $1 AND provider_key = $2
+         LIMIT 1`,
+        [serviceId, panelKey(candidate)]
+      );
+      if (saved.rows[0]?.provider_username?.trim()) {
+        providerUsername2 = saved.rows[0].provider_username.trim();
+      }
+    }
+    let encodedUsername = encodeURIComponent(providerUsername2);
+    let response = await panelRequest(candidate, "GET", `/api/user/${encodedUsername}`);
+    if (shouldUseAzadPanelOpenVpnCollision({
+      status: response.status,
+      providerUsername: providerUsername2,
+      serviceUsername: username,
+      serviceId
+    })) {
+      providerUsername2 = azadPanelOpenVpnCollisionUsername(serviceId);
+      encodedUsername = encodeURIComponent(providerUsername2);
+      response = await panelRequest(candidate, "GET", `/api/user/${encodedUsername}`);
+    }
+    probes.push({ panel: candidate, providerUsername: providerUsername2, encodedUsername, response });
+  }
+  let selected = probes.find((probe) => probe.response.status === 200);
+  if (!selected) {
+    const failed = probes.find((probe) => probe.response.status !== 404);
+    if (failed) {
+      throw new RainApiError(
+        `AzadPanel ${panelKey(failed.panel)} could not check the OpenVPN account: ${safeError(failed.response)}`
+      );
+    }
+    if (!createIfMissing) throw new OpenVpnAccountNotFoundError();
+    selected = probes.find((probe) => probe.response.status === 404);
+    if (!selected) throw new RainApiError("No enabled AzadPanel OpenVPN provider is configured.");
+  }
+  const panel = selected.panel;
+  let providerUsername = selected.providerUsername;
+  const encoded = selected.encodedUsername;
+  let existing = selected.response;
   if (existing.status === 404) {
     const created = await panelRequest(panel, "POST", "/api/user", azadPanelUserBody(providerUsername, gb, expiresAt));
     if (created.status < 200 || created.status >= 300) {
@@ -87502,9 +87546,36 @@ router2.get("/public/subscription/:token/openvpn", async (req, res) => {
     return;
   }
   try {
-    const delivery = await loadSavedOpenVpnDelivery(Number(service.id));
+    const serviceId = Number(service.id);
+    let delivery = await loadSavedOpenVpnDelivery(serviceId);
+    if (!delivery) {
+      try {
+        const discovered = await prepareOpenVpnAccount(
+          String(service.username),
+          Number(service.limit_gb ?? 0),
+          new Date(service.expires_at),
+          Number(service.reseller_tg_id),
+          "reseller",
+          void 0,
+          serviceId,
+          false
+        );
+        await pool.query(
+          `INSERT INTO reseller_service_openvpn_accounts (service_id, delivery_secret)
+           VALUES ($1, $2)
+           ON CONFLICT (service_id) DO NOTHING`,
+          [serviceId, encryptPanelCredential(JSON.stringify(discovered))]
+        );
+        delivery = await loadSavedOpenVpnDelivery(serviceId);
+      } catch (error40) {
+        const message = error40 instanceof Error ? error40.message : "";
+        if (!(error40 instanceof OpenVpnAccountNotFoundError) && !message.includes("No enabled AzadPanel OpenVPN provider is configured")) {
+          throw error40;
+        }
+      }
+    }
     const ravenProfiles = await publicRavenProfiles(
-      Number(service.id),
+      serviceId,
       token,
       "openvpn",
       delivery?.locations.length ?? 0
@@ -87524,10 +87595,15 @@ router2.get("/public/subscription/:token/openvpn", async (req, res) => {
         });
         return;
       }
-      res.status(404).json({ error: "\u062D\u0633\u0627\u0628 OpenVPN \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647\u200C\u0627\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F", code: "OPENVPN_NOT_CREATED" });
-      return;
+      if (!delivery) {
+        res.status(404).json({
+          error: "\u062D\u0633\u0627\u0628 OpenVPN \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647\u200C\u0627\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F",
+          code: "OPENVPN_NOT_CREATED"
+        });
+        return;
+      }
     }
-    res.json({ ...publicOpenVpnDelivery(token, delivery, Number(service.id)), raven_profiles: ravenProfiles });
+    res.json({ ...publicOpenVpnDelivery(token, delivery, serviceId), raven_profiles: ravenProfiles });
   } catch {
     res.status(500).json({ error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647 OpenVPN \u0642\u0627\u0628\u0644 \u062E\u0648\u0627\u0646\u062F\u0646 \u0646\u06CC\u0633\u062A." });
   }

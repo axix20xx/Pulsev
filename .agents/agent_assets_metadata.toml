@@ -2648,3 +2648,17 @@ mtime_ms = 1793835258766
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5b288c17-10e2-4fd5-b224-6af9b2ea4739/2c609233-ff27-4477-87be-0da7a253a0cc"
 storage_version_token = "1793835338744500"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "0Z40NmZ5oqbv6D2hu8GZT"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-05T11-57-28-442Z.zip"
+type = "unspecified"
+title = "Hostinger full migration ZIP — AzadPanel OpenVPN fix"
+description = "Updated Hostinger package with AzadPanel OpenVPN provider selection, existing-account recovery for /sub and /mobile, and OpenVPN Connect import-link checks."
+logical_id = "b8c94930-1b52-4c03-8d2a-4d69b0e10c03"
+content_hash = "sha256:25113475d60f7f2a251ead9f8248df70660396453255b50f0f5cbad540f7af33"
+size = 30975251
+mtime_ms = 1793879973749
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/b8c94930-1b52-4c03-8d2a-4d69b0e10c03/e655bb82-6daa-4c63-8ce3-19f2cc40ad70"
+storage_version_token = "1793879998631728"
+content_type = "application/octet-stream"
