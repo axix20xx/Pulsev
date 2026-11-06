@@ -9,6 +9,7 @@ import type { UsageAnalyticsAnomaly } from './usageAnalyticsAnomaly';
 import type { UsageAnalyticsBucket } from './usageAnalyticsBucket';
 import type { UsageAnalyticsComparison } from './usageAnalyticsComparison';
 import type { UsageAnalyticsCustomer } from './usageAnalyticsCustomer';
+import type { UsageAnalyticsDailyPoint } from './usageAnalyticsDailyPoint';
 import type { UsageAnalyticsProvider } from './usageAnalyticsProvider';
 import type { UsageAnalyticsProviderHealth } from './usageAnalyticsProviderHealth';
 import type { UsageAnalyticsProviderTotal } from './usageAnalyticsProviderTotal';
@@ -19,6 +20,7 @@ import type { UsageAnalyticsScope } from './usageAnalyticsScope';
 import type { UsageAnalyticsService } from './usageAnalyticsService';
 import type { UsageAnalyticsServiceOption } from './usageAnalyticsServiceOption';
 import type { UsageAnalyticsWeekdayHour } from './usageAnalyticsWeekdayHour';
+import type { UsageAnalyticsWeeklyInsights } from './usageAnalyticsWeeklyInsights';
 
 export interface UsageAnalytics {
   scope: UsageAnalyticsScope;
@@ -43,6 +45,8 @@ export interface UsageAnalytics {
   peak_bucket: UsageAnalyticsBucket | null;
   buckets: UsageAnalyticsBucket[];
   weekday_hour: UsageAnalyticsWeekdayHour[];
+  weekly_daily: UsageAnalyticsDailyPoint[];
+  weekly_insights: UsageAnalyticsWeeklyInsights;
   provider_options: UsageAnalyticsProvider[];
   providers: UsageAnalyticsProviderTotal[];
   provider_health: UsageAnalyticsProviderHealth[];

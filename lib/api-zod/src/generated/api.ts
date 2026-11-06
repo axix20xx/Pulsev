@@ -1069,6 +1069,37 @@ export const getUsageAnalyticsResponseWeekdayHourItemHourMultipleOf = 1;
 
 export const getUsageAnalyticsResponseWeekdayHourItemBytesMin = 0;
 
+export const getUsageAnalyticsResponseWeekdayHourItemObservedDaysMin = 0;
+export const getUsageAnalyticsResponseWeekdayHourItemObservedDaysMax = 1;
+export const getUsageAnalyticsResponseWeekdayHourItemObservedDaysMultipleOf = 1;
+
+export const getUsageAnalyticsResponseWeeklyDailyItemBytesMin = 0;
+
+export const getUsageAnalyticsResponseWeeklyDailyItemSampleBucketsMin = 0;
+export const getUsageAnalyticsResponseWeeklyDailyItemSampleBucketsMultipleOf = 1;
+
+export const getUsageAnalyticsResponseWeeklyDailyItemServiceCountMin = 0;
+export const getUsageAnalyticsResponseWeeklyDailyItemServiceCountMultipleOf = 1;
+
+export const getUsageAnalyticsResponseWeeklyInsightsObservedDaysMin = 0;
+export const getUsageAnalyticsResponseWeeklyInsightsObservedDaysMax = 7;
+export const getUsageAnalyticsResponseWeeklyInsightsObservedDaysMultipleOf = 1;
+
+export const getUsageAnalyticsResponseWeeklyInsightsCoveragePercentMin = 0;
+export const getUsageAnalyticsResponseWeeklyInsightsCoveragePercentMax = 100;
+
+export const getUsageAnalyticsResponseWeeklyInsightsTotalBytesMin = 0;
+
+export const getUsageAnalyticsResponseWeeklyInsightsAverageDailyBytesMin = 0;
+
+export const getUsageAnalyticsResponseWeeklyInsightsMedianDailyBytesMin = 0;
+
+export const getUsageAnalyticsResponseWeeklyInsightsVolatilityPercentMin = 0;
+
+export const getUsageAnalyticsResponseWeeklyInsightsPeakDayBytesMin = 0;
+
+export const getUsageAnalyticsResponseWeeklyInsightsAnomalyDaysItemBytesMin = 0;
+
 export const getUsageAnalyticsResponseProvidersItemTwoBytesMin = 0;
 
 export const getUsageAnalyticsResponseProvidersItemTwoSharePercentMin = 0;
@@ -1167,8 +1198,34 @@ export const GetUsageAnalyticsResponse = zod.object({
   "weekday_hour": zod.array(zod.object({
   "weekday": zod.number().min(getUsageAnalyticsResponseWeekdayHourItemWeekdayMin).max(getUsageAnalyticsResponseWeekdayHourItemWeekdayMax).multipleOf(getUsageAnalyticsResponseWeekdayHourItemWeekdayMultipleOf),
   "hour": zod.number().min(getUsageAnalyticsResponseWeekdayHourItemHourMin).max(getUsageAnalyticsResponseWeekdayHourItemHourMax).multipleOf(getUsageAnalyticsResponseWeekdayHourItemHourMultipleOf),
-  "bytes": zod.number().min(getUsageAnalyticsResponseWeekdayHourItemBytesMin)
+  "bytes": zod.number().min(getUsageAnalyticsResponseWeekdayHourItemBytesMin),
+  "observed_days": zod.number().min(getUsageAnalyticsResponseWeekdayHourItemObservedDaysMin).max(getUsageAnalyticsResponseWeekdayHourItemObservedDaysMax).multipleOf(getUsageAnalyticsResponseWeekdayHourItemObservedDaysMultipleOf)
 })),
+  "weekly_daily": zod.array(zod.object({
+  "day": zod.coerce.date(),
+  "bytes": zod.number().min(getUsageAnalyticsResponseWeeklyDailyItemBytesMin),
+  "sample_buckets": zod.number().min(getUsageAnalyticsResponseWeeklyDailyItemSampleBucketsMin).multipleOf(getUsageAnalyticsResponseWeeklyDailyItemSampleBucketsMultipleOf),
+  "service_count": zod.number().min(getUsageAnalyticsResponseWeeklyDailyItemServiceCountMin).multipleOf(getUsageAnalyticsResponseWeeklyDailyItemServiceCountMultipleOf),
+  "observed": zod.boolean()
+})),
+  "weekly_insights": zod.object({
+  "expected_days": zod.literal(7),
+  "observed_days": zod.number().min(getUsageAnalyticsResponseWeeklyInsightsObservedDaysMin).max(getUsageAnalyticsResponseWeeklyInsightsObservedDaysMax).multipleOf(getUsageAnalyticsResponseWeeklyInsightsObservedDaysMultipleOf),
+  "coverage_percent": zod.number().min(getUsageAnalyticsResponseWeeklyInsightsCoveragePercentMin).max(getUsageAnalyticsResponseWeeklyInsightsCoveragePercentMax),
+  "total_bytes": zod.number().min(getUsageAnalyticsResponseWeeklyInsightsTotalBytesMin),
+  "average_daily_bytes": zod.number().min(getUsageAnalyticsResponseWeeklyInsightsAverageDailyBytesMin).nullable(),
+  "median_daily_bytes": zod.number().min(getUsageAnalyticsResponseWeeklyInsightsMedianDailyBytesMin).nullable(),
+  "volatility_percent": zod.number().min(getUsageAnalyticsResponseWeeklyInsightsVolatilityPercentMin).nullable(),
+  "trend": zod.enum(['rising', 'stable', 'falling', 'insufficient']),
+  "trend_percent_per_day": zod.number().nullable(),
+  "peak_day": zod.coerce.date().nullable(),
+  "peak_day_bytes": zod.number().min(getUsageAnalyticsResponseWeeklyInsightsPeakDayBytesMin).nullable(),
+  "anomaly_days": zod.array(zod.object({
+  "day": zod.coerce.date(),
+  "bytes": zod.number().min(getUsageAnalyticsResponseWeeklyInsightsAnomalyDaysItemBytesMin),
+  "robust_score": zod.number()
+}))
+}),
   "provider_options": zod.array(zod.object({
   "key": zod.string(),
   "label": zod.string()

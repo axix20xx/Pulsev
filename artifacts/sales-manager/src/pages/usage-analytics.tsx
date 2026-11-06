@@ -4,7 +4,7 @@ import { getGetUsageAnalyticsQueryKey, getListResellersQueryKey, useGetUsageAnal
 import { Badge, Btn, Card, DataTable, EmptyState, ErrorAlert, Meter, Page, PageHead, SkeletonRows } from "@/admin/ui";
 import { isoToday } from "@/lib/pulse-data";
 import { PersianDateField, usePulse } from "@/pages/pulse-pages";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import "./usage-analytics.css";
 
 const PAGE_SIZE = 25;
@@ -48,9 +48,9 @@ const forecastConfidenceLabel = (value: string) => ({ high: "بالا", medium: 
 const forecastTrendLabel = (value: string) => ({ rising: "افزایشی", stable: "پایدار", falling: "کاهشی", unknown: "نامشخص" } as Record<string, string>)[value] ?? "نامشخص";
 const forecastEndReasonLabel = (value: string) => ({ quota: "حجم زودتر تمام می‌شود", validity: "اعتبار زمانی زودتر تمام می‌شود", unknown: "ترتیب پایان مشخص نیست" } as Record<string, string>)[value] ?? "ترتیب پایان مشخص نیست";
 
-function UsageHeatmap({ rows }: { rows: Array<{ weekday: number; hour: number; bytes: number }> }) {
-  const values = new Map(rows.map((row) => [`${row.weekday}:${row.hour}`, Number(row.bytes)]));
-  const maximum = Math.max(1, ...rows.map((row) => Number(row.bytes)));
+function UsageHeatmap({ rows }: { rows: Array<{ weekday: number; hour: number; bytes: number; observed_days: number }> }) {
+  const values = new Map(rows.map((row) => [`${row.weekday}:${row.hour}`, row]));
+  const maximum = Math.max(1, ...rows.filter((row) => row.observed_days > 0).map((row) => Number(row.bytes)));
   return <div className="usage-heatmap-scroll" role="img" aria-label="نقشهٔ گرمای مصرف بر اساس روز هفته و ساعت تهران">
     <div className="usage-heatmap">
       <span className="usage-heatmap-corner">روز / ساعت</span>
@@ -58,12 +58,141 @@ function UsageHeatmap({ rows }: { rows: Array<{ weekday: number; hour: number; b
       {weekdayLabels.map((day, weekday) => <div className="usage-heatmap-row" key={day}>
         <strong>{day}</strong>
         {Array.from({ length: 24 }, (_, hour) => {
-          const bytes = values.get(`${weekday}:${hour}`) ?? 0;
-          const alpha = bytes > 0 ? 0.12 + 0.78 * (bytes / maximum) : 0.035;
-          return <span key={`${weekday}-${hour}`} title={`${day}، ساعت ${hour}: ${bytesFormat(bytes)}`} style={{ background: `hsl(var(--primary) / ${alpha})` }} />;
+          const cell = values.get(`${weekday}:${hour}`);
+          const observed = Boolean(cell && cell.observed_days > 0);
+          const bytes = Number(cell?.bytes ?? 0);
+          const alpha = observed && bytes > 0 ? 0.12 + 0.78 * (bytes / maximum) : observed ? 0.12 : undefined;
+          return <span
+            key={`${weekday}-${hour}`}
+            className={`usage-heatmap-cell ${observed ? "is-observed" : "is-missing"}`}
+            data-testid={`heatmap-cell-${weekday}-${hour}`}
+            title={observed ? `${day}، ساعت ${hour}: ${bytesFormat(bytes)} · نمونهٔ موجود` : `${day}، ساعت ${hour}: نمونه‌ای ثبت نشده`}
+            aria-label={observed ? `${day}، ساعت ${hour}، ${bytesFormat(bytes)}` : `${day}، ساعت ${hour}، نمونه‌ای ثبت نشده`}
+            style={observed ? { backgroundColor: `hsl(var(--primary) / ${alpha})` } : undefined}
+          />;
         })}
       </div>)}
     </div>
+    <div className="usage-heatmap-legend" aria-label="راهنمای نقشهٔ گرمایی">
+      <span><i className="is-observed"/> نمونهٔ ثبت‌شده، حتی با مصرف صفر</span>
+      <span><i className="is-missing"/> بدون مشاهده</span>
+    </div>
+  </div>;
+}
+
+function WeeklyDailyChart({ data }: { data: Array<{ day: string; bytes: number; observed: boolean; observedBytes: number | null; sample_buckets: number; service_count: number }> }) {
+  if (!data.length) return <div className="usage-chart-empty">دادهٔ هفتگی در دسترس نیست.</div>;
+  return <div className="usage-chart-wrap usage-weekly-chart" role="img" aria-label="مصرف روزانه در هفت روز کامل اخیر تهران">
+    <ResponsiveContainer width="100%" height="100%" debounce={0}>
+      <LineChart data={data} margin={{ top: 12, right: 8, left: 8, bottom: 2 }}>
+        <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" vertical={false}/>
+        <XAxis dataKey="day" tickFormatter={(value: string) => dateLabel(value)} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={5}/>
+        <YAxis tickFormatter={compactBytes} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} width={62} domain={[0, "auto"]}/>
+        <Tooltip
+          labelFormatter={(value) => dateLabel(String(value))}
+          formatter={(value, _name, item) => item.payload.observed ? [bytesFormat(Number(value)), `${numberFa.format(item.payload.sample_buckets)} نمونه`] : ["داده‌ای ثبت نشده", "وضعیت روز"]}
+          contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 12 }}
+          isAnimationActive={false}
+        />
+        <Line type="monotone" dataKey="observedBytes" name="مصرف روزانه" stroke="hsl(var(--primary))" strokeWidth={2.5} connectNulls={false} isAnimationActive={false} activeDot={{ r: 4 }}/>
+      </LineChart>
+    </ResponsiveContainer>
+    <div className="usage-weekly-missing" aria-label="روزهای بدون مشاهده">
+      {data.map((point) => <span key={point.day} className={point.observed ? "is-observed" : "is-missing"} data-testid={`weekly-day-status-${point.day}`} title={`${dateLabel(point.day)}: ${point.observed ? "مشاهده شده" : "بدون نمونه"}`}>
+        <i/>{dateLabel(point.day)}{point.observed ? "" : " · بدون نمونه"}
+      </span>)}
+    </div>
+  </div>;
+}
+
+function WeeklyHourChart({ rows }: { rows: Array<{ weekday: number; hour: number; bytes: number; observed_days: number }> }) {
+  const hourly = Array.from({ length: 24 }, (_, hour) => {
+    const cells = rows.filter((row) => row.hour === hour && row.observed_days > 0);
+    const observedDays = cells.reduce((sum, row) => sum + row.observed_days, 0);
+    const bytes = cells.reduce((sum, row) => sum + Number(row.bytes), 0);
+    return { hour, observedDays, bytes: observedDays ? bytes / observedDays : null };
+  });
+  return <div className="usage-chart-wrap usage-hour-chart" role="img" aria-label="میانگین مصرف در هر ساعت از شبانه‌روز بر پایهٔ روزهای مشاهده‌شده">
+    <ResponsiveContainer width="100%" height="100%" debounce={0}>
+      <BarChart data={hourly} margin={{ top: 12, right: 8, left: 8, bottom: 2 }}>
+        <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" vertical={false}/>
+        <XAxis dataKey="hour" tickFormatter={(value: number) => new Intl.NumberFormat("fa-IR", { useGrouping: false }).format(value)} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} interval={2}/>
+        <YAxis tickFormatter={compactBytes} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} width={62} domain={[0, "auto"]}/>
+        <Tooltip
+          labelFormatter={(value) => `ساعت ${numberFa.format(Number(value))}`}
+          formatter={(value, _name, item) => item.payload.observedDays ? [bytesFormat(Number(value)), `میانگین · ${numberFa.format(item.payload.observedDays)} روز مشاهده`] : ["نمونه‌ای ثبت نشده", "وضعیت ساعت"]}
+          contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 12 }}
+          cursor={{ fill: "hsl(var(--primary) / .07)" }}
+          isAnimationActive={false}
+        />
+        <Bar dataKey="bytes" name="میانگین مصرف" fill="hsl(var(--primary))" fillOpacity={0.78} radius={[3, 3, 0, 0]} isAnimationActive={false}/>
+      </BarChart>
+    </ResponsiveContainer>
+  </div>;
+}
+
+function ProviderCompositionChart({ providers }: { providers: Array<{ key: string; label: string; bytes: number; share_percent: number }> }) {
+  const colors = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(156 42% 43%)", "hsl(28 68% 58%)", "hsl(345 52% 58%)", "hsl(204 34% 57%)"];
+  const orderedProviders = [...providers]
+    .filter((provider) => Number(provider.bytes) > 0)
+    .sort((a, b) => Number(b.bytes) - Number(a.bytes));
+  const topProviders = orderedProviders.slice(0, 5);
+  const otherProviders = orderedProviders.slice(5);
+  const chartProviders = otherProviders.length
+    ? [...topProviders, {
+      key: "other",
+      label: "سایر",
+      bytes: otherProviders.reduce((total, provider) => total + Number(provider.bytes), 0),
+      share_percent: otherProviders.reduce((total, provider) => total + Number(provider.share_percent), 0),
+    }]
+    : topProviders;
+  return <div className="usage-provider-composition">
+    <div className="usage-provider-donut" role="img" aria-label="ترکیب سهم ارائه‌دهندگان از مصرف بازهٔ انتخابی">
+      <ResponsiveContainer width="100%" height="100%" debounce={0}>
+        <PieChart>
+          <Pie data={chartProviders} dataKey="bytes" nameKey="label" innerRadius="62%" outerRadius="88%" paddingAngle={2} stroke="hsl(var(--card))" strokeWidth={2} isAnimationActive={false}>
+            {chartProviders.map((provider, index) => <Cell key={provider.key} fill={colors[index % colors.length]}/>)}
+          </Pie>
+          <Tooltip formatter={(value, _name, item) => [`${bytesFormat(Number(value))} · ${percentFa(Number(item.payload.share_percent))}`, item.payload.label]} contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 12 }} isAnimationActive={false}/>
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
+    <div className="usage-provider-legend">
+      {chartProviders.map((provider, index) => <div key={provider.key} className="usage-provider-legend-row" data-testid={`provider-share-${provider.key}`}>
+        <i style={{ background: colors[index % colors.length] }}/>
+        <strong>{provider.label}</strong>
+        <span>{percentFa(provider.share_percent)}</span>
+        <small>{bytesFormat(provider.bytes)}</small>
+      </div>)}
+    </div>
+  </div>;
+}
+
+function WeeklyInsightsSummary({ insight }: { insight: { expected_days: number; observed_days: number; coverage_percent: number; total_bytes: number; average_daily_bytes: number | null; median_daily_bytes: number | null; volatility_percent: number | null; trend: "rising" | "stable" | "falling" | "insufficient"; trend_percent_per_day: number | null; peak_day: string | null; peak_day_bytes: number | null; anomaly_days: Array<{ day: string; bytes: number; robust_score: number }> } }) {
+  const trendText = insight.trend === "rising" ? "افزایشی" : insight.trend === "falling" ? "کاهشی" : insight.trend === "stable" ? "پایدار" : "دادهٔ ناکافی";
+  const trendTone = insight.trend === "rising" ? "warn" as const : insight.trend === "falling" ? "good" as const : "neutral" as const;
+  return <div className="usage-weekly-summary">
+    <div className="usage-weekly-summary-intro">
+      <div><strong>هفت روز کامل تهران</strong><span>مستقل از بازهٔ نمودار اصلی؛ فقط روزهای دارای مشاهده در میانگین و میانه وارد شده‌اند.</span></div>
+      <Badge tone={insight.coverage_percent >= 85 ? "good" : insight.coverage_percent > 0 ? "warn" : "neutral"} dot data-testid="weekly-coverage-badge">{numberFa.format(insight.observed_days)} از {numberFa.format(insight.expected_days)} روز · پوشش {percentFa(insight.coverage_percent)}</Badge>
+    </div>
+    <div className="usage-weekly-metrics">
+      <div data-testid="weekly-total"><span>جمع هفتگی ثبت‌شده</span><strong>{bytesFormat(insight.total_bytes)}</strong></div>
+      <div data-testid="weekly-mean"><span>میانگین روز مشاهده‌شده</span><strong>{insight.average_daily_bytes == null ? "—" : bytesFormat(insight.average_daily_bytes)}</strong></div>
+      <div data-testid="weekly-median"><span>میانهٔ روز مشاهده‌شده</span><strong>{insight.median_daily_bytes == null ? "—" : bytesFormat(insight.median_daily_bytes)}</strong></div>
+      <div data-testid="weekly-volatility"><span>نوسان نسبی روزانه</span><strong>{insight.volatility_percent == null ? "—" : percentFa(insight.volatility_percent)}</strong></div>
+    </div>
+    <div className="usage-weekly-context">
+      <div data-testid="weekly-trend"><span>روند مقاوم</span><Badge tone={trendTone}>{trendText}{insight.trend_percent_per_day == null ? "" : ` · ${insight.trend_percent_per_day > 0 ? "+" : ""}${percentFa(insight.trend_percent_per_day)} در روز`}</Badge></div>
+      <div data-testid="weekly-peak"><span>روز اوج</span><strong>{insight.peak_day ? `${dateLabel(insight.peak_day)} · ${bytesFormat(insight.peak_day_bytes ?? 0)}` : "قابل تعیین نیست"}</strong></div>
+      <div className="usage-weekly-anomalies" data-testid="weekly-anomalies">
+        <span>روزهای غیرعادی بر پایهٔ MAD</span>
+        {insight.anomaly_days.length
+          ? <div>{insight.anomaly_days.map((item) => <Badge key={item.day} tone="warn" data-testid={`weekly-anomaly-${item.day}`}>{dateLabel(item.day)} · {bytesFormat(item.bytes)} · امتیاز مقاوم {new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 }).format(item.robust_score)}</Badge>)}</div>
+          : <small>روز غیرعادی شناسایی نشد.</small>}
+      </div>
+    </div>
+    {insight.observed_days < insight.expected_days && <p className="usage-weekly-partial" role="note" data-testid="weekly-partial-note">پوشش ناقص است؛ روزهای بدون نمونه از محاسبهٔ میانگین و روند کنار گذاشته شده‌اند و به‌عنوان مصرف صفر نمایش داده نمی‌شوند.</p>}
   </div>;
 }
 
@@ -241,10 +370,16 @@ export default function UsageAnalyticsPage() {
       <Card title="روند مصرف" description={data ? `${dateLabel(data.from_at, true)} — ${dateLabel(data.to_at, true)}` : "ترافیک ثبت‌شده در طول زمان"} actions={<span className="usage-chart-legend"><i/>حجم مصرف</span>}>
         {loading && !data ? <div className="usage-chart-empty"><span className="ax-skel" style={{ width:"100%", height:190 }}/></div> : data ? <UsageChart data={data.buckets} range={range}/> : <EmptyState title="داده‌ای برای نمایش نیست" detail="پس از ثبت نمونه‌های تاریخی، نمودار اینجا نمایش داده می‌شود." icon={BarChart3}/>}
       </Card>
-      <Card title="تفکیک ارائه‌دهنده" description="مصرف هر ارائه‌دهنده در بازه؛ مقدار صفر نیز نمایش داده می‌شود">
-        {loading && !data ? <SkeletonRows rows={4}/> : providers.length ? <div className="usage-provider-list">{providers.map((provider) => <div className="usage-provider-row" key={provider.key}><div className="usage-provider-head"><strong>{provider.label}</strong><span>{bytesFormat(provider.bytes)} · {percentFa(provider.share_percent)}</span></div><div className="usage-provider-track"><i style={{ width:`${Math.max(0, Math.min(100, provider.share_percent))}%` }}/></div></div>)}</div> : <EmptyState title="ارائه‌دهنده‌ای ثبت نشده" detail="در این بازه ترافیکی برای ارائه‌دهندگان موجود نیست." icon={HardDrive}/>}
+      <Card title="ترکیب ارائه‌دهنده‌ها" description="سهم پنج ارائه‌دهندهٔ برتر و سایر موارد از مصرف بازهٔ انتخابی">
+        {loading && !data ? <SkeletonRows rows={4}/> : providers.some((provider) => Number(provider.bytes) > 0) ? <ProviderCompositionChart providers={providers}/> : <EmptyState title="مصرف ثبت‌شده‌ای نیست" detail="برای این بازه دادهٔ مثبتی جهت نمایش ترکیب ارائه‌دهندگان وجود ندارد." icon={HardDrive}/>}
       </Card>
     </div>
+    <Card title="خلاصهٔ تحلیلی هفتگی" description="خوانش عملیاتی از هفت روز کامل گذشته، با اعلام روشن میزان پوشش">
+      {loading && !data ? <SkeletonRows rows={4}/> : data ? <WeeklyInsightsSummary insight={data.weekly_insights}/> : <EmptyState title="خلاصهٔ هفتگی در دسترس نیست" detail="پس از دریافت دادهٔ تحلیل، پوشش و روند هفتگی نمایش داده می‌شود." icon={BarChart3}/>}
+    </Card>
+    <Card title="مصرف روزانهٔ هفت روز اخیر" description="هفت روز کامل تقویمی تهران؛ مستقل از بازهٔ انتخابی نمودار اصلی" actions={<span className="usage-chart-legend"><i/>روز مشاهده‌شده</span>}>
+      {loading && !data ? <div className="usage-chart-empty"><span className="ax-skel" style={{ width:"100%", height:190 }}/></div> : data ? <WeeklyDailyChart data={(data.weekly_daily ?? []).map((point) => ({ ...point, observedBytes: point.observed ? point.bytes : null }))}/> : <EmptyState title="داده‌ای برای نمایش نیست" detail="نمونه‌های هفتگی پس از دریافت در این نمودار نمایش داده می‌شوند." icon={BarChart3}/>}
+    </Card>
     <div className="usage-insights-grid">
       <Card title="اوج مصرف" description="بیشترین بازهٔ ثبت‌شده در نمودار، بر اساس ساعت تهران">
         {data?.peak_bucket ? <div className="usage-peak"><strong>{bytesFormat(data.peak_bucket.bytes)}</strong><span>{dateLabel(data.peak_bucket.bucket_at, true)}</span></div> : <EmptyState title="اوجی برای نمایش نیست" detail="پس از ثبت مصرف مثبت در بازه نمایش داده می‌شود." icon={TrendingUp}/>}
@@ -253,9 +388,14 @@ export default function UsageAnalyticsPage() {
         {loading && !data ? <SkeletonRows rows={3}/> : data?.provider_health.length ? <div className="usage-health-list">{data.provider_health.map((provider) => <div className="usage-health-row" key={provider.key}><div><strong>{provider.label}</strong><small>{numberFa.format(provider.service_count)} سرویس دارای نمونه</small></div><div><Badge tone={providerStatusTone(provider.status)} dot>{providerStatusLabel(provider.status)}</Badge><small>{provider.last_sample_at ? dateLabel(provider.last_sample_at, true) : "هنوز نمونه‌ای ثبت نشده"}</small></div></div>)}</div> : <EmptyState title="Providerی در دسترس نیست" icon={HardDrive}/>}
       </Card>
     </div>
-    <Card title="الگوی مصرف روز و ساعت" description="حجم ترافیک ثبت‌شده در ساعت‌های هفته به وقت تهران">
-      {loading && !data ? <SkeletonRows rows={3}/> : data ? <UsageHeatmap rows={data.weekday_hour}/> : <EmptyState title="داده‌ای برای نمایش نیست" icon={BarChart3}/>}
-    </Card>
+    <div className="usage-profile-grid">
+      <Card title="پروفایل ۲۴ ساعته" description="میانگین هر ساعت از شبانه‌روز؛ فقط روزهای دارای مشاهده در محاسبه‌اند">
+        {loading && !data ? <div className="usage-chart-empty"><span className="ax-skel" style={{ width:"100%", height:190 }}/></div> : data ? <WeeklyHourChart rows={data.weekday_hour}/> : <EmptyState title="پروفایل ساعتی در دسترس نیست" icon={BarChart3}/>}
+      </Card>
+      <Card title="الگوی مصرف روز و ساعت" description="هفت روز کامل اخیر تهران؛ خانهٔ خالی با مصرف صفر تفاوت دارد">
+        {loading && !data ? <SkeletonRows rows={3}/> : data ? <UsageHeatmap rows={data.weekday_hour}/> : <EmptyState title="داده‌ای برای نمایش نیست" icon={BarChart3}/>}
+      </Card>
+    </div>
     <div className="usage-insights-grid">
       <Card title="سلامت حجم اشتراک‌ها" description="وضعیت فعلی همهٔ سرویس‌های فعال در محدودهٔ دسترسی شما">
         {quota ? <>
@@ -294,7 +434,7 @@ export default function UsageAnalyticsPage() {
           {data.customers.map((customer) => <tr key={customer.customer_id}><td>{customer.customer_name || `#${customer.customer_id}`}</td><td>{numberFa.format(customer.service_count)}</td><td>{numberFa.format(customer.provider_count)}</td><td className="usage-traffic-cell">{bytesFormat(customer.bytes)}</td><td>{percentFa(customer.share_percent)}</td></tr>)}
         </DataTable> : <EmptyState title="مشتری دارای مصرفی پیدا نشد" detail="این فهرست فقط مشتریانی را نشان می‌دهد که نمونهٔ مصرف دارند." icon={Users}/>}
       </Card>
-      <Card title="افزایش غیرعادی مصرف" description="هشدار داخل گزارش: حداقل ۵۱۲ مگابایت و حداقل ۲٫۵ برابر دورهٔ قبل">
+      <Card title="افزایش غیرعادی مصرف" description="مقایسهٔ دورهٔ انتخابی با دورهٔ قبل؛ هشدارهای این پنل بر پایهٔ مقایسهٔ سرویس‌هاست">
         {data?.anomalies.length ? <div className="usage-anomaly-list">{data.anomalies.map((item) => <article className="usage-anomaly-row" key={item.service_id}><div><strong>{item.service_code}</strong><small>{item.customer_name || item.username || "—"}</small></div><div><Badge tone="bad" dot>{item.multiple === null ? "بدون خط مبنا" : `${numberFa.format(item.multiple)}×`}</Badge><strong>{bytesFormat(item.current_bytes)}</strong></div></article>)}</div> : <EmptyState title="افزایش غیرعادی پیدا نشد" detail="هشدارها فقط در همین صفحه نمایش داده می‌شوند و Push ارسال نمی‌شود." icon={Activity}/>}
       </Card>
     </div>

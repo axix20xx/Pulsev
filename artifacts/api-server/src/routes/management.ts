@@ -72,6 +72,7 @@ import {
   recommendUsagePackageGb,
   type DailyUsageSample,
 } from "../lib/usage-forecast";
+import { analyzeWeeklyUsage } from "../lib/weekly-usage-insights";
 import { hasWireGuardAccess } from "../lib/protocol-access";
 type ManagementClient = { query: typeof pool.query };
 import {
@@ -1805,7 +1806,10 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
     : (serviceOptionParams.push(effectiveResellerId), `svc.reseller_tg_id = $${serviceOptionParams.length}`);
   const quotaParams: unknown[] = effectiveResellerId === null ? [] : [effectiveResellerId];
   const quotaScopeSql = effectiveResellerId === null ? "TRUE" : `svc.reseller_tg_id = $1`;
-  const [summary, providers, buckets, services, history, providerOptions, serviceOptions, weekdayHours, customers, quotaSummaryResult, quotaForecastRows, anomalyRows] = await Promise.all([
+  const weeklyParams = [...filterParams];
+  const weeklyStartSql = "((date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') - INTERVAL '7 days') AT TIME ZONE 'Asia/Tehran')";
+  const weeklyEndSql = "(date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') AT TIME ZONE 'Asia/Tehran')";
+  const [summary, providers, buckets, services, history, providerOptions, serviceOptions, weekdayHours, weeklyDaily, customers, quotaSummaryResult, quotaForecastRows, anomalyRows] = await Promise.all([
     pool.query<{
       total_bytes: number; service_count: number; customer_count: number; services_total: number;
       previous_total_bytes: number; previous_service_count: number;
@@ -1922,14 +1926,45 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
        ORDER BY svc.id DESC`,
       serviceOptionParams,
     ),
-    pool.query<{ weekday: number; hour: number; bytes: number }>(
+     pool.query<{ weekday: number; hour: number; bytes: number; observed_days: number }>(
       `SELECT ((EXTRACT(DOW FROM h.captured_at AT TIME ZONE 'Asia/Tehran')::int + 1) % 7)::int AS weekday,
               EXTRACT(HOUR FROM h.captured_at AT TIME ZONE 'Asia/Tehran')::int AS hour,
-              COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes
+               COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes,
+               COUNT(DISTINCT (h.captured_at AT TIME ZONE 'Asia/Tehran')::date)::int AS observed_days
        FROM reseller_service_usage_history h
-       WHERE ${rangeSql}
+        WHERE ${filterSql}
+          AND h.captured_at >= ${weeklyStartSql}
+          AND h.captured_at < ${weeklyEndSql}
        GROUP BY weekday, hour`,
-      rangeParams,
+       weeklyParams,
+     ),
+     pool.query<{
+       day: string;
+       bytes: number;
+       sample_buckets: number;
+       service_count: number;
+       observed: boolean;
+     }>(
+       `WITH calendar_days AS (
+          SELECT generate_series(
+            date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') - INTERVAL '7 days',
+            date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') - INTERVAL '1 day',
+            INTERVAL '1 day'
+          ) AS day_local
+        )
+        SELECT calendar_days.day_local::date::text AS day,
+               COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes,
+               COUNT(DISTINCT date_bin('5 minutes', h.captured_at, TIMESTAMPTZ 'epoch'))::int AS sample_buckets,
+               COUNT(DISTINCT h.service_id)::int AS service_count,
+               COUNT(h.captured_at) > 0 AS observed
+        FROM calendar_days
+        LEFT JOIN reseller_service_usage_history h
+          ON h.captured_at >= (calendar_days.day_local AT TIME ZONE 'Asia/Tehran')
+         AND h.captured_at < ((calendar_days.day_local + INTERVAL '1 day') AT TIME ZONE 'Asia/Tehran')
+         AND ${filterSql}
+        GROUP BY calendar_days.day_local
+        ORDER BY calendar_days.day_local`,
+       weeklyParams,
     ),
     pool.query<{ customer_id: number; customer_name: string; bytes: number; service_count: number; provider_count: number }>(
       `SELECT h.customer_id::float8 AS customer_id,
@@ -2115,6 +2150,20 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
   const previousToIso = previousToAt.toISOString();
   const deltaBytes = totalBytes - previousTotalBytes;
   const changePercent = previousTotalBytes > 0 ? deltaBytes / previousTotalBytes * 100 : null;
+  const weeklyDailyPoints = weeklyDaily.rows.map((row) => ({
+    day: String(row.day),
+    bytes: Math.max(0, Number(row.bytes ?? 0)),
+    sample_buckets: Math.max(0, Number(row.sample_buckets ?? 0)),
+    service_count: Math.max(0, Number(row.service_count ?? 0)),
+    observed: Boolean(row.observed),
+  }));
+  const weeklyInsights = analyzeWeeklyUsage(weeklyDailyPoints.map((point) => ({
+    day: point.day,
+    bytes: point.bytes,
+    sampleBuckets: point.sample_buckets,
+    serviceCount: point.service_count,
+    observed: point.observed,
+  })));
   const forecastGroups = new Map<number, {
     row: {
       service_id: number; service_code: string; username: string; customer_id: number | null; customer_name: string;
@@ -2206,7 +2255,10 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
       weekday: Number(row.weekday),
       hour: Number(row.hour),
       bytes: Math.max(0, Number(row.bytes ?? 0)),
+      observed_days: Math.max(0, Number(row.observed_days ?? 0)),
     })),
+    weekly_daily: weeklyDailyPoints,
+    weekly_insights: weeklyInsights,
     provider_options: allProviderOptions,
     providers: allProviderTotals,
     provider_health: allProviderHealth,

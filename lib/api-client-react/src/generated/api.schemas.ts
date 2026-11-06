@@ -829,6 +829,88 @@ export interface UsageAnalyticsWeekdayHour {
   hour: number;
   /** @minimum 0 */
   bytes: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  observed_days: number;
+}
+
+export interface UsageAnalyticsDailyPoint {
+  day: string;
+  /** @minimum 0 */
+  bytes: number;
+  /** @minimum 0 */
+  sample_buckets: number;
+  /** @minimum 0 */
+  service_count: number;
+  observed: boolean;
+}
+
+export type UsageAnalyticsWeeklyInsightsExpectedDays = typeof UsageAnalyticsWeeklyInsightsExpectedDays[keyof typeof UsageAnalyticsWeeklyInsightsExpectedDays];
+
+
+export const UsageAnalyticsWeeklyInsightsExpectedDays = {
+  NUMBER_7: 7,
+} as const;
+
+export type UsageAnalyticsWeeklyInsightsTrend = typeof UsageAnalyticsWeeklyInsightsTrend[keyof typeof UsageAnalyticsWeeklyInsightsTrend];
+
+
+export const UsageAnalyticsWeeklyInsightsTrend = {
+  rising: 'rising',
+  stable: 'stable',
+  falling: 'falling',
+  insufficient: 'insufficient',
+} as const;
+
+export type UsageAnalyticsWeeklyInsightsAnomalyDaysItem = {
+  day: string;
+  /** @minimum 0 */
+  bytes: number;
+  robust_score: number;
+};
+
+export interface UsageAnalyticsWeeklyInsights {
+  expected_days: UsageAnalyticsWeeklyInsightsExpectedDays;
+  /**
+     * @minimum 0
+     * @maximum 7
+     */
+  observed_days: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  coverage_percent: number;
+  /** @minimum 0 */
+  total_bytes: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  average_daily_bytes: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  median_daily_bytes: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  volatility_percent: number | null;
+  trend: UsageAnalyticsWeeklyInsightsTrend;
+  /** @nullable */
+  trend_percent_per_day: number | null;
+  /** @nullable */
+  peak_day: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  peak_day_bytes: number | null;
+  anomaly_days: UsageAnalyticsWeeklyInsightsAnomalyDaysItem[];
 }
 
 export interface UsageAnalyticsProvider {
@@ -1031,6 +1113,8 @@ export interface UsageAnalytics {
   peak_bucket: UsageAnalyticsBucket | null;
   buckets: UsageAnalyticsBucket[];
   weekday_hour: UsageAnalyticsWeekdayHour[];
+  weekly_daily: UsageAnalyticsDailyPoint[];
+  weekly_insights: UsageAnalyticsWeeklyInsights;
   provider_options: UsageAnalyticsProvider[];
   providers: UsageAnalyticsProviderTotal[];
   provider_health: UsageAnalyticsProviderHealth[];

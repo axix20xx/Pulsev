@@ -19,4 +19,9 @@ export interface UsageAnalyticsWeekdayHour {
   hour: number;
   /** @minimum 0 */
   bytes: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  observed_days: number;
 }
