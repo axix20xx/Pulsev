@@ -2746,3 +2746,31 @@ mtime_ms = 1793955726172
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2522a22d-c88f-4c8f-8814-da2e9ce5b2a1/75f09a31-250a-4ec9-a82e-4d790acfe923"
 storage_version_token = "1793955816034628"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "45s1E7bSZTSiWht-N6Tie"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-06T10-46-30-132Z.zip"
+type = "unspecified"
+title = "Hostinger release ZIP"
+description = "نسخهٔ کامل Hostinger شامل API و صفحات به‌روز. اعتبارسنجی بسته موفق بود؛ بررسی staging اجرا نشده است."
+logical_id = "24581655-c93f-4662-a977-9d37e1ead569"
+content_hash = "sha256:6fffd96449de7ab424a99967c27d6cd4422de28c835cd1d60ae0bf1e81c50856"
+size = 31012063
+mtime_ms = 1793962102754
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/24581655-c93f-4662-a977-9d37e1ead569/22971120-8dfa-4d72-a4b9-7e41de593863"
+storage_version_token = "1793962129602659"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Bc29XePBhgkIhm15hhDC5"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-06T10-46-30-132Z.zip.sha256"
+type = "unspecified"
+title = "SHA-256 checksum"
+description = "برای بررسی یکپارچگی ZIP پیش از بارگذاری در Hostinger."
+logical_id = "9fda97f8-8bad-4c0b-a6cc-32d621d780a2"
+content_hash = "sha256:f926364df45edfe1c95dccd50a03b94f57e101b86c4acd2c935fda69048933a1"
+size = 126
+mtime_ms = 1793962104286
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/9fda97f8-8bad-4c0b-a6cc-32d621d780a2/bd967489-8d61-4d54-bdf6-b5d6f300230e"
+storage_version_token = "1793962130167020"
+content_type = "application/octet-stream"

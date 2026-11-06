@@ -55941,6 +55941,8 @@ var getUsageAnalyticsResponseQuotaForecastsItemRemainingBytesMin = 0;
 var getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMin = 0;
 var getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMax = 100;
 var getUsageAnalyticsResponseQuotaForecastsItemCoverageDaysMin = 0;
+var getUsageAnalyticsResponseQuotaForecastsItemObservedDaysMin = 0;
+var getUsageAnalyticsResponseQuotaForecastsItemSampleCountMin = 0;
 var getUsageAnalyticsResponseAnomaliesItemCurrentBytesMin = 0;
 var getUsageAnalyticsResponseAnomaliesItemPreviousBytesMin = 0;
 var GetUsageAnalyticsResponse = objectType({
@@ -56041,8 +56043,17 @@ var GetUsageAnalyticsResponse = objectType({
     "used_percent": numberType().min(getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMin).max(getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMax),
     "average_daily_bytes": numberType().nullable(),
     "days_until_empty": numberType().nullable(),
+    "fast_days_until_empty": numberType().nullable(),
+    "slow_days_until_empty": numberType().nullable(),
     "coverage_days": numberType().min(getUsageAnalyticsResponseQuotaForecastsItemCoverageDaysMin),
-    "expires_at": coerce.date().nullable()
+    "observed_days": numberType().min(getUsageAnalyticsResponseQuotaForecastsItemObservedDaysMin),
+    "sample_count": numberType().min(getUsageAnalyticsResponseQuotaForecastsItemSampleCountMin),
+    "confidence": enumType(["high", "medium", "low", "insufficient"]),
+    "trend": enumType(["rising", "stable", "falling", "unknown"]),
+    "expires_at": coerce.date().nullable(),
+    "projected_quota_at": coerce.date().nullable(),
+    "projected_end_at": coerce.date().nullable(),
+    "projected_end_reason": enumType(["quota", "validity", "unknown"])
   })),
   "anomalies": arrayType(objectType({
     "service_id": numberType(),
@@ -56672,6 +56683,21 @@ var GetCustomerParams = objectType({
   "id": coerce.number().min(1)
 });
 var getCustomerResponseOneMobileOtpRegExp = new RegExp("^[0-9]{4}$");
+var getCustomerResponseTwoUsageForecastsItemLimitBytesMin = 0;
+var getCustomerResponseTwoUsageForecastsItemUsedBytesMin = 0;
+var getCustomerResponseTwoUsageForecastsItemRemainingBytesMin = 0;
+var getCustomerResponseTwoUsageForecastsItemUsedPercentMin = 0;
+var getCustomerResponseTwoUsageForecastsItemUsedPercentMax = 100;
+var getCustomerResponseTwoUsageForecastsItemCoverageDaysMin = 0;
+var getCustomerResponseTwoUsageForecastsItemObservedDaysMin = 0;
+var getCustomerResponseTwoUsageForecastsItemSampleCountMin = 0;
+var getCustomerResponseTwoUsageRecommendationOneObservedDaysMin = 0;
+var getCustomerResponseTwoUsageRecommendationOneSampleCountMin = 0;
+var getCustomerResponseTwoUsageRecommendationOneCoverageDaysMin = 0;
+var getCustomerResponseTwoUsageRecommendationOneAverageDailyBytesMin = 0;
+var getCustomerResponseTwoUsageRecommendationOneConservativeDailyBytesMin = 0;
+var getCustomerResponseTwoUsageRecommendationOneHighUsageDailyBytesMin = 0;
+var getCustomerResponseTwoUsageRecommendationOneRecommendedGb30dMin = 0;
 var GetCustomerResponse = objectType({
   "id": numberType(),
   "name": stringType(),
@@ -56736,7 +56762,42 @@ var GetCustomerResponse = objectType({
     "date": stringType(),
     "paid": booleanType(),
     "status": stringType()
-  }))
+  })),
+  "usage_forecasts": arrayType(objectType({
+    "service_id": numberType(),
+    "service_code": stringType(),
+    "username": stringType(),
+    "customer_id": numberType().nullable(),
+    "customer_name": stringType(),
+    "limit_bytes": numberType().min(getCustomerResponseTwoUsageForecastsItemLimitBytesMin),
+    "used_bytes": numberType().min(getCustomerResponseTwoUsageForecastsItemUsedBytesMin),
+    "remaining_bytes": numberType().min(getCustomerResponseTwoUsageForecastsItemRemainingBytesMin),
+    "used_percent": numberType().min(getCustomerResponseTwoUsageForecastsItemUsedPercentMin).max(getCustomerResponseTwoUsageForecastsItemUsedPercentMax),
+    "average_daily_bytes": numberType().nullable(),
+    "days_until_empty": numberType().nullable(),
+    "fast_days_until_empty": numberType().nullable(),
+    "slow_days_until_empty": numberType().nullable(),
+    "coverage_days": numberType().min(getCustomerResponseTwoUsageForecastsItemCoverageDaysMin),
+    "observed_days": numberType().min(getCustomerResponseTwoUsageForecastsItemObservedDaysMin),
+    "sample_count": numberType().min(getCustomerResponseTwoUsageForecastsItemSampleCountMin),
+    "confidence": enumType(["high", "medium", "low", "insufficient"]),
+    "trend": enumType(["rising", "stable", "falling", "unknown"]),
+    "expires_at": coerce.date().nullable(),
+    "projected_quota_at": coerce.date().nullable(),
+    "projected_end_at": coerce.date().nullable(),
+    "projected_end_reason": enumType(["quota", "validity", "unknown"])
+  })),
+  "usage_recommendation": unionType([objectType({
+    "observed_days": numberType().min(getCustomerResponseTwoUsageRecommendationOneObservedDaysMin),
+    "sample_count": numberType().min(getCustomerResponseTwoUsageRecommendationOneSampleCountMin),
+    "coverage_days": numberType().min(getCustomerResponseTwoUsageRecommendationOneCoverageDaysMin),
+    "average_daily_bytes": numberType().min(getCustomerResponseTwoUsageRecommendationOneAverageDailyBytesMin).nullable(),
+    "conservative_daily_bytes": numberType().min(getCustomerResponseTwoUsageRecommendationOneConservativeDailyBytesMin).nullable(),
+    "high_usage_daily_bytes": numberType().min(getCustomerResponseTwoUsageRecommendationOneHighUsageDailyBytesMin).nullable(),
+    "recommended_gb_30d": numberType().min(getCustomerResponseTwoUsageRecommendationOneRecommendedGb30dMin).nullable(),
+    "confidence": enumType(["high", "medium", "low", "insufficient"]),
+    "trend": enumType(["rising", "stable", "falling", "unknown"])
+  }), nullType()])
 }));
 var listResellersResponsePerGigPriceMin = 0;
 var listResellersResponseCustomerPricePerGbMin = 0;
@@ -75881,6 +75942,131 @@ function resolveUsageAnalyticsWindow(range, fromDate, toDate, now = /* @__PURE__
   return { fromAt, toAt, previousFromAt, previousToAt, bucketInterval };
 }
 
+// src/lib/usage-forecast.ts
+var MIN_DAILY_SAMPLES = 72;
+var DAY_MS = 864e5;
+var GB_BYTES = 1073741824;
+function dayEpoch(day) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!match) return null;
+  const epoch = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isFinite(epoch) ? epoch : null;
+}
+function quantile(values, fraction) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const position = (sorted.length - 1) * fraction;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  if (lower === upper) return sorted[lower];
+  const ratio = position - lower;
+  return sorted[lower] * (1 - ratio) + sorted[upper] * ratio;
+}
+function weightedRobustMean(rows, anchor) {
+  if (!rows.length) return null;
+  const values = rows.map((row) => row.bytes);
+  const center = quantile(values, 0.5) ?? 0;
+  const deviations = values.map((value) => Math.abs(value - center));
+  const mad = quantile(deviations, 0.5) ?? 0;
+  const q90 = quantile(values, 0.9) ?? center;
+  const robustUpper = mad > 0 ? center + 4.4478 * mad : center;
+  const upper = Math.min(q90, robustUpper);
+  let weightedBytes = 0;
+  let totalWeight = 0;
+  for (const row of rows) {
+    const ageDays = Math.max(0, (anchor - row.epoch) / DAY_MS);
+    const recencyWeight = Math.pow(2, -ageDays / 7);
+    const completenessWeight = Math.min(1, row.sampleCount / MIN_DAILY_SAMPLES);
+    const weight = recencyWeight * completenessWeight;
+    const clippedBytes = Math.min(upper, row.bytes);
+    weightedBytes += clippedBytes * weight;
+    totalWeight += weight;
+  }
+  return totalWeight > 0 ? weightedBytes / totalWeight : null;
+}
+function median(values) {
+  return quantile(values, 0.5);
+}
+function estimateUsageRate(samples, remainingBytes) {
+  const rows = samples.map((sample) => ({
+    epoch: dayEpoch(String(sample.day)),
+    bytes: Math.max(0, Number(sample.bytes)),
+    sampleCount: Math.max(0, Math.floor(Number(sample.sampleCount)))
+  })).filter(
+    (sample) => sample.epoch !== null && Number.isFinite(sample.bytes) && Number.isFinite(sample.sampleCount) && sample.sampleCount >= MIN_DAILY_SAMPLES
+  ).sort((a, b) => a.epoch - b.epoch);
+  const observedDays = rows.length;
+  const sampleCount = rows.reduce((sum, row) => sum + row.sampleCount, 0);
+  const coverageDays = observedDays > 1 ? Math.max(0, Math.round((rows[observedDays - 1].epoch - rows[0].epoch) / DAY_MS)) : 0;
+  const coverageRatio = observedDays / Math.max(1, coverageDays + 1);
+  if (observedDays < 3 || coverageDays < 2) {
+    return {
+      averageDailyBytes: null,
+      conservativeDailyBytes: null,
+      highUsageDailyBytes: null,
+      daysUntilEmpty: null,
+      fastDaysUntilEmpty: null,
+      slowDaysUntilEmpty: null,
+      coverageDays,
+      observedDays,
+      sampleCount,
+      confidence: "insufficient",
+      trend: "unknown"
+    };
+  }
+  const latestEpoch = rows[observedDays - 1].epoch;
+  const recentRows = rows.filter((row) => latestEpoch - row.epoch <= 6 * DAY_MS);
+  const baselineRate = weightedRobustMean(rows, latestEpoch);
+  const recentRate = weightedRobustMean(recentRows, latestEpoch);
+  const averageDailyBytes = baselineRate === null ? recentRate : recentRate === null ? baselineRate : baselineRate * 0.35 + recentRate * 0.65;
+  const conservativeDailyBytes = quantile(rows.map((row) => row.bytes), 0.25);
+  const highUsageDailyBytes = quantile(rows.map((row) => row.bytes), 0.75);
+  const safeRemaining = Math.max(0, Number(remainingBytes) || 0);
+  const daysUntilEmpty = averageDailyBytes && averageDailyBytes > 0 ? safeRemaining / averageDailyBytes : null;
+  const fastDaysUntilEmpty = highUsageDailyBytes && highUsageDailyBytes > 0 ? safeRemaining / highUsageDailyBytes : null;
+  const slowDaysUntilEmpty = conservativeDailyBytes && conservativeDailyBytes > 0 ? safeRemaining / conservativeDailyBytes : null;
+  const priorRows = rows.filter((row) => latestEpoch - row.epoch > 6 * DAY_MS);
+  const recentMedian = median(recentRows.map((row) => row.bytes));
+  const priorMedian = median(priorRows.map((row) => row.bytes));
+  const trend = recentMedian === null ? "unknown" : priorMedian === null ? recentMedian > 0 ? "rising" : "stable" : priorMedian === 0 ? recentMedian > 0 ? "rising" : "stable" : recentMedian >= priorMedian * 1.2 ? "rising" : recentMedian <= priorMedian * 0.8 ? "falling" : "stable";
+  const confidence = observedDays >= 14 && coverageRatio >= 0.7 ? "high" : observedDays >= 7 && coverageRatio >= 0.5 ? "medium" : "low";
+  return {
+    averageDailyBytes: averageDailyBytes === null ? null : Math.max(0, averageDailyBytes),
+    conservativeDailyBytes,
+    highUsageDailyBytes,
+    daysUntilEmpty,
+    fastDaysUntilEmpty,
+    slowDaysUntilEmpty,
+    coverageDays,
+    observedDays,
+    sampleCount,
+    confidence,
+    trend
+  };
+}
+function forecastUsageLifecycle(estimate, expiresAt, now) {
+  const quotaAt = estimate.daysUntilEmpty === null ? null : new Date(now.getTime() + estimate.daysUntilEmpty * DAY_MS);
+  const expiry = expiresAt === null ? null : new Date(expiresAt);
+  const validExpiry = expiry && Number.isFinite(expiry.getTime()) ? expiry : null;
+  const projectedEnd = quotaAt && validExpiry ? quotaAt.getTime() <= validExpiry.getTime() ? quotaAt : validExpiry : quotaAt ?? validExpiry;
+  const projectedEndReason = !projectedEnd ? "unknown" : quotaAt && projectedEnd === quotaAt ? "quota" : "validity";
+  return {
+    ...estimate,
+    projectedQuotaAt: quotaAt?.toISOString() ?? null,
+    projectedEndAt: projectedEnd?.toISOString() ?? null,
+    projectedEndReason
+  };
+}
+function recommendUsagePackageGb(estimate, days = 30) {
+  const rate = estimate.highUsageDailyBytes ?? estimate.averageDailyBytes;
+  if (estimate.confidence === "insufficient" || rate === null || !Number.isFinite(rate) || rate <= 0 || !Number.isFinite(days) || days <= 0) {
+    return null;
+  }
+  const usageWithReserveGb = rate * days * 1.15 / GB_BYTES;
+  if (!Number.isFinite(usageWithReserveGb) || usageWithReserveGb <= 0) return null;
+  return Math.ceil(Math.max(5, usageWithReserveGb) / 5) * 5;
+}
+
 // src/lib/protocol-access.ts
 function hasWireGuardAccess(resellerTelegramId, wireguardEnabled, masterAdminTelegramId) {
   if (resellerTelegramId !== null && resellerTelegramId !== void 0 && String(resellerTelegramId).trim() === String(masterAdminTelegramId)) {
@@ -86758,17 +86944,13 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
       quotaParams
     ),
     pool.query(
-      `WITH rate AS (
-         SELECT h.service_id, SUM(h.delta_bytes)::float8 AS sampled_bytes,
-                GREATEST(EXTRACT(EPOCH FROM (MAX(h.captured_at) - MIN(h.captured_at))) / 86400.0, 0)::float8 AS coverage_days
-         FROM reseller_service_usage_history h
-         WHERE ${ownerSql} AND h.captured_at >= NOW() - INTERVAL '7 days'
-         GROUP BY h.service_id
-       ),
-       forecast AS (
-         SELECT svc.id::float8 AS service_id, 'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
-                COALESCE(svc.rain_username, '') AS username, svc.customer_id::float8 AS customer_id,
-                COALESCE(c.full_name, '') AS customer_name, (svc.gb::float8 * 1073741824) AS limit_bytes,
+      `WITH active AS (
+         SELECT svc.id::float8 AS service_id,
+                'PULSE-' || LPAD(svc.id::text, 6, '0') AS service_code,
+                COALESCE(svc.rain_username, '') AS username,
+                svc.customer_id::float8 AS customer_id,
+                COALESCE(c.full_name, '') AS customer_name,
+                (svc.gb::float8 * 1073741824) AS limit_bytes,
                 LEAST(svc.gb::float8 * 1073741824, GREATEST(COALESCE(svc.last_used_bytes::float8,
                   svc.gb::float8 * 1073741824 - COALESCE(svc.last_remaining_bytes::float8, svc.gb::float8 * 1073741824)), 0)) AS used_bytes,
                 LEAST(svc.gb::float8 * 1073741824, GREATEST(COALESCE(svc.last_remaining_bytes::float8,
@@ -86776,23 +86958,42 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
                 LEAST(100, 100 * LEAST(svc.gb::float8 * 1073741824, GREATEST(COALESCE(svc.last_used_bytes::float8,
                   svc.gb::float8 * 1073741824 - COALESCE(svc.last_remaining_bytes::float8, svc.gb::float8 * 1073741824)), 0))
                   / NULLIF(svc.gb::float8 * 1073741824, 0))::float8 AS used_percent,
-                CASE WHEN COALESCE(rate.coverage_days, 0) >= 1 THEN rate.sampled_bytes / NULLIF(rate.coverage_days, 0) ELSE NULL END::float8 AS average_daily_bytes,
-                CASE WHEN COALESCE(rate.coverage_days, 0) >= 1 AND COALESCE(rate.sampled_bytes, 0) > 0
-                  THEN LEAST(svc.gb::float8 * 1073741824, GREATEST(COALESCE(svc.last_remaining_bytes::float8,
-                    svc.gb::float8 * 1073741824 - COALESCE(svc.last_used_bytes::float8, 0)), 0))
-                    / (rate.sampled_bytes / NULLIF(rate.coverage_days, 0))
-                  ELSE NULL END::float8 AS days_until_empty,
-                COALESCE(rate.coverage_days, 0)::float8 AS coverage_days, svc.expire_at AS expires_at
+                svc.expire_at AS expires_at
          FROM reseller_services svc
          LEFT JOIN reseller_customers c ON c.id = svc.customer_id AND c.reseller_tg_id = svc.reseller_tg_id
-         LEFT JOIN rate ON rate.service_id = svc.id
          WHERE ${quotaScopeSql} AND svc.status IN ('active', 'expiring')
            AND (svc.expire_at IS NULL OR svc.expire_at > NOW()) AND COALESCE(svc.gb, 0) > 0
+       ),
+       daily_usage AS (
+         SELECT h.service_id,
+                (h.captured_at AT TIME ZONE 'Asia/Tehran')::date::text AS sample_day,
+                SUM(h.delta_bytes)::float8 AS daily_bytes,
+                COUNT(DISTINCT date_bin('5 minutes', h.captured_at, TIMESTAMPTZ 'epoch'))::int AS sample_count
+         FROM reseller_service_usage_history h
+         JOIN reseller_services scoped_service
+           ON scoped_service.id = h.service_id AND scoped_service.reseller_tg_id = h.reseller_tg_id
+         WHERE ${ownerSql}
+           AND h.captured_at >= ((date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') - INTERVAL '30 days') AT TIME ZONE 'Asia/Tehran')
+           AND h.captured_at < (date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') AT TIME ZONE 'Asia/Tehran')
+           AND EXISTS (SELECT 1 FROM active WHERE active.service_id = h.service_id)
+         GROUP BY h.service_id, sample_day
+       ),
+       selected AS (
+         SELECT active.*
+         FROM active
+         LEFT JOIN (
+           SELECT service_id, COUNT(*) FILTER (WHERE sample_count >= 72)::int AS observed_days
+           FROM daily_usage
+           GROUP BY service_id
+         ) history ON history.service_id = active.service_id
+         WHERE active.used_percent >= 70 OR COALESCE(history.observed_days, 0) >= 3
+         ORDER BY active.used_percent DESC, active.service_id
+         LIMIT 20
        )
-       SELECT * FROM forecast
-       WHERE used_percent >= 70 OR days_until_empty IS NOT NULL
-       ORDER BY days_until_empty ASC NULLS LAST, used_percent DESC, service_id
-       LIMIT 20`,
+       SELECT selected.*, daily_usage.sample_day, daily_usage.daily_bytes, daily_usage.sample_count
+       FROM selected
+       LEFT JOIN daily_usage ON daily_usage.service_id = selected.service_id
+       ORDER BY selected.used_percent DESC, selected.service_id, daily_usage.sample_day`,
       quotaParams
     ),
     pool.query(
@@ -86879,6 +87080,57 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
   const previousToIso = previousToAt.toISOString();
   const deltaBytes = totalBytes - previousTotalBytes;
   const changePercent = previousTotalBytes > 0 ? deltaBytes / previousTotalBytes * 100 : null;
+  const forecastGroups = /* @__PURE__ */ new Map();
+  for (const row of quotaForecastRows.rows) {
+    const serviceId = Number(row.service_id);
+    if (!Number.isFinite(serviceId) || serviceId <= 0) continue;
+    let group = forecastGroups.get(serviceId);
+    if (!group) {
+      group = {
+        row: {
+          service_id: serviceId,
+          service_code: String(row.service_code ?? ""),
+          username: String(row.username ?? ""),
+          customer_id: row.customer_id === null ? null : Number(row.customer_id),
+          customer_name: String(row.customer_name ?? ""),
+          limit_bytes: Math.max(0, Number(row.limit_bytes ?? 0)),
+          used_bytes: Math.max(0, Number(row.used_bytes ?? 0)),
+          remaining_bytes: Math.max(0, Number(row.remaining_bytes ?? 0)),
+          used_percent: Math.max(0, Math.min(100, Number(row.used_percent ?? 0))),
+          expires_at: row.expires_at
+        },
+        daily: []
+      };
+      forecastGroups.set(serviceId, group);
+    }
+    if (row.sample_day && row.daily_bytes !== null && row.sample_count !== null) {
+      group.daily.push({
+        day: String(row.sample_day),
+        bytes: Math.max(0, Number(row.daily_bytes)),
+        sampleCount: Math.max(0, Number(row.sample_count))
+      });
+    }
+  }
+  const quotaForecasts = [...forecastGroups.values()].map(({ row, daily }) => {
+    const estimate = estimateUsageRate(daily, row.remaining_bytes);
+    const lifecycle = forecastUsageLifecycle(estimate, row.expires_at, now);
+    return {
+      ...row,
+      average_daily_bytes: lifecycle.averageDailyBytes,
+      days_until_empty: lifecycle.daysUntilEmpty,
+      fast_days_until_empty: lifecycle.fastDaysUntilEmpty,
+      slow_days_until_empty: lifecycle.slowDaysUntilEmpty,
+      coverage_days: lifecycle.coverageDays,
+      observed_days: lifecycle.observedDays,
+      sample_count: lifecycle.sampleCount,
+      confidence: lifecycle.confidence,
+      trend: lifecycle.trend,
+      projected_quota_at: lifecycle.projectedQuotaAt,
+      projected_end_at: lifecycle.projectedEndAt,
+      projected_end_reason: lifecycle.projectedEndReason,
+      expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null
+    };
+  }).filter((item) => item.used_percent >= 70 || item.days_until_empty !== null).sort((a, b) => (a.days_until_empty ?? Number.POSITIVE_INFINITY) - (b.days_until_empty ?? Number.POSITIVE_INFINITY)).slice(0, 20);
   res.json(GetUsageAnalyticsResponse.parse({
     scope: isMaster ? "system" : "reseller",
     range,
@@ -86930,10 +87182,7 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
       above_90_count: Number(quotaSummary.above_90_count ?? 0),
       exhausted_count: Number(quotaSummary.exhausted_count ?? 0)
     },
-    quota_forecasts: quotaForecastRows.rows.map((row) => ({
-      ...row,
-      expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null
-    })),
+    quota_forecasts: quotaForecasts,
     anomalies: anomalyRows.rows.map((row) => ({
       ...row,
       current_bytes: Math.max(0, Number(row.current_bytes ?? 0)),
@@ -92785,7 +93034,7 @@ router2.get("/customers", requireAuth, async (req, res) => {
   res.json(ListCustomersResponse.parse(responseRows));
 });
 router2.get("/customers/:id", requireAuth, async (req, res) => {
-  await managementReady;
+  await Promise.all([managementReady, ensureUsageHistorySchema()]);
   const parsed = GetCustomerParams.safeParse(req.params);
   if (!parsed.success) {
     res.status(400).json({ error: "\u0634\u0646\u0627\u0633\u0647 \u0645\u0634\u062A\u0631\u06CC \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
@@ -92818,6 +93067,7 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
          svc.rain_username AS username, svc.label AS plan,
          COALESCE(svc.falco_system_name, '\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC') AS panel, svc.status,
          svc.expire_at::date::text AS expires_at,
+         svc.expire_at AS expires_at_exact,
          svc.created_at::text AS created_at,
          (SELECT MAX(sale.created_at)::text FROM reseller_sales_log sale WHERE sale.service_id = svc.id AND sale.action_type = 'renew') AS last_renewed_at,
          (COALESCE(svc.last_used_bytes, 0) / 1073741824.0)::float8 AS used_gb,
@@ -92853,7 +93103,48 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
       childOwnerParams
     )
   ]);
-  const panelUsages = await loadServicePanelUsageMap(services.rows);
+  const serviceIds = services.rows.map((service) => Number(service.id)).filter((id) => Number.isSafeInteger(id) && id > 0);
+  const historyOwnerSql = req.auth?.role === "master_admin" ? "TRUE" : "svc.reseller_tg_id = $3";
+  const historyParams = [serviceIds, parsed.data.id];
+  if (req.auth?.role !== "master_admin") historyParams.push(req.auth?.telegramId);
+  const historyPromise = serviceIds.length ? pool.query(
+    `SELECT h.service_id,
+                (h.captured_at AT TIME ZONE 'Asia/Tehran')::date::text AS sample_day,
+                SUM(h.delta_bytes)::float8 AS daily_bytes,
+                COUNT(DISTINCT date_bin('5 minutes', h.captured_at, TIMESTAMPTZ 'epoch'))::int AS sample_count
+         FROM reseller_service_usage_history h
+         JOIN reseller_services svc
+           ON svc.id = h.service_id AND svc.reseller_tg_id = h.reseller_tg_id
+         WHERE h.service_id = ANY($1::bigint[])
+           AND svc.customer_id = $2
+           AND ${historyOwnerSql}
+           AND h.captured_at >= ((date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') - INTERVAL '30 days') AT TIME ZONE 'Asia/Tehran')
+           AND h.captured_at < (date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') AT TIME ZONE 'Asia/Tehran')
+         GROUP BY h.service_id, sample_day
+         ORDER BY h.service_id, sample_day`,
+    historyParams
+  ) : Promise.resolve({ rows: [] });
+  const [panelUsages, historyResult] = await Promise.all([
+    loadServicePanelUsageMap(services.rows),
+    historyPromise
+  ]);
+  const serviceHistory = /* @__PURE__ */ new Map();
+  const customerDailyHistory = /* @__PURE__ */ new Map();
+  for (const row of historyResult.rows) {
+    const sample = {
+      day: String(row.sample_day),
+      bytes: Math.max(0, Number(row.daily_bytes) || 0),
+      sampleCount: Math.max(0, Number(row.sample_count) || 0)
+    };
+    const serviceId = Number(row.service_id);
+    const perService = serviceHistory.get(serviceId) ?? [];
+    perService.push(sample);
+    serviceHistory.set(serviceId, perService);
+    const daily = customerDailyHistory.get(sample.day) ?? { day: sample.day, bytes: 0, sampleCount: 0 };
+    daily.bytes += sample.bytes;
+    daily.sampleCount = Math.max(daily.sampleCount, sample.sampleCount);
+    customerDailyHistory.set(sample.day, daily);
+  }
   const detailedServices = services.rows.map((service) => {
     const hasAwgUsage = Boolean(service.awg_client_id) || Number(service.awg_rx ?? 0) > 0 || Number(service.awg_tx ?? 0) > 0 || Number(service.awg_total ?? 0) > 0 || Number(service.awg_offset_bytes ?? 0) > 0;
     return {
@@ -92869,11 +93160,59 @@ router2.get("/customers/:id", requireAuth, async (req, res) => {
       } : null
     };
   });
+  const now = /* @__PURE__ */ new Date();
+  const usageForecasts = detailedServices.filter((service) => service.status === "active" || service.status === "expiring").map((service) => {
+    const limitBytes = Math.max(0, Number(service.limit_gb ?? 0) * 1073741824);
+    const componentUsageGb = (Array.isArray(service.panel_usages) ? service.panel_usages : []).reduce((total, usage) => total + Math.max(0, Number(usage.used_gb ?? 0)), 0) + Math.max(0, Number(service.awg_usage?.used_gb ?? 0));
+    const combinedUsedGb = Math.max(0, Number(service.used_gb ?? 0), componentUsageGb);
+    const usedBytes = Math.min(limitBytes, combinedUsedGb * 1073741824);
+    const remainingBytes = Math.max(0, limitBytes - usedBytes);
+    const estimate = estimateUsageRate(serviceHistory.get(Number(service.id)) ?? [], remainingBytes);
+    const lifecycle = forecastUsageLifecycle(estimate, service.expires_at_exact ?? service.expires_at ?? null, now);
+    return {
+      service_id: Number(service.id),
+      service_code: String(service.service_code ?? ""),
+      username: String(service.username ?? ""),
+      customer_id: service.customer_id === null ? null : Number(service.customer_id),
+      customer_name: String(service.customer_name ?? ""),
+      limit_bytes: limitBytes,
+      used_bytes: usedBytes,
+      remaining_bytes: remainingBytes,
+      used_percent: limitBytes > 0 ? Math.min(100, usedBytes / limitBytes * 100) : 0,
+      average_daily_bytes: lifecycle.averageDailyBytes,
+      days_until_empty: lifecycle.daysUntilEmpty,
+      fast_days_until_empty: lifecycle.fastDaysUntilEmpty,
+      slow_days_until_empty: lifecycle.slowDaysUntilEmpty,
+      coverage_days: lifecycle.coverageDays,
+      observed_days: lifecycle.observedDays,
+      sample_count: lifecycle.sampleCount,
+      confidence: lifecycle.confidence,
+      trend: lifecycle.trend,
+      expires_at: service.expires_at_exact ? new Date(service.expires_at_exact).toISOString() : null,
+      projected_quota_at: lifecycle.projectedQuotaAt,
+      projected_end_at: lifecycle.projectedEndAt,
+      projected_end_reason: lifecycle.projectedEndReason
+    };
+  });
+  const customerUsageEstimate = estimateUsageRate([...customerDailyHistory.values()], 0);
+  const usageRecommendation = {
+    observed_days: customerUsageEstimate.observedDays,
+    sample_count: customerUsageEstimate.sampleCount,
+    coverage_days: customerUsageEstimate.coverageDays,
+    average_daily_bytes: customerUsageEstimate.averageDailyBytes,
+    conservative_daily_bytes: customerUsageEstimate.conservativeDailyBytes,
+    high_usage_daily_bytes: customerUsageEstimate.highUsageDailyBytes,
+    recommended_gb_30d: recommendUsagePackageGb(customerUsageEstimate, 30),
+    confidence: customerUsageEstimate.confidence,
+    trend: customerUsageEstimate.trend
+  };
   res.json(
     GetCustomerResponse.parse({
       ...customer.rows[0],
       services: detailedServices,
-      sales: sales.rows
+      sales: sales.rows,
+      usage_forecasts: usageForecasts,
+      usage_recommendation: usageRecommendation
     })
   );
 });
