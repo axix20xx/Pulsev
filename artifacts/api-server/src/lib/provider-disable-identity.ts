@@ -6,6 +6,18 @@ export type ProviderDisableIdentityMaps = {
   ipsec?: { providerKey: string | null; username: string | null } | null;
 };
 
+export function isDedicatedAwgUsageProviderKey(providerKey: string): boolean {
+  return providerKey.trim().toLowerCase() === "amneziawg";
+}
+
+export function panelBackedProviderKeys(
+  providerKeys: Iterable<string | null | undefined>,
+): Set<string> {
+  return new Set([...providerKeys]
+    .map((providerKey) => providerKey?.trim() ?? "")
+    .filter((providerKey) => providerKey && !isDedicatedAwgUsageProviderKey(providerKey)));
+}
+
 export function providerDisableUsername(
   serviceUsername: string,
   providerKey: string,

@@ -44,7 +44,12 @@ import {
   renewRavenConfig,
   testRavenProvider,
 } from "./raven-provider";
-import { hasMappedRavenAccount, providerDisableUsername } from "./provider-disable-identity";
+import {
+  hasMappedRavenAccount,
+  isDedicatedAwgUsageProviderKey,
+  panelBackedProviderKeys,
+  providerDisableUsername,
+} from "./provider-disable-identity";
 import { readSavedServiceProviderUsernames } from "./usage-history";
 
 type Panel = {
@@ -2020,17 +2025,18 @@ export async function disablePanelUser(
   const savedV2RayAccounts = v2rayAccounts.get(serviceId);
   const savedOpenVpnAccounts = openVpnAccounts.get(serviceId);
   const savedIpsecAccount = ipsecAccounts.get(serviceId);
-  const savedProviderKeys = new Set([
+  const savedProviderKeys = panelBackedProviderKeys([
     ...(savedUsageAccounts?.keys() ?? []),
     ...(savedWireGuardAccounts?.keys() ?? []),
     ...(savedV2RayAccounts?.keys() ?? []),
     ...(savedOpenVpnAccounts?.keys() ?? []),
     ...(savedIpsecAccount?.providerKey ? [savedIpsecAccount.providerKey] : []),
     ...ravenProviderKeys,
-  ].filter(Boolean));
+  ]);
   const allConfiguredPanels = await panels(ownerId, role, includeDisabledProviders);
   const configuredPanels = allConfiguredPanels.filter((panel) =>
-    panel.enabled !== false || !includeDisabledProviders || savedProviderKeys.has(panelKey(panel)),
+    !isDedicatedAwgUsageProviderKey(panelKey(panel))
+    && (panel.enabled !== false || !includeDisabledProviders || savedProviderKeys.has(panelKey(panel))),
   );
   const configuredPanelKeys = new Set(configuredPanels.map(panelKey));
   const unresolvedMappedProviderKeys = [...savedProviderKeys]

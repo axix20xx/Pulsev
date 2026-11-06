@@ -5,6 +5,7 @@ import { hasOtherActiveServiceWithUsername } from "./service-disable-guard";
 import { effectiveAwgBytes, reconcileAwgCounter } from "./awg-counters";
 import { logger } from "./logger";
 import { recordUsageHistorySample } from "./usage-history";
+import { allRemoteProvidersDisabled } from "./service-cancellation-policy";
 
 const BYTES_PER_GB = 1024 ** 3;
 const DEFAULT_INTERVAL_MS = 60_000;
@@ -206,8 +207,7 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
     awgDisabled = service.awg_client_id ? await disableAwgClient(service.awg_client_id) : true;
     const providersDisabled =
       !sharedUsername &&
-      panelResult.attempted > 0 &&
-      panelResult.disabled === panelResult.attempted;
+      allRemoteProvidersDisabled(panelResult.attempted, panelResult.disabled);
     remoteDisabled = providersDisabled && awgDisabled;
   }
 

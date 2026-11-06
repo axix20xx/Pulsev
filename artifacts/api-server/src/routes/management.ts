@@ -61,7 +61,10 @@ import {
   serviceUsageBytes,
   storedPanelUsageSql,
 } from "../lib/service-usage-snapshot";
-import { needsRemoteProviderDisable } from "../lib/service-cancellation-policy";
+import {
+  allRemoteProvidersDisabled,
+  needsRemoteProviderDisable,
+} from "../lib/service-cancellation-policy";
 import { resolveUsageAnalyticsWindow } from "../lib/usage-analytics-window";
 import { hasWireGuardAccess } from "../lib/protocol-access";
 type ManagementClient = { query: typeof pool.query };
@@ -5965,7 +5968,7 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
         res.status(502).json({ error: "غیرفعال‌سازی Providerها کامل نشد؛ درخواست همچنان در انتظار بررسی است" });
         return;
       }
-      const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+      const providersDisabled = allRemoteProvidersDisabled(panelResult.attempted, panelResult.disabled);
       const awgResult = current.awg_client_id
         ? await disableAwgClientWithResult(current.awg_client_id)
         : { ok: true as const };
@@ -7632,8 +7635,7 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
       if (service.awg_client_id) {
         awgDisabled = await disableAwgClient(service.awg_client_id);
       }
-      const providersDisabled =
-        panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+      const providersDisabled = allRemoteProvidersDisabled(panelResult.attempted, panelResult.disabled);
       if (!providersDisabled || !awgDisabled) {
         remoteWarning = "غیرفعال‌سازی همه providerها و AWG کامل نشد";
       }

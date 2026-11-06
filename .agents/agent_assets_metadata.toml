@@ -2718,3 +2718,17 @@ mtime_ms = 1793954330064
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4b92429c-456a-419a-ad52-418390a16848/c773c842-48b5-46eb-adae-e88ca803fd25"
 storage_version_token = "1793954359243199"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "A4A306xPNxp9LaM_RmMdp"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-06T08-44-50-181Z.zip"
+type = "unspecified"
+title = "Hostinger ZIP — AWG cancellation fix"
+description = "Fixes AWG usage-history being mistaken for a panel Provider during cancellation. Validation passed; SHA-256 8d98299eff19bcc2ea184c515d5d6117b87cbbc65b1fba9c4d27bc59e699b357."
+logical_id = "6b1a7e0d-3048-474f-b9ab-3f8ba7895240"
+content_hash = "sha256:8d98299eff19bcc2ea184c515d5d6117b87cbbc65b1fba9c4d27bc59e699b357"
+size = 30986205
+mtime_ms = 1793954806273
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6b1a7e0d-3048-474f-b9ab-3f8ba7895240/13a66138-ddc1-44a1-9688-cd5408a8674c"
+storage_version_token = "1793954824550428"
+content_type = "application/octet-stream"

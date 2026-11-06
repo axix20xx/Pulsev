@@ -30,6 +30,16 @@ test("disable uses saved identities for newly added providers and falls back for
   assert.equal(identity.providerDisableUsername("service-user", "legacy-provider", { usage: mapped }), "service-user");
 });
 
+test("AWG usage history is not mistaken for a panel-provider account", () => {
+  assert.equal(identity.isDedicatedAwgUsageProviderKey("amneziawg"), true);
+  assert.equal(identity.isDedicatedAwgUsageProviderKey(" AmneziaWG "), true);
+  assert.equal(identity.isDedicatedAwgUsageProviderKey("raven-main"), false);
+  assert.deepEqual(
+    [...identity.panelBackedProviderKeys(["amneziawg", "raven-main", null, "  "])],
+    ["raven-main"],
+  );
+});
+
 test("Raven is targeted only when this service has a saved account on that provider", () => {
   assert.equal(identity.hasMappedRavenAccount("raven-main", new Set(["raven-main"])), true);
   assert.equal(identity.hasMappedRavenAccount("raven-main", new Set()), false);
@@ -40,4 +50,10 @@ test("cancel approval retries remote disable when local service status is alread
   assert.equal(cancellation.needsRemoteProviderDisable("disabled", 1), true);
   assert.equal(cancellation.needsRemoteProviderDisable("disabled", 0), false);
   assert.equal(cancellation.needsRemoteProviderDisable(null, 1), false);
+});
+
+test("zero panel targets are complete while partial panel shutdown remains pending", () => {
+  assert.equal(cancellation.allRemoteProvidersDisabled(0, 0), true);
+  assert.equal(cancellation.allRemoteProvidersDisabled(2, 1), false);
+  assert.equal(cancellation.allRemoteProvidersDisabled(2, 2), true);
 });

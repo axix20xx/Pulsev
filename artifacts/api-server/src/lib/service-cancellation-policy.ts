@@ -5,3 +5,7 @@ export function needsRemoteProviderDisable(
   return Boolean(serviceStatus)
     && (serviceStatus !== "disabled" || Number(remoteDisablePending) === 1);
 }
+
+export function allRemoteProvidersDisabled(attempted: number, disabled: number): boolean {
+  return attempted === 0 || disabled === attempted;
+}

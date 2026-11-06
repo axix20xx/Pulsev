@@ -75780,6 +75780,9 @@ function storedPanelUsageSql(serviceAlias = "svc") {
 function needsRemoteProviderDisable(serviceStatus, remoteDisablePending) {
   return Boolean(serviceStatus) && (serviceStatus !== "disabled" || Number(remoteDisablePending) === 1);
 }
+function allRemoteProvidersDisabled(attempted, disabled) {
+  return attempted === 0 || disabled === attempted;
+}
 
 // src/lib/usage-analytics-window.ts
 var TEHRAN_TIME_ZONE = "Asia/Tehran";
@@ -77049,6 +77052,12 @@ async function reactivateRavenConfig(panel, serviceId) {
 }
 
 // src/lib/provider-disable-identity.ts
+function isDedicatedAwgUsageProviderKey(providerKey) {
+  return providerKey.trim().toLowerCase() === "amneziawg";
+}
+function panelBackedProviderKeys(providerKeys) {
+  return new Set([...providerKeys].map((providerKey) => providerKey?.trim() ?? "").filter((providerKey) => providerKey && !isDedicatedAwgUsageProviderKey(providerKey)));
+}
 function providerDisableUsername(serviceUsername, providerKey, identities) {
   const candidate = identities.openVpn?.get(providerKey) ?? identities.v2ray?.get(providerKey) ?? identities.wireGuard?.get(providerKey) ?? (identities.ipsec?.providerKey === providerKey ? identities.ipsec.username : null) ?? identities.usage?.get(providerKey);
   return typeof candidate === "string" && candidate.trim() ? candidate.trim() : serviceUsername;
@@ -78765,17 +78774,17 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
   const savedV2RayAccounts = v2rayAccounts.get(serviceId);
   const savedOpenVpnAccounts = openVpnAccounts.get(serviceId);
   const savedIpsecAccount = ipsecAccounts.get(serviceId);
-  const savedProviderKeys = new Set([
+  const savedProviderKeys = panelBackedProviderKeys([
     ...savedUsageAccounts?.keys() ?? [],
     ...savedWireGuardAccounts?.keys() ?? [],
     ...savedV2RayAccounts?.keys() ?? [],
     ...savedOpenVpnAccounts?.keys() ?? [],
     ...savedIpsecAccount?.providerKey ? [savedIpsecAccount.providerKey] : [],
     ...ravenProviderKeys
-  ].filter(Boolean));
+  ]);
   const allConfiguredPanels = await panels(ownerId, role, includeDisabledProviders);
   const configuredPanels = allConfiguredPanels.filter(
-    (panel) => panel.enabled !== false || !includeDisabledProviders || savedProviderKeys.has(panelKey(panel))
+    (panel) => !isDedicatedAwgUsageProviderKey(panelKey(panel)) && (panel.enabled !== false || !includeDisabledProviders || savedProviderKeys.has(panelKey(panel)))
   );
   const configuredPanelKeys = new Set(configuredPanels.map(panelKey));
   const unresolvedMappedProviderKeys = [...savedProviderKeys].filter((providerKey) => !configuredPanelKeys.has(providerKey));
@@ -90300,7 +90309,7 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
         res.status(502).json({ error: "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC Provider\u0647\u0627 \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F\u061B \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0647\u0645\u0686\u0646\u0627\u0646 \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06CC \u0627\u0633\u062A" });
         return;
       }
-      const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+      const providersDisabled = allRemoteProvidersDisabled(panelResult.attempted, panelResult.disabled);
       const awgResult = current.awg_client_id ? await disableAwgClientWithResult(current.awg_client_id) : { ok: true };
       const awgDisabled = awgResult.ok;
       if (!providersDisabled || !awgDisabled) {
@@ -91832,7 +91841,7 @@ router2.patch("/services/:id", requireAuth, async (req, res) => {
         if (service.awg_client_id) {
           awgDisabled = await disableAwgClient(service.awg_client_id);
         }
-        const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
+        const providersDisabled = allRemoteProvidersDisabled(panelResult.attempted, panelResult.disabled);
         if (!providersDisabled || !awgDisabled) {
           remoteWarning = "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0647\u0645\u0647 provider\u0647\u0627 \u0648 AWG \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F";
         }
@@ -94047,7 +94056,7 @@ async function syncServiceUnlocked(service) {
       "reseller"
     );
     awgDisabled = service.awg_client_id ? await disableAwgClient(service.awg_client_id) : true;
-    const providersDisabled = !sharedUsername && panelResult.attempted > 0 && panelResult.disabled === panelResult.attempted;
+    const providersDisabled = !sharedUsername && allRemoteProvidersDisabled(panelResult.attempted, panelResult.disabled);
     remoteDisabled = providersDisabled && awgDisabled;
   }
   const remainingBytes = limitBytes > 0 ? Math.max(0, limitBytes - combinedBytes) : 0;
