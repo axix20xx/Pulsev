@@ -4,6 +4,7 @@
 - [Panel availability policy](panel-availability-policy.md) — expose only credential-backed providers, and make every enabled provider available to every active seller.
 - [Public token subscription routes](public-subscription.md) — token links must bypass auth by path prefix and normalize legacy URLs to the current public route.
 - [Combined provider usage sync](combined-usage-sync.md) — combine counters with independent offsets; manual AWG checks stay one-service-only and never call Providers.
+- [Usage forecasting](usage-forecasting.md) — require enough complete daily samples, show uncertainty, and keep quota predictions separate from hard expiry.
 - [AzadPanel protocol handoffs](azadpanel-openvpn-import.md) — separate protocol credentials; OpenVPN has a deeplink, while iOS WireGuard uses a confirmed `.mobileconfig` profile.
 - [Combined iOS VPN profile](combined-ios-vpn-profile.md) — bundle only active reseller-enabled OpenVPN, WireGuard, and AWG payloads; keep V2Ray subscription imports separate.
 - [OpenVPN account persistence](openvpn-account-persistence.md) — share encrypted per-service credentials across `/sub` and `/mobile`; ordinary reads must not contact Providers.

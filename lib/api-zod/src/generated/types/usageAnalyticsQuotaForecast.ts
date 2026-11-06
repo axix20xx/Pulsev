@@ -5,6 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { UsageAnalyticsQuotaForecastConfidence } from './usageAnalyticsQuotaForecastConfidence';
+import type { UsageAnalyticsQuotaForecastProjectedEndReason } from './usageAnalyticsQuotaForecastProjectedEndReason';
+import type { UsageAnalyticsQuotaForecastTrend } from './usageAnalyticsQuotaForecastTrend';
 
 export interface UsageAnalyticsQuotaForecast {
   service_id: number;
@@ -28,8 +31,23 @@ export interface UsageAnalyticsQuotaForecast {
   average_daily_bytes: number | null;
   /** @nullable */
   days_until_empty: number | null;
+  /** @nullable */
+  fast_days_until_empty: number | null;
+  /** @nullable */
+  slow_days_until_empty: number | null;
   /** @minimum 0 */
   coverage_days: number;
+  /** @minimum 0 */
+  observed_days: number;
+  /** @minimum 0 */
+  sample_count: number;
+  confidence: UsageAnalyticsQuotaForecastConfidence;
+  trend: UsageAnalyticsQuotaForecastTrend;
   /** @nullable */
   expires_at: Date | null;
+  /** @nullable */
+  projected_quota_at: Date | null;
+  /** @nullable */
+  projected_end_at: Date | null;
+  projected_end_reason: UsageAnalyticsQuotaForecastProjectedEndReason;
 }

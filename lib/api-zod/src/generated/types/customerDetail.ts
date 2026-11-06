@@ -6,10 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Customer } from './customer';
+import type { CustomerUsageRecommendation } from './customerUsageRecommendation';
 import type { Sale } from './sale';
 import type { Service } from './service';
+import type { UsageAnalyticsQuotaForecast } from './usageAnalyticsQuotaForecast';
 
-export type CustomerDetail = Customer & {
+export type CustomerDetail = Customer & ({
   services: Service[];
   sales: Sale[];
-};
+  usage_forecasts: UsageAnalyticsQuotaForecast[];
+  usage_recommendation: CustomerUsageRecommendation | null;
+});

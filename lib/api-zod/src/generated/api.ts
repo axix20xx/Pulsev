@@ -1125,6 +1125,10 @@ export const getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMax = 100;
 
 export const getUsageAnalyticsResponseQuotaForecastsItemCoverageDaysMin = 0;
 
+export const getUsageAnalyticsResponseQuotaForecastsItemObservedDaysMin = 0;
+
+export const getUsageAnalyticsResponseQuotaForecastsItemSampleCountMin = 0;
+
 export const getUsageAnalyticsResponseAnomaliesItemCurrentBytesMin = 0;
 
 export const getUsageAnalyticsResponseAnomaliesItemPreviousBytesMin = 0;
@@ -1229,8 +1233,17 @@ export const GetUsageAnalyticsResponse = zod.object({
   "used_percent": zod.number().min(getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMin).max(getUsageAnalyticsResponseQuotaForecastsItemUsedPercentMax),
   "average_daily_bytes": zod.number().nullable(),
   "days_until_empty": zod.number().nullable(),
+  "fast_days_until_empty": zod.number().nullable(),
+  "slow_days_until_empty": zod.number().nullable(),
   "coverage_days": zod.number().min(getUsageAnalyticsResponseQuotaForecastsItemCoverageDaysMin),
-  "expires_at": zod.coerce.date().nullable()
+  "observed_days": zod.number().min(getUsageAnalyticsResponseQuotaForecastsItemObservedDaysMin),
+  "sample_count": zod.number().min(getUsageAnalyticsResponseQuotaForecastsItemSampleCountMin),
+  "confidence": zod.enum(['high', 'medium', 'low', 'insufficient']),
+  "trend": zod.enum(['rising', 'stable', 'falling', 'unknown']),
+  "expires_at": zod.coerce.date().nullable(),
+  "projected_quota_at": zod.coerce.date().nullable(),
+  "projected_end_at": zod.coerce.date().nullable(),
+  "projected_end_reason": zod.enum(['quota', 'validity', 'unknown'])
 })),
   "anomalies": zod.array(zod.object({
   "service_id": zod.number(),
@@ -2137,6 +2150,35 @@ export const GetCustomerParams = zod.object({
 })
 
 export const getCustomerResponseOneMobileOtpRegExp = new RegExp('^[0-9]{4}$');
+export const getCustomerResponseTwoUsageForecastsItemLimitBytesMin = 0;
+
+export const getCustomerResponseTwoUsageForecastsItemUsedBytesMin = 0;
+
+export const getCustomerResponseTwoUsageForecastsItemRemainingBytesMin = 0;
+
+export const getCustomerResponseTwoUsageForecastsItemUsedPercentMin = 0;
+export const getCustomerResponseTwoUsageForecastsItemUsedPercentMax = 100;
+
+export const getCustomerResponseTwoUsageForecastsItemCoverageDaysMin = 0;
+
+export const getCustomerResponseTwoUsageForecastsItemObservedDaysMin = 0;
+
+export const getCustomerResponseTwoUsageForecastsItemSampleCountMin = 0;
+
+export const getCustomerResponseTwoUsageRecommendationOneObservedDaysMin = 0;
+
+export const getCustomerResponseTwoUsageRecommendationOneSampleCountMin = 0;
+
+export const getCustomerResponseTwoUsageRecommendationOneCoverageDaysMin = 0;
+
+export const getCustomerResponseTwoUsageRecommendationOneAverageDailyBytesMin = 0;
+
+export const getCustomerResponseTwoUsageRecommendationOneConservativeDailyBytesMin = 0;
+
+export const getCustomerResponseTwoUsageRecommendationOneHighUsageDailyBytesMin = 0;
+
+export const getCustomerResponseTwoUsageRecommendationOneRecommendedGb30dMin = 0;
+
 
 
 export const GetCustomerResponse = zod.object({
@@ -2203,7 +2245,42 @@ export const GetCustomerResponse = zod.object({
   "date": zod.string(),
   "paid": zod.boolean(),
   "status": zod.string()
-}))
+})),
+  "usage_forecasts": zod.array(zod.object({
+  "service_id": zod.number(),
+  "service_code": zod.string(),
+  "username": zod.string(),
+  "customer_id": zod.number().nullable(),
+  "customer_name": zod.string(),
+  "limit_bytes": zod.number().min(getCustomerResponseTwoUsageForecastsItemLimitBytesMin),
+  "used_bytes": zod.number().min(getCustomerResponseTwoUsageForecastsItemUsedBytesMin),
+  "remaining_bytes": zod.number().min(getCustomerResponseTwoUsageForecastsItemRemainingBytesMin),
+  "used_percent": zod.number().min(getCustomerResponseTwoUsageForecastsItemUsedPercentMin).max(getCustomerResponseTwoUsageForecastsItemUsedPercentMax),
+  "average_daily_bytes": zod.number().nullable(),
+  "days_until_empty": zod.number().nullable(),
+  "fast_days_until_empty": zod.number().nullable(),
+  "slow_days_until_empty": zod.number().nullable(),
+  "coverage_days": zod.number().min(getCustomerResponseTwoUsageForecastsItemCoverageDaysMin),
+  "observed_days": zod.number().min(getCustomerResponseTwoUsageForecastsItemObservedDaysMin),
+  "sample_count": zod.number().min(getCustomerResponseTwoUsageForecastsItemSampleCountMin),
+  "confidence": zod.enum(['high', 'medium', 'low', 'insufficient']),
+  "trend": zod.enum(['rising', 'stable', 'falling', 'unknown']),
+  "expires_at": zod.coerce.date().nullable(),
+  "projected_quota_at": zod.coerce.date().nullable(),
+  "projected_end_at": zod.coerce.date().nullable(),
+  "projected_end_reason": zod.enum(['quota', 'validity', 'unknown'])
+})),
+  "usage_recommendation": zod.union([zod.object({
+  "observed_days": zod.number().min(getCustomerResponseTwoUsageRecommendationOneObservedDaysMin),
+  "sample_count": zod.number().min(getCustomerResponseTwoUsageRecommendationOneSampleCountMin),
+  "coverage_days": zod.number().min(getCustomerResponseTwoUsageRecommendationOneCoverageDaysMin),
+  "average_daily_bytes": zod.number().min(getCustomerResponseTwoUsageRecommendationOneAverageDailyBytesMin).nullable(),
+  "conservative_daily_bytes": zod.number().min(getCustomerResponseTwoUsageRecommendationOneConservativeDailyBytesMin).nullable(),
+  "high_usage_daily_bytes": zod.number().min(getCustomerResponseTwoUsageRecommendationOneHighUsageDailyBytesMin).nullable(),
+  "recommended_gb_30d": zod.number().min(getCustomerResponseTwoUsageRecommendationOneRecommendedGb30dMin).nullable(),
+  "confidence": zod.enum(['high', 'medium', 'low', 'insufficient']),
+  "trend": zod.enum(['rising', 'stable', 'falling', 'unknown'])
+}),zod.null()])
 }))
 
 

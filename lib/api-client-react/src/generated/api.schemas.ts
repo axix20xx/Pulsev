@@ -922,6 +922,35 @@ export interface UsageAnalyticsQuotaSummary {
   exhausted_count: number;
 }
 
+export type UsageAnalyticsQuotaForecastConfidence = typeof UsageAnalyticsQuotaForecastConfidence[keyof typeof UsageAnalyticsQuotaForecastConfidence];
+
+
+export const UsageAnalyticsQuotaForecastConfidence = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+  insufficient: 'insufficient',
+} as const;
+
+export type UsageAnalyticsQuotaForecastTrend = typeof UsageAnalyticsQuotaForecastTrend[keyof typeof UsageAnalyticsQuotaForecastTrend];
+
+
+export const UsageAnalyticsQuotaForecastTrend = {
+  rising: 'rising',
+  stable: 'stable',
+  falling: 'falling',
+  unknown: 'unknown',
+} as const;
+
+export type UsageAnalyticsQuotaForecastProjectedEndReason = typeof UsageAnalyticsQuotaForecastProjectedEndReason[keyof typeof UsageAnalyticsQuotaForecastProjectedEndReason];
+
+
+export const UsageAnalyticsQuotaForecastProjectedEndReason = {
+  quota: 'quota',
+  validity: 'validity',
+  unknown: 'unknown',
+} as const;
+
 export interface UsageAnalyticsQuotaForecast {
   service_id: number;
   service_code: string;
@@ -944,10 +973,25 @@ export interface UsageAnalyticsQuotaForecast {
   average_daily_bytes: number | null;
   /** @nullable */
   days_until_empty: number | null;
+  /** @nullable */
+  fast_days_until_empty: number | null;
+  /** @nullable */
+  slow_days_until_empty: number | null;
   /** @minimum 0 */
   coverage_days: number;
+  /** @minimum 0 */
+  observed_days: number;
+  /** @minimum 0 */
+  sample_count: number;
+  confidence: UsageAnalyticsQuotaForecastConfidence;
+  trend: UsageAnalyticsQuotaForecastTrend;
   /** @nullable */
   expires_at: string | null;
+  /** @nullable */
+  projected_quota_at: string | null;
+  /** @nullable */
+  projected_end_at: string | null;
+  projected_end_reason: UsageAnalyticsQuotaForecastProjectedEndReason;
 }
 
 export interface UsageAnalyticsAnomaly {
@@ -996,6 +1040,57 @@ export interface UsageAnalytics {
   quota_summary: UsageAnalyticsQuotaSummary;
   quota_forecasts: UsageAnalyticsQuotaForecast[];
   anomalies: UsageAnalyticsAnomaly[];
+}
+
+export type CustomerUsageRecommendationConfidence = typeof CustomerUsageRecommendationConfidence[keyof typeof CustomerUsageRecommendationConfidence];
+
+
+export const CustomerUsageRecommendationConfidence = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+  insufficient: 'insufficient',
+} as const;
+
+export type CustomerUsageRecommendationTrend = typeof CustomerUsageRecommendationTrend[keyof typeof CustomerUsageRecommendationTrend];
+
+
+export const CustomerUsageRecommendationTrend = {
+  rising: 'rising',
+  stable: 'stable',
+  falling: 'falling',
+  unknown: 'unknown',
+} as const;
+
+export interface CustomerUsageRecommendation {
+  /** @minimum 0 */
+  observed_days: number;
+  /** @minimum 0 */
+  sample_count: number;
+  /** @minimum 0 */
+  coverage_days: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  average_daily_bytes: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  conservative_daily_bytes: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  high_usage_daily_bytes: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  recommended_gb_30d: number | null;
+  confidence: CustomerUsageRecommendationConfidence;
+  trend: CustomerUsageRecommendationTrend;
 }
 
 export interface AwgUsageRefreshResult {
@@ -1309,10 +1404,12 @@ export interface Customer {
   mobile_otp_locked?: boolean;
 }
 
-export type CustomerDetail = Customer & {
+export type CustomerDetail = Customer & ({
   services: Service[];
   sales: Sale[];
-};
+  usage_forecasts: UsageAnalyticsQuotaForecast[];
+  usage_recommendation: CustomerUsageRecommendation | null;
+});
 
 export interface Reseller {
   id: number;

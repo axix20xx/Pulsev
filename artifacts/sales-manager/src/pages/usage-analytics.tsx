@@ -44,6 +44,9 @@ const compactBytes = (bytes: number) => {
 };
 const percentFa = (value: number) => `${new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 }).format(value)}٪`;
 const weekdayLabels = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
+const forecastConfidenceLabel = (value: string) => ({ high: "بالا", medium: "متوسط", low: "محدود", insufficient: "ناکافی" } as Record<string, string>)[value] ?? "نامشخص";
+const forecastTrendLabel = (value: string) => ({ rising: "افزایشی", stable: "پایدار", falling: "کاهشی", unknown: "نامشخص" } as Record<string, string>)[value] ?? "نامشخص";
+const forecastEndReasonLabel = (value: string) => ({ quota: "حجم زودتر تمام می‌شود", validity: "اعتبار زمانی زودتر تمام می‌شود", unknown: "ترتیب پایان مشخص نیست" } as Record<string, string>)[value] ?? "ترتیب پایان مشخص نیست";
 
 function UsageHeatmap({ rows }: { rows: Array<{ weekday: number; hour: number; bytes: number }> }) {
   const values = new Map(rows.map((row) => [`${row.weekday}:${row.hour}`, Number(row.bytes)]));
@@ -266,11 +269,22 @@ export default function UsageAnalyticsPage() {
           <small className="usage-muted">{numberFa.format(quota.tracked_services)} از {numberFa.format(quota.active_services)} سرویس دادهٔ مصرف ثبت‌شده دارند.</small>
         </> : <SkeletonRows rows={3}/>}
       </Card>
-      <Card title="پیش‌بینی اتمام حجم" description="بر اساس میانگین روزانهٔ نمونه‌های هفت روز اخیر؛ حداقل یک روز تاریخچه لازم است">
-        {data?.quota_forecasts.length ? <div className="usage-forecast-list">{data.quota_forecasts.map((item) => <article className="usage-forecast-row" key={item.service_id}>
+      <Card title="پیش‌بینی اتمام حجم" description="برآورد مصرف همراه با پنجرهٔ شواهد و سناریوی سریع و آهسته">
+        {data?.quota_forecasts.length ? <div className="usage-forecast-list">{data.quota_forecasts.map((item) => <article className="usage-forecast-row" key={item.service_id} data-testid={`card-quota-forecast-${item.service_id}`}>
           <div className="usage-forecast-head"><strong>{item.service_code}</strong><span>{item.customer_name || item.username || "—"}</span></div>
           <Meter value={item.used_percent} label={`مصرف حجم ${item.service_code}`}/>
-          <div className="usage-forecast-foot"><span>{percentFa(item.used_percent)} مصرف · {bytesFormat(item.remaining_bytes)} مانده</span><strong>{item.days_until_empty === null ? "تاریخچهٔ کافی نیست" : `حدود ${numberFa.format(item.days_until_empty)} روز`}</strong></div>
+          <div className="usage-forecast-foot"><span>{percentFa(item.used_percent)} مصرف · {bytesFormat(item.remaining_bytes)} مانده</span><strong data-testid={`value-quota-forecast-date-${item.service_id}`}>{item.projected_end_at ? dateLabel(item.projected_end_at) : item.days_until_empty == null ? "تاریخچهٔ کافی نیست" : `حدود ${numberFa.format(item.days_until_empty)} روز`}</strong></div>
+          <div className="usage-forecast-explanation">
+            <div className="usage-forecast-primary"><span>پایان مورد انتظار</span><strong>{item.projected_end_at ? dateLabel(item.projected_end_at) : "نامشخص"}</strong><small>{forecastEndReasonLabel(item.projected_end_reason)}</small></div>
+            <div className="usage-forecast-meta">
+              <Badge tone={item.confidence === "high" ? "good" : item.confidence === "medium" ? "info" : item.confidence === "insufficient" ? "neutral" : "warn"}>اطمینان {forecastConfidenceLabel(item.confidence)}</Badge>
+              <Badge tone={item.trend === "rising" ? "warn" : item.trend === "falling" ? "good" : "neutral"}>روند {forecastTrendLabel(item.trend)}</Badge>
+            </div>
+            <p data-testid={`text-quota-forecast-evidence-${item.service_id}`}>پنجرهٔ پوشش {numberFa.format(item.coverage_days)} روز · {numberFa.format(item.observed_days)} روز مشاهده · {numberFa.format(item.sample_count)} نمونه</p>
+            {item.fast_days_until_empty != null || item.slow_days_until_empty != null
+              ? <p data-testid={`text-quota-forecast-range-${item.service_id}`}>سناریوی سریع تا {item.fast_days_until_empty == null ? "—" : `${numberFa.format(item.fast_days_until_empty)} روز`} · سناریوی آهسته تا {item.slow_days_until_empty == null ? "—" : `${numberFa.format(item.slow_days_until_empty)} روز`}</p>
+              : <p>بازهٔ سریع و آهسته با داده‌های موجود قابل محاسبه نیست.</p>}
+          </div>
         </article>)}</div> : <EmptyState title="پیش‌بینی هنوز آماده نیست" detail="برای پیش‌بینی معتبر، دست‌کم یک روز نمونهٔ تاریخی و مصرف مثبت لازم است." icon={Gauge}/>}
       </Card>
     </div>

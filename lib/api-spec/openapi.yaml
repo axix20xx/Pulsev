@@ -2777,7 +2777,7 @@ components:
           minimum: 0
     UsageAnalyticsQuotaForecast:
       type: object
-      required: [service_id, service_code, username, customer_id, customer_name, limit_bytes, used_bytes, remaining_bytes, used_percent, average_daily_bytes, days_until_empty, coverage_days, expires_at]
+      required: [service_id, service_code, username, customer_id, customer_name, limit_bytes, used_bytes, remaining_bytes, used_percent, average_daily_bytes, days_until_empty, fast_days_until_empty, slow_days_until_empty, coverage_days, observed_days, sample_count, confidence, trend, expires_at, projected_quota_at, projected_end_at, projected_end_reason]
       properties:
         service_id:
           type: number
@@ -2806,12 +2806,68 @@ components:
           type: ["number", "null"]
         days_until_empty:
           type: ["number", "null"]
+        fast_days_until_empty:
+          type: ["number", "null"]
+        slow_days_until_empty:
+          type: ["number", "null"]
         coverage_days:
           type: number
           minimum: 0
+        observed_days:
+          type: number
+          minimum: 0
+        sample_count:
+          type: number
+          minimum: 0
+        confidence:
+          type: string
+          enum: [high, medium, low, insufficient]
+        trend:
+          type: string
+          enum: [rising, stable, falling, unknown]
         expires_at:
           type: ["string", "null"]
           format: date-time
+        projected_quota_at:
+          type: ["string", "null"]
+          format: date-time
+        projected_end_at:
+          type: ["string", "null"]
+          format: date-time
+        projected_end_reason:
+          type: string
+          enum: [quota, validity, unknown]
+    CustomerUsageRecommendation:
+      type: object
+      required: [observed_days, sample_count, coverage_days, average_daily_bytes, conservative_daily_bytes, high_usage_daily_bytes, recommended_gb_30d, confidence, trend]
+      properties:
+        observed_days:
+          type: number
+          minimum: 0
+        sample_count:
+          type: number
+          minimum: 0
+        coverage_days:
+          type: number
+          minimum: 0
+        average_daily_bytes:
+          type: ["number", "null"]
+          minimum: 0
+        conservative_daily_bytes:
+          type: ["number", "null"]
+          minimum: 0
+        high_usage_daily_bytes:
+          type: ["number", "null"]
+          minimum: 0
+        recommended_gb_30d:
+          type: ["number", "null"]
+          minimum: 0
+        confidence:
+          type: string
+          enum: [high, medium, low, insufficient]
+        trend:
+          type: string
+          enum: [rising, stable, falling, unknown]
     UsageAnalyticsAnomaly:
       type: object
       required: [service_id, service_code, username, customer_name, current_bytes, previous_bytes, delta_bytes, multiple]
@@ -3231,7 +3287,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/Customer"
         - type: object
-          required: [services, sales]
+          required: [services, sales, usage_forecasts, usage_recommendation]
           properties:
             services:
               type: array
@@ -3241,6 +3297,14 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Sale"
+            usage_forecasts:
+              type: array
+              items:
+                $ref: "#/components/schemas/UsageAnalyticsQuotaForecast"
+            usage_recommendation:
+              oneOf:
+                - $ref: "#/components/schemas/CustomerUsageRecommendation"
+                - type: "null"
     Reseller:
       type: object
       required: [id, telegram_id, title, total_gb, used_gb, per_gig_price, customer_price_per_gb, enabled, wireguard_enabled, ipsec_enabled, created_at]

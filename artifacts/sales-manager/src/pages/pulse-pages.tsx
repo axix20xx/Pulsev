@@ -1424,7 +1424,7 @@ export function AdminSales() {
 }
 
 function ServiceModal({ onClose }: { onClose: () => void }) {
-  const { createService, customers, services, session } = usePulse();
+  const { createService, customers, session } = usePulse();
   const [form, setForm] = useState({ customerName: '', phone: '', label: 'سرویس ویژه', gb: '30', days: '30', sellPrice: '', isPaid: true });
   const [created, setCreated] = useState<Service | null>(null);
   const [mobileOtp, setMobileOtp] = useState('');
@@ -1436,28 +1436,42 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
   const [creationSeconds, setCreationSeconds] = useState(0);
   const [error, setError] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [recommendationApplied, setRecommendationApplied] = useState(false);
   const normalizedPhone = (value: string) => value.replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[^\d]/g, '');
   const finderQuery = normalizedPhone(form.phone) || form.customerName.trim().toLowerCase();
   const customerMatches = finderQuery.length >= 2
     ? customers.filter((customer) => normalizedPhone(customer.phone).includes(finderQuery) || customer.name.toLowerCase().includes(finderQuery)).slice(0, 5)
     : [];
+  const selectedCustomerNumericId = Number(selectedCustomerId);
+  const recommendationAuthScope = session?.authenticated
+    ? `${session.role ?? 'user'}:${session.telegram_id ?? session.reseller_id ?? 'unknown'}`
+    : 'signed-out';
+  const selectedCustomerQuery = useGetCustomer(selectedCustomerNumericId, {
+    query: {
+      enabled: session?.authenticated === true && Number.isFinite(selectedCustomerNumericId) && selectedCustomerNumericId > 0,
+      queryKey: [...getGetCustomerQueryKey(selectedCustomerNumericId), recommendationAuthScope, 'usage-recommendation'],
+      staleTime: LIVE_DATA_STALE_MS,
+    },
+  });
+  const usageRecommendation = selectedCustomerQuery.data?.usage_recommendation ?? null;
+  const recommendationIsUsable = Boolean(
+    usageRecommendation
+    && usageRecommendation.confidence !== 'insufficient'
+    && usageRecommendation.recommended_gb_30d != null
+    && Number.isFinite(usageRecommendation.recommended_gb_30d)
+    && usageRecommendation.recommended_gb_30d > 0,
+  );
   const gbOptions = [{ gb: 10, label: '۱۰ گیگ', note: 'شروع سبک' }, { gb: 30, label: '۳۰ گیگ', note: 'محبوب‌ترین' }, { gb: 50, label: '۵۰ گیگ', note: 'پرمصرف' }, { gb: 100, label: '۱۰۰ گیگ', note: 'حرفه‌ای' }];
   const dateOptions = [{ days: 7, label: '۷ روز', note: 'هفتگی' }, { days: 30, label: '۳۰ روز', note: 'ماهانه' }, { days: 60, label: '۶۰ روز', note: 'دوماهه' }, { days: 90, label: '۹۰ روز', note: 'فصلی' }, { days: 180, label: '۶ ماه', note: 'بلندمدت' }];
   const isReseller = session?.role === 'reseller';
   const customerPricePerGb = Number(session?.customer_price_per_gb ?? 0);
   const lockedSellPrice = customerPricePerGb * Number(form.gb || 0);
   const currentSellPrice = form.sellPrice !== '' ? Number(form.sellPrice) : isReseller ? lockedSellPrice : 0;
-  const smartSuggestion = useMemo(() => {
-    if (!selectedCustomerId) return null;
-    const history = services.filter((service) => service.customerId === selectedCustomerId || service.customerName === form.customerName);
-    const gbValues = history.map((service) => Number(service.limitGb)).filter((value) => value > 0);
-    const medianGb = gbValues.length ? [...gbValues].sort((a, b) => a - b)[Math.floor(gbValues.length / 2)] : 30;
-    const suggestedGb = Math.max(1, Math.round(medianGb / 5) * 5);
-    const remainingDays = history.map((service) => service.expiresAt ? Math.ceil((new Date(service.expiresAt).getTime() - Date.now()) / 86_400_000) : 0).filter((value) => value > 0);
-    const typicalDays = remainingDays.length ? remainingDays.sort((a, b) => a - b)[Math.floor(remainingDays.length / 2)] : 30;
-    const suggestedDays = [30, 60, 90].sort((a, b) => Math.abs(a - typicalDays) - Math.abs(b - typicalDays))[0];
-    return { gb: suggestedGb, days: suggestedDays, historyCount: history.length };
-  }, [form.customerName, selectedCustomerId, services]);
+  const applyUsageRecommendation = () => {
+    if (!recommendationIsUsable || !usageRecommendation?.recommended_gb_30d) return;
+    setForm((current) => ({ ...current, gb: String(usageRecommendation.recommended_gb_30d), days: '30' }));
+    setRecommendationApplied(true);
+  };
   const projectedExpiry = new Date(Date.now() + Number(form.days || 0) * 86_400_000).toISOString();
   useEffect(() => {
     fetch('/api/providers/available', { credentials: 'include' })
@@ -1551,16 +1565,28 @@ function ServiceModal({ onClose }: { onClose: () => void }) {
         <div className="ax-wizard-kicker"><span className="ax-wizard-step-number">۰۱</span><span>شروع سریع</span></div><h3>برای چه کسی سرویس می‌سازیم؟</h3><p className="ax-wizard-lede">موبایل را وارد کنید تا مشتری موجود پیدا شود؛ برای مشتری تازه، نام را همین‌جا تکمیل کنید.</p>
         <div className="ax-finder-card"><div className="ax-finder-icon"><Phone size={22} /></div><div className="ax-finder-copy"><strong>پیدا کردن مشتری با موبایل</strong><span>جست‌وجو با شماره یا نام، بدون خروج از ویزارد</span></div><span className="ax-finder-live"><i /> زنده</span></div>
         <label className="ax-finder-input"><Phone size={18} /><input autoFocus inputMode="tel" dir="ltr" value={form.phone} placeholder="۰۹۱۲۱۲۳۴۵۶۷" onChange={(event) => { setForm({ ...form, phone: event.target.value }); setSelectedCustomerId(null); }} /><span>موبایل</span></label>
-        {customerMatches.length > 0 && <div className="ax-finder-results"><p>مشتری‌های پیدا شده</p>{customerMatches.map((customer) => <button type="button" className={`ax-finder-result ${selectedCustomerId === customer.id ? 'selected' : ''}`} key={customer.id} onClick={() => { setSelectedCustomerId(customer.id); setForm({ ...form, customerName: customer.name, phone: customer.phone }); }}><Avatar name={customer.name} color="teal" /><span><strong>{customer.name}</strong><small dir="ltr">{customer.phone}</small></span><Check size={16} /></button>)}</div>}
+        {customerMatches.length > 0 && <div className="ax-finder-results"><p>مشتری‌های پیدا شده</p>{customerMatches.map((customer) => <button type="button" className={`ax-finder-result ${selectedCustomerId === customer.id ? 'selected' : ''}`} key={customer.id} onClick={() => { setSelectedCustomerId(customer.id); setRecommendationApplied(false); setForm({ ...form, customerName: customer.name, phone: customer.phone }); }}><Avatar name={customer.name} color="teal" /><span><strong>{customer.name}</strong><small dir="ltr">{customer.phone}</small></span><Check size={16} /></button>)}</div>}
         {form.phone && !customerMatches.length && normalizedPhone(form.phone).length >= 10 && <div className="ax-finder-empty"><UserPlus size={17} /><span>مشتری جدید؛ نام او را در فرم زیر تکمیل کنید.</span></div>}
         <div className="ax-form-grid ax-finder-details"><Field label="نام مشتری" value={form.customerName} onChange={(customerName) => { setForm({ ...form, customerName }); setSelectedCustomerId(null); }} placeholder="نام و نام خانوادگی" /><Field label="عنوان سرویس" value={form.label} onChange={(label) => setForm({ ...form, label })} placeholder="مثلاً سرویس ویژه" /></div>
       </div>}
       {step === 2 && <div className="ax-wizard-step">
         <div className="ax-wizard-kicker"><span className="ax-wizard-step-number">۰۲</span><span>تنظیم دسترسی</span></div><h3>حجم و مدت را سریع انتخاب کنید</h3><p className="ax-wizard-lede">از گزینه‌های آماده استفاده کنید یا اگر فروش خاصی دارید، مقدار سفارشی وارد کنید.</p>
-        {smartSuggestion && <div className="ax-smart-suggestion"><div className="ax-smart-suggestion-icon"><Sparkles size={16} /></div><div><strong>پیشنهاد بر اساس سابقه</strong><span>{smartSuggestion.historyCount} سرویس قبلی · {smartSuggestion.gb} گیگ برای {smartSuggestion.days} روز</span></div><button type="button" onClick={() => setForm({ ...form, gb: String(smartSuggestion.gb), days: String(smartSuggestion.days) })}>استفاده از پیشنهاد</button></div>}
-        <div className="ax-wizard-quick-section"><div className="ax-wizard-quick-heading"><div><strong>حجم سرویس</strong><span>انتخاب محبوب برای شروع</span></div><span className="ax-wizard-quick-label">GB</span></div><div className="ax-wizard-quick-grid">{gbOptions.map((option) => <button type="button" key={option.gb} className={Number(form.gb) === option.gb ? 'selected' : ''} onClick={() => setForm({ ...form, gb: String(option.gb) })}><strong>{option.label}</strong><small>{option.note}</small></button>)}</div></div>
-        <div className="ax-form-grid"><Field label="حجم سفارشی (گیگابایت)" type="number" value={form.gb} onChange={(gb) => setForm({ ...form, gb })} /><label className="ax-field"><span>مدت سفارشی (روز)</span><input type="number" min="1" value={form.days} onChange={(event) => setForm({ ...form, days: event.target.value })} /></label></div>
-        <div className="ax-quick-date-block ax-wizard-duration-section"><div className="ax-quick-date-heading"><div><CalendarDays size={16} /><span>مدت سرویس</span></div><small>تاریخ انقضا خودکار محاسبه می‌شود</small></div><div className="ax-quick-date-grid">{dateOptions.map((option) => <button type="button" key={option.days} className={Number(form.days) === option.days ? 'selected' : ''} onClick={() => setForm({ ...form, days: String(option.days) })}><strong>{option.label}</strong><small>{option.note} · {dateLabel(new Date(Date.now() + option.days * 86_400_000).toISOString())}</small></button>)}</div></div>
+        {selectedCustomerId && <div className="ax-smart-suggestion" data-testid="panel-usage-recommendation">
+          <div className="ax-smart-suggestion-icon"><Gauge size={16} /></div>
+          {selectedCustomerQuery.isLoading ? <div><strong>در حال بررسی سابقهٔ مصرف</strong><span>پیشنهاد تا دریافت داده‌ها در دسترس نیست.</span></div>
+            : selectedCustomerQuery.isError ? <div><strong>پیشنهاد مصرف دریافت نشد</strong><span>می‌توانید حجم و مدت را دستی وارد کنید.</span></div>
+              : recommendationIsUsable && usageRecommendation ? <div>
+                <strong>پیشنهاد بسته بر پایهٔ مصرف</strong>
+                <span data-testid="text-usage-recommendation">{numberFa(usageRecommendation.recommended_gb_30d ?? 0)} گیگ برای ۳۰ روز · {numberFa(usageRecommendation.observed_days)} روز مشاهده · {numberFa(usageRecommendation.sample_count)} نمونه · اطمینان {({ high: 'بالا', medium: 'متوسط', low: 'محدود', insufficient: 'ناکافی' } as const)[usageRecommendation.confidence]}</span>
+                {usageRecommendation.trend !== 'unknown' && <small>روند مصرف: {({ rising: 'افزایشی', stable: 'پایدار', falling: 'کاهشی' } as const)[usageRecommendation.trend]}</small>}
+              </div>
+                : <div><strong>هنوز سابقهٔ کافی برای پیشنهاد نیست</strong><span>برای این مشتری پیشنهاد مصرف قابل اتکایی ثبت نشده؛ حجم و مدت را دستی انتخاب کنید.</span></div>}
+          {recommendationIsUsable && <button type="button" onClick={applyUsageRecommendation} data-testid="button-apply-usage-recommendation">{recommendationApplied ? 'پیشنهاد اعمال شد' : 'تأیید پیشنهاد و استفاده'}</button>}
+          {recommendationApplied && <small role="status" data-testid="status-usage-recommendation-applied">حجم پیشنهادی و مدت ۳۰ روز در فرم قرار گرفت؛ پیش از ساخت بازبینی کنید.</small>}
+        </div>}
+        <div className="ax-wizard-quick-section"><div className="ax-wizard-quick-heading"><div><strong>حجم سرویس</strong><span>انتخاب محبوب برای شروع</span></div><span className="ax-wizard-quick-label">GB</span></div><div className="ax-wizard-quick-grid">{gbOptions.map((option) => <button type="button" key={option.gb} className={Number(form.gb) === option.gb ? 'selected' : ''} onClick={() => { setRecommendationApplied(false); setForm({ ...form, gb: String(option.gb) }); }}><strong>{option.label}</strong><small>{option.note}</small></button>)}</div></div>
+        <div className="ax-form-grid"><Field label="حجم سفارشی (گیگابایت)" type="number" value={form.gb} onChange={(gb) => { setRecommendationApplied(false); setForm({ ...form, gb }); }} /><label className="ax-field"><span>مدت سفارشی (روز)</span><input type="number" min="1" value={form.days} onChange={(event) => { setRecommendationApplied(false); setForm({ ...form, days: event.target.value }); }} /></label></div>
+        <div className="ax-quick-date-block ax-wizard-duration-section"><div className="ax-quick-date-heading"><div><CalendarDays size={16} /><span>مدت سرویس</span></div><small>تاریخ انقضا خودکار محاسبه می‌شود</small></div><div className="ax-quick-date-grid">{dateOptions.map((option) => <button type="button" key={option.days} className={Number(form.days) === option.days ? 'selected' : ''} onClick={() => { setRecommendationApplied(false); setForm({ ...form, days: String(option.days) }); }}><strong>{option.label}</strong><small>{option.note} · {dateLabel(new Date(Date.now() + option.days * 86_400_000).toISOString())}</small></button>)}</div></div>
         <div className="ax-wizard-live-summary"><div><span>حجم انتخابی</span><strong>{numberFa(Number(form.gb))} گیگ</strong></div><div><span>مدت</span><strong>{numberFa(Number(form.days))} روز</strong></div><div><span>قیمت فروش</span><strong>{currentSellPrice > 0 ? money(currentSellPrice) : 'قابل تعیین'}</strong></div></div>
         <div className="ax-expiry-preview"><CalendarDays size={17} /><div><span>تاریخ انقضای تقریبی</span><strong>{dateLabel(projectedExpiry)}</strong></div><em>{numberFa(Number(form.days))} روز</em></div>
       </div>}
@@ -2572,11 +2598,24 @@ function CustomerDetailContent() {
   const { id } = useParams<{ id: string }>();
   const { customers, services, sales, openRenewWizard, resetServiceToken, session } = usePulse();
   const numericId = Number((id || '').replace(/\D/g, ''));
-   const customerDetailQuery = useGetCustomer(numericId, { query: { enabled: session?.authenticated === true && Number.isFinite(numericId) && numericId > 0, queryKey: [...getGetCustomerQueryKey(numericId), 'usage-v5-wireguard-combined'], staleTime: LIVE_DATA_STALE_MS, refetchInterval: LIVE_DATA_REFRESH_MS, refetchOnReconnect: true, refetchOnWindowFocus: true } });
+    const customerDetailQuery = useGetCustomer(numericId, { query: { enabled: session?.authenticated === true && Number.isFinite(numericId) && numericId > 0, queryKey: [...getGetCustomerQueryKey(numericId), 'usage-v6-forecast-intelligence'], staleTime: LIVE_DATA_STALE_MS, refetchInterval: LIVE_DATA_REFRESH_MS, refetchOnReconnect: true, refetchOnWindowFocus: true } });
   const apiDetail = customerDetailQuery.data;
   const apiCustomer = apiDetail ? mapCustomer(apiDetail) : null;
   const customer = apiCustomer ?? customers.find((item) => item.id === id);
   const allCustomerServices = apiDetail?.services?.map(mapService) ?? services.filter((service) => service.customerName === customer?.name || service.customerId === id);
+  const usageForecastForService = (service: Service) => {
+    const serviceId = Number(service.id);
+    return Number.isFinite(serviceId)
+      ? apiDetail?.usage_forecasts?.find((forecast) => Number(forecast.service_id) === serviceId)
+      : undefined;
+  };
+  const forecastConfidenceLabel = (confidence: string) => ({ high: 'بالا', medium: 'متوسط', low: 'محدود', insufficient: 'ناکافی' } as Record<string, string>)[confidence] ?? 'نامشخص';
+  const projectedRateRange = (forecast: NonNullable<typeof apiDetail>['usage_forecasts'][number]) => {
+    if (forecast.remaining_bytes <= 0 || forecast.fast_days_until_empty == null || forecast.slow_days_until_empty == null || forecast.fast_days_until_empty <= 0 || forecast.slow_days_until_empty <= 0) return null;
+    const fastRateGb = forecast.remaining_bytes / forecast.fast_days_until_empty / 1024 ** 3;
+    const slowRateGb = forecast.remaining_bytes / forecast.slow_days_until_empty / 1024 ** 3;
+    return `${usageLabel(Math.min(fastRateGb, slowRateGb))} تا ${usageLabel(Math.max(fastRateGb, slowRateGb))} در روز`;
+  };
   const customerSales = apiDetail?.sales?.map(mapSale) ?? sales.filter((sale) => sale.customerName === customer?.name);
   const [serviceTab, setServiceTab] = useState<CustomerServiceTab>('active');
    const [serviceIssueFilter, setServiceIssueFilter] = useState('all');
@@ -2824,6 +2863,14 @@ function CustomerDetailContent() {
           <CustomerServiceControls services={allCustomerServices} tab={serviceTab} issueFilter={serviceIssueFilter} search={serviceSearch} onTabChange={setServiceTab} onIssueFilterChange={setServiceIssueFilter} onSearchChange={setServiceSearch} />
             {visibleCustomerServices.length ? <div className="ax-table-wrap is-stack"><table className="ax-table ax-customer-service-table" aria-label="اشتراک‌های مشتری"><thead><tr><th>اشتراک</th><th>مصرف ترکیبی</th><th>اعتبار</th><th>جزئیات</th><th>عملیات</th></tr></thead><tbody>{visibleCustomerServices.map((service) => {
             const ratio = service.limitGb ? Math.min(100, Math.round(service.usedGb / service.limitGb * 100)) : 0;
+            const usageForecast = usageForecastForService(service);
+            const forecastInsufficient = !usageForecast || usageForecast.confidence === 'insufficient';
+            const projectedReason = usageForecast?.projected_end_reason === 'quota'
+              ? 'احتمالاً حجم زودتر تمام می‌شود'
+              : usageForecast?.projected_end_reason === 'validity'
+                ? 'اعتبار زمانی زودتر تمام می‌شود'
+                : 'ترتیب پایان مشخص نیست';
+            const rateRange = usageForecast ? projectedRateRange(usageForecast) : null;
             const publicUrl = service.publicSubscriptionUrl ?? service.subscriptionUrl;
             const hasSaleLog = customerSales.some((sale) => sale.serviceId === service.id);
             const latestRequest = actionRequests.find((request) => String(request.service_id) === service.id);
@@ -2831,7 +2878,26 @@ function CustomerDetailContent() {
              return <tr key={service.id} data-testid={`row-customer-service-${service.id}`}>
                <td><strong>{service.plan}</strong><small className="ax-sub" dir="ltr">@{service.username} · {serviceDisplayCode(service)}</small><StatusPill value={service.status} /></td>
                <td><strong>{service.usedGb} / {service.limitGb} GB</strong><small className="ax-sub">{new Intl.NumberFormat('fa-IR').format(ratio)}٪ مصرف</small><span className="ax-service-inventory-meter" role="progressbar" aria-label={`مصرف ${service.plan}`} aria-valuenow={ratio} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${ratio}%` }} /></span></td>
-               <td><strong>{dateLabel(service.expiresAt)}</strong><small className="ax-sub">{Math.max(0, daysUntil(service.expiresAt))} روز مانده</small></td>
+                <td data-testid={`value-customer-service-end-${service.id}`}>
+                  <strong>{dateLabel(service.expiresAt)}</strong>
+                  <small className="ax-sub">{Math.max(0, daysUntil(service.expiresAt))} روز مانده · اعتبار ثابت</small>
+                  {(service.status === 'Active' || service.status === 'Expiring') && <div style={{ display: 'grid', gap: 3, marginTop: 5, fontSize: 10, lineHeight: 1.7 }}>
+                    {forecastInsufficient
+                      ? <small data-testid={`status-customer-service-forecast-${service.id}`} style={{ color: 'hsl(var(--muted-foreground))' }}>
+                        {apiDetail
+                          ? 'پیش‌بینی مصرف: شواهد کافی نیست؛ تاریخ اعتبار ثابت بالا مبناست.'
+                          : customerDetailQuery.isError
+                            ? 'اطلاعات پیش‌بینی در دسترس نیست؛ تاریخ اعتبار ثابت بالا مبناست.'
+                            : 'در حال دریافت شواهد مصرف؛ تاریخ اعتبار ثابت بالا مبناست.'}
+                      </small>
+                      : <>
+                        <strong style={{ color: 'hsl(var(--primary))' }}>پایان پیش‌بینی‌شده: {usageForecast.projected_end_at ? dateLabel(usageForecast.projected_end_at) : 'نامشخص'}</strong>
+                        <small>{projectedReason}</small>
+                        <small>اطمینان {forecastConfidenceLabel(usageForecast.confidence)} · پنجرهٔ پوشش {new Intl.NumberFormat('fa-IR').format(usageForecast.coverage_days)} روز · {new Intl.NumberFormat('fa-IR').format(usageForecast.observed_days)} روز مشاهده · {new Intl.NumberFormat('fa-IR').format(usageForecast.sample_count)} نمونه</small>
+                        {rateRange && <small>دامنهٔ مصرف روزانه: {rateRange}</small>}
+                      </>}
+                  </div>}
+                </td>
                  <td className="ax-customer-service-usage-cell"><details className="ax-customer-service-usage-details"><summary>ریز مصرف اتصال‌ها · مجموع {usageLabel(service.usedGb)} / {usageLabel(service.limitGb)}</summary><ServiceUsageBreakdown service={service} />{requestStatusItems.length > 0 && <p className="ax-customer-request-status">{requestStatusItems.map(([label, status]) => <span key={label}>{label}: {status === 'pending' ? 'در انتظار بررسی' : status === 'approved' ? 'تأیید شد' : status === 'rejected' ? 'رد شد' : 'ثبت نشده'}</span>)} <Link href="/action-requests">پیگیری</Link></p>}</details></td>
                <td><div className="ax-cell-actions">
                  {service.subscriptionUrl && <><button className="ax-btn" type="button" onClick={() => void copyTextToClipboard(publicUrl || service.subscriptionUrl || '')}><Copy size={13} /> کپی لینک</button><a className="ax-btn is-primary" href={v2boxUrl(service)} target="_blank" rel="noreferrer"><ExternalLink size={13} /> V2Box</a><details><summary>QR</summary><SubscriptionQr url={publicUrl || service.subscriptionUrl} /></details></>}
