@@ -9,6 +9,12 @@ Keep the manifest link, service-worker registration, service-worker scope, and s
 
 **How to apply:** Use `import.meta.env.BASE_URL` for runtime registration and relative manifest/shell URLs, then rebuild the Hostinger panel with its own `BASE_PATH`.
 
+For public routes that can be opened without a trailing slash, resolve the PWA manifest and icon links against that route's canonical base. In particular, `/panel` must point to `/panel/manifest.webmanifest`, not the root manifest.
+
+**Why:** A relative `manifest.webmanifest` on `/panel` resolves to `/manifest.webmanifest`; an installed shortcut then launches the root landing page instead of the panel.
+
+**How to apply:** Detect `/panel` at a path boundary, use the `/panel/` base for panel manifest and icons on `/panel`, `/panel/`, and panel subroutes, and verify the freshly rebuilt Hostinger package.
+
 Push links to the public subscription screen need a PWA-local route (`/mobile/sub`) when opened from the customer service worker; the standalone Hostinger `/sub` page still needs its own root-built bundle with assets rewritten to `/panel-sub-assets/`.
 
 **Why:** Navigating a `/sub` notification directly from a scoped `/mobile/` app can load outside the mounted artifact and appear blank, while Hostinger serves `/sub` from a separate static root.
