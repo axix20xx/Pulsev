@@ -476,12 +476,31 @@ export async function ravenDeliveryLinks(
 
 export async function pauseRavenConfig(panel: RavenPanel, serviceId: number): Promise<boolean> {
   const account = await getAccount(serviceId, panel.key);
-  if (!account?.remote_config_id) return false;
-  await ravenRequest(
-    panel,
-    "POST",
-    `/configs/${encodeURIComponent(account.remote_config_id)}/pause`,
-  );
+  if (!account) return false;
+  let remoteConfigId = account.remote_config_id?.trim() || "";
+  if (!remoteConfigId) {
+    const remote = await findByLabel(panel, account.config_label);
+    if (!remote) return true;
+    remoteConfigId = ravenConfigId(remote.id ?? remote.config?.id);
+    if (!remoteConfigId) {
+      throw new RavenProviderError("Raven account was found but its config ID is missing.", 502, true);
+    }
+    await saveAccount(serviceId, panel, account, remoteConfigId);
+  }
+  const encodedId = encodeURIComponent(remoteConfigId);
+  const current = await ravenRequest(panel, "GET", `/configs/${encodedId}`);
+  if (String(current.status ?? "").trim().toLowerCase() === "paused") return true;
+  try {
+    await ravenRequest(panel, "POST", `/configs/${encodedId}/pause`);
+  } catch (error) {
+    try {
+      const after = await ravenRequest(panel, "GET", `/configs/${encodedId}`);
+      if (String(after.status ?? "").trim().toLowerCase() === "paused") return true;
+    } catch {
+      // Preserve the original error if the follow-up status check also fails.
+    }
+    throw error;
+  }
   return true;
 }
 

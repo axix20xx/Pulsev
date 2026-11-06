@@ -1956,8 +1956,11 @@ export async function disablePanelUser(
   let attempted = 0;
   let disabled = 0;
   const failedProviders = new Set<string>();
-  const markFailure = (providerKey: string) => {
+  const failureDetails = new Map<string, { providerKey: string; status?: number; reason: string }>();
+  const markFailure = (providerKey: string, reason = "Remote disable was not confirmed.", status?: number) => {
     failedProviders.add(providerKey || "Provider نامشخص");
+    const key = providerKey || "Provider نامشخص";
+    failureDetails.set(key, { providerKey: key, status, reason });
   };
   const includeDisabledProviders = options.includeDisabledProviders === true;
   let usageAccounts = new Map<number, Map<string, string>>();
@@ -2103,10 +2106,14 @@ export async function disablePanelUser(
       attempted += 1;
       try {
         if (await pauseRavenConfig(panel as RavenPanel, serviceId)) disabled += 1;
-        else markFailure(panelKey(panel));
-      } catch {
+        else markFailure(panelKey(panel), "Raven has no matching saved remote config.");
+      } catch (error) {
         // A failed pause remains pending in the service lifecycle state.
-        markFailure(panelKey(panel));
+        markFailure(
+          panelKey(panel),
+          error instanceof RavenProviderError ? error.message : "Raven pause request failed.",
+          error instanceof RavenProviderError ? error.status : undefined,
+        );
       }
       continue;
     }
@@ -2151,20 +2158,31 @@ export async function disablePanelUser(
           ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]]
           : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
     let success = false;
+    let lastStatus: number | undefined;
     for (const [method, path, body] of candidates) {
       try {
         const response = await panelRequest(panel, method, path, body);
         if (response.status >= 200 && response.status < 300) { success = true; break; }
         if (response.status === 404) { success = true; break; }
+        lastStatus = response.status;
         if (![404, 405, 422].includes(response.status)) break;
       } catch {
         break;
       }
     }
     if (success) disabled += 1;
-    else markFailure(panelKey(panel));
+    else markFailure(
+      panelKey(panel),
+      lastStatus ? `Provider API returned HTTP ${lastStatus}.` : "Provider API request failed.",
+      lastStatus,
+    );
   }
-  return { attempted, disabled, failedProviders: [...failedProviders] };
+  return {
+    attempted,
+    disabled,
+    failedProviders: [...failedProviders],
+    failureDetails: [...failureDetails.values()],
+  };
 }
 
 export type ProviderAccountAuditService = {

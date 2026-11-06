@@ -367,15 +367,39 @@ export async function getAwgStats(
   return requestPromise;
 }
 
-export async function disableAwgClient(clientId: string): Promise<boolean> {
+export type AwgClientDisableResult = {
+  ok: boolean;
+  status?: number;
+  reason?: string;
+};
+
+export async function disableAwgClientWithResult(clientId: string): Promise<AwgClientDisableResult> {
+  let awg: AwgConfig | null;
   try {
-    const response = await request("DELETE", `/api/clients/${encodeURIComponent(clientId)}`);
-    const disabled = response.status >= 200 && response.status < 300 || response.status === 404;
-    if (disabled) clearAwgStatsCache(clientId);
-    return disabled;
+    awg = await config();
   } catch {
-    return false;
+    return { ok: false, reason: "Could not read AmneziaWG API settings." };
   }
+  if (!awg) return { ok: false, reason: "AmneziaWG API is not configured." };
+  try {
+    const response = await request("DELETE", `/api/clients/${encodeURIComponent(clientId)}`, undefined, awg);
+    const ok = response.status >= 200 && response.status < 300 || response.status === 404;
+    if (ok) {
+      clearAwgStatsCache(clientId);
+      return { ok: true, status: response.status };
+    }
+    return { ok: false, status: response.status, reason: "AmneziaWG API rejected client deletion." };
+  } catch (error) {
+    const timedOut = error instanceof Error && /timeout|timed out/i.test(error.message);
+    return {
+      ok: false,
+      reason: timedOut ? "AmneziaWG API request timed out." : "AmneziaWG API request failed.",
+    };
+  }
+}
+
+export async function disableAwgClient(clientId: string): Promise<boolean> {
+  return (await disableAwgClientWithResult(clientId)).ok;
 }
 
 export async function replaceAwgClient(clientId: string, replacementClientId?: string): Promise<{
