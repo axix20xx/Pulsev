@@ -77003,12 +77003,30 @@ async function ravenDeliveryLinks(panel, configId) {
 }
 async function pauseRavenConfig(panel, serviceId) {
   const account = await getAccount(serviceId, panel.key);
-  if (!account?.remote_config_id) return false;
-  await ravenRequest(
-    panel,
-    "POST",
-    `/configs/${encodeURIComponent(account.remote_config_id)}/pause`
-  );
+  if (!account) return false;
+  let remoteConfigId = account.remote_config_id?.trim() || "";
+  if (!remoteConfigId) {
+    const remote = await findByLabel(panel, account.config_label);
+    if (!remote) return true;
+    remoteConfigId = ravenConfigId(remote.id ?? remote.config?.id);
+    if (!remoteConfigId) {
+      throw new RavenProviderError("Raven account was found but its config ID is missing.", 502, true);
+    }
+    await saveAccount(serviceId, panel, account, remoteConfigId);
+  }
+  const encodedId = encodeURIComponent(remoteConfigId);
+  const current = await ravenRequest(panel, "GET", `/configs/${encodedId}`);
+  if (String(current.status ?? "").trim().toLowerCase() === "paused") return true;
+  try {
+    await ravenRequest(panel, "POST", `/configs/${encodedId}/pause`);
+  } catch (error40) {
+    try {
+      const after = await ravenRequest(panel, "GET", `/configs/${encodedId}`);
+      if (String(after.status ?? "").trim().toLowerCase() === "paused") return true;
+    } catch {
+    }
+    throw error40;
+  }
   return true;
 }
 async function reactivateRavenConfig(panel, serviceId) {
@@ -78689,8 +78707,11 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
   let attempted = 0;
   let disabled = 0;
   const failedProviders = /* @__PURE__ */ new Set();
-  const markFailure = (providerKey) => {
+  const failureDetails = /* @__PURE__ */ new Map();
+  const markFailure = (providerKey, reason = "Remote disable was not confirmed.", status) => {
     failedProviders.add(providerKey || "Provider \u0646\u0627\u0645\u0634\u062E\u0635");
+    const key = providerKey || "Provider \u0646\u0627\u0645\u0634\u062E\u0635";
+    failureDetails.set(key, { providerKey: key, status, reason });
   };
   const includeDisabledProviders = options.includeDisabledProviders === true;
   let usageAccounts = /* @__PURE__ */ new Map();
@@ -78759,7 +78780,7 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
   const configuredPanelKeys = new Set(configuredPanels.map(panelKey));
   const unresolvedMappedProviderKeys = [...savedProviderKeys].filter((providerKey) => !configuredPanelKeys.has(providerKey));
   attempted += unresolvedMappedProviderKeys.length;
-  unresolvedMappedProviderKeys.forEach(markFailure);
+  for (const providerKey of unresolvedMappedProviderKeys) markFailure(providerKey);
   if (usageLookupFailed) {
     attempted += 1;
     markFailure("service provider mappings");
@@ -78801,7 +78822,7 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
     const openVpnProviderKeys = new Set(configuredPanels.filter((panel) => isAzadPanelCoreCandidate(panel.kind, "openvpn")).map(panelKey));
     const unresolvedOpenVpnKeys = [...savedOpenVpnAccounts.keys()].filter((providerKey) => providerKey && !openVpnProviderKeys.has(providerKey));
     attempted += unresolvedOpenVpnKeys.length;
-    unresolvedOpenVpnKeys.forEach(markFailure);
+    for (const providerKey of unresolvedOpenVpnKeys) markFailure(providerKey);
   }
   const ipsecProviderKeys = new Set(configuredPanels.filter((panel) => panel.kind?.trim().toLowerCase() === "azadpanel_ipsec").map(panelKey));
   if (savedIpsecAccount?.providerKey && !ipsecProviderKeys.has(savedIpsecAccount.providerKey)) {
@@ -78815,9 +78836,13 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
       attempted += 1;
       try {
         if (await pauseRavenConfig(panel, serviceId)) disabled += 1;
-        else markFailure(panelKey(panel));
-      } catch {
-        markFailure(panelKey(panel));
+        else markFailure(panelKey(panel), "Raven has no matching saved remote config.");
+      } catch (error40) {
+        markFailure(
+          panelKey(panel),
+          error40 instanceof RavenProviderError ? error40.message : "Raven pause request failed.",
+          error40 instanceof RavenProviderError ? error40.status : void 0
+        );
       }
       continue;
     }
@@ -78852,6 +78877,7 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
     const encoded = encodeURIComponent(providerUsername);
     const candidates = kind === "falcon" ? falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [] : kind === "rain_admin" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : kind === "azadpanel" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
     let success2 = false;
+    let lastStatus;
     for (const [method, path, body] of candidates) {
       try {
         const response = await panelRequest(panel, method, path, body);
@@ -78863,15 +78889,25 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
           success2 = true;
           break;
         }
+        lastStatus = response.status;
         if (![404, 405, 422].includes(response.status)) break;
       } catch {
         break;
       }
     }
     if (success2) disabled += 1;
-    else markFailure(panelKey(panel));
+    else markFailure(
+      panelKey(panel),
+      lastStatus ? `Provider API returned HTTP ${lastStatus}.` : "Provider API request failed.",
+      lastStatus
+    );
   }
-  return { attempted, disabled, failedProviders: [...failedProviders] };
+  return {
+    attempted,
+    disabled,
+    failedProviders: [...failedProviders],
+    failureDetails: [...failureDetails.values()]
+  };
 }
 async function pacedAuditPanelRequest(panel, method, path, body) {
   const key = panelKey(panel);
@@ -80418,15 +80454,32 @@ async function getAwgStats(clientId, options = {}) {
   statsInFlight.set(key, requestPromise);
   return requestPromise;
 }
-async function disableAwgClient(clientId) {
+async function disableAwgClientWithResult(clientId) {
+  let awg;
   try {
-    const response = await request2("DELETE", `/api/clients/${encodeURIComponent(clientId)}`);
-    const disabled = response.status >= 200 && response.status < 300 || response.status === 404;
-    if (disabled) clearAwgStatsCache(clientId);
-    return disabled;
+    awg = await config2();
   } catch {
-    return false;
+    return { ok: false, reason: "Could not read AmneziaWG API settings." };
   }
+  if (!awg) return { ok: false, reason: "AmneziaWG API is not configured." };
+  try {
+    const response = await request2("DELETE", `/api/clients/${encodeURIComponent(clientId)}`, void 0, awg);
+    const ok = response.status >= 200 && response.status < 300 || response.status === 404;
+    if (ok) {
+      clearAwgStatsCache(clientId);
+      return { ok: true, status: response.status };
+    }
+    return { ok: false, status: response.status, reason: "AmneziaWG API rejected client deletion." };
+  } catch (error40) {
+    const timedOut = error40 instanceof Error && /timeout|timed out/i.test(error40.message);
+    return {
+      ok: false,
+      reason: timedOut ? "AmneziaWG API request timed out." : "AmneziaWG API request failed."
+    };
+  }
+}
+async function disableAwgClient(clientId) {
+  return (await disableAwgClientWithResult(clientId)).ok;
 }
 async function replaceAwgClient(clientId, replacementClientId) {
   const replacement = await createAwgClient(replacementClientId);
@@ -90231,7 +90284,8 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
       let panelResult = {
         attempted: 0,
         disabled: 0,
-        failedProviders: []
+        failedProviders: [],
+        failureDetails: []
       };
       try {
         panelResult = await disablePanelUser(
@@ -90247,13 +90301,24 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
         return;
       }
       const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
-      const awgDisabled = current.awg_client_id ? await disableAwgClient(current.awg_client_id) : true;
+      const awgResult = current.awg_client_id ? await disableAwgClientWithResult(current.awg_client_id) : { ok: true };
+      const awgDisabled = awgResult.ok;
       if (!providersDisabled || !awgDisabled) {
-        const failedProviders = panelResult.failedProviders ?? [];
-        const providerDetails = failedProviders.length ? ` Provider \u0646\u0627\u0645\u0648\u0641\u0642: ${failedProviders.join("\u060C ")}.` : "";
+        const failedProviders = [.../* @__PURE__ */ new Set([
+          ...panelResult.failedProviders ?? [],
+          ...!awgDisabled ? ["AmneziaWG"] : []
+        ])];
+        const details = [
+          ...(panelResult.failureDetails ?? []).map(
+            (failure) => `${failure.providerKey}: ${failure.reason}${failure.status ? ` (HTTP ${failure.status})` : ""}`
+          ),
+          ...!awgDisabled ? [`AmneziaWG: ${awgResult.reason ?? "remote disable was not confirmed"}${awgResult.status ? ` (HTTP ${awgResult.status})` : ""}`] : []
+        ];
+        const providerDetails = failedProviders.length ? ` Provider \u0646\u0627\u0645\u0648\u0641\u0642: ${failedProviders.join("\u060C ")}.${details.length ? ` \u062C\u0632\u0626\u06CC\u0627\u062A: ${details.join("\u061B ")}` : ""}` : "";
         res.status(502).json({
           error: `\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0647\u0645\u0647 Provider\u0647\u0627 \u0648 AWG \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F\u061B \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0647\u0645\u0686\u0646\u0627\u0646 \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06CC \u0627\u0633\u062A.${providerDetails}`,
           provider_failures: failedProviders,
+          provider_failure_details: details,
           awg_disabled: awgDisabled
         });
         return;

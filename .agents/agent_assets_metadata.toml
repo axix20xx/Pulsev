@@ -2704,3 +2704,17 @@ mtime_ms = 1793953635417
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5c068b67-61d5-42d9-a197-d24b6b31cb6e/a7a47baf-7a5f-42a1-9213-e94c636375a9"
 storage_version_token = "1793953660547433"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "vmcWPQDnrDzhaUlxjS2AE"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-06T08-36-54-089Z.zip"
+type = "unspecified"
+title = "Updated Hostinger release ZIP"
+description = "Includes Raven cancellation reconciliation and safe AWG/Raven failure details. Validated; SHA-256 b4d121510a4ab80e7f0e5aab43d51013ab9e1cb7e99e80750539c3df75378b42."
+logical_id = "4b92429c-456a-419a-ad52-418390a16848"
+content_hash = "sha256:b4d121510a4ab80e7f0e5aab43d51013ab9e1cb7e99e80750539c3df75378b42"
+size = 30985748
+mtime_ms = 1793954330064
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4b92429c-456a-419a-ad52-418390a16848/c773c842-48b5-46eb-adae-e88ca803fd25"
+storage_version_token = "1793954359243199"
+content_type = "application/octet-stream"

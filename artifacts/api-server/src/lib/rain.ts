@@ -1952,7 +1952,12 @@ export async function disablePanelUser(
   ownerId?: number,
   role?: string,
   options: { includeDisabledProviders?: boolean } = {},
-): Promise<{ attempted: number; disabled: number; failedProviders: string[] }> {
+): Promise<{
+  attempted: number;
+  disabled: number;
+  failedProviders: string[];
+  failureDetails: Array<{ providerKey: string; status?: number; reason: string }>;
+}> {
   let attempted = 0;
   let disabled = 0;
   const failedProviders = new Set<string>();
@@ -2031,7 +2036,7 @@ export async function disablePanelUser(
   const unresolvedMappedProviderKeys = [...savedProviderKeys]
     .filter((providerKey) => !configuredPanelKeys.has(providerKey));
   attempted += unresolvedMappedProviderKeys.length;
-  unresolvedMappedProviderKeys.forEach(markFailure);
+  for (const providerKey of unresolvedMappedProviderKeys) markFailure(providerKey);
   if (usageLookupFailed) {
     attempted += 1;
     markFailure("service provider mappings");
@@ -2089,7 +2094,7 @@ export async function disablePanelUser(
     const unresolvedOpenVpnKeys = [...savedOpenVpnAccounts.keys()]
       .filter((providerKey) => providerKey && !openVpnProviderKeys.has(providerKey));
     attempted += unresolvedOpenVpnKeys.length;
-    unresolvedOpenVpnKeys.forEach(markFailure);
+    for (const providerKey of unresolvedOpenVpnKeys) markFailure(providerKey);
   }
   const ipsecProviderKeys = new Set(configuredPanels
     .filter((panel) => panel.kind?.trim().toLowerCase() === "azadpanel_ipsec")

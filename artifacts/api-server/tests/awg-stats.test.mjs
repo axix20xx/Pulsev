@@ -116,3 +116,25 @@ test("forced live checks bypass successful cache but retain error backoff", asyn
   await assert.rejects(getAwgStats("failure", { forceRefresh: true }), /HTTP 503/);
   assert.equal(paths.filter((path) => path.includes("/failure/")).length, 1);
 });
+
+test("AWG cancellation reports HTTP rejection without exposing response contents", async (t) => {
+  const { disableAwgClientWithResult } = await loadAwgModule();
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(new URL(url).pathname, "/api/clients/client-42");
+    assert.equal(options.method, "DELETE");
+    assert.equal(options.headers.Authorization, "Bearer synthetic-test-token");
+    return new Response(JSON.stringify({ error: "access denied; synthetic-test-token" }), { status: 403 });
+  });
+
+  assert.deepEqual(await disableAwgClientWithResult("client-42"), {
+    ok: false,
+    status: 403,
+    reason: "AmneziaWG API rejected client deletion.",
+  });
+});
+
+test("AWG cancellation treats an already-absent client as successfully disabled", async (t) => {
+  const { disableAwgClientWithResult } = await loadAwgModule();
+  t.mock.method(globalThis, "fetch", async () => new Response("", { status: 404 }));
+  assert.deepEqual(await disableAwgClientWithResult("missing-client"), { ok: true, status: 404 });
+});

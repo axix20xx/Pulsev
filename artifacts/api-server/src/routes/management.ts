@@ -120,6 +120,7 @@ import {
   AwgApiError,
   createAwgClient,
   disableAwgClient,
+  disableAwgClientWithResult,
   getAwgConfiguration,
   getAwgStats,
   recreateAwgClient,
@@ -5949,6 +5950,7 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
         attempted: 0,
         disabled: 0,
         failedProviders: [],
+        failureDetails: [],
       };
       try {
         panelResult = await disablePanelUser(
@@ -5964,15 +5966,30 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
         return;
       }
       const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
-      const awgDisabled = current.awg_client_id ? await disableAwgClient(current.awg_client_id) : true;
+      const awgResult = current.awg_client_id
+        ? await disableAwgClientWithResult(current.awg_client_id)
+        : { ok: true as const };
+      const awgDisabled = awgResult.ok;
       if (!providersDisabled || !awgDisabled) {
-        const failedProviders = panelResult.failedProviders ?? [];
+        const failedProviders = [...new Set([
+          ...(panelResult.failedProviders ?? []),
+          ...(!awgDisabled ? ["AmneziaWG"] : []),
+        ])];
+        const details = [
+          ...(panelResult.failureDetails ?? []).map((failure) =>
+            `${failure.providerKey}: ${failure.reason}${failure.status ? ` (HTTP ${failure.status})` : ""}`,
+          ),
+          ...(!awgDisabled
+            ? [`AmneziaWG: ${awgResult.reason ?? "remote disable was not confirmed"}${awgResult.status ? ` (HTTP ${awgResult.status})` : ""}`]
+            : []),
+        ];
         const providerDetails = failedProviders.length
-          ? ` Provider ناموفق: ${failedProviders.join("، ")}.`
+          ? ` Provider ناموفق: ${failedProviders.join("، ")}.${details.length ? ` جزئیات: ${details.join("؛ ")}` : ""}`
           : "";
         res.status(502).json({
           error: `غیرفعال‌سازی همه Providerها و AWG کامل نشد؛ درخواست همچنان در انتظار بررسی است.${providerDetails}`,
           provider_failures: failedProviders,
+          provider_failure_details: details,
           awg_disabled: awgDisabled,
         });
         return;

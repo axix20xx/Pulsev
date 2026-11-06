@@ -121,6 +121,89 @@ test("Raven requests use the configured API base and bearer key", async () => {
   }
 });
 
+test("Raven cancellation resolves a missing config ID by its saved service label", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.__ravenTestState.account = {
+    config_label: "P42-test",
+    remote_config_id: null,
+    channels: ["xray"],
+  };
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    const parsed = new URL(String(url));
+    calls.push(`${init.method} ${parsed.pathname}${parsed.search}`);
+    if (parsed.pathname.endsWith("/configs") && init.method === "GET") {
+      return new Response(JSON.stringify({ configs: [{ id: "raven-config-42", label: "P42-test" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (parsed.pathname.endsWith("/configs/raven-config-42") && init.method === "GET") {
+      return new Response(JSON.stringify({ status: "active" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (parsed.pathname.endsWith("/configs/raven-config-42/pause") && init.method === "POST") {
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+    }
+    throw new Error(`Unexpected Raven cancellation request: ${init.method} ${parsed.pathname}`);
+  };
+  try {
+    assert.equal(await raven.pauseRavenConfig(testPanel, 42), true);
+    assert.equal(calls.length, 3);
+    assert.equal(calls.at(-1), "POST /api/v1/configs/raven-config-42/pause");
+  } finally {
+    globalThis.__ravenTestState.account = {
+      config_label: "P42-test",
+      remote_config_id: "raven-config-42",
+      channels: ["xray"],
+    };
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Raven cancellation is idempotent for paused and absent remote configs", async () => {
+  const originalFetch = globalThis.fetch;
+  const paths = [];
+  globalThis.fetch = async (url, init) => {
+    const parsed = new URL(String(url));
+    paths.push(`${init.method} ${parsed.pathname}`);
+    const body = parsed.pathname.endsWith("/configs")
+      ? { configs: [] }
+      : { status: "paused" };
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    globalThis.__ravenTestState.account = {
+      config_label: "P42-test",
+      remote_config_id: "raven-config-42",
+      channels: ["xray"],
+    };
+    assert.equal(await raven.pauseRavenConfig(testPanel, 42), true);
+    assert.deepEqual(paths, ["GET /api/v1/configs/raven-config-42"]);
+
+    paths.length = 0;
+    globalThis.__ravenTestState.account = {
+      config_label: "P42-test",
+      remote_config_id: null,
+      channels: ["xray"],
+    };
+    assert.equal(await raven.pauseRavenConfig(testPanel, 42), true);
+    assert.deepEqual(paths, ["GET /api/v1/configs"]);
+  } finally {
+    globalThis.__ravenTestState.account = {
+      config_label: "P42-test",
+      remote_config_id: "raven-config-42",
+      channels: ["xray"],
+    };
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("Raven errors redact the API key and mark server failures retryable", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify({
