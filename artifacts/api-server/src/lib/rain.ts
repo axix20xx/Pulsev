@@ -44,11 +44,14 @@ import {
   renewRavenConfig,
   testRavenProvider,
 } from "./raven-provider";
+import { providerDisableUsername } from "./provider-disable-identity";
+import { readSavedServiceProviderUsernames } from "./usage-history";
 
 type Panel = {
   key?: string;
   kind?: string;
   api_base: string;
+  enabled?: boolean;
   admin_user?: string;
   admin_pass?: string;
   api_key?: string;
@@ -56,6 +59,7 @@ type Panel = {
 };
 
 type StoredPanel = Panel & {
+  enabled: boolean;
   username_secret?: string | null;
   password_secret?: string | null;
   api_key_secret?: string | null;
@@ -295,7 +299,7 @@ function panelEnvCredential(key: string | undefined, suffix: "USER" | "PASS" | "
 
 async function panels(ownerId?: number, role?: string, includeDisabled = false): Promise<Panel[]> {
   const result = await pool.query<StoredPanel>(
-    `SELECT p.key, p.kind, p.api_base,
+    `SELECT p.key, p.kind, p.api_base, (p.is_enabled = 1) AS enabled,
             p.username_secret, p.password_secret, p.api_key_secret, p.settings_json
      FROM panel_configs p
      WHERE ${includeDisabled ? "TRUE" : "p.is_enabled = 1"}
@@ -309,6 +313,7 @@ async function panels(ownerId?: number, role?: string, includeDisabled = false):
       key: panel.key,
       kind: panel.kind,
       api_base: panel.api_base.replace(/\/+$/, ""),
+      enabled: panel.enabled,
       admin_user: decryptPanelCredential(panel.username_secret) ?? panelEnvCredential(panel.key, "USER"),
       admin_pass: decryptPanelCredential(panel.password_secret) ?? panelEnvCredential(panel.key, "PASS"),
       api_key: decryptPanelCredential(panel.api_key_secret) ?? panelEnvCredential(panel.key, "API_KEY"),

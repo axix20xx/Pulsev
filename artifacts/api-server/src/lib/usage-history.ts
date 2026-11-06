@@ -62,6 +62,35 @@ export async function ensureUsageHistorySchema(): Promise<void> {
   await schemaPromise;
 }
 
+export async function readSavedServiceProviderUsernames(
+  serviceIds: number[],
+): Promise<Map<number, Map<string, string>>> {
+  const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const accounts = new Map<number, Map<string, string>>();
+  if (!ids.length) return accounts;
+  await ensureUsageHistorySchema();
+  const result = await pool.query<{
+    service_id: number | string;
+    provider_key: string;
+    provider_username: string;
+  }>(
+    `SELECT service_id, provider_key, provider_username
+     FROM reseller_service_usage_provider_accounts
+     WHERE service_id = ANY($1::bigint[])`,
+    [ids],
+  );
+  for (const row of result.rows) {
+    const serviceId = Number(row.service_id);
+    const providerKey = row.provider_key.trim();
+    const username = row.provider_username.trim();
+    if (!providerKey || !username) continue;
+    const serviceAccounts = accounts.get(serviceId) ?? new Map<string, string>();
+    serviceAccounts.set(providerKey, username);
+    accounts.set(serviceId, serviceAccounts);
+  }
+  return accounts;
+}
+
 export async function recordUsageHistorySample(sample: UsageHistorySample): Promise<void> {
   const providerKey = sample.providerKey.trim();
   const sourceUsername = sample.sourceUsername.trim();
