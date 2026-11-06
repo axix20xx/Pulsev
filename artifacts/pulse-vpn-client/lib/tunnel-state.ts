@@ -1,5 +1,5 @@
 import type { VpnProtocol } from '@/hooks/VpnPreferences';
-import type { WireGuardVpnStatus, XrayVpnState } from './vpn-engine';
+import type { WireGuardVpnStatus } from './vpn-engine';
 
 export function isNativeTunnelConnected(status: WireGuardVpnStatus): boolean {
   // Native engines can briefly publish the engine state and Android's TUN
@@ -13,22 +13,19 @@ export function isNativeTunnelConnecting(status: WireGuardVpnStatus): boolean {
     || ['CONNECTING', 'DISCONNECTING'].includes(status.tunnelState);
 }
 
-export function isTunnelConnected(protocol: VpnProtocol, xray: XrayVpnState, native: WireGuardVpnStatus): boolean {
-  return protocol === 'v2ray' ? xray.state === 'connected' : isNativeTunnelConnected(native);
+export function isTunnelConnected(_protocol: VpnProtocol, native: WireGuardVpnStatus): boolean {
+  return isNativeTunnelConnected(native);
 }
 
-export function isTunnelConnecting(protocol: VpnProtocol, xray: XrayVpnState, native: WireGuardVpnStatus): boolean {
-  return protocol === 'v2ray'
-    ? ['preparing', 'connecting', 'disconnecting'].includes(xray.state)
-    : isNativeTunnelConnecting(native);
+export function isTunnelConnecting(_protocol: VpnProtocol, native: WireGuardVpnStatus): boolean {
+  return isNativeTunnelConnecting(native);
 }
 
 export function findActiveTunnelProtocol(
   protocols: readonly VpnProtocol[],
-  xray: XrayVpnState,
   states: Record<VpnProtocol, WireGuardVpnStatus>,
 ): VpnProtocol | null {
-  return protocols.find((protocol) => isTunnelConnected(protocol, xray, states[protocol]))
-    ?? protocols.find((protocol) => isTunnelConnecting(protocol, xray, states[protocol]))
+  return protocols.find((protocol) => isTunnelConnected(protocol, states[protocol]))
+    ?? protocols.find((protocol) => isTunnelConnecting(protocol, states[protocol]))
     ?? null;
 }

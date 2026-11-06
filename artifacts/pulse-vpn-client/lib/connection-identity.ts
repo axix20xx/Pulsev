@@ -1,4 +1,4 @@
-export type ConnectionProtocol = 'v2ray' | 'openvpn' | 'wireguard' | 'amneziawg';
+export type ConnectionProtocol = 'openvpn' | 'wireguard' | 'amneziawg';
 
 export interface ConnectionIdentity {
   subscriptionId: string;

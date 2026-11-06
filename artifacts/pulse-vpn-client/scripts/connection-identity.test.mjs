@@ -7,19 +7,19 @@ import {
 
 const active = {
   subscriptionId: 'sub-1',
-  protocol: 'v2ray',
+  protocol: 'wireguard',
   serverId: 'server-a',
 };
 
-test('a requested V2Ray server must match the active server, not just the subscription', () => {
+test('a requested server must match the active server, not just the subscription', () => {
   assert.equal(matchesConnectionTarget(active, {
     subscriptionId: 'sub-1',
-    protocol: 'v2ray',
+    protocol: 'wireguard',
     serverId: 'server-a',
   }), true);
   assert.equal(matchesConnectionTarget(active, {
     subscriptionId: 'sub-1',
-    protocol: 'v2ray',
+    protocol: 'wireguard',
     serverId: 'server-b',
   }), false);
 });
@@ -27,12 +27,12 @@ test('a requested V2Ray server must match the active server, not just the subscr
 test('smart connect can reuse an active server for the same subscription and protocol', () => {
   assert.equal(matchesConnectionTarget(active, {
     subscriptionId: 'sub-1',
-    protocol: 'v2ray',
+    protocol: 'wireguard',
   }), true);
 });
 
 test('connection identity keys separate subscription, protocol, server, and config version', () => {
-  const base = { subscriptionId: 'sub-1', protocol: 'v2ray', serverId: 'server-a' };
+  const base = { subscriptionId: 'sub-1', protocol: 'wireguard', serverId: 'server-a' };
   const key = connectionAttemptKey(base, 0);
   assert.notEqual(key, connectionAttemptKey({ ...base, serverId: 'server-b' }, 0));
   assert.notEqual(key, connectionAttemptKey({ ...base, subscriptionId: 'sub-2' }, 0));

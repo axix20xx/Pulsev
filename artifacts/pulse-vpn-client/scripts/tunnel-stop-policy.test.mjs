@@ -30,7 +30,6 @@ test('requires every positive native running signal to clear before confirming s
     tunnelState: 'ACTIVE',
     isConnected: false,
   }), false);
-  assert.equal(isTunnelStopConfirmed('v2ray', { state: 'disconnecting' }), false);
   assert.equal(isTunnelStopConfirmed('openvpn', disconnected), true);
-  assert.equal(isTunnelStopConfirmed('v2ray', { state: 'disconnected' }), true);
+  assert.equal(isTunnelStopConfirmed('amneziawg', disconnected), true);
 });

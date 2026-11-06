@@ -35,13 +35,12 @@ test('marks native tunnels disconnected only after every native signal is down',
 test('finds the active protocol even when its native state fields briefly disagree', () => {
   const unknown = { status: 'UNKNOWN', tunnelState: 'UNKNOWN', isConnected: false };
   const states = {
-    v2ray: unknown,
     openvpn: { status: 'CONNECTED', tunnelState: 'INACTIVE', isConnected: false },
     wireguard: unknown,
     amneziawg: unknown,
   };
 
-  assert.equal(findActiveTunnelProtocol(['v2ray', 'openvpn', 'wireguard', 'amneziawg'], { state: 'disconnected' }, states), 'openvpn');
+  assert.equal(findActiveTunnelProtocol(['openvpn', 'wireguard', 'amneziawg'], states), 'openvpn');
 });
 
 test('keeps connecting and disconnecting states visible as transitional', () => {

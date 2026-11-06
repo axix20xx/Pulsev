@@ -1,24 +1,3 @@
-import type { XrayShareServer } from './xray-share-links';
-
-export type XrayConnectionState =
-  | 'disconnected'
-  | 'preparing'
-  | 'connecting'
-  | 'connected'
-  | 'disconnecting'
-  | 'error';
-
-export type XrayVpnState = {
-  state: XrayConnectionState;
-  profileId?: string;
-  profileName?: string;
-  attemptId?: string;
-  connectedAt?: number;
-  lastChangedAt?: number;
-  error?: string;
-  errorCode?: string;
-};
-
 export type WireGuardVpnStatus = {
   status: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING' | 'DISCONNECTING' | 'ERROR' | 'UNKNOWN';
   tunnelState: 'ACTIVE' | 'INACTIVE' | 'CONNECTING' | 'DISCONNECTING' | 'ERROR' | 'UNKNOWN';
@@ -32,7 +11,7 @@ export type WireGuardVpnStatus = {
   diagnostic?: string;
 };
 
-export type VpnTunnelProtocol = 'v2ray' | 'wireguard' | 'amneziawg' | 'openvpn';
+export type VpnTunnelProtocol = 'wireguard' | 'amneziawg' | 'openvpn';
 
 export async function stopTunnelForProtocolSwitch(_nextProtocol: VpnTunnelProtocol): Promise<void> {
   return;
@@ -58,38 +37,6 @@ export type TunnelConnectivityReport = {
   endpoints: TunnelConnectivityEndpoint[];
 };
 
-export async function isXrayEngineAvailable(): Promise<boolean> {
-  return false;
-}
-
-export async function getXrayState(): Promise<XrayVpnState> {
-  return { state: 'disconnected' };
-}
-
-export async function subscribeXrayState(
-  _listener: (state: XrayVpnState) => void,
-): Promise<() => void> {
-  return () => undefined;
-}
-
-export async function connectXray(
-  _profileId: string,
-  _profileName: string,
-  _subscriptionText: string,
-): Promise<XrayVpnState> {
-  throw new Error('In-app VPN connections are supported only in the custom Android build.');
-}
-
-export async function confirmXrayTraffic(_attemptId: string): Promise<XrayVpnState> {
-  return { state: 'disconnected' };
-}
-
-export async function pingXrayServers(
-  servers: readonly XrayShareServer[],
-): Promise<Record<string, number | null>> {
-  return Object.fromEntries(servers.map((server) => [server.id, null]));
-}
-
 export async function testTunnelConnectivity(): Promise<TunnelConnectivityReport> {
   throw new Error('Tunnel traffic tests are supported only in the custom Android build.');
 }
@@ -100,10 +47,6 @@ export async function getDiagnosticLog(): Promise<string> {
 
 export async function setTunnelTestKeepScreenOn(_enabled: boolean): Promise<boolean> {
   return false;
-}
-
-export async function disconnectXray(): Promise<void> {
-  throw new Error('In-app VPN connections are supported only in the custom Android build.');
 }
 
 export async function isWireGuardEngineAvailable(): Promise<boolean> {

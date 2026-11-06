@@ -5,10 +5,10 @@
       resolved="__local_aars__:/home/runner/workspace/artifacts/pulse-vpn-client/modules/pulse-vpn-engine/android/libs/openvpn-service-classes.jar:unspecified"/>
   <library
       name=":@@:expo-modules-core::release"
-      jars="/home/runner/workspace/.cache/gradle/caches/9.3.1/transforms/5611ea2b8b15769de45cfc910ea03952/transformed/out/jars/classes.jar:/home/runner/workspace/.cache/gradle/caches/9.3.1/transforms/5611ea2b8b15769de45cfc910ea03952/transformed/out/jars/libs/R.jar"
-      resolved="host.exp.exponent:expo-modules-core:57.0.23"
+      jars="/home/runner/workspace/.cache/gradle/caches/9.3.1/transforms/b2027738c6c527eaadd7b0ed8ce3e7e0/transformed/out/jars/classes.jar:/home/runner/workspace/.cache/gradle/caches/9.3.1/transforms/b2027738c6c527eaadd7b0ed8ce3e7e0/transformed/out/jars/libs/R.jar"
+      resolved="host.exp.exponent:expo-modules-core:57.0.25"
       provided="true"
-      folder="/home/runner/workspace/.cache/gradle/caches/9.3.1/transforms/5611ea2b8b15769de45cfc910ea03952/transformed/out"
+      folder="/home/runner/workspace/.cache/gradle/caches/9.3.1/transforms/b2027738c6c527eaadd7b0ed8ce3e7e0/transformed/out"
       manifest="AndroidManifest.xml"
       resFolder="res"
       assetsFolder="assets"
@@ -473,19 +473,6 @@
       jars="/home/runner/workspace/.cache/gradle/caches/9.3.1/transforms/99ea69dac763c34684ffa74a286168be/transformed/amneziawg-android-2.3.7/jars/classes.jar"
       resolved="com.zaneschepke:amneziawg-android:2.3.7"
       folder="/home/runner/workspace/.cache/gradle/caches/9.3.1/transforms/99ea69dac763c34684ffa74a286168be/transformed/amneziawg-android-2.3.7"
-      manifest="AndroidManifest.xml"
-      resFolder="res"
-      assetsFolder="assets"
-      lintJar="lint.jar"
-      publicResources="public.txt"
-      symbolFile="R.txt"
-      externalAnnotations="annotations.zip"
-      proguardRules="proguard.txt"/>
-  <library
-      name="com.github.singbox-android:libbox:1.14.3@aar"
-      jars="/home/runner/workspace/.cache/gradle/caches/9.3.1/transforms/9e84880b064fbf6090418bc8510a22d2/transformed/libbox-1.14.3/jars/classes.jar"
-      resolved="com.github.singbox-android:libbox:1.14.3"
-      folder="/home/runner/workspace/.cache/gradle/caches/9.3.1/transforms/9e84880b064fbf6090418bc8510a22d2/transformed/libbox-1.14.3"
       manifest="AndroidManifest.xml"
       resFolder="res"
       assetsFolder="assets"

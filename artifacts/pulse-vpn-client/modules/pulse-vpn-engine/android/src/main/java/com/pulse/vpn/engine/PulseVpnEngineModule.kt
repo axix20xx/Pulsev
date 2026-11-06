@@ -3,9 +3,7 @@ package com.pulse.vpn.engine
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
-import android.content.BroadcastReceiver
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.net.ConnectivityManager
 import android.net.Network
@@ -14,7 +12,6 @@ import android.net.VpnService
 import android.os.IBinder
 import android.os.SystemClock
 import android.view.WindowManager
-import androidx.core.content.ContextCompat
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
@@ -23,8 +20,6 @@ import java.net.ConnectException
 import java.io.File
 import java.io.BufferedReader
 import java.io.StringReader
-import java.net.InetSocketAddress
-import java.net.Socket
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.net.URL
@@ -54,25 +49,6 @@ import org.amnezia.awg.config.Config as AmneziaConfig
 class PulseVpnEngineModule : Module() {
   private val nativeConnectionLock = Any()
   private var pendingPermissionPromise: Promise? = null
-  private var singBoxReceiverRegistered = false
-  private val singBoxStatusReceiver = object : BroadcastReceiver() {
-    override fun onReceive(context: Context?, intent: Intent?) {
-      if (intent?.action != PulseSingBoxVpnService.ACTION_STATUS) return
-      sendEvent(
-        "onSingBoxStateChange",
-        mapOf(
-          "state" to (intent.getStringExtra(PulseSingBoxVpnService.EXTRA_STATE) ?: "disconnected"),
-          "profileId" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_PROFILE_ID),
-          "profileName" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_PROFILE_NAME),
-          "attemptId" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_ATTEMPT_ID),
-          "lastChangedAt" to intent.getLongExtra("lastChangedAt", 0L),
-          "connectedAt" to intent.getLongExtra("connectedAt", 0L).takeIf { it > 0L },
-          "error" to intent.getStringExtra(PulseSingBoxVpnService.EXTRA_ERROR),
-        ),
-      )
-    }
-  }
-
   private var wireGuardBackend: WireGuardBackend? = null
   private var wireGuardTunnel: WireGuardTunnel? = null
   private var wireGuardConfig: WireGuardConfig? = null
@@ -114,79 +90,9 @@ class PulseVpnEngineModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("PulseVpnEngine")
-    Events("onSingBoxStateChange")
-
-    OnCreate {
-      registerSingBoxStatusReceiver()
-    }
-
-    AsyncFunction("probeTcpServers") { servers: List<Map<String, Any?>>, timeoutMs: Int ->
-      val executor = Executors.newFixedThreadPool(servers.size.coerceIn(1, 8))
-      try {
-        executor.invokeAll(
-          servers.map { server ->
-            Callable { probeTcpEndpoint(server, timeoutMs) }
-          }
-        ).map { it.get() }
-      } finally {
-        executor.shutdownNow()
-      }
-    }
 
     AsyncFunction("probeTunnelConnectivity") {
       probeTunnelConnectivity()
-    }
-
-    AsyncFunction("getSingBoxStatus") {
-      PulseSingBoxVpnService.status(requireContext())
-    }
-
-    AsyncFunction("confirmSingBoxTraffic") { expectedAttemptId: String ->
-      val context = requireContext()
-      val before = PulseSingBoxVpnService.status(context)
-      if (before["state"] !in setOf("connecting", "connected") || before["attemptId"] != expectedAttemptId) {
-        return@AsyncFunction before
-      }
-      val report = probeTunnelConnectivity()
-      val after = PulseSingBoxVpnService.status(context)
-      if (
-        report["passed"] != true ||
-        after["state"] !in setOf("connecting", "connected") ||
-        after["attemptId"] != expectedAttemptId
-      ) {
-        PulseDiagnostics.log(
-          context,
-          "singbox_traffic_confirmation_failed",
-          "passed=${report["passed"] == true};attempt_still_current=${after["attemptId"] == expectedAttemptId}",
-          expectedAttemptId,
-        )
-        return@AsyncFunction after
-      }
-      PulseDiagnostics.log(context, "singbox_traffic_verified", "vpn_active=true;https_probe_passed=true", expectedAttemptId)
-      PulseSingBoxVpnService.confirmTraffic(context, expectedAttemptId)
-    }
-
-    AsyncFunction("connectSingBox") { profileId: String, profileName: String, config: String ->
-      synchronized(nativeConnectionLock) {
-        if (config.isBlank()) {
-          throw CodedException("ERR_SINGBOX_CONFIG_EMPTY", "The sing-box configuration is empty.", null)
-        }
-        requireVpnPermission()
-        prepareTunnelHandoff("V2Ray · sing-box")
-        assertNoOtherNativeTunnel("V2Ray · sing-box")
-        val attemptId = UUID.randomUUID().toString().replace("-", "").take(10)
-        PulseSingBoxVpnService.start(requireContext(), profileId, profileName, config, attemptId)
-        PulseSingBoxVpnService.status(requireContext())
-      }
-    }
-
-    AsyncFunction("disconnectSingBox") {
-      synchronized(nativeConnectionLock) {
-        val context = requireContext()
-        val current = PulseSingBoxVpnService.status(context)
-        PulseSingBoxVpnService.stop(context, current["attemptId"] as? String)
-        PulseSingBoxVpnService.status(requireContext())
-      }
     }
 
     AsyncFunction("setTunnelTestKeepScreenOn") { enabled: Boolean ->
@@ -216,10 +122,6 @@ class PulseVpnEngineModule : Module() {
         null
       )
       pendingPermissionPromise = null
-      if (singBoxReceiverRegistered) {
-        runCatching { requireContext().unregisterReceiver(singBoxStatusReceiver) }
-        singBoxReceiverRegistered = false
-      }
       runCatching { openVpnRemote?.unregisterCallback(openVpnStateListener) }
       openVpnServiceConnection?.let { connection ->
         if (openVpnServiceBound) {
@@ -439,22 +341,6 @@ class PulseVpnEngineModule : Module() {
     }
   }
 
-  private fun registerSingBoxStatusReceiver() {
-    if (singBoxReceiverRegistered) return
-    val context = requireContext()
-    runCatching {
-      ContextCompat.registerReceiver(
-        context,
-        singBoxStatusReceiver,
-        IntentFilter(PulseSingBoxVpnService.ACTION_STATUS),
-        ContextCompat.RECEIVER_NOT_EXPORTED,
-      )
-      singBoxReceiverRegistered = true
-    }.onFailure {
-      android.util.Log.w("PulseVpnEngine", "Could not register sing-box state receiver", it)
-    }
-  }
-
   private fun requireContext(): Context =
     appContext.reactContext
       ?: throw CodedException("ERR_CONTEXT_UNAVAILABLE", "Android React context is unavailable.", null)
@@ -479,10 +365,6 @@ class PulseVpnEngineModule : Module() {
     val context = requireContext()
     val activeEngines = mutableListOf<String>()
 
-    val singBoxState = PulseSingBoxVpnService.status(context)["state"] as? String
-    if (singBoxState in setOf("connecting", "connected", "disconnecting")) {
-      activeEngines += "V2Ray · sing-box"
-    }
     if (wireGuardStatus()["status"] in setOf("CONNECTED", "CONNECTING", "DISCONNECTING")) {
       activeEngines += "WireGuard"
     }
@@ -541,12 +423,6 @@ class PulseVpnEngineModule : Module() {
    */
   private fun prepareTunnelHandoff(requestedEngine: String) {
     val context = requireContext()
-    val singBox = PulseSingBoxVpnService.status(context)
-    if (singBox["state"] in setOf("connecting", "connected", "disconnecting")) {
-      PulseDiagnostics.log(context, "vpn_handoff_stop", "engine=sing-box;requested=$requestedEngine")
-      PulseSingBoxVpnService.stop(context, singBox["attemptId"] as? String)
-    }
-
     stopWireGuardIfRunning()
     stopAmneziaIfRunning()
     if (
@@ -559,13 +435,11 @@ class PulseVpnEngineModule : Module() {
 
     val deadline = SystemClock.elapsedRealtime() + TUNNEL_HANDOFF_TIMEOUT_MS
     while (true) {
-      val singBoxState = PulseSingBoxVpnService.status(context)["state"] as? String
       val wireGuardState = wireGuardStatus()["status"] as? String
       val amneziaState = amneziaStatus()["status"] as? String
       val openVpnCurrent = openVpnStatus()["status"] as? String
       val pulseEngineActive =
-        singBoxState in setOf("connecting", "connected", "disconnecting") ||
-          wireGuardState in setOf("CONNECTED", "CONNECTING", "DISCONNECTING") ||
+        wireGuardState in setOf("CONNECTED", "CONNECTING", "DISCONNECTING") ||
           amneziaState in setOf("CONNECTED", "CONNECTING", "DISCONNECTING") ||
           openVpnCurrent in setOf("CONNECTED", "CONNECTING", "DISCONNECTING")
       val vpnNetworkActive = isAndroidVpnNetworkActive(context)
@@ -917,35 +791,6 @@ class PulseVpnEngineModule : Module() {
     }
   }
 
-  private fun probeTcpEndpoint(server: Map<String, Any?>, timeoutMs: Int): Map<String, Any?> {
-    val id = server["id"]?.toString() ?: ""
-    val host = (server["host"] as? String)?.trim().orEmpty()
-    val port = (server["port"] as? Number)?.toInt() ?: 0
-    if (
-      host.isBlank() ||
-      host.length > 253 ||
-      host.any { it.isWhitespace() || it == '/' || it == '\\' || it == '@' } ||
-      port !in 1..65535
-    ) {
-      return mapOf("id" to id, "reachable" to false, "latencyMs" to null)
-    }
-
-    val socket = Socket()
-    val startedAt = SystemClock.elapsedRealtime()
-    return try {
-      socket.connect(InetSocketAddress(host, port), timeoutMs.coerceIn(250, 3_000))
-      mapOf(
-        "id" to id,
-        "reachable" to true,
-        "latencyMs" to (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(1L)
-      )
-    } catch (_: Exception) {
-      mapOf("id" to id, "reachable" to false, "latencyMs" to null)
-    } finally {
-      runCatching { socket.close() }
-    }
-  }
-
   private fun probeTunnelConnectivity(): Map<String, Any?> {
     val context = requireContext()
     val connectivityManager =
@@ -1294,6 +1139,15 @@ class PulseVpnEngineModule : Module() {
     } catch (_: Throwable) {
       wireGuardLastState
     }
+    val statistics = if (state == WireGuardTunnel.State.UP) {
+      try {
+        backend.getStatistics(tunnel)
+      } catch (_: Throwable) {
+        null
+      }
+    } else {
+      null
+    }
     return statusMap(
       state?.name ?: "UNKNOWN",
       state == WireGuardTunnel.State.UP,
@@ -1304,7 +1158,9 @@ class PulseVpnEngineModule : Module() {
         wireGuardConnectedAt ?: System.currentTimeMillis().also { wireGuardConnectedAt = it }
       } else {
         null
-      }
+      },
+      uploadBytes = statistics?.totalTx() ?: 0L,
+      downloadBytes = statistics?.totalRx() ?: 0L,
     )
   }
 
@@ -1317,6 +1173,15 @@ class PulseVpnEngineModule : Module() {
     } catch (_: Throwable) {
       amneziaLastState
     }
+    val statistics = if (state == AmneziaTunnel.State.UP) {
+      try {
+        backend.getStatistics(tunnel)
+      } catch (_: Throwable) {
+        null
+      }
+    } else {
+      null
+    }
     return statusMap(
       state?.name ?: "UNKNOWN",
       state == AmneziaTunnel.State.UP,
@@ -1327,7 +1192,9 @@ class PulseVpnEngineModule : Module() {
         amneziaConnectedAt ?: System.currentTimeMillis().also { amneziaConnectedAt = it }
       } else {
         null
-      }
+      },
+      uploadBytes = statistics?.totalTx() ?: 0L,
+      downloadBytes = statistics?.totalRx() ?: 0L,
     )
   }
 
@@ -1337,7 +1204,9 @@ class PulseVpnEngineModule : Module() {
     profileId: String?,
     profileName: String?,
     error: String?,
-    connectedAt: Long? = null
+    connectedAt: Long? = null,
+    uploadBytes: Long = 0L,
+    downloadBytes: Long = 0L,
   ): Map<String, Any?> {
     val normalized = when (rawState) {
       "UP" -> "CONNECTED"
@@ -1358,6 +1227,8 @@ class PulseVpnEngineModule : Module() {
       "profileId" to profileId,
       "profileName" to profileName,
       "connectedAt" to connectedAt,
+      "uploadBytes" to uploadBytes,
+      "downloadBytes" to downloadBytes,
       "error" to error
     )
   }

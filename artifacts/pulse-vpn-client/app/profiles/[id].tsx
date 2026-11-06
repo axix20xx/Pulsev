@@ -6,13 +6,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useGetMobileDashboard, useListMobileSubscriptions } from '@workspace/api-client-react';
 import { Card, InlineState, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
-import { useVpnPreferences, type VpnProtocol } from '@/hooks/VpnPreferences';
+import { useVpnPreferences, type AvailableVpnProtocol, type VpnProtocol } from '@/hooks/VpnPreferences';
 import { stopTunnelForProtocolSwitch } from '@/lib/vpn-engine';
 
 const fa = (value: number | string) => String(value).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
 const labels = { active: 'فعال', expired: 'پایان‌یافته', cancelled: 'لغوشده', pending: 'در انتظار' };
-const protocolRows: { id: VpnProtocol; title: string; detail: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { id: 'v2ray', title: 'V2Box', detail: 'سرویس سازگار با sing-box', icon: 'radio' },
+const protocolRows: { id: AvailableVpnProtocol; title: string; detail: string; icon: keyof typeof Feather.glyphMap }[] = [
   { id: 'openvpn', title: 'OpenVPN', detail: 'اتصال استاندارد و پایدار', icon: 'shield' },
   { id: 'wireguard', title: 'WireGuard', detail: 'اتصال سبک و مدرن', icon: 'activity' },
   { id: 'amneziawg', title: 'AmneziaWG', detail: 'پروفایل مبهم‌سازی اختصاصی', icon: 'wind' },
@@ -36,13 +35,12 @@ export default function ProfileDetail() {
   }
   if (!item) return <Screen><InlineState title="اشتراک پیدا نشد" detail="این اشتراک در حساب شما موجود نیست یا دسترسی آن تغییر کرده است." retry={() => router.replace('/(tabs)/profiles')} icon="search" /></Screen>;
 
-  const availability: Record<VpnProtocol, boolean> = {
-    v2ray: !!item.subscription_url,
+  const availability: Partial<Record<AvailableVpnProtocol, boolean>> = {
     openvpn: item.openvpn_available,
     wireguard: item.wireguard_available,
     amneziawg: !!item.awg_url,
   };
-  const openServers = (protocol: VpnProtocol) => {
+  const openServers = (protocol: AvailableVpnProtocol) => {
     if (!availability[protocol]) return;
     void (async () => {
       try {
@@ -50,12 +48,12 @@ export default function ProfileDetail() {
         prefs.chooseSubscription(item.id);
         prefs.chooseProtocol(protocol);
         router.push(`/servers/${protocol}`);
-      } catch (error) {
+      } catch {
         // A failed handoff leaves the current VPN active and does not navigate
         // into a screen that would misleadingly imply the new protocol started.
         Alert.alert(
-          'تغییر پروتکل انجام نشد',
-          error instanceof Error ? error.message : 'اتصال قبلی قطع نشد؛ تونل جدید شروع نشد.',
+          'تغییر مسیر انجام نشد',
+          'اتصال قبلی هنوز متوقف نشده است؛ مسیر تازه شروع نشد. کمی بعد دوباره تلاش کنید.',
           [{ text: 'متوجه شدم' }],
         );
       }
@@ -127,19 +125,19 @@ export default function ProfileDetail() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 42, gap: 13 },
-  back: { alignSelf: 'flex-start', minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  back: { alignSelf: 'flex-start', minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6 },
   backText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   summaryHero: { gap: 14, borderRadius: 25, padding: 18, overflow: 'hidden' },
   statusLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   statusPill: { minHeight: 27, paddingHorizontal: 10, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 7 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
-  heroKicker: { fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1 },
+  heroKicker: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
   planHeading: { alignItems: 'flex-end', gap: 4, paddingVertical: 2 },
   planTitle: { fontFamily: 'Inter_700Bold', fontSize: 22, textAlign: 'right' },
   planProvider: { fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'right' },
   usageLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  muted: { fontFamily: 'Inter_400Regular', fontSize: 11 },
+  muted: { fontFamily: 'Inter_400Regular', fontSize: 12 },
   usageValue: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   progress: { height: 6, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
@@ -148,7 +146,7 @@ const styles = StyleSheet.create({
   metricRule: { width: 1, height: 34 },
   metricValue: { fontFamily: 'Inter_700Bold', fontSize: 17 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  infoValue: { fontFamily: 'Inter_500Medium', fontSize: 11, textAlign: 'right' },
+  infoValue: { fontFamily: 'Inter_500Medium', fontSize: 12, textAlign: 'right' },
   serviceInfo: { gap: 13, borderRadius: 21 },
   infoHeading: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 1 },
   infoGlyph: { width: 36, height: 36, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
@@ -159,7 +157,7 @@ const styles = StyleSheet.create({
   protocolIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   protocolCopy: { flex: 1, gap: 5, alignItems: 'flex-end' },
   protocolTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
-  protocolDetail: { fontFamily: 'Inter_400Regular', fontSize: 10, textAlign: 'right' },
+  protocolDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'right' },
   privacyNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   noteText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 18, textAlign: 'right' },
   loading: { gap: 12 },

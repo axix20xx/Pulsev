@@ -5,24 +5,23 @@ import { Feather } from '@expo/vector-icons';
 import { useGetMobileDashboard } from '@workspace/api-client-react';
 import { Card, InlineState, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
-import { useVpnPreferences, type VpnProtocol } from '@/hooks/VpnPreferences';
+import { useVpnPreferences, type AvailableVpnProtocol } from '@/hooks/VpnPreferences';
 import { stopTunnelForProtocolSwitch } from '@/lib/vpn-engine';
 
-const items: { id: VpnProtocol; name: string; description: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { id: 'v2ray', name: 'V2Box', description: 'VLESS · VMess · Trojan · Shadowsocks · Hysteria 2', icon: 'radio' },
+const items: { id: AvailableVpnProtocol; name: string; description: string; icon: keyof typeof Feather.glyphMap }[] = [
   { id: 'wireguard', name: 'WireGuard', description: 'تونل سبک با کلیدهای اختصاصی', icon: 'activity' },
   { id: 'openvpn', name: 'OpenVPN', description: 'اتصال استاندارد و سازگار', icon: 'shield' },
   { id: 'amneziawg', name: 'AmneziaWG', description: 'پروفایل اختصاصی Amnezia', icon: 'wind' },
 ];
-const supported = (s: { subscription_url?: string | null; openvpn_available?: boolean; wireguard_available?: boolean; awg_url?: string | null }, p: VpnProtocol) =>
-  p === 'v2ray' ? !!s.subscription_url : p === 'openvpn' ? !!s.openvpn_available : p === 'wireguard' ? !!s.wireguard_available : !!s.awg_url;
+const supported = (s: { subscription_url?: string | null; openvpn_available?: boolean; wireguard_available?: boolean; awg_url?: string | null }, p: AvailableVpnProtocol) =>
+  p === 'openvpn' ? !!s.openvpn_available : p === 'wireguard' ? !!s.wireguard_available : !!s.awg_url;
 
 export default function ProtocolsRedesign() {
   const c = useColors();
   const router = useRouter();
   const prefs = useVpnPreferences();
   const dashboard = useGetMobileDashboard();
-  const [switchingProtocol, setSwitchingProtocol] = useState<VpnProtocol | null>(null);
+  const [switchingProtocol, setSwitchingProtocol] = useState<AvailableVpnProtocol | null>(null);
   const eligible = (dashboard.data?.subscriptions ?? []).filter((s) => s.status === 'active' && Number(s.remaining_gb) > 0);
   const selected = eligible.find((s) => s.id === prefs.subscriptionId);
   const available = selected ? items.filter((item) => supported(selected, item.id)) : [];
@@ -31,7 +30,7 @@ export default function ProtocolsRedesign() {
     const subscription = eligible.find((entry) => entry.id === id);
     if (subscription) prefs.chooseSubscription(subscription.id);
   };
-  const openProtocol = async (protocol: VpnProtocol) => {
+  const openProtocol = async (protocol: AvailableVpnProtocol) => {
     if (!selected || !supported(selected, protocol) || switchingProtocol) return;
     setSwitchingProtocol(protocol);
     try {
@@ -61,7 +60,11 @@ export default function ProtocolsRedesign() {
           <View style={styles.stepLabel}><Text style={[styles.stepNum, { color: c.primary }]}>۰۱</Text><Text style={[styles.sectionTitle, { color: c.foreground }]}>اشتراک مورد استفاده</Text></View>
           <Pressable accessibilityRole="button" testID="protocols-manage-subscriptions" onPress={() => router.push('/(tabs)/profiles')}><Text style={[styles.link, { color: c.primary }]}>مدیریت</Text></Pressable>
         </View>
-        {dashboard.isLoading ? <Card style={styles.loadingCard}><ActivityIndicator color={c.primary} /><Text style={[styles.subtitle, { color: c.mutedForeground }]}>در حال دریافت اشتراک‌ها</Text></Card> : null}
+        {dashboard.isLoading ? <Card style={styles.loadingCard}>
+          <View style={[styles.loadingBar, { backgroundColor: c.muted, width: '48%' }]} />
+          <View style={[styles.loadingBar, { backgroundColor: c.muted, width: '74%' }]} />
+          <Text style={[styles.subtitle, { color: c.mutedForeground }]}>در حال دریافت اشتراک‌ها…</Text>
+        </Card> : null}
         {!dashboard.isLoading && eligible.length > 1 ? <View style={styles.subscriptionList}>
           {eligible.map((subscription) => {
             const chosen = selected?.id === subscription.id;
@@ -129,22 +132,23 @@ const styles = StyleSheet.create({
   page: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 34, gap: 15 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 13 },
   headerIcon: { width: 48, height: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  kicker: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+  kicker: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
   title: { fontFamily: 'Inter_700Bold', fontSize: 25, textAlign: 'right' },
-  subtitle: { fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 17, textAlign: 'right' },
+  subtitle: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 20, textAlign: 'right' },
   stepHead: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth },
   stepLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stepNum: { fontFamily: 'Inter_700Bold', fontSize: 10 },
-  sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 13 },
+  sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 14 },
   link: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
   subscriptionList: { gap: 8 },
   subscriptionCard: { minHeight: 61, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 18 },
   subscriptionIcon: { width: 35, height: 35, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   subscriptionCopy: { flex: 1, gap: 3, alignItems: 'flex-end' },
   subscriptionName: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
-  subscriptionMeta: { fontFamily: 'Inter_400Regular', fontSize: 9 },
+  subscriptionMeta: { fontFamily: 'Inter_400Regular', fontSize: 11 },
   remaining: { fontFamily: 'Inter_600SemiBold', fontSize: 10, writingDirection: 'ltr' },
-  loadingCard: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  loadingCard: { minHeight: 88, alignItems: 'flex-end', justifyContent: 'center', gap: 10 },
+  loadingBar: { height: 10, borderRadius: 6 },
   empty: { alignItems: 'center', gap: 10, paddingVertical: 20 },
   prompt: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   promptIcon: { width: 37, height: 37, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
@@ -157,8 +161,8 @@ const styles = StyleSheet.create({
   indexText: { fontFamily: 'Inter_700Bold', fontSize: 9 },
   protocolIcon: { width: 39, height: 39, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   protocolName: { fontFamily: 'Inter_700Bold', fontSize: 14, textAlign: 'right' },
-  protocolDescription: { fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 16, textAlign: 'right' },
+  protocolDescription: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 19, textAlign: 'right' },
   protocolFoot: { marginTop: 'auto', paddingTop: 9, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  availability: { fontFamily: 'Inter_500Medium', fontSize: 9 },
-  footnote: { fontFamily: 'Inter_400Regular', fontSize: 9, lineHeight: 16, textAlign: 'center', marginTop: 2 },
+  availability: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+  footnote: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 18, textAlign: 'center', marginTop: 2 },
 });

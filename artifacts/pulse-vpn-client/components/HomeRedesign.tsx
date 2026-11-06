@@ -1,73 +1,66 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useGetMobileDashboard, useGetMobileSession } from '@workspace/api-client-react';
 import { Card, InlineState, Ltr, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
-import { useVpnPreferences, type VpnProtocol } from '@/hooks/VpnPreferences';
-import { getAmneziaWgStatus, getOpenVpnStatus, getWireGuardStatus, getXrayState, subscribeXrayState, type WireGuardVpnStatus, type XrayVpnState, stopTunnelForProtocolSwitch } from '@/lib/vpn-engine';
+import { useVpnPreferences, type AvailableVpnProtocol, type VpnProtocol } from '@/hooks/VpnPreferences';
+import { getAmneziaWgStatus, getOpenVpnStatus, getWireGuardStatus, type WireGuardVpnStatus, stopTunnelForProtocolSwitch } from '@/lib/vpn-engine';
 import { findActiveTunnelProtocol, isTunnelConnected, isTunnelConnecting } from '@/lib/tunnel-state';
 
-const protocols: { id: VpnProtocol; title: string; description: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { id: 'v2ray', title: 'V2Box', description: 'سازگار با sing-box', icon: 'radio' },
+const protocols: { id: AvailableVpnProtocol; title: string; description: string; icon: keyof typeof Feather.glyphMap }[] = [
   { id: 'wireguard', title: 'WireGuard', description: 'سبک و سریع', icon: 'activity' },
   { id: 'openvpn', title: 'OpenVPN', description: 'پایدار و سازگار', icon: 'shield' },
   { id: 'amneziawg', title: 'AmneziaWG', description: 'پروفایل اختصاصی', icon: 'wind' },
 ];
 const empty: WireGuardVpnStatus = { status: 'UNKNOWN', tunnelState: 'UNKNOWN', isConnected: false };
 const fa = (v: number | string) => String(v).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
-const supports = (s: { subscription_url?: string | null; openvpn_available?: boolean; wireguard_available?: boolean; awg_url?: string | null }, p: VpnProtocol) =>
-  p === 'v2ray' ? !!s.subscription_url : p === 'openvpn' ? !!s.openvpn_available : p === 'wireguard' ? !!s.wireguard_available : !!s.awg_url;
+const supports = (s: { subscription_url?: string | null; openvpn_available?: boolean; wireguard_available?: boolean; awg_url?: string | null }, p: AvailableVpnProtocol) =>
+  p === 'openvpn' ? !!s.openvpn_available : p === 'wireguard' ? !!s.wireguard_available : !!s.awg_url;
 
 export default function HomeRedesign() {
   const c = useColors();
   const router = useRouter();
+  const isFocused = useIsFocused();
   const prefs = useVpnPreferences();
   const dashboard = useGetMobileDashboard();
   const session = useGetMobileSession();
   const eligible = (dashboard.data?.subscriptions ?? []).filter((s) => s.status === 'active' && Number(s.remaining_gb) > 0);
   const selected = eligible.find((s) => s.id === prefs.subscriptionId);
-  const [xray, setXray] = useState<XrayVpnState>({ state: 'disconnected' });
   const [openvpn, setOpenvpn] = useState(empty);
   const [wireguard, setWireguard] = useState(empty);
   const [awg, setAwg] = useState(empty);
   const [busyProtocol, setBusyProtocol] = useState<VpnProtocol | null>(null);
   const [clock, setClock] = useState(Date.now());
+  const pollInFlightRef = useRef(false);
 
   useEffect(() => {
     let disposed = false;
-    let revision = 0;
-    let inFlight = false;
     const refresh = async () => {
-      if (disposed || inFlight) return;
-      inFlight = true;
-      const currentRevision = revision;
+      if (disposed || pollInFlightRef.current) return;
+      pollInFlightRef.current = true;
       try {
-        const [x, o, w, a] = await Promise.all([
-          getXrayState().catch(() => ({ state: 'disconnected' as const })),
+        const [o, w, a] = await Promise.all([
           getOpenVpnStatus().catch(() => empty),
           getWireGuardStatus().catch(() => empty),
           getAmneziaWgStatus().catch(() => empty),
         ]);
-        if (disposed || revision !== currentRevision) return;
-        setXray(x); setOpenvpn(o); setWireguard(w); setAwg(a);
-      } finally { inFlight = false; }
+        if (disposed) return;
+        setOpenvpn(o); setWireguard(w); setAwg(a);
+      } finally { pollInFlightRef.current = false; }
     };
-    void refresh();
-    const timer = setInterval(() => { setClock(Date.now()); void refresh(); }, 1800);
-    let remove: () => void = () => undefined;
-    void subscribeXrayState((state) => { if (!disposed) { revision += 1; setXray(state); } })
-      .then((unsubscribe) => { if (disposed) unsubscribe(); else remove = unsubscribe; }).catch(() => undefined);
-    return () => { disposed = true; clearInterval(timer); remove(); };
-  }, []);
+    if (isFocused) void refresh();
+    const timer = isFocused ? setInterval(() => { setClock(Date.now()); void refresh(); }, 3000) : null;
+    return () => { disposed = true; if (timer) clearInterval(timer); };
+  }, [isFocused]);
 
-  const states: Record<VpnProtocol, WireGuardVpnStatus> = { v2ray: empty, openvpn, wireguard, amneziawg: awg };
+  const states = { openvpn, wireguard, amneziawg: awg } as unknown as Record<VpnProtocol, WireGuardVpnStatus>;
   const order = protocols.map((p) => p.id);
-  const activeProtocol = findActiveTunnelProtocol(order, xray, states);
-  const isConnected = activeProtocol ? isTunnelConnected(activeProtocol, xray, states[activeProtocol]) : false;
-  const isBusy = activeProtocol ? isTunnelConnecting(activeProtocol, xray, states[activeProtocol]) : false;
-  const activeState = activeProtocol === 'v2ray' ? xray : activeProtocol ? states[activeProtocol] : null;
+  const activeProtocol = findActiveTunnelProtocol(order, states);
+  const isConnected = activeProtocol ? isTunnelConnected(activeProtocol, states[activeProtocol]) : false;
+  const isBusy = activeProtocol ? isTunnelConnecting(activeProtocol, states[activeProtocol]) : false;
+  const activeState = activeProtocol ? states[activeProtocol] ?? empty : null;
   const profileId = activeState && 'profileId' in activeState ? activeState.profileId : undefined;
   const profileName = activeState && 'profileName' in activeState ? activeState.profileName : undefined;
   const connectedAt = activeState && 'connectedAt' in activeState ? activeState.connectedAt : undefined;
@@ -75,7 +68,7 @@ export default function HomeRedesign() {
   const duration = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map((v) => String(v).padStart(2, '0')).join(':');
   const available = selected ? protocols.filter((p) => supports(selected, p.id)) : [];
 
-  const openProtocol = async (protocol: VpnProtocol) => {
+  const openProtocol = async (protocol: AvailableVpnProtocol) => {
     if (!selected || !supports(selected, protocol) || busyProtocol || isBusy) return;
     setBusyProtocol(protocol);
     try {
@@ -83,8 +76,8 @@ export default function HomeRedesign() {
       prefs.chooseSubscription(selected.id);
       prefs.chooseProtocol(protocol);
       router.push(`/servers/${protocol}`);
-    } catch (error) {
-      Alert.alert('تغییر مسیر انجام نشد', error instanceof Error ? error.message : 'اتصال قبلی قطع نشد؛ تونل جدید شروع نشد.', [{ text: 'متوجه شدم' }]);
+    } catch {
+      Alert.alert('تغییر مسیر انجام نشد', 'اتصال قبلی هنوز متوقف نشده است؛ مسیر تازه شروع نشد. کمی بعد دوباره تلاش کنید.', [{ text: 'متوجه شدم' }]);
     } finally { setBusyProtocol(null); }
   };
   const chooseSubscription = (id: string) => {
@@ -115,7 +108,7 @@ export default function HomeRedesign() {
 
         <View style={styles.sectionHead}>
           <View style={styles.step}><Text style={[styles.stepNum, { color: c.primary }]}>۰۱</Text><Text style={[styles.sectionTitle, { color: c.foreground }]}>انتخاب اشتراک</Text></View>
-          <Pressable accessibilityRole="button" testID="home-subscriptions" onPress={() => router.push('/(tabs)/profiles')}><Text style={[styles.link, { color: c.primary }]}>همهٔ اشتراک‌ها</Text></Pressable>
+          <Pressable accessibilityRole="button" testID="home-subscriptions" onPress={() => router.push('/(tabs)/profiles')} style={styles.tapLink}><Text style={[styles.link, { color: c.primary }]}>همهٔ اشتراک‌ها</Text></Pressable>
         </View>
         {dashboard.isLoading ? <Card style={styles.loadingCard}><View style={[styles.skeleton, { backgroundColor: c.muted }]} /><View style={[styles.skeletonLine, { backgroundColor: c.muted }]} /></Card> : null}
         {!dashboard.isLoading && eligible.length > 1 ? (
@@ -156,7 +149,7 @@ export default function HomeRedesign() {
             <View style={styles.step}><Text style={[styles.stepNum, { color: c.primary }]}>۰۲</Text><Text style={[styles.sectionTitle, { color: c.foreground }]}>انتخاب پروتکل</Text></View>
             <Text style={[styles.contextLabel, { color: c.mutedForeground }]} numberOfLines={1}>{selected.plan}</Text>
           </View>
-          {isConnected || isBusy ? <Pressable accessibilityRole="button" testID="home-manage-connection" onPress={() => router.push({ pathname: '/connection', params: { id: profileId ?? selected.id, protocol: activeProtocol ?? 'v2ray', location: profileName ?? '' } })}>
+          {isConnected || isBusy ? <Pressable accessibilityRole="button" testID="home-manage-connection" onPress={() => router.push({ pathname: '/connection', params: { id: profileId ?? selected.id, protocol: activeProtocol ?? prefs.protocol ?? 'openvpn', location: profileName ?? '' } })}>
             <View style={[styles.connectionCard, { backgroundColor: c.surfaceDeep }]}>
               <View style={[styles.connectionGlyph, { backgroundColor: `${c.onDeep}20` }]}><Feather name={isConnected ? 'shield' : 'activity'} size={20} color={c.onDeep} /></View>
               <View style={styles.connectionCopy}><Text style={[styles.connectionTitle, { color: c.onDeep }]}>{isConnected ? 'تونل بومی فعال است' : 'اتصال در حال تغییر است'}</Text>
@@ -189,48 +182,49 @@ const styles = StyleSheet.create({
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   mark: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   brandName: { fontFamily: 'Inter_700Bold', fontSize: 15, letterSpacing: 0.2 },
-  brandSub: { fontFamily: 'Inter_400Regular', fontSize: 10, marginTop: 2 },
-  avatar: { width: 42, height: 42, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  brandSub: { fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 },
+  avatar: { width: 48, height: 48, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   intro: { alignItems: 'flex-end', gap: 6, paddingTop: 4, paddingBottom: 2 },
-  kicker: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
+  kicker: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
   title: { fontFamily: 'Inter_700Bold', fontSize: 28, lineHeight: 39, textAlign: 'right' },
-  subtitle: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 18, textAlign: 'right' },
+  subtitle: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 21, textAlign: 'right' },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stepNum: { fontFamily: 'Inter_700Bold', fontSize: 10 },
   sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 15 },
   link: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
-  contextLabel: { fontFamily: 'Inter_500Medium', fontSize: 10, maxWidth: '43%', textAlign: 'right' },
+  tapLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 5 },
+  contextLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, maxWidth: '43%', textAlign: 'right' },
   subscriptionList: { gap: 9 },
   subscriptionCard: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 12, borderRadius: 19 },
   subGlyph: { width: 36, height: 36, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   subCopy: { flex: 1, alignItems: 'flex-end', gap: 4 },
-  subName: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-  subMeta: { fontFamily: 'Inter_400Regular', fontSize: 9 },
+  subName: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  subMeta: { fontFamily: 'Inter_400Regular', fontSize: 11 },
   subUsage: { alignItems: 'flex-end', gap: 3 },
-  usageNumber: { fontFamily: 'Inter_700Bold', fontSize: 11 },
-  usageLabel: { fontFamily: 'Inter_400Regular', fontSize: 8 },
+  usageNumber: { fontFamily: 'Inter_700Bold', fontSize: 12 },
+  usageLabel: { fontFamily: 'Inter_400Regular', fontSize: 10 },
   loadingCard: { gap: 10 },
   skeleton: { height: 38, width: 38, borderRadius: 13 },
   skeletonLine: { height: 14, width: '55%', borderRadius: 7 },
   emptyCard: { alignItems: 'center', gap: 10, paddingVertical: 20 },
   emptyGlyph: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, textAlign: 'center' },
-  emptyDetail: { fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 17, textAlign: 'center' },
+  emptyDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 19, textAlign: 'center' },
   connectionCard: { minHeight: 76, borderRadius: 22, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 10 },
   connectionGlyph: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   connectionCopy: { flex: 1, alignItems: 'flex-end', gap: 4 },
-  connectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 12 },
-  connectionMeta: { fontFamily: 'Inter_400Regular', fontSize: 9 },
+  connectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 14 },
+  connectionMeta: { fontFamily: 'Inter_400Regular', fontSize: 11 },
   connectionTime: { alignItems: 'flex-end', gap: 3 },
   duration: { fontFamily: 'Inter_700Bold', fontSize: 11 },
   protocolList: { gap: 9 },
   protocolCard: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 12, borderRadius: 19 },
   protocolGlyph: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   protocolCopy: { flex: 1, alignItems: 'flex-end', gap: 4 },
-  protocolName: { fontFamily: 'Inter_700Bold', fontSize: 13 },
-  protocolHint: { fontFamily: 'Inter_400Regular', fontSize: 10 },
+  protocolName: { fontFamily: 'Inter_700Bold', fontSize: 14 },
+  protocolHint: { fontFamily: 'Inter_400Regular', fontSize: 12 },
   currentPill: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 5 },
   currentText: { fontFamily: 'Inter_600SemiBold', fontSize: 8 },
-  changeLink: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  changeLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
 });

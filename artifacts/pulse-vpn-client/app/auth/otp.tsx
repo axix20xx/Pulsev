@@ -108,14 +108,14 @@ export default function OtpSignIn() {
               />
               {expiresAt ? <Text style={[styles.expires, { color: c.mutedForeground }]}>مهلت درخواست: <Text style={{ writingDirection: 'ltr' }}>{new Date(expiresAt).toLocaleString('fa-IR')}</Text></Text> : null}
               <ActionButton title="تأیید و ورود" icon="arrow-left" onPress={verify} loading={verifyOtp.isPending} disabled={otp.length !== 4} />
-              <Pressable accessibilityRole="button" testID="edit-phone" onPress={() => { setChallengeId(''); setOtp(''); requestOtp.reset(); verifyOtp.reset(); }}>
+              <Pressable accessibilityRole="button" testID="edit-phone" onPress={() => { setChallengeId(''); setOtp(''); requestOtp.reset(); verifyOtp.reset(); }} style={styles.editPhone}>
                 <Text style={[styles.secondaryLink, { color: c.primary }]}>ویرایش شماره</Text>
               </Pressable>
             </> : <>
               <Text style={[styles.hint, { color: c.mutedForeground }]}>پس از ادامه، کد را از فروشندهٔ خود دریافت کنید.</Text>
               <ActionButton title="ادامه" icon="arrow-left" onPress={startChallenge} loading={requestOtp.isPending} disabled={phone.trim().length < 8} />
             </>}
-            {error ? <Text accessibilityRole="alert" style={[styles.error, { color: c.destructive }]}>{error.message || 'ورود انجام نشد. اتصال را بررسی و دوباره تلاش کنید.'}</Text> : null}
+            {error ? <Text accessibilityRole="alert" style={[styles.error, { color: c.destructive }]}>ورود انجام نشد. شماره و اتصال اینترنت را بررسی و دوباره تلاش کنید.</Text> : null}
           </Card>
 
           <View style={[styles.privacy, { backgroundColor: c.secondary }]}>
@@ -135,29 +135,30 @@ const styles = StyleSheet.create({
   wordmark: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   brandCopy: { alignItems: 'flex-end', gap: 2 },
   brand: { fontFamily: 'Inter_700Bold', fontSize: 14 },
-  brandSub: { fontFamily: 'Inter_400Regular', fontSize: 9 },
+  brandSub: { fontFamily: 'Inter_400Regular', fontSize: 11 },
   intro: { alignItems: 'flex-end', gap: 8 },
   illustration: { width: 112, height: 112, borderWidth: 1, borderRadius: 39, alignItems: 'center', justifyContent: 'center', marginBottom: 4, alignSelf: 'center', overflow: 'hidden' },
   illustrationDisc: { width: 59, height: 59, borderRadius: 22, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   orbit: { position: 'absolute', width: 91, height: 91, borderRadius: 46, borderWidth: 1, opacity: 0.38 },
   orbitDot: { position: 'absolute', width: 9, height: 9, borderRadius: 5, top: 13, right: 20 },
-  eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+  eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
   title: { fontFamily: 'Inter_700Bold', fontSize: 26, textAlign: 'right' },
   detail: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 19, textAlign: 'right' },
   form: { padding: 16, borderRadius: 23, gap: 12 },
   formHeading: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 1 },
   formGlyph: { width: 36, height: 36, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   formHeadingCopy: { flex: 1, alignItems: 'flex-end', gap: 3 },
-  formTitle: { fontFamily: 'Inter_700Bold', fontSize: 12 },
-  formHint: { fontFamily: 'Inter_400Regular', fontSize: 9 },
+  formTitle: { fontFamily: 'Inter_700Bold', fontSize: 14 },
+  formHint: { fontFamily: 'Inter_400Regular', fontSize: 11 },
   stepCount: { fontFamily: 'Inter_700Bold', fontSize: 9, writingDirection: 'ltr' },
   input: { minHeight: 54, borderWidth: 1, borderRadius: 15, paddingHorizontal: 14, fontSize: 15, fontFamily: 'Inter_500Medium' },
   otp: { minHeight: 62, textAlign: 'center', writingDirection: 'ltr', letterSpacing: 13, fontSize: 21, fontFamily: 'Inter_700Bold' },
-  hint: { fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 17, textAlign: 'right' },
-  expires: { fontFamily: 'Inter_400Regular', fontSize: 9, textAlign: 'right' },
+  hint: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 19, textAlign: 'right' },
+  expires: { fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'right' },
   error: { fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 18, textAlign: 'right' },
   secondaryLink: { textAlign: 'center', fontFamily: 'Inter_600SemiBold', fontSize: 11, paddingVertical: 3 },
+  editPhone: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   privacy: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, paddingHorizontal: 12, paddingVertical: 11, borderRadius: 15 },
-  privacyText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 9, lineHeight: 16, textAlign: 'right' },
-  footer: { fontFamily: 'Inter_600SemiBold', fontSize: 8, letterSpacing: 1, textAlign: 'center' },
+  privacyText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 18, textAlign: 'right' },
+  footer: { fontFamily: 'Inter_600SemiBold', fontSize: 10, textAlign: 'center' },
 });

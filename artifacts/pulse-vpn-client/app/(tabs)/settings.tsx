@@ -13,7 +13,6 @@ import { ThemeMode, useAppearance } from '@/hooks/Appearance';
 import { useVpnPreferences } from '@/hooks/VpnPreferences';
 import { clearMobileToken } from '@/lib/mobile-auth';
 import { disconnectAllPulseTunnels, getDiagnosticLog } from '@/lib/vpn-engine';
-import { clearXrayServerHealth } from '@/lib/xray-server-health';
 
 const themeOptions: { id: ThemeMode; title: string; icon: 'smartphone' | 'sun' | 'moon'; hint: string }[] = [
   { id: 'light', title: 'روشن', icon: 'sun', hint: 'پیشنهادشده' },
@@ -40,13 +39,12 @@ export default function Settings() {
   async function finishLocalSignOut(serverLogoutFailed: boolean, tunnelStopFailed: boolean) {
     try {
       await clearMobileToken();
-    } catch (error) {
-      setLogoutError(error instanceof Error ? error.message : 'نشست امن از دستگاه پاک نشد.');
+    } catch {
+      setLogoutError('نشست امن از دستگاه پاک نشد. دوباره تلاش کنید.');
       setPreparingLogout(false);
       return;
     }
     preferences.clear();
-    clearXrayServerHealth();
     queryClient.clear();
     router.replace('/auth/otp');
     setPreparingLogout(false);
@@ -102,11 +100,8 @@ export default function Settings() {
       );
       await FileSystem.StorageAccessFramework.writeAsStringAsync(fileUri, report, { encoding: 'utf8' });
       Alert.alert('گزارش ذخیره شد', 'فایل گزارش در پوشه‌ای که انتخاب کردید ذخیره شد. می‌توانید آن را برای بررسی ارسال کنید.');
-    } catch (error) {
-      Alert.alert(
-        'ذخیره گزارش انجام نشد',
-        error instanceof Error ? error.message : 'ذخیره فایل گزارش ناموفق بود. دوباره تلاش کنید.',
-      );
+    } catch {
+      Alert.alert('ذخیره گزارش انجام نشد', 'ذخیرهٔ فایل ممکن نشد. دسترسی پوشه را بررسی و دوباره تلاش کنید.');
     } finally {
       setSavingDiagnostics(false);
     }
@@ -131,6 +126,7 @@ export default function Settings() {
             <Feather name="lock" size={15} color={c.mutedForeground} />
           </Card>
         ) : dashboard.isLoading ? <View style={[styles.accountSkeleton, { backgroundColor: c.muted }]} /> : null}
+        {dashboard.isError ? <InlineState title="حساب بارگذاری نشد" detail="برای دریافت اطلاعات حساب، اتصال را بررسی کنید." retry={() => void dashboard.refetch()} /> : null}
         {currentSubscription ? (
           <Pressable accessibilityRole="button" testID="account-subscription-detail" onPress={() => router.push(`/profiles/${currentSubscription.id}`)}>
             <Card style={styles.actionCard}>
@@ -161,7 +157,7 @@ export default function Settings() {
             return (
               <React.Fragment key={option.id}>
                 {index > 0 ? <View style={[styles.rule, { backgroundColor: c.border }]} /> : null}
-                <Pressable accessibilityRole="radio" accessibilityState={{ selected }} testID={`theme-${option.id}`} onPress={() => setThemeMode(option.id)} style={styles.option}>
+                <Pressable accessibilityRole="radio" accessibilityState={{ selected }} testID={`theme-${option.id}`} onPress={() => setThemeMode(option.id)} style={({ pressed }) => [styles.option, { opacity: pressed ? 0.78 : 1 }]}>
                   <View style={[styles.optionIcon, { backgroundColor: selected ? c.accent : c.secondary }]}><Feather name={option.icon} size={17} color={selected ? c.primary : c.mutedForeground} /></View>
                   <View style={{ flex: 1, gap: 3 }}>
                     <Text style={[styles.optionTitle, { color: c.foreground }]}>{option.title}</Text>
@@ -245,7 +241,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 19, paddingBottom: 48, gap: 14 },
   hero: { minHeight: 166, borderRadius: 30, padding: 21, justifyContent: 'flex-end', gap: 7, marginBottom: 3 },
   heroGlyph: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
-  heroEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1.2, textAlign: 'right' },
+  heroEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 11, textAlign: 'right' },
   heroTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, textAlign: 'right' },
   heroDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'right' },
   sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, textAlign: 'right', marginTop: 5 },
@@ -262,7 +258,7 @@ const styles = StyleSheet.create({
   rule: { height: 1, marginHorizontal: 2 },
   radio: { width: 17, height: 17, borderWidth: 1.5, borderRadius: 9 },
   languageCard: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  languageHint: { fontFamily: 'Inter_400Regular', fontSize: 11 },
+  languageHint: { fontFamily: 'Inter_400Regular', fontSize: 12 },
   actionCard: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 70, borderRadius: 22 },
   version: { fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'center', paddingVertical: 7 },
 });

@@ -1,7 +1,7 @@
 # Android client build
 
-This app includes native in-app engines for OpenVPN, WireGuard, AmneziaWG, and
-V2Ray/Xray. Those engines are not available in Expo Go; install a custom
+This app includes native in-app engines for OpenVPN, WireGuard, and
+AmneziaWG. Those engines are not available in Expo Go; install a custom
 Android build instead.
 
 From the repository root:

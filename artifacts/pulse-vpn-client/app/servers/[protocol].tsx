@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -6,35 +6,30 @@ import {
   useDownloadAmneziaWgConfig,
   useGetMobileDashboard,
   useGetOpenVpnAccount,
-  useGetPublicSubscriptionFeed,
   useGetWireGuardAccount,
   useListMobileSubscriptions,
 } from '@workspace/api-client-react';
 import { Card, InlineState, Screen } from '@/components/Ui';
 import { useColors } from '@/hooks/useColors';
 import { getSubscriptionToken } from '@/lib/subscription-token';
-import { parseXrayShareLinks, type XrayShareServer } from '@/lib/xray-share-links';
-import { useVpnPreferences, type VpnProtocol } from '@/hooks/VpnPreferences';
-import { useXrayLatencyScan } from '@/hooks/useXrayLatencyScan';
+import { useVpnPreferences, type AvailableVpnProtocol } from '@/hooks/VpnPreferences';
 import { friendlyServerName } from '@/lib/friendly-server-name';
-import { rankXrayServers } from '@/lib/xray-server-health';
 
-const names: Record<VpnProtocol, string> = { v2ray: 'V2Box', openvpn: 'OpenVPN', wireguard: 'WireGuard', amneziawg: 'AmneziaWG' };
-const descriptions: Record<VpnProtocol, string> = {
-  v2ray: 'سرورهای سازگار با sing-box',
+const names: Record<AvailableVpnProtocol, string> = { openvpn: 'OpenVPN', wireguard: 'WireGuard', amneziawg: 'AmneziaWG' };
+const descriptions: Record<AvailableVpnProtocol, string> = {
   openvpn: 'موقعیت‌های واقعی حساب OpenVPN',
   wireguard: 'موقعیت‌های واقعی حساب WireGuard',
   amneziawg: 'پیکربندی اختصاصی AmneziaWG',
 };
-function isProtocol(value: string): value is VpnProtocol {
-  return value === 'v2ray' || value === 'openvpn' || value === 'wireguard' || value === 'amneziawg';
+function isProtocol(value: string): value is AvailableVpnProtocol {
+  return value === 'openvpn' || value === 'wireguard' || value === 'amneziawg';
 }
 export default function ServerSelectionScreen() {
   const c = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ protocol?: string | string[]; smart?: string | string[] }>();
   const rawProtocol = Array.isArray(params.protocol) ? params.protocol[0] : params.protocol ?? '';
-  const protocol: VpnProtocol | null = isProtocol(rawProtocol) ? rawProtocol : null;
+  const protocol: AvailableVpnProtocol | null = isProtocol(rawProtocol) ? rawProtocol : null;
   const smartRequested = (Array.isArray(params.smart) ? params.smart[0] : params.smart) === '1';
   const prefs = useVpnPreferences();
   const subscriptions = useListMobileSubscriptions();
@@ -46,38 +41,12 @@ export default function ServerSelectionScreen() {
   const token = getSubscriptionToken(selected?.subscription_url ?? null);
   const openvpn = useGetOpenVpnAccount(token, { query: { enabled: !!token && protocol === 'openvpn' && !!selected?.openvpn_available, queryKey: ['/server-picker', token, 'openvpn'] } });
   const wireguard = useGetWireGuardAccount(token, { query: { enabled: !!token && protocol === 'wireguard' && !!selected?.wireguard_available, queryKey: ['/server-picker', token, 'wireguard'] } });
-  const awg = useDownloadAmneziaWgConfig(token, { query: { enabled: !!token && protocol === 'amneziawg' && !!selected?.awg_url, queryKey: ['/server-picker', token, 'amneziawg'] } });
-  const feed = useGetPublicSubscriptionFeed(token, { query: { enabled: !!token && protocol === 'v2ray' && !!selected?.subscription_url, queryKey: ['/server-picker', token, 'v2ray'] } });
+  const awg = useDownloadAmneziaWgConfig(token, { query: { enabled: !!token && protocol === 'amneziawg' && !!selected?.awg_url, queryKey: ['/server-picker', token, 'amneziawg'] }, request: { responseType: 'text' } });
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const smartStarted = useRef(false);
-  const xrayServers = useMemo(() => {
-    if (typeof feed.data !== 'string') return [];
-    return parseXrayShareLinks(feed.data).filter((server) => {
-      if (!['vless', 'vmess', 'trojan', 'ss', 'hysteria2', 'hy2', 'tuic', 'socks', 'http'].includes(server.protocol)) return false;
-      if (server.protocol !== 'ss' || !server.link.includes('?')) return true;
-      try {
-        return !new URL(server.link).searchParams.has('plugin');
-      } catch {
-        return false;
-      }
-    });
-  }, [feed.data]);
-  const latencyScan = useXrayLatencyScan(
-    selected?.id,
-    xrayServers,
-    protocol === 'v2ray' && !smartRequested,
-  );
-  const servers = !selected ? [] : protocol === 'v2ray'
-    ? (selected ? rankXrayServers(selected.id, xrayServers) : xrayServers).map((server: XrayShareServer, index) => ({
-        id: server.id,
-        name: friendlyServerName(server.name, index),
-        location: '',
-        protocol: server.protocol,
-        latency: latencyScan.health[server.id]?.latencyMs ?? null,
-      }))
-    : protocol === 'openvpn'
+  const servers = !selected ? [] : protocol === 'openvpn'
       ? (openvpn.data?.locations ?? []).map((server, index) => ({ id: server.name, name: friendlyServerName(server.name, index), location: '', protocol: undefined, latency: null as number | null }))
       : protocol === 'wireguard'
         ? (wireguard.data?.locations ?? []).map((server, index) => ({ id: server.name, name: friendlyServerName(server.name, index), location: '', protocol: undefined, latency: null as number | null }))
@@ -85,16 +54,15 @@ export default function ServerSelectionScreen() {
           ? [{ id: 'amneziawg-config', name: 'پیکربندی این اشتراک', location: '', protocol: undefined, latency: null as number | null }]
           : [];
   const filtered = servers.filter((server) => `${server.name} ${server.location}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-  const loading = protocol === 'v2ray' ? feed.isLoading : protocol === 'openvpn' ? openvpn.isLoading : protocol === 'wireguard' ? wireguard.isLoading : protocol === 'amneziawg' ? awg.isLoading : false;
-  const fetchError = protocol === 'v2ray' ? feed.error : protocol === 'openvpn' ? openvpn.error : protocol === 'wireguard' ? wireguard.error : protocol === 'amneziawg' ? awg.error : undefined;
+  const loading = protocol === 'openvpn' ? openvpn.isLoading : protocol === 'wireguard' ? wireguard.isLoading : protocol === 'amneziawg' ? awg.isLoading : false;
+  const fetchError = protocol === 'openvpn' ? openvpn.error : protocol === 'wireguard' ? wireguard.error : protocol === 'amneziawg' ? awg.error : undefined;
   const refresh = () => {
-    if (protocol === 'v2ray') void feed.refetch();
     if (protocol === 'openvpn') void openvpn.refetch();
     if (protocol === 'wireguard') void wireguard.refetch();
     if (protocol === 'amneziawg') void awg.refetch();
     void subscriptions.refetch();
   };
-  const startConnection = async (server: typeof servers[number], smartConnect = false) => {
+  const startConnection = async (server: typeof servers[number]) => {
     if (!protocol || !selected || busy) return;
     setError('');
     setBusy(true);
@@ -102,9 +70,7 @@ export default function ServerSelectionScreen() {
     prefs.chooseSubscription(selected.id);
     prefs.chooseServer(server.id, server.name);
     const routeParams: Record<string, string> = { id: selected.id, protocol };
-    if (protocol === 'v2ray' && smartConnect) routeParams.smart = '1';
-    else if (protocol === 'v2ray') routeParams.serverId = server.id;
-    else if (protocol === 'openvpn' || protocol === 'wireguard') routeParams.location = server.id;
+    if (protocol === 'openvpn' || protocol === 'wireguard') routeParams.location = server.id;
     try {
       router.push({ pathname: '/connection', params: routeParams });
     } catch {
@@ -119,11 +85,7 @@ export default function ServerSelectionScreen() {
     setBusy(true);
     try {
       let chosen = servers[0];
-      if (protocol === 'v2ray' && selected) {
-        const bestKnown = rankXrayServers(selected.id, xrayServers)[0];
-        if (bestKnown) chosen = servers.find((entry) => entry.id === bestKnown.id) ?? chosen;
-      }
-      await startConnection(chosen, protocol === 'v2ray');
+      await startConnection(chosen);
     } finally {
       setBusy(false);
     }
@@ -133,7 +95,7 @@ export default function ServerSelectionScreen() {
     smartStarted.current = true;
     void smart();
   }, [smartRequested, loading, servers.length, busy, protocol]);
-  if (!protocol) return <Screen><InlineState title="پروتکل شناخته نشد" detail="از صفحهٔ پروتکل‌ها یکی از چهار موتور پشتیبانی‌شده را انتخاب کنید." retry={() => router.replace('/(tabs)/protocols')} /></Screen>;
+  if (!protocol) return <Screen><InlineState title="پروتکل شناخته نشد" detail="از صفحهٔ پروتکل‌ها یکی از مسیرهای موجود را انتخاب کنید." retry={() => router.replace('/(tabs)/protocols')} /></Screen>;
 
   return (
     <Screen style={{ paddingHorizontal: 0, paddingTop: 0 }}>
@@ -159,7 +121,7 @@ export default function ServerSelectionScreen() {
           ) : null}
           <View style={styles.subscriptionRow}>
             {eligibleEntries.map((entry) => (
-              <Pressable key={entry.id} accessibilityRole="button" testID={`server-subscription-${entry.id}`} onPress={() => prefs.chooseSubscription(entry.id)} style={[styles.subscriptionChip, { backgroundColor: entry.id === selected?.id ? c.accent : c.card, borderColor: entry.id === selected?.id ? c.primary : c.border }]}>
+              <Pressable key={entry.id} accessibilityRole="button" accessibilityState={{ selected: entry.id === selected?.id }} testID={`server-subscription-${entry.id}`} onPress={() => prefs.chooseSubscription(entry.id)} style={({ pressed }) => [styles.subscriptionChip, { backgroundColor: entry.id === selected?.id ? c.accent : c.card, borderColor: entry.id === selected?.id ? c.primary : c.border, opacity: pressed ? 0.8 : 1 }]}>
                 <Text numberOfLines={1} style={[styles.chipText, { color: entry.id === selected?.id ? c.accentForeground : c.mutedForeground }]}>{entry.plan}</Text>
               </Pressable>
             ))}
@@ -181,44 +143,19 @@ export default function ServerSelectionScreen() {
             <View style={styles.sectionHead}>
               <Text style={[styles.sectionTitle, { color: c.foreground }]}>سرورهای در دسترس</Text>
               <View style={styles.sectionActions}>
-                {protocol === 'v2ray' ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="آزمون تأخیر سرورها"
-                    testID="refresh-xray-latency"
-                    disabled={latencyScan.scanning}
-                    onPress={() => void latencyScan.refresh()}
-                    style={[styles.latencyRefresh, { borderColor: c.border, opacity: latencyScan.scanning ? 0.55 : 1 }]}
-                  >
-                    <Feather name="rotate-cw" size={12} color={c.primary} />
-                    <Text style={[styles.latencyRefreshText, { color: c.primary }]}>{latencyScan.scanning ? 'در حال بررسی' : 'آزمون تأخیر'}</Text>
-                  </Pressable>
-                ) : null}
                 <Text style={[styles.count, { color: c.mutedForeground }]}>{servers.length} مورد</Text>
               </View>
             </View>
             {filtered.map((server, index) => {
               const chosen = prefs.serverId === server.id;
-              const health = protocol === 'v2ray' ? latencyScan.health[server.id] : undefined;
-              const udpOnly = protocol === 'v2ray' && ['hysteria2', 'hy2', 'tuic'].includes(server.protocol ?? '');
-              const latencyLabel = protocol !== 'v2ray'
-                ? 'آماده برای اتصال'
-                : health?.lastTrafficResult === 'passed'
-                  ? `آخرین آزمون اینترنت موفق${server.latency == null ? '' : ` · TCP ${server.latency} ms`}`
-                  : udpOnly
-                    ? 'آزمون ترافیک واقعی هنگام اتصال'
-                    : server.latency != null
-                      ? `TCP · ${server.latency} ms`
-                      : latencyScan.scanning
-                        ? 'در حال بررسی تأخیر'
-                        : 'تأخیر اندازه‌گیری نشده';
+              const latencyLabel = 'آماده برای اتصال';
               return (
                 <Card key={server.id} style={[styles.serverCard, chosen && { borderColor: c.primary }]}>
                   <View style={styles.serverRow}>
-                    <View style={[styles.serverIcon, { backgroundColor: chosen ? c.accent : c.secondary }]}><Feather name={protocol === 'v2ray' ? 'radio' : 'globe'} size={17} color={c.primary} /></View>
+                    <View style={[styles.serverIcon, { backgroundColor: chosen ? c.accent : c.secondary }]}><Feather name="globe" size={17} color={c.primary} /></View>
                     <View style={styles.serverCopy}>
                       <Text style={[styles.serverName, { color: c.foreground }]} numberOfLines={1}>{server.name}</Text>
-                      <Text style={[styles.serverMeta, { color: health?.lastTrafficResult === 'passed' ? c.success : c.mutedForeground }]} numberOfLines={2}>{latencyLabel}</Text>
+                      <Text style={[styles.serverMeta, { color: c.mutedForeground }]} numberOfLines={2}>{latencyLabel}</Text>
                     </View>
                     {chosen ? <Feather name="check-circle" size={19} color={c.primary} /> : null}
                   </View>
@@ -251,14 +188,14 @@ export default function ServerSelectionScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 44, gap: 13 },
-  back: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 40, paddingHorizontal: 3 },
-  backText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+  back: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 48, paddingHorizontal: 3 },
+  backText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
   heading: { gap: 7, padding: 17, borderRadius: 22, backgroundColor: 'transparent' },
   eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 0.2 },
   title: { fontFamily: 'Inter_700Bold', fontSize: 26, textAlign: 'right' },
   detail: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 19, textAlign: 'right' },
   subscriptionRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  subscriptionChip: { maxWidth: '48%', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9 },
+  subscriptionChip: { maxWidth: '48%', minHeight: 44, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9, justifyContent: 'center' },
   chipText: { fontFamily: 'Inter_500Medium', fontSize: 11 },
   smart: { minHeight: 54, borderRadius: 17, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 15 },
   smartText: { fontFamily: 'Inter_700Bold', fontSize: 14 },
@@ -276,15 +213,15 @@ const styles = StyleSheet.create({
   serverIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   serverCopy: { flex: 1, gap: 4 },
   serverName: { fontFamily: 'Inter_600SemiBold', fontSize: 14, textAlign: 'right', flexShrink: 1 },
-  serverMeta: { fontFamily: 'Inter_400Regular', fontSize: 10, textAlign: 'right' },
-  connect: { minHeight: 43, paddingHorizontal: 13, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  serverMeta: { fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'right' },
+  connect: { minHeight: 48, paddingHorizontal: 13, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   connectText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
   state: { gap: 10 },
   skeleton: { height: 68, borderRadius: 17, opacity: 0.7 },
   empty: { alignItems: 'flex-end', gap: 12, paddingVertical: 21 },
   emptyTitle: { fontFamily: 'Inter_700Bold', fontSize: 16, textAlign: 'right' },
   emptyText: { fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'right', lineHeight: 20 },
-  refresh: { minHeight: 42, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  refresh: { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   refreshText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
   error: { textAlign: 'right', fontFamily: 'Inter_500Medium', fontSize: 12 },
   privacy: { textAlign: 'center', fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 17, marginTop: 4 },

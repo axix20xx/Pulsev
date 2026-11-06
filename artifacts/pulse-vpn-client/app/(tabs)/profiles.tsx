@@ -47,7 +47,7 @@ export default function Profiles() {
           </Card>
         }
         renderItem={({ item }) => (
-          <Pressable accessibilityRole="button" testID={`subscription-${item.id}`} onPress={() => router.push(`/profiles/${item.id}`)}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`جزئیات اشتراک ${item.plan}`} testID={`subscription-${item.id}`} onPress={() => router.push(`/profiles/${item.id}`)} style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
             <Card style={styles.item}>
               <View style={styles.topline}>
                 <View style={[styles.badge, { backgroundColor: item.status === 'active' ? c.accent : c.secondary }]}>
@@ -81,16 +81,16 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 20, paddingTop: 19, paddingBottom: 48, gap: 14 },
   hero: { minHeight: 166, borderRadius: 30, padding: 21, justifyContent: 'flex-end', gap: 7 },
   heroIcon: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
-  heroEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1.2, textAlign: 'right' },
+  heroEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 11, textAlign: 'right' },
   heroTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, textAlign: 'right' },
   heroDetail: { fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'right' },
   listHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 2 },
-  sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, textAlign: 'right' },
-  count: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+  sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 16, textAlign: 'right' },
+  count: { fontFamily: 'Inter_500Medium', fontSize: 12 },
   item: { gap: 11, borderRadius: 25, padding: 18 },
   topline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 30 },
-  badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 11 },
+  badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
   title: { fontFamily: 'Inter_700Bold', fontSize: 17, textAlign: 'right' },
   description: { fontFamily: 'Inter_400Regular', fontSize: 12, textAlign: 'right', lineHeight: 19 },
   separator: { height: 1, marginVertical: 3 },

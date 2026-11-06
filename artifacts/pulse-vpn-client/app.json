@@ -19,11 +19,9 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-splash-screen"
     ],
-    "autolinking": {
-      "nativeModulesDir": "./modules"
-    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

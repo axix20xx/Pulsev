@@ -68,13 +68,13 @@ export function InlineState({ title, detail, retry, icon = 'alert-circle' }: {
 }
 
 export function Ltr({ children, style }: { children: React.ReactNode; style?: object }) {
-  return <Text style={[{ writingDirection: 'ltr', textAlign: 'left', fontVariant: ['tabular-nums'] }, style]}>{children}</Text>;
+  return <Text style={[{ writingDirection: 'ltr', textAlign: 'left', fontVariant: ['tabular-nums'], fontFamily: 'Inter_500Medium' }, style]}>{children}</Text>;
 }
 
 export const sharedStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  label: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-  small: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  label: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+  small: { fontSize: 13, fontFamily: 'Inter_400Regular' },
 });
 
 const styles = StyleSheet.create({
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   heading: { gap: 8, marginBottom: 18 },
   eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1, textAlign: 'right' },
   title: { fontFamily: 'Inter_700Bold', fontSize: 27, lineHeight: 37, textAlign: 'right' },
-  detail: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 23, textAlign: 'right' },
+  detail: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 24, textAlign: 'right' },
   card: { borderWidth: 1, borderRadius: 20, padding: 17, gap: 12, shadowOpacity: 0.035, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 1 },
   button: { minHeight: 54, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 18 },
   buttonText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
