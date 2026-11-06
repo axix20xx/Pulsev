@@ -389,10 +389,10 @@ export default function UsageAnalyticsPage() {
       </Card>
     </div>
     <div className="usage-profile-grid">
-      <Card title="پروفایل ۲۴ ساعته" description="میانگین هر ساعت از شبانه‌روز؛ فقط روزهای دارای مشاهده در محاسبه‌اند">
+      <Card title="پروفایل ۲۴ ساعته" description="هفت روز تقویمی اخیر تا این لحظه؛ امروز تا زمان آخرین نمونه محاسبه می‌شود">
         {loading && !data ? <div className="usage-chart-empty"><span className="ax-skel" style={{ width:"100%", height:190 }}/></div> : data ? <WeeklyHourChart rows={data.weekday_hour}/> : <EmptyState title="پروفایل ساعتی در دسترس نیست" icon={BarChart3}/>}
       </Card>
-      <Card title="الگوی مصرف روز و ساعت" description="هفت روز کامل اخیر تهران؛ خانهٔ خالی با مصرف صفر تفاوت دارد">
+      <Card title="الگوی مصرف روز و ساعت" description="هفت روز تقویمی اخیر تهران، شامل امروز تا این لحظه؛ خانهٔ خالی با مصرف صفر تفاوت دارد">
         {loading && !data ? <SkeletonRows rows={3}/> : data ? <UsageHeatmap rows={data.weekday_hour}/> : <EmptyState title="داده‌ای برای نمایش نیست" icon={BarChart3}/>}
       </Card>
     </div>

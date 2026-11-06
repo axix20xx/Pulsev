@@ -1807,8 +1807,8 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
   const quotaParams: unknown[] = effectiveResellerId === null ? [] : [effectiveResellerId];
   const quotaScopeSql = effectiveResellerId === null ? "TRUE" : `svc.reseller_tg_id = $1`;
   const weeklyParams = [...filterParams];
-  const weeklyStartSql = "((date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') - INTERVAL '7 days') AT TIME ZONE 'Asia/Tehran')";
-  const weeklyEndSql = "(date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') AT TIME ZONE 'Asia/Tehran')";
+  const heatmapStartSql = "((date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') - INTERVAL '6 days') AT TIME ZONE 'Asia/Tehran')";
+  const heatmapEndSql = "NOW()";
   const [summary, providers, buckets, services, history, providerOptions, serviceOptions, weekdayHours, weeklyDaily, customers, quotaSummaryResult, quotaForecastRows, anomalyRows] = await Promise.all([
     pool.query<{
       total_bytes: number; service_count: number; customer_count: number; services_total: number;
@@ -1933,8 +1933,8 @@ router.get("/usage-analytics", requireAuth, async (req, res): Promise<void> => {
                COUNT(DISTINCT (h.captured_at AT TIME ZONE 'Asia/Tehran')::date)::int AS observed_days
        FROM reseller_service_usage_history h
         WHERE ${filterSql}
-          AND h.captured_at >= ${weeklyStartSql}
-          AND h.captured_at < ${weeklyEndSql}
+          AND h.captured_at >= ${heatmapStartSql}
+          AND h.captured_at < ${heatmapEndSql}
        GROUP BY weekday, hour`,
        weeklyParams,
      ),
