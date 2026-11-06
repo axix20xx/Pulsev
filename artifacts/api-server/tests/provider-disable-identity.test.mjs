@@ -1,0 +1,43 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
+
+async function loadModule(path) {
+  const { outputFiles } = await build({
+    entryPoints: [fileURLToPath(new URL(path, import.meta.url))],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    write: false,
+  });
+  const text = outputFiles[0].text;
+  const code = Buffer.from(text).toString("base64");
+  return import(`data:text/javascript;base64,${code}`);
+}
+const identity = await loadModule("../src/lib/provider-disable-identity.ts");
+const cancellation = await loadModule("../src/lib/service-cancellation-policy.ts");
+
+test("disable uses the saved OpenVPN username for its exact provider", () => {
+  assert.equal(identity.providerDisableUsername("service-user", "azad-openvpn", {
+    openVpn: new Map([["azad-openvpn", "provider-specific-user"]]),
+  }), "provider-specific-user");
+});
+
+test("disable uses saved identities for newly added providers and falls back for legacy panels", () => {
+  const mapped = new Map([["new-provider", "mapped-provider-user"]]);
+  assert.equal(identity.providerDisableUsername("service-user", "new-provider", { usage: mapped }), "mapped-provider-user");
+  assert.equal(identity.providerDisableUsername("service-user", "legacy-provider", { usage: mapped }), "service-user");
+});
+
+test("Raven is targeted only when this service has a saved account on that provider", () => {
+  assert.equal(identity.hasMappedRavenAccount("raven-main", new Set(["raven-main"])), true);
+  assert.equal(identity.hasMappedRavenAccount("raven-main", new Set()), false);
+});
+
+test("cancel approval retries remote disable when local service status is already disabled but pending", () => {
+  assert.equal(cancellation.needsRemoteProviderDisable("active", 0), true);
+  assert.equal(cancellation.needsRemoteProviderDisable("disabled", 1), true);
+  assert.equal(cancellation.needsRemoteProviderDisable("disabled", 0), false);
+  assert.equal(cancellation.needsRemoteProviderDisable(null, 1), false);
+});

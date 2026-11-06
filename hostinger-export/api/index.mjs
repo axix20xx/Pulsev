@@ -75776,6 +75776,11 @@ function storedPanelUsageSql(serviceAlias = "svc") {
   ), 0)::float8`;
 }
 
+// src/lib/service-cancellation-policy.ts
+function needsRemoteProviderDisable(serviceStatus, remoteDisablePending) {
+  return Boolean(serviceStatus) && (serviceStatus !== "disabled" || Number(remoteDisablePending) === 1);
+}
+
 // src/lib/usage-analytics-window.ts
 var TEHRAN_TIME_ZONE = "Asia/Tehran";
 var tehranPartsFormatter = new Intl.DateTimeFormat("en-US-u-ca-gregory-nu-latn", {
@@ -77025,6 +77030,189 @@ async function reactivateRavenConfig(panel, serviceId) {
   return "repaired";
 }
 
+// src/lib/provider-disable-identity.ts
+function providerDisableUsername(serviceUsername, providerKey, identities) {
+  const candidate = identities.openVpn?.get(providerKey) ?? identities.v2ray?.get(providerKey) ?? identities.wireGuard?.get(providerKey) ?? (identities.ipsec?.providerKey === providerKey ? identities.ipsec.username : null) ?? identities.usage?.get(providerKey);
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : serviceUsername;
+}
+function hasMappedRavenAccount(providerKey, mappedProviderKeys) {
+  return mappedProviderKeys.has(providerKey);
+}
+
+// src/lib/logger.ts
+var import_pino = __toESM(require_pino(), 1);
+var isProduction = process.env.NODE_ENV === "production";
+var logger = (0, import_pino.default)({
+  level: process.env.LOG_LEVEL ?? "info",
+  redact: [
+    "req.headers.authorization",
+    "req.headers.cookie",
+    "res.headers['set-cookie']"
+  ],
+  ...isProduction ? {} : {
+    transport: {
+      target: "pino-pretty",
+      options: { colorize: true }
+    }
+  }
+});
+
+// src/lib/usage-history.ts
+var SAMPLE_INTERVAL_MS = 5 * 6e4;
+var RETENTION_DAYS = 120;
+var schemaPromise = null;
+var lastRetentionCleanupAt = 0;
+var recordedBucketByIdentity = /* @__PURE__ */ new Map();
+async function ensureUsageHistorySchema() {
+  if (!schemaPromise) {
+    schemaPromise = pool.query(`
+      CREATE TABLE IF NOT EXISTS reseller_service_usage_history (
+        service_id BIGINT NOT NULL,
+        reseller_tg_id BIGINT NOT NULL,
+        provider_key TEXT NOT NULL,
+        source_username TEXT NOT NULL DEFAULT '',
+        captured_at TIMESTAMPTZ NOT NULL,
+        counter_bytes NUMERIC(20, 0) NOT NULL DEFAULT 0,
+        delta_bytes NUMERIC(20, 0) NOT NULL DEFAULT 0,
+        service_code TEXT NOT NULL,
+        service_username TEXT NOT NULL,
+        customer_id BIGINT,
+        customer_name TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (service_id, provider_key, source_username, captured_at)
+      );
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_time_idx
+        ON reseller_service_usage_history (captured_at DESC);
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_time_idx
+        ON reseller_service_usage_history (reseller_tg_id, captured_at DESC);
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_provider_time_idx
+        ON reseller_service_usage_history (provider_key, captured_at DESC);
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_provider_idx
+        ON reseller_service_usage_history (reseller_tg_id, provider_key);
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_provider_time_idx
+        ON reseller_service_usage_history (reseller_tg_id, provider_key, captured_at DESC);
+      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_service_time_idx
+        ON reseller_service_usage_history (reseller_tg_id, service_id, captured_at DESC);
+      CREATE TABLE IF NOT EXISTS reseller_service_usage_provider_accounts (
+        service_id BIGINT NOT NULL,
+        provider_key TEXT NOT NULL,
+        provider_username TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (service_id, provider_key)
+      );
+    `).then(() => void 0).catch((error40) => {
+      schemaPromise = null;
+      throw error40;
+    });
+  }
+  await schemaPromise;
+}
+async function readSavedServiceProviderUsernames(serviceIds) {
+  const ids = [...new Set(serviceIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const accounts = /* @__PURE__ */ new Map();
+  if (!ids.length) return accounts;
+  await ensureUsageHistorySchema();
+  const result = await pool.query(
+    `SELECT service_id, provider_key, provider_username
+     FROM reseller_service_usage_provider_accounts
+     WHERE service_id = ANY($1::bigint[])`,
+    [ids]
+  );
+  for (const row of result.rows) {
+    const serviceId = Number(row.service_id);
+    const providerKey = row.provider_key.trim();
+    const username = row.provider_username.trim();
+    if (!providerKey || !username) continue;
+    const serviceAccounts = accounts.get(serviceId) ?? /* @__PURE__ */ new Map();
+    serviceAccounts.set(providerKey, username);
+    accounts.set(serviceId, serviceAccounts);
+  }
+  return accounts;
+}
+async function recordUsageHistorySample(sample) {
+  const providerKey = sample.providerKey.trim();
+  const sourceUsername = sample.sourceUsername.trim();
+  const counterBytes = Math.max(0, Math.round(Number(sample.counterBytes)));
+  if (!Number.isSafeInteger(sample.serviceId) || sample.serviceId <= 0 || !Number.isSafeInteger(sample.resellerTelegramId) || sample.resellerTelegramId <= 0 || !providerKey || !sourceUsername || !Number.isFinite(counterBytes)) {
+    return;
+  }
+  await ensureUsageHistorySchema();
+  await pool.query(
+    `INSERT INTO reseller_service_usage_provider_accounts
+       (service_id, provider_key, provider_username, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (service_id, provider_key) DO UPDATE
+     SET provider_username = EXCLUDED.provider_username,
+         updated_at = NOW()`,
+    [sample.serviceId, providerKey, sourceUsername]
+  );
+  const capturedAt = new Date(Math.floor(Date.now() / SAMPLE_INTERVAL_MS) * SAMPLE_INTERVAL_MS);
+  const bucketEpoch = capturedAt.getTime();
+  const identity = `${sample.serviceId}\0${providerKey}\0${sourceUsername}`;
+  if (recordedBucketByIdentity.get(identity) === bucketEpoch) return;
+  const previous = await pool.query(
+    `SELECT counter_bytes::float8 AS counter_bytes, captured_at
+     FROM reseller_service_usage_history
+     WHERE service_id = $1
+       AND provider_key = $2
+       AND source_username = $3
+       AND captured_at <= $4
+     ORDER BY captured_at DESC
+     LIMIT 1`,
+    [sample.serviceId, providerKey, sourceUsername, capturedAt]
+  );
+  if (previous.rows[0] && new Date(previous.rows[0].captured_at).getTime() === bucketEpoch) {
+    recordedBucketByIdentity.set(identity, bucketEpoch);
+    return;
+  }
+  const previousBytes = previous.rows[0] ? Number(previous.rows[0].counter_bytes) : null;
+  const deltaBytes = previousBytes === null ? 0 : counterBytes >= previousBytes ? counterBytes - previousBytes : counterBytes;
+  const serviceCode = `PULSE-${String(sample.serviceId).padStart(6, "0")}`;
+  await pool.query(
+    `INSERT INTO reseller_service_usage_history (
+       service_id, reseller_tg_id, provider_key, source_username, captured_at,
+       counter_bytes, delta_bytes, service_code, service_username, customer_id, customer_name
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     ON CONFLICT (service_id, provider_key, source_username, captured_at)
+     DO UPDATE SET
+       reseller_tg_id = EXCLUDED.reseller_tg_id,
+       counter_bytes = EXCLUDED.counter_bytes,
+       delta_bytes = EXCLUDED.delta_bytes,
+       service_code = EXCLUDED.service_code,
+       service_username = EXCLUDED.service_username,
+       customer_id = EXCLUDED.customer_id,
+       customer_name = EXCLUDED.customer_name`,
+    [
+      sample.serviceId,
+      sample.resellerTelegramId,
+      providerKey,
+      sourceUsername,
+      capturedAt,
+      counterBytes,
+      deltaBytes,
+      serviceCode,
+      sample.serviceUsername,
+      sample.customerId,
+      sample.customerName.slice(0, 160)
+    ]
+  );
+  if (recordedBucketByIdentity.size > 5e4) recordedBucketByIdentity.clear();
+  recordedBucketByIdentity.set(identity, bucketEpoch);
+  const now = Date.now();
+  if (now - lastRetentionCleanupAt >= 24 * 60 * 6e4) {
+    try {
+      await pool.query(
+        `DELETE FROM reseller_service_usage_history
+         WHERE captured_at < NOW() - ($1::int * INTERVAL '1 day')`,
+        [RETENTION_DAYS]
+      );
+      lastRetentionCleanupAt = now;
+    } catch (error40) {
+      logger.warn({ err: error40 }, "Usage history retention cleanup failed");
+    }
+  }
+}
+
 // src/lib/rain.ts
 var azadPanelXrayReadRouteCache = /* @__PURE__ */ new Map();
 var AZAD_PANEL_XRAY_USER_ROUTE_TTL_MS = 10 * 6e4;
@@ -77192,7 +77380,7 @@ function panelEnvCredential(key, suffix) {
 }
 async function panels(ownerId, role, includeDisabled = false) {
   const result = await pool.query(
-    `SELECT p.key, p.kind, p.api_base,
+    `SELECT p.key, p.kind, p.api_base, (p.is_enabled = 1) AS enabled,
             p.username_secret, p.password_secret, p.api_key_secret, p.settings_json
      FROM panel_configs p
      WHERE ${includeDisabled ? "TRUE" : "p.is_enabled = 1"}
@@ -77204,6 +77392,7 @@ async function panels(ownerId, role, includeDisabled = false) {
       key: panel.key,
       kind: panel.kind,
       api_base: panel.api_base.replace(/\/+$/, ""),
+      enabled: panel.enabled,
       admin_user: decryptPanelCredential(panel.username_secret) ?? panelEnvCredential(panel.key, "USER"),
       admin_pass: decryptPanelCredential(panel.password_secret) ?? panelEnvCredential(panel.key, "PASS"),
       api_key: decryptPanelCredential(panel.api_key_secret) ?? panelEnvCredential(panel.key, "API_KEY"),
@@ -78496,16 +78685,31 @@ async function readPanelUsages(serviceId, username, falcoConfigId, ownerId, role
   }
   return result;
 }
-async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, role) {
+async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, role, options = {}) {
   let attempted = 0;
   let disabled = 0;
-  const configuredPanels = await panels(ownerId, role);
+  const failedProviders = /* @__PURE__ */ new Set();
+  const markFailure = (providerKey) => {
+    failedProviders.add(providerKey || "Provider \u0646\u0627\u0645\u0634\u062E\u0635");
+  };
+  const includeDisabledProviders = options.includeDisabledProviders === true;
+  let usageAccounts = /* @__PURE__ */ new Map();
+  let usageLookupFailed = false;
   let wireGuardAccounts = /* @__PURE__ */ new Map();
   let wireGuardLookupFailed = false;
   let ipsecAccounts = /* @__PURE__ */ new Map();
   let ipsecLookupFailed = false;
   let v2rayAccounts = /* @__PURE__ */ new Map();
   let v2rayLookupFailed = false;
+  let openVpnAccounts = /* @__PURE__ */ new Map();
+  let openVpnLookupFailed = false;
+  let ravenProviderKeys = /* @__PURE__ */ new Set();
+  let ravenLookupFailed = false;
+  try {
+    usageAccounts = await readSavedServiceProviderUsernames([serviceId]);
+  } catch {
+    usageLookupFailed = true;
+  }
   try {
     wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
   } catch {
@@ -78521,34 +78725,111 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
   } catch {
     v2rayLookupFailed = true;
   }
+  try {
+    openVpnAccounts = await readSavedAzadPanelOpenVpnUsernames([serviceId]);
+  } catch {
+    openVpnLookupFailed = true;
+  }
+  try {
+    const result = await pool.query(
+      `SELECT provider_key FROM raven_service_accounts WHERE service_id = $1`,
+      [serviceId]
+    );
+    ravenProviderKeys = new Set(result.rows.map((row) => row.provider_key.trim()).filter(Boolean));
+  } catch {
+    ravenLookupFailed = true;
+  }
+  const savedUsageAccounts = usageAccounts.get(serviceId);
   const savedWireGuardAccounts = wireGuardAccounts.get(serviceId);
+  const savedV2RayAccounts = v2rayAccounts.get(serviceId);
+  const savedOpenVpnAccounts = openVpnAccounts.get(serviceId);
+  const savedIpsecAccount = ipsecAccounts.get(serviceId);
+  const savedProviderKeys = new Set([
+    ...savedUsageAccounts?.keys() ?? [],
+    ...savedWireGuardAccounts?.keys() ?? [],
+    ...savedV2RayAccounts?.keys() ?? [],
+    ...savedOpenVpnAccounts?.keys() ?? [],
+    ...savedIpsecAccount?.providerKey ? [savedIpsecAccount.providerKey] : [],
+    ...ravenProviderKeys
+  ].filter(Boolean));
+  const allConfiguredPanels = await panels(ownerId, role, includeDisabledProviders);
+  const configuredPanels = allConfiguredPanels.filter(
+    (panel) => panel.enabled !== false || !includeDisabledProviders || savedProviderKeys.has(panelKey(panel))
+  );
+  const configuredPanelKeys = new Set(configuredPanels.map(panelKey));
+  const unresolvedMappedProviderKeys = [...savedProviderKeys].filter((providerKey) => !configuredPanelKeys.has(providerKey));
+  attempted += unresolvedMappedProviderKeys.length;
+  unresolvedMappedProviderKeys.forEach(markFailure);
+  if (usageLookupFailed) {
+    attempted += 1;
+    markFailure("service provider mappings");
+  }
+  if (ravenLookupFailed) {
+    const ravenPanels = configuredPanels.filter((panel) => panelKind(panel) === "raven");
+    attempted += ravenPanels.length || 1;
+    ravenPanels.forEach((panel) => markFailure(panelKey(panel)));
+    if (!ravenPanels.length) markFailure("Raven account mappings");
+  }
   const enabledWireGuardProviderKeys = new Set(configuredPanels.filter((panel) => isWireGuardDeliveryPanel(panel) || savedWireGuardAccounts?.has(panelKey(panel))).map(panelKey));
   const wireGuardAccountUnresolved = wireGuardLookupFailed || Boolean(savedWireGuardAccounts?.has("")) || Boolean(savedWireGuardAccounts && [...savedWireGuardAccounts.keys()].some((providerKey) => providerKey && !enabledWireGuardProviderKeys.has(providerKey)));
-  if (wireGuardAccountUnresolved) attempted += 1;
-  const savedIpsecAccount = ipsecAccounts.get(serviceId);
+  if (wireGuardAccountUnresolved) {
+    attempted += 1;
+    markFailure(savedWireGuardAccounts?.keys().next().value ?? "WireGuard account mappings");
+  }
   const ipsecAccountUnresolved = ipsecLookupFailed ? true : Boolean(savedIpsecAccount && (!savedIpsecAccount.providerKey || !savedIpsecAccount.username || !configuredPanels.some(
     (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_ipsec" && panelKey(panel) === savedIpsecAccount.providerKey
   )));
-  if (ipsecAccountUnresolved) attempted += 1;
+  if (ipsecAccountUnresolved) {
+    attempted += 1;
+    markFailure(savedIpsecAccount?.providerKey ?? "IPsec account mappings");
+  }
   if (v2rayLookupFailed) {
-    attempted += configuredPanels.filter(
+    const v2rayPanels = configuredPanels.filter(
       (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_v2ray"
-    ).length;
+    );
+    attempted += v2rayPanels.length;
+    v2rayPanels.forEach((panel) => markFailure(panelKey(panel)));
+  }
+  if (openVpnLookupFailed) {
+    const openVpnPanels = configuredPanels.filter(
+      (panel) => isAzadPanelCoreCandidate(panel.kind, "openvpn")
+    );
+    attempted += openVpnPanels.length;
+    openVpnPanels.forEach((panel) => markFailure(panelKey(panel)));
+  }
+  if (!openVpnLookupFailed && savedOpenVpnAccounts) {
+    const openVpnProviderKeys = new Set(configuredPanels.filter((panel) => isAzadPanelCoreCandidate(panel.kind, "openvpn")).map(panelKey));
+    const unresolvedOpenVpnKeys = [...savedOpenVpnAccounts.keys()].filter((providerKey) => providerKey && !openVpnProviderKeys.has(providerKey));
+    attempted += unresolvedOpenVpnKeys.length;
+    unresolvedOpenVpnKeys.forEach(markFailure);
+  }
+  const ipsecProviderKeys = new Set(configuredPanels.filter((panel) => panel.kind?.trim().toLowerCase() === "azadpanel_ipsec").map(panelKey));
+  if (savedIpsecAccount?.providerKey && !ipsecProviderKeys.has(savedIpsecAccount.providerKey)) {
+    attempted += 1;
+    markFailure(savedIpsecAccount.providerKey);
   }
   for (const panel of uniqueRainAdminPanelEntries(configuredPanels)) {
     const kind = panelKind(panel);
     if (kind === "raven") {
+      if (ravenLookupFailed || !hasMappedRavenAccount(panelKey(panel), ravenProviderKeys)) continue;
       attempted += 1;
       try {
         if (await pauseRavenConfig(panel, serviceId)) disabled += 1;
+        else markFailure(panelKey(panel));
       } catch {
+        markFailure(panelKey(panel));
       }
       continue;
     }
-    let providerUsername = username;
+    let providerUsername = providerDisableUsername(username, panelKey(panel), {
+      usage: savedUsageAccounts,
+      wireGuard: savedWireGuardAccounts,
+      v2ray: savedV2RayAccounts,
+      openVpn: savedOpenVpnAccounts,
+      ipsec: savedIpsecAccount
+    });
     if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {
       if (v2rayLookupFailed) continue;
-      providerUsername = v2rayAccounts.get(serviceId)?.get(panelKey(panel)) ?? username;
     }
     const savedWireGuardUsername = savedWireGuardAccounts?.get(panelKey(panel));
     if (panel.kind?.trim().toLowerCase() === "azadpanel_wireguard" || isRainAdminWireGuardPanel(panel) || savedWireGuardUsername) {
@@ -78566,6 +78847,7 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
       if (!savedIpsecAccount.username) continue;
       providerUsername = savedIpsecAccount.username;
     }
+    if (isAzadPanelCoreCandidate(panel.kind, "openvpn") && openVpnLookupFailed) continue;
     attempted += 1;
     const encoded = encodeURIComponent(providerUsername);
     const candidates = kind === "falcon" ? falcoConfigId ? [["PATCH", `/api/v1/configs/${encodeURIComponent(String(falcoConfigId))}`, { status: "disabled" }]] : [] : kind === "rain_admin" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : kind === "azadpanel" ? [["PUT", `/api/user/${encoded}`, { status: "disabled" }]] : [["PATCH", `/api/user/${encoded}`, { status: "disabled" }], ["PUT", `/api/user/${encoded}`, { status: "disabled" }]];
@@ -78587,8 +78869,9 @@ async function disablePanelUser(username, falcoConfigId, serviceId, ownerId, rol
       }
     }
     if (success2) disabled += 1;
+    else markFailure(panelKey(panel));
   }
-  return { attempted, disabled };
+  return { attempted, disabled, failedProviders: [...failedProviders] };
 }
 async function pacedAuditPanelRequest(panel, method, path, body) {
   const key = panelKey(panel);
@@ -80175,26 +80458,6 @@ async function recreateAwgClient(clientId) {
 
 // src/lib/telegram-bot.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
-
-// src/lib/logger.ts
-var import_pino = __toESM(require_pino(), 1);
-var isProduction = process.env.NODE_ENV === "production";
-var logger = (0, import_pino.default)({
-  level: process.env.LOG_LEVEL ?? "info",
-  redact: [
-    "req.headers.authorization",
-    "req.headers.cookie",
-    "res.headers['set-cookie']"
-  ],
-  ...isProduction ? {} : {
-    transport: {
-      target: "pino-pretty",
-      options: { colorize: true }
-    }
-  }
-});
-
-// src/lib/telegram-bot.ts
 var TELEGRAM_CATEGORIES = [
   "users",
   "sales",
@@ -80215,14 +80478,14 @@ var TELEGRAM_CATEGORY_ICONS = {
   accounting: "\u{1F4B3}",
   system: "\u{1F6E1}"
 };
-var schemaPromise = null;
+var schemaPromise2 = null;
 var workerStarted = false;
 var pollerId = randomUUID2();
 var wait2 = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 var safeField = (value, maxLength) => String(value ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, maxLength);
 function ensureTelegramSchema() {
-  if (!schemaPromise) {
-    schemaPromise = pool.query(`
+  if (!schemaPromise2) {
+    schemaPromise2 = pool.query(`
       CREATE TABLE IF NOT EXISTS telegram_bot_config (
         id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
         token_secret TEXT,
@@ -80296,11 +80559,11 @@ function ensureTelegramSchema() {
       CREATE INDEX IF NOT EXISTS telegram_bot_deliveries_recipient_idx
         ON telegram_bot_deliveries (recipient_telegram_id, created_at DESC);
     `).then(() => void 0).catch((error40) => {
-      schemaPromise = null;
+      schemaPromise2 = null;
       throw error40;
     });
   }
-  return schemaPromise;
+  return schemaPromise2;
 }
 var safeTelegramDescription = (description, token) => {
   const value = typeof description === "string" ? description : "Telegram API request failed";
@@ -84182,140 +84445,6 @@ function startAwgUsagePollWorker() {
   initialRun.unref();
   interval2.unref();
   logger.info({ intervalMs: AWG_USAGE_POLL_INTERVAL_MS }, "AWG-only usage poll worker started");
-}
-
-// src/lib/usage-history.ts
-var SAMPLE_INTERVAL_MS = 5 * 6e4;
-var RETENTION_DAYS = 120;
-var schemaPromise2 = null;
-var lastRetentionCleanupAt = 0;
-var recordedBucketByIdentity = /* @__PURE__ */ new Map();
-async function ensureUsageHistorySchema() {
-  if (!schemaPromise2) {
-    schemaPromise2 = pool.query(`
-      CREATE TABLE IF NOT EXISTS reseller_service_usage_history (
-        service_id BIGINT NOT NULL,
-        reseller_tg_id BIGINT NOT NULL,
-        provider_key TEXT NOT NULL,
-        source_username TEXT NOT NULL DEFAULT '',
-        captured_at TIMESTAMPTZ NOT NULL,
-        counter_bytes NUMERIC(20, 0) NOT NULL DEFAULT 0,
-        delta_bytes NUMERIC(20, 0) NOT NULL DEFAULT 0,
-        service_code TEXT NOT NULL,
-        service_username TEXT NOT NULL,
-        customer_id BIGINT,
-        customer_name TEXT NOT NULL DEFAULT '',
-        PRIMARY KEY (service_id, provider_key, source_username, captured_at)
-      );
-      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_time_idx
-        ON reseller_service_usage_history (captured_at DESC);
-      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_time_idx
-        ON reseller_service_usage_history (reseller_tg_id, captured_at DESC);
-      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_provider_time_idx
-        ON reseller_service_usage_history (provider_key, captured_at DESC);
-      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_provider_idx
-        ON reseller_service_usage_history (reseller_tg_id, provider_key);
-      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_provider_time_idx
-        ON reseller_service_usage_history (reseller_tg_id, provider_key, captured_at DESC);
-      CREATE INDEX IF NOT EXISTS reseller_service_usage_history_owner_service_time_idx
-        ON reseller_service_usage_history (reseller_tg_id, service_id, captured_at DESC);
-      CREATE TABLE IF NOT EXISTS reseller_service_usage_provider_accounts (
-        service_id BIGINT NOT NULL,
-        provider_key TEXT NOT NULL,
-        provider_username TEXT NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        PRIMARY KEY (service_id, provider_key)
-      );
-    `).then(() => void 0).catch((error40) => {
-      schemaPromise2 = null;
-      throw error40;
-    });
-  }
-  await schemaPromise2;
-}
-async function recordUsageHistorySample(sample) {
-  const providerKey = sample.providerKey.trim();
-  const sourceUsername = sample.sourceUsername.trim();
-  const counterBytes = Math.max(0, Math.round(Number(sample.counterBytes)));
-  if (!Number.isSafeInteger(sample.serviceId) || sample.serviceId <= 0 || !Number.isSafeInteger(sample.resellerTelegramId) || sample.resellerTelegramId <= 0 || !providerKey || !sourceUsername || !Number.isFinite(counterBytes)) {
-    return;
-  }
-  await ensureUsageHistorySchema();
-  await pool.query(
-    `INSERT INTO reseller_service_usage_provider_accounts
-       (service_id, provider_key, provider_username, updated_at)
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (service_id, provider_key) DO UPDATE
-     SET provider_username = EXCLUDED.provider_username,
-         updated_at = NOW()`,
-    [sample.serviceId, providerKey, sourceUsername]
-  );
-  const capturedAt = new Date(Math.floor(Date.now() / SAMPLE_INTERVAL_MS) * SAMPLE_INTERVAL_MS);
-  const bucketEpoch = capturedAt.getTime();
-  const identity = `${sample.serviceId}\0${providerKey}\0${sourceUsername}`;
-  if (recordedBucketByIdentity.get(identity) === bucketEpoch) return;
-  const previous = await pool.query(
-    `SELECT counter_bytes::float8 AS counter_bytes, captured_at
-     FROM reseller_service_usage_history
-     WHERE service_id = $1
-       AND provider_key = $2
-       AND source_username = $3
-       AND captured_at <= $4
-     ORDER BY captured_at DESC
-     LIMIT 1`,
-    [sample.serviceId, providerKey, sourceUsername, capturedAt]
-  );
-  if (previous.rows[0] && new Date(previous.rows[0].captured_at).getTime() === bucketEpoch) {
-    recordedBucketByIdentity.set(identity, bucketEpoch);
-    return;
-  }
-  const previousBytes = previous.rows[0] ? Number(previous.rows[0].counter_bytes) : null;
-  const deltaBytes = previousBytes === null ? 0 : counterBytes >= previousBytes ? counterBytes - previousBytes : counterBytes;
-  const serviceCode = `PULSE-${String(sample.serviceId).padStart(6, "0")}`;
-  await pool.query(
-    `INSERT INTO reseller_service_usage_history (
-       service_id, reseller_tg_id, provider_key, source_username, captured_at,
-       counter_bytes, delta_bytes, service_code, service_username, customer_id, customer_name
-     )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     ON CONFLICT (service_id, provider_key, source_username, captured_at)
-     DO UPDATE SET
-       reseller_tg_id = EXCLUDED.reseller_tg_id,
-       counter_bytes = EXCLUDED.counter_bytes,
-       delta_bytes = EXCLUDED.delta_bytes,
-       service_code = EXCLUDED.service_code,
-       service_username = EXCLUDED.service_username,
-       customer_id = EXCLUDED.customer_id,
-       customer_name = EXCLUDED.customer_name`,
-    [
-      sample.serviceId,
-      sample.resellerTelegramId,
-      providerKey,
-      sourceUsername,
-      capturedAt,
-      counterBytes,
-      deltaBytes,
-      serviceCode,
-      sample.serviceUsername,
-      sample.customerId,
-      sample.customerName.slice(0, 160)
-    ]
-  );
-  if (recordedBucketByIdentity.size > 5e4) recordedBucketByIdentity.clear();
-  recordedBucketByIdentity.set(identity, bucketEpoch);
-  const now = Date.now();
-  if (now - lastRetentionCleanupAt >= 24 * 60 * 6e4) {
-    try {
-      await pool.query(
-        `DELETE FROM reseller_service_usage_history
-         WHERE captured_at < NOW() - ($1::int * INTERVAL '1 day')`,
-        [RETENTION_DAYS]
-      );
-      lastRetentionCleanupAt = now;
-    } catch (error40) {
-      logger.warn({ err: error40 }, "Usage history retention cleanup failed");
-    }
-  }
 }
 
 // src/routes/storefront.ts
@@ -90072,6 +90201,7 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
     `SELECT request.id, request.service_id, request.sale_id,
        request.reseller_tg_id::float8 AS reseller_tg_id,
        request.cancel_service_status, request.delete_sale_status,
+       COALESCE(service.remote_disable_pending, 0)::int AS remote_disable_pending,
        service.rain_username, service.falco_config_id, service.awg_client_id,
        service.status AS service_status,
        service.label AS service_name,
@@ -90091,21 +90221,26 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
   }
   let shouldDisableService = false;
   if (validDecision(cancelDecision) && current.cancel_service_status === "pending") {
-    if (cancelDecision === "approve" && current.service_status && current.service_status !== "disabled") {
+    if (cancelDecision === "approve" && needsRemoteProviderDisable(current.service_status, current.remote_disable_pending)) {
       if (current.rain_username && await hasOtherActiveServiceWithUsername(current.rain_username, current.service_id)) {
         res.status(409).json({
           error: "\u0627\u06CC\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC Provider \u0628\u0627 \u0633\u0631\u0648\u06CC\u0633 \u0641\u0639\u0627\u0644 \u062F\u06CC\u06AF\u0631\u06CC \u0645\u0634\u062A\u0631\u06A9 \u0627\u0633\u062A\u061B \u0627\u0628\u062A\u062F\u0627 \u0633\u0631\u0648\u06CC\u0633 \u0645\u0634\u062A\u0631\u06A9 \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F"
         });
         return;
       }
-      let panelResult = { attempted: 0, disabled: 0 };
+      let panelResult = {
+        attempted: 0,
+        disabled: 0,
+        failedProviders: []
+      };
       try {
         panelResult = await disablePanelUser(
           current.rain_username ?? "",
           current.falco_config_id,
           Number(current.service_id),
           current.reseller_tg_id,
-          "master_admin"
+          "master_admin",
+          { includeDisabledProviders: true }
         );
       } catch {
         res.status(502).json({ error: "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC Provider\u0647\u0627 \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F\u061B \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0647\u0645\u0686\u0646\u0627\u0646 \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06CC \u0627\u0633\u062A" });
@@ -90114,7 +90249,13 @@ router2.patch("/service-action-requests/:id", requireMasterAdmin, async (req, re
       const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
       const awgDisabled = current.awg_client_id ? await disableAwgClient(current.awg_client_id) : true;
       if (!providersDisabled || !awgDisabled) {
-        res.status(502).json({ error: "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0647\u0645\u0647 Provider\u0647\u0627 \u0648 AWG \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F\u061B \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0647\u0645\u0686\u0646\u0627\u0646 \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06CC \u0627\u0633\u062A" });
+        const failedProviders = panelResult.failedProviders ?? [];
+        const providerDetails = failedProviders.length ? ` Provider \u0646\u0627\u0645\u0648\u0641\u0642: ${failedProviders.join("\u060C ")}.` : "";
+        res.status(502).json({
+          error: `\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC \u0647\u0645\u0647 Provider\u0647\u0627 \u0648 AWG \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F\u061B \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0647\u0645\u0686\u0646\u0627\u0646 \u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06CC \u0627\u0633\u062A.${providerDetails}`,
+          provider_failures: failedProviders,
+          awg_disabled: awgDisabled
+        });
         return;
       }
       shouldDisableService = true;

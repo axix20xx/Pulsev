@@ -18,3 +18,10 @@ export function providerDisableUsername(
     ?? identities.usage?.get(providerKey);
   return typeof candidate === "string" && candidate.trim() ? candidate.trim() : serviceUsername;
 }
+
+export function hasMappedRavenAccount(
+  providerKey: string,
+  mappedProviderKeys: ReadonlySet<string>,
+): boolean {
+  return mappedProviderKeys.has(providerKey);
+}

@@ -44,7 +44,7 @@ import {
   renewRavenConfig,
   testRavenProvider,
 } from "./raven-provider";
-import { providerDisableUsername } from "./provider-disable-identity";
+import { hasMappedRavenAccount, providerDisableUsername } from "./provider-disable-identity";
 import { readSavedServiceProviderUsernames } from "./usage-history";
 
 type Panel = {
@@ -1951,16 +1951,32 @@ export async function disablePanelUser(
   serviceId: number,
   ownerId?: number,
   role?: string,
-): Promise<{ attempted: number; disabled: number }> {
+  options: { includeDisabledProviders?: boolean } = {},
+): Promise<{ attempted: number; disabled: number; failedProviders: string[] }> {
   let attempted = 0;
   let disabled = 0;
-  const configuredPanels = await panels(ownerId, role);
+  const failedProviders = new Set<string>();
+  const markFailure = (providerKey: string) => {
+    failedProviders.add(providerKey || "Provider نامشخص");
+  };
+  const includeDisabledProviders = options.includeDisabledProviders === true;
+  let usageAccounts = new Map<number, Map<string, string>>();
+  let usageLookupFailed = false;
   let wireGuardAccounts = new Map<number, Map<string, string>>();
   let wireGuardLookupFailed = false;
   let ipsecAccounts = new Map<number, { providerKey: string | null; username: string | null }>();
   let ipsecLookupFailed = false;
   let v2rayAccounts = new Map<number, Map<string, string>>();
   let v2rayLookupFailed = false;
+  let openVpnAccounts = new Map<number, Map<string, string>>();
+  let openVpnLookupFailed = false;
+  let ravenProviderKeys = new Set<string>();
+  let ravenLookupFailed = false;
+  try {
+    usageAccounts = await readSavedServiceProviderUsernames([serviceId]);
+  } catch {
+    usageLookupFailed = true;
+  }
   try {
     wireGuardAccounts = await readSavedWireGuardProviderUsernames([serviceId]);
   } catch {
@@ -1976,7 +1992,54 @@ export async function disablePanelUser(
   } catch {
     v2rayLookupFailed = true;
   }
+  try {
+    openVpnAccounts = await readSavedAzadPanelOpenVpnUsernames([serviceId]);
+  } catch {
+    openVpnLookupFailed = true;
+  }
+  try {
+    const result = await pool.query<{ provider_key: string }>(
+      `SELECT provider_key FROM raven_service_accounts WHERE service_id = $1`,
+      [serviceId],
+    );
+    ravenProviderKeys = new Set(result.rows.map((row) => row.provider_key.trim()).filter(Boolean));
+  } catch {
+    ravenLookupFailed = true;
+  }
+
+  const savedUsageAccounts = usageAccounts.get(serviceId);
   const savedWireGuardAccounts = wireGuardAccounts.get(serviceId);
+  const savedV2RayAccounts = v2rayAccounts.get(serviceId);
+  const savedOpenVpnAccounts = openVpnAccounts.get(serviceId);
+  const savedIpsecAccount = ipsecAccounts.get(serviceId);
+  const savedProviderKeys = new Set([
+    ...(savedUsageAccounts?.keys() ?? []),
+    ...(savedWireGuardAccounts?.keys() ?? []),
+    ...(savedV2RayAccounts?.keys() ?? []),
+    ...(savedOpenVpnAccounts?.keys() ?? []),
+    ...(savedIpsecAccount?.providerKey ? [savedIpsecAccount.providerKey] : []),
+    ...ravenProviderKeys,
+  ].filter(Boolean));
+  const allConfiguredPanels = await panels(ownerId, role, includeDisabledProviders);
+  const configuredPanels = allConfiguredPanels.filter((panel) =>
+    panel.enabled !== false || !includeDisabledProviders || savedProviderKeys.has(panelKey(panel)),
+  );
+  const configuredPanelKeys = new Set(configuredPanels.map(panelKey));
+  const unresolvedMappedProviderKeys = [...savedProviderKeys]
+    .filter((providerKey) => !configuredPanelKeys.has(providerKey));
+  attempted += unresolvedMappedProviderKeys.length;
+  unresolvedMappedProviderKeys.forEach(markFailure);
+  if (usageLookupFailed) {
+    attempted += 1;
+    markFailure("service provider mappings");
+  }
+  if (ravenLookupFailed) {
+    const ravenPanels = configuredPanels.filter((panel) => panelKind(panel) === "raven");
+    attempted += ravenPanels.length || 1;
+    ravenPanels.forEach((panel) => markFailure(panelKey(panel)));
+    if (!ravenPanels.length) markFailure("Raven account mappings");
+  }
+
   const enabledWireGuardProviderKeys = new Set(configuredPanels
     .filter((panel) => isWireGuardDeliveryPanel(panel) || savedWireGuardAccounts?.has(panelKey(panel)))
     .map(panelKey));
@@ -1984,8 +2047,10 @@ export async function disablePanelUser(
     || Boolean(savedWireGuardAccounts?.has(""))
     || Boolean(savedWireGuardAccounts && [...savedWireGuardAccounts.keys()]
       .some((providerKey) => providerKey && !enabledWireGuardProviderKeys.has(providerKey)));
-  if (wireGuardAccountUnresolved) attempted += 1;
-  const savedIpsecAccount = ipsecAccounts.get(serviceId);
+  if (wireGuardAccountUnresolved) {
+    attempted += 1;
+    markFailure(savedWireGuardAccounts?.keys().next().value ?? "WireGuard account mappings");
+  }
   const ipsecAccountUnresolved = ipsecLookupFailed
     ? true
     : Boolean(savedIpsecAccount && (
@@ -1996,27 +2061,64 @@ export async function disablePanelUser(
         && panelKey(panel) === savedIpsecAccount.providerKey,
       )
     ));
-  if (ipsecAccountUnresolved) attempted += 1;
-  if (v2rayLookupFailed) {
-    attempted += configuredPanels.filter(
-      (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_v2ray",
-    ).length;
+  if (ipsecAccountUnresolved) {
+    attempted += 1;
+    markFailure(savedIpsecAccount?.providerKey ?? "IPsec account mappings");
   }
+  if (v2rayLookupFailed) {
+    const v2rayPanels = configuredPanels.filter(
+      (panel) => panel.kind?.trim().toLowerCase() === "azadpanel_v2ray",
+    );
+    attempted += v2rayPanels.length;
+    v2rayPanels.forEach((panel) => markFailure(panelKey(panel)));
+  }
+  if (openVpnLookupFailed) {
+    const openVpnPanels = configuredPanels.filter((panel) =>
+      isAzadPanelCoreCandidate(panel.kind, "openvpn"),
+    );
+    attempted += openVpnPanels.length;
+    openVpnPanels.forEach((panel) => markFailure(panelKey(panel)));
+  }
+  if (!openVpnLookupFailed && savedOpenVpnAccounts) {
+    const openVpnProviderKeys = new Set(configuredPanels
+      .filter((panel) => isAzadPanelCoreCandidate(panel.kind, "openvpn"))
+      .map(panelKey));
+    const unresolvedOpenVpnKeys = [...savedOpenVpnAccounts.keys()]
+      .filter((providerKey) => providerKey && !openVpnProviderKeys.has(providerKey));
+    attempted += unresolvedOpenVpnKeys.length;
+    unresolvedOpenVpnKeys.forEach(markFailure);
+  }
+  const ipsecProviderKeys = new Set(configuredPanels
+    .filter((panel) => panel.kind?.trim().toLowerCase() === "azadpanel_ipsec")
+    .map(panelKey));
+  if (savedIpsecAccount?.providerKey && !ipsecProviderKeys.has(savedIpsecAccount.providerKey)) {
+    attempted += 1;
+    markFailure(savedIpsecAccount.providerKey);
+  }
+
   for (const panel of uniqueRainAdminPanelEntries(configuredPanels)) {
     const kind = panelKind(panel);
     if (kind === "raven") {
+      if (ravenLookupFailed || !hasMappedRavenAccount(panelKey(panel), ravenProviderKeys)) continue;
       attempted += 1;
       try {
         if (await pauseRavenConfig(panel as RavenPanel, serviceId)) disabled += 1;
+        else markFailure(panelKey(panel));
       } catch {
         // A failed pause remains pending in the service lifecycle state.
+        markFailure(panelKey(panel));
       }
       continue;
     }
-    let providerUsername = username;
+    let providerUsername = providerDisableUsername(username, panelKey(panel), {
+      usage: savedUsageAccounts,
+      wireGuard: savedWireGuardAccounts,
+      v2ray: savedV2RayAccounts,
+      openVpn: savedOpenVpnAccounts,
+      ipsec: savedIpsecAccount,
+    });
     if (panel.kind?.trim().toLowerCase() === "azadpanel_v2ray") {
       if (v2rayLookupFailed) continue;
-      providerUsername = v2rayAccounts.get(serviceId)?.get(panelKey(panel)) ?? username;
     }
     const savedWireGuardUsername = savedWireGuardAccounts?.get(panelKey(panel));
     if (
@@ -2038,6 +2140,7 @@ export async function disablePanelUser(
       if (!savedIpsecAccount.username) continue;
       providerUsername = savedIpsecAccount.username;
     }
+    if (isAzadPanelCoreCandidate(panel.kind, "openvpn") && openVpnLookupFailed) continue;
     attempted += 1;
     const encoded = encodeURIComponent(providerUsername);
     const candidates: Array<[string, string, unknown]> = kind === "falcon"
@@ -2059,8 +2162,9 @@ export async function disablePanelUser(
       }
     }
     if (success) disabled += 1;
+    else markFailure(panelKey(panel));
   }
-  return { attempted, disabled };
+  return { attempted, disabled, failedProviders: [...failedProviders] };
 }
 
 export type ProviderAccountAuditService = {

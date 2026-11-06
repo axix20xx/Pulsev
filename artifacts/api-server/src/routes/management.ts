@@ -61,6 +61,7 @@ import {
   serviceUsageBytes,
   storedPanelUsageSql,
 } from "../lib/service-usage-snapshot";
+import { needsRemoteProviderDisable } from "../lib/service-cancellation-policy";
 import { resolveUsageAnalyticsWindow } from "../lib/usage-analytics-window";
 import { hasWireGuardAccess } from "../lib/protocol-access";
 type ManagementClient = { query: typeof pool.query };
@@ -5899,6 +5900,7 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
     reseller_tg_id: number;
     cancel_service_status: string;
     delete_sale_status: string;
+    remote_disable_pending: number;
     rain_username: string | null;
     falco_config_id: number | null;
     awg_client_id: string | null;
@@ -5910,6 +5912,7 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
     `SELECT request.id, request.service_id, request.sale_id,
        request.reseller_tg_id::float8 AS reseller_tg_id,
        request.cancel_service_status, request.delete_sale_status,
+       COALESCE(service.remote_disable_pending, 0)::int AS remote_disable_pending,
        service.rain_username, service.falco_config_id, service.awg_client_id,
        service.status AS service_status,
        service.label AS service_name,
@@ -5929,7 +5932,10 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
   }
   let shouldDisableService = false;
   if (validDecision(cancelDecision) && current.cancel_service_status === "pending") {
-    if (cancelDecision === "approve" && current.service_status && current.service_status !== "disabled") {
+    if (
+      cancelDecision === "approve"
+      && needsRemoteProviderDisable(current.service_status, current.remote_disable_pending)
+    ) {
        if (
          current.rain_username &&
          await hasOtherActiveServiceWithUsername(current.rain_username, current.service_id)
@@ -5939,7 +5945,11 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
          });
          return;
        }
-      let panelResult = { attempted: 0, disabled: 0 };
+      let panelResult: Awaited<ReturnType<typeof disablePanelUser>> = {
+        attempted: 0,
+        disabled: 0,
+        failedProviders: [],
+      };
       try {
         panelResult = await disablePanelUser(
           current.rain_username ?? "",
@@ -5947,6 +5957,7 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
           Number(current.service_id),
           current.reseller_tg_id,
           "master_admin",
+          { includeDisabledProviders: true },
         );
       } catch {
         res.status(502).json({ error: "غیرفعال‌سازی Providerها کامل نشد؛ درخواست همچنان در انتظار بررسی است" });
@@ -5955,7 +5966,15 @@ router.patch("/service-action-requests/:id", requireMasterAdmin, async (req, res
       const providersDisabled = panelResult.attempted === 0 || panelResult.disabled === panelResult.attempted;
       const awgDisabled = current.awg_client_id ? await disableAwgClient(current.awg_client_id) : true;
       if (!providersDisabled || !awgDisabled) {
-        res.status(502).json({ error: "غیرفعال‌سازی همه Providerها و AWG کامل نشد؛ درخواست همچنان در انتظار بررسی است" });
+        const failedProviders = panelResult.failedProviders ?? [];
+        const providerDetails = failedProviders.length
+          ? ` Provider ناموفق: ${failedProviders.join("، ")}.`
+          : "";
+        res.status(502).json({
+          error: `غیرفعال‌سازی همه Providerها و AWG کامل نشد؛ درخواست همچنان در انتظار بررسی است.${providerDetails}`,
+          provider_failures: failedProviders,
+          awg_disabled: awgDisabled,
+        });
         return;
       }
       shouldDisableService = true;

@@ -2690,3 +2690,17 @@ mtime_ms = 1793953004329
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/bcc0e74c-0544-4478-ad5c-777f566833e2/cfc50d03-c3cc-40c2-ba90-6415dafc98a3"
 storage_version_token = "1793953029427827"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "7C8-N_hiTUQf_Lspc7zTu"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-06T08-25-19-566Z.zip"
+type = "unspecified"
+title = "Hostinger update: provider cancellation fixes"
+description = "Validated Hostinger package with cancellation retries, saved provider identities, and provider-specific failure feedback."
+logical_id = "5c068b67-61d5-42d9-a197-d24b6b31cb6e"
+content_hash = "sha256:d0375b84f41fcdc7cb5bee7c0b05052ed561cf6291a1acc22376eb98c54980e5"
+size = 30984003
+mtime_ms = 1793953635417
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/5c068b67-61d5-42d9-a197-d24b6b31cb6e/a7a47baf-7a5f-42a1-9213-e94c636375a9"
+storage_version_token = "1793953660547433"
+content_type = "application/octet-stream"
