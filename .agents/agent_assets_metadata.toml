@@ -2844,3 +2844,17 @@ mtime_ms = 1794002781913
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/9ff6df24-a593-4b70-8307-f71427c2f116/e9918cb7-78a2-40a6-ade4-fe70ea43ed59"
 storage_version_token = "1794002902460215"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "qs8SkcFOVZA1r2VqNvXMX"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-06T22-18-59-028Z.zip"
+type = "unspecified"
+title = "Updated Hostinger package"
+description = "30 MB full migration ZIP with the mobile chart-label fixes and current adaptive usage-sync backend. SHA-256 sidecar is included."
+logical_id = "e232a610-1dd3-44c7-8c9c-6572a823641c"
+content_hash = "sha256:016f16954190163962e54d7a584d42a51e67efb297f3f5317bd0bbff58fa077d"
+size = 31117061
+mtime_ms = 1794003660522
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e232a610-1dd3-44c7-8c9c-6572a823641c/8ed61ee9-f2af-400d-a745-3159970589f9"
+storage_version_token = "1794003697738108"
+content_type = "application/octet-stream"

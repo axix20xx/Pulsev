@@ -284,16 +284,20 @@ function CumulativeTrafficChart({ data, range }: { data: Array<{ bucket_at: stri
 function TopCustomersChart({ customers }: { customers: Array<{ customer_id: number; customer_name: string; bytes: number; share_percent: number }> }) {
   const points = [...customers].sort((a, b) => Number(b.bytes) - Number(a.bytes)).slice(0, 10).map((customer) => ({
     ...customer,
-    displayName: customer.customer_name || `#${customer.customer_id}`,
+    displayName: (customer.customer_name || `#${customer.customer_id}`).replace(/\s+/g, " ").trim(),
   }));
+  const formatAxisName = (value: string) => {
+    const characters = Array.from(String(value ?? ""));
+    return characters.length > 12 ? `${characters.slice(0, 11).join("")}…` : characters.join("");
+  };
   if (!points.length) return <div className="usage-chart-empty">مشتری دارای نمونهٔ ترافیک پیدا نشد.</div>;
   return <div className="usage-chart-wrap usage-customer-chart" role="img" aria-label="مقایسهٔ مصرف ده مشتری پرترافیک بر اساس دادهٔ واقعی بازه" data-testid="chart-top-customer-usage">
     <ResponsiveContainer width="100%" height="100%" debounce={0}>
       <BarChart data={points} layout="vertical" margin={{ top: 5, right: 8, left: 5, bottom: 5 }}>
         <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" horizontal={false}/>
         <XAxis type="number" tickFormatter={compactBytes} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} tickLine={false} axisLine={false}/>
-        <YAxis type="category" dataKey="displayName" width={82} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} tickLine={false} axisLine={false} interval={0}/>
-        <Tooltip formatter={(value, _name, item) => [`${bytesFormat(Number(value))} · ${percentFa(Number(item.payload.share_percent))}`, "مصرف مشتری"]} allowEscapeViewBox={{ x: false, y: false }} wrapperStyle={{ maxWidth: "min(220px, calc(100% - 12px))", zIndex: 4 }} contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 11, whiteSpace: "normal" }} cursor={{ fill: "hsl(var(--primary) / .06)" }} isAnimationActive={false}/>
+        <YAxis type="category" dataKey="displayName" tickFormatter={formatAxisName} width={104} tickMargin={7} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} tickLine={false} axisLine={false} interval={0}/>
+        <Tooltip labelFormatter={(label) => String(label)} formatter={(value, _name, item) => [`${bytesFormat(Number(value))} · ${percentFa(Number(item.payload.share_percent))}`, "مصرف مشتری"]} allowEscapeViewBox={{ x: false, y: false }} wrapperStyle={{ maxWidth: "min(220px, calc(100% - 12px))", zIndex: 4 }} contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 11, whiteSpace: "normal" }} cursor={{ fill: "hsl(var(--primary) / .06)" }} isAnimationActive={false}/>
         <Bar dataKey="bytes" name="مصرف" fill="hsl(var(--primary))" fillOpacity={0.82} radius={[0, 4, 4, 0]} isAnimationActive={false}/>
       </BarChart>
     </ResponsiveContainer>
@@ -302,11 +306,11 @@ function TopCustomersChart({ customers }: { customers: Array<{ customer_id: numb
 
 function QuotaPressureChart({ quota }: { quota: { active_services: number; tracked_services: number; above_70_count: number; above_90_count: number; exhausted_count: number } }) {
   const bands = [
-    { band: "بدون نمونهٔ مصرف", count: Math.max(0, quota.active_services - quota.tracked_services), fill: "hsl(var(--muted-foreground) / .55)" },
-    { band: "تا ۷۰٪ · ردیابی‌شده", count: Math.max(0, quota.tracked_services - quota.above_70_count), fill: "hsl(var(--accent))" },
-    { band: "۷۰ تا کمتر از ۹۰٪", count: Math.max(0, quota.above_70_count - quota.above_90_count), fill: "hsl(32 72% 49%)" },
-    { band: "۹۰ تا کمتر از ۱۰۰٪", count: Math.max(0, quota.above_90_count - quota.exhausted_count), fill: "hsl(8 62% 49%)" },
-    { band: "حجم تمام‌شده", count: Math.max(0, quota.exhausted_count), fill: "hsl(350 54% 36%)" },
+    { band: "بدون نمونه", count: Math.max(0, quota.active_services - quota.tracked_services), fill: "hsl(var(--muted-foreground) / .55)" },
+    { band: "کمتر از ۷۰٪", count: Math.max(0, quota.tracked_services - quota.above_70_count), fill: "hsl(var(--accent))" },
+    { band: "۷۰ تا ۹۰٪", count: Math.max(0, quota.above_70_count - quota.above_90_count), fill: "hsl(32 72% 49%)" },
+    { band: "۹۰ تا زیر ۱۰۰٪", count: Math.max(0, quota.above_90_count - quota.exhausted_count), fill: "hsl(8 62% 49%)" },
+    { band: "اتمام حجم", count: Math.max(0, quota.exhausted_count), fill: "hsl(350 54% 36%)" },
   ];
   return <div className="usage-chart-wrap usage-pressure-chart" role="img" aria-label="توزیع مشتق‌شدهٔ فشار سهمیه از شمارش‌های آستانهٔ فعلی" data-testid="chart-quota-pressure">
     <ResponsiveContainer width="100%" height="100%" debounce={0}>

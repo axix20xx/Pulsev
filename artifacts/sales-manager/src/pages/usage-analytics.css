@@ -175,7 +175,6 @@
 
 /* Operator charts: bounded surfaces keep chart labels/tooltips from colliding
    with adjacent cards at dense desktop and narrow phone widths. */
-.usage-page .ax-card { overflow:clip; }
 .usage-page .ax-card-head > div { min-width:0; }
 .usage-page .ax-card-head h2,
 .usage-page .ax-card-head p { overflow-wrap:anywhere; }
@@ -186,8 +185,8 @@
 .usage-chart-wrap { min-width:0; overflow:hidden; }
 .usage-chart-wrap svg { overflow:hidden; }
 .usage-secondary-chart { height:248px; }
-.usage-customer-chart { height:292px; }
-.usage-pressure-chart { height:196px; }
+.usage-customer-chart { height:312px; }
+.usage-pressure-chart { height:216px; }
 .usage-coverage-chart { height:190px; }
 .usage-chart-legend.is-accent i { background:hsl(var(--accent)); }
 .usage-chart-legend.is-warn i { background:hsl(32 72% 49%); }
@@ -206,11 +205,15 @@
 }
 @media(max-width:640px) {
   .usage-page .usage-secondary-chart { height:232px; }
-  .usage-page .usage-customer-chart { height:300px; }
-  .usage-page .usage-pressure-chart { height:184px; }
+  .usage-page .usage-customer-chart { height:320px; }
+  .usage-page .usage-pressure-chart { height:224px; }
   .usage-page .usage-coverage-chart { height:178px; }
   .usage-coverage-days { gap:3px; }
   .usage-coverage-days > span { font-size:7px; }
   .usage-coverage-days b { font-size:7px; }
   .usage-page .ax-card-head { align-items:flex-start; }
+}
+@media(max-width:380px) {
+  .usage-page .usage-customer-chart { height:336px; }
+  .usage-page .usage-pressure-chart { height:232px; }
 }
