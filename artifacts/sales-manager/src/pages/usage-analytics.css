@@ -172,3 +172,45 @@
   .usage-page .usage-range-tabs { grid-template-columns:1fr 1fr; }
   .usage-provider-composition { grid-template-columns:minmax(80px,.65fr) minmax(0,1.35fr); }
 }
+
+/* Operator charts: bounded surfaces keep chart labels/tooltips from colliding
+   with adjacent cards at dense desktop and narrow phone widths. */
+.usage-page .ax-card { overflow:clip; }
+.usage-page .ax-card-head > div { min-width:0; }
+.usage-page .ax-card-head h2,
+.usage-page .ax-card-head p { overflow-wrap:anywhere; }
+.usage-page .ax-card-head .ax-page-actions { min-width:0; }
+.usage-page .ax-card-body { min-width:0; }
+.usage-chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; gap:14px; min-width:0; }
+.usage-chart-grid > * { min-width:0; }
+.usage-chart-wrap { min-width:0; overflow:hidden; }
+.usage-chart-wrap svg { overflow:hidden; }
+.usage-secondary-chart { height:248px; }
+.usage-customer-chart { height:292px; }
+.usage-pressure-chart { height:196px; }
+.usage-coverage-chart { height:190px; }
+.usage-chart-legend.is-accent i { background:hsl(var(--accent)); }
+.usage-chart-legend.is-warn i { background:hsl(32 72% 49%); }
+.usage-chart-caption { margin:4px 0 0; color:hsl(var(--muted-foreground)); font-size:10px; line-height:1.75; }
+.usage-coverage-wrap { min-width:0; }
+.usage-coverage-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; margin-top:6px; }
+.usage-coverage-days > span { display:grid; min-width:0; justify-items:center; gap:4px; border:1px solid hsl(var(--border)); border-radius:8px; padding:6px 2px; color:hsl(var(--muted-foreground)); font-size:8px; text-align:center; }
+.usage-coverage-days i { width:7px; height:7px; border-radius:50%; background:hsl(155 42% 42%); }
+.usage-coverage-days b { overflow-wrap:anywhere; color:hsl(var(--foreground)); font-size:8px; font-weight:600; }
+.usage-coverage-days .is-missing { border-style:dashed; }
+.usage-coverage-days .is-missing i { background:hsl(var(--muted-foreground)/.45); }
+.usage-page .recharts-tooltip-wrapper { max-width:min(230px,calc(100% - 12px)); pointer-events:none; }
+.usage-page .recharts-default-tooltip { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+@media(max-width:1000px) {
+  .usage-chart-grid { grid-template-columns:minmax(0,1fr); }
+}
+@media(max-width:640px) {
+  .usage-page .usage-secondary-chart { height:232px; }
+  .usage-page .usage-customer-chart { height:300px; }
+  .usage-page .usage-pressure-chart { height:184px; }
+  .usage-page .usage-coverage-chart { height:178px; }
+  .usage-coverage-days { gap:3px; }
+  .usage-coverage-days > span { font-size:7px; }
+  .usage-coverage-days b { font-size:7px; }
+  .usage-page .ax-card-head { align-items:flex-start; }
+}

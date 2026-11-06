@@ -9,6 +9,12 @@ import { allRemoteProvidersDisabled } from "./service-cancellation-policy";
 
 const BYTES_PER_GB = 1024 ** 3;
 const DEFAULT_INTERVAL_MS = 60_000;
+const USAGE_SYNC_MIN_CONCURRENCY = 1;
+const USAGE_SYNC_INITIAL_CONCURRENCY = 2;
+const USAGE_SYNC_MAX_CONCURRENCY = 4;
+const USAGE_SYNC_FAST_SERVICE_MS = 1_500;
+const USAGE_SYNC_SLOW_SERVICE_MS = 5_000;
+const USAGE_SYNC_FAST_STREAK_TO_SCALE = 8;
 const COMBINED_WORKER_LOCK_NAMESPACE = 74424;
 let running = false;
 const lastAwgUsageWarningAt = new Map<string, number>();
@@ -82,7 +88,7 @@ async function updatePanelUsage(username: string, panelKey: string, rawBytes: nu
   return effective;
 }
 
-async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
+async function syncServiceUnlocked(service: ServiceRow): Promise<boolean> {
   let panelUsages: Awaited<ReturnType<typeof readPanelUsages>> = [];
   let panelUsageReadFailed = false;
   try {
@@ -307,9 +313,10 @@ async function syncServiceUnlocked(service: ServiceRow): Promise<void> {
       );
     }
   }
+  return usageSnapshotFresh;
 }
 
-async function syncService(service: ServiceRow): Promise<void> {
+async function syncService(service: ServiceRow): Promise<boolean> {
   const lockClient = await pool.connect();
   try {
     await lockClient.query("SELECT pg_advisory_lock(74421, $1)", [service.id]);
@@ -330,11 +337,122 @@ async function syncService(service: ServiceRow): Promise<void> {
        LIMIT 1`,
       [service.id],
     );
-    if (fresh.rows[0]) await syncServiceUnlocked(fresh.rows[0]);
+    if (fresh.rows[0]) return await syncServiceUnlocked(fresh.rows[0]);
+    return true;
   } finally {
     await lockClient.query("SELECT pg_advisory_unlock(74421, $1)", [service.id]).catch(() => undefined);
     lockClient.release();
   }
+}
+
+type ServiceSyncResult = {
+  service: ServiceRow;
+  succeeded: boolean;
+  snapshotFresh: boolean;
+  elapsedMs: number;
+  error?: unknown;
+};
+
+function databaseHasQueuedRequests(): boolean {
+  const waitingCount = Number(
+    (pool as unknown as { waitingCount?: number }).waitingCount ?? 0,
+  );
+  return Number.isFinite(waitingCount) && waitingCount > 0;
+}
+
+async function syncServicesAdaptively(services: ServiceRow[]): Promise<{
+  failedServices: number;
+  staleServices: number;
+  minConcurrency: number;
+  maxConcurrency: number;
+  finalConcurrency: number;
+  pressureBackoffs: number;
+}> {
+  let nextIndex = 0;
+  let failedServices = 0;
+  let staleServices = 0;
+  let concurrency = USAGE_SYNC_INITIAL_CONCURRENCY;
+  let minConcurrency = concurrency;
+  let maxConcurrency = 0;
+  let pressureBackoffs = 0;
+  let fastServiceStreak = 0;
+  const inFlight = new Set<Promise<ServiceSyncResult>>();
+
+  while (nextIndex < services.length || inFlight.size > 0) {
+    while (nextIndex < services.length && inFlight.size < concurrency) {
+      const service = services[nextIndex++];
+      const task = (async (): Promise<ServiceSyncResult> => {
+        const startedAt = Date.now();
+        try {
+          const snapshotFresh = await syncService(service);
+          return {
+            service,
+            succeeded: true,
+            snapshotFresh,
+            elapsedMs: Date.now() - startedAt,
+          };
+        } catch (error) {
+          return {
+            service,
+            succeeded: false,
+            snapshotFresh: false,
+            elapsedMs: Date.now() - startedAt,
+            error,
+          };
+        }
+      })();
+      inFlight.add(task);
+      maxConcurrency = Math.max(maxConcurrency, inFlight.size);
+    }
+
+    if (!inFlight.size) break;
+    const settled = await Promise.race(
+      [...inFlight].map((promise) => promise.then((result) => ({ promise, result }))),
+    );
+    inFlight.delete(settled.promise);
+    const { service, succeeded, snapshotFresh, elapsedMs, error } = settled.result;
+
+    if (!succeeded) {
+      failedServices += 1;
+      logger.warn({ serviceId: service.id, err: error }, "Service usage sync failed");
+    } else if (!snapshotFresh) {
+      staleServices += 1;
+    }
+
+    const databaseQueued = databaseHasQueuedRequests();
+    const shouldBackOff =
+      !succeeded
+      || !snapshotFresh
+      || elapsedMs >= USAGE_SYNC_SLOW_SERVICE_MS
+      || databaseQueued;
+    if (shouldBackOff) {
+      const nextConcurrency = Math.max(
+        USAGE_SYNC_MIN_CONCURRENCY,
+        Math.floor(concurrency / 2),
+      );
+      if (nextConcurrency < concurrency) pressureBackoffs += 1;
+      concurrency = nextConcurrency;
+      fastServiceStreak = 0;
+    } else if (elapsedMs <= USAGE_SYNC_FAST_SERVICE_MS && !databaseQueued) {
+      fastServiceStreak += 1;
+      if (fastServiceStreak >= USAGE_SYNC_FAST_STREAK_TO_SCALE) {
+        concurrency = Math.min(USAGE_SYNC_MAX_CONCURRENCY, concurrency + 1);
+        fastServiceStreak = 0;
+      }
+    } else {
+      fastServiceStreak = 0;
+    }
+    minConcurrency = Math.min(minConcurrency, concurrency);
+  }
+
+  return {
+    failedServices,
+    staleServices,
+    minConcurrency,
+    maxConcurrency,
+    finalConcurrency: concurrency,
+    pressureBackoffs,
+  };
 }
 
 export async function syncServiceUsageById(serviceId: number): Promise<boolean> {
@@ -364,6 +482,7 @@ export async function syncServiceUsageById(serviceId: number): Promise<boolean> 
 export async function runUsageSync(): Promise<void> {
   if (running) return;
   running = true;
+  const startedAt = Date.now();
   let unlockWorkerLock: (() => Promise<void>) | undefined;
   let releaseWorkerLock: (() => void) | undefined;
   let workerLockAcquired = false;
@@ -399,14 +518,17 @@ export async function runUsageSync(): Promise<void> {
            OR (svc.status = 'disabled' AND COALESCE(svc.remote_disable_pending, 0) = 1)
        ORDER BY svc.id`,
     );
-    for (const service of result.rows) {
-      try {
-        await syncService(service);
-      } catch (error) {
-        logger.warn({ serviceId: service.id, err: error }, "Service usage sync failed");
-      }
+    const syncStats = await syncServicesAdaptively(result.rows);
+    if (result.rows.length) {
+      logger.info(
+        {
+          services: result.rows.length,
+          ...syncStats,
+          elapsedMs: Date.now() - startedAt,
+        },
+        "Combined usage sync completed",
+      );
     }
-    if (result.rows.length) logger.info({ services: result.rows.length }, "Combined usage sync completed");
   } catch (error) {
     logger.error({ err: error }, "Combined usage sync failed");
   } finally {

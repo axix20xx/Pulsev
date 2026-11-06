@@ -29,6 +29,12 @@ async function loadUsageSyncModule(state) {
       export async function readPanelUsages() {
         const state = globalThis.__usageSyncLifecycleTest;
         if (state.panelUsageError) throw state.panelUsageError;
+        if (state.trackUsageConcurrency) {
+          state.activeUsageReads += 1;
+          state.maxUsageReads = Math.max(state.maxUsageReads, state.activeUsageReads);
+          await new Promise((resolve) => setTimeout(resolve, state.syncDelayMs));
+          state.activeUsageReads -= 1;
+        }
         return state.panelUsages;
       }
       export async function disablePanelUser(...args) {
@@ -43,7 +49,13 @@ async function loadUsageSyncModule(state) {
         return globalThis.__usageSyncLifecycleTest.sharedUsername;
       }
     `],
-    ["logger", `export const logger = { warn() {}, info() {}, error() {} };`],
+    ["logger", `
+      export const logger = {
+        warn() {},
+        info(...args) { globalThis.__usageSyncLifecycleTest.workerLogs.push(args); },
+        error() {},
+      };
+    `],
     ["usage-history", `export async function recordUsageHistorySample() {}`],
   ]);
 
@@ -98,8 +110,14 @@ function makeState({ expired = false, status = "active", pending = 0 } = {}) {
   };
   const state = {
     service,
+    services: [service],
     panelUsages: [],
     panelUsageError: null,
+    trackUsageConcurrency: false,
+    activeUsageReads: 0,
+    maxUsageReads: 0,
+    syncDelayMs: 0,
+    workerLogs: [],
     panelDisableResult: { attempted: 2, disabled: 2 },
     panelDisableError: null,
     panelDisableCalls: [],
@@ -113,14 +131,27 @@ function makeState({ expired = false, status = "active", pending = 0 } = {}) {
     sqlCalls: [],
   };
   state.pool = {
-    connect: async () => ({
-      query: async () => ({ rows: [] }),
-      release() {},
-    }),
+    waitingCount: 0,
+    connect: async () => {
+      return {
+        query: async (sql) => {
+          if (sql.includes("pg_try_advisory_lock")) return { rows: [{ locked: true }] };
+          if (sql.includes("FROM reseller_services svc")) {
+            return { rows: state.services.map((service) => ({ ...service })) };
+          }
+          return { rows: [] };
+        },
+        release() {},
+      };
+    },
     query: async (sql, params = []) => {
       state.sqlCalls.push({ sql, params });
       if (sql.includes("FROM reseller_services svc")) {
-        return { rows: [{ ...state.service }] };
+        if (sql.includes("WHERE svc.id = $1")) {
+          const service = state.services.find((item) => Number(item.id) === Number(params[0]));
+          return { rows: service ? [{ ...service }] : [] };
+        }
+        return { rows: state.services.map((service) => ({ ...service })) };
       }
       if (sql.includes("UPDATE reseller_services")) {
         if (sql.includes("SET awg_rx")) return { rows: [], rowCount: 1 };
@@ -138,6 +169,78 @@ function makeState({ expired = false, status = "active", pending = 0 } = {}) {
   };
   return state;
 }
+
+test("adaptive usage sync scales up to four after a healthy streak", async () => {
+  const state = makeState();
+  state.services = Array.from({ length: 40 }, (_, index) => ({
+    ...state.service,
+    id: 100 + index,
+    rain_username: `service-user-${100 + index}`,
+    awg_client_id: null,
+  }));
+  state.trackUsageConcurrency = true;
+  state.syncDelayMs = 1;
+  const usageSync = await loadUsageSyncModule(state);
+
+  await usageSync.runUsageSync();
+
+  assert.equal(
+    state.serviceUpdates.length,
+    40,
+    "every service should still be processed",
+  );
+  assert.equal(state.maxUsageReads, 4, "healthy checks should reach, but not exceed, the hard cap");
+  const completion = state.workerLogs.find((args) => args[1] === "Combined usage sync completed");
+  assert.equal(completion?.[0]?.maxConcurrency, 4, "the run should report its observed concurrency");
+});
+
+test("adaptive usage sync backs off when snapshots are stale", async () => {
+  const state = makeState();
+  state.services = Array.from({ length: 12 }, (_, index) => ({
+    ...state.service,
+    id: 200 + index,
+    rain_username: `stale-service-${200 + index}`,
+    awg_client_id: null,
+  }));
+  state.panelUsages = [{
+    panelKey: "mock",
+    username: "stale-user",
+    usedBytes: 0,
+    stale: true,
+  }];
+  state.trackUsageConcurrency = true;
+  state.syncDelayMs = 10;
+  const usageSync = await loadUsageSyncModule(state);
+
+  await usageSync.runUsageSync();
+
+  assert.equal(state.serviceUpdates.length, 12, "stale readings must not stop the rest of the batch");
+  assert.equal(state.maxUsageReads, 2, "stale readings should stop the worker from scaling up");
+  const completion = state.workerLogs.find((args) => args[1] === "Combined usage sync completed");
+  assert.equal(completion?.[0]?.finalConcurrency, 1, "repeated stale readings should reduce concurrency");
+  assert.equal(completion?.[0]?.staleServices, 12);
+});
+
+test("adaptive usage sync backs off when the database has queued requests", async () => {
+  const state = makeState();
+  state.services = Array.from({ length: 8 }, (_, index) => ({
+    ...state.service,
+    id: 300 + index,
+    rain_username: `queued-service-${300 + index}`,
+    awg_client_id: null,
+  }));
+  state.pool.waitingCount = 1;
+  state.trackUsageConcurrency = true;
+  state.syncDelayMs = 10;
+  const usageSync = await loadUsageSyncModule(state);
+
+  await usageSync.runUsageSync();
+
+  assert.equal(state.serviceUpdates.length, 8, "queued database work must not drop services");
+  const completion = state.workerLogs.find((args) => args[1] === "Combined usage sync completed");
+  assert.equal(completion?.[0]?.finalConcurrency, 1, "database queueing should reduce concurrency");
+  assert.ok(completion?.[0]?.pressureBackoffs > 0);
+});
 
 test("automatic quota disable targets mapped disabled Providers and AWG separately", async () => {
   const state = makeState();

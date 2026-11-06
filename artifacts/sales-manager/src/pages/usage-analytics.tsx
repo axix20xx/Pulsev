@@ -252,6 +252,95 @@ function UsageChart({ data, range }: { data: Array<{ bucket_at: string; bytes: n
   </div>;
 }
 
+function CumulativeTrafficChart({ data, range }: { data: Array<{ bucket_at: string; bytes: number }>; range: UsageAnalyticsRange }) {
+  const ordered = [...data]
+    .sort((a, b) => new Date(a.bucket_at).getTime() - new Date(b.bucket_at).getTime())
+    .reduce<Array<{ bucket_at: string; bytes: number; cumulative: number }>>((points, bucket) => {
+      const previous = points.at(-1)?.cumulative ?? 0;
+      points.push({ ...bucket, cumulative: previous + Number(bucket.bytes || 0) });
+      return points;
+    }, []);
+  if (!ordered.length) return <div className="usage-chart-empty">برای محاسبهٔ تجمعی نمونه‌ای ثبت نشده است.</div>;
+  const customSpan = range === "custom" && ordered.length > 1
+    ? new Date(ordered[ordered.length - 1].bucket_at).getTime() - new Date(ordered[0].bucket_at).getTime()
+    : Number.POSITIVE_INFINITY;
+  const timeOnly = range === "6h" || range === "12h" || range === "day" || customSpan <= 48 * 60 * 60_000;
+  return <div className="usage-chart-wrap usage-secondary-chart" role="img" aria-label="ترافیک تجمعی از جمع نمونه‌های مرتب‌شدهٔ بازه" data-testid="chart-cumulative-traffic">
+    <ResponsiveContainer width="100%" height="100%" debounce={0}>
+      <AreaChart data={ordered} margin={{ top: 10, right: 8, left: 4, bottom: 2 }}>
+        <defs><linearGradient id="usage-cumulative-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity={0.27}/><stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity={0.03}/></linearGradient></defs>
+        <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" vertical={false}/>
+        <XAxis dataKey="bucket_at" tickFormatter={(value: string) => timeOnly
+          ? new Intl.DateTimeFormat("fa-IR-u-ca-persian", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }).format(new Date(value))
+          : dateLabel(value)} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={18}/>
+        <YAxis tickFormatter={compactBytes} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} width={62} domain={[0, "auto"]}/>
+        <Tooltip labelFormatter={(value) => dateLabel(String(value), true)} formatter={(value) => [bytesFormat(Number(value)), "جمع تجمعی نمونه‌ها"]} allowEscapeViewBox={{ x: false, y: false }} wrapperStyle={{ maxWidth: "min(220px, calc(100% - 12px))", zIndex: 4 }} contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 11, whiteSpace: "normal" }} isAnimationActive={false}/>
+        <Area type="monotone" dataKey="cumulative" name="ترافیک تجمعی" stroke="hsl(var(--accent))" strokeWidth={2.5} fill="url(#usage-cumulative-area)" isAnimationActive={false}/>
+      </AreaChart>
+    </ResponsiveContainer>
+  </div>;
+}
+
+function TopCustomersChart({ customers }: { customers: Array<{ customer_id: number; customer_name: string; bytes: number; share_percent: number }> }) {
+  const points = [...customers].sort((a, b) => Number(b.bytes) - Number(a.bytes)).slice(0, 10).map((customer) => ({
+    ...customer,
+    displayName: customer.customer_name || `#${customer.customer_id}`,
+  }));
+  if (!points.length) return <div className="usage-chart-empty">مشتری دارای نمونهٔ ترافیک پیدا نشد.</div>;
+  return <div className="usage-chart-wrap usage-customer-chart" role="img" aria-label="مقایسهٔ مصرف ده مشتری پرترافیک بر اساس دادهٔ واقعی بازه" data-testid="chart-top-customer-usage">
+    <ResponsiveContainer width="100%" height="100%" debounce={0}>
+      <BarChart data={points} layout="vertical" margin={{ top: 5, right: 8, left: 5, bottom: 5 }}>
+        <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" horizontal={false}/>
+        <XAxis type="number" tickFormatter={compactBytes} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} tickLine={false} axisLine={false}/>
+        <YAxis type="category" dataKey="displayName" width={82} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} tickLine={false} axisLine={false} interval={0}/>
+        <Tooltip formatter={(value, _name, item) => [`${bytesFormat(Number(value))} · ${percentFa(Number(item.payload.share_percent))}`, "مصرف مشتری"]} allowEscapeViewBox={{ x: false, y: false }} wrapperStyle={{ maxWidth: "min(220px, calc(100% - 12px))", zIndex: 4 }} contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 11, whiteSpace: "normal" }} cursor={{ fill: "hsl(var(--primary) / .06)" }} isAnimationActive={false}/>
+        <Bar dataKey="bytes" name="مصرف" fill="hsl(var(--primary))" fillOpacity={0.82} radius={[0, 4, 4, 0]} isAnimationActive={false}/>
+      </BarChart>
+    </ResponsiveContainer>
+  </div>;
+}
+
+function QuotaPressureChart({ quota }: { quota: { active_services: number; tracked_services: number; above_70_count: number; above_90_count: number; exhausted_count: number } }) {
+  const bands = [
+    { band: "بدون نمونهٔ مصرف", count: Math.max(0, quota.active_services - quota.tracked_services), fill: "hsl(var(--muted-foreground) / .55)" },
+    { band: "تا ۷۰٪ · ردیابی‌شده", count: Math.max(0, quota.tracked_services - quota.above_70_count), fill: "hsl(var(--accent))" },
+    { band: "۷۰ تا کمتر از ۹۰٪", count: Math.max(0, quota.above_70_count - quota.above_90_count), fill: "hsl(32 72% 49%)" },
+    { band: "۹۰ تا کمتر از ۱۰۰٪", count: Math.max(0, quota.above_90_count - quota.exhausted_count), fill: "hsl(8 62% 49%)" },
+    { band: "حجم تمام‌شده", count: Math.max(0, quota.exhausted_count), fill: "hsl(350 54% 36%)" },
+  ];
+  return <div className="usage-chart-wrap usage-pressure-chart" role="img" aria-label="توزیع مشتق‌شدهٔ فشار سهمیه از شمارش‌های آستانهٔ فعلی" data-testid="chart-quota-pressure">
+    <ResponsiveContainer width="100%" height="100%" debounce={0}>
+      <BarChart data={bands} layout="vertical" margin={{ top: 4, right: 8, left: 4, bottom: 4 }}>
+        <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" horizontal={false}/>
+        <XAxis type="number" allowDecimals={false} tickFormatter={(value: number) => numberFa.format(value)} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} tickLine={false} axisLine={false}/>
+        <YAxis type="category" dataKey="band" width={120} interval={0} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} tickLine={false} axisLine={false}/>
+        <Tooltip formatter={(value) => [numberFa.format(Number(value)), "سرویس"]} allowEscapeViewBox={{ x: false, y: false }} wrapperStyle={{ maxWidth: "min(210px, calc(100% - 12px))", zIndex: 4 }} contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 11 }} isAnimationActive={false}/>
+        <Bar dataKey="count" name="تعداد سرویس" radius={[0, 4, 4, 0]} isAnimationActive={false}>{bands.map((item) => <Cell key={item.band} fill={item.fill}/>)}</Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  </div>;
+}
+
+function SampleCoverageChart({ data }: { data: Array<{ day: string; sample_buckets: number; observed: boolean }> }) {
+  const points = data.map((point) => ({ ...point, plottedBuckets: point.observed ? point.sample_buckets : null }));
+  if (!points.length) return <div className="usage-chart-empty">اطلاعات پوشش روزانه در دسترس نیست.</div>;
+  return <div className="usage-coverage-wrap" data-testid="chart-daily-sample-coverage">
+    <div className="usage-chart-wrap usage-coverage-chart" role="img" aria-label="تعداد نمونه‌های ثبت‌شده در هر روز از هفت روز تقویمی اخیر تهران">
+      <ResponsiveContainer width="100%" height="100%" debounce={0}>
+        <BarChart data={points} margin={{ top: 12, right: 8, left: 6, bottom: 2 }}>
+          <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" vertical={false}/>
+          <XAxis dataKey="day" tickFormatter={(value: string) => dateLabel(value)} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
+          <YAxis allowDecimals={false} tickFormatter={(value: number) => numberFa.format(value)} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} width={36}/>
+          <Tooltip labelFormatter={(value) => dateLabel(String(value))} formatter={(value, _name, item) => item.payload.observed ? [numberFa.format(Number(value)), "بازهٔ ۵ دقیقه‌ای دارای نمونه"] : ["مشاهده‌ای ثبت نشده", "پوشش روز"]} allowEscapeViewBox={{ x: false, y: false }} wrapperStyle={{ maxWidth: "min(210px, calc(100% - 12px))", zIndex: 4 }} contentStyle={{ borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 11 }} isAnimationActive={false}/>
+          <Bar dataKey="plottedBuckets" name="نمونه‌های روزانه" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} isAnimationActive={false}/>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+    <div className="usage-coverage-days">{points.map((point) => <span key={point.day} className={point.observed ? "is-observed" : "is-missing"} data-testid={`coverage-day-${point.day}`}><i/>{dateLabel(point.day)}<b>{point.observed ? `${numberFa.format(point.sample_buckets)} نمونه` : "بدون مشاهده"}</b></span>)}</div>
+    <p className="usage-chart-caption">هر مقدار، تعداد بازه‌های ۵ دقیقه‌ای دارای دست‌کم یک نمونه در آن روز کامل است. این نمودار پوشش کل سامانه را نشان می‌دهد، نه تعداد نمونه برای هر سرویس؛ روزهای بدون مشاهده صفرِ اندازه‌گیری‌شده نیستند.</p>
+  </div>;
+}
+
 export default function UsageAnalyticsPage() {
   const { session, sessionLoading } = usePulse();
   const [range, setRange] = useState<UsageAnalyticsRange>("day");
@@ -374,6 +463,22 @@ export default function UsageAnalyticsPage() {
         {loading && !data ? <SkeletonRows rows={4}/> : providers.some((provider) => Number(provider.bytes) > 0) ? <ProviderCompositionChart providers={providers}/> : <EmptyState title="مصرف ثبت‌شده‌ای نیست" detail="برای این بازه دادهٔ مثبتی جهت نمایش ترکیب ارائه‌دهندگان وجود ندارد." icon={HardDrive}/>}
       </Card>
     </div>
+    <section className="usage-chart-grid" aria-label="نمودارهای تکمیلی ترافیک">
+      <Card title="ترافیک تجمعی" description="جمع تجمعی نمونه‌های مرتب‌شده؛ مشتق‌شده از bucketهای همین بازه" actions={<span className="usage-chart-legend is-accent"><i/>جمع نمونه‌ها</span>}>
+        {loading && !data ? <div className="usage-chart-empty"><span className="ax-skel" style={{ width:"100%", height:185 }}/></div> : data ? <CumulativeTrafficChart data={data.buckets} range={range}/> : <EmptyState title="نمودار تجمعی در دسترس نیست" icon={BarChart3}/>}
+      </Card>
+      <Card title="مقایسهٔ مشتریان پرترافیک" description="ده مشتری برتر؛ طول میله مصرف ثبت‌شده و راهنما سهم واقعی را نشان می‌دهد">
+        {loading && !data ? <div className="usage-chart-empty"><span className="ax-skel" style={{ width:"100%", height:185 }}/></div> : data ? <TopCustomersChart customers={data.customers}/> : <EmptyState title="مقایسهٔ مشتریان در دسترس نیست" icon={Users}/>}
+      </Card>
+    </section>
+    <section className="usage-chart-grid" aria-label="فشار سهمیه و پوشش نمونه‌ها">
+      <Card title="توزیع وضعیت سهمیه" description="وضعیت فعلی همهٔ سرویس‌های فعالِ دارای محدودیت حجم، بر پایهٔ دادهٔ API" actions={<span className="usage-chart-legend is-warn"><i/>وضعیت فعلی</span>}>
+        {loading && !data ? <div className="usage-chart-empty"><span className="ax-skel" style={{ width:"100%", height:175 }}/></div> : quota ? <><QuotaPressureChart quota={quota}/><p className="usage-chart-caption">بازه‌های مصرف از شمارش آستانه‌های API مشتق شده‌اند؛ «بدون نمونه» یعنی هنوز خط مبنای مصرفی برای سرویس ثبت نشده است.</p></> : <EmptyState title="اطلاعات سهمیه در دسترس نیست" icon={Gauge}/>}
+      </Card>
+      <Card title="پوشش نمونهٔ روزانه" description="تعداد بازه‌های پنج‌دقیقه‌ای دارای مشاهده در هفت روز کامل گذشتهٔ تهران">
+        {loading && !data ? <div className="usage-chart-empty"><span className="ax-skel" style={{ width:"100%", height:175 }}/></div> : data ? <SampleCoverageChart data={data.weekly_daily}/> : <EmptyState title="پوشش نمونه در دسترس نیست" icon={Activity}/>}
+      </Card>
+    </section>
     <Card title="خلاصهٔ تحلیلی هفتگی" description="خوانش عملیاتی از هفت روز کامل گذشته، با اعلام روشن میزان پوشش">
       {loading && !data ? <SkeletonRows rows={4}/> : data ? <WeeklyInsightsSummary insight={data.weekly_insights}/> : <EmptyState title="خلاصهٔ هفتگی در دسترس نیست" detail="پس از دریافت دادهٔ تحلیل، پوشش و روند هفتگی نمایش داده می‌شود." icon={BarChart3}/>}
     </Card>

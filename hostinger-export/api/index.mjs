@@ -94407,6 +94407,12 @@ var routes_default = router5;
 // src/lib/usage-sync.ts
 var BYTES_PER_GB4 = 1024 ** 3;
 var DEFAULT_INTERVAL_MS = 6e4;
+var USAGE_SYNC_MIN_CONCURRENCY = 1;
+var USAGE_SYNC_INITIAL_CONCURRENCY = 2;
+var USAGE_SYNC_MAX_CONCURRENCY = 4;
+var USAGE_SYNC_FAST_SERVICE_MS = 1500;
+var USAGE_SYNC_SLOW_SERVICE_MS = 5e3;
+var USAGE_SYNC_FAST_STREAK_TO_SCALE = 8;
 var COMBINED_WORKER_LOCK_NAMESPACE = 74424;
 var running2 = false;
 var lastAwgUsageWarningAt = /* @__PURE__ */ new Map();
@@ -94657,6 +94663,7 @@ async function syncServiceUnlocked(service) {
       );
     }
   }
+  return usageSnapshotFresh;
 }
 async function syncService(service) {
   const lockClient = await pool.connect();
@@ -94679,15 +94686,101 @@ async function syncService(service) {
        LIMIT 1`,
       [service.id]
     );
-    if (fresh.rows[0]) await syncServiceUnlocked(fresh.rows[0]);
+    if (fresh.rows[0]) return await syncServiceUnlocked(fresh.rows[0]);
+    return true;
   } finally {
     await lockClient.query("SELECT pg_advisory_unlock(74421, $1)", [service.id]).catch(() => void 0);
     lockClient.release();
   }
 }
+function databaseHasQueuedRequests() {
+  const waitingCount = Number(
+    pool.waitingCount ?? 0
+  );
+  return Number.isFinite(waitingCount) && waitingCount > 0;
+}
+async function syncServicesAdaptively(services) {
+  let nextIndex = 0;
+  let failedServices = 0;
+  let staleServices = 0;
+  let concurrency = USAGE_SYNC_INITIAL_CONCURRENCY;
+  let minConcurrency = concurrency;
+  let maxConcurrency = 0;
+  let pressureBackoffs = 0;
+  let fastServiceStreak = 0;
+  const inFlight = /* @__PURE__ */ new Set();
+  while (nextIndex < services.length || inFlight.size > 0) {
+    while (nextIndex < services.length && inFlight.size < concurrency) {
+      const service2 = services[nextIndex++];
+      const task = (async () => {
+        const startedAt = Date.now();
+        try {
+          const snapshotFresh2 = await syncService(service2);
+          return {
+            service: service2,
+            succeeded: true,
+            snapshotFresh: snapshotFresh2,
+            elapsedMs: Date.now() - startedAt
+          };
+        } catch (error41) {
+          return {
+            service: service2,
+            succeeded: false,
+            snapshotFresh: false,
+            elapsedMs: Date.now() - startedAt,
+            error: error41
+          };
+        }
+      })();
+      inFlight.add(task);
+      maxConcurrency = Math.max(maxConcurrency, inFlight.size);
+    }
+    if (!inFlight.size) break;
+    const settled = await Promise.race(
+      [...inFlight].map((promise2) => promise2.then((result) => ({ promise: promise2, result })))
+    );
+    inFlight.delete(settled.promise);
+    const { service, succeeded, snapshotFresh, elapsedMs, error: error40 } = settled.result;
+    if (!succeeded) {
+      failedServices += 1;
+      logger.warn({ serviceId: service.id, err: error40 }, "Service usage sync failed");
+    } else if (!snapshotFresh) {
+      staleServices += 1;
+    }
+    const databaseQueued = databaseHasQueuedRequests();
+    const shouldBackOff = !succeeded || !snapshotFresh || elapsedMs >= USAGE_SYNC_SLOW_SERVICE_MS || databaseQueued;
+    if (shouldBackOff) {
+      const nextConcurrency = Math.max(
+        USAGE_SYNC_MIN_CONCURRENCY,
+        Math.floor(concurrency / 2)
+      );
+      if (nextConcurrency < concurrency) pressureBackoffs += 1;
+      concurrency = nextConcurrency;
+      fastServiceStreak = 0;
+    } else if (elapsedMs <= USAGE_SYNC_FAST_SERVICE_MS && !databaseQueued) {
+      fastServiceStreak += 1;
+      if (fastServiceStreak >= USAGE_SYNC_FAST_STREAK_TO_SCALE) {
+        concurrency = Math.min(USAGE_SYNC_MAX_CONCURRENCY, concurrency + 1);
+        fastServiceStreak = 0;
+      }
+    } else {
+      fastServiceStreak = 0;
+    }
+    minConcurrency = Math.min(minConcurrency, concurrency);
+  }
+  return {
+    failedServices,
+    staleServices,
+    minConcurrency,
+    maxConcurrency,
+    finalConcurrency: concurrency,
+    pressureBackoffs
+  };
+}
 async function runUsageSync() {
   if (running2) return;
   running2 = true;
+  const startedAt = Date.now();
   let unlockWorkerLock;
   let releaseWorkerLock;
   let workerLockAcquired = false;
@@ -94723,14 +94816,17 @@ async function runUsageSync() {
            OR (svc.status = 'disabled' AND COALESCE(svc.remote_disable_pending, 0) = 1)
        ORDER BY svc.id`
     );
-    for (const service of result.rows) {
-      try {
-        await syncService(service);
-      } catch (error40) {
-        logger.warn({ serviceId: service.id, err: error40 }, "Service usage sync failed");
-      }
+    const syncStats = await syncServicesAdaptively(result.rows);
+    if (result.rows.length) {
+      logger.info(
+        {
+          services: result.rows.length,
+          ...syncStats,
+          elapsedMs: Date.now() - startedAt
+        },
+        "Combined usage sync completed"
+      );
     }
-    if (result.rows.length) logger.info({ services: result.rows.length }, "Combined usage sync completed");
   } catch (error40) {
     logger.error({ err: error40 }, "Combined usage sync failed");
   } finally {

@@ -2830,3 +2830,17 @@ mtime_ms = 1793966393969
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/82b6d0e3-52c0-437b-8345-d79d79940191/dc87d452-9487-4c4e-9a8a-9b2158bb968e"
 storage_version_token = "1793966438998245"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "E2d-8Ft9c5hbd2cnZkg6K"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-06T22-04-14-926Z.zip"
+type = "unspecified"
+title = "Hostinger full migration ZIP"
+description = "Release 2026-11-06, 29.7 MB. Includes the updated responsive traffic-analysis page, API bundle, /panel, /mobile, /sub and showcase assets. SHA-256 is in the companion .sha256 file."
+logical_id = "9ff6df24-a593-4b70-8307-f71427c2f116"
+content_hash = "sha256:33d05d52b8c91133b95f79bcb8bdedac88c0f9f17bf77ed24a28e2c82d2d2ba5"
+size = 31116332
+mtime_ms = 1794002781913
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/9ff6df24-a593-4b70-8307-f71427c2f116/e9918cb7-78a2-40a6-ade4-fe70ea43ed59"
+storage_version_token = "1794002902460215"
+content_type = "application/octet-stream"
