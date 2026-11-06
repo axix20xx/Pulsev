@@ -2676,3 +2676,17 @@ mtime_ms = 1793913026084
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ed91842d-487e-4380-a7dc-7125ff00ba4a/2e297694-4b09-4f1d-a750-ae415a5e3879"
 storage_version_token = "1793913056244109"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "x3pVe1hcngKOl6vDwJLAA"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-06T08-14-52-603Z.zip"
+type = "unspecified"
+title = "Hostinger update: cancellation approval feedback"
+description = "Validated Hostinger migration ZIP with visible approval progress and request-specific errors."
+logical_id = "bcc0e74c-0544-4478-ad5c-777f566833e2"
+content_hash = "sha256:edc478f8f3e48e9df80d038956a753d2611578c629693da6c76fc8c4a2da01c1"
+size = 30980155
+mtime_ms = 1793953004329
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/bcc0e74c-0544-4478-ad5c-777f566833e2/cfc50d03-c3cc-40c2-ba90-6415dafc98a3"
+storage_version_token = "1793953029427827"
+content_type = "application/octet-stream"

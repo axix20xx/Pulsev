@@ -2047,25 +2047,31 @@ export function Services() {
   return <Page surface="services"><ServicesContent /></Page>;
 }
 
-function ActionRequestRecord({ request, isMasterAdmin, saving, statusText, statusClass, onReview }: {
+function ActionRequestRecord({ request, isMasterAdmin, saving, reviewingAction, reviewError, statusText, statusClass, onReview }: {
   request: ServiceActionRequest;
   isMasterAdmin: boolean;
   saving: boolean;
+  reviewingAction: { requestId: number; key: 'cancel_service' | 'delete_sale_log'; decision: 'approve' | 'reject' } | null;
+  reviewError?: string;
   statusText: (status: ServiceActionRequest['cancel_service_status']) => string;
   statusClass: (status: ServiceActionRequest['cancel_service_status']) => string;
   onReview: (requestId: number, key: 'cancel_service' | 'delete_sale_log', decision: 'approve' | 'reject') => void;
 }) {
   const needsDecision = (request.cancel_service_requested && request.cancel_service_status === 'pending')
     || (request.delete_sale_requested && request.delete_sale_status === 'pending');
+  const actionIsRunning = (key: 'cancel_service' | 'delete_sale_log', decision: 'approve' | 'reject') =>
+    reviewingAction?.requestId === request.id && reviewingAction.key === key && reviewingAction.decision === decision;
   return <tr className={`ax-action-request-record ${needsDecision ? 'ax-needs-decision' : ''}`} data-testid={`row-action-request-${request.id}`}>
     <td><div className="ax-cell-main"><span className="ax-action-request-person-mark">{request.customer_name.trim().slice(0, 1) || 'م'}</span><span><strong>{request.customer_name}</strong><small>{request.customer_phone || 'شماره ثبت نشده'} · #{request.id} · {dateTimeLabel(request.requested_at)}</small></span></div></td>
     <td><strong>{request.service_name}</strong><small className="ax-sub" dir="ltr">@{request.username} · #{request.service_id}</small></td>
     {isMasterAdmin && <td><strong>{request.reseller_name || 'بدون نام ثبت‌شده'}</strong><small className="ax-sub" dir="ltr">TG {request.reseller_tg_id}</small></td>}
     <td><div className="ax-action-request-status-stack">{request.cancel_service_requested && <span className={`ax-action-request-decision ${statusClass(request.cancel_service_status)}`}>لغو · {statusText(request.cancel_service_status)}</span>}{request.delete_sale_requested && <span className={`ax-action-request-decision ${statusClass(request.delete_sale_status)}`}>حذف فروش · {statusText(request.delete_sale_status)}</span>}{!request.cancel_service_requested && !request.delete_sale_requested && <span>—</span>}</div></td>
     <td><div className="ax-action-request-row-controls">
-      {isMasterAdmin && request.cancel_service_requested && request.cancel_service_status === 'pending' && <><Button variant="secondary" disabled={saving} onClick={() => onReview(request.id, 'cancel_service', 'reject')}>رد لغو</Button><Button disabled={saving} onClick={() => onReview(request.id, 'cancel_service', 'approve')}><Check size={13} /> تأیید لغو</Button></>}
-      {isMasterAdmin && request.delete_sale_requested && request.delete_sale_status === 'pending' && <><Button variant="secondary" disabled={saving} onClick={() => onReview(request.id, 'delete_sale_log', 'reject')}>رد حذف</Button><Button disabled={saving} onClick={() => onReview(request.id, 'delete_sale_log', 'approve')}><Trash2 size={13} /> تأیید حذف</Button></>}
+      {isMasterAdmin && request.cancel_service_requested && request.cancel_service_status === 'pending' && <><Button variant="secondary" disabled={saving} onClick={() => onReview(request.id, 'cancel_service', 'reject')}>{actionIsRunning('cancel_service', 'reject') ? <><RefreshCw size={13} className="ax-spin" /> در حال رد…</> : 'رد لغو'}</Button><Button disabled={saving} onClick={() => onReview(request.id, 'cancel_service', 'approve')}>{actionIsRunning('cancel_service', 'approve') ? <><RefreshCw size={13} className="ax-spin" /> در حال تأیید…</> : <><Check size={13} /> تأیید لغو</>}</Button></>}
+      {isMasterAdmin && request.delete_sale_requested && request.delete_sale_status === 'pending' && <><Button variant="secondary" disabled={saving} onClick={() => onReview(request.id, 'delete_sale_log', 'reject')}>{actionIsRunning('delete_sale_log', 'reject') ? <><RefreshCw size={13} className="ax-spin" /> در حال رد…</> : 'رد حذف'}</Button><Button disabled={saving} onClick={() => onReview(request.id, 'delete_sale_log', 'approve')}>{actionIsRunning('delete_sale_log', 'approve') ? <><RefreshCw size={13} className="ax-spin" /> در حال تأیید…</> : <><Trash2 size={13} /> تأیید حذف</>}</Button></>}
       {!isMasterAdmin && <span className="ax-request-state-note">{request.cancel_service_requested ? statusText(request.cancel_service_status) : statusText(request.delete_sale_status)}</span>}
+      {reviewingAction?.requestId === request.id && <p className="ax-action-request-review-progress" role="status" aria-live="polite">{reviewingAction.key === 'cancel_service' && reviewingAction.decision === 'approve' ? 'در حال غیرفعال‌سازی سرویس و ثبت تصمیم…' : 'در حال ثبت تصمیم…'}</p>}
+      {reviewError && <p className="ax-action-request-review-error" role="alert">{reviewError}</p>}
       {(request.reason || request.admin_note || request.reviewed_at || request.sale_id || request.sale_created_at) && <details className="ax-action-request-more"><summary>جزئیات</summary><div>{request.reason && <p><strong>دلیل:</strong> {request.reason}</p>}{request.admin_note && <p><strong>یادداشت مدیر:</strong> {request.admin_note}</p>}{request.sale_id && <p>فروش <bdi dir="ltr">#{request.sale_id}</bdi> {request.sale_gb != null ? `· ${numberFa(request.sale_gb)} گیگابایت` : ''}</p>}{request.sale_created_at && <p>زمان فروش · {dateTimeLabel(request.sale_created_at)}</p>}{request.reviewed_at && <p>بررسی · {dateTimeLabel(request.reviewed_at)}</p>}</div></details>}
     </div></td>
   </tr>;
@@ -2084,6 +2090,8 @@ function ActionRequestsContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [reviewingAction, setReviewingAction] = useState<{ requestId: number; key: 'cancel_service' | 'delete_sale_log'; decision: 'approve' | 'reject' } | null>(null);
+  const [requestReviewErrors, setRequestReviewErrors] = useState<Record<number, string>>({});
   const [requestFilter, setRequestFilter] = useState<'all' | 'pending' | 'resolved'>('all');
   const load = async () => {
     setLoading(true);
@@ -2123,6 +2131,8 @@ function ActionRequestsContent() {
   };
   const review = async (requestId: number, key: 'cancel_service' | 'delete_sale_log', decision: 'approve' | 'reject') => {
     setSaving(true);
+    setReviewingAction({ requestId, key, decision });
+    setRequestReviewErrors((current) => ({ ...current, [requestId]: '' }));
     setError('');
     try {
       const response = await fetch(`/api/service-action-requests/${requestId}`, {
@@ -2133,10 +2143,25 @@ function ActionRequestsContent() {
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.error || 'بررسی درخواست انجام نشد.');
+      setRequests((current) => current.map((request) => {
+        if (request.id !== requestId) return request;
+        if (key === 'cancel_service') {
+          return {
+            ...request,
+            cancel_service_status: decision === 'approve' ? 'approved' : 'rejected',
+            ...(decision === 'approve' && request.delete_sale_requested ? { delete_sale_status: 'approved' as const } : {}),
+          };
+        }
+        return { ...request, delete_sale_status: decision === 'approve' ? 'approved' : 'rejected' };
+      }));
       await load();
+      void refreshServices().catch(() => undefined);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'بررسی درخواست انجام نشد.');
+      const message = cause instanceof Error ? cause.message : 'بررسی درخواست انجام نشد.';
+      setError(message);
+      setRequestReviewErrors((current) => ({ ...current, [requestId]: message }));
     } finally {
+      setReviewingAction(null);
       setSaving(false);
     }
   };
@@ -2182,7 +2207,7 @@ function ActionRequestsContent() {
         {!loading && !loadError && requests.length > 0 && <div className="ax-action-request-filter" role="group" aria-label="فیلتر وضعیت درخواست">
           {([['all', 'همه درخواست‌ها', requests.length], ['pending', 'نیازمند بررسی', outstandingRequests], ['resolved', 'بررسی‌شده', requests.length - outstandingRequests]] as const).map(([value, label, count]) => <button key={value} type="button" className={requestFilter === value ? 'selected' : ''} aria-pressed={requestFilter === value} onClick={() => setRequestFilter(value)}>{label}<span>{numberFa(count, 0)}</span></button>)}
         </div>}
-         {!loading && visibleRequests.length > 0 && <div className="ax-table-wrap is-stack"><table className="ax-table" aria-label="صف تصمیم درخواست‌های خدمات"><thead><tr><th scope="col">درخواست‌دهنده</th><th scope="col">سرویس</th>{isMasterAdmin && <th scope="col">فروشنده</th>}<th scope="col">وضعیت</th><th scope="col">تصمیم و جزئیات</th></tr></thead><tbody>{visibleRequests.map((request) => <ActionRequestRecord key={request.id} request={request} isMasterAdmin={isMasterAdmin} saving={saving} statusText={statusText} statusClass={statusClass} onReview={(requestId, key, decision) => void review(requestId, key, decision)} />)}</tbody></table></div>}
+        {!loading && visibleRequests.length > 0 && <div className="ax-table-wrap is-stack"><table className="ax-table" aria-label="صف تصمیم درخواست‌های خدمات"><thead><tr><th scope="col">درخواست‌دهنده</th><th scope="col">سرویس</th>{isMasterAdmin && <th scope="col">فروشنده</th>}<th scope="col">وضعیت</th><th scope="col">تصمیم و جزئیات</th></tr></thead><tbody>{visibleRequests.map((request) => <ActionRequestRecord key={request.id} request={request} isMasterAdmin={isMasterAdmin} saving={saving} reviewingAction={reviewingAction} reviewError={requestReviewErrors[request.id]} statusText={statusText} statusClass={statusClass} onReview={(requestId, key, decision) => void review(requestId, key, decision)} />)}</tbody></table></div>}
         {!loading && !loadError && !requests.length && <StatePanel title="درخواستی ثبت نشده است" detail={isReseller ? 'پس از ارسال درخواست برای یک سرویس، وضعیت پیگیری آن در اینجا نمایش داده می‌شود.' : 'درخواست‌های جدید فروشندگان پس از ثبت در این صف ظاهر می‌شوند.'} />}
         {!loading && !loadError && requests.length > 0 && !visibleRequests.length && <StatePanel title="درخواستی با این وضعیت وجود ندارد" detail="برای مشاهده پرونده‌های دیگر، فیلتر وضعیت را تغییر دهید." />}
       </SectionPanel>

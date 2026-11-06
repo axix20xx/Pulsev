@@ -551,6 +551,10 @@
 .ax-root .ax-action-request-decision.is-bad { background: hsl(var(--ax-bad-soft)); color: hsl(var(--ax-bad)); }
 .ax-root .ax-action-request-decision.is-warn { background: hsl(var(--ax-warn-soft)); color: hsl(var(--ax-warn)); }
 .ax-root .ax-action-request-row-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ax-root .ax-action-request-review-progress,
+.ax-root .ax-action-request-review-error { flex: 1 0 100%; margin: 2px 0 0; font-size: 12px; line-height: 1.5; }
+.ax-root .ax-action-request-review-progress { color: hsl(var(--ax-info)); }
+.ax-root .ax-action-request-review-error { border-radius: 8px; background: hsl(var(--ax-bad-soft)); padding: 8px 10px; color: hsl(var(--ax-bad)); }
 .ax-root .ax-request-state-note { color: hsl(var(--ax-muted)); font-size: 12px; }
 .ax-root .ax-action-request-more { width: 100%; }
 .ax-root .ax-action-request-more p { margin: 2px 0; font-size: 12px; }
