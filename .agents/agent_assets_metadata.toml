@@ -1701,14 +1701,14 @@ content_type = "application/octet-stream"
 id = "lVfnTbSw1agNU5uWnf3sZ"
 uri = "file://artifacts/pulse-vpn-client/android/app/build/outputs/apk/release/app-release.apk"
 type = "unspecified"
-title = "Pulse VPN Client 1.0.28 APK (ARM64)"
-description = "Install on 64-bit Android devices. Version and APK signature verified."
+title = "Pulse VPN Android APK"
+description = "Arm64 Android build with OpenVPN, WireGuard, and AmneziaWG."
 logical_id = "ff5332b5-61ef-47f5-86e6-f678c9240c44"
-content_hash = "sha256:cce826d9f07b3c25d1811ec89405f2b3016371e93111f1541d7eec5a0da69d7e"
-size = 70188769
-mtime_ms = 1792593162819
-storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ff5332b5-61ef-47f5-86e6-f678c9240c44/e5478e8a-baaa-4163-bff7-c7c4227522bf"
-storage_version_token = "1792593448692756"
+content_hash = "sha256:2fb4979277451d11ce69ae773a258feb4907baa89ab61e117684bbaf89ac4227"
+size = 43311530
+mtime_ms = 1793990998252
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ff5332b5-61ef-47f5-86e6-f678c9240c44/e7028375-4a71-4519-b94d-5cff5f09d6ce"
+storage_version_token = "1793991189016542"
 content_type = "application/octet-stream"
 
 [[outputs]]
