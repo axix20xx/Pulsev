@@ -55907,6 +55907,25 @@ var getUsageAnalyticsResponseWeekdayHourItemHourMin = 0;
 var getUsageAnalyticsResponseWeekdayHourItemHourMax = 23;
 var getUsageAnalyticsResponseWeekdayHourItemHourMultipleOf = 1;
 var getUsageAnalyticsResponseWeekdayHourItemBytesMin = 0;
+var getUsageAnalyticsResponseWeekdayHourItemObservedDaysMin = 0;
+var getUsageAnalyticsResponseWeekdayHourItemObservedDaysMax = 1;
+var getUsageAnalyticsResponseWeekdayHourItemObservedDaysMultipleOf = 1;
+var getUsageAnalyticsResponseWeeklyDailyItemBytesMin = 0;
+var getUsageAnalyticsResponseWeeklyDailyItemSampleBucketsMin = 0;
+var getUsageAnalyticsResponseWeeklyDailyItemSampleBucketsMultipleOf = 1;
+var getUsageAnalyticsResponseWeeklyDailyItemServiceCountMin = 0;
+var getUsageAnalyticsResponseWeeklyDailyItemServiceCountMultipleOf = 1;
+var getUsageAnalyticsResponseWeeklyInsightsObservedDaysMin = 0;
+var getUsageAnalyticsResponseWeeklyInsightsObservedDaysMax = 7;
+var getUsageAnalyticsResponseWeeklyInsightsObservedDaysMultipleOf = 1;
+var getUsageAnalyticsResponseWeeklyInsightsCoveragePercentMin = 0;
+var getUsageAnalyticsResponseWeeklyInsightsCoveragePercentMax = 100;
+var getUsageAnalyticsResponseWeeklyInsightsTotalBytesMin = 0;
+var getUsageAnalyticsResponseWeeklyInsightsAverageDailyBytesMin = 0;
+var getUsageAnalyticsResponseWeeklyInsightsMedianDailyBytesMin = 0;
+var getUsageAnalyticsResponseWeeklyInsightsVolatilityPercentMin = 0;
+var getUsageAnalyticsResponseWeeklyInsightsPeakDayBytesMin = 0;
+var getUsageAnalyticsResponseWeeklyInsightsAnomalyDaysItemBytesMin = 0;
 var getUsageAnalyticsResponseProvidersItemTwoBytesMin = 0;
 var getUsageAnalyticsResponseProvidersItemTwoSharePercentMin = 0;
 var getUsageAnalyticsResponseProvidersItemTwoSharePercentMax = 100;
@@ -55977,8 +55996,34 @@ var GetUsageAnalyticsResponse = objectType({
   "weekday_hour": arrayType(objectType({
     "weekday": numberType().min(getUsageAnalyticsResponseWeekdayHourItemWeekdayMin).max(getUsageAnalyticsResponseWeekdayHourItemWeekdayMax).multipleOf(getUsageAnalyticsResponseWeekdayHourItemWeekdayMultipleOf),
     "hour": numberType().min(getUsageAnalyticsResponseWeekdayHourItemHourMin).max(getUsageAnalyticsResponseWeekdayHourItemHourMax).multipleOf(getUsageAnalyticsResponseWeekdayHourItemHourMultipleOf),
-    "bytes": numberType().min(getUsageAnalyticsResponseWeekdayHourItemBytesMin)
+    "bytes": numberType().min(getUsageAnalyticsResponseWeekdayHourItemBytesMin),
+    "observed_days": numberType().min(getUsageAnalyticsResponseWeekdayHourItemObservedDaysMin).max(getUsageAnalyticsResponseWeekdayHourItemObservedDaysMax).multipleOf(getUsageAnalyticsResponseWeekdayHourItemObservedDaysMultipleOf)
   })),
+  "weekly_daily": arrayType(objectType({
+    "day": coerce.date(),
+    "bytes": numberType().min(getUsageAnalyticsResponseWeeklyDailyItemBytesMin),
+    "sample_buckets": numberType().min(getUsageAnalyticsResponseWeeklyDailyItemSampleBucketsMin).multipleOf(getUsageAnalyticsResponseWeeklyDailyItemSampleBucketsMultipleOf),
+    "service_count": numberType().min(getUsageAnalyticsResponseWeeklyDailyItemServiceCountMin).multipleOf(getUsageAnalyticsResponseWeeklyDailyItemServiceCountMultipleOf),
+    "observed": booleanType()
+  })),
+  "weekly_insights": objectType({
+    "expected_days": literalType(7),
+    "observed_days": numberType().min(getUsageAnalyticsResponseWeeklyInsightsObservedDaysMin).max(getUsageAnalyticsResponseWeeklyInsightsObservedDaysMax).multipleOf(getUsageAnalyticsResponseWeeklyInsightsObservedDaysMultipleOf),
+    "coverage_percent": numberType().min(getUsageAnalyticsResponseWeeklyInsightsCoveragePercentMin).max(getUsageAnalyticsResponseWeeklyInsightsCoveragePercentMax),
+    "total_bytes": numberType().min(getUsageAnalyticsResponseWeeklyInsightsTotalBytesMin),
+    "average_daily_bytes": numberType().min(getUsageAnalyticsResponseWeeklyInsightsAverageDailyBytesMin).nullable(),
+    "median_daily_bytes": numberType().min(getUsageAnalyticsResponseWeeklyInsightsMedianDailyBytesMin).nullable(),
+    "volatility_percent": numberType().min(getUsageAnalyticsResponseWeeklyInsightsVolatilityPercentMin).nullable(),
+    "trend": enumType(["rising", "stable", "falling", "insufficient"]),
+    "trend_percent_per_day": numberType().nullable(),
+    "peak_day": coerce.date().nullable(),
+    "peak_day_bytes": numberType().min(getUsageAnalyticsResponseWeeklyInsightsPeakDayBytesMin).nullable(),
+    "anomaly_days": arrayType(objectType({
+      "day": coerce.date(),
+      "bytes": numberType().min(getUsageAnalyticsResponseWeeklyInsightsAnomalyDaysItemBytesMin),
+      "robust_score": numberType()
+    }))
+  }),
   "provider_options": arrayType(objectType({
     "key": stringType(),
     "label": stringType()
@@ -76067,6 +76112,78 @@ function recommendUsagePackageGb(estimate, days = 30) {
   return Math.ceil(Math.max(5, usageWithReserveGb) / 5) * 5;
 }
 
+// src/lib/weekly-usage-insights.ts
+var MEBIBYTE = 1048576;
+var ANOMALY_MIN_BYTES = 512 * MEBIBYTE;
+var MAD_SCALE = 1.4826;
+function median2(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+function dayOrdinal(day) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const [year, month, date6] = day.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, date6));
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== date6) return null;
+  return parsed.getTime() / 864e5;
+}
+function robustSlope(points) {
+  if (points.length < 2) return null;
+  const dated = points.flatMap((point2) => {
+    const ordinal = dayOrdinal(point2.day);
+    return ordinal === null ? [] : [{ ...point2, ordinal }];
+  });
+  const slopes = [];
+  for (let left = 0; left < dated.length; left += 1) {
+    for (let right = left + 1; right < dated.length; right += 1) {
+      const elapsedDays = dated[right].ordinal - dated[left].ordinal;
+      if (elapsedDays > 0) slopes.push((dated[right].bytes - dated[left].bytes) / elapsedDays);
+    }
+  }
+  return median2(slopes);
+}
+function analyzeWeeklyUsage(samples) {
+  const points = samples.filter((sample) => sample.observed && sample.sampleBuckets > 0 && dayOrdinal(sample.day) !== null).map((sample) => ({ day: sample.day, bytes: Math.max(0, Number(sample.bytes) || 0) })).sort((a, b) => a.day.localeCompare(b.day));
+  const values = points.map((point2) => point2.bytes);
+  const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  const center = median2(values);
+  const absoluteDeviations = center === null ? [] : values.map((value) => Math.abs(value - center));
+  const mad = median2(absoluteDeviations);
+  const scaledMad = mad === null ? null : mad * MAD_SCALE;
+  const slope = points.length >= 5 ? robustSlope(points) : null;
+  const trendPercent = slope !== null && center !== null && center > 0 ? slope / center * 100 : null;
+  const trend = points.length < 5 ? "insufficient" : trendPercent === null || Math.abs(trendPercent) < 10 ? "stable" : trendPercent > 0 ? "rising" : "falling";
+  const anomalyThreshold = center === null ? null : Math.max(ANOMALY_MIN_BYTES, center * 1.5, (scaledMad ?? 0) * 3);
+  const anomalyMinimum = center === null || anomalyThreshold === null ? null : Math.max(ANOMALY_MIN_BYTES, center * 2.5, center + anomalyThreshold);
+  const anomalyDenominator = Math.max(scaledMad ?? 0, ANOMALY_MIN_BYTES / 3);
+  const anomalyDays = points.length < 5 || anomalyMinimum === null ? [] : points.filter((point2) => point2.bytes >= anomalyMinimum).map((point2) => ({
+    day: point2.day,
+    bytes: point2.bytes,
+    robust_score: Number(((point2.bytes - (center ?? 0)) / anomalyDenominator).toFixed(2))
+  }));
+  const peakCandidate = points.reduce(
+    (current, point2) => !current || point2.bytes > current.bytes ? point2 : current,
+    null
+  );
+  const peak = peakCandidate && peakCandidate.bytes > 0 ? peakCandidate : null;
+  return {
+    expected_days: 7,
+    observed_days: points.length,
+    coverage_percent: Math.round(points.length / 7 * 100),
+    total_bytes: values.reduce((sum, value) => sum + value, 0),
+    average_daily_bytes: average,
+    median_daily_bytes: center,
+    volatility_percent: center !== null && center > 0 && scaledMad !== null ? Number((scaledMad / center * 100).toFixed(1)) : null,
+    trend,
+    trend_percent_per_day: trendPercent === null ? null : Number(trendPercent.toFixed(1)),
+    peak_day: peak?.day ?? null,
+    peak_day_bytes: peak?.bytes ?? null,
+    anomaly_days: anomalyDays
+  };
+}
+
 // src/lib/protocol-access.ts
 function hasWireGuardAccess(resellerTelegramId, wireguardEnabled, masterAdminTelegramId) {
   if (resellerTelegramId !== null && resellerTelegramId !== void 0 && String(resellerTelegramId).trim() === String(masterAdminTelegramId)) {
@@ -86786,7 +86903,10 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
   const serviceOptionsSql = effectiveResellerId === null ? "TRUE" : (serviceOptionParams.push(effectiveResellerId), `svc.reseller_tg_id = $${serviceOptionParams.length}`);
   const quotaParams = effectiveResellerId === null ? [] : [effectiveResellerId];
   const quotaScopeSql = effectiveResellerId === null ? "TRUE" : `svc.reseller_tg_id = $1`;
-  const [summary, providers, buckets, services, history, providerOptions, serviceOptions, weekdayHours, customers, quotaSummaryResult, quotaForecastRows, anomalyRows] = await Promise.all([
+  const weeklyParams = [...filterParams];
+  const weeklyStartSql = "((date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') - INTERVAL '7 days') AT TIME ZONE 'Asia/Tehran')";
+  const weeklyEndSql = "(date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') AT TIME ZONE 'Asia/Tehran')";
+  const [summary, providers, buckets, services, history, providerOptions, serviceOptions, weekdayHours, weeklyDaily, customers, quotaSummaryResult, quotaForecastRows, anomalyRows] = await Promise.all([
     pool.query(
       `SELECT
          COALESCE(SUM(h.delta_bytes) FILTER (WHERE h.captured_at >= $${currentFromIndex} AND h.captured_at < $${currentToIndex}), 0)::float8 AS total_bytes,
@@ -86901,11 +87021,36 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
     pool.query(
       `SELECT ((EXTRACT(DOW FROM h.captured_at AT TIME ZONE 'Asia/Tehran')::int + 1) % 7)::int AS weekday,
               EXTRACT(HOUR FROM h.captured_at AT TIME ZONE 'Asia/Tehran')::int AS hour,
-              COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes
+               COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes,
+               COUNT(DISTINCT (h.captured_at AT TIME ZONE 'Asia/Tehran')::date)::int AS observed_days
        FROM reseller_service_usage_history h
-       WHERE ${rangeSql}
+        WHERE ${filterSql}
+          AND h.captured_at >= ${weeklyStartSql}
+          AND h.captured_at < ${weeklyEndSql}
        GROUP BY weekday, hour`,
-      rangeParams
+      weeklyParams
+    ),
+    pool.query(
+      `WITH calendar_days AS (
+          SELECT generate_series(
+            date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') - INTERVAL '7 days',
+            date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') - INTERVAL '1 day',
+            INTERVAL '1 day'
+          ) AS day_local
+        )
+        SELECT calendar_days.day_local::date::text AS day,
+               COALESCE(SUM(h.delta_bytes), 0)::float8 AS bytes,
+               COUNT(DISTINCT date_bin('5 minutes', h.captured_at, TIMESTAMPTZ 'epoch'))::int AS sample_buckets,
+               COUNT(DISTINCT h.service_id)::int AS service_count,
+               COUNT(h.captured_at) > 0 AS observed
+        FROM calendar_days
+        LEFT JOIN reseller_service_usage_history h
+          ON h.captured_at >= (calendar_days.day_local AT TIME ZONE 'Asia/Tehran')
+         AND h.captured_at < ((calendar_days.day_local + INTERVAL '1 day') AT TIME ZONE 'Asia/Tehran')
+         AND ${filterSql}
+        GROUP BY calendar_days.day_local
+        ORDER BY calendar_days.day_local`,
+      weeklyParams
     ),
     pool.query(
       `SELECT h.customer_id::float8 AS customer_id,
@@ -87080,6 +87225,20 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
   const previousToIso = previousToAt.toISOString();
   const deltaBytes = totalBytes - previousTotalBytes;
   const changePercent = previousTotalBytes > 0 ? deltaBytes / previousTotalBytes * 100 : null;
+  const weeklyDailyPoints = weeklyDaily.rows.map((row) => ({
+    day: String(row.day),
+    bytes: Math.max(0, Number(row.bytes ?? 0)),
+    sample_buckets: Math.max(0, Number(row.sample_buckets ?? 0)),
+    service_count: Math.max(0, Number(row.service_count ?? 0)),
+    observed: Boolean(row.observed)
+  }));
+  const weeklyInsights = analyzeWeeklyUsage(weeklyDailyPoints.map((point2) => ({
+    day: point2.day,
+    bytes: point2.bytes,
+    sampleBuckets: point2.sample_buckets,
+    serviceCount: point2.service_count,
+    observed: point2.observed
+  })));
   const forecastGroups = /* @__PURE__ */ new Map();
   for (const row of quotaForecastRows.rows) {
     const serviceId = Number(row.service_id);
@@ -87160,8 +87319,11 @@ router2.get("/usage-analytics", requireAuth, async (req, res) => {
     weekday_hour: weekdayHours.rows.map((row) => ({
       weekday: Number(row.weekday),
       hour: Number(row.hour),
-      bytes: Math.max(0, Number(row.bytes ?? 0))
+      bytes: Math.max(0, Number(row.bytes ?? 0)),
+      observed_days: Math.max(0, Number(row.observed_days ?? 0))
     })),
+    weekly_daily: weeklyDailyPoints,
+    weekly_insights: weeklyInsights,
     provider_options: allProviderOptions,
     providers: allProviderTotals,
     provider_health: allProviderHealth,
