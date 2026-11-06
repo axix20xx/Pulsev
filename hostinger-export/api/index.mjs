@@ -91508,7 +91508,14 @@ router2.post("/services", requireAuth, async (req, res) => {
       }
     } catch (error40) {
       try {
-        await disablePanelUser(username, null, serviceId, ownerId, req.auth?.role);
+        await disablePanelUser(
+          username,
+          null,
+          serviceId,
+          ownerId,
+          req.auth?.role,
+          { includeDisabledProviders: true }
+        );
       } catch {
       }
       await client.query("ROLLBACK");
@@ -91833,7 +91840,8 @@ router2.patch("/services/:id", requireAuth, async (req, res) => {
             service.falco_config_id,
             params.data.id,
             Number(req.auth?.telegramId),
-            req.auth?.role
+            req.auth?.role,
+            { includeDisabledProviders: true }
           );
         } catch {
           remoteWarning = "\u063A\u06CC\u0631\u0641\u0639\u0627\u0644\u200C\u0633\u0627\u0632\u06CC provider\u0647\u0627 \u06A9\u0627\u0645\u0644 \u0646\u0634\u062F";
@@ -93947,13 +93955,20 @@ async function updatePanelUsage(username, panelKey2, rawBytes) {
   return effective;
 }
 async function syncServiceUnlocked(service) {
-  const panelUsages = await readPanelUsages(
-    service.id,
-    service.rain_username,
-    service.falco_config_id,
-    Number(service.reseller_tg_id),
-    "reseller"
-  );
+  let panelUsages = [];
+  let panelUsageReadFailed = false;
+  try {
+    panelUsages = await readPanelUsages(
+      service.id,
+      service.rain_username,
+      service.falco_config_id,
+      Number(service.reseller_tg_id),
+      "reseller"
+    );
+  } catch (error40) {
+    panelUsageReadFailed = true;
+    logger.warn({ serviceId: service.id, err: error40 }, "Provider usage read failed");
+  }
   let panelUsedBytes = 0;
   for (const usage of panelUsages) {
     const effectiveBytes = usage.stale ? usage.usedBytes : await updatePanelUsage(usage.username, usage.panelKey, usage.usedBytes);
@@ -94010,7 +94025,7 @@ async function syncServiceUnlocked(service) {
   const calculatedCombinedBytes = Math.max(0, Math.round(panelUsedBytes + awgUsedBytes));
   const limitBytes = Math.max(0, Math.round(Number(service.gb ?? 0) * BYTES_PER_GB4));
   const expired = service.expired_in_db;
-  const usageSnapshotFresh = awgStatsFresh && panelUsages.every((usage) => !usage.stale);
+  const usageSnapshotFresh = !panelUsageReadFailed && awgStatsFresh && panelUsages.every((usage) => !usage.stale);
   const combinedBytes = usageSnapshotFresh ? calculatedCombinedBytes : Math.max(Math.max(0, Number(service.last_used_bytes ?? 0)), calculatedCombinedBytes);
   const quotaReached = usageSnapshotFresh && limitBytes > 0 && combinedBytes >= limitBytes;
   const alreadyDisabled = service.status === "disabled";
@@ -94038,25 +94053,47 @@ async function syncServiceUnlocked(service) {
     );
   }
   if (shouldDisable && needsRemoteDisable) {
-    const sharedUsername = await hasOtherActiveServiceWithUsername(
-      service.rain_username,
-      service.id
-    );
+    let sharedUsername = false;
+    let sharingCheckFailed = false;
+    try {
+      sharedUsername = await hasOtherActiveServiceWithUsername(
+        service.rain_username,
+        service.id
+      );
+    } catch (error40) {
+      sharingCheckFailed = true;
+      logger.warn(
+        { serviceId: service.id, err: error40 },
+        "Provider disable deferred because shared-service safety could not be checked"
+      );
+    }
     if (sharedUsername && (!alreadyDisabled || Number(service.remote_disable_pending) !== 1)) {
       logger.warn(
         { serviceId: service.id, username: service.rain_username },
         "Provider disable deferred because another active service shares this username"
       );
     }
-    const panelResult = sharedUsername ? { attempted: 0, disabled: 0 } : await disablePanelUser(
-      service.rain_username,
-      service.falco_config_id,
-      service.id,
-      Number(service.reseller_tg_id),
-      "reseller"
-    );
+    let panelResult = { attempted: 0, disabled: 0 };
+    if (!sharedUsername && !sharingCheckFailed) {
+      try {
+        panelResult = await disablePanelUser(
+          service.rain_username,
+          service.falco_config_id,
+          service.id,
+          Number(service.reseller_tg_id),
+          "reseller",
+          { includeDisabledProviders: true }
+        );
+      } catch (error40) {
+        panelResult = { attempted: 1, disabled: 0 };
+        logger.warn(
+          { serviceId: service.id, err: error40 },
+          "Provider disable failed; remote disable remains pending"
+        );
+      }
+    }
     awgDisabled = service.awg_client_id ? await disableAwgClient(service.awg_client_id) : true;
-    const providersDisabled = !sharedUsername && allRemoteProvidersDisabled(panelResult.attempted, panelResult.disabled);
+    const providersDisabled = !sharedUsername && !sharingCheckFailed && allRemoteProvidersDisabled(panelResult.attempted, panelResult.disabled);
     remoteDisabled = providersDisabled && awgDisabled;
   }
   const remainingBytes = limitBytes > 0 ? Math.max(0, limitBytes - combinedBytes) : 0;

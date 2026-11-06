@@ -30,6 +30,21 @@ test("disable uses saved identities for newly added providers and falls back for
   assert.equal(identity.providerDisableUsername("service-user", "legacy-provider", { usage: mapped }), "service-user");
 });
 
+test("disable resolves identities for each saved protocol-specific Provider account", () => {
+  const identities = {
+    usage: new Map([["marzban-main", "marzban-user"]]),
+    wireGuard: new Map([["wg-main", "wg-user"]]),
+    v2ray: new Map([["xray-main", "xray-user"]]),
+    openVpn: new Map([["openvpn-main", "openvpn-user"]]),
+    ipsec: { providerKey: "ipsec-main", username: "ipsec-user" },
+  };
+  assert.equal(identity.providerDisableUsername("service-user", "marzban-main", identities), "marzban-user");
+  assert.equal(identity.providerDisableUsername("service-user", "wg-main", identities), "wg-user");
+  assert.equal(identity.providerDisableUsername("service-user", "xray-main", identities), "xray-user");
+  assert.equal(identity.providerDisableUsername("service-user", "openvpn-main", identities), "openvpn-user");
+  assert.equal(identity.providerDisableUsername("service-user", "ipsec-main", identities), "ipsec-user");
+});
+
 test("AWG usage history is not mistaken for a panel-provider account", () => {
   assert.equal(identity.isDedicatedAwgUsageProviderKey("amneziawg"), true);
   assert.equal(identity.isDedicatedAwgUsageProviderKey(" AmneziaWG "), true);

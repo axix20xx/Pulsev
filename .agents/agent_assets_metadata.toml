@@ -2732,3 +2732,17 @@ mtime_ms = 1793954806273
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/6b1a7e0d-3048-474f-b9ab-3f8ba7895240/13a66138-ddc1-44a1-9688-cd5408a8674c"
 storage_version_token = "1793954824550428"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "0KXOAHJiJgYgkmwz5r1XO"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-06T09-00-09-294Z.zip"
+type = "unspecified"
+title = "Hostinger release — all-provider shutdown"
+description = "Includes the AWG mapping fix, automatic quota and expiry shutdown/retry handling, and mapped disabled-provider targeting. Validated ZIP; SHA-256 41e2bd56d426e31baafe0aebdd197efbeec8e629eb58f82943d1fc92083c94db."
+logical_id = "2522a22d-c88f-4c8f-8814-da2e9ce5b2a1"
+content_hash = "sha256:41e2bd56d426e31baafe0aebdd197efbeec8e629eb58f82943d1fc92083c94db"
+size = 30986768
+mtime_ms = 1793955726172
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/2522a22d-c88f-4c8f-8814-da2e9ce5b2a1/75f09a31-250a-4ec9-a82e-4d790acfe923"
+storage_version_token = "1793955816034628"
+content_type = "application/octet-stream"

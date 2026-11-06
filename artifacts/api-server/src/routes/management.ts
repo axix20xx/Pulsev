@@ -7291,7 +7291,14 @@ router.post("/services", requireAuth, async (req, res): Promise<void> => {
       }
     } catch (error) {
       try {
-        await disablePanelUser(username, null, serviceId, ownerId, req.auth?.role);
+        await disablePanelUser(
+          username,
+          null,
+          serviceId,
+          ownerId,
+          req.auth?.role,
+          { includeDisabledProviders: true },
+        );
       } catch {
         // Remote cleanup is best effort when provisioning fails.
       }
@@ -7628,6 +7635,7 @@ router.patch("/services/:id", requireAuth, async (req, res): Promise<void> => {
           params.data.id,
           Number(req.auth?.telegramId),
           req.auth?.role,
+          { includeDisabledProviders: true },
         );
       } catch {
         remoteWarning = "غیرفعال‌سازی providerها کامل نشد";

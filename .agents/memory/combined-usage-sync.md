@@ -27,6 +27,12 @@ Provider clients and the AWG client are lifecycle parts of the same service: cre
 
 **How to apply:** Roll back the local create on provider/AWG failure, perform best-effort remote cleanup, and retry automatic disable while any provider or AWG remains enabled.
 
+The `amneziawg` usage-account row is an AWG history identity, not a panel-provider account; remote shutdown must use the service's saved AWG client ID separately.
+
+**Why:** Usage history shares a provider-account mapping table, so treating its AWG row as a generic panel mapping can produce a false missing-provider failure and block cancellation.
+
+**How to apply:** Exclude the reserved AWG key from panel lookup and disable lists, but keep AWG confirmation and retry state in the shared lifecycle flow.
+
 AzadPanel OpenVPN reports current `used_traffic` in bytes; use it as a provider counter, not `lifetime_used_traffic`.
 
 **Why:** Lifetime traffic can include earlier service periods, while the current counter works with the per-provider reset offsets used during renewal.
