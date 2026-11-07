@@ -2858,3 +2858,17 @@ mtime_ms = 1794003660522
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/e232a610-1dd3-44c7-8c9c-6572a823641c/8ed61ee9-f2af-400d-a745-3159970589f9"
 storage_version_token = "1794003697738108"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Un3w93WIpaGaKZyLbfPa2"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-07T19-28-18-558Z.zip"
+type = "unspecified"
+title = "Hostinger deployment ZIP"
+description = "Validated full Hostinger package including the iOS install-all fallback for unavailable VPN providers. SHA-256: c4399158ff4fde682724aed01239787fb99fedbb9ce570ae27b4cef7b18e826a"
+logical_id = "023f2b80-b8cb-49d2-bc55-0068befbc8db"
+content_hash = "sha256:c4399158ff4fde682724aed01239787fb99fedbb9ce570ae27b4cef7b18e826a"
+size = 31118357
+mtime_ms = 1794079815040
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/023f2b80-b8cb-49d2-bc55-0068befbc8db/3c6992bd-a1c7-430d-bea8-41fca228f13e"
+storage_version_token = "1794079835474040"
+content_type = "application/octet-stream"

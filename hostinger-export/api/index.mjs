@@ -84392,6 +84392,17 @@ ${payloads.join("\n")}
 </plist>`;
 }
 
+// src/lib/optional-mobileconfig-source.ts
+async function loadOptionalMobileConfigSource(source, load, skippedSources, onFailure) {
+  try {
+    return await load();
+  } catch (error40) {
+    skippedSources.add(source);
+    onFailure(source, error40);
+    return void 0;
+  }
+}
+
 // src/lib/wireguard-delivery-links.ts
 function publicWireGuardDeliveryLinks(token, providerKey, locations) {
   const providerPath = `/api/public/subscription/${encodeURIComponent(token)}/wireguard`;
@@ -89394,42 +89405,56 @@ router2.get("/public/subscription/:token/all/mobileconfig", async (req, res) => 
     const serviceId = Number(service.id);
     const resellerId = Number(service.reseller_tg_id);
     const entries = [];
+    const skippedSources = /* @__PURE__ */ new Set();
+    const loadOptionalSource = (source, load) => loadOptionalMobileConfigSource(source, load, skippedSources, (failedSource) => {
+      req.log.warn(
+        { serviceId, source: failedSource },
+        "Skipped unavailable provider while building combined iOS profile"
+      );
+    });
     let ipsecProfile = null;
     const openVpn = await loadSavedOpenVpnDelivery(serviceId);
     if (openVpn) {
-      try {
-        const profile2 = await downloadOpenVpnProfile(
+      const profile2 = await loadOptionalSource(
+        `openvpn:${openVpn.provider_key}`,
+        () => downloadOpenVpnProfile(
           String(service.username),
           openVpn.provider_key,
           void 0,
           resellerId,
           "reseller",
           serviceId
-        );
+        )
+      );
+      if (profile2) {
         entries.push({
           protocol: "openvpn",
           config: profile2.body,
           serverId: "openvpn",
           serverName: "Server 01"
         });
-      } catch (error40) {
-        const message = error40 instanceof Error ? error40.message : "";
-        if (!/No enabled AzadPanel OpenVPN provider is configured|selected AzadPanel OpenVPN provider is unavailable|AzadPanel .+ is not configured for OpenVPN/.test(message)) {
-          throw error40;
-        }
       }
     }
     if (service.wireguard_enabled) {
       const wireGuardDeliveries = await loadSavedWireGuardDeliveries(serviceId);
       for (const wireGuard of wireGuardDeliveries) {
-        if (!await isConfiguredWireGuardProvider(wireGuard.provider_key, resellerId, "reseller")) continue;
-        const profiles = await downloadWireGuardProfiles(
-          wireGuard.username,
-          wireGuard.provider_key,
-          wireGuard.locations.map((location) => location.id),
-          resellerId,
-          "reseller"
+        const sourceKey = `wireguard:${wireGuard.provider_key}`;
+        const configured = await loadOptionalSource(
+          sourceKey,
+          () => isConfiguredWireGuardProvider(wireGuard.provider_key, resellerId, "reseller")
         );
+        if (!configured) continue;
+        const profiles = await loadOptionalSource(
+          sourceKey,
+          () => downloadWireGuardProfiles(
+            wireGuard.username,
+            wireGuard.provider_key,
+            wireGuard.locations.map((location) => location.id),
+            resellerId,
+            "reseller"
+          )
+        );
+        if (!profiles?.length) continue;
         const firstProfileNumber = entries.filter((entry) => entry.protocol === "wireguard").length + 1;
         entries.push(...profiles.map((profile2, index) => ({
           protocol: "wireguard",
@@ -89441,58 +89466,72 @@ router2.get("/public/subscription/:token/all/mobileconfig", async (req, res) => 
     }
     const ravenChannels = service.wireguard_enabled ? ["openvpn", "wireguard"] : ["openvpn"];
     for (const channel of ravenChannels) {
-      const sources = await ravenProfileSources(serviceId, channel);
+      const sources = await loadOptionalSource(
+        `raven-${channel}`,
+        () => ravenProfileSources(serviceId, channel)
+      );
+      if (!sources) continue;
       for (const source of sources) {
-        const upstream = await fetch(source.url, {
-          headers: { Accept: "application/octet-stream, text/plain, */*" },
-          signal: AbortSignal.timeout(15e3)
+        const entry = await loadOptionalSource(`raven:${channel}:${source.provider_key}`, async () => {
+          const upstream = await fetch(source.url, {
+            headers: { Accept: "application/octet-stream, text/plain, */*" },
+            signal: AbortSignal.timeout(15e3)
+          });
+          if (!upstream.ok) {
+            throw new Error(`Raven ${channel} profile returned HTTP ${upstream.status}.`);
+          }
+          const bytes = Buffer.from(await upstream.arrayBuffer());
+          if (!bytes.length || bytes.length > 1048576) {
+            throw new Error(`Raven ${channel} profile size is invalid.`);
+          }
+          const protocol = channel;
+          const serverNumber = entries.filter((entry2) => entry2.protocol === protocol).length + 1;
+          return {
+            protocol,
+            config: bytes.toString("utf8").replace(/^\uFEFF/, ""),
+            serverId: `raven-${createHash8("sha256").update(`${serviceId}:${source.provider_key}:${channel}:${source.index}:${source.url}`).digest("hex").slice(0, 24)}`,
+            serverName: `Server ${String(serverNumber).padStart(2, "0")}`
+          };
         });
-        if (!upstream.ok) {
-          throw new Error(`Raven ${channel} profile returned HTTP ${upstream.status}.`);
-        }
-        const bytes = Buffer.from(await upstream.arrayBuffer());
-        if (!bytes.length || bytes.length > 1048576) {
-          throw new Error(`Raven ${channel} profile size is invalid.`);
-        }
-        const protocol = channel;
-        const serverNumber = entries.filter((entry) => entry.protocol === protocol).length + 1;
-        entries.push({
-          protocol,
-          config: bytes.toString("utf8").replace(/^\uFEFF/, ""),
-          serverId: `raven-${createHash8("sha256").update(`${serviceId}:${source.provider_key}:${channel}:${source.index}:${source.url}`).digest("hex").slice(0, 24)}`,
-          serverName: `Server ${String(serverNumber).padStart(2, "0")}`
-        });
+        if (entry) entries.push(entry);
       }
     }
     if (service.ipsec_enabled) {
       const ipsec = await loadSavedIpsecDelivery(serviceId);
       if (ipsec) {
-        const profile2 = await downloadIpsecAppleProfile(
-          ipsec.username,
-          ipsec.provider_key,
-          resellerId,
-          "reseller"
+        const profile2 = await loadOptionalSource(
+          `ipsec:${ipsec.provider_key}`,
+          () => downloadIpsecAppleProfile(
+            ipsec.username,
+            ipsec.provider_key,
+            resellerId,
+            "reseller"
+          )
         );
-        ipsecProfile = profile2.body;
+        if (profile2) ipsecProfile = profile2.body;
       }
     }
-    const awg = await resolvePublicAwgProfile(token);
-    if (awg.status === 200) {
+    const awg = await loadOptionalSource(
+      "amneziawg",
+      () => resolvePublicAwgProfile(token)
+    );
+    if (awg?.status === 200) {
       entries.push({
         protocol: "amneziawg",
         config: awg.config,
         serverId: "amneziawg",
         serverName: "Server 01"
       });
-    } else if (awg.status === 502) {
-      res.status(502).type("text/plain").send(awg.error);
-      return;
-    } else if (awg.status === 410) {
-      res.status(410).type("text/plain").send(awg.error);
-      return;
+    } else if (awg?.status === 502) {
+      skippedSources.add("amneziawg");
+      req.log.warn({ serviceId, source: "amneziawg" }, "Skipped unavailable provider while building combined iOS profile");
     }
     if (!entries.length && !ipsecProfile) {
-      res.status(409).type("text/plain").send("\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0647\u06CC\u0686 \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0641\u0639\u0627\u0644 \u0648 \u0622\u0645\u0627\u062F\u0647\u200C\u0627\u06CC \u0628\u0631\u0627\u06CC \u0646\u0635\u0628 iOS \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F.");
+      if (skippedSources.size) {
+        res.status(502).type("text/plain").send("\u062F\u0631 \u062D\u0627\u0644 \u062D\u0627\u0636\u0631 \u0647\u06CC\u0686 Provider\u06CC \u0628\u0631\u0627\u06CC \u0633\u0627\u062E\u062A \u067E\u0631\u0648\u0641\u0627\u06CC\u0644 iOS \u067E\u0627\u0633\u062E \u0646\u062F\u0627\u062F. \u0644\u0637\u0641\u0627\u064B \u06A9\u0645\u06CC \u0628\u0639\u062F \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F.");
+      } else {
+        res.status(409).type("text/plain").send("\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0647\u06CC\u0686 \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0641\u0639\u0627\u0644 \u0648 \u0622\u0645\u0627\u062F\u0647\u200C\u0627\u06CC \u0628\u0631\u0627\u06CC \u0646\u0635\u0628 iOS \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F.");
+      }
       return;
     }
     const profile = createMultiProtocolMobileConfigBundle(entries, serviceId, ipsecProfile);
@@ -89508,6 +89547,10 @@ router2.get("/public/subscription/:token/all/mobileconfig", async (req, res) => 
     res.setHeader("content-type", "application/x-apple-aspen-config");
     res.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
     res.setHeader("x-pulse-included-protocols", protocols);
+    if (skippedSources.size) {
+      const skippedProtocols = [...new Set([...skippedSources].map((source) => source.split(":")[0]))];
+      res.setHeader("x-pulse-skipped-providers", skippedProtocols.join(","));
+    }
     res.send(profile);
   } catch (error40) {
     const message = error40 instanceof Error ? error40.message : "\u0633\u0627\u062E\u062A \u067E\u0631\u0648\u0641\u0627\u06CC\u0644 \u06CC\u06A9\u200C\u062C\u0627\u06CC \u0633\u0631\u0648\u06CC\u0633\u200C\u0647\u0627 \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062F.";
