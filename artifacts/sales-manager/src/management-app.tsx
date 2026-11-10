@@ -35,6 +35,7 @@ import NotFound from '@/pages/not-found';
 import { StorefrontManagerPage } from '@/pages/storefront';
 import TelegramControlPage from '@/pages/telegram-control';
 import UsageAnalyticsPage from '@/pages/usage-analytics';
+import PhoneNumberExportPage from '@/pages/phone-number-export';
 
 function ProviderAccountAuditRoute() {
   const { session } = usePulse();
@@ -79,6 +80,7 @@ export default function ManagementApp() {
             <Route path="/awg-usage" component={AwgUsagePage} />
             <Route path="/awg-usage-log" component={AwgUsageLogRoute} />
             <Route path="/usage-analytics" component={UsageAnalyticsPage} />
+            <Route path="/phone-export" component={PhoneNumberExportPage} />
             <Route path="/customers" component={Customers} />
             <Route path="/customers/:id" component={CustomerDetail} />
             <Route path="/reports" component={Reports} />

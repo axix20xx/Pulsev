@@ -1,6 +1,6 @@
 import './admin.css';
 import './routes.css';
-import { Activity, BarChart3, Bell, Check, ChevronDown, ChevronLeft, Copy, CreditCard, Gauge, LayoutDashboard, LogOut, Menu, Package, PanelRightClose, PanelRightOpen, Search, Send, Settings, ShieldAlert, ShieldEllipsis, ShoppingBag, Sparkles, Store, Users, Wifi, X } from 'lucide-react';
+import { Activity, BarChart3, Bell, Check, ChevronDown, ChevronLeft, Copy, CreditCard, Gauge, LayoutDashboard, LogOut, Menu, Package, PanelRightClose, PanelRightOpen, Phone, Search, Send, Settings, ShieldAlert, ShieldEllipsis, ShoppingBag, Sparkles, Store, Users, Wifi, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Link, useLocation } from 'wouter';
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
@@ -31,6 +31,7 @@ const groups: { title: string; items: NavItem[] }[] = [
   ] },
   { title: 'مشتری و سرویس', items: [
     { href: '/customers', label: 'مشتری‌ها', icon: Users },
+    { href: '/phone-export', label: 'خروجی شماره‌ها', icon: Phone },
     { href: '/services', label: 'سرویس‌ها', icon: Package },
     { href: '/action-requests', label: 'درخواست‌های عملیات', icon: ShieldAlert },
   ] },
