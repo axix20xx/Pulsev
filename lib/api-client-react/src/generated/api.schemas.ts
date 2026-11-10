@@ -1488,6 +1488,17 @@ export interface Customer {
   mobile_otp_locked?: boolean;
 }
 
+export interface CustomerPhoneNumbersPage {
+  phones: string[];
+  /** @minimum 0 */
+  total: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  next_offset: number | null;
+}
+
 export type CustomerDetail = Customer & ({
   services: Service[];
   sales: Sale[];
@@ -1886,4 +1897,16 @@ export type ListCustomersIncludeMobileOtp = typeof ListCustomersIncludeMobileOtp
 export const ListCustomersIncludeMobileOtp = {
   true: 'true',
 } as const;
+
+export type ListCustomerPhoneNumbersParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
 

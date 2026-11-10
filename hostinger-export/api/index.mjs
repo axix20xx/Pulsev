@@ -56724,6 +56724,21 @@ var ListCustomersResponseItem = objectType({
   "mobile_otp_locked": booleanType().optional()
 });
 var ListCustomersResponse = arrayType(ListCustomersResponseItem);
+var listCustomerPhoneNumbersQueryLimitDefault = 200;
+var listCustomerPhoneNumbersQueryLimitMax = 200;
+var listCustomerPhoneNumbersQueryOffsetDefault = 0;
+var listCustomerPhoneNumbersQueryOffsetMin = 0;
+var ListCustomerPhoneNumbersQueryParams = objectType({
+  "limit": coerce.number().min(1).max(listCustomerPhoneNumbersQueryLimitMax).default(listCustomerPhoneNumbersQueryLimitDefault),
+  "offset": coerce.number().min(listCustomerPhoneNumbersQueryOffsetMin).default(listCustomerPhoneNumbersQueryOffsetDefault)
+});
+var listCustomerPhoneNumbersResponseTotalMin = 0;
+var listCustomerPhoneNumbersResponseNextOffsetMin = 0;
+var ListCustomerPhoneNumbersResponse = objectType({
+  "phones": arrayType(stringType()),
+  "total": numberType().min(listCustomerPhoneNumbersResponseTotalMin),
+  "next_offset": numberType().min(listCustomerPhoneNumbersResponseNextOffsetMin).nullable()
+});
 var GetCustomerParams = objectType({
   "id": coerce.number().min(1)
 });
@@ -93237,6 +93252,42 @@ router2.get("/customers", requireAuth, async (req, res) => {
     })
   ) : result.rows;
   res.json(ListCustomersResponse.parse(responseRows));
+});
+router2.get("/customers/phone-numbers", requireAuth, async (req, res) => {
+  const parsed = ListCustomerPhoneNumbersQueryParams.parse(req.query);
+  if (!Number.isSafeInteger(parsed.limit) || !Number.isSafeInteger(parsed.offset)) {
+    res.status(400).json({ error: "\u0645\u062D\u062F\u0648\u062F\u0647\u0654 \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u0645\u0627\u0631\u0647\u200C\u0647\u0627 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A" });
+    return;
+  }
+  const owner = ownership("c", req);
+  const phoneFilter = `WHERE ${owner.sql} AND NULLIF(BTRIM(c.phone), '') IS NOT NULL`;
+  const limitIndex = owner.params.length + 1;
+  const offsetIndex = owner.params.length + 2;
+  const [countResult, pageResult] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*)::int AS total
+       FROM reseller_customers c
+       ${phoneFilter}`,
+      owner.params
+    ),
+    pool.query(
+      `SELECT BTRIM(c.phone)::text AS phone
+       FROM reseller_customers c
+       ${phoneFilter}
+       ORDER BY c.id ASC
+       LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+      [...owner.params, parsed.limit, parsed.offset]
+    )
+  ]);
+  const phones = pageResult.rows.map((row) => typeof row.phone === "string" ? row.phone.trim() : "").filter(Boolean);
+  const total = Number(countResult.rows[0]?.total ?? 0);
+  const nextOffset = phones.length > 0 && parsed.offset + phones.length < total ? parsed.offset + phones.length : null;
+  res.setHeader("Cache-Control", "private, no-store");
+  res.json(ListCustomerPhoneNumbersResponse.parse({
+    phones,
+    total,
+    next_offset: nextOffset
+  }));
 });
 router2.get("/customers/:id", requireAuth, async (req, res) => {
   await Promise.all([managementReady, ensureUsageHistorySchema()]);

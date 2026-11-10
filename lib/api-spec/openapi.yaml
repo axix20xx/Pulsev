@@ -1036,6 +1036,36 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Customer"
+  /customers/phone-numbers:
+    get:
+      operationId: listCustomerPhoneNumbers
+      tags: [customers]
+      summary: List phone numbers visible to the current user
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 1
+            maximum: 200
+            default: 200
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Phone numbers visible to the signed-in user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerPhoneNumbersPage"
+        "401":
+          description: Authentication required
   /customers/{id}:
     get:
       operationId: getCustomer
@@ -3367,6 +3397,20 @@ components:
           type: boolean
         mobile_otp_locked:
           type: boolean
+    CustomerPhoneNumbersPage:
+      type: object
+      required: [phones, total, next_offset]
+      properties:
+        phones:
+          type: array
+          items:
+            type: string
+        total:
+          type: number
+          minimum: 0
+        next_offset:
+          type: ["number", "null"]
+          minimum: 0
     CustomerDetail:
       allOf:
         - $ref: "#/components/schemas/Customer"

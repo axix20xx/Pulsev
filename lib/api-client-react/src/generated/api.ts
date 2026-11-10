@@ -29,6 +29,7 @@ import type {
   CreateServiceResult,
   Customer,
   CustomerDetail,
+  CustomerPhoneNumbersPage,
   DashboardSummary,
   GetSalesSummaryParams,
   GetUsageAnalyticsExportParams,
@@ -37,6 +38,7 @@ import type {
   IpsecDelivery,
   ListAdminSalesParams,
   ListAwgUsageParams,
+  ListCustomerPhoneNumbersParams,
   ListCustomersParams,
   ListResellerStorefrontLeadsParams,
   ListSalesParams,
@@ -4135,6 +4137,90 @@ export function useListCustomers<TData = Awaited<ReturnType<typeof listCustomers
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListCustomersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListCustomerPhoneNumbersUrl = (params?: ListCustomerPhoneNumbersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/customers/phone-numbers?${stringifiedParams}` : `/api/customers/phone-numbers`
+}
+
+/**
+ * @summary List phone numbers visible to the current user
+ */
+export const listCustomerPhoneNumbers = async (params?: ListCustomerPhoneNumbersParams, options?: Parameters<typeof customFetch>[1]): Promise<CustomerPhoneNumbersPage> => {
+
+  return customFetch<CustomerPhoneNumbersPage>(getListCustomerPhoneNumbersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCustomerPhoneNumbersQueryKey = (params?: ListCustomerPhoneNumbersParams,) => {
+    return [
+    `/api/customers/phone-numbers`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCustomerPhoneNumbersQueryOptions = <TData = Awaited<ReturnType<typeof listCustomerPhoneNumbers>>, TError = ErrorType<void>>(params?: ListCustomerPhoneNumbersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomerPhoneNumbers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCustomerPhoneNumbersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomerPhoneNumbers>>> = ({ signal }) => listCustomerPhoneNumbers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCustomerPhoneNumbers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCustomerPhoneNumbersQueryResult = NonNullable<Awaited<ReturnType<typeof listCustomerPhoneNumbers>>>
+export type ListCustomerPhoneNumbersQueryError = ErrorType<void>
+
+
+/**
+ * @summary List phone numbers visible to the current user
+ */
+
+export function useListCustomerPhoneNumbers<TData = Awaited<ReturnType<typeof listCustomerPhoneNumbers>>, TError = ErrorType<void>>(
+ params?: ListCustomerPhoneNumbersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomerPhoneNumbers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCustomerPhoneNumbersQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

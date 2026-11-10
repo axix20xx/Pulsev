@@ -4,6 +4,7 @@ import {
   Check,
   ClipboardPaste,
   Copy,
+  Database,
   Download,
   FileSpreadsheet,
   FileText,
@@ -15,7 +16,9 @@ import {
 } from 'lucide-react';
 import { cleanPhoneNumbers, parseDelimitedRows, type PhoneCleanupResult } from '@/lib/phone-number-formatter';
 import { readExcelPhoneCells } from '@/lib/phone-number-files';
+import { fetchAllCustomerPhoneNumbers } from '@/lib/customer-phone-number-import';
 import { copyTextToClipboard } from '@/lib/browser-utils';
+import { listCustomerPhoneNumbers } from '@workspace/api-client-react';
 import './phone-number-export.css';
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
@@ -35,6 +38,8 @@ export default function PhoneNumberExportPage() {
   const [result, setResult] = useState<PhoneCleanupResult | null>(null);
   const [notice, setNotice] = useState<{ tone: 'info' | 'success' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [databaseBusy, setDatabaseBusy] = useState(false);
+  const [databaseProgress, setDatabaseProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -65,6 +70,35 @@ export default function PhoneNumberExportPage() {
       setNotice({ tone: 'success', text: 'متن کلیپ‌بورد به ورودی اضافه شد.' });
     } catch {
       setNotice({ tone: 'error', text: 'دسترسی کلیپ‌بورد ممکن نیست؛ متن را مستقیم در کادر ورودی جای‌گذاری کنید.' });
+    }
+  };
+
+  const importFromDatabase = async () => {
+    setDatabaseBusy(true);
+    setDatabaseProgress({ loaded: 0, total: 0 });
+    setNotice(null);
+    try {
+      const imported = await fetchAllCustomerPhoneNumbers(
+        ({ limit, offset }) => listCustomerPhoneNumbers({ limit, offset }),
+        (loaded, total) => setDatabaseProgress({ loaded, total }),
+      );
+      if (!imported.phones.length) {
+        setNotice({ tone: 'info', text: 'برای حساب شما شمارهٔ ثبت‌شده‌ای در پایگاه داده پیدا نشد.' });
+        return;
+      }
+      const databaseText = imported.phones.join('\n');
+      setInput((current) => current.trim() ? `${current}\n${databaseText}` : databaseText);
+      setResult(null);
+      setCopied(false);
+      setNotice({
+        tone: 'success',
+        text: `${numberFormat.format(imported.phones.length)} شماره از ${numberFormat.format(imported.total)} رکورد قابل‌دسترسی حساب شما بارگیری شد.`,
+      });
+    } catch {
+      setNotice({ tone: 'error', text: 'دریافت شماره‌ها از پایگاه داده ناموفق بود. اتصال پنل را بررسی و دوباره تلاش کنید.' });
+    } finally {
+      setDatabaseBusy(false);
+      setDatabaseProgress(null);
     }
   };
 
@@ -134,7 +168,7 @@ export default function PhoneNumberExportPage() {
 
       <div className="phone-export-privacy" role="note" data-testid="notice-local-phone-processing">
         <span className="phone-export-privacy-icon"><Sparkles size={17} /></span>
-        <p><strong>حریم خصوصی محفوظ است.</strong> همهٔ شماره‌ها فقط در همین مرورگر پردازش می‌شوند و به سرور یا سرویس دیگری ارسال نمی‌شوند.</p>
+        <p><strong>حریم خصوصی محفوظ است.</strong> فایل‌ها در همین مرورگر پردازش می‌شوند؛ دریافت پایگاه داده فقط شماره‌های مجاز حساب شما را از پنل می‌خواند و به سرویس ثالثی نمی‌فرستد.</p>
         <span className="phone-export-size-note">فایل تا ۱۵ مگابایت</span>
       </div>
 
@@ -173,13 +207,17 @@ export default function PhoneNumberExportPage() {
               <span>شماره‌های کوتاه یا مشکوک حذف نمی‌شوند.</span>
             </div>
             <div className="phone-export-actions">
-              <button type="button" className="ax-btn is-primary" onClick={formatInput} disabled={busy || !input.trim()} data-testid="button-format-phone-numbers">
+              <button type="button" className="ax-btn is-primary" onClick={formatInput} disabled={busy || databaseBusy || !input.trim()} data-testid="button-format-phone-numbers">
                 <Sparkles size={16} /> پاک‌سازی و قالب‌بندی
               </button>
               <button type="button" className="ax-btn is-quiet" onClick={() => void pasteFromClipboard()} data-testid="button-paste-phone-numbers">
                 <ClipboardPaste size={15} /> جای‌گذاری
               </button>
-              <button type="button" className="ax-btn is-quiet" onClick={() => fileInputRef.current?.click()} disabled={busy} data-testid="button-upload-phone-file">
+              <button type="button" className="ax-btn is-quiet" onClick={() => void importFromDatabase()} disabled={busy || databaseBusy} data-testid="button-import-customer-phone-numbers">
+                {databaseBusy ? <span className="phone-export-spinner" aria-hidden="true" /> : <Database size={15} />}
+                {databaseBusy && databaseProgress ? `دریافت ${numberFormat.format(databaseProgress.loaded)} از ${numberFormat.format(databaseProgress.total)}…` : 'افزودن از پایگاه داده'}
+              </button>
+              <button type="button" className="ax-btn is-quiet" onClick={() => fileInputRef.current?.click()} disabled={busy || databaseBusy} data-testid="button-upload-phone-file">
                 {busy ? <span className="phone-export-spinner" aria-hidden="true" /> : <FileUp size={15} />} بارگذاری فایل
               </button>
               <input

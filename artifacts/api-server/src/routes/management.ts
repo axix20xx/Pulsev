@@ -7,6 +7,8 @@ import {
   GetDashboardResponse,
   ListCustomersQueryParams,
   ListCustomersResponse,
+  ListCustomerPhoneNumbersQueryParams,
+  ListCustomerPhoneNumbersResponse,
   ListResellersResponse,
   ListSalesQueryParams,
   ListSalesResponse,
@@ -8807,6 +8809,47 @@ router.get("/customers", requireAuth, async (req, res): Promise<void> => {
       )
     : result.rows;
   res.json(ListCustomersResponse.parse(responseRows));
+});
+
+router.get("/customers/phone-numbers", requireAuth, async (req, res): Promise<void> => {
+  const parsed = ListCustomerPhoneNumbersQueryParams.parse(req.query);
+  if (!Number.isSafeInteger(parsed.limit) || !Number.isSafeInteger(parsed.offset)) {
+    res.status(400).json({ error: "محدودهٔ دریافت شماره‌ها معتبر نیست" });
+    return;
+  }
+  const owner = ownership("c", req);
+  const phoneFilter = `WHERE ${owner.sql} AND NULLIF(BTRIM(c.phone), '') IS NOT NULL`;
+  const limitIndex = owner.params.length + 1;
+  const offsetIndex = owner.params.length + 2;
+  const [countResult, pageResult] = await Promise.all([
+    pool.query<{ total: number | string }>(
+      `SELECT COUNT(*)::int AS total
+       FROM reseller_customers c
+       ${phoneFilter}`,
+      owner.params,
+    ),
+    pool.query<{ phone: string | null }>(
+      `SELECT BTRIM(c.phone)::text AS phone
+       FROM reseller_customers c
+       ${phoneFilter}
+       ORDER BY c.id ASC
+       LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+      [...owner.params, parsed.limit, parsed.offset],
+    ),
+  ]);
+  const phones = pageResult.rows
+    .map((row) => typeof row.phone === "string" ? row.phone.trim() : "")
+    .filter(Boolean);
+  const total = Number(countResult.rows[0]?.total ?? 0);
+  const nextOffset = phones.length > 0 && parsed.offset + phones.length < total
+    ? parsed.offset + phones.length
+    : null;
+  res.setHeader("Cache-Control", "private, no-store");
+  res.json(ListCustomerPhoneNumbersResponse.parse({
+    phones,
+    total,
+    next_offset: nextOffset,
+  }));
 });
 
 router.get("/customers/:id", requireAuth, async (req, res): Promise<void> => {

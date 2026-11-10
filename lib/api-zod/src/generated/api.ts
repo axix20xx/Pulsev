@@ -2197,6 +2197,35 @@ export const ListCustomersResponse = zod.array(ListCustomersResponseItem)
 
 
 /**
+ * @summary List phone numbers visible to the current user
+ */
+export const listCustomerPhoneNumbersQueryLimitDefault = 200;
+export const listCustomerPhoneNumbersQueryLimitMax = 200;
+
+export const listCustomerPhoneNumbersQueryOffsetDefault = 0;
+export const listCustomerPhoneNumbersQueryOffsetMin = 0;
+
+
+
+export const ListCustomerPhoneNumbersQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listCustomerPhoneNumbersQueryLimitMax).default(listCustomerPhoneNumbersQueryLimitDefault),
+  "offset": zod.coerce.number().min(listCustomerPhoneNumbersQueryOffsetMin).default(listCustomerPhoneNumbersQueryOffsetDefault)
+})
+
+export const listCustomerPhoneNumbersResponseTotalMin = 0;
+
+export const listCustomerPhoneNumbersResponseNextOffsetMin = 0;
+
+
+
+export const ListCustomerPhoneNumbersResponse = zod.object({
+  "phones": zod.array(zod.string()),
+  "total": zod.number().min(listCustomerPhoneNumbersResponseTotalMin),
+  "next_offset": zod.number().min(listCustomerPhoneNumbersResponseNextOffsetMin).nullable()
+})
+
+
+/**
  * @summary Get a customer and their visible history
  */
 
