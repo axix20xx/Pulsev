@@ -2872,3 +2872,17 @@ mtime_ms = 1794079815040
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/023f2b80-b8cb-49d2-bc55-0068befbc8db/3c6992bd-a1c7-430d-bea8-41fca228f13e"
 storage_version_token = "1794079835474040"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "ANhhUVXuFzW8Y6Po5RwjX"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-10T07-29-13-978Z.zip"
+type = "unspecified"
+title = "Hostinger deployment ZIP"
+description = "Validated Hostinger package including the new phone-number export and formatter page. SHA-256: 40f401e1e4697e8e729c00e4ed02fa053507b4ae4ebc671bab364a3a637c8afa"
+logical_id = "fbd2d7e3-bc8a-4bc0-a598-a3deed22b6e9"
+content_hash = "sha256:40f401e1e4697e8e729c00e4ed02fa053507b4ae4ebc671bab364a3a637c8afa"
+size = 32294918
+mtime_ms = 1794295876193
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/fbd2d7e3-bc8a-4bc0-a598-a3deed22b6e9/ffe80ade-7f75-4e29-baa5-6f9cac8901c9"
+storage_version_token = "1794295895701534"
+content_type = "application/octet-stream"
