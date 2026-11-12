@@ -104,8 +104,6 @@ import {
   listAvailablePanels,
   listPasarguardConnectionUsers,
   readSavedWireGuardProviderUsernames,
-  readSavedAzadPanelOpenVpnUsernames,
-  readSavedAzadPanelV2RayUsernames,
   readSavedIpsecProviderUsernames,
   prepareIpsecAccount,
   renewIpsecAccount,
@@ -127,6 +125,7 @@ import {
   OpenVpnAccountNotFoundError,
 } from "../lib/rain";
 import { hasOtherActiveServiceWithUsername } from "../lib/service-disable-guard";
+import { clearRenewalUsageSnapshots } from "../lib/renewal-usage-cache";
 import { awgOffsetForReplacementClient, reconcileAwgCounter } from "../lib/awg-counters";
 import {
   AwgApiError,
@@ -8062,17 +8061,6 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
       res.status(502).json({ error: "هویت ذخیره‌شدهٔ WireGuard خوانده نشد؛ تمدید انجام نشد." });
       return;
     }
-    let savedOpenVpnAccounts = new Map<number, Map<string, string>>();
-    let savedV2RayAccounts = new Map<number, Map<string, string>>();
-    try {
-      [savedOpenVpnAccounts, savedV2RayAccounts] = await Promise.all([
-        readSavedAzadPanelOpenVpnUsernames([serviceId]),
-        readSavedAzadPanelV2RayUsernames([serviceId]),
-      ]);
-    } catch {
-      res.status(502).json({ error: "هویت Providerهای OpenVPN و V2Ray خوانده نشد؛ تمدید انجام نشد." });
-      return;
-    }
     if (savedWireGuardAccounts.has("")) {
       res.status(502).json({ error: "Provider یا نام کاربری ذخیره‌شدهٔ WireGuard قابل شناسایی نیست؛ تمدید انجام نشد." });
       return;
@@ -8102,64 +8090,15 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   let replacementAwgClientId: string | null = null;
    renewalPhase = "renew-awg";
    try {
-     await pool.query("DELETE FROM panel_usage_curr WHERE username = $1", [current.username]);
-     await pool.query(
-       "DELETE FROM user_panel_usages WHERE username = $1 AND panel_key <> 'rootvpn'",
-       [current.username],
-     );
-     await pool.query(
-       `UPDATE user_panel_usages
-        SET offset_bytes = COALESCE(upload, 0) + COALESCE(download, 0),
-            last_updated = NOW()
-        WHERE username = $1 AND panel_key = 'rootvpn'`,
-       [current.username],
-     );
-     const token = await pool.query<{ token: string }>(
-       `SELECT token
-        FROM reseller_sub_tokens
-        WHERE service_id = $1
-        LIMIT 1`,
-       [params.data.id],
-     );
-     if (token.rows[0]?.token) {
-       await pool.query("DELETE FROM user_stats_cache WHERE token = $1", [token.rows[0].token]);
-     }
-   } catch {
-     // Match the legacy worker: cache cleanup must not block renewal.
-   }
-    const providerUsageIdentities = new Map<string, string>();
-     for (const [providerKey, providerUsername] of savedWireGuardAccounts) {
-       if (providerKey && providerUsername) providerUsageIdentities.set(providerKey, providerUsername);
-    }
-    for (const accounts of [savedOpenVpnAccounts.get(serviceId), savedV2RayAccounts.get(serviceId)]) {
-      for (const [providerKey, username] of accounts ?? []) {
-        providerUsageIdentities.set(providerKey, username);
-      }
-    }
-    const extraUsageUsernames = new Set<string>();
-    for (const [providerKey, providerUsername] of providerUsageIdentities) {
-      if (providerUsername === current.username) continue;
-      try {
-        await pool.query(
-          `DELETE FROM user_panel_usages
-           WHERE username = $1 AND panel_key = $2`,
-          [providerUsername, providerKey],
-        );
-        extraUsageUsernames.add(providerUsername);
-      } catch (error) {
-        req.log.error({ err: error, serviceId }, "Failed to clear saved WireGuard usage after renewal");
-        res.status(500).json({ error: "مصرف قبلی یکی از حساب‌های VPN پس از تمدید پاک نشد؛ وضعیت تمدید را بررسی کنید." });
-        return;
-      }
-    }
-    for (const providerUsername of extraUsageUsernames) {
-      try {
-        await pool.query("DELETE FROM panel_usage_curr WHERE username = $1", [providerUsername]);
-      } catch (error) {
-        req.log.error({ err: error, serviceId }, "Failed to clear saved provider usage cache after renewal");
-        res.status(500).json({ error: "حافظهٔ مصرف قبلی یکی از حساب‌های VPN پس از تمدید پاک نشد؛ وضعیت تمدید را بررسی کنید." });
-        return;
-      }
+      await clearRenewalUsageSnapshots(
+        (sql, values) => pool.query(sql, values),
+        serviceId,
+        current.username,
+      );
+    } catch (error) {
+      req.log.error({ err: error, serviceId }, "Failed to reset usage snapshots before renewal");
+      res.status(500).json({ error: "مصرف قبلی پاک نشد؛ تمدید انجام نشد تا آمار سرویس اشتباه نشود." });
+      return;
     }
    if (current.awg_client_id) {
      try {
@@ -8227,24 +8166,6 @@ router.post("/services/:id/renew", requireAuth, async (req, res): Promise<void> 
   let result;
   try {
     await client.query("BEGIN");
-    await client.query(
-      `UPDATE user_panel_usages
-       SET offset_bytes = COALESCE(total, 0),
-           last_updated = NOW()
-       WHERE username = $1`,
-      [current.username],
-    );
-     if (savedIpsecAccount?.providerKey && savedIpsecAccount.username) {
-       await client.query(
-         `DELETE FROM user_panel_usages
-          WHERE username = $1 AND panel_key = $2`,
-         [savedIpsecAccount.username, savedIpsecAccount.providerKey],
-       );
-       await client.query(
-         "DELETE FROM panel_usage_curr WHERE username = $1",
-         [savedIpsecAccount.username],
-       );
-     }
     const ownerParam = values.length + 1;
     result = await client.query(
       `UPDATE reseller_services svc

@@ -333,7 +333,29 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const refreshServices = async () => { await servicesQuery.refetch(); };
   const refreshRealData = async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey() }), queryClient.invalidateQueries({ queryKey: getListSalesQueryKey() }), queryClient.invalidateQueries({ queryKey: getListServicesQueryKey() }), queryClient.invalidateQueries({ queryKey: getListCustomersQueryKey() })]); };
   const createService = async (input: { customer_name: string; phone: string; label: string; gb: number; days: number; sell_price?: number | null; is_paid?: boolean; storefront_lead_id?: number | null }) => { const result = await createServiceApi.mutateAsync({ data: input }); await refreshRealData(); if (input.storefront_lead_id) await Promise.all([queryClient.invalidateQueries({ queryKey: getGetResellerStorefrontLeadQueryKey(input.storefront_lead_id) }), queryClient.invalidateQueries({ queryKey: getListResellerStorefrontLeadsQueryKey() }), queryClient.invalidateQueries({ queryKey: getGetResellerStorefrontQueryKey() })]); return mapService(result.service); };
-  const renewService = async (service: Service, days = 30, gb = service.limitGb, sellPrice: number | null = null, isPaid = true, requestId?: string) => { const id = Number(service.id.replace(/\D/g, '')); if (!canLoadApi || !Number.isFinite(id) || id <= 0) throw new Error('برای تمدید باید وارد سامانه شوید.'); const renewed = await renewServiceApi.mutateAsync({ id, data: { days, gb, sell_price: sellPrice, is_paid: isPaid, request_id: requestId } }); await Promise.all([refreshRealData(), queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) })]); return mapService(renewed); };
+  const renewService = async (service: Service, days = 30, gb = service.limitGb, sellPrice: number | null = null, isPaid = true, requestId?: string) => {
+    const id = Number(service.id.replace(/\D/g, ''));
+    if (!canLoadApi || !Number.isFinite(id) || id <= 0) throw new Error('برای تمدید باید وارد سامانه شوید.');
+    const renewed = await renewServiceApi.mutateAsync({ id, data: { days, gb, sell_price: sellPrice, is_paid: isPaid, request_id: requestId } });
+    const mapped = { ...service, ...mapService(renewed), usedGb: 0, panelUsages: [], awgUsage: null };
+    const renewedListRow = { ...renewed, used_gb: 0, panel_usages: [], awg_usage: null };
+    queryClient.setQueriesData({ queryKey: getListServicesQueryKey() }, (cached: unknown) =>
+      Array.isArray(cached)
+        ? cached.map((item: any) => Number(item?.id) === id ? { ...item, ...renewedListRow } : item)
+        : cached,
+    );
+    setServices((items) => items.map((item) => item.id === service.id ? mapped : item));
+    void Promise.all([
+      refreshRealData(),
+      queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) }),
+    ]).catch(() => {
+      toast({
+        title: 'تمدید انجام شد',
+        description: 'مصرف سرویس صفر شد؛ به‌روزرسانی سایر آمارها با تأخیر انجام می‌شود.',
+      });
+    });
+    return mapped;
+  };
   const resetServiceToken = async (service: Service) => { const id = Number(service.id.replace(/\D/g, '')); if (!canLoadApi || !Number.isFinite(id) || id <= 0) throw new Error('سرویس معتبر نیست.'); const result = await resetServiceTokenApi.mutateAsync({ id }); await queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(Number(service.customerId)) }); return result.subscription_url; };
   const updateReseller = (id: number, enabled: boolean) => { setLocalResellers((items) => items.map((item) => item.id === id ? { ...item, enabled } : item)); if (canLoadApi && sessionQuery.data?.role === 'master_admin') updateResellerApi.mutate({ id, data: { enabled } }); };
   return <PulseContext.Provider value={{ sales: visibleBusinessData ? sales : [], services: visibleBusinessData ? services : [], customers, servicesLoading: servicesQuery.isLoading, servicesError: servicesQuery.isError ? (servicesQuery.error instanceof Error ? servicesQuery.error.message : 'فهرست سرویس‌ها دریافت نشد.') : null, refreshServices, prefs, session: displaySession, sessionLoading: sessionQuery.isLoading, authFallback, dashboard: canLoadApi ? dashboardQuery.data ?? null : null, dashboardLoading: dashboardQuery.isLoading, dashboardError: dashboardQuery.isError ? (dashboardQuery.error instanceof Error ? dashboardQuery.error.message : 'خلاصهٔ داشبورد دریافت نشد.') : null, refreshDashboard: async () => { await dashboardQuery.refetch(); }, resellers: canLoadApi ? resellers : [], addSale: (sale) => setSales((items) => [sale, ...items]), updateSale, createService, updateService, renewService, openRenewWizard: setRenewTarget, resetServiceToken, setPrefs, updateReseller }}>{children}{renewTarget && <RenewWizard service={renewTarget} onClose={() => setRenewTarget(null)} onRenew={renewService} />}</PulseContext.Provider>;
