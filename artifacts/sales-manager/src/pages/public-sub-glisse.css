@@ -257,3 +257,127 @@ html body #root .public-sub-lux .public-sub-openvpn-hint {
   html body #root .public-sub-lux *::before,
   html body #root .public-sub-lux *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+html body #root .public-sub-lux .public-sub-config-qr-action {
+  display: inline-flex !important;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #dce1f0 !important;
+  border-radius: 12px !important;
+  color: #363663 !important;
+  background: rgba(255,255,255,.92) !important;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+html body #root .public-sub-lux .public-sub-config-qr-action:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+html body #root .public-sub-lux .public-sub-awg-body > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+html body #root .public-sub-config-qr-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(20,25,44,.58);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+html body #root .public-sub-config-qr-dialog {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(100%, 390px);
+  padding: 26px 22px 22px;
+  border: 1px solid rgba(255,255,255,.72);
+  border-radius: 26px;
+  color: #20243a;
+  background: #fbfaff;
+  box-shadow: 0 24px 70px rgba(20,25,44,.3);
+  text-align: center;
+}
+html body #root .public-sub-config-qr-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 15px;
+  color: #514bb7;
+  background: #efedff;
+}
+html body #root .public-sub-config-qr-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+html body #root .public-sub-config-qr-dialog img {
+  display: block;
+  width: min(70vw, 260px);
+  height: auto;
+  padding: 10px;
+  border: 1px solid #e0e5f0;
+  border-radius: 20px;
+  background: #fff;
+  image-rendering: pixelated;
+}
+html body #root .public-sub-config-qr-warning,
+html body #root .public-sub-config-qr-error {
+  margin: 0;
+  color: #6b7288;
+  font-size: 12px;
+  line-height: 1.8;
+}
+html body #root .public-sub-config-qr-error {
+  color: #a74752;
+}
+html body #root .public-sub-config-qr-close {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-end: 10px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #e0e5f0;
+  border-radius: 12px;
+  color: #444b65;
+  background: #fff;
+}
+html body #root .public-sub-config-qr-done {
+  min-width: 110px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 13px;
+  color: #fff;
+  background: linear-gradient(135deg,#6e66e7,#4845a8);
+  font-weight: 800;
+}
+@media (max-width: 560px) {
+  html body #root .public-sub-lux .public-sub-wireguard-card .public-sub-openvpn-location > .public-sub-config-qr-action {
+    min-width: 0;
+    min-height: 40px;
+    padding-inline: 8px;
+    white-space: normal;
+  }
+  html body #root .public-sub-config-qr-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+  html body #root .public-sub-config-qr-dialog {
+    width: min(100%, 460px);
+    padding-bottom: calc(22px + env(safe-area-inset-bottom));
+    border-radius: 26px 26px 0 0;
+  }
+}

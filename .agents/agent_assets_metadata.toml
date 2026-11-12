@@ -2900,3 +2900,17 @@ mtime_ms = 1794296866872
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/66fdd7cf-33d1-45b7-abbf-fd4135ea3bc0/02cc1a5c-8acc-48f5-9113-2b5f09596266"
 storage_version_token = "1794296894339231"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Bx6s8KggQdq4BPjjA33hX"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-12T09-17-58-207Z.zip"
+type = "unspecified"
+title = "Updated Hostinger deployment ZIP"
+description = "WireGuard ZIP downloads now keep configs from healthy providers when another is unavailable. /sub and /mobile now offer QR buttons for each WireGuard server and the AmneziaWG config. Validated package. SHA-256: 075db654584fb8ff5e5bba546926474f48ff64a3153600c0e51aec180418517d"
+logical_id = "425334b3-fc32-4dba-a50a-b5583d510b68"
+content_hash = "sha256:075db654584fb8ff5e5bba546926474f48ff64a3153600c0e51aec180418517d"
+size = 32315691
+mtime_ms = 1794475225672
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/425334b3-fc32-4dba-a50a-b5583d510b68/8f9ba7e0-b44f-476b-9ec1-c3760f850fc4"
+storage_version_token = "1794475399364228"
+content_type = "application/octet-stream"

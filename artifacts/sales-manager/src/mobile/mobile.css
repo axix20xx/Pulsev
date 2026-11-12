@@ -274,9 +274,12 @@
 .mobile-openvpn-details button { grid-column: 2; grid-row: 1 / span 2; min-height: 42px; padding: 0 14px; border: 1px solid var(--m-line-2) !important; border-radius: 12px; color: var(--m-lacquer-2); background: var(--m-surface) !important; font-size: 13px; font-weight: 800; }
 .mobile-openvpn-locations { display: grid; overflow: hidden; border: 1px solid var(--m-line); border-radius: 18px; background: #fdfbf7; }
 .mobile-openvpn-location { display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: 6px; min-height: 56px; padding: 6px 12px 6px 6px; border-bottom: 1px solid var(--m-line); }
+.mobile-wireguard-card .mobile-openvpn-location { grid-template-columns: minmax(0,1fr) repeat(3, auto); }
 .mobile-openvpn-location:last-child { border-bottom: 0; }
 .mobile-openvpn-location span { overflow-wrap: anywhere; font-size: 14px; font-weight: 700; }
-.mobile-openvpn-location a { display: flex; align-items: center; gap: 4px; min-height: 42px; padding: 0 12px; border: 1px solid var(--m-line); border-radius: 12px; color: var(--m-lacquer-2); background: var(--m-surface); font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.mobile-openvpn-location a, .mobile-openvpn-location button { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 42px; padding: 0 12px; border: 1px solid var(--m-line); border-radius: 12px; color: var(--m-lacquer-2); background: var(--m-surface); font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.mobile-openvpn-location button { cursor: pointer; }
+.mobile-openvpn-location button:disabled { opacity: .6; cursor: wait; }
 .mobile-openvpn-app-links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .mobile-openvpn-app-links a { display: flex; min-height: 48px; align-items: center; justify-content: center; gap: 4px; padding: 6px; border: 1px solid var(--m-line-2); border-radius: 14px; color: var(--m-ink); background: var(--m-surface); font-size: 12px; font-weight: 800; line-height: 1.5; text-align: center; text-decoration: none; }
 .mobile-openvpn-error { margin: 0; color: var(--m-danger); font-size: 14px; line-height: 1.8; }
@@ -299,6 +302,7 @@
 .mobile-qr-modal p { margin: 0 0 14px; font-size: 15px; font-weight: 800; }
 .mobile-qr-modal img { width: min(64vw, 240px); height: auto; padding: 12px; border: 1px solid var(--m-line); border-radius: 24px; background: #f7f6f0; }
 .mobile-qr-modal small { margin-top: 12px; color: var(--m-muted); font-size: 12px; }
+.mobile-qr-error { padding: 12px; border-radius: 14px; color: var(--m-danger); background: var(--m-danger-soft); font-size: 12px !important; line-height: 1.7; }
 .mobile-modal-close, .mobile-push-prompt-close { position: absolute !important; top: 14px; left: 14px; }
 
 /* States */
@@ -506,7 +510,8 @@
     white-space: normal;
     line-height: 1.5;
   }
-  .mobile-app .mobile-wireguard-card .mobile-openvpn-location > a {
+  .mobile-app .mobile-wireguard-card .mobile-openvpn-location > a,
+  .mobile-app .mobile-wireguard-card .mobile-openvpn-location > button {
     justify-content: center;
     min-width: 0;
     min-height: 40px;

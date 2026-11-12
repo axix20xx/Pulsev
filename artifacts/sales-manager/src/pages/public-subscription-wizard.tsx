@@ -14,15 +14,18 @@ import {
   Lock,
   Monitor,
   Plus,
+  QrCode,
   RefreshCw,
   ShieldCheck,
   Smartphone,
   Sparkles,
   Terminal,
   Wifi,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { openVpnConnectImportUrl } from '@/lib/openvpn-connect-link';
+import { createPublicConfigQr } from '@/lib/public-config-qr';
 import { dateLabel } from '@/lib/pulse-data';
 import { LiquidButton, LiquidGlass } from '@/lib/glisse-ui';
 import './public-sub-glisse.css';
@@ -313,6 +316,24 @@ export function PublicSubscriptionWizard(props: Props) {
   const [v2proBusy, setV2ProBusy] = useState(false);
   const [v2proMessage, setV2ProMessage] = useState('');
   const [v2proError, setV2ProError] = useState('');
+  const [configQr, setConfigQr] = useState<{ title: string; dataUrl?: string; error?: string } | null>(null);
+  const [configQrBusyUrl, setConfigQrBusyUrl] = useState('');
+
+  const showConfigQr = async (url: string, title: string) => {
+    if (!url || configQrBusyUrl) return;
+    setConfigQrBusyUrl(url);
+    setConfigQr(null);
+    try {
+      setConfigQr({ title, dataUrl: await createPublicConfigQr(url) });
+    } catch {
+      setConfigQr({
+        title,
+        error: 'ساخت QR کانفیگ ناموفق بود. فایل را دانلود کنید یا دوباره تلاش کنید.',
+      });
+    } finally {
+      setConfigQrBusyUrl('');
+    }
+  };
 
   const shareV2ProSubscription = async () => {
     if (finished || v2proBusy || !feedUrl) return;
@@ -629,11 +650,12 @@ export function PublicSubscriptionWizard(props: Props) {
                           return <div className="public-sub-openvpn-location" key={id}>
                             <span>{location.name}</span>
                             <a href={location.config_url} download={location.filename || `Pulse-WireGuard-server-${fileNumber}.conf`} data-testid={`link-public-sub-wireguard-config-${fileNumber}`}><Download size={13} />دانلود .conf</a>
+                            <button type="button" className="public-sub-config-qr-action" onClick={() => void showConfigQr(location.config_url, location.name)} disabled={Boolean(configQrBusyUrl)} aria-label={`نمایش QR کانفیگ ${location.name}`} data-testid={`button-public-sub-wireguard-qr-${fileNumber}`}>{configQrBusyUrl === location.config_url ? <RefreshCw size={13} className="public-sub-spin" /> : <QrCode size={13} />}نمایش QR</button>
                             {isIOSDevice() && <a href={location.mobileconfig_url} download={location.mobileconfig_filename || `Pulse-WireGuard-server-${fileNumber}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${fileNumber}`}><Smartphone size={13} />نصب پروفایل iOS</a>}
                           </div>;
                         })}
-                      </div> : wireguardData.locations.length ? <div className="public-sub-openvpn-locations"><strong>سرورهای WireGuard</strong>{wireguardData.locations.map((location, index) => <div className="public-sub-openvpn-location" key={`${location.provider_key ?? 'wireguard'}-${location.id}`}><span>{location.name}</span><a href={location.config_url} download={location.filename || `Pulse-WireGuard-server-${index + 1}.conf`} data-testid={`link-public-sub-wireguard-config-${index + 1}`}><Download size={13} />دانلود .conf</a>{isIOSDevice() && <a href={location.mobileconfig_url} download={location.mobileconfig_filename || `Pulse-WireGuard-server-${index + 1}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${index + 1}`}><Smartphone size={13} />نصب پروفایل iOS</a>}</div>)}</div> : !wireguardData.raven_profiles?.length ? <p className="public-sub-openvpn-error" role="status">برای این حساب هنوز سرور آماده‌ای وجود ندارد.</p> : null}
-                      {wireguardData.raven_profiles?.length ? <div className="public-sub-openvpn-locations"><strong>فایل‌های سرور</strong>{wireguardData.raven_profiles.map((profile) => <div className="public-sub-openvpn-location" key={profile.download_url}><span>{profile.name}</span><a href={profile.download_url} download={profile.filename}><Download size={13} />دانلود .conf</a></div>)}</div> : null}
+                      </div> : wireguardData.locations.length ? <div className="public-sub-openvpn-locations"><strong>سرورهای WireGuard</strong>{wireguardData.locations.map((location, index) => <div className="public-sub-openvpn-location" key={`${location.provider_key ?? 'wireguard'}-${location.id}`}><span>{location.name}</span><a href={location.config_url} download={location.filename || `Pulse-WireGuard-server-${index + 1}.conf`} data-testid={`link-public-sub-wireguard-config-${index + 1}`}><Download size={13} />دانلود .conf</a><button type="button" className="public-sub-config-qr-action" onClick={() => void showConfigQr(location.config_url, location.name)} disabled={Boolean(configQrBusyUrl)} aria-label={`نمایش QR کانفیگ ${location.name}`} data-testid={`button-public-sub-wireguard-qr-${index + 1}`}>{configQrBusyUrl === location.config_url ? <RefreshCw size={13} className="public-sub-spin" /> : <QrCode size={13} />}نمایش QR</button>{isIOSDevice() && <a href={location.mobileconfig_url} download={location.mobileconfig_filename || `Pulse-WireGuard-server-${index + 1}.mobileconfig`} data-testid={`link-public-sub-wireguard-ios-profile-${index + 1}`}><Smartphone size={13} />نصب پروفایل iOS</a>}</div>)}</div> : !wireguardData.raven_profiles?.length ? <p className="public-sub-openvpn-error" role="status">برای این حساب هنوز سرور آماده‌ای وجود ندارد.</p> : null}
+                      {wireguardData.raven_profiles?.length ? <div className="public-sub-openvpn-locations"><strong>فایل‌های سرور</strong>{wireguardData.raven_profiles.map((profile, index) => <div className="public-sub-openvpn-location" key={profile.download_url}><span>{profile.name}</span><a href={profile.download_url} download={profile.filename}><Download size={13} />دانلود .conf</a><button type="button" className="public-sub-config-qr-action" onClick={() => void showConfigQr(profile.download_url, profile.name)} disabled={Boolean(configQrBusyUrl)} aria-label={`نمایش QR کانفیگ ${profile.name}`} data-testid={`button-public-sub-wireguard-raven-qr-${index + 1}`}>{configQrBusyUrl === profile.download_url ? <RefreshCw size={13} className="public-sub-spin" /> : <QrCode size={13} />}نمایش QR</button></div>)}</div> : null}
                       <p className="public-sub-openvpn-hint">در iPhone/iPad، نصب پروفایل تکی یا «نصب همهٔ سرورها» را بزنید و در Settings → Profile Downloaded تأیید کنید؛ سپس WireGuard را یک‌بار باز کنید. پروفایل چندسروره، تونل‌های جداگانه را یک‌جا اضافه می‌کند؛ در برنامه هر بار یکی را فعال کنید. فایل .conf هم برای واردکردن دستی موجود است. کلید خصوصی را محرمانه نگه دارید.</p>
                     </>}
                     {wireguardError && wireguardData && <p className="public-sub-openvpn-error" role="alert">{wireguardError}</p>}
@@ -671,7 +693,7 @@ export function PublicSubscriptionWizard(props: Props) {
                   <div className="public-sub-guide-card"><span className="public-sub-guide-number">01</span><div><strong>اپ رسمی را نصب کنید</strong><p>برای iPhone و Android، اپ AmneziaWG را دریافت کنید؛ در مرحله بعد پروفایل iOS یا فایل همین اشتراک را وارد کنید.</p></div></div>
                   <section className="public-sub-awg-card open" data-testid="card-public-sub-amneziawg">
                     <div className="public-sub-awg-heading"><div className="public-sub-awg-icon"><Wifi size={20} /></div><div><p className="public-sub-kicker">پروتکل اختصاصی</p><h2>AmneziaWG</h2><p>کانفیگ اختصاصی همین اشتراک را دریافت کنید.</p></div><span className={`public-sub-awg-status ${awgAvailable ? 'ready' : 'pending'}`}>{awgAvailable ? <><CheckCircle2 size={14} /> آماده</> : <><CircleHelp size={14} /> در انتظار کانفیگ</>}</span></div>
-                    {awgAvailable ? <div className="public-sub-awg-body"><p>در iPhone پروفایل AmneziaWG را نصب کنید؛ در Android فایل .conf را در اپ وارد کنید.</p><div><a href={data.awg_url} className="public-sub-awg-action primary" download="Pulse-AmneziaWG.conf" referrerPolicy="no-referrer" data-testid="link-public-sub-awg-download"><Download size={15} />دانلود فایل کانفیگ · .conf</a>{(activeOS === 'iOS' || isIOSDevice()) && data.awg_mobileconfig_url && <a href={data.awg_mobileconfig_url} className="public-sub-awg-action" download="Pulse-AmneziaWG.mobileconfig" referrerPolicy="no-referrer" data-testid="link-public-sub-awg-ios-profile"><Smartphone size={15} />نصب پروفایل AmneziaWG · iOS</a>}<button type="button" className="public-sub-awg-action" onClick={copyAwg} data-testid="button-public-sub-awg-copy"><Copy size={15} />{copied === 'awg' ? 'کپی شد' : 'کپی متن کانفیگ'}</button></div>{(activeOS === 'iOS' || isIOSDevice()) && <p className="public-sub-openvpn-hint">پس از تمدید، همین گزینه را دوباره بزنید تا فایل جدید برای به‌روزرسانی پروفایل دریافت شود؛ نصب جایگزین را در Settings → Profile Downloaded تأیید کنید و سپس AmneziaWG را باز کنید.</p>}</div> : <div className="public-sub-awg-unavailable"><strong>کانفیگ هنوز آماده نیست</strong><p>اپ را می‌توانید نصب کنید؛ پس از آماده‌شدن کانفیگ، همین صفحه را دوباره باز کنید.</p></div>}
+                    {awgAvailable ? <div className="public-sub-awg-body"><p>در iPhone پروفایل AmneziaWG را نصب کنید؛ در Android فایل .conf را در اپ وارد کنید.</p><div><a href={data.awg_url} className="public-sub-awg-action primary" download="Pulse-AmneziaWG.conf" referrerPolicy="no-referrer" data-testid="link-public-sub-awg-download"><Download size={15} />دانلود فایل کانفیگ · .conf</a><button type="button" className="public-sub-awg-action public-sub-config-qr-action" onClick={() => void showConfigQr(data.awg_url, 'AmneziaWG')} disabled={Boolean(configQrBusyUrl)} data-testid="button-public-sub-awg-qr">{configQrBusyUrl === data.awg_url ? <RefreshCw size={15} className="public-sub-spin" /> : <QrCode size={15} />}نمایش QR کانفیگ</button>{(activeOS === 'iOS' || isIOSDevice()) && data.awg_mobileconfig_url && <a href={data.awg_mobileconfig_url} className="public-sub-awg-action" download="Pulse-AmneziaWG.mobileconfig" referrerPolicy="no-referrer" data-testid="link-public-sub-awg-ios-profile"><Smartphone size={15} />نصب پروفایل AmneziaWG · iOS</a>}<button type="button" className="public-sub-awg-action" onClick={copyAwg} data-testid="button-public-sub-awg-copy"><Copy size={15} />{copied === 'awg' ? 'کپی شد' : 'کپی متن کانفیگ'}</button></div>{(activeOS === 'iOS' || isIOSDevice()) && <p className="public-sub-openvpn-hint">پس از تمدید، همین گزینه را دوباره بزنید تا فایل جدید برای به‌روزرسانی پروفایل دریافت شود؛ نصب جایگزین را در Settings → Profile Downloaded تأیید کنید و سپس AmneziaWG را باز کنید.</p>}</div> : <div className="public-sub-awg-unavailable"><strong>کانفیگ هنوز آماده نیست</strong><p>اپ را می‌توانید نصب کنید؛ پس از آماده‌شدن کانفیگ، همین صفحه را دوباره باز کنید.</p></div>}
                     <div className="public-sub-awg-divider"><span>اپ رسمی و راهنمای هر دستگاه</span><a href="https://amnezia.org/downloads" target="_blank" rel="noreferrer" data-testid="link-public-sub-awg-official-downloads"><ExternalLink size={13} />دانلودهای رسمی</a></div>
                     <div className="public-sub-awg-grid">{awgPlatforms.map((platform) => { const Icon = platform.icon; return <a key={platform.id} href={platform.href} target="_blank" rel="noreferrer" className="public-sub-awg-platform" data-testid={`link-public-sub-awg-${platform.id}`}><span className="public-sub-awg-platform-icon"><Icon size={18} /></span><span><strong>{platform.label}</strong><small>{platform.detail}</small></span><ExternalLink size={14} /></a>; })}</div>
                   </section>
@@ -688,6 +710,16 @@ export function PublicSubscriptionWizard(props: Props) {
           <div className="public-sub-protocol-feed"><span>لینک اتصال برای برنامه‌ها</span><button type="button" onClick={() => void copyUrl(feedUrl, 'feed')} data-testid="button-public-sub-footer-copy-feed"><Copy size={14} />{copied === 'feed' ? 'کپی شد' : 'کپی لینک'}</button></div>
           <span className="public-sub-qr-v3"><span dir="ltr">{pageUrl}</span></span>
         </footer>
+        {configQr ? <div className="public-sub-config-qr-backdrop" role="presentation" onClick={() => setConfigQr(null)}>
+          <section className="public-sub-config-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="public-sub-config-qr-title" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="public-sub-config-qr-close" onClick={() => setConfigQr(null)} aria-label="بستن QR کانفیگ" data-testid="button-public-sub-config-qr-close"><X size={18} /></button>
+            <div className="public-sub-config-qr-icon"><QrCode size={20} /></div>
+            <h2 id="public-sub-config-qr-title">{configQr.title}</h2>
+            {configQr.dataUrl ? <img src={configQr.dataUrl} alt={`QR کانفیگ ${configQr.title}`} /> : <p className="public-sub-config-qr-error" role="alert">{configQr.error}</p>}
+            <p className="public-sub-config-qr-warning">این QR شامل اطلاعات محرمانهٔ اتصال است؛ فقط با دستگاه شخصی خود اسکن کنید.</p>
+            <button type="button" className="public-sub-config-qr-done" onClick={() => setConfigQr(null)}>بستن</button>
+          </section>
+        </div> : null}
           </div>
         </div>
       </main>

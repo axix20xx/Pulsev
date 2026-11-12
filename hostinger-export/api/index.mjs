@@ -84581,6 +84581,27 @@ function createZipArchive(entries) {
   return Buffer.concat([...localParts, centralDirectory, end]);
 }
 
+// src/lib/wireguard-provider-profile-collector.ts
+async function collectWireGuardProviderProfiles(providers, getProviderKey, isEnabled, loadProfiles) {
+  const loaded = [];
+  const failedProviderKeys = [];
+  for (const provider of providers) {
+    const providerKey = getProviderKey(provider);
+    try {
+      if (!await isEnabled(provider)) continue;
+      const profiles = await loadProfiles(provider);
+      if (profiles.length === 0) {
+        failedProviderKeys.push(providerKey);
+        continue;
+      }
+      loaded.push({ providerKey, profiles });
+    } catch {
+      failedProviderKeys.push(providerKey);
+    }
+  }
+  return { providers: loaded, failedProviderKeys };
+}
+
 // src/lib/awg-usage-poll.ts
 var AWG_USAGE_POLL_INTERVAL_MS = 5 * 6e4;
 var AWG_USAGE_POLL_START_DELAY_MS = 5e3;
@@ -88784,40 +88805,49 @@ async function resolvePublicAllWireGuardProfiles(token) {
   if (publicOpenVpnServiceFinished(service)) return { status: 410, error: "Subscription has expired" };
   try {
     const savedDeliveries = await loadSavedWireGuardDeliveries(Number(service.id));
-    const deliveries = [];
-    for (const delivery of [...savedDeliveries].sort((left, right) => left.provider_key.localeCompare(right.provider_key))) {
-      if (await isConfiguredWireGuardProvider(
+    const collected = await collectWireGuardProviderProfiles(
+      [...savedDeliveries].sort((left, right) => left.provider_key.localeCompare(right.provider_key)),
+      (delivery) => delivery.provider_key,
+      (delivery) => isConfiguredWireGuardProvider(
         delivery.provider_key,
         Number(service.reseller_tg_id),
         "reseller"
-      )) deliveries.push(delivery);
-    }
-    if (!deliveries.length) return { status: 404, error: "WireGuard accounts are not prepared yet." };
-    const profiles = [];
-    for (const delivery of deliveries) {
-      const downloaded = await downloadWireGuardProfiles(
+      ),
+      (delivery) => downloadWireGuardProfiles(
         delivery.username,
         delivery.provider_key,
         delivery.locations.map((location) => location.id),
         Number(service.reseller_tg_id),
         "reseller"
-      );
-      if (!downloaded.length) {
-        throw new Error("A WireGuard server returned no configuration.");
-      }
-      for (const profile of downloaded) {
+      )
+    );
+    if (!collected.providers.length && !collected.failedProviderKeys.length) {
+      return { status: 404, error: "WireGuard accounts are not prepared yet." };
+    }
+    const profiles = [];
+    for (const provider of collected.providers) {
+      for (const profile of provider.profiles) {
         const profileNumber = profiles.length + 1;
         profiles.push({
-          providerKey: delivery.provider_key,
-          hostId: createHash8("sha256").update(`${delivery.provider_key}:${profile.hostId}`).digest("hex").slice(0, 24),
+          providerKey: provider.providerKey,
+          hostId: createHash8("sha256").update(`${provider.providerKey}:${profile.hostId}`).digest("hex").slice(0, 24),
           profileNumber,
           locationName: `Server ${String(profileNumber).padStart(2, "0")}`,
           body: profile.body
         });
       }
     }
-    if (!profiles.length) return { status: 404, error: "No WireGuard server configs are available." };
-    return { serviceId: Number(service.id), profiles };
+    if (!profiles.length) {
+      return {
+        status: 502,
+        error: "WireGuard servers are temporarily unavailable. Try again later."
+      };
+    }
+    return {
+      serviceId: Number(service.id),
+      profiles,
+      skippedProviderKeys: collected.failedProviderKeys
+    };
   } catch (error40) {
     return {
       status: error40 instanceof Error && error40.message.includes("not available for this account") ? 404 : 502,
@@ -88834,6 +88864,13 @@ router2.get("/public/subscription/:token/wireguard/mobileconfig", async (req, re
   if ("status" in result) {
     res.status(result.status).type("text/plain").send(result.error);
     return;
+  }
+  if (result.skippedProviderKeys.length) {
+    res.setHeader("x-pulse-wireguard-profile-partial", "true");
+    req.log.warn(
+      { serviceId: result.serviceId, skippedProviderKeys: result.skippedProviderKeys },
+      "Skipped unavailable WireGuard providers while building the iOS profile"
+    );
   }
   try {
     const profile = createWireGuardMobileConfigBundle(
@@ -88993,14 +89030,28 @@ router2.get("/public/subscription/:token/wireguard/bundle", async (req, res) => 
     res.status(result.status).type("text/plain").send(result.error);
     return;
   }
-  const archive = createZipArchive(result.profiles.map((profile) => ({
+  if (result.skippedProviderKeys.length) {
+    req.log.warn(
+      { serviceId: result.serviceId, skippedProviderKeys: result.skippedProviderKeys },
+      "Skipped unavailable WireGuard providers while building the ZIP archive"
+    );
+  }
+  const entries = result.profiles.map((profile) => ({
     name: safeDownloadFilename(
       null,
       publicProfileFilename(result.serviceId, "wireguard", profile.profileNumber, ".conf"),
       ".conf"
     ),
     content: profile.body
-  })));
+  }));
+  if (result.skippedProviderKeys.length) {
+    res.setHeader("x-pulse-wireguard-archive-partial", "true");
+    entries.push({
+      name: "NOTICE.txt",
+      content: "\u0628\u062E\u0634\u06CC \u0627\u0632 \u0633\u0631\u0648\u06CC\u0633\u200C\u062F\u0647\u0646\u062F\u0647\u200C\u0647\u0627 \u0647\u0646\u06AF\u0627\u0645 \u062A\u0647\u06CC\u0647\u0654 \u0641\u0627\u06CC\u0644 \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u0628\u0648\u062F\u0646\u062F. \u06A9\u0627\u0646\u0641\u06CC\u06AF\u200C\u0647\u0627\u06CC \u0642\u0627\u0628\u0644\u200C\u062F\u0633\u062A\u0631\u0633\u06CC \u062F\u0631 \u0627\u06CC\u0646 ZIP \u0642\u0631\u0627\u0631 \u062F\u0627\u0631\u0646\u062F\u061B \u0628\u0631\u0627\u06CC \u062F\u0631\u06CC\u0627\u0641\u062A \u0628\u0642\u06CC\u0647 \u0628\u0639\u062F\u0627\u064B \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F.\n"
+    });
+  }
+  const archive = createZipArchive(entries);
   const filename = safeDownloadFilename(
     null,
     `PULSE-${String(result.serviceId).padStart(6, "0")}-WireGuard-all`,
