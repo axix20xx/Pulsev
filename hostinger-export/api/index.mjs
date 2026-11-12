@@ -80441,6 +80441,82 @@ async function hasOtherActiveServiceWithUsername(username, serviceId) {
   return result.rows[0]?.has_other_service === true;
 }
 
+// src/lib/renewal-usage-cache.ts
+async function clearRenewalUsageSnapshots(query, serviceId, serviceUsername) {
+  await query(
+    `WITH identities AS MATERIALIZED (
+       SELECT provider_key, provider_username
+       FROM reseller_service_usage_provider_accounts
+       WHERE service_id = $1
+       UNION
+       SELECT provider_key, provider_username
+       FROM reseller_service_wireguard_provider_accounts
+       WHERE service_id = $1
+       UNION
+       SELECT provider_key, provider_username
+       FROM reseller_service_v2ray_accounts
+       WHERE service_id = $1
+       UNION
+       SELECT provider_key, provider_username
+       FROM reseller_service_openvpn_provider_accounts
+       WHERE service_id = $1
+       UNION
+       SELECT provider_key, provider_username
+       FROM reseller_service_ipsec_accounts
+       WHERE service_id = $1
+       UNION
+       SELECT provider_key, config_label AS provider_username
+       FROM raven_service_accounts
+       WHERE service_id = $1
+     ),
+     deleted_usage AS (
+       DELETE FROM user_panel_usages usage
+       WHERE (
+         usage.username = $2
+         AND usage.panel_key <> 'rootvpn'
+       ) OR EXISTS (
+         SELECT 1
+         FROM identities identity
+         WHERE identity.provider_key = usage.panel_key
+           AND identity.provider_username = usage.username
+           AND NOT (usage.panel_key = 'rootvpn' AND usage.username = $2)
+       )
+       RETURNING usage.username
+     ),
+     anchored_rootvpn AS (
+       UPDATE user_panel_usages
+       SET offset_bytes = COALESCE(upload, 0) + COALESCE(download, 0),
+           last_updated = NOW()
+       WHERE username = $2
+         AND panel_key = 'rootvpn'
+       RETURNING username
+     ),
+     deleted_panel_cache AS (
+       DELETE FROM panel_usage_curr cached
+       WHERE cached.username = $2
+          OR EXISTS (
+            SELECT 1
+            FROM identities identity
+            WHERE identity.provider_username = cached.username
+          )
+       RETURNING cached.username
+     ),
+     deleted_subscription_cache AS (
+       DELETE FROM user_stats_cache cache
+       USING reseller_sub_tokens token
+       WHERE token.service_id = $1
+         AND cache.token = token.token
+       RETURNING cache.token
+     )
+     SELECT
+       (SELECT COUNT(*) FROM deleted_usage) AS deleted_usage_rows,
+       (SELECT COUNT(*) FROM anchored_rootvpn) AS anchored_rootvpn_rows,
+       (SELECT COUNT(*) FROM deleted_panel_cache) AS deleted_panel_cache_rows,
+       (SELECT COUNT(*) FROM deleted_subscription_cache) AS deleted_subscription_cache_rows`,
+    [serviceId, serviceUsername]
+  );
+}
+
 // src/lib/awg-counters.ts
 var nonNegativeBytes2 = (value) => {
   const bytes = Number(value);
@@ -92587,17 +92663,6 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
       res.status(502).json({ error: "\u0647\u0648\u06CC\u062A \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647\u0654 WireGuard \u062E\u0648\u0627\u0646\u062F\u0647 \u0646\u0634\u062F\u061B \u062A\u0645\u062F\u06CC\u062F \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F." });
       return;
     }
-    let savedOpenVpnAccounts = /* @__PURE__ */ new Map();
-    let savedV2RayAccounts = /* @__PURE__ */ new Map();
-    try {
-      [savedOpenVpnAccounts, savedV2RayAccounts] = await Promise.all([
-        readSavedAzadPanelOpenVpnUsernames([serviceId]),
-        readSavedAzadPanelV2RayUsernames([serviceId])
-      ]);
-    } catch {
-      res.status(502).json({ error: "\u0647\u0648\u06CC\u062A Provider\u0647\u0627\u06CC OpenVPN \u0648 V2Ray \u062E\u0648\u0627\u0646\u062F\u0647 \u0646\u0634\u062F\u061B \u062A\u0645\u062F\u06CC\u062F \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F." });
-      return;
-    }
     if (savedWireGuardAccounts.has("")) {
       res.status(502).json({ error: "Provider \u06CC\u0627 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0630\u062E\u06CC\u0631\u0647\u200C\u0634\u062F\u0647\u0654 WireGuard \u0642\u0627\u0628\u0644 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u0646\u06CC\u0633\u062A\u061B \u062A\u0645\u062F\u06CC\u062F \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F." });
       return;
@@ -92627,63 +92692,15 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     let replacementAwgClientId = null;
     renewalPhase = "renew-awg";
     try {
-      await pool.query("DELETE FROM panel_usage_curr WHERE username = $1", [current.username]);
-      await pool.query(
-        "DELETE FROM user_panel_usages WHERE username = $1 AND panel_key <> 'rootvpn'",
-        [current.username]
+      await clearRenewalUsageSnapshots(
+        (sql2, values2) => pool.query(sql2, values2),
+        serviceId,
+        current.username
       );
-      await pool.query(
-        `UPDATE user_panel_usages
-        SET offset_bytes = COALESCE(upload, 0) + COALESCE(download, 0),
-            last_updated = NOW()
-        WHERE username = $1 AND panel_key = 'rootvpn'`,
-        [current.username]
-      );
-      const token = await pool.query(
-        `SELECT token
-        FROM reseller_sub_tokens
-        WHERE service_id = $1
-        LIMIT 1`,
-        [params.data.id]
-      );
-      if (token.rows[0]?.token) {
-        await pool.query("DELETE FROM user_stats_cache WHERE token = $1", [token.rows[0].token]);
-      }
-    } catch {
-    }
-    const providerUsageIdentities = /* @__PURE__ */ new Map();
-    for (const [providerKey, providerUsername] of savedWireGuardAccounts) {
-      if (providerKey && providerUsername) providerUsageIdentities.set(providerKey, providerUsername);
-    }
-    for (const accounts of [savedOpenVpnAccounts.get(serviceId), savedV2RayAccounts.get(serviceId)]) {
-      for (const [providerKey, username] of accounts ?? []) {
-        providerUsageIdentities.set(providerKey, username);
-      }
-    }
-    const extraUsageUsernames = /* @__PURE__ */ new Set();
-    for (const [providerKey, providerUsername] of providerUsageIdentities) {
-      if (providerUsername === current.username) continue;
-      try {
-        await pool.query(
-          `DELETE FROM user_panel_usages
-           WHERE username = $1 AND panel_key = $2`,
-          [providerUsername, providerKey]
-        );
-        extraUsageUsernames.add(providerUsername);
-      } catch (error40) {
-        req.log.error({ err: error40, serviceId }, "Failed to clear saved WireGuard usage after renewal");
-        res.status(500).json({ error: "\u0645\u0635\u0631\u0641 \u0642\u0628\u0644\u06CC \u06CC\u06A9\u06CC \u0627\u0632 \u062D\u0633\u0627\u0628\u200C\u0647\u0627\u06CC VPN \u067E\u0633 \u0627\u0632 \u062A\u0645\u062F\u06CC\u062F \u067E\u0627\u06A9 \u0646\u0634\u062F\u061B \u0648\u0636\u0639\u06CC\u062A \u062A\u0645\u062F\u06CC\u062F \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F." });
-        return;
-      }
-    }
-    for (const providerUsername of extraUsageUsernames) {
-      try {
-        await pool.query("DELETE FROM panel_usage_curr WHERE username = $1", [providerUsername]);
-      } catch (error40) {
-        req.log.error({ err: error40, serviceId }, "Failed to clear saved provider usage cache after renewal");
-        res.status(500).json({ error: "\u062D\u0627\u0641\u0638\u0647\u0654 \u0645\u0635\u0631\u0641 \u0642\u0628\u0644\u06CC \u06CC\u06A9\u06CC \u0627\u0632 \u062D\u0633\u0627\u0628\u200C\u0647\u0627\u06CC VPN \u067E\u0633 \u0627\u0632 \u062A\u0645\u062F\u06CC\u062F \u067E\u0627\u06A9 \u0646\u0634\u062F\u061B \u0648\u0636\u0639\u06CC\u062A \u062A\u0645\u062F\u06CC\u062F \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F." });
-        return;
-      }
+    } catch (error40) {
+      req.log.error({ err: error40, serviceId }, "Failed to reset usage snapshots before renewal");
+      res.status(500).json({ error: "\u0645\u0635\u0631\u0641 \u0642\u0628\u0644\u06CC \u067E\u0627\u06A9 \u0646\u0634\u062F\u061B \u062A\u0645\u062F\u06CC\u062F \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F \u062A\u0627 \u0622\u0645\u0627\u0631 \u0633\u0631\u0648\u06CC\u0633 \u0627\u0634\u062A\u0628\u0627\u0647 \u0646\u0634\u0648\u062F." });
+      return;
     }
     if (current.awg_client_id) {
       try {
@@ -92743,24 +92760,6 @@ router2.post("/services/:id/renew", requireAuth, async (req, res) => {
     let result;
     try {
       await client.query("BEGIN");
-      await client.query(
-        `UPDATE user_panel_usages
-       SET offset_bytes = COALESCE(total, 0),
-           last_updated = NOW()
-       WHERE username = $1`,
-        [current.username]
-      );
-      if (savedIpsecAccount?.providerKey && savedIpsecAccount.username) {
-        await client.query(
-          `DELETE FROM user_panel_usages
-          WHERE username = $1 AND panel_key = $2`,
-          [savedIpsecAccount.username, savedIpsecAccount.providerKey]
-        );
-        await client.query(
-          "DELETE FROM panel_usage_curr WHERE username = $1",
-          [savedIpsecAccount.username]
-        );
-      }
       const ownerParam = values.length + 1;
       result = await client.query(
         `UPDATE reseller_services svc

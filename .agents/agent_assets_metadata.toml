@@ -2914,3 +2914,17 @@ mtime_ms = 1794475225672
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/425334b3-fc32-4dba-a50a-b5583d510b68/8f9ba7e0-b44f-476b-9ec1-c3760f850fc4"
 storage_version_token = "1794475399364228"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "wav0s4EOC9iXS9QzMZ5zA"
+uri = "file://exports/pulse-hostinger-full-migration-2026-11-12T09-58-15-249Z.zip"
+type = "unspecified"
+title = "Updated Hostinger deployment ZIP"
+description = "Includes the faster renewal usage reset, immediate zero-usage display, and all current Hostinger app bundles. ZIP validator passed. SHA-256: 49eb5b781677f5a73cf6f86622f52b2f3d9b1c18b022b08017b2a26a51217368"
+logical_id = "4f16fc99-0272-4155-bac9-a2106da45ff8"
+content_hash = "sha256:49eb5b781677f5a73cf6f86622f52b2f3d9b1c18b022b08017b2a26a51217368"
+size = 32316549
+mtime_ms = 1794477614835
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4f16fc99-0272-4155-bac9-a2106da45ff8/be2e2cad-8e0f-41f2-91b0-940e3490f6d2"
+storage_version_token = "1794477653572972"
+content_type = "application/octet-stream"
