@@ -4,7 +4,6 @@ import { isTunnelStopConfirmed } from './tunnel-stop-policy';
 import { requireNativeProfileText, requireNativeString } from './native-profile-text';
 
 type PulseVpnNativeModule = {
-  requestPermission(): Promise<{ granted: boolean }>;
   isSupported(): Promise<boolean>;
   connectWireGuard(profileId: string, profileName: string, configText: string): Promise<WireGuardVpnStatus>;
   disconnectWireGuard(): Promise<WireGuardVpnStatus>;
@@ -149,8 +148,6 @@ async function ensureReady() {
   if (!(await module.isSupported())) {
     throw new Error('در حال حاضر این دستگاه از تونل VPN پشتیبانی نمی‌کند.');
   }
-  const permission = await module.requestPermission();
-  if (!permission.granted) throw new Error('مجوز VPN داده نشد.');
   return module;
 }
 

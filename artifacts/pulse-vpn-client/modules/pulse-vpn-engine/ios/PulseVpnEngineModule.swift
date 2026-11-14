@@ -5,12 +5,6 @@ public final class PulseVpnEngineModule: Module {
   public func definition() -> ModuleDefinition {
     Name("PulseVpnEngine")
 
-    AsyncFunction("requestPermission") { () async throws -> [String: Bool] in
-      try await PulseVpnEngineController.shared.prepareManager()
-      // iOS presents the user approval dialog when startVPNTunnel() is called.
-      return ["granted": true]
-    }
-
     AsyncFunction("isSupported") { () -> Bool in
       PulseVpnEngineController.shared.isSupported
     }

@@ -79,7 +79,9 @@ function routeParts(configUrl: string, protocol: 'openvpn' | 'wireguard') {
 function getErrorMessage(error: unknown, token: string | null) {
   const raw = error instanceof Error ? error.message : String(error ?? '');
   const safe = token ? raw.split(token).join('') : raw;
-  if (/permission|authorization|اجازه/i.test(safe)) return 'برای ایجاد تونل، درخواست مجوز VPN را تأیید کنید.';
+  if (/permission|authorization|اجازه/i.test(safe)) {
+    return 'iOS نتوانست پروفایل VPN را مجاز کند. درخواست سیستمی را تأیید کنید. اگر پنجره نمایش داده نمی‌شود یا قبلاً رد شده، در Settings > General > VPN & Device Management، Pulse VPN را فعال کنید. نسخهٔ نصب‌شده هم باید با مجوز Packet Tunnel امضا شده باشد.';
+  }
   if (/timeout|timed out|مهلت/i.test(safe)) return 'اتصال بیش از حد طول کشید. شبکه و سرور را بررسی و دوباره تلاش کنید.';
   if (/network|fetch|internet|اینترنت/i.test(safe)) return 'دریافت تنظیمات ممکن نشد. اتصال اینترنت را بررسی کنید.';
   const firstLine = safe.split(/\r?\n/, 1)[0].trim();

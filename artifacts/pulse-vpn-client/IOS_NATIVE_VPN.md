@@ -25,6 +25,12 @@ Before signing or testing on a device:
 4. Set the Apple Team ID in the Expo iOS configuration and use signing profiles
    that include all of these capabilities.
 
+iOS has no standalone VPN permission API. The first save of the actual tunnel
+configuration requests approval; then the app starts that tunnel. If no prompt
+appears and the save is rejected, verify the installed app's signed entitlements
+and provisioning profile. If the request was previously denied, enable Pulse VPN
+in Settings under General > VPN & Device Management.
+
 If `com.pulse.vpnclient` is already registered to a different Apple team, change
 the app and extension identifiers before creating or signing the app.
 

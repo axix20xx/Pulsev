@@ -29,15 +29,6 @@ final class PulseVpnEngineController {
     #endif
   }
 
-  func prepareManager() async throws {
-    let manager = try await loadManager()
-    if manager.connection.status != .disconnected && manager.connection.status != .invalid {
-      return
-    }
-    try configure(manager, protocolName: "wireguard", profileId: "pending")
-    try await save(manager)
-  }
-
   func connect(
     protocolName: String,
     profileId: String,
@@ -78,8 +69,14 @@ final class PulseVpnEngineController {
       try configure(manager, protocolName: protocolName, profileId: profileId)
       try await save(manager)
       try await reload(manager)
-      try manager.connection.startVPNTunnel()
+      try await MainActor.run {
+        try manager.connection.startVPNTunnel()
+      }
     } catch {
+      let nativeError = error as NSError
+      appendDiagnostic(
+        "VPN setup/start failed with \(nativeError.domain) code \(nativeError.code)."
+      )
       try? PulseVpnKeychainStore.remove(key: profileKey)
       throw error
     }
