@@ -47,6 +47,19 @@ module.exports = function withPulseVpnPackages(config) {
       }
     }
 
+    const goLibrarySearchPath =
+      "$(BUILD_DIR)/../../SourcePackages/checkouts/amneziawg-apple/Sources/WireGuardKitGo/out";
+    for (const configuration of target.props.buildConfigurationList.props.buildConfigurations) {
+      const current = configuration.props.buildSettings.LIBRARY_SEARCH_PATHS;
+      const values = Array.isArray(current) ? current : current ? [current] : [];
+      const normalized = values.map((value) =>
+        String(value).replace(/^[\\"']+|[\\"']+$/g, ""),
+      );
+      if (!normalized.includes("$(inherited)")) normalized.unshift("$(inherited)");
+      if (!normalized.includes(goLibrarySearchPath)) normalized.push(goLibrarySearchPath);
+      configuration.props.buildSettings.LIBRARY_SEARCH_PATHS = normalized;
+    }
+
     project.rootObject.props.packageReferences ??= [];
     target.props.packageProductDependencies ??= [];
     const frameworkPhase = target.getFrameworksBuildPhase();
