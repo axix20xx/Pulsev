@@ -1,7 +1,7 @@
 # Build an unsigned iOS IPA with GitHub Actions
 
 The repository workflow is **Build unsigned iOS IPA** under the GitHub Actions
-tab. It runs on a macOS worker, creates the Expo iOS project, builds the app and
+tab. It runs on a macOS 26 worker with Xcode 26 and Swift 6.2+, creates the Expo iOS project, builds the app and
 Packet Tunnel extension without code signing, and packages the result as a
 downloadable `.ipa` workflow artifact. It requires no Apple credentials and
 runs after relevant pushes to `main` or from **Actions → Build unsigned iOS IPA

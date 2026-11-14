@@ -22,12 +22,17 @@ concurrency:
 jobs:
   build:
     name: Build unsigned iOS package
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 120
 
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Confirm the Swift toolchain
+        run: |
+          xcodebuild -version
+          swift --version
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -74,6 +79,9 @@ jobs:
 
       - name: Verify the production JavaScript bundle
         run: pnpm --filter @workspace/pulse-vpn-client exec expo export --platform ios --clear
+
+      - name: Resolve Xcode package dependencies
+        run: xcodebuild -resolvePackageDependencies -workspace artifacts/pulse-vpn-client/ios/PulseVPNClient.xcworkspace -scheme PulseVPNClient
 
       - name: Build the app and Packet Tunnel extension without signing
         shell: bash
