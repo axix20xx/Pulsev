@@ -63,6 +63,7 @@ module.exports = function withPulseVpnPackages(config) {
     project.rootObject.props.packageReferences ??= [];
     target.props.packageProductDependencies ??= [];
     const frameworkPhase = target.getFrameworksBuildPhase();
+    target.ensureFrameworks(["UIKit.framework"]);
 
     const goBuildPhaseName = "Build AmneziaWG Go backend without Xray";
     let goBuildPhase = target.props.buildPhases.find(
