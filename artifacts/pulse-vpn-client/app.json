@@ -8,7 +8,19 @@
     "scheme": "pulse-vpn-client",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": false
+      "bundleIdentifier": "com.pulse.vpnclient",
+      "supportsTablet": false,
+      "entitlements": {
+        "com.apple.developer.networking.networkextension": [
+          "packet-tunnel-provider"
+        ],
+        "com.apple.security.application-groups": [
+          "group.com.pulse.vpnclient"
+        ],
+        "keychain-access-groups": [
+          "$(AppIdentifierPrefix)com.pulse.vpnclient.shared"
+        ]
+      }
     },
     "android": {
       "package": "com.pulse.vpnclient",
@@ -20,7 +32,14 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "./plugins/with-pulse-vpn-packages.js",
+      [
+        "@bacons/apple-targets",
+        {
+          "root": "./targets"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
