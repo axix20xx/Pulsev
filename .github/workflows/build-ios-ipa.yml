@@ -1,0 +1,118 @@
+name: Build unsigned iOS IPA
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-ios-ipa.yml
+      - artifacts/pulse-vpn-client/**
+      - lib/api-client-react/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build unsigned iOS package
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Go for AmneziaWG
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.x
+          cache: false
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check and run client tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec tsc --build lib/api-client-react/tsconfig.json
+          pnpm --filter @workspace/pulse-vpn-client run typecheck
+          pnpm --filter @workspace/pulse-vpn-client exec sh -c 'node --test scripts/*.test.mjs'
+
+      - name: Generate the native iOS project
+        run: pnpm --filter @workspace/pulse-vpn-client exec expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v pod >/dev/null 2>&1; then
+            sudo gem install cocoapods -v 1.16.2 --no-document
+          fi
+          pod --version
+          cd artifacts/pulse-vpn-client/ios
+          pod install --repo-update
+
+      - name: Verify the production JavaScript bundle
+        run: pnpm --filter @workspace/pulse-vpn-client exec expo export --platform ios --clear
+
+      - name: Build the app and Packet Tunnel extension without signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace artifacts/pulse-vpn-client/ios/PulseVPNClient.xcworkspace \
+            -scheme PulseVPNClient \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/PulseVPNClientDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=''
+
+      - name: Package the unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$RUNNER_TEMP/PulseVPNClientDerivedData/Build/Products/Release-iphoneos/PulseVPNClient.app"
+          ipa_root="$RUNNER_TEMP/PulseVPNClient-unsigned"
+          ipa_path="$RUNNER_TEMP/PulseVPNClient-unsigned.ipa"
+
+          if [[ ! -d "$app_path" ]]; then
+            echo "::error::The unsigned Xcode build did not produce PulseVPNClient.app."
+            exit 1
+          fi
+
+          mkdir -p "$ipa_root/Payload"
+          ditto "$app_path" "$ipa_root/Payload/PulseVPNClient.app"
+          (cd "$ipa_root" && /usr/bin/zip -qry "$ipa_path" Payload)
+          /usr/bin/unzip -tq "$ipa_path"
+          echo "Unsigned IPA created at $ipa_path"
+
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PulseVPN-iOS-unsigned-${{ github.run_number }}
+          path: ${{ runner.temp }}/PulseVPNClient-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14

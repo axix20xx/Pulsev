@@ -17,9 +17,9 @@ Before signing or testing on a device:
 
 1. In the Apple Developer portal, register the app and Packet Tunnel extension
    identifiers and enable Network Extensions / Packet Tunnel Provider.
-2. Request Apple's Network Extension entitlement approval if the team has not
-   already received it. Adding the entitlement in source does not grant Apple's
-   approval.
+2. The user confirmed Apple approved the Network Extension entitlement. Ensure
+   Packet Tunnel Provider is enabled for both identifiers and included in the
+   provisioning configuration; source entitlements alone do not grant access.
 3. Enable the matching App Group and Keychain Sharing group for both identifiers
    and include them in the provisioning profiles.
 4. Set the Apple Team ID in the Expo iOS configuration and use signing profiles
@@ -52,6 +52,11 @@ open PulseVPNClient.xcworkspace
 Choose the app scheme, set the Apple development team for both targets, and run
 on a physical iPhone. Re-run `expo prebuild` after changing `app.json`, the
 Packet Tunnel target configuration, or the Xcode package/build plugin.
+
+For an unsigned IPA from a macOS GitHub worker, see
+[`IOS_GITHUB_ACTIONS.md`](./IOS_GITHUB_ACTIONS.md). That workflow requires
+no Apple credentials. The resulting IPA cannot be installed or submitted until
+it is signed with the correct Apple certificates and provisioning profiles.
 
 ## Runtime behavior
 
