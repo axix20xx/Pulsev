@@ -45,6 +45,7 @@
 - [Service identity](service-identity.md) — use a stable display reference derived from the internal service ID across cards, notifications, and public subscription pages.
 - [Renewal SQL parameter types](renewal-sql-parameter-types.md) — keep renewal service and ownership placeholders distinct and explicitly typed to avoid PostgreSQL 42P08 failures.
 - [AmneziaWG renewal and iOS profiles](legacy-renewal-sequence.md) — preserve the installed tunnel identity on renewal when safe; mobileconfig cannot silently refresh changed config.
+- [AmneziaWG iOS Go patching](amneziawg-ios-go-patching.md) — keep copied sources writable and adapt runtime diffs to the active Go toolchain.
 - [AWG create reconciliation](awg-create-reconciliation.md) — a create request may return 500 after commit; confirm the exact UUID in the client list before retrying.
 - [Provisioning job leases](provisioning-job-leases.md) — worker heartbeats and stable AWG candidate UUIDs prevent stuck jobs and duplicate clients.
 - [PWA base paths](pwa-base-paths.md) — manifest and service-worker URLs must stay relative to the artifact base across Replit and Hostinger builds.
