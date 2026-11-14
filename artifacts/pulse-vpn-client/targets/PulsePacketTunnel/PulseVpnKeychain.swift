@@ -1,11 +1,11 @@
 import Foundation
 import Security
 
-public enum PulseVpnKeychain {
+enum PulseVpnKeychain {
   private static let service = "com.pulse.vpnclient.shared.vpn"
   private static let sharedAccessGroupSuffix = ".com.pulse.vpnclient.shared"
 
-  public static func read(key: String) throws -> Data? {
+  static func read(key: String) throws -> Data? {
     var query = try baseQuery(key: key)
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -21,14 +21,10 @@ public enum PulseVpnKeychain {
     return result as? Data
   }
 
-  public static func write(_ data: Data, key: String) throws {
+  static func write(_ data: Data, key: String) throws {
     let query = try baseQuery(key: key)
-    let attributes: [String: Any] = [
-      kSecValueData as String: data,
-      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-    ]
-
-    let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+    let updateAttributes: [String: Any] = [kSecValueData as String: data]
+    let updateStatus = SecItemUpdate(query as CFDictionary, updateAttributes as CFDictionary)
     if updateStatus == errSecSuccess {
       return
     }
@@ -36,15 +32,16 @@ public enum PulseVpnKeychain {
       throw keychainError(updateStatus)
     }
 
-    var newItem = query
-    attributes.forEach { newItem[$0.key] = $0.value }
-    let addStatus = SecItemAdd(newItem as CFDictionary, nil)
+    var item = query
+    item[kSecValueData as String] = data
+    item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    let addStatus = SecItemAdd(item as CFDictionary, nil)
     guard addStatus == errSecSuccess else {
       throw keychainError(addStatus)
     }
   }
 
-  public static func remove(key: String) throws {
+  static func remove(key: String) throws {
     let status = SecItemDelete(try baseQuery(key: key) as CFDictionary)
     guard status == errSecSuccess || status == errSecItemNotFound else {
       throw keychainError(status)

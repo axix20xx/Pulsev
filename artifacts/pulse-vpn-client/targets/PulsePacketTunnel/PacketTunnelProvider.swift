@@ -51,6 +51,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     activeProfile = profile
     startCompletion = completionHandler
+    PulseVpnRuntimeStore.clear()
     PulseVpnRuntimeStore.appendDiagnostic("Tunnel start requested for \(profile.protocolName).")
 
     switch profile.protocolName {
@@ -78,9 +79,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
       }
     } else if let openVpnAdapter {
       openVpnAdapter.disconnect()
-      if self.openVpnAdapter == nil {
-        finishStop()
-      }
     } else {
       finishStop()
     }
@@ -94,7 +92,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
       )
       let adapter = WireGuardAdapter(with: self) { level, message in
         if level == .error {
-          PulseVpnRuntimeStore.appendDiagnostic("WireGuard engine: \(message)")
+          PulseVpnRuntimeStore.appendDiagnostic("WireGuard engine reported an error.")
         }
       }
       wireGuardAdapter = adapter
@@ -169,7 +167,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     } else if let openVpnAdapter {
       let statistics = openVpnAdapter.interfaceStatistics
       writeRuntimeStatus(
-        state: "CONNECTED",
+        state: openVpnAdapter.connectionInformation == nil ? "CONNECTING" : "CONNECTED",
         upload: Int64(max(0, statistics.bytesOut)),
         download: Int64(max(0, statistics.bytesIn))
       )
@@ -221,7 +219,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
   private func finishStop() {
     statisticsTimer?.cancel()
     statisticsTimer = nil
-    PulseVpnRuntimeStore.clear()
+    let runtimeState = UserDefaults(suiteName: "group.com.pulse.vpnclient")?
+      .dictionary(forKey: "pulse-vpn.runtime-status")?["state"] as? String
+    if runtimeState != "ERROR" {
+      PulseVpnRuntimeStore.clear()
+    }
     wireGuardAdapter = nil
     openVpnAdapter = nil
     activeProfile = nil

@@ -2928,3 +2928,17 @@ mtime_ms = 1794477614835
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/4f16fc99-0272-4155-bac9-a2106da45ff8/be2e2cad-8e0f-41f2-91b0-940e3490f6d2"
 storage_version_token = "1794477653572972"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "FtOuFn_JcwywOFELWnvtU"
+uri = "file://generated-artifacts/Pulsev-iOS-source.zip"
+type = "unspecified"
+title = "Pulse iOS source bundle"
+description = "2.3 MB iOS source archive with the Expo app, generated Xcode project, Packet Tunnel extension, native module, and build instructions. Source only; no signed IPA."
+logical_id = "ea9ad175-680d-4cf7-82af-d89c363bf970"
+content_hash = "sha256:95f1774a8bca0cda2ab487f09c6d581ffac79cb3563242f6b9f75e2f7c05aa4a"
+size = 2352881
+mtime_ms = 1794668872740
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:7e0f6d28-6893-457e-a4e1-24e46b0b127e/ea9ad175-680d-4cf7-82af-d89c363bf970/3d52ff2b-d1c2-40c8-9212-1ac1bb0ae490"
+storage_version_token = "1794668904522798"
+content_type = "application/octet-stream"

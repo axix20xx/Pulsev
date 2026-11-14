@@ -1,6 +1,7 @@
 const { withXcodeProjectBeta } = require("@bacons/apple-targets/build/with-bacons-xcode");
 const {
   PBXBuildFile,
+  PBXShellScriptBuildPhase,
   XCRemoteSwiftPackageReference,
   XCSwiftPackageProductDependency,
 } = require("@bacons/xcode");
@@ -49,6 +50,51 @@ module.exports = function withPulseVpnPackages(config) {
     project.rootObject.props.packageReferences ??= [];
     target.props.packageProductDependencies ??= [];
     const frameworkPhase = target.getFrameworksBuildPhase();
+
+    const goBuildPhaseName = "Build AmneziaWG Go backend without Xray";
+    let goBuildPhase = target.props.buildPhases.find(
+      (phase) => PBXShellScriptBuildPhase.is(phase) && phase.props.name === goBuildPhaseName,
+    );
+    if (!goBuildPhase) {
+      goBuildPhase = target.createBuildPhase(PBXShellScriptBuildPhase, {
+        name: goBuildPhaseName,
+        shellPath: "/bin/bash",
+        shellScript: [
+          "set -euo pipefail",
+          'PACKAGE_ROOT="${BUILD_DIR}/../../SourcePackages/checkouts/amneziawg-apple"',
+          'GO_BRIDGE="${PACKAGE_ROOT}/Sources/WireGuardKitGo"',
+          'BUILD_SOURCE="${DERIVED_FILE_DIR}/amneziawg-go-source"',
+          'if [ ! -f "${GO_BRIDGE}/Makefile" ]; then',
+          '  echo "error: AmneziaWG WireGuardKit Go sources were not checked out."',
+          "  exit 1",
+          "fi",
+          'if ! command -v go >/dev/null 2>&1; then',
+          '  echo "error: Go 1.26 or newer is required to build the AmneziaWG iOS engine."',
+          "  exit 1",
+          "fi",
+          'rm -rf "${BUILD_SOURCE}"',
+          'mkdir -p "${BUILD_SOURCE}"',
+          'rsync -a --exclude "api-xray.go" "${GO_BRIDGE}/" "${BUILD_SOURCE}/"',
+          '(cd "${BUILD_SOURCE}" && go mod tidy)',
+          'GO_PLATFORM="${PLATFORM_NAME}"',
+          'if [ "${PLATFORM_NAME}" = "iphonesimulator" ]; then GO_PLATFORM="iphoneos"; fi',
+          'make -C "${BUILD_SOURCE}" build \\',
+          '  ARCHS="${ARCHS}" \\',
+          '  PLATFORM_NAME="${GO_PLATFORM}" \\',
+          '  SDKROOT="${SDKROOT}" \\',
+          '  CONFIGURATION_BUILD_DIR="${GO_BRIDGE}/out" \\',
+          '  CONFIGURATION_TEMP_DIR="${DERIVED_FILE_DIR}/amneziawg-go"',
+        ].join("\n"),
+      });
+      target.props.buildPhases.splice(target.props.buildPhases.indexOf(goBuildPhase), 1);
+      const frameworkIndex = target.props.buildPhases.indexOf(frameworkPhase);
+      target.props.buildPhases.splice(frameworkIndex, 0, goBuildPhase);
+    } else {
+      const currentIndex = target.props.buildPhases.indexOf(goBuildPhase);
+      if (currentIndex !== -1) target.props.buildPhases.splice(currentIndex, 1);
+      const frameworkIndex = target.props.buildPhases.indexOf(frameworkPhase);
+      target.props.buildPhases.splice(frameworkIndex, 0, goBuildPhase);
+    }
 
     for (const item of PACKAGES) {
       let packageReference = project.rootObject.props.packageReferences.find(

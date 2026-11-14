@@ -1,6 +1,6 @@
 require 'json'
 
-package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
+package = JSON.parse(File.read(File.join(__dir__, '..', 'package.json')))
 
 Pod::Spec.new do |spec|
   spec.name = 'PulseVpnEngine'
@@ -14,6 +14,6 @@ Pod::Spec.new do |spec|
   spec.platforms = { :ios => '15.1' }
   spec.static_framework = true
   spec.dependency 'ExpoModulesCore'
-  spec.source_files = 'ios/**/*.{h,m,mm,swift}'
+  spec.source_files = '**/*.{h,m,mm,swift}'
   spec.frameworks = 'NetworkExtension', 'Security', 'Network', 'UIKit'
 end

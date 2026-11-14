@@ -27,3 +27,17 @@ the client.
   <https://github.com/amnezia-vpn/amneziawg-android>
 
 Keep each dependency's upstream notices when preparing a release bundle.
+
+## iOS native VPN engines
+
+- AmneziaWG Apple / WireGuardKit `v3.1.5`: MIT,
+  <https://github.com/amnezia-vpn/amneziawg-apple>. The iOS build excludes the
+  upstream Xray-only Go entry point; the app exposes only WireGuard, AmneziaWG,
+  and OpenVPN.
+- OpenVPNAdapter `0.8.0`: GNU AGPL v3,
+  <https://github.com/ss-abramchuk/OpenVPNAdapter>. It is based on OpenVPN 3
+  Core, and its upstream repository is archived. Review licensing and refresh
+  or replace the adapter before distribution.
+
+Include the corresponding upstream license texts and required source notices
+with any binary distribution.

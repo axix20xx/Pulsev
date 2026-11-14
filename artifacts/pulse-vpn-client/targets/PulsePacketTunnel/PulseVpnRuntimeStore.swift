@@ -1,12 +1,12 @@
 import Foundation
 
-public enum PulseVpnRuntimeStore {
+enum PulseVpnRuntimeStore {
   private static let appGroup = "group.com.pulse.vpnclient"
   private static let statusKey = "pulse-vpn.runtime-status"
   private static let diagnosticsKey = "pulse-vpn.diagnostics"
   private static let maximumDiagnosticEntries = 120
 
-  public static func update(
+  static func update(
     protocolName: String,
     profileId: String,
     profileName: String,
@@ -23,18 +23,18 @@ public enum PulseVpnRuntimeStore {
       "state": state,
       "uploadBytes": max(0, uploadBytes),
       "downloadBytes": max(0, downloadBytes),
-      "connectedAt": connectedAt as Any? ?? NSNull(),
+      "connectedAt": connectedAt.map { $0 as Any } ?? NSNull(),
       "updatedAt": Int64(Date().timeIntervalSince1970 * 1000),
       "error": error as Any? ?? NSNull(),
     ]
     UserDefaults(suiteName: appGroup)?.set(payload, forKey: statusKey)
   }
 
-  public static func clear() {
+  static func clear() {
     UserDefaults(suiteName: appGroup)?.removeObject(forKey: statusKey)
   }
 
-  public static func appendDiagnostic(_ message: String) {
+  static func appendDiagnostic(_ message: String) {
     guard let defaults = UserDefaults(suiteName: appGroup) else { return }
     var entries = defaults.stringArray(forKey: diagnosticsKey) ?? []
     let safeMessage = message

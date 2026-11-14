@@ -20,6 +20,9 @@
         "keychain-access-groups": [
           "$(AppIdentifierPrefix)com.pulse.vpnclient.shared"
         ]
+      },
+      "infoPlist": {
+        "PulseKeychainAccessGroup": "$(AppIdentifierPrefix)com.pulse.vpnclient.shared"
       }
     },
     "android": {

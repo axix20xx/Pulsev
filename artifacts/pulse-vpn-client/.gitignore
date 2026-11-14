@@ -12,6 +12,9 @@ expo-env.d.ts
 # Native
 ios/
 android/
+# Keep the authored local Expo module source; only the generated app ios/ tree is ignored.
+!modules/pulse-vpn-engine/ios/
+!modules/pulse-vpn-engine/ios/**
 # The local Expo module's Android sources are maintained by this project.
 !modules/pulse-vpn-engine/android/
 !modules/pulse-vpn-engine/android/**

@@ -3,11 +3,17 @@ name: In-app VPN connection requirement
 description: The customer mobile VPN client must establish tunnels inside its own native app.
 ---
 
-The Pulse customer mobile client must establish VPN connections internally through native Android tunnel engines; do not replace connection behavior with launching another VPN app.
+The Pulse customer mobile client must establish VPN connections internally through its native Android and iOS tunnel engines; do not replace connection behavior with launching another VPN app.
 
-**Why:** The user explicitly rejected external-app handoff and requested direct in-app connections for OpenVPN, WireGuard, AmneziaWG, and V2Ray-compatible profiles.
+**Why:** The user explicitly rejected external-app handoff and requested direct in-app connections.
 
 **How to apply:** Integrate and test each protocol's native engine separately. Only display connected state from the engine's real lifecycle/status events; never present profile availability as an active connection.
+
+The supported mobile protocols are OpenVPN, WireGuard, and AmneziaWG only. Do not add V2Box, Xray/V2Ray, or other protocol engines unless the user changes this scope.
+
+**Why:** The user explicitly narrowed mobile support to those three protocols and asked to remove the others.
+
+**How to apply:** Keep UI choices, native module methods, build dependencies, and packaged engine entry points limited to those protocols. The AmneziaWG Apple package contains an optional Xray Go entry point; exclude it from the iOS build.
 
 For sing-box on mobile, verify connectivity with a non-empty response body; change the TUN MTU only when packet-size diagnostics support it.
 
