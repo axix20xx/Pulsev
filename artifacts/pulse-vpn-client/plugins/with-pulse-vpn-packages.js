@@ -75,6 +75,7 @@ module.exports = function withPulseVpnPackages(config) {
           'rm -rf "${BUILD_SOURCE}"',
           'mkdir -p "${BUILD_SOURCE}"',
           'rsync -a --exclude "api-xray.go" "${GO_BRIDGE}/" "${BUILD_SOURCE}/"',
+          'chmod -R u+w "${BUILD_SOURCE}"',
           '(cd "${BUILD_SOURCE}" && go mod tidy)',
           'GO_PLATFORM="${PLATFORM_NAME}"',
           'if [ "${PLATFORM_NAME}" = "iphonesimulator" ]; then GO_PLATFORM="iphoneos"; fi',
