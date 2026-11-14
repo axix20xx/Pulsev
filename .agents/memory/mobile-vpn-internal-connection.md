@@ -15,6 +15,12 @@ The supported mobile protocols are OpenVPN, WireGuard, and AmneziaWG only. Do no
 
 **How to apply:** Keep UI choices, native module methods, build dependencies, and packaged engine entry points limited to those protocols. The AmneziaWG Apple package contains an optional Xray Go entry point; exclude it from the iOS build.
 
+Apple has approved the Network Extension Packet Tunnel entitlement for the Pulse iOS app.
+
+**Why:** The user confirmed Apple's approval.
+
+**How to apply:** Configure the app and extension signing through Expo Launch using the approved capability; approval does not itself provide signing certificates or provisioning profiles.
+
 For sing-box on mobile, verify connectivity with a non-empty response body; change the TUN MTU only when packet-size diagnostics support it.
 
 **Why:** A zero-body HTTP 204 can succeed without confirming payload delivery, while a fixed MTU without path evidence can mask the actual routing or DNS defect.
