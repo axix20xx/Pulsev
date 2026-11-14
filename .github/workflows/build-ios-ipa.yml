@@ -98,6 +98,9 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=''
 
+      - name: Verify VPN entitlement metadata and embedded extension
+        run: bash artifacts/pulse-vpn-client/scripts/verify-ios-vpn-package.sh "$RUNNER_TEMP/PulseVPNClientDerivedData/Build/Products/Release-iphoneos/PulseVPNClient.app"
+
       - name: Package the unsigned IPA
         shell: bash
         run: |

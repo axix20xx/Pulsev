@@ -26,3 +26,14 @@ For a signed build, register the app ID `com.pulse.vpnclient` and extension ID
 `com.pulse.vpnclient.PacketTunnel` with the Apple team and enable the approved
 Packet Tunnel entitlement, App Group `group.com.pulse.vpnclient`, and Keychain
 Sharing capability on the relevant identifiers and provisioning profiles.
+
+The GitHub worker checks the app and extension entitlements, bundle IDs,
+extension point, and that the `.appex` is embedded before uploading the IPA.
+This catches packaging regressions, but it cannot grant capabilities while
+signing. The profile Sideloadly uses must authorize
+`com.apple.developer.networking.networkextension` with
+`packet-tunnel-provider` for the app and extension. Apple's capability matrix
+does not list Network Extensions for the free Apple Developer account tier, so
+a free-account Sideloadly signature cannot run this Packet Tunnel. Use an
+Apple Developer Program team/profile with the capability enabled, and do not
+remove the embedded extension in Sideloadly.
